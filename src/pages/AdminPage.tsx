@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { adminSetUserRole, type BackendRole } from '@/services/role.service';
 
-type AdminTab = 'dashboard' | 'competitions' | 'users' | 'roles' | 'posts' | 'orders' | 'shop' | 'settings';
+type AdminTab = 'dashboard' | 'competitions' | 'users' | 'roles' | 'posts' | 'orders' | 'shop' | 'banners' | 'settings';
 const tabs: { key: AdminTab; label: string; icon: typeof Trophy }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'competitions', label: 'Lomba', icon: Trophy },
@@ -17,6 +17,7 @@ const tabs: { key: AdminTab; label: string; icon: typeof Trophy }[] = [
   { key: 'posts', label: 'Postingan', icon: FileText },
   { key: 'orders', label: 'Pesanan', icon: ShoppingBag },
   { key: 'shop', label: 'Shop', icon: Store },
+  { key: 'banners', label: 'Banner Iklan', icon: Megaphone },
   { key: 'settings', label: 'Pengaturan', icon: Settings },
 ];
 const roleLabel: Record<string, string> = { student: 'Pelajar', teacher: 'Guru', organizer_member: 'Penyelenggara', admin: 'Admin' };
