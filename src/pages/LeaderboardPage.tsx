@@ -192,12 +192,18 @@ export function LeaderboardPage() {
 
 function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mode }) {
   const border = place === 1 ? 'border-amber-500/40 ring-2 ring-amber-500/20' : place === 2 ? 'border-slate-400/30' : 'border-orange-600/30';
-  const h = place === 1 ? 'h-44' : 'h-36';
+  const h = place === 1 ? 'h-52' : 'h-40';
   return (
     <div className={`card p-3 flex flex-col items-center ${border} ${h}`}>
-      <div className="relative w-full mb-2">
-        <div className="rounded-xl overflow-hidden bg-ink-800" style={{ aspectRatio: '4/5' }}>
-          <Avatar name={entry.display_name} id={entry.user_id} size={120} src={entry.avatar_url ?? undefined} shape="square" />
+      <div className="relative w-full mb-2 flex-1">
+        <div className="w-full h-full rounded-xl overflow-hidden bg-ink-800" style={{ aspectRatio: '4/5' }}>
+          {entry.avatar_url ? (
+            <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-moss-500/10">
+              <span className="text-4xl font-bold text-moss-300">{(entry.display_name || 'U').charAt(0).toUpperCase()}</span>
+            </div>
+          )}
         </div>
         <div className="absolute -bottom-1.5 -right-1.5">
           <RankBadge rank={place} size="sm" />
