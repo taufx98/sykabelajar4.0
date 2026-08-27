@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar, ChevronRight, FileText, Flame, Heart, MessageCircle, Search, Share2, Sparkles, Trophy } from 'lucide-react';
+import { BannerCarousel } from '@/components/ui/BannerCarousel';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -33,8 +34,8 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
     <div>
       {/* ===== STICKY HEADER ===== */}
       <div className="sticky top-0 z-20 glass border-b border-white/5">
-        <div className="px-4 py-2 flex items-center justify-end">
-          <Sparkles size={18} className="text-moss-400" />
+        <div className="px-4 py-2">
+          <BannerCarousel />
         </div>
         {/* Running text / announcement marquee — always scrolling */}
         <div className="relative overflow-hidden bg-moss-500/5 border-t border-moss-500/10">

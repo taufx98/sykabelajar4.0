@@ -33,6 +33,8 @@ import { OrganizerPlanPage } from '@/pages/OrganizerPlanPage';
 import { CertificateLifecyclePage } from '@/pages/CertificateLifecyclePage';
 import { SocialFeedPage } from '@/pages/SocialFeedPage';
 import { TwibbonPage } from '@/pages/TwibbonPage';
+import { AdminBannersPage } from '@/pages/AdminBannersPage';
+import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
 import { getUserRoles } from '@/services/role.service';
 import { supabase } from '@/lib/supabase';
 
@@ -103,6 +105,7 @@ function AppRoutes() {
       <Route path="/organizer/competition/:id/config" element={<RoleRoute role="organizer_member"><OrganizerCompetitionConfigPage /></RoleRoute>} />
       <Route path="/organizer/grading" element={<RoleRoute role="organizer_member"><OrganizerGradingPage /></RoleRoute>} />
       <Route path="/organizer/plan" element={<RoleRoute role="organizer_member"><OrganizerPlanPage /></RoleRoute>} />
+      <Route path="/organizer/ads" element={<RoleRoute role="organizer_member"><OrganizerAdRequestPage /></RoleRoute>} />
       <Route path="/admin" element={<RoleRoute role="admin"><AdminPage /></RoleRoute>} />
       <Route path="/admin/roles" element={<RoleRoute role="admin"><AdminRolesPage /></RoleRoute>} />
       <Route path="/admin/orders/review" element={<RoleRoute role="admin"><AdminOrdersReviewPage /></RoleRoute>} />
@@ -111,6 +114,7 @@ function AppRoutes() {
       <Route path="/admin/awards" element={<RoleRoute role="admin"><AdminAwardsPage /></RoleRoute>} />
       <Route path="/admin/moderation" element={<RoleRoute role="admin"><AdminModerationPage /></RoleRoute>} />
       <Route path="/admin/fulfillment" element={<RoleRoute role="admin"><AdminFulfillmentPage /></RoleRoute>} />
+      <Route path="/admin/banners" element={<RoleRoute role="admin"><AdminBannersPage /></RoleRoute>} />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
