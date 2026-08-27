@@ -194,7 +194,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             {/* Top 5 Peringkat — XP / Point Edu toggle */}
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-display font-semibold text-white text-sm">Top 5 Peringkat</h3>
+                <div className="flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-moss-400"><path d="M12 2l2.09 6.26L20.18 9l-5.09 3.74L16.18 19 12 15.77 7.82 19l1.09-6.26L3.82 9l6.09-.74L12 2z" fill="currentColor"/></svg><h3 className="font-display font-semibold text-white text-sm">Top 5 Peringkat</h3></div>
                 <Link to="/leaderboard" className="text-[11px] text-moss-400 hover:text-moss-300">
                   Lihat semua
                 </Link>

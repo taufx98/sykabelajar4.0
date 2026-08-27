@@ -23,7 +23,7 @@ export function ProfilePage() {
     (async () => {
       setLoading(true);
       try {
-        const { data: p, error } = await supabase.from('public_profiles').select('id,username,full_name,institution,avatar_url,bio,created_at').eq('username', username || '').maybeSingle();
+        const { data: p, error } = await supabase.from('public_profiles').select('id,username,full_name,institution,avatar_url,bio').eq('username', username || '').maybeSingle();
         if (error) throw error;
         if (!p) { if (alive) setProfile(null); return; }
         const { data: a } = await supabase.from('awards').select('*').eq('user_id', p.id).order('issued_at', { ascending: false });
@@ -55,7 +55,7 @@ export function ProfilePage() {
     </div>
     <div className="p-4 -mt-10 relative">
       <div className="flex items-end gap-3"><Avatar name={profile.full_name || profile.username || 'U'} id={profile.id} size={84} ring src={profile.avatar_url || undefined}/><div className="pb-1 flex-1"><h1 className="font-display text-xl font-bold text-white">{profile.full_name || profile.username}</h1><p className="text-xs text-slate-500">@{profile.username}</p></div>{isOwn && <Link to="/profile/edit"><Button size="sm" variant="outline" icon={<Edit2 size={14}/>}>Edit</Button></Link>}</div>
-      <Card className="p-4 mt-4"><div className="flex items-center gap-2 text-xs text-slate-400"><GraduationCap size={15} className="text-moss-400"/>{profile.institution || 'Institusi belum diisi'}</div>{profile.bio && <p className="text-sm text-slate-300 mt-3">{profile.bio}</p>}<p className="text-[11px] text-slate-600 mt-3 flex items-center gap-1"><Calendar size={11}/> Bergabung {formatShortDate(profile.created_at)}</p></Card>
+      <Card className="p-4 mt-4"><div className="flex items-center gap-2 text-xs text-slate-400"><GraduationCap size={15} className="text-moss-400"/>{profile.institution || 'Institusi belum diisi'}</div>{profile.bio && <p className="text-sm text-slate-300 mt-3">{profile.bio}</p>}<p className="text-[11px] text-slate-600 mt-3 flex items-center gap-1"><Calendar size={11}/> Bergabung {profile.created_at ? formatShortDate(profile.created_at) : "—"}</p></Card>
       <div className="grid grid-cols-3 gap-2 mt-4"><Card className="p-3 text-center"><p className="text-xs text-slate-500">Prestasi</p><p className="text-lg font-bold text-white">{awards.length}</p></Card><Card className="p-3 text-center"><p className="text-xs text-slate-500">XP</p><p className="text-lg font-bold text-white">—</p></Card><Card className="p-3 text-center"><p className="text-xs text-slate-500">Status</p><Badge color="moss">Aktif</Badge></Card></div>
       <div className="flex items-center gap-2 mt-6"><Trophy size={17} className="text-moss-400"/><h2 className="font-display font-bold text-white">Prestasi</h2></div>
       <div className="grid sm:grid-cols-2 gap-3 mt-3">{awards.map((a)=><Card key={a.id} className="p-4"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-moss-500/10 flex items-center justify-center"><Award size={18} className="text-moss-400"/></div><div className="flex-1 min-w-0"><p className="text-sm text-white font-semibold truncate">{a.title}</p><p className="text-xs text-slate-500">{a.rank_code || 'Penghargaan'} · {a.issued_at ? formatShortDate(a.issued_at) : '—'}</p></div><RankBadge rank={parseInt(String(a.rank_code).replace(/\D/g, '')) || 0} /></div></Card>)}{!awards.length && <Card className="p-8 text-center text-sm text-slate-500 sm:col-span-2">Belum ada penghargaan.</Card>}</div>
