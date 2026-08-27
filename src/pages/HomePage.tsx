@@ -33,14 +33,13 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
     <div>
       {/* ===== STICKY HEADER ===== */}
       <div className="sticky top-0 z-20 glass border-b border-white/5">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <h2 className="font-display font-bold text-lg text-white">Beranda</h2>
+        <div className="px-4 py-2 flex items-center justify-end">
           <Sparkles size={18} className="text-moss-400" />
         </div>
-        {/* Running text / announcement marquee */}
+        {/* Running text / announcement marquee — always scrolling */}
         <div className="relative overflow-hidden bg-moss-500/5 border-t border-moss-500/10">
-          <div className="flex whitespace-nowrap animate-marquee py-1.5">
-            {[...runningTexts, ...runningTexts].map((text, i) => (
+          <div className="flex whitespace-nowrap animate-marquee py-1.5" style={{ animationDuration: '25s' }}>
+            {[...runningTexts, ...runningTexts, ...runningTexts].map((text, i) => (
               <span key={i} className="inline-flex items-center gap-2 mx-6 text-[11px] text-moss-300/80">
                 <span className="w-1.5 h-1.5 rounded-full bg-moss-400/60 shrink-0" />
                 {text}
@@ -55,24 +54,24 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
 
           {/* ===== CENTER COLUMN ===== */}
           <main className="space-y-4 min-w-0">
-            {/* Lomba / Prestasi tabs */}
-            <div className="flex justify-center">
-              <div className="flex gap-1 bg-ink-800/60 rounded-xl p-1">
-                {(['lomba', 'prestasi'] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTab(t)}
-                    className={`relative px-8 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                      tab === t
-                        ? 'bg-moss-500/15 text-moss-300 shadow-sm shadow-moss-500/10'
-                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-                    }`}
-                  >
-                    {tab === t && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-moss-400 rounded-full" />}
-                    {t === 'lomba' ? 'Lomba' : 'Prestasi'}
-                  </button>
-                ))}
-              </div>
+            {/* Lomba / Prestasi tabs — full width, underline style */}
+            <div className="flex border-b border-white/5">
+              {(['lomba', 'prestasi'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`flex-1 py-3 text-sm font-medium transition-all relative ${
+                    tab === t
+                      ? 'text-moss-300'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {t === 'lomba' ? 'Lomba' : 'Prestasi'}
+                  {tab === t && (
+                    <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-[2px] bg-moss-400 rounded-full" />
+                  )}
+                </button>
+              ))}
             </div>
 
             {/* Feed */}
