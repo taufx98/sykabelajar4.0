@@ -20,7 +20,9 @@ export function HomePage(){
  useEffect(()=>{void loadFirst()},[]);
  const loadMore=async()=>{if(!cursor||loadingMore)return;setLoadingMore(true);try{const{items,nextCursor}=await listPublishedPostsPage(15,cursor);setPosts(p=>[...p,...items]);setCursor(nextCursor)}catch(e:any){toast(e?.message??'Feed gagal dimuat.','error')}finally{setLoadingMore(false)}};
  const searchResults=useMemo(()=>{if(!searchQuery.trim())return[];const q=searchQuery.toLowerCase();const compResults=competitions.filter((c:any)=>String(c.title??'').toLowerCase().includes(q)||String(c.slug??'').toLowerCase().includes(q)).map((c:any)=>({id:c.id,title:c.title,slug:c.slug,type:'competition' as const}));const postResults=posts.filter((p:any)=>String(p.title??'').toLowerCase().includes(q)||String(p.body??'').toLowerCase().includes(q)).map((p:any)=>({id:p.id,title:p.title,slug:'',type:'post' as const}));return[...compResults,...postResults].slice(0,8);},[searchQuery,competitions,posts]);
- const filtered=useMemo(()=>tab==='lomba'?posts.filter(p=>Boolean(p.competition_id)):posts.filter(p=>!p.competition_id),[posts,tab]);const unread=notifications.filter(n=>!n.read).slice(0,5);const nextCompetition=competitions.find((c:any)=>['REGISTRATION_OPEN','LIVE'].includes(String(c.status)))??competitions[0];
+ const lombaPosts=useMemo(()=>posts.filter(p=>Boolean(p.competition_id)),[posts]);
+const prestasiPosts=useMemo(()=>posts.filter(p=>!p.competition_id),[posts]);
+const showCompetitions=tab==='lomba'&&lombaPosts.length===0&&competitions.length>0;const unread=notifications.filter(n=>!n.read).slice(0,5);const nextCompetition=competitions.find((c:any)=>['REGISTRATION_OPEN','LIVE'].includes(String(c.status)))??competitions[0];
  const like=async(id:string)=>{if(isGuest||!user){toast('Masuk untuk menyukai postingan.','info');return;}try{await togglePostLike(id);await loadFirst()}catch(e:any){toast(e?.message??'Gagal memperbarui like.','error')}};
  // Running text announcements — TODO: connect to admin settings / platform_settings table
 const runningTexts = [
@@ -81,8 +83,61 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 <SkeletonCard />
                 <SkeletonCard />
               </div>
-            ) : filtered.length ? (
-              filtered.map((post) => (
+            ) : tab === 'lomba' ? (
+              showCompetitions ? (
+                competitions.map((comp) => (
+                  <Card key={comp.id} className="overflow-hidden">
+                    <div className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-moss-500/10 flex items-center justify-center">
+                          <Trophy size={18} className="text-moss-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white">{comp.organizer_name || 'Penyelenggara'}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="chip bg-moss-500/10 text-moss-300 border border-moss-500/20 text-[10px]">Lomba</span>
+                            <span className="text-[11px] text-slate-600">· {comp.category || 'Kompetisi'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Link to={`/lomba/${comp.slug}`}>
+                        <h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{comp.title}</h3>
+                        {comp.short_description && <p className="text-sm text-slate-300 leading-relaxed mb-3">{comp.short_description}</p>}
+                        {comp.poster_url && <img src={comp.poster_url} alt={comp.title} loading="lazy" className="w-full max-h-96 object-cover rounded-xl border border-white/5 mt-2" />}
+                        <p className="text-xs text-moss-400 flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14} /></p>
+                      </Link>
+                    </div>
+                    <div className="px-4 py-3 border-t border-white/5 flex items-center gap-4 text-xs text-slate-500">
+                      <span>{comp.participant_count || 0} peserta</span>
+                      <span className="ml-auto">
+                        {comp.status === 'REGISTRATION_OPEN' ? 'Pendaftaran dibuka' :
+                         comp.status === 'LIVE' ? 'Sedang berlangsung' :
+                         comp.status === 'PUBLISHED' ? 'Segera dibuka' : comp.status}
+                      </span>
+                    </div>
+                  </Card>
+                ))
+              ) : lombaPosts.length ? (
+                lombaPosts.map((post) => (
+                  <FeedPostCard
+                    key={post.id}
+                    post={post}
+                    expanded={expanded === post.id}
+                    onExpand={() => setExpanded((v) => (v === post.id ? null : post.id))}
+                    onLike={() => void like(post.id)}
+                    onShare={() => void sharePost(post)}
+                    onOpen={() => post.competition_slug && navigate(`/lomba/${post.competition_slug}`)}
+                    isGuest={isGuest}
+                  />
+                ))
+              ) : (
+                <Card className="p-10 text-center">
+                  <Trophy size={32} className="mx-auto text-slate-600 mb-3" />
+                  <p className="text-sm text-slate-400">Belum ada lomba publik.</p>
+                </Card>
+              )
+            ) : prestasiPosts.length ? (
+              prestasiPosts.map((post) => (
                 <FeedPostCard
                   key={post.id}
                   post={post}
@@ -97,11 +152,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             ) : (
               <Card className="p-10 text-center">
                 <Trophy size={32} className="mx-auto text-slate-600 mb-3" />
-                <p className="text-sm text-slate-400">
-                  {tab === 'lomba'
-                    ? 'Belum ada postingan lomba publik.'
-                    : 'Belum ada postingan prestasi.'}
-                </p>
+                <p className="text-sm text-slate-400">Belum ada postingan prestasi.</p>
               </Card>
             )}
             {cursor && (

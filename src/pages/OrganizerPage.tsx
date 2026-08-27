@@ -22,7 +22,7 @@ export function OrganizerPage() {
   const [competitionEditor, setCompetitionEditor] = useState<any | null>(null);
   const [questionEditor, setQuestionEditor] = useState<any | null>(null);
   const [twibbonEditor, setTwibbonEditor] = useState<any | null>(null);
-  const tabs: Tab[] = [{key:'overview',label:'Ringkasan',Icon:Building2},{key:'competitions',label:'Lomba',Icon:Trophy},{key:'registrations',label:'Pendaftar',Icon:Users},{key:'questions',label:'Bank Soal',Icon:FileQuestion},{key:'twibbon',label:'Twibbon',Icon:Image},{key:'plans',label:'Plan {key:'plans',label:'Plan & Usage',Icon:Settings} Usage',Icon:Settings},{key:'ads',label:'Pasang Iklan',Icon:Megaphone}];
+  const tabs: Tab[] = [{key:'overview',label:'Ringkasan',Icon:Building2},{key:'competitions',label:'Lomba',Icon:Trophy},{key:'registrations',label:'Pendaftar',Icon:Users},{key:'questions',label:'Bank Soal',Icon:FileQuestion},{key:'twibbon',label:'Twibbon',Icon:Image},{key:'plans',label:'Plan & Usage',Icon:Settings},{key:'ads',label:'Pasang Iklan',Icon:Megaphone}];
 
   const load = async () => {
     const { data: auth } = await supabase.auth.getUser();
