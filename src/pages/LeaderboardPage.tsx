@@ -1,22 +1,241 @@
-import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { RankBadge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
 import { getPublicLeaderboard, type PublicLeaderboardRow } from '@/services/platform.service';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/store/AppContext';
 
 type Mode = 'xp' | 'coin';
-type CoinRow = { user_id:string; username:string; display_name:string; institution:string|null; avatar_url:string|null; edu_coin:number; rank:number };
+type CoinRow = { user_id: string; username: string; display_name: string; institution: string | null; avatar_url: string | null; edu_coin: number; rank: number };
 
-export function LeaderboardPage(){
- const{user}=useApp();const[mode,setMode]=useState<Mode>('xp');const[entries,setEntries]=useState<PublicLeaderboardRow[]>([]);const[coins,setCoins]=useState<CoinRow[]>([]);const[loading,setLoading]=useState(true);const[error,setError]=useState('');
- useEffect(()=>{let active=true;const load=async()=>{setLoading(true);setError('');try{if(mode==='xp'){const rows=await getPublicLeaderboard(100);if(active)setEntries(rows);}else{const{data,error}=await supabase.rpc('get_public_coin_leaderboard',{p_limit:100});if(error)throw error;if(active)setCoins(((data??[]) as any[]).map(r=>({user_id:String(r.user_id),username:String(r.username??''),display_name:String(r.display_name??r.username??'Pengguna'),institution:r.institution==null?null:String(r.institution),avatar_url:r.avatar_url==null?null:String(r.avatar_url),edu_coin:Number(r.edu_coin??0),rank:Number(r.rank??0)})));}}catch(e:any){if(active){setError(e?.message??'Papan peringkat gagal dimuat.');setEntries([]);setCoins([])}}finally{if(active)setLoading(false)}};void load();return()=>{active=false}},[mode]);
- const rows=mode==='xp'?entries:coins as any[];const top3=rows.slice(0,3);const rest=rows.slice(3);
- return <div><div className="sticky top-0 z-20 glass border-b border-white/5 px-4 py-3"><h2 className="font-display font-bold text-lg text-white">Papan Peringkat</h2><div className="flex items-center gap-1.5 mt-2"><button onClick={()=>setMode('xp')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${mode==='xp'?'bg-moss-500/15 text-moss-300':'text-slate-500'}`}>XP Global</button><button onClick={()=>setMode('coin')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${mode==='coin'?'bg-moss-500/15 text-moss-300':'text-slate-500'}`}>Edu Coin</button><span className="ml-auto flex items-center gap-1 text-xs text-moss-400"><span className="w-2 h-2 rounded-full bg-moss-400 animate-pulse"/>Live</span></div></div><div className="p-4 space-y-4">{loading&&<Card className="p-8 text-center text-sm text-slate-500">Memuat papan peringkat dari backend...</Card>}{!loading&&error&&<Card className="p-8 text-center text-sm text-red-300">{error}</Card>}{!loading&&!error&&top3.length>=3&&<div className="grid grid-cols-3 gap-2">{top3.map((entry:any,idx)=>{const place=(idx+1) as 1|2|3;return <TopBox key={entry.user_id} entry={entry} place={place} mode={mode}/>})}</div>}{!loading&&!error&&<div className="space-y-2">{rest.map((entry:any)=><LeaderboardRow key={entry.user_id} entry={entry} currentUserId={user?.id} mode={mode}/>)}</div>}{!loading&&!error&&!rows.length&&<Card className="p-8 text-center text-sm text-slate-500">Belum ada data {mode==='xp'?'XP':'Edu Coin'} publik.</Card>}<p className="text-center text-xs text-slate-600 pt-4">Data peringkat berasal dari backend SykaBelajar.</p></div></div>}
-function TopBox({entry,place,mode}:{entry:any;place:1|2|3;mode:Mode}){const styles=place===1?'border-amber-500/40':place===2?'border-slate-400/30':'border-orange-600/30';return <div className="flex flex-col"><div className={`card p-3 flex flex-col items-center ${styles}`}><div className="relative w-full mb-2"><div className="rounded-xl overflow-hidden bg-ink-800" style={{aspectRatio:'4/5'}}><Avatar name={entry.display_name} id={entry.user_id} size={160} src={entry.avatar_url??undefined} shape="square"/></div><div className="absolute -bottom-1.5 -right-1.5"><RankBadge rank={place} size="sm"/></div></div><Link to={`/profile/${entry.username}`} className="text-center w-full"><p className="text-xs font-bold text-white truncate">{entry.display_name}</p><p className="text-[10px] text-slate-500 truncate">{entry.institution||'—'}</p></Link>{mode==='xp'&&<RankStatus status={entry.rank_change} pointChange={Number(entry.point_change??0)} className="mt-2"/>}<p className="mt-1 text-sm font-bold text-moss-300">{Number(mode==='xp'?entry.xp:entry.edu_coin).toLocaleString('id-ID')} {mode==='xp'?'XP':'Coin'}</p></div></div>}
-function LeaderboardRow({entry,currentUserId,mode}:{entry:any;currentUserId?:string;mode:Mode}){return <Card className={`p-3 ${currentUserId===entry.user_id?'border-moss-500/40 bg-moss-500/5':''}`}><div className="flex items-center gap-3"><div className="w-8 text-center"><span className="text-sm font-bold text-slate-300">{entry.rank}</span></div><Link to={`/profile/${entry.username}`}><Avatar name={entry.display_name} id={entry.user_id} size={36} ring={currentUserId===entry.user_id} src={entry.avatar_url??undefined} shape="square"/></Link><div className="flex-1 min-w-0"><Link to={`/profile/${entry.username}`}><p className={`text-sm font-semibold truncate ${currentUserId===entry.user_id?'text-moss-300':'text-white'}`}>{entry.display_name}{currentUserId===entry.user_id?' (Kamu)':''}</p><p className="text-xs text-slate-500 truncate">{entry.institution||'—'}</p></Link></div>{mode==='xp'&&<RankStatus status={entry.rank_change} pointChange={Number(entry.point_change??0)}/>}<span className={`text-sm font-semibold tabular-nums w-20 text-right ${mode==='xp'?'text-moss-300':'text-amber-300'}`}>{Number(mode==='xp'?entry.xp:entry.edu_coin).toLocaleString('id-ID')} {mode==='xp'?'XP':'Coin'}</span></div></Card>}
-function RankStatus({status,pointChange,className=''}:{status:PublicLeaderboardRow['rank_change'];pointChange:number;className?:string}){const Icon=status==='up'?TrendingUp:status==='down'?TrendingDown:Minus;const iconClass=status==='up'?'text-green-400':status==='down'?'text-red-400':'text-slate-500';const pointClass=pointChange>0?'text-green-400':pointChange<0?'text-red-400':'text-slate-500';const pointText=pointChange>0?`+${pointChange}`:String(pointChange);return <div className={`flex items-center gap-1.5 shrink-0 ${className}`}><Icon size={14} className={iconClass}/><span className={`text-xs font-medium ${pointClass}`}>{pointText}</span></div>}
+const GRADES = [
+  { key: 'all', label: 'Semua' },
+  { key: 'sd', label: 'SD' },
+  { key: 'smp', label: 'SMP' },
+  { key: 'sma', label: 'SMA' },
+];
+
+const PER_PAGE = 10;
+const MAX_RANK = 100;
+
+export function LeaderboardPage() {
+  const { user } = useApp();
+  const [mode, setMode] = useState<Mode>('xp');
+  const [grade, setGrade] = useState('all');
+  const [page, setPage] = useState(1);
+  const [entries, setEntries] = useState<PublicLeaderboardRow[]>([]);
+  const [coins, setCoins] = useState<CoinRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        if (mode === 'xp') {
+          const rows = await getPublicLeaderboard(MAX_RANK);
+          if (active) setEntries(rows);
+        } else {
+          const { data, error } = await supabase.rpc('get_public_coin_leaderboard', { p_limit: MAX_RANK });
+          if (error) throw error;
+          if (active) setCoins(((data ?? []) as any[]).map(r => ({
+            user_id: String(r.user_id), username: String(r.username ?? ''),
+            display_name: String(r.display_name ?? r.username ?? 'Pengguna'),
+            institution: r.institution == null ? null : String(r.institution),
+            avatar_url: r.avatar_url == null ? null : String(r.avatar_url),
+            edu_coin: Number(r.edu_coin ?? 0), rank: Number(r.rank ?? 0),
+          })));
+        }
+      } catch (e: any) {
+        if (active) { setError(e?.message ?? 'Gagal memuat.'); setEntries([]); setCoins([]); }
+      } finally { if (active) setLoading(false); }
+    };
+    void load();
+    return () => { active = false; };
+  }, [mode]);
+
+  // Filter by grade
+  const allRows = useMemo(() => {
+    const rows = mode === 'xp' ? entries : (coins as any[]);
+    if (grade === 'all') return rows;
+    const gradeMap: Record<string, string[]> = {
+      sd: ['SD', 'Sekolah Dasar', '1', '2', '3', '4', '5', '6'],
+      smp: ['SMP', 'Sekolah Menengah Pertama', '7', '8', '9'],
+      sma: ['SMA', 'SMK', 'Sekolah Menengah Atas', '10', '11', '12'],
+    };
+    const keywords = gradeMap[grade] || [];
+    return rows.filter((r: any) => {
+      const inst = (r.institution || '').toLowerCase();
+      return keywords.some(k => inst.includes(k.toLowerCase()));
+    });
+  }, [entries, coins, mode, grade]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(allRows.length / PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const top3 = allRows.slice(0, 3);
+  const paged = allRows.slice(3 + (safePage - 1) * PER_PAGE, 3 + safePage * PER_PAGE);
+  const startRank = 4 + (safePage - 1) * PER_PAGE;
+
+  // Podium order: 2nd, 1st, 3rd
+  const podium = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
+
+  return (
+    <div>
+      {/* Sticky header */}
+      <div className="sticky top-0 z-20 glass border-b border-white/5 px-4 py-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-display font-bold text-lg text-white">Papan Peringkat</h2>
+          <span className="flex items-center gap-1 text-xs text-moss-400">
+            <span className="w-2 h-2 rounded-full bg-moss-400 animate-pulse" />Live
+          </span>
+        </div>
+
+        {/* XP / Edu toggle */}
+        <div className="flex gap-1 bg-ink-800 rounded-lg p-1 mb-2">
+          <button onClick={() => { setMode('xp'); setPage(1); }}
+            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${mode === 'xp' ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'}`}>
+            XP Global
+          </button>
+          <button onClick={() => { setMode('coin'); setPage(1); }}
+            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${mode === 'coin' ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'}`}>
+            Edu Coin
+          </button>
+        </div>
+
+        {/* Grade filter */}
+        <div className="flex gap-1 overflow-x-auto no-scrollbar">
+          {GRADES.map((g) => (
+            <button key={g.key} onClick={() => { setGrade(g.key); setPage(1); }}
+              className={`px-3 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition ${
+                grade === g.key ? 'bg-moss-500/20 text-moss-300 border border-moss-500/30' : 'text-slate-500 border border-white/10 hover:border-white/20'
+              }`}>
+              {g.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {loading && <Card className="p-8 text-center text-sm text-slate-500">Memuat...</Card>}
+        {error && <Card className="p-8 text-center text-sm text-red-300">{error}</Card>}
+
+        {/* Top 3 podium — order: 2nd, 1st, 3rd */}
+        {!loading && !error && podium.length >= 3 && (
+          <div className="grid grid-cols-3 gap-2 items-end">
+            {podium.map((entry: any, idx: number) => {
+              const place = idx === 0 ? 2 : idx === 1 ? 1 : 3;
+              return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} />;
+            })}
+          </div>
+        )}
+
+        {/* Ranks 4-10 (current page) */}
+        {!loading && !error && (
+          <div className="space-y-2">
+            {paged.map((entry: any) => (
+              <LeaderboardRow key={entry.user_id} entry={entry} currentUserId={user?.id} mode={mode} />
+            ))}
+          </div>
+        )}
+
+        {!loading && !error && !allRows.length && (
+          <Card className="p-8 text-center text-sm text-slate-500">Belum ada data.</Card>
+        )}
+
+        {/* Pagination */}
+        {!loading && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1 pt-2">
+            <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1}
+              className="p-1.5 rounded-lg text-slate-500 hover:bg-white/5 disabled:opacity-30">
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+              let pageNum: number;
+              if (totalPages <= 7) {
+                pageNum = i + 1;
+              } else if (safePage <= 4) {
+                pageNum = i + 1;
+              } else if (safePage >= totalPages - 3) {
+                pageNum = totalPages - 6 + i;
+              } else {
+                pageNum = safePage - 3 + i;
+              }
+              return (
+                <button key={pageNum} onClick={() => setPage(pageNum)}
+                  className={`w-8 h-8 rounded-lg text-xs font-medium transition ${
+                    pageNum === safePage ? 'bg-moss-500/20 text-moss-300' : 'text-slate-500 hover:bg-white/5'
+                  }`}>
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages}
+              className="p-1.5 rounded-lg text-slate-500 hover:bg-white/5 disabled:opacity-30">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-slate-600 pt-2">
+          Menampilkan {allRows.length} dari max {MAX_RANK} peringkat
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mode }) {
+  const border = place === 1 ? 'border-amber-500/40 ring-2 ring-amber-500/20' : place === 2 ? 'border-slate-400/30' : 'border-orange-600/30';
+  const h = place === 1 ? 'h-44' : 'h-36';
+  return (
+    <div className={`card p-3 flex flex-col items-center ${border} ${h}`}>
+      <div className="relative w-full mb-2">
+        <div className="rounded-xl overflow-hidden bg-ink-800" style={{ aspectRatio: '4/5' }}>
+          <Avatar name={entry.display_name} id={entry.user_id} size={120} src={entry.avatar_url ?? undefined} shape="square" />
+        </div>
+        <div className="absolute -bottom-1.5 -right-1.5">
+          <RankBadge rank={place} size="sm" />
+        </div>
+      </div>
+      <Link to={`/profile/${entry.username}`} className="text-center w-full">
+        <p className="text-xs font-bold text-white truncate">{entry.display_name}</p>
+        <p className="text-[10px] text-slate-500 truncate">{entry.institution || '—'}</p>
+      </Link>
+      <p className="mt-1 text-sm font-bold text-moss-300">
+        {Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID')} {mode === 'xp' ? 'XP' : 'Coin'}
+      </p>
+    </div>
+  );
+}
+
+function LeaderboardRow({ entry, currentUserId, mode }: { entry: any; currentUserId?: string; mode: Mode }) {
+  return (
+    <Card className={`p-3 ${currentUserId === entry.user_id ? 'border-moss-500/40 bg-moss-500/5' : ''}`}>
+      <div className="flex items-center gap-3">
+        <div className="w-8 text-center">
+          <span className="text-sm font-bold text-slate-300">{entry.rank}</span>
+        </div>
+        <Link to={`/profile/${entry.username}`}>
+          <Avatar name={entry.display_name} id={entry.user_id} size={36} ring={currentUserId === entry.user_id} src={entry.avatar_url ?? undefined} shape="square" />
+        </Link>
+        <div className="flex-1 min-w-0">
+          <Link to={`/profile/${entry.username}`}>
+            <p className={`text-sm font-semibold truncate ${currentUserId === entry.user_id ? 'text-moss-300' : 'text-white'}`}>
+              {entry.display_name}{currentUserId === entry.user_id ? ' (Kamu)' : ''}
+            </p>
+            <p className="text-xs text-slate-500 truncate">{entry.institution || '—'}</p>
+          </Link>
+        </div>
+        <span className={`text-sm font-semibold tabular-nums w-20 text-right ${mode === 'xp' ? 'text-moss-300' : 'text-amber-300'}`}>
+          {Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID')} {mode === 'xp' ? 'XP' : 'Coin'}
+        </span>
+      </div>
+    </Card>
+  );
+}
