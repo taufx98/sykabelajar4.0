@@ -2,18 +2,20 @@ import { useEffect, useState, useCallback } from 'react';
 import { Megaphone } from 'lucide-react';
 import { loadActiveBanners, type AdBanner } from '@/services/ad.service';
 
-// Upload size reference (for admin info)
-const UPLOAD_W = 465;
 const UPLOAD_H = 300;
-const ASPECT = UPLOAD_H / UPLOAD_W; // 0.645
 const GAP = 8;
+
+function getSlotCount() {
+  if (typeof window === 'undefined') return 3;
+  return window.innerWidth >= 1024 ? 5 : 3;
+}
 
 function EmptySlot() {
   return (
     <a
       href="#/admin/banners"
       className="flex-1 bg-ink-800/40 border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-moss-400/60 transition cursor-pointer rounded-xl"
-      style={{ aspectRatio: `${UPLOAD_W}/${UPLOAD_H}` }}
+      style={{ aspectRatio: `465/${UPLOAD_H}` }}
     >
       <Megaphone size={22} />
       <span className="text-[11px]">Pasang iklan hub. Admin</span>
@@ -25,6 +27,15 @@ export function BannerCarousel() {
   const [banners, setBanners] = useState<AdBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [slotCount, setSlotCount] = useState(3);
+
+  // Detect viewport size
+  useEffect(() => {
+    const update = () => setSlotCount(getSlotCount());
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   useEffect(() => {
     loadActiveBanners().then((b) => {
@@ -33,14 +44,14 @@ export function BannerCarousel() {
     }).catch(() => setLoading(false));
   }, []);
 
-  const GROUP_SIZE = 3;
+  // Group banners by visible slot count
   const groups: AdBanner[][] = [];
-  for (let i = 0; i < banners.length; i += GROUP_SIZE) {
-    groups.push(banners.slice(i, i + GROUP_SIZE));
+  for (let i = 0; i < banners.length; i += slotCount) {
+    groups.push(banners.slice(i, i + slotCount));
   }
 
   const totalGroups = groups.length || 1;
-  const needsSlide = banners.length > GROUP_SIZE;
+  const needsSlide = banners.length > slotCount;
 
   const advance = useCallback(() => {
     setCurrentGroup((g) => (g + 1) % totalGroups);
@@ -57,16 +68,15 @@ export function BannerCarousel() {
     return (
       <div
         className="w-full rounded-xl bg-ink-800/50 border border-white/5 animate-pulse"
-        style={{ aspectRatio: `${UPLOAD_W * 3 + GAP * 2}/${UPLOAD_H}` }}
+        style={{ aspectRatio: `465/${UPLOAD_H}` }}
       />
     );
   }
 
-  // Empty — 3 placeholder slots
   if (banners.length === 0) {
     return (
       <div className="w-full flex gap-2">
-        {[0, 1, 2].map((i) => <EmptySlot key={i} />)}
+        {Array.from({ length: slotCount }).map((_, i) => <EmptySlot key={i} />)}
       </div>
     );
   }
@@ -98,8 +108,8 @@ export function BannerCarousel() {
                 style={{
                   flex: getSlotFlex(banner),
                   aspectRatio: banner.single_image && banner.image_width_slots > 1
-                    ? `${UPLOAD_W * banner.image_width_slots}/${UPLOAD_H}`
-                    : `${UPLOAD_W}/${UPLOAD_H}`,
+                    ? `${465 * banner.image_width_slots}/${UPLOAD_H}`
+                    : `465/${UPLOAD_H}`,
                 }}
               >
                 <img
@@ -109,8 +119,8 @@ export function BannerCarousel() {
                 />
               </a>
             ))}
-            {group.length < GROUP_SIZE &&
-              Array.from({ length: GROUP_SIZE - group.length }).map((_, ei) => (
+            {group.length < slotCount &&
+              Array.from({ length: slotCount - group.length }).map((_, ei) => (
                 <EmptySlot key={`empty-${gi}-${ei}`} />
               ))
             }
