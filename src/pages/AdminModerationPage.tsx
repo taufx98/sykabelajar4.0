@@ -1,0 +1,14 @@
+import { useEffect, useState } from 'react';
+import { Check, EyeOff, MessageSquare, RefreshCw } from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { supabase } from '@/lib/supabase';
+
+export function AdminModerationPage(){
+ const[rows,setRows]=useState<any[]>([]);const[loading,setLoading]=useState(false);const[busy,setBusy]=useState<string|null>(null);
+ const load=async()=>{setLoading(true);try{const{data,error}=await supabase.from('comments').select('id,post_id,user_id,body,moderation_state,created_at').order('created_at',{ascending:false}).limit(100);if(error)throw error;setRows(data??[])}catch(e:any){alert(e.message)}finally{setLoading(false)}};
+ useEffect(()=>{void load()},[]);
+ const moderate=async(id:string,state:'VISIBLE'|'HIDDEN')=>{setBusy(id+state);try{const{error}=await supabase.rpc('admin_set_comment_moderation',{p_comment_id:id,p_state:state,p_reason:`Admin moderation: ${state}`});if(error)throw error;await load()}catch(e:any){alert(e.message)}finally{setBusy(null)}};
+ return <div className="min-h-screen bg-ink-950 p-5 md:p-8 text-slate-200"><div className="max-w-6xl mx-auto space-y-5"><div className="flex items-center justify-between"><div><p className="text-xs text-moss-400 uppercase tracking-wider">Admin · Moderation</p><h1 className="font-display text-2xl font-bold text-white">Moderasi Komentar</h1><p className="text-sm text-slate-500 mt-1">Sembunyikan atau pulihkan komentar melalui RPC backend dan audit log.</p></div><Button variant="outline" size="sm" loading={loading} onClick={()=>void load()} icon={<RefreshCw size={14}/>}>Refresh</Button></div><div className="space-y-3">{rows.map((r)=><Card key={r.id} className="p-4"><div className="flex gap-3 items-start"><MessageSquare size={18} className="text-moss-400 mt-1"/><div className="flex-1 min-w-0"><div className="flex flex-wrap gap-2 items-center"><Badge>{r.moderation_state||'VISIBLE'}</Badge><span className="text-[10px] text-slate-600">{new Date(r.created_at).toLocaleString('id-ID')}</span></div><p className="text-sm text-slate-200 mt-2 whitespace-pre-wrap break-words">{r.body}</p><p className="text-[10px] text-slate-600 mt-2">comment {String(r.id).slice(0,8)} · post {String(r.post_id).slice(0,8)} · user {String(r.user_id).slice(0,8)}</p></div><div className="flex gap-2 shrink-0">{r.moderation_state!=='VISIBLE'&&<Button size="sm" loading={busy===r.id+'VISIBLE'} onClick={()=>void moderate(r.id,'VISIBLE')} icon={<Check size={14}/>}>Tampilkan</Button>}{r.moderation_state!=='HIDDEN'&&<Button size="sm" variant="outline" loading={busy===r.id+'HIDDEN'} onClick={()=>void moderate(r.id,'HIDDEN')} icon={<EyeOff size={14}/>}>Sembunyikan</Button>}</div></div></Card>)}{!rows.length&&!loading&&<Card className="p-10 text-center text-slate-500">Belum ada komentar untuk dimoderasi.</Card>}</div></div></div>;
+}

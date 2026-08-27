@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html>
+<html b:version='2' class='v2' expr:dir='data:blog.languageDirection' xmlns='http://www.w3.org/1999/xhtml' xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data' xmlns:expr='http://www.w3.org/1999/xhtml'>
+<head>
+  <meta charset='UTF-8'/>
+  <meta content='width=device-width, initial-scale=1, viewport-fit=cover' name='viewport'/>
+  <meta content='SykaBelajar - Platform Uji Kompetensi Nasional Non-Formal' name='description'/>
+  <meta content='index,follow' name='robots'/>
+  <title><data:blog.pageTitle/></title>
+  <link href='https://fonts.googleapis.com' rel='preconnect'/>
+  <link crossorigin='anonymous' href='https://fonts.gstatic.com' rel='preconnect'/>
+  <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap' rel='stylesheet'/>
+  <b:skin><![CDATA[
+    html,body{margin:0;padding:0;background:#020617;color:#e2e8f0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    *,*:before,*:after{box-sizing:border-box}
+    a{text-decoration:none;color:inherit}
+    #page-root{min-height:100vh}
+    .blogger-shell{min-height:100vh;background:#020617}
+    .blogger-noscript{max-width:720px;margin:40px auto;padding:20px;border:1px solid #334155;border-radius:16px;color:#cbd5e1;background:#0f172a}
+    .blogger-hidden{display:none!important}
+  ]]></b:skin>
+</head>
+<body>
+  <div class='blogger-shell'>
+    <div id='page-root'></div>
+    <noscript><div class='blogger-noscript'>SykaBelajar membutuhkan JavaScript untuk menjalankan aplikasi.</div></noscript>
+    <b:section class='blogger-hidden' id='main' maxwidgets='1' showaddelement='no'/>
+  </div>
+  <script type='text/javascript'>
+    //<![CDATA[
+    window.SYKA_BLOGGER_CONFIG={
+      appBase:'https://cdn.jsdelivr.net/gh/taufx98/sykabelajar_3.0@gh-pages',
+      supabaseUrl:'https://jrfogwueytiddnanetth.supabase.co',
+      cloudinaryCloudName:'sykabelajar',
+      cloudinaryUploadPreset:'sykabelajar_preset'
+    };
+    (function(){
+      var root=document.getElementById('page-root');
+      var path=window.location.pathname||'/';
+      var known=['/login','/register','/home','/feed','/leaderboard','/awards','/notifications','/orders','/profile','/lomba','/organizer','/admin','/verify'];
+      var shouldBridge=path!=='/'&&known.some(function(prefix){return path===prefix||path.indexOf(prefix+'/')===0;})&&window.location.hash.indexOf('#/')!==0;
+      if(shouldBridge){window.location.replace(window.location.origin+'/#'+path+window.location.search);return;}
+      function css(url){return new Promise(function(ok,no){var l=document.createElement('link');l.rel='stylesheet';l.href=url;l.onload=ok;l.onerror=no;document.head.appendChild(l);});}
+      function js(url){return new Promise(function(ok,no){var s=document.createElement('script');s.type='module';s.src=url;s.onload=ok;s.onerror=function(){no(new Error('Gagal memuat '+url));};document.body.appendChild(s);});}
+      Promise.all([css(window.SYKA_BLOGGER_CONFIG.appBase+'/styles.min.css?v=18'),js(window.SYKA_BLOGGER_CONFIG.appBase+'/app.js?v=18')]).catch(function(e){console.error('[SykaBelajar] bundle load failed',e);root.innerHTML='<div class="blogger-noscript"><strong>SykaBelajar sedang memuat ulang.</strong><br/>Bundle aplikasi belum berhasil dimuat. Refresh halaman atau periksa deployment gh-pages.</div>';});
+    })();
+    //]]>
+  </script>
+</body>
+</html>
