@@ -21,27 +21,54 @@ export function HomePage(){
  const searchResults=useMemo(()=>{if(!searchQuery.trim())return[];const q=searchQuery.toLowerCase();const compResults=competitions.filter((c:any)=>String(c.title??'').toLowerCase().includes(q)||String(c.slug??'').toLowerCase().includes(q)).map((c:any)=>({id:c.id,title:c.title,slug:c.slug,type:'competition' as const}));const postResults=posts.filter((p:any)=>String(p.title??'').toLowerCase().includes(q)||String(p.body??'').toLowerCase().includes(q)).map((p:any)=>({id:p.id,title:p.title,slug:'',type:'post' as const}));return[...compResults,...postResults].slice(0,8);},[searchQuery,competitions,posts]);
  const filtered=useMemo(()=>tab==='lomba'?posts.filter(p=>Boolean(p.competition_id)):posts.filter(p=>!p.competition_id),[posts,tab]);const unread=notifications.filter(n=>!n.read).slice(0,5);const nextCompetition=competitions.find((c:any)=>['REGISTRATION_OPEN','LIVE'].includes(String(c.status)))??competitions[0];
  const like=async(id:string)=>{if(isGuest||!user){toast('Masuk untuk menyukai postingan.','info');return;}try{await togglePostLike(id);await loadFirst()}catch(e:any){toast(e?.message??'Gagal memperbarui like.','error')}};
- const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href);if(post.competition_slug)url.hash=`/lomba/${post.competition_slug}`;else url.hash=`/feed?post=${encodeURIComponent(post.id)}`;try{await navigator.clipboard?.writeText(url.toString());toast('Tautan postingan disalin.','success')}catch{toast('Tidak dapat menyalin tautan.','error')}};
+ // Running text announcements — TODO: connect to admin settings / platform_settings table
+const runningTexts = [
+  'Selamat datang di sykabelajar.id — Platform Uji Kompetensi & Gamifikasi Edukasi',
+  'Daftar sekarang dan ikuti uji kompetensi terbaru!',
+  'Selesaikan daily tasks untuk mendapatkan XP dan naik peringkat',
+  'Ikuti kompetisi terbaru dan raih prestasi terbaikmu',
+];
+const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href);if(post.competition_slug)url.hash=`/lomba/${post.competition_slug}`;else url.hash=`/feed?post=${encodeURIComponent(post.id)}`;try{await navigator.clipboard?.writeText(url.toString());toast('Tautan postingan disalin.','success')}catch{toast('Tidak dapat menyalin tautan.','error')}};
  return (
     <div>
+      {/* ===== STICKY HEADER ===== */}
+      <div className="sticky top-0 z-20 glass border-b border-white/5">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <h2 className="font-display font-bold text-lg text-white">Beranda</h2>
+          <Sparkles size={18} className="text-moss-400" />
+        </div>
+        {/* Running text / announcement marquee */}
+        <div className="relative overflow-hidden bg-moss-500/5 border-t border-moss-500/10">
+          <div className="flex whitespace-nowrap animate-marquee py-1.5">
+            {[...runningTexts, ...runningTexts].map((text, i) => (
+              <span key={i} className="inline-flex items-center gap-2 mx-6 text-[11px] text-moss-300/80">
+                <span className="w-1.5 h-1.5 rounded-full bg-moss-400/60 shrink-0" />
+                {text}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="px-4 py-4">
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start">
 
           {/* ===== CENTER COLUMN ===== */}
           <main className="space-y-4 min-w-0">
-            {/* Lomba / Prestasi tabs — centered */}
+            {/* Lomba / Prestasi tabs */}
             <div className="flex justify-center">
-              <div className="flex gap-1 bg-ink-800 rounded-xl p-1">
+              <div className="flex gap-1 bg-ink-800/60 rounded-xl p-1">
                 {(['lomba', 'prestasi'] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => setTab(t)}
-                    className={`px-8 py-2.5 rounded-lg text-sm font-medium transition ${
+                    className={`relative px-8 py-2.5 rounded-lg text-sm font-medium transition-all ${
                       tab === t
-                        ? 'bg-moss-500/15 text-moss-300'
-                        : 'text-slate-500 hover:text-slate-300'
+                        ? 'bg-moss-500/15 text-moss-300 shadow-sm shadow-moss-500/10'
+                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
                     }`}
                   >
+                    {tab === t && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-moss-400 rounded-full" />}
                     {t === 'lomba' ? 'Lomba' : 'Prestasi'}
                   </button>
                 ))}
@@ -87,7 +114,7 @@ export function HomePage(){
           </main>
 
           {/* ===== RIGHT SIDEBAR ===== */}
-          <aside className="space-y-4 lg:sticky lg:top-4">
+          <aside className="space-y-4 lg:sticky lg:top-[108px]">
             {/* Search bar */}
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -165,7 +192,7 @@ export function HomePage(){
               </div>
             </Card>
 
-            {/* Top 5 Peringkat */}
+            {/* Top 5 Peringkat — XP / Point Edu toggle */}
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-display font-semibold text-white text-sm">Top 5 Peringkat</h3>
@@ -173,34 +200,81 @@ export function HomePage(){
                   Lihat semua
                 </Link>
               </div>
+              <div className="grid grid-cols-2 bg-ink-800 rounded-lg p-1 mb-3">
+                <button
+                  onClick={() => setLeaderMode('xp')}
+                  className={`text-[11px] py-1.5 rounded-md font-medium transition ${
+                    leaderMode === 'xp' ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'
+                  }`}
+                >
+                  XP Global
+                </button>
+                <button
+                  onClick={() => setLeaderMode('coin')}
+                  className={`text-[11px] py-1.5 rounded-md font-medium transition ${
+                    leaderMode === 'coin' ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'
+                  }`}
+                >
+                  Point Edu
+                </button>
+              </div>
               <div className="space-y-2.5">
-                {leaders.map((u) => {
-                  const rankColor =
-                    u.rank === 1 ? 'bg-emerald-500/20 text-emerald-400' :
-                    u.rank === 2 ? 'bg-sky-500/20 text-sky-400' :
-                    u.rank === 3 ? 'bg-amber-500/20 text-amber-400' :
-                    'bg-slate-500/15 text-slate-400';
-                  return (
-                    <div key={u.user_id} className="flex items-center gap-2.5">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${rankColor}`}>
-                        {u.rank}
-                      </div>
-                      <Avatar
-                        name={u.display_name || u.username || 'U'}
-                        id={u.user_id}
-                        size={30}
-                        src={u.avatar_url || undefined}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-white truncate">{u.display_name || u.username}</p>
-                      </div>
-                      <span className="text-xs text-moss-300 font-semibold tabular-nums">
-                        {Number(u.xp || 0).toLocaleString('id-ID')}
-                      </span>
-                    </div>
-                  );
-                })}
-                {leaders.length === 0 && (
+                {leaderMode === 'xp'
+                  ? leaders.map((u) => {
+                      const rankColor =
+                        u.rank === 1 ? 'bg-emerald-500/20 text-emerald-400' :
+                        u.rank === 2 ? 'bg-sky-500/20 text-sky-400' :
+                        u.rank === 3 ? 'bg-amber-500/20 text-amber-400' :
+                        'bg-slate-500/15 text-slate-400';
+                      return (
+                        <div key={u.user_id} className="flex items-center gap-2.5">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${rankColor}`}>
+                            {u.rank}
+                          </div>
+                          <Avatar
+                            name={u.display_name || u.username || 'U'}
+                            id={u.user_id}
+                            size={30}
+                            src={u.avatar_url || undefined}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-white truncate">{u.display_name || u.username}</p>
+                          </div>
+                          <span className="text-xs text-moss-300 font-semibold tabular-nums">
+                            {Number(u.xp || 0).toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                      );
+                    })
+                  : coinLeaders.map((u, idx) => {
+                      const rank = idx + 1;
+                      const rankColor =
+                        rank === 1 ? 'bg-emerald-500/20 text-emerald-400' :
+                        rank === 2 ? 'bg-sky-500/20 text-sky-400' :
+                        rank === 3 ? 'bg-amber-500/20 text-amber-400' :
+                        'bg-slate-500/15 text-slate-400';
+                      return (
+                        <div key={u.user_id} className="flex items-center gap-2.5">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${rankColor}`}>
+                            {rank}
+                          </div>
+                          <Avatar
+                            name={u.display_name || u.username || 'U'}
+                            id={u.user_id}
+                            size={30}
+                            src={u.avatar_url || undefined}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-white truncate">{u.display_name || u.username}</p>
+                          </div>
+                          <span className="text-xs text-amber-300 font-semibold tabular-nums">
+                            {Number(u.edu_coin || 0).toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                      );
+                    })}
+                {((leaderMode === 'xp' && leaders.length === 0) ||
+                  (leaderMode === 'coin' && coinLeaders.length === 0)) && (
                   <p className="text-xs text-slate-500 text-center py-2">Belum ada peringkat.</p>
                 )}
               </div>
