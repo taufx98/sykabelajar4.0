@@ -143,15 +143,20 @@ export function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-ink-950 text-slate-200">
-      <aside className="w-60 shrink-0 border-r border-white/5 p-3 sticky top-0 h-screen">
-        <div className="px-3 py-3 mb-3"><p className="text-xs text-moss-400 font-semibold">SYKABELAJAR</p><h1 className="font-display font-bold text-xl text-white">Panel Admin</h1></div>
-        <nav className="space-y-1">{tabs.map(({ key, label, icon: Icon }) => <button key={key} onClick={() => setTab(key)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${tab === key ? 'bg-moss-500/10 text-moss-300' : 'text-slate-400 hover:bg-white/5'}`}><Icon size={18} />{label}</button>)}</nav>
-        <Link to="/home" className="block mt-6 px-3 text-xs text-slate-500 hover:text-white">← Kembali ke aplikasi</Link>
-      </aside>
+    <div className="min-h-screen bg-ink-950 text-slate-200">
+      <div className="sticky top-0 z-30 glass border-b border-white/5">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/home" className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white text-xs">← Kembali</Link>
+            <div><p className="text-[10px] text-moss-400 font-semibold uppercase tracking-wide">SYKABELAJAR</p><h1 className="font-display font-bold text-base text-white leading-tight">Panel Admin</h1></div>
+          </div>
+          <Badge color="moss">ADMIN</Badge>
+        </div>
+        <div className="flex gap-1 px-4 pb-2 overflow-x-auto no-scrollbar">{tabs.map(({ key, label, icon: Icon }) => <button key={key} onClick={() => setTab(key)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition ${tab === key ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500 hover:bg-white/5 hover:text-slate-300'}`}><Icon size={15} />{label}</button>)}</div>
+      </div>
 
-      <section className="flex-1 min-w-0 p-5 md:p-7 overflow-auto">
-        <div className="flex items-center justify-between mb-6"><div><h2 className="font-display text-2xl font-bold text-white">{tabs.find((t) => t.key === tab)?.label}</h2><p className="text-xs text-slate-500 mt-1">Data live Supabase · perubahan langsung tersimpan</p></div><Badge color="moss">ADMIN</Badge></div>
+      <section className="p-4 md:p-6 max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-5"><div><h2 className="font-display text-xl font-bold text-white">{tabs.find((t) => t.key === tab)?.label}</h2><p className="text-[11px] text-slate-500 mt-0.5">Data live Supabase · perubahan langsung tersimpan</p></div></div>
 
         {tab === 'dashboard' && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3"><Stat label="User" value={stats.total_users}/><Stat label="Sekolah" value={stats.total_schools}/><Stat label="Lomba" value={stats.total_competitions}/><Stat label="Lomba Publik" value={stats.total_public_competitions}/><Stat label="Sertifikat" value={stats.total_certificates}/><Stat label="Pending Order" value={orders.filter((o) => o.status === 'PENDING_PAYMENT').length}/><Stat label="Postingan" value={posts.length}/><Stat label="Produk Shop" value={products.length}/></div>}
 
