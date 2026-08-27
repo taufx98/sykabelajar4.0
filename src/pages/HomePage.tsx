@@ -176,13 +176,14 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            {searchQuery && searchResults.length > 0 && (
+            {searchQuery && (
               <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-ink-800 border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
-                {searchResults.map((r) => (
+                {searchResults.length > 0 ? searchResults.map((r) => (
                   <Link
                     key={r.id}
                     to={r.type === 'competition' ? `/lomba/${r.slug}` : '/feed'}
                     className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition"
+                    onClick={() => setSearchQuery('')}
                   >
                     <div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">
                       {r.type === 'competition' ? (
@@ -198,7 +199,9 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                       </p>
                     </div>
                   </Link>
-                ))}
+                )) : (
+                  <p className="text-xs text-slate-500 text-center py-3">Tidak ditemukan untuk "{searchQuery}"</p>
+                )}
               </div>
             )}
 
