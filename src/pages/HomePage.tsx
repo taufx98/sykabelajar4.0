@@ -125,35 +125,30 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            {searchQuery && (
-              <Card className="p-3">
-                <p className="text-xs text-slate-500 mb-2">Hasil pencarian</p>
-                {searchResults.length ? (
-                  searchResults.map((r) => (
-                    <Link
-                      key={r.id}
-                      to={r.type === 'competition' ? `/lomba/${r.slug}` : '/feed'}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 mb-1 last:mb-0"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">
-                        {r.type === 'competition' ? (
-                          <Trophy size={14} className="text-moss-400" />
-                        ) : (
-                          <FileText size={14} className="text-moss-400" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-white truncate">{r.title}</p>
-                        <p className="text-[10px] text-slate-500">
-                          {r.type === 'competition' ? 'Lomba' : 'Postingan'}
-                        </p>
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <p className="text-xs text-slate-500 text-center py-2">Tidak ditemukan.</p>
-                )}
-              </Card>
+            {searchQuery && searchResults.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-ink-800 border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                {searchResults.map((r) => (
+                  <Link
+                    key={r.id}
+                    to={r.type === 'competition' ? `/lomba/${r.slug}` : '/feed'}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">
+                      {r.type === 'competition' ? (
+                        <Trophy size={13} className="text-moss-400" />
+                      ) : (
+                        <FileText size={13} className="text-moss-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-white truncate">{r.title}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {r.type === 'competition' ? 'Lomba' : 'Postingan'}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
             )}
 
             {/* Uji Kompetensi Trending */}
