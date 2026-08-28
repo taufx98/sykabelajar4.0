@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Calendar, ChevronRight, FileText, Flame, Heart, MessageCircle, Search, Share2, Sparkles, Trophy } from 'lucide-react';
 import { BannerCarousel } from '@/components/ui/BannerCarousel';
 import { Link, useNavigate } from 'react-router-dom';
@@ -13,13 +13,15 @@ import { listPublishedPostsPage, togglePostLike, type SocialPost } from '@/servi
 import { getPublicCompetitions } from '@/services/platform.service';
 import { timeAgo } from '@/lib/utils';
 import type { PublicLeaderboardRow } from '@/services/platform.service';
+import { supabase } from '@/lib/supabase';
 
 export function HomePage(){
- const{user,isGuest,notifications,toast}=useApp();const navigate=useNavigate();const[tab,setTab]=useState<'lomba'|'prestasi'>('lomba');const[posts,setPosts]=useState<SocialPost[]>([]);const[competitions,setCompetitions]=useState<any[]>([]);const[leaders,setLeaders]=useState<PublicLeaderboardRow[]>([]);const[loading,setLoading]=useState(true);const[loadingMore,setLoadingMore]=useState(false);const[cursor,setCursor]=useState<string|null>(null);const[expanded,setExpanded]=useState<string|null>(null);const[searchQuery,setSearchQuery]=useState('');const[leaderMode,setLeaderMode]=useState<'xp'|'coin'>('xp');const[coinLeaders,setCoinLeaders]=useState<any[]>([]);
+ const{user,isGuest,notifications,toast}=useApp();const navigate=useNavigate();const[tab,setTab]=useState<'lomba'|'prestasi'>('lomba');const[posts,setPosts]=useState<SocialPost[]>([]);const[competitions,setCompetitions]=useState<any[]>([]);const[leaders,setLeaders]=useState<PublicLeaderboardRow[]>([]);const[loading,setLoading]=useState(true);const[loadingMore,setLoadingMore]=useState(false);const[cursor,setCursor]=useState<string|null>(null);const[expanded,setExpanded]=useState<string|null>(null);const[searchQuery,setSearchQuery]=useState('');const[searchAllComps,setSearchAllComps]=useState<any[]>([]);const[searchUsers,setSearchUsers]=useState<any[]>([]);const[leaderMode,setLeaderMode]=useState<'xp'|'coin'>('xp');const[coinLeaders,setCoinLeaders]=useState<any[]>([]);
  const loadFirst=async()=>{setLoading(true);try{const[{items,nextCursor},comps,{data:lb,error:lbError}]=await Promise.all([listPublishedPostsPage(15),getPublicCompetitions(5),(async()=>{const{data,error}=await import('@/lib/supabase').then(({supabase})=>supabase.rpc('get_public_leaderboard',{p_limit:5}));return{data,error}})()]);if(lbError)throw lbError;setPosts(items);setCursor(nextCursor);setCompetitions(comps);setLeaders((lb??[]) as PublicLeaderboardRow[]);const{data:cl}=await import('@/lib/supabase').then(({supabase})=>supabase.rpc('get_public_coin_leaderboard',{p_limit:5}));setCoinLeaders((cl??[]) as any[]);}catch(e:any){toast(e?.message??'Beranda gagal dimuat.','error')}finally{setLoading(false)}};
+const loadSearchData=useCallback(async()=>{try{const [compRes,userRes]=await Promise.allSettled([getPublicCompetitions(100),supabase.from('public_profiles').select('id,username,full_name,avatar_url,grade,institution').limit(50)]);if(compRes.status==='fulfilled')setSearchAllComps(compRes.value);if(userRes.status==='fulfilled'&&userRes.value.data)setSearchUsers(userRes.value.data);}catch{}},[]);useEffect(()=>{void loadSearchData()},[loadSearchData]);useEffect(()=>{const handler=(e:MouseEvent)=>{if(searchQuery&&!(e.target as HTMLElement).closest('[data-search]'))setSearchQuery('')};document.addEventListener('mousedown',handler);return()=>document.removeEventListener('mousedown',handler)},[searchQuery]);
  useEffect(()=>{void loadFirst()},[]);
  const loadMore=async()=>{if(!cursor||loadingMore)return;setLoadingMore(true);try{const{items,nextCursor}=await listPublishedPostsPage(15,cursor);setPosts(p=>[...p,...items]);setCursor(nextCursor)}catch(e:any){toast(e?.message??'Feed gagal dimuat.','error')}finally{setLoadingMore(false)}};
- const searchResults=useMemo(()=>{if(!searchQuery.trim())return[];const q=searchQuery.toLowerCase();const compResults=competitions.filter((c:any)=>String(c.title??'').toLowerCase().includes(q)||String(c.slug??'').toLowerCase().includes(q)).map((c:any)=>({id:c.id,title:c.title,slug:c.slug,type:'competition' as const}));const postResults=posts.filter((p:any)=>String(p.title??'').toLowerCase().includes(q)||String(p.body??'').toLowerCase().includes(q)).map((p:any)=>({id:p.id,title:p.title,slug:'',type:'post' as const}));return[...compResults,...postResults].slice(0,8);},[searchQuery,competitions,posts]);
+ const searchResults=useMemo(()=>{if(!searchQuery.trim())return[];const q=searchQuery.normalize('NFD').replace(/\u0300-\u036f/g,'').toLowerCase();const norm=(s:string)=>String(s??'').normalize('NFD').replace(/\u0300-\u036f/g,'').toLowerCase();const compResults=searchAllComps.filter((c:any)=>norm(c.title).includes(q)||norm(c.slug).includes(q)||norm(c.category).includes(q)||norm(c.organizer_name).includes(q)).map((c:any)=>({id:c.id,title:c.title,slug:c.slug,type:'competition' as const,subtitle:c.category||'Lomba',avatar_url:c.poster_url||null}));const postResults=posts.filter((p:any)=>norm(p.title).includes(q)||norm(p.body).includes(q)).map((p:any)=>({id:p.id,title:p.title,slug:'',type:'post' as const,subtitle:'Postingan',avatar_url:p.cover_url||null}));const userResults=searchUsers.filter((u:any)=>norm(u.username).includes(q)||norm(u.full_name).includes(q)||norm(u.institution).includes(q)).map((u:any)=>({id:u.id,title:u.full_name||u.username,slug:u.username,type:'user' as const,subtitle:'@'+u.username+(u.institution?' \u00b7 '+u.institution:''),avatar_url:u.avatar_url||null}));return[...compResults,...userResults,...postResults].slice(0,10);},[searchQuery,searchAllComps,posts,searchUsers]);
  const lombaPosts=useMemo(()=>posts.filter(p=>Boolean(p.competition_id)),[posts]);
 const prestasiPosts=useMemo(()=>posts.filter(p=>!p.competition_id),[posts]);
 const showCompetitions=tab==='lomba'&&lombaPosts.length===0&&competitions.length>0;const unread=notifications.filter(n=>!n.read).slice(0,5);const nextCompetition=competitions.find((c:any)=>['REGISTRATION_OPEN','LIVE'].includes(String(c.status)))??competitions[0];
@@ -167,7 +169,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
           {/* ===== RIGHT SIDEBAR ===== */}
           <aside className="space-y-4 lg:sticky lg:top-[108px]">
             {/* Search bar */}
-            <div className="relative">
+            <div className="relative" data-search>
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 className="input pl-9 text-sm"
@@ -175,27 +177,34 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-            </div>
             {searchQuery && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-ink-800 border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+              <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-ink-800 border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
                 {searchResults.length > 0 ? searchResults.map((r) => (
                   <Link
-                    key={r.id}
-                    to={r.type === 'competition' ? `/lomba/${r.slug}` : '/feed'}
+                    key={r.id + r.type}
+                    to={r.type === 'competition' ? `/lomba/${r.slug}` : r.type === 'user' ? `/profile/${r.slug}` : '/feed'}
                     className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition"
                     onClick={() => setSearchQuery('')}
                   >
-                    <div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">
-                      {r.type === 'competition' ? (
-                        <Trophy size={13} className="text-moss-400" />
-                      ) : (
-                        <FileText size={13} className="text-moss-400" />
-                      )}
-                    </div>
+                    {r.type === 'user' && r.avatar_url ? (
+                      <img src={r.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                    ) : r.type === 'user' ? (
+                      <div className="w-7 h-7 rounded-full bg-sky-500/20 flex items-center justify-center shrink-0 text-[10px] font-bold text-sky-300">
+                        {(r.title || '?')[0].toUpperCase()}
+                      </div>
+                    ) : (
+                      <div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">
+                        {r.type === 'competition' ? (
+                          <Trophy size={13} className="text-moss-400" />
+                        ) : (
+                          <FileText size={13} className="text-moss-400" />
+                        )}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-white truncate">{r.title}</p>
-                      <p className="text-[10px] text-slate-500">
-                        {r.type === 'competition' ? 'Lomba' : 'Postingan'}
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {r.subtitle || (r.type === 'competition' ? 'Lomba' : r.type === 'user' ? 'Pengguna' : 'Postingan')}
                       </p>
                     </div>
                   </Link>
@@ -204,6 +213,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 )}
               </div>
             )}
+            </div>
 
             {/* Uji Kompetensi Trending */}
             <Card className="p-4">
