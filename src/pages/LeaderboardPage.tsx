@@ -200,8 +200,8 @@ function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mo
     : place === 2
     ? { border: 'border-slate-400/30', bg: 'bg-gradient-to-br from-slate-700/30 to-ink-800', badge: 'bg-slate-500/80 text-white', bar: 'bg-slate-500/60', text: 'text-slate-300', medal: '🥈' }
     : { border: 'border-orange-600/30', bg: 'bg-gradient-to-br from-orange-900/20 to-ink-800', badge: 'bg-orange-600/80 text-white', bar: 'bg-orange-700/60', text: 'text-orange-300', medal: '🥉' };
-  const w = is1st ? 'flex-[1.4]' : 'flex-1';
-  const h = is1st ? 'min-h-[280px]' : 'min-h-[240px]';
+  const w = ''; // flexible via flex
+  const h = is1st ? 'max-h-[320px]' : 'max-h-[260px]';
   const score = Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID');
   const unit = mode === 'xp' ? 'XP' : 'Coin';
   return (
@@ -214,7 +214,7 @@ function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mo
       <div className={`${colors.bg} ${colors.border} border-2 rounded-2xl p-4 flex-1 flex flex-col w-full overflow-hidden`}>
         {/* Avatar + Info row */}
         <div className="flex items-start gap-3 mb-3">
-          <div className={`${is1st ? 'w-[35%] aspect-[4/5]' : 'w-[35%] aspect-[4/5]'} rounded-xl overflow-hidden bg-ink-700 shrink-0 border-2 ${is1st ? 'border-amber-500/40' : 'border-white/10'}`}>
+          <div className={`${is1st ? 'w-24 h-28' : 'w-16 h-20'} rounded-xl overflow-hidden bg-ink-700 shrink-0 border-2 ${is1st ? 'border-amber-500/40' : 'border-white/10'}`}>
             {entry.avatar_url ? (
               <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
             ) : (
