@@ -127,7 +127,7 @@ export function LeaderboardPage() {
 
         {/* Top 3 podium — order: 2nd, 1st, 3rd */}
         {!loading && !error && podium.length >= 3 && (
-          <div className="flex items-end justify-center gap-3 px-1 pt-6 pb-2">
+          <div className="flex items-end gap-3 px-1 pt-6 pb-2">
             {podium.map((entry: any, idx: number) => {
               const place = idx === 0 ? 2 : idx === 1 ? 1 : 3;
               return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} />;
@@ -200,7 +200,7 @@ function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mo
     : place === 2
     ? { border: 'border-slate-400/30', bg: 'bg-gradient-to-br from-slate-700/30 to-ink-800', badge: 'bg-slate-500/80 text-white', bar: 'bg-slate-500/60', text: 'text-slate-300', medal: '🥈' }
     : { border: 'border-orange-600/30', bg: 'bg-gradient-to-br from-orange-900/20 to-ink-800', badge: 'bg-orange-600/80 text-white', bar: 'bg-orange-700/60', text: 'text-orange-300', medal: '🥉' };
-  const w = is1st ? 'w-full max-w-[240px]' : 'w-full max-w-[200px]';
+  const w = is1st ? 'flex-[1.4]' : 'flex-1';
   const h = is1st ? 'min-h-[280px]' : 'min-h-[240px]';
   const score = Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID');
   const unit = mode === 'xp' ? 'XP' : 'Coin';
@@ -214,7 +214,7 @@ function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mo
       <div className={`${colors.bg} ${colors.border} border-2 rounded-2xl p-4 flex-1 flex flex-col w-full overflow-hidden`}>
         {/* Avatar + Info row */}
         <div className="flex items-start gap-3 mb-3">
-          <div className={`${is1st ? 'w-20 h-24' : 'w-16 h-20'} rounded-xl overflow-hidden bg-ink-700 shrink-0 border-2 ${is1st ? 'border-amber-500/40' : 'border-white/10'}`}>
+          <div className={`${is1st ? 'w-[35%] aspect-[4/5]' : 'w-[35%] aspect-[4/5]'} rounded-xl overflow-hidden bg-ink-700 shrink-0 border-2 ${is1st ? 'border-amber-500/40' : 'border-white/10'}`}>
             {entry.avatar_url ? (
               <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
             ) : (
