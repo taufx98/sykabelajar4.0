@@ -127,7 +127,7 @@ export function LeaderboardPage() {
 
         {/* Top 3 podium — order: 2nd, 1st, 3rd */}
         {!loading && !error && podium.length >= 3 && (
-          <div className="grid grid-cols-3 gap-2 items-end">
+          <div className="grid grid-cols-3 gap-3 items-end overflow-hidden px-1">
             {podium.map((entry: any, idx: number) => {
               const place = idx === 0 ? 2 : idx === 1 ? 1 : 3;
               return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} />;
@@ -136,6 +136,9 @@ export function LeaderboardPage() {
         )}
 
         {/* Ranks 4-10 (current page) */}
+        {!loading && !error && podium.length >= 3 && (
+          <div className="border-t border-white/5 my-1" />
+        )}
         {!loading && !error && (
           <div className="space-y-2">
             {paged.map((entry: any) => (
@@ -192,16 +195,16 @@ export function LeaderboardPage() {
 
 function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mode }) {
   const border = place === 1 ? 'border-amber-500/40 ring-2 ring-amber-500/20' : place === 2 ? 'border-slate-400/30' : 'border-orange-600/30';
-  const h = place === 1 ? 'h-52' : 'h-40';
+  const h = place === 1 ? 'min-h-[220px]' : 'min-h-[180px]';
   return (
-    <div className={`card p-3 flex flex-col items-center ${border} ${h}`}>
-      <div className="relative w-full mb-2 flex-1">
-        <div className="w-full h-full rounded-xl overflow-hidden bg-ink-800" style={{ aspectRatio: '4/5' }}>
+    <div className={`card p-3 flex flex-col items-center ${border} ${h} overflow-hidden`}>
+      <div className="relative w-full mb-2 flex-1 min-h-0">
+        <div className="w-full h-full rounded-xl overflow-hidden bg-ink-800">
           {entry.avatar_url ? (
             <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-moss-500/10">
-              <span className="text-4xl font-bold text-moss-300">{(entry.display_name || 'U').charAt(0).toUpperCase()}</span>
+              <span className="text-3xl font-bold text-moss-300">{(entry.display_name || 'U').charAt(0).toUpperCase()}</span>
             </div>
           )}
         </div>
@@ -209,7 +212,7 @@ function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mo
           <RankBadge rank={place} size="sm" />
         </div>
       </div>
-      <Link to={`/profile/${entry.username}`} className="text-center w-full">
+      <Link to={`/profile/${entry.username}`} className="text-center w-full min-w-0">
         <p className="text-xs font-bold text-white truncate">{entry.display_name}</p>
         <p className="text-[10px] text-slate-500 truncate">{entry.institution || '—'}</p>
       </Link>
