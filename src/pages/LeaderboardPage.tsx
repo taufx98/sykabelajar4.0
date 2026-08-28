@@ -127,7 +127,7 @@ export function LeaderboardPage() {
 
         {/* Top 3 podium — order: 2nd, 1st, 3rd */}
         {!loading && !error && podium.length >= 3 && (
-          <div className="grid grid-cols-3 gap-3 items-end overflow-hidden px-1">
+          <div className="flex items-end justify-center gap-3 px-1 pt-6 pb-2">
             {podium.map((entry: any, idx: number) => {
               const place = idx === 0 ? 2 : idx === 1 ? 1 : 3;
               return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} />;
@@ -194,31 +194,58 @@ export function LeaderboardPage() {
 }
 
 function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mode }) {
-  const border = place === 1 ? 'border-amber-500/40 ring-2 ring-amber-500/20' : place === 2 ? 'border-slate-400/30' : 'border-orange-600/30';
-  const h = place === 1 ? 'min-h-[220px]' : 'min-h-[180px]';
+  const is1st = place === 1;
+  const colors = is1st
+    ? { border: 'border-amber-500/50', bg: 'bg-gradient-to-br from-amber-900/30 to-ink-800', badge: 'bg-amber-500 text-white', bar: 'bg-amber-600', text: 'text-amber-300', medal: '🥇' }
+    : place === 2
+    ? { border: 'border-slate-400/30', bg: 'bg-gradient-to-br from-slate-700/30 to-ink-800', badge: 'bg-slate-500/80 text-white', bar: 'bg-slate-500/60', text: 'text-slate-300', medal: '🥈' }
+    : { border: 'border-orange-600/30', bg: 'bg-gradient-to-br from-orange-900/20 to-ink-800', badge: 'bg-orange-600/80 text-white', bar: 'bg-orange-700/60', text: 'text-orange-300', medal: '🥉' };
+  const w = is1st ? 'w-full max-w-[240px]' : 'w-full max-w-[200px]';
+  const h = is1st ? 'min-h-[280px]' : 'min-h-[240px]';
+  const score = Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID');
+  const unit = mode === 'xp' ? 'XP' : 'Coin';
   return (
-    <div className={`card p-3 flex flex-col items-center ${border} ${h} overflow-hidden`}>
-      <div className="relative w-full mb-2 flex-1 min-h-0">
-        <div className="w-full h-full rounded-xl overflow-hidden bg-ink-800">
-          {entry.avatar_url ? (
-            <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-moss-500/10">
-              <span className="text-3xl font-bold text-moss-300">{(entry.display_name || 'U').charAt(0).toUpperCase()}</span>
-            </div>
-          )}
+    <div className={`${w} ${h} flex flex-col items-center`}>
+      {/* Rank badge */}
+      <div className={`${colors.badge} px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 mb-[-12px] z-10 shadow-lg`}>
+        <span>{colors.medal}</span> RANK {place}
+      </div>
+      {/* Card */}
+      <div className={`${colors.bg} ${colors.border} border-2 rounded-2xl p-4 flex-1 flex flex-col w-full overflow-hidden`}>
+        {/* Avatar + Info row */}
+        <div className="flex items-start gap-3 mb-3">
+          <div className={`${is1st ? 'w-20 h-24' : 'w-16 h-20'} rounded-xl overflow-hidden bg-ink-700 shrink-0 border-2 ${is1st ? 'border-amber-500/40' : 'border-white/10'}`}>
+            {entry.avatar_url ? (
+              <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-moss-500/10">
+                <span className={`${is1st ? 'text-2xl' : 'text-xl'} font-bold text-moss-300`}>{(entry.display_name || 'U').charAt(0).toUpperCase()}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0 pt-1">
+            <Link to={`/profile/${entry.username}`}>
+              <p className={`${is1st ? 'text-base' : 'text-sm'} font-bold text-white truncate`}>{entry.display_name}</p>
+              <p className="text-[11px] text-slate-400 truncate">@{entry.username}</p>
+            </Link>
+            {entry.institution && (
+              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${is1st ? 'bg-amber-500/20 text-amber-300' : 'bg-white/5 text-slate-400'}`}>
+                {entry.institution}
+              </span>
+            )}
+            <p className="text-[10px] text-slate-500 mt-1">Wali: —</p>
+          </div>
         </div>
-        <div className="absolute -bottom-1.5 -right-1.5">
-          <RankBadge rank={place} size="sm" />
+        {/* Ribbons */}
+        <div className={`text-center text-[11px] ${colors.text} mb-2`}>
+          🎗️ 0 Ribbons
+        </div>
+        {/* Score bar */}
+        <div className={`${colors.bar} rounded-xl py-2 text-center mt-auto`}>
+          <span className={`text-sm font-bold ${is1st ? 'text-white' : 'text-white/90'}`}>{score}</span>
+          <span className="text-[10px] text-white/60 ml-1">{unit}</span>
         </div>
       </div>
-      <Link to={`/profile/${entry.username}`} className="text-center w-full min-w-0">
-        <p className="text-xs font-bold text-white truncate">{entry.display_name}</p>
-        <p className="text-[10px] text-slate-500 truncate">{entry.institution || '—'}</p>
-      </Link>
-      <p className="mt-1 text-sm font-bold text-moss-300">
-        {Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID')} {mode === 'xp' ? 'XP' : 'Coin'}
-      </p>
     </div>
   );
 }
