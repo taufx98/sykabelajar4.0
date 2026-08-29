@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -73,31 +73,34 @@ function AppRoute({ children }: { children: ReactNode }) {
 
 function RootEntry() {
   const { isAuthenticated, authLoading, isGuest, user } = useApp();
+  const isInitialLoad = useRef(true);
   const hasStoredSession = typeof window !== 'undefined' && (
     localStorage.getItem('sb-jrfogwueytiddnanetth-auth-token') !== null ||
     localStorage.getItem(GUEST_KEY) === '1'
   );
 
-  // CRITICAL: While auth is loading, redirect immediately to last route (no flash)
-  if (authLoading) {
-    // If has stored session OR guest → go to last route instantly
-    if (hasStoredSession || isGuest) return <Navigate to={getLastRoute()} replace />;
-    // First visit → show spinner briefly
-    return (
-      <div className="min-h-screen bg-ink-950 flex items-center justify-center">
-        <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
-          <div className="w-5 h-5 bg-white/30 rounded" />
+  // Mark initial load complete after first render
+  useEffect(() => { isInitialLoad.current = false; }, []);
+
+  // On INITIAL LOAD: redirect to last route if user has session
+  // On EXPLICIT NAVIGATION to /: always show landing page
+  if (isInitialLoad.current) {
+    if (authLoading) {
+      if (hasStoredSession || isGuest) return <Navigate to={getLastRoute()} replace />;
+      return (
+        <div className="min-h-screen bg-ink-950 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
+            <div className="w-5 h-5 bg-white/30 rounded" />
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+    if ((hasStoredSession && isAuthenticated) || isGuest || (isAuthenticated && user)) {
+      return <Navigate to={getLastRoute()} replace />;
+    }
   }
 
-  // Auth loaded + has session OR guest OR authenticated → go to last route
-  if ((hasStoredSession && isAuthenticated) || isGuest || (isAuthenticated && user)) {
-    return <Navigate to={getLastRoute()} replace />;
-  }
-
-  // Auth loaded, no session, not authenticated → landing page
+  // Always show landing page on / (either first visit or explicit navigation)
   return <LandingPage />;
 }
 
