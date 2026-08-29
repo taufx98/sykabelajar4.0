@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { adminSetUserRole, type BackendRole } from '@/services/role.service';
+import { AdminDashboard } from '@/components/admin/AdminDashboard';
 
 type AdminTab = 'dashboard' | 'competitions' | 'users' | 'posts' | 'orders' | 'shop' | 'banners' | 'chat' | 'settings';
 const tabs: { key: AdminTab; label: string; icon: typeof Trophy }[] = [
@@ -161,7 +162,7 @@ export function AdminPage() {
       <section className="p-4 md:p-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-5"><div><h2 className="font-display text-xl font-bold text-white">{tabs.find((t) => t.key === tab)?.label}</h2><p className="text-[11px] text-slate-500 mt-0.5">Data live Supabase · perubahan langsung tersimpan</p></div></div>
 
-        {tab === 'dashboard' && <><div className="grid grid-cols-2 lg:grid-cols-4 gap-3"><Stat label="User" value={stats.total_users}/><Stat label="Sekolah" value={stats.total_schools}/><Stat label="Lomba" value={stats.total_competitions}/><Stat label="Lomba Publik" value={stats.total_public_competitions}/><Stat label="Sertifikat" value={stats.total_certificates}/><Stat label="Pending Order" value={orders.filter((o) => o.status === 'PENDING_PAYMENT').length}/><Stat label="Postingan" value={posts.length}/><Stat label="Produk Shop" value={products.length}/></div><div className="mt-6"><h3 className="font-display font-semibold text-white mb-3">Lomba Terbaru</h3><div className="space-y-2">{competitions.slice(0, 5).map((c) => <Card key={c.id} className="p-3 flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-moss-500/10 flex items-center justify-center"><Trophy size={17} className="text-moss-400"/></div><div className="flex-1 min-w-0"><p className="text-sm text-white font-semibold truncate">{c.title}</p><p className="text-[11px] text-slate-500">{c.slug} · {c.status}</p></div><Badge>{c.status}</Badge></Card>)}{!competitions.length && <Card className="p-6 text-center text-sm text-slate-500">Belum ada lomba.</Card>}</div></div></>}
+        {tab === 'dashboard' && <AdminDashboard />}
 
         {tab === 'competitions' && <>
           <div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={() => setCompetitionEditor({ status: 'DRAFT', visibility: 'PUBLIC', category: 'Kompetisi' })}>Tambah Lomba</Button></div>
