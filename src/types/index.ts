@@ -1,6 +1,6 @@
 export type Role = 'pelajar' | 'guru' | 'penyelenggara' | 'admin';
 
-export type EducationLevel = 'sd' | 'smp' | 'sma';
+export type EducationLevel = 'sd' | 'smp' | 'sma' | 'alumni';
 
 export interface Emblem { id: string; name: string; competitionTitle: string; position: string; color: string; icon: string; }
 

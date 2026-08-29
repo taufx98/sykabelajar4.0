@@ -17,18 +17,17 @@ function assertFile(file: File, maxBytes = 10 * 1024 * 1024) {
 export async function uploadImage(file: File, folder?: string): Promise<CloudinaryUploadResult> {
   if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar');
   assertFile(file, 5 * 1024 * 1024);
-  if (folder?.includes('/profiles/') || folder?.includes('/covers/')) {
-    const kind = folder.includes('/covers/') ? 'cover' : 'profile';
-    const formData = new FormData(); formData.append('file', file); formData.append('kind', kind);
-    const { data, error } = await supabase.functions.invoke('cloudinary-profile-upload-v2', { body: formData });
-    if (error) throw error;
-    const result = data as CloudinaryUploadResult & { error?: string };
-    if (!result?.secure_url || !result?.public_id) throw new Error(result?.error || 'Cloudinary profile upload gagal.');
-    return result;
+  // Direct upload to Cloudinary (no Edge Function needed)
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ?? '');
+  if (folder) formData.append('folder', folder);
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ?? '';
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
+  if (!response.ok) {
+    const errBody = await response.text().catch(() => '');
+    throw new Error(`Cloudinary upload gagal (${response.status}): ${errBody}`);
   }
-  const formData = new FormData(); formData.append('file', file); formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ?? ''); if (folder) formData.append('folder', folder);
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ?? ''; const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
-  if (!response.ok) throw new Error(`Cloudinary upload gagal (${response.status})`);
   return response.json() as Promise<CloudinaryUploadResult>;
 }
 
