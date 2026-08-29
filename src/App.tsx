@@ -45,7 +45,7 @@ const LAST_ROUTE_KEY = 'sykabelajar_last_route';
 const PUBLIC_ROUTES = ['/', '/login', '/register'];
 
 function saveLastRoute(pathname: string) {
-  if (!PUBLIC_ROUTES.includes(pathname) && pathname !== window.location.pathname) {
+  if (!PUBLIC_ROUTES.includes(pathname)) {
     localStorage.setItem(LAST_ROUTE_KEY, pathname);
   }
 }
