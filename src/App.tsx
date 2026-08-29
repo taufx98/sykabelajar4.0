@@ -35,6 +35,7 @@ import { SocialFeedPage } from '@/pages/SocialFeedPage';
 import { TwibbonPage } from '@/pages/TwibbonPage';
 import { AdminBannersPage } from '@/pages/AdminBannersPage';
 import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
+import { AdminChatPage } from '@/pages/AdminChatPage';
 import { getUserRoles } from '@/services/role.service';
 import { supabase } from '@/lib/supabase';
 
@@ -115,6 +116,7 @@ function AppRoutes() {
       <Route path="/admin/moderation" element={<RoleRoute role="admin"><AdminModerationPage /></RoleRoute>} />
       <Route path="/admin/fulfillment" element={<RoleRoute role="admin"><AdminFulfillmentPage /></RoleRoute>} />
       <Route path="/admin/banners" element={<RoleRoute role="admin"><AdminBannersPage /></RoleRoute>} />
+      <Route path="/admin/chat" element={<RoleRoute role="admin"><AdminChatPage /></RoleRoute>} />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;

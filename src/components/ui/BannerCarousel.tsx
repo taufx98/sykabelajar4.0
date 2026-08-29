@@ -13,7 +13,7 @@ function getSlotCount() {
 function EmptySlot() {
   return (
     <a
-      href="#/admin/banners"
+      href="#/organizer/ads"
       className="flex-1 bg-ink-800/40 border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-moss-400/60 transition cursor-pointer rounded-xl"
       style={{ aspectRatio: `465/${UPLOAD_H}` }}
     >

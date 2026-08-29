@@ -16,7 +16,7 @@ import type { PublicLeaderboardRow } from '@/services/platform.service';
 import { supabase } from '@/lib/supabase';
 
 export function HomePage(){
- const{user,isGuest,notifications,toast}=useApp();const navigate=useNavigate();const[tab,setTab]=useState<'lomba'|'prestasi'>('lomba');const[posts,setPosts]=useState<SocialPost[]>([]);const[competitions,setCompetitions]=useState<any[]>([]);const[leaders,setLeaders]=useState<PublicLeaderboardRow[]>([]);const[loading,setLoading]=useState(true);const[loadingMore,setLoadingMore]=useState(false);const[cursor,setCursor]=useState<string|null>(null);const[expanded,setExpanded]=useState<string|null>(null);const[searchQuery,setSearchQuery]=useState('');const[searchAllComps,setSearchAllComps]=useState<any[]>([]);const[searchUsers,setSearchUsers]=useState<any[]>([]);const[leaderMode,setLeaderMode]=useState<'xp'|'coin'>('xp');const[coinLeaders,setCoinLeaders]=useState<any[]>([]);
+ const{user,isGuest,notifications,toast}=useApp();const navigate=useNavigate();const[tab,setTab]=useState<'lomba'|'prestasi'>('lomba');const[posts,setPosts]=useState<SocialPost[]>([]);const[competitions,setCompetitions]=useState<any[]>([]);const[leaders,setLeaders]=useState<PublicLeaderboardRow[]>([]);const[loading,setLoading]=useState(true);const[loadingMore,setLoadingMore]=useState(false);const[cursor,setCursor]=useState<string|null>(null);const[expanded,setExpanded]=useState<string|null>(null);const[searchQuery,setSearchQuery]=useState('');const[searchAllComps,setSearchAllComps]=useState<any[]>([]);const[searchUsers,setSearchUsers]=useState<any[]>([]);const[leaderMode,setLeaderMode]=useState<'xp'|'coin'>('xp');const[coinLeaders,setCoinLeaders]=useState<any[]>([]);const[showAllPosts,setShowAllPosts]=useState(false);const[mobilePage,setMobilePage]=useState(1);
  const loadFirst=async()=>{setLoading(true);try{const[{items,nextCursor},comps,{data:lb,error:lbError}]=await Promise.all([listPublishedPostsPage(15),getPublicCompetitions(5),(async()=>{const{data,error}=await import('@/lib/supabase').then(({supabase})=>supabase.rpc('get_public_leaderboard',{p_limit:5}));return{data,error}})()]);if(lbError)throw lbError;setPosts(items);setCursor(nextCursor);setCompetitions(comps);setLeaders((lb??[]) as PublicLeaderboardRow[]);const{data:cl}=await import('@/lib/supabase').then(({supabase})=>supabase.rpc('get_public_coin_leaderboard',{p_limit:5}));setCoinLeaders((cl??[]) as any[]);}catch(e:any){toast(e?.message??'Beranda gagal dimuat.','error')}finally{setLoading(false)}};
 const loadSearchData=useCallback(async()=>{try{const [compRes,userRes]=await Promise.allSettled([getPublicCompetitions(100),supabase.from('public_profiles').select('id,username,full_name,avatar_url,grade,institution').limit(50)]);if(compRes.status==='fulfilled')setSearchAllComps(compRes.value);if(userRes.status==='fulfilled'&&userRes.value.data)setSearchUsers(userRes.value.data);}catch{}},[]);useEffect(()=>{void loadSearchData()},[loadSearchData]);useEffect(()=>{const handler=(e:MouseEvent)=>{if(searchQuery&&!(e.target as HTMLElement).closest('[data-search]'))setSearchQuery('')};document.addEventListener('mousedown',handler);return()=>document.removeEventListener('mousedown',handler)},[searchQuery]);
  useEffect(()=>{void loadFirst()},[]);
@@ -51,6 +51,38 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
               </span>
             ))}
           </div>
+        </div>
+        {/* Mobile search bar — below running text */}
+        <div className="md:hidden px-4 py-2 relative" data-search>
+          <Search size={15} className="absolute left-7 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            className="input pl-9 text-sm"
+            placeholder="Cari lomba, pengguna..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <div className="absolute left-4 right-4 top-full mt-1 z-30 bg-ink-800 border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+              {searchResults.length > 0 ? searchResults.map((r) => (
+                <Link
+                  key={r.id + r.type}
+                  to={r.type === 'competition' ? `/lomba/${r.slug}` : r.type === 'user' ? `/profile/${r.slug}` : '/feed'}
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition"
+                  onClick={() => setSearchQuery('')}
+                >
+                  <div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">
+                    {r.type === 'competition' ? <Trophy size={13} className="text-moss-400" /> : <FileText size={13} className="text-moss-400" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-white truncate">{r.title}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{r.subtitle}</p>
+                  </div>
+                </Link>
+              )) : (
+                <p className="text-xs text-slate-500 text-center py-3">Tidak ditemukan</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -87,7 +119,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
               </div>
             ) : tab === 'lomba' ? (
               showCompetitions ? (
-                competitions.map((comp) => (
+                competitions.slice(0, 5).map((comp) => (
                   <Card key={comp.id} className="overflow-hidden">
                     <div className="p-4">
                       <div className="flex items-center gap-3 mb-3">
@@ -105,7 +137,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                       <Link to={`/lomba/${comp.slug}`}>
                         <h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{comp.title}</h3>
                         {comp.short_description && <p className="text-sm text-slate-300 leading-relaxed mb-3">{comp.short_description}</p>}
-                        {comp.poster_url && <img src={comp.poster_url} alt={comp.title} loading="lazy" className="w-full max-h-96 object-cover rounded-xl border border-white/5 mt-2" />}
+                        {comp.poster_url && <img src={comp.poster_url} alt={comp.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5 mt-2" />}
                         <p className="text-xs text-moss-400 flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14} /></p>
                       </Link>
                     </div>
@@ -120,7 +152,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                   </Card>
                 ))
               ) : lombaPosts.length ? (
-                lombaPosts.map((post) => (
+                lombaPosts.slice(0, showAllPosts ? undefined : 5).map((post) => (
                   <FeedPostCard
                     key={post.id}
                     post={post}
@@ -139,7 +171,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 </Card>
               )
             ) : prestasiPosts.length ? (
-              prestasiPosts.map((post) => (
+              prestasiPosts.slice(0, showAllPosts ? undefined : 5).map((post) => (
                 <FeedPostCard
                   key={post.id}
                   post={post}
@@ -157,7 +189,15 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 <p className="text-sm text-slate-400">Belum ada postingan prestasi.</p>
               </Card>
             )}
-            {cursor && (
+            {/* Lihat lebih banyak button for mobile */}
+            {!showAllPosts && ((tab === 'lomba' && lombaPosts.length > 5) || (tab === 'prestasi' && prestasiPosts.length > 5) || (showCompetitions && competitions.length > 5)) && (
+              <div className="text-center pt-1">
+                <Button variant="outline" size="sm" onClick={() => setShowAllPosts(true)}>
+                  Lihat lebih banyak
+                </Button>
+              </div>
+            )}
+            {cursor && showAllPosts && (
               <div className="text-center pt-1">
                 <Button variant="outline" size="sm" loading={loadingMore} onClick={() => void loadMore()}>
                   Muat lebih banyak
@@ -166,8 +206,8 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             )}
           </main>
 
-          {/* ===== RIGHT SIDEBAR ===== */}
-          <aside className="space-y-4 lg:sticky lg:top-[108px]">
+          {/* ===== RIGHT SIDEBAR ===== — hidden on mobile always, hidden on lg when showAllPosts */}
+          <aside className={`hidden lg:block space-y-4 lg:sticky lg:top-[108px] ${showAllPosts ? 'hidden' : ''}`}>
             {/* Search bar */}
             <div className="relative" data-search>
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -286,7 +326,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                         u.rank === 3 ? 'bg-amber-500/20 text-amber-400' :
                         'bg-slate-500/15 text-slate-400';
                       return (
-                        <div key={u.user_id} className="flex items-center gap-2.5">
+                        <Link key={u.user_id} to={`/profile/${u.username}`} className="flex items-center gap-2.5 hover:bg-white/5 rounded-lg px-1 py-1 -mx-1 transition">
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${rankColor}`}>
                             {u.rank}
                           </div>
@@ -302,7 +342,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                           <span className="text-xs text-moss-300 font-semibold tabular-nums">
                             {Number(u.xp || 0).toLocaleString('id-ID')}
                           </span>
-                        </div>
+                        </Link>
                       );
                     })
                   : coinLeaders.map((u, idx) => {
@@ -313,7 +353,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                         rank === 3 ? 'bg-amber-500/20 text-amber-400' :
                         'bg-slate-500/15 text-slate-400';
                       return (
-                        <div key={u.user_id} className="flex items-center gap-2.5">
+                        <Link key={u.user_id} to={`/profile/${u.username}`} className="flex items-center gap-2.5 hover:bg-white/5 rounded-lg px-1 py-1 -mx-1 transition">
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${rankColor}`}>
                             {rank}
                           </div>
@@ -329,7 +369,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                           <span className="text-xs text-amber-300 font-semibold tabular-nums">
                             {Number(u.edu_coin || 0).toLocaleString('id-ID')}
                           </span>
-                        </div>
+                        </Link>
                       );
                     })}
                 {((leaderMode === 'xp' && leaders.length === 0) ||
@@ -375,4 +415,4 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
   );
 }
 
-function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{post:SocialPost;expanded:boolean;onExpand:()=>void;onLike:()=>void;onShare:()=>void;onOpen:()=>void;isGuest:boolean}){return <Card className="p-4"><div className="flex gap-3"><Link to={`/profile/${post.author_username}`}><Avatar name={post.author_name} id={post.author_user_id} size={44} src={post.avatar_url??undefined}/></Link><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><Link to={`/profile/${post.author_username}`} className="text-sm font-semibold text-white truncate">{post.author_name}</Link><span className="chip bg-moss-500/10 text-moss-300 border border-moss-500/20 text-[10px]">{post.competition_id?'Lomba':'Prestasi'}</span><span className="text-xs text-slate-600">· {timeAgo(post.created_at)}</span></div><p className="text-xs text-slate-500 mb-2">@{post.author_username}</p>{post.competition_id?<button onClick={onOpen} className="text-left w-full"><h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3><p className="text-sm text-slate-300 leading-relaxed mb-3">{post.body}</p>{post.cover_url&&<img src={post.cover_url} alt={post.title} loading="lazy" className="w-full max-h-96 object-cover rounded-xl border border-white/5"/>}<p className="text-xs text-moss-400 flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14}/></p></button>:<><h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3><p className="text-sm text-slate-300 leading-relaxed mb-3 whitespace-pre-line">{post.body}</p>{post.cover_url&&<img src={post.cover_url} alt={post.title} loading="lazy" className="w-full max-h-96 object-cover rounded-xl border border-white"/>}</>}<div className="flex items-center justify-between max-w-md text-slate-500 mt-3"><button onClick={onLike} disabled={isGuest} className={`flex items-center gap-1.5 text-xs ${post.liked?'text-moss-400':''}`}><Heart size={16} className={post.liked?'fill-moss-400':''}/>{post.likes}</button><button onClick={onExpand} className="flex items-center gap-1.5 text-xs"><MessageCircle size={16}/>{post.comments}</button><button onClick={onShare} className="flex items-center gap-1.5 text-xs"><Share2 size={16}/></button></div>{expanded&&<CommentsSection postId={post.id}/>}</div></div></Card>}
+function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{post:SocialPost;expanded:boolean;onExpand:()=>void;onLike:()=>void;onShare:()=>void;onOpen:()=>void;isGuest:boolean}){return <Card className="p-4"><div className="flex gap-3"><Link to={`/profile/${post.author_username}`}><Avatar name={post.author_name} id={post.author_user_id} size={44} src={post.avatar_url??undefined}/></Link><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><Link to={`/profile/${post.author_username}`} className="text-sm font-semibold text-white truncate">{post.author_name}</Link><span className="chip bg-moss-500/10 text-moss-300 border border-moss-500/20 text-[10px]">{post.competition_id?'Lomba':'Prestasi'}</span><span className="text-xs text-slate-600">· {timeAgo(post.created_at)}</span></div><p className="text-xs text-slate-500 mb-2">@{post.author_username}</p>{post.competition_id?<button onClick={onOpen} className="text-left w-full"><h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3><p className="text-sm text-slate-300 leading-relaxed mb-3">{post.body}</p>{post.cover_url&&<img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5"/>}<p className="text-xs text-moss-400 flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14}/></p></button>:<><h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3><p className="text-sm text-slate-300 leading-relaxed mb-3 whitespace-pre-line">{post.body}</p>{post.cover_url&&<img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white"/>}</>}<div className="flex items-center justify-between max-w-md text-slate-500 mt-3"><button onClick={onLike} disabled={isGuest} className={`flex items-center gap-1.5 text-xs ${post.liked?'text-moss-400':''}`}><Heart size={16} className={post.liked?'fill-moss-400':''}/>{post.likes}</button><button onClick={onExpand} className="flex items-center gap-1.5 text-xs"><MessageCircle size={16}/>{post.comments}</button><button onClick={onShare} className="flex items-center gap-1.5 text-xs"><Share2 size={16}/></button></div>{expanded&&<CommentsSection postId={post.id}/>}</div></div></Card>}

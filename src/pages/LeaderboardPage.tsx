@@ -13,9 +13,9 @@ type CoinRow = { user_id: string; username: string; display_name: string; instit
 
 const GRADES = [
   { key: 'all', label: 'Semua' },
-  { key: 'sd', label: 'SD' },
-  { key: 'smp', label: 'SMP' },
-  { key: 'sma', label: 'SMA' },
+  { key: 'sd', label: 'SD', children: ['1','2','3','4','5','6'] },
+  { key: 'smp', label: 'SMP', children: ['7','8','9'] },
+  { key: 'sma', label: 'SMA', children: ['10','11','12'] },
 ];
 
 const PER_PAGE = 10;
@@ -25,6 +25,7 @@ export function LeaderboardPage() {
   const { user } = useApp();
   const [mode, setMode] = useState<Mode>('xp');
   const [grade, setGrade] = useState('all');
+  const [subGrade, setSubGrade] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [entries, setEntries] = useState<PublicLeaderboardRow[]>([]);
   const [coins, setCoins] = useState<CoinRow[]>([]);
@@ -62,7 +63,13 @@ export function LeaderboardPage() {
   // Filter by grade
   const allRows = useMemo(() => {
     const rows = mode === 'xp' ? entries : (coins as any[]);
-    if (grade === 'all') return rows;
+    if (grade === 'all' && !subGrade) return rows;
+    if (subGrade) {
+      return rows.filter((r: any) => {
+        const inst = (r.institution || '').toLowerCase();
+        return inst.includes(subGrade.toLowerCase());
+      });
+    }
     const gradeMap: Record<string, string[]> = {
       sd: ['SD', 'Sekolah Dasar', '1', '2', '3', '4', '5', '6'],
       smp: ['SMP', 'Sekolah Menengah Pertama', '7', '8', '9'],
@@ -73,7 +80,7 @@ export function LeaderboardPage() {
       const inst = (r.institution || '').toLowerCase();
       return keywords.some(k => inst.includes(k.toLowerCase()));
     });
-  }, [entries, coins, mode, grade]);
+  }, [entries, coins, mode, grade, subGrade]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(allRows.length / PER_PAGE));
@@ -82,8 +89,10 @@ export function LeaderboardPage() {
   const paged = allRows.slice(3 + (safePage - 1) * PER_PAGE, 3 + safePage * PER_PAGE);
   const startRank = 4 + (safePage - 1) * PER_PAGE;
 
-  // Podium order: 2nd, 1st, 3rd
+  // Podium order: 2nd, 1st, 3rd (for desktop side-by-side)
   const podium = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
+  // Mobile order: 1st, 2nd, 3rd
+  const podiumMobile = top3.length >= 3 ? [top3[0], top3[1], top3[2]] : top3;
 
   return (
     <div>
@@ -108,16 +117,48 @@ export function LeaderboardPage() {
           </button>
         </div>
 
-        {/* Grade filter */}
-        <div className="flex gap-1 overflow-x-auto no-scrollbar">
-          {GRADES.map((g) => (
-            <button key={g.key} onClick={() => { setGrade(g.key); setPage(1); }}
-              className={`px-3 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition ${
-                grade === g.key ? 'bg-moss-500/20 text-moss-300 border border-moss-500/30' : 'text-slate-500 border border-white/10 hover:border-white/20'
-              }`}>
-              {g.label}
-            </button>
-          ))}
+        {/* Grade filter — single row, inline expansion, underline style */}
+        <div className="flex overflow-x-auto no-scrollbar border-b border-white/5">
+          {(() => {
+            const items: { key: string; label: string; active: boolean; onClick: () => void }[] = [];
+            // Always start with Semua
+            items.push({ key: 'all', label: 'Semua', active: grade === 'all' && !subGrade, onClick: () => { setGrade('all'); setSubGrade(null); setPage(1); } });
+            GRADES.filter(g => g.key !== 'all').forEach((g) => {
+              items.push({
+                key: g.key,
+                label: g.label,
+                active: grade === g.key && !subGrade,
+                onClick: () => { setGrade(g.key); setSubGrade(null); setPage(1); },
+              });
+              // If this grade is active and has children, expand them inline
+              if (grade === g.key && g.children) {
+                g.children.forEach((lvl) => {
+                  items.push({
+                    key: `${g.key}-${lvl}`,
+                    label: lvl,
+                    active: subGrade === lvl,
+                    onClick: () => { setSubGrade(lvl); setPage(1); },
+                  });
+                });
+              }
+            });
+            return items.map((item) => (
+              <button
+                key={item.key}
+                onClick={item.onClick}
+                className={`px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-all relative shrink-0 ${
+                  item.active
+                    ? 'text-moss-300'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {item.label}
+                {item.active && (
+                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-moss-400 rounded-full" />
+                )}
+              </button>
+            ));
+          })()}
         </div>
       </div>
 
@@ -125,14 +166,24 @@ export function LeaderboardPage() {
         {loading && <Card className="p-8 text-center text-sm text-slate-500">Memuat...</Card>}
         {error && <Card className="p-8 text-center text-sm text-red-300">{error}</Card>}
 
-        {/* Top 3 podium — order: 2nd, 1st, 3rd */}
+        {/* Top 3 podium */}
         {!loading && !error && podium.length >= 3 && (
-          <div className="flex items-end gap-3 px-1 pt-6 pb-2">
-            {podium.map((entry: any, idx: number) => {
-              const place = idx === 0 ? 2 : idx === 1 ? 1 : 3;
-              return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} />;
-            })}
-          </div>
+          <>
+            {/* Desktop: side by side — order 2nd, 1st, 3rd */}
+            <div className="hidden sm:flex items-end justify-center gap-4 lg:gap-5 px-2 pt-8 pb-2">
+              {podium.map((entry: any, idx: number) => {
+                const place = idx === 0 ? 2 : idx === 1 ? 1 : 3;
+                return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} layout="vertical" />;
+              })}
+            </div>
+            {/* Mobile: stacked — order 1st, 2nd, 3rd */}
+            <div className="flex sm:hidden flex-col gap-4 pt-4">
+              {podiumMobile.map((entry: any, idx: number) => {
+                const place = idx === 0 ? 1 : idx === 1 ? 2 : 3;
+                return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} layout="horizontal" />;
+              })}
+            </div>
+          </>
         )}
 
         {/* Ranks 4-10 (current page) */}
@@ -193,57 +244,117 @@ export function LeaderboardPage() {
   );
 }
 
-function TopBox({ entry, place, mode }: { entry: any; place: 1 | 2 | 3; mode: Mode }) {
+/* ─────────────────────────────────────────────────────────
+   TopBox – Podium card for Rank 1 / 2 / 3
+   ───────────────────────────────────────────────────────── */
+function TopBox({ entry, place, mode, layout }: { entry: any; place: 1 | 2 | 3; mode: Mode; layout: 'vertical' | 'horizontal' }) {
   const is1st = place === 1;
   const colors = is1st
-    ? { border: 'border-amber-500/50', bg: 'bg-gradient-to-br from-amber-900/30 to-ink-800', badge: 'bg-amber-500 text-white', bar: 'bg-amber-600', text: 'text-amber-300', medal: '🥇' }
+    ? { border: 'border-amber-500/60', bg: 'bg-gradient-to-br from-amber-900/30 to-ink-800', badge: 'bg-amber-500 text-white', medal: '🥇', nameColor: 'text-amber-300', scoreColor: 'text-amber-300', glowBg: 'bg-amber-500', glowShadow: 'shadow-[0_0_12px_rgba(245,158,11,0.4)]' }
     : place === 2
-    ? { border: 'border-slate-400/30', bg: 'bg-gradient-to-br from-slate-700/30 to-ink-800', badge: 'bg-slate-500/80 text-white', bar: 'bg-slate-500/60', text: 'text-slate-300', medal: '🥈' }
-    : { border: 'border-orange-600/30', bg: 'bg-gradient-to-br from-orange-900/20 to-ink-800', badge: 'bg-orange-600/80 text-white', bar: 'bg-orange-700/60', text: 'text-orange-300', medal: '🥉' };
-  const w = ''; // flexible via flex
-  const h = is1st ? 'max-h-[320px]' : 'max-h-[260px]';
+    ? { border: 'border-slate-400/30', bg: 'bg-gradient-to-br from-slate-700/20 to-ink-800', badge: 'bg-slate-500/80 text-white', medal: '🥈', nameColor: 'text-white', scoreColor: 'text-white', glowBg: 'bg-amber-500', glowShadow: 'shadow-[0_0_12px_rgba(245,158,11,0.4)]' }
+    : { border: 'border-orange-600/30', bg: 'bg-gradient-to-br from-orange-900/20 to-ink-800', badge: 'bg-orange-600/80 text-white', medal: '🥉', nameColor: 'text-white', scoreColor: 'text-white', glowBg: 'bg-amber-500', glowShadow: 'shadow-[0_0_12px_rgba(245,158,11,0.4)]' };
+
   const score = Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID');
-  const unit = mode === 'xp' ? 'XP' : 'Coin';
-  return (
-    <div className={`${w} ${h} flex flex-col items-center`}>
-      {/* Rank badge */}
-      <div className={`${colors.badge} px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 mb-[-12px] z-10 shadow-lg`}>
-        <span>{colors.medal}</span> RANK {place}
+
+  const avatarFallback = (size: string) => (
+    <div className="w-full h-full flex items-center justify-center bg-moss-500/10">
+      <span className={`${size} font-bold text-moss-300`}>{(entry.display_name || 'U').charAt(0).toUpperCase()}</span>
+    </div>
+  );
+
+  const badgeIcons = (
+    <div className="flex gap-1.5 justify-center">
+      {[
+        'bg-amber-500/25 text-amber-400',
+        'bg-emerald-500/25 text-emerald-400',
+        'bg-sky-500/25 text-sky-400',
+        'bg-rose-500/25 text-rose-400',
+      ].map((cls, i) => (
+        <div key={i} className={`w-6 h-6 rounded-full ${cls} flex items-center justify-center`}>
+          <span className="text-[10px]">🏆</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const infoBlock = (
+    <div className="text-center w-full">
+      <Link to={`/profile/${entry.username}`}>
+        <p className={`font-bold text-sm ${colors.nameColor}`}>{entry.display_name}</p>
+        <p className="text-[11px] text-slate-400">@{entry.username}</p>
+      </Link>
+      <p className="text-[11px] text-slate-400 mt-0.5">{entry.institution || '—'}</p>
+      <p className="text-[10px] text-slate-500 mt-0.5">Pembina: -</p>
+    </div>
+  );
+
+  /* Total poin inside glowing yellow container */
+  const scoreBlock = (
+    <div className="mt-auto pt-2">
+      {badgeIcons}
+      <div className={`${colors.glowBg} ${colors.glowShadow} rounded-xl py-2 mt-2 text-center`}>
+        <p className="text-sm font-bold text-white">{score}</p>
+        <p className="text-[10px] text-white/70">total poin</p>
       </div>
-      {/* Card */}
-      <div className={`${colors.bg} ${colors.border} border-2 rounded-2xl p-4 flex-1 flex flex-col w-full overflow-hidden`}>
-        {/* Avatar + Info row */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className={`${is1st ? 'w-24 h-28' : 'w-16 h-20'} rounded-xl overflow-hidden bg-ink-700 shrink-0 border-2 ${is1st ? 'border-amber-500/40' : 'border-white/10'}`}>
+    </div>
+  );
+
+  const rankBadge = (
+    <div className={`${colors.badge} px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 mb-[-14px] z-10 shadow-lg self-center shrink-0 w-fit mx-auto`}>
+      <span>{colors.medal}</span> RANK {place}
+    </div>
+  );
+
+  /* ── VERTICAL (Desktop) ── */
+  if (layout === 'vertical') {
+    return (
+      <div className="flex-1 min-w-0 max-w-[320px]">
+        {rankBadge}
+        <div className={`${colors.bg} ${colors.border} border-2 rounded-2xl p-3 flex flex-col overflow-hidden`}>
+          {/* Large photo — NO rank label on photo */}
+          <div className="relative w-full aspect-[3/4] rounded-xl overflow-hidden bg-ink-700 mb-3">
             {entry.avatar_url ? (
               <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-moss-500/10">
-                <span className={`${is1st ? 'text-2xl' : 'text-xl'} font-bold text-moss-300`}>{(entry.display_name || 'U').charAt(0).toUpperCase()}</span>
-              </div>
-            )}
+            ) : avatarFallback('text-4xl')}
           </div>
-          <div className="flex-1 min-w-0 pt-1">
+          {infoBlock}
+          {scoreBlock}
+        </div>
+      </div>
+    );
+  }
+
+  /* ── HORIZONTAL (Mobile) ── */
+  return (
+    <div className="w-full">
+      {rankBadge}
+      <div className={`${colors.bg} ${colors.border} border-2 rounded-2xl p-3 flex flex-col overflow-hidden`}>
+        {/* Photo + Info side by side */}
+        <div className="flex gap-3">
+          {/* Photo — NO rank label on photo */}
+          <div className="relative w-24 h-28 rounded-xl overflow-hidden bg-ink-700 shrink-0">
+            {entry.avatar_url ? (
+              <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
+            ) : avatarFallback('text-2xl')}
+          </div>
+          {/* Detail info */}
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
             <Link to={`/profile/${entry.username}`}>
-              <p className={`${is1st ? 'text-base' : 'text-sm'} font-bold text-white truncate`}>{entry.display_name}</p>
+              <p className={`font-bold text-sm ${colors.nameColor}`}>{entry.display_name}</p>
               <p className="text-[11px] text-slate-400 truncate">@{entry.username}</p>
             </Link>
-            {entry.institution && (
-              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${is1st ? 'bg-amber-500/20 text-amber-300' : 'bg-white/5 text-slate-400'}`}>
-                {entry.institution}
-              </span>
-            )}
-            <p className="text-[10px] text-slate-500 mt-1">Wali: —</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{entry.institution || '—'}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Pembina: -</p>
           </div>
         </div>
-        {/* Ribbons */}
-        <div className={`text-center text-[11px] ${colors.text} mb-2`}>
-          🎗️ 0 Ribbons
-        </div>
-        {/* Score bar */}
-        <div className={`${colors.bar} rounded-xl py-2 text-center mt-auto`}>
-          <span className={`text-sm font-bold ${is1st ? 'text-white' : 'text-white/90'}`}>{score}</span>
-          <span className="text-[10px] text-white/60 ml-1">{unit}</span>
+        {/* Score below */}
+        <div className="mt-2 pt-2 border-t border-white/5">
+          {badgeIcons}
+          <div className={`${colors.glowBg} ${colors.glowShadow} rounded-xl py-2 mt-2 text-center`}>
+            <p className="text-sm font-bold text-white">{score}</p>
+            <p className="text-[10px] text-white/70">total poin</p>
+          </div>
         </div>
       </div>
     </div>

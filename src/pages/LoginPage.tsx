@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { GraduationCap, Mail, Lock, ArrowRight, UserRound, School, Building2 } from 'lucide-react';
+import { GraduationCap, Mail, Lock, ArrowRight, UserRound, School, Building2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
 import { resetPassword } from '@/services/auth.service';
@@ -23,6 +23,7 @@ export function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [showForgot, setShowForgot] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) { toast('Isi email dan password', 'error'); return; }
@@ -70,7 +71,7 @@ export function LoginPage() {
             </div>
             <div className="space-y-4">
               <div><label className="label">Email</label><div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type="email" className="input pl-9" placeholder="nama@email.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></div></div>
-              <div><label className="label">Password</label><div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type="password" className="input pl-9" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void handleLogin()} autoComplete="current-password" /></div></div>
+              <div><label className="label">Password</label><div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type={showPassword ? "text" : "password"} className="input pl-9 pr-10" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void handleLogin()} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
             </div>
             <div className="flex justify-end mt-3"><button onClick={() => { setForgotEmail(email); setShowForgot(true); }} className="text-xs text-moss-400 hover:underline">Lupa password?</button></div>
             <Button fullWidth size="lg" className="mt-6" loading={loading} onClick={() => void handleLogin()} icon={<ArrowRight size={18} />}>Masuk</Button>

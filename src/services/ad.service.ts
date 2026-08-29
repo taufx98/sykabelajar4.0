@@ -18,6 +18,7 @@ export interface AdBannerRequest {
   organizer_id: string;
   user_id: string;
   image_url: string;
+  image_urls?: string[];
   link_url: string;
   slots_requested: number;
   single_image: boolean;
@@ -34,6 +35,7 @@ export interface AdBanner {
   id: string;
   slot_number: number;
   image_url: string;
+  image_urls?: string[];
   link_url: string;
   single_image: boolean;
   image_width_slots: number;
@@ -70,7 +72,8 @@ export async function loadBannerSettings(): Promise<AdBannerSettings | null> {
 // ── Organizer: submit banner request ──
 export async function submitBannerRequest(params: {
   organizerId: string;
-  file: File;
+  file?: File;
+  imageUrls?: string[];
   linkUrl: string;
   slotsRequested: number;
   singleImage: boolean;
@@ -80,17 +83,32 @@ export async function submitBannerRequest(params: {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Unauthorized');
 
-  const result = await uploadImage(
-    params.file,
-    `sykabelajar/banners/${params.organizerId}/${params.slotsRequested}slot_${Date.now()}`
-  );
+  let primaryUrl: string;
+  let allUrls: string[] = [];
+
+  if (params.imageUrls && params.imageUrls.length > 0) {
+    // Multiple pre-uploaded URLs
+    allUrls = params.imageUrls;
+    primaryUrl = params.imageUrls[0];
+  } else if (params.file) {
+    // Single file upload (backward compat)
+    const result = await uploadImage(
+      params.file,
+      `sykabelajar/banners/${params.organizerId}/${params.slotsRequested}slot_${Date.now()}`
+    );
+    primaryUrl = result.secure_url;
+    allUrls = [primaryUrl];
+  } else {
+    throw new Error('No images provided');
+  }
 
   const { data, error } = await supabase
     .from('ad_banner_requests')
     .insert({
       organizer_id: params.organizerId,
       user_id: auth.user.id,
-      image_url: result.secure_url,
+      image_url: primaryUrl,
+      image_urls: allUrls,
       link_url: params.linkUrl,
       slots_requested: params.slotsRequested,
       single_image: params.singleImage,
@@ -154,6 +172,9 @@ export async function approveBannerRequest(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + req.duration_days);
 
+  // Use image_urls array if available, fallback to single image_url
+  const urls: string[] = req.image_urls?.length ? req.image_urls : [req.image_url];
+
   const bannersToInsert: any[] = [];
   if (req.single_image) {
     // One image fills multiple slots
@@ -162,7 +183,8 @@ export async function approveBannerRequest(
       organizer_id: req.organizer_id,
       user_id: req.user_id,
       slot_number: startSlot,
-      image_url: req.image_url,
+      image_url: urls[0],
+      image_urls: urls,
       link_url: req.link_url,
       single_image: true,
       image_width_slots: req.slots_requested,
@@ -171,15 +193,15 @@ export async function approveBannerRequest(
       is_active: true,
     });
   } else {
-    // Multiple separate images (each gets same slot for simplicity; in practice
-    // the organizer uploads one image per request, so slots_requested=1 each time)
+    // Multiple separate images — one per slot
     for (let i = 0; i < req.slots_requested; i++) {
       bannersToInsert.push({
         request_id: req.id,
         organizer_id: req.organizer_id,
         user_id: req.user_id,
         slot_number: startSlot + i,
-        image_url: req.image_url,
+        image_url: urls[i] || urls[0],
+        image_urls: urls,
         link_url: req.link_url,
         single_image: false,
         image_width_slots: 1,
@@ -250,4 +272,57 @@ export function calculateBannerPrice(
   if (slots >= 3) base *= (1 - settings.bundle_discount_3lots / 100);
   else if (slots >= 5) base *= (1 - settings.bundle_discount_5lots / 100);
   return Math.round(base);
+}
+
+
+// ── Platform Settings (admin banks, WhatsApp, chat) ──
+export interface AdminBank {
+  bank: string;
+  name: string;
+  number: string;
+}
+
+export interface PlatformSettings {
+  admin_banks: AdminBank[];
+  whatsapp_number: string;
+  chat_enabled: boolean;
+  chat_type: 'whatsapp' | 'internal';
+}
+
+const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
+  admin_banks: [
+    { bank: 'BCA', name: 'PT Syka Belajar', number: '1234567890' },
+    { bank: 'BRI', name: 'PT Syka Belajar', number: '0987654321' },
+  ],
+  whatsapp_number: '6281234567890',
+  chat_enabled: true,
+  chat_type: 'whatsapp',
+};
+
+export async function loadPlatformSettings(): Promise<PlatformSettings> {
+  const { data } = await supabase
+    .from('platform_settings')
+    .select('key, value');
+  if (!data || data.length === 0) return DEFAULT_PLATFORM_SETTINGS;
+  const result = { ...DEFAULT_PLATFORM_SETTINGS };
+  for (const row of data) {
+    const key = row.key as keyof PlatformSettings;
+    if (key in result) {
+      (result as any)[key] = row.value;
+    }
+  }
+  return result;
+}
+
+export async function updatePlatformSetting(key: string, value: any): Promise<void> {
+  const { data: existing } = await supabase
+    .from('platform_settings')
+    .select('id')
+    .eq('key', key)
+    .maybeSingle();
+  if (existing) {
+    await supabase.from('platform_settings').update({ value, updated_at: new Date().toISOString() }).eq('id', existing.id);
+  } else {
+    await supabase.from('platform_settings').insert({ key, value });
+  }
 }
