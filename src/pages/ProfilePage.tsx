@@ -1,15 +1,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Edit2, Calendar, Trophy, Award, GraduationCap, BarChart3, TrendingUp, CheckCircle2, User, ChevronLeft, UserPlus, UserMinus, MessageCircle } from 'lucide-react';
+import {
+  Edit2, Calendar, Trophy, Award, GraduationCap, BarChart3, TrendingUp,
+  CheckCircle2, User, UserPlus, UserMinus, MessageCircle, School, Heart,
+} from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Badge, RankBadge } from '@/components/ui/Badge';
+import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { uploadImage } from '@/services/cloudinary.service';
 import { formatShortDate } from '@/lib/utils';
-import { CATEGORY_LABELS } from '@/data/catalog';
+import { CATEGORY_LABELS, GRADE_OPTIONS } from '@/data/catalog';
 
 type Tab = 'prestasi' | 'lomba' | 'statistik';
 
@@ -43,10 +46,9 @@ export function ProfilePage() {
   const [following, setFollowing] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
-  const [awardComments, setAwardComments] = useState<Record<string, string>>({});
-  const [expandedAward, setExpandedAward] = useState<string | null>(null);
   const isOwn = currentUser?.username === username;
 
+  // ── Load profile data ──
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -54,7 +56,7 @@ export function ProfilePage() {
       try {
         const { data: p, error } = await supabase
           .from('profiles')
-          .select('id,username,full_name,institution,avatar_url,bio,created_at,cover_url')
+          .select('*')
           .eq('username', username || '')
           .maybeSingle();
         if (error) throw error;
@@ -66,30 +68,23 @@ export function ProfilePage() {
           .eq('user_id', p.id)
           .order('issued_at', { ascending: false });
 
-        // Get XP from leaderboard
+        // XP from leaderboard (SECURITY DEFINER — global data)
         const { data: lb } = await supabase.rpc('get_public_leaderboard', { p_limit: 100 });
         const userRow = (lb ?? []).find((r: any) => String(r.user_id) === String(p.id));
         const xp = Number(userRow?.xp ?? 0);
         const userRank = Number(userRow?.rank ?? 0);
 
-        // Get followers/following counts
+        // Followers / Following
         const { count: flCount } = await supabase
-          .from('follows')
-          .select('id', { count: 'exact', head: true })
-          .eq('following_id', p.id);
+          .from('follows').select('id', { count: 'exact', head: true }).eq('following_id', p.id);
         const { count: fgCount } = await supabase
-          .from('follows')
-          .select('id', { count: 'exact', head: true })
-          .eq('follower_id', p.id);
+          .from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', p.id);
 
-        // Check if current user follows this profile
         let followed = false;
-        if (currentUser && !isOwn) {
+        if (currentUser && currentUser.id !== p.id) {
           const { count } = await supabase
-            .from('follows')
-            .select('id', { count: 'exact', head: true })
-            .eq('follower_id', currentUser.id)
-            .eq('following_id', p.id);
+            .from('follows').select('id', { count: 'exact', head: true })
+            .eq('follower_id', currentUser.id).eq('following_id', p.id);
           followed = (count ?? 0) > 0;
         }
 
@@ -107,9 +102,9 @@ export function ProfilePage() {
       } finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
-  }, [username, toast]);
+  }, [username, toast, currentUser]);
 
-  // Load competitions when tab switches to 'lomba'
+  // ── Load competitions ──
   useEffect(() => {
     if (activeTab !== 'lomba' || !profile?.id) return;
     let alive = true;
@@ -118,7 +113,7 @@ export function ProfilePage() {
       try {
         const { data: regs } = await supabase
           .from('registrations')
-          .select('id,competition_id,status,submitted_at,approved_at')
+          .select('id,competition_id,status,submitted_at')
           .eq('user_id', profile.id)
           .order('created_at', { ascending: false });
 
@@ -132,22 +127,9 @@ export function ProfilePage() {
 
         const compMap = new Map((comps ?? []).map((c: any) => [String(c.id), c]));
 
-        const { data: attempts } = await supabase
-          .from('attempts')
-          .select('competition_id,score,status')
-          .eq('participant_id', profile.id)
-          .eq('status', 'GRADED');
-
-        const scoreMap = new Map<string, { score: number; rank: number | null }>();
-        for (const att of (attempts ?? []) as any[]) {
-          const cid = String(att.competition_id);
-          if (!scoreMap.has(cid)) scoreMap.set(cid, { score: Number(att.score ?? 0), rank: null });
-        }
-
         if (alive) {
           setCompetitions(regs.map((r: any) => {
             const comp = compMap.get(String(r.competition_id));
-            const sc = scoreMap.get(String(r.competition_id));
             return {
               id: r.id,
               competitionId: r.competition_id,
@@ -157,8 +139,8 @@ export function ProfilePage() {
               category: comp?.category || '',
               posterUrl: comp?.poster_url || null,
               competitionStatus: comp?.status || '',
-              score: sc?.score ?? null,
-              rank: sc?.rank ?? null,
+              score: null,
+              rank: null,
             };
           }));
         }
@@ -169,224 +151,175 @@ export function ProfilePage() {
     return () => { alive = false; };
   }, [activeTab, profile?.id, toast]);
 
-  // Load stats when tab switches to 'statistik'
+  // ── Load stats ──
   useEffect(() => {
     if (activeTab !== 'statistik' || !profile?.id) return;
     let alive = true;
     (async () => {
       try {
         const { count: diikuti } = await supabase
-          .from('registrations')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', profile.id);
-
+          .from('registrations').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
         const { count: dimenangkan } = await supabase
-          .from('awards')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', profile.id);
-
+          .from('awards').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
         const { count: dailyTasks } = await supabase
-          .from('daily_task_claims')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', profile.id);
+          .from('daily_task_claims').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
 
         const { data: attScores } = await supabase
-          .from('attempts')
-          .select('score')
-          .eq('participant_id', profile.id)
-          .eq('status', 'GRADED');
-
+          .from('attempts').select('score').eq('participant_id', profile.id).eq('status', 'GRADED');
         const scores = (attScores ?? []).map((a: any) => Number(a.score ?? 0)).filter(s => s > 0);
         const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
 
         const { data: regs } = await supabase
-          .from('registrations')
-          .select('competition_id')
-          .eq('user_id', profile.id);
-
+          .from('registrations').select('competition_id').eq('user_id', profile.id);
         const regCompIds = [...new Set((regs ?? []).map((r: any) => String(r.competition_id)))];
         let catCounts: Record<string, number> = {};
         if (regCompIds.length) {
           const { data: catComps } = await supabase
-            .from('competitions')
-            .select('id,category')
-            .in('id', regCompIds);
+            .from('competitions').select('id,category').in('id', regCompIds);
           for (const c of (catComps ?? []) as any[]) {
             const cat = String(c.category ?? '');
             catCounts[cat] = (catCounts[cat] || 0) + 1;
           }
         }
-
         const total = Object.values(catCounts).reduce((a, b) => a + b, 0) || 1;
         const distribution = Object.entries(catCounts)
-          .map(([cat, count]) => ({
-            category: cat,
-            label: CATEGORY_LABELS[cat] || cat,
-            pct: Math.round((count / total) * 100),
-          }))
+          .map(([cat, count]) => ({ category: cat, label: CATEGORY_LABELS[cat] || cat, pct: Math.round((count / total) * 100) }))
           .sort((a, b) => b.pct - a.pct);
 
         if (alive) {
-          setStats({
-            diikuti: diikuti ?? 0,
-            dimenangkan: dimenangkan ?? 0,
-            dailyTasks: dailyTasks ?? 0,
-            streak: 0,
-            avgScore,
-          });
+          setStats({ diikuti: diikuti ?? 0, dimenangkan: dimenangkan ?? 0, dailyTasks: dailyTasks ?? 0, streak: 0, avgScore });
           setCatDistribution(distribution);
         }
-      } catch (e: any) {
-        console.warn('[ProfilePage] stats load failed', e);
-      }
+      } catch (e) { console.warn('[Profile] stats failed', e); }
     })();
     return () => { alive = false; };
   }, [activeTab, profile?.id]);
 
+  // ── Cover upload ──
   const uploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !currentUser || !isOwn) return;
+    const file = e.target.files?.[0];
+    if (!file || !currentUser || !isOwn) return;
     try {
-      // Get old cover public_id for deletion
       const oldCoverId = profile?.cover_public_id as string | undefined;
       const result = await uploadImage(file, `sykabelajar/users/covers/${currentUser.id}`);
       const { error } = await supabase.from('profiles').update({
-        cover_url: result.secure_url,
-        cover_public_id: result.public_id,
-        cover_width: result.width ?? null,
-        cover_height: result.height ?? null,
-        cover_version: result.version ? String(result.version) : null,
-        cover_resource_type: result.resource_type || 'image',
+        cover_url: result.secure_url, cover_public_id: result.public_id,
         updated_at: new Date().toISOString(),
       }).eq('id', currentUser.id);
       if (error) throw error;
-      // Delete old cover from Cloudinary to save space
       if (oldCoverId && oldCoverId !== result.public_id) {
         const { deleteImage } = await import('@/services/cloudinary.service');
         void deleteImage(oldCoverId);
       }
-      toast('Foto sampul diperbarui.', 'success');
-      setProfile((prev: any) => prev ? { ...prev, cover_url: result.secure_url, cover_public_id: result.public_id } : prev);
+      toast('Sampul diperbarui.', 'success');
+      setProfile((prev: any) => prev ? { ...prev, cover_url: result.secure_url } : prev);
     } catch (e: any) { toast(e?.message || 'Upload gagal.', 'error'); }
     finally { e.target.value = ''; }
   };
 
+  // ── Follow ──
   const toggleFollow = useCallback(async () => {
     if (!currentUser || isOwn || !profile?.id) return;
     setFollowBusy(true);
     try {
       if (isFollowing) {
         await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id);
-        setFollowers(f => f - 1);
-        setIsFollowing(false);
+        setFollowers(f => f - 1); setIsFollowing(false);
       } else {
         await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: profile.id });
-        setFollowers(f => f + 1);
-        setIsFollowing(true);
+        setFollowers(f => f + 1); setIsFollowing(true);
       }
-    } catch (e: any) {
-      toast(e?.message || 'Gagal memperbarui follow.', 'error');
-    } finally {
-      setFollowBusy(false);
-    }
+    } catch (e: any) { toast(e?.message || 'Gagal update follow.', 'error'); }
+    finally { setFollowBusy(false); }
   }, [currentUser, isOwn, profile?.id, isFollowing, toast]);
-
-  const compStatusLabel = (comp: UserCompetition) => {
-    if (comp.competitionStatus === 'REGISTRATION_OPEN') return { label: 'Terbuka', color: 'default' as const };
-    if (comp.competitionStatus === 'LIVE') return { label: 'Berlangsung', color: 'moss' as const };
-    if (comp.competitionStatus === 'RESULT_PUBLISHED' || comp.competitionStatus === 'ARCHIVED') return { label: 'Selesai', color: 'default' as const };
-    if (comp.competitionStatus === 'REGISTRATION_CLOSED') return { label: 'Ditutup', color: 'info' as const };
-    return { label: 'Segera', color: 'default' as const };
-  };
 
   if (loading) return <div className="p-6 text-sm text-slate-500">Memuat profil…</div>;
   if (!profile) return <div className="p-6"><Card className="p-8 text-center text-slate-500">Profil tidak ditemukan.</Card></div>;
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'prestasi', label: 'Prestasi' },
-    { key: 'lomba', label: 'Lomba' },
-    { key: 'statistik', label: 'Statistik' },
-  ];
+  // Grade label from granular value
+  const gradeLabel = (() => {
+    const g = profile.grade || '';
+    const found = GRADE_OPTIONS.find(o => o.value === g);
+    if (found) return found.label;
+    if (g === 'sd') return 'SD';
+    if (g === 'smp') return 'SMP';
+    if (g === 'sma') return 'SMA';
+    if (g === 'alumni') return 'Alumni';
+    return g || '';
+  })();
 
-  // Mock emblem data (replace with real data when available)
   const emblems = profile.emblems ?? [];
   const badges = profile.badges ?? [];
-  const favoriteCategories = profile.favorite_categories ?? [];
+  const favoriteCategories = (profile.subjects ?? '').split(',').map((s: string) => s.trim()).filter(Boolean);
 
   return (
-    <div>
-      {/* Top Bar */}
-      <div className="sticky top-0 z-20 glass border-b border-white/5 px-4 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="font-display font-bold text-base text-white">{profile.full_name || profile.username}</h1>
-          <p className="text-[11px] text-slate-500">@{profile.username}</p>
-        </div>
-        {isOwn && (
-          <Link to="/profile/edit">
-            <Button size="sm" variant="outline" icon={<Edit2 size={14} />}>Edit</Button>
-          </Link>
+    <div className="max-w-lg mx-auto">
+      {/* ═══ COVER (subtle) ═══ */}
+      <div className="relative h-28 md:h-36 bg-gradient-to-b from-moss-900/30 via-ink-800 to-ink-900">
+        {profile.cover_url && (
+          <img src={profile.cover_url} alt="" className="w-full h-full object-cover" />
         )}
-      </div>
-
-      {/* Cover */}
-      <div className="relative h-32 md:h-44 bg-gradient-to-br from-ink-700 via-ink-800 to-moss-900/30">
-        {profile.cover_url && <img src={profile.cover_url} alt="Cover" className="w-full h-full object-cover" />}
         {isOwn && (
-          <label className="absolute bottom-2 right-2 px-3 py-1.5 rounded-lg bg-black/60 text-xs text-white cursor-pointer">
+          <label className="absolute bottom-2 right-2 px-3 py-1.5 rounded-lg bg-black/50 text-[11px] text-white cursor-pointer hover:bg-black/70 transition">
             Ganti Sampul
             <input type="file" accept="image/*" className="hidden" onChange={uploadCover} />
           </label>
         )}
       </div>
 
-      {/* Profile Info — centered */}
-      <div className="p-4 -mt-14 relative text-center">
-        {/* Avatar — large, centered */}
+      {/* ═══ PROFILE INFO ═══ */}
+      <div className="px-4 -mt-16 relative text-center pb-2">
+        {/* Avatar */}
         <div className="flex justify-center">
-          <Avatar name={profile.full_name || profile.username || 'U'} id={profile.id} size={96} ring src={profile.avatar_url || undefined} />
+          <Avatar
+            name={profile.full_name || profile.username || 'U'}
+            id={profile.id} size={88} ring
+            src={profile.avatar_url || undefined}
+          />
         </div>
 
         {/* Name + verified */}
-        <div className="flex items-center justify-center gap-1.5 mt-3">
+        <div className="flex items-center justify-center gap-1.5 mt-2">
           <h1 className="font-display text-xl font-bold text-white">{profile.full_name || profile.username}</h1>
-          {profile.verified && <CheckCircle2 size={18} className="text-moss-400" />}
+          {profile.status === 'ACTIVE' && <CheckCircle2 size={18} className="text-moss-400" />}
         </div>
 
         {/* Username */}
         <p className="text-sm text-slate-400 mt-0.5">@{profile.username}</p>
 
         {/* Bio */}
-        {profile.bio && <p className="text-sm text-slate-300 mt-2 max-w-md mx-auto">{profile.bio}</p>}
+        {profile.bio && (
+          <p className="text-sm text-slate-300 mt-2 max-w-sm mx-auto leading-relaxed">{profile.bio}</p>
+        )}
 
-        {/* Info row — school, grade, birthday, pembina */}
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-3 text-[11px] text-slate-500">
+        {/* Info row */}
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3 text-[11px] text-slate-400">
           {profile.institution && (
             <span className="flex items-center gap-1">
-              <GraduationCap size={12} className="text-slate-500" />
-              {profile.institution}
+              <School size={12} /> {profile.institution}
             </span>
           )}
-          {profile.education_level && (
+          {gradeLabel && (
             <span className="flex items-center gap-1">
-              <Award size={12} className="text-slate-500" />
-              {profile.education_level}
+              <GraduationCap size={12} /> {gradeLabel}
             </span>
           )}
           {profile.birth_date && (
             <span className="flex items-center gap-1">
-              <Calendar size={12} className="text-slate-500" />
-              Lahir {new Date(profile.birth_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>
-          )}
-          {profile.pembina && (
-            <span className="flex items-center gap-1">
-              <User size={12} className="text-slate-500" />
-              Pembina: {profile.pembina}
+              <Calendar size={12} /> Lahir {new Date(profile.birth_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           )}
         </div>
 
-        {/* Follow stats */}
-        <div className="flex items-center justify-center gap-4 mt-3">
+        {/* Pembina */}
+        {profile.pembina && (
+          <p className="text-[11px] text-slate-400 mt-1.5 flex items-center justify-center gap-1">
+            <User size={12} /> Pembina: {profile.pembina}
+          </p>
+        )}
+
+        {/* Following / Followers */}
+        <div className="flex items-center justify-center gap-5 mt-3">
           <span className="text-sm">
             <span className="font-bold text-white">{following}</span>{' '}
             <span className="text-slate-500">Mengikuti</span>
@@ -397,7 +330,7 @@ export function ProfilePage() {
           </span>
         </div>
 
-        {/* Follow button — only for other users */}
+        {/* Follow button */}
         {!isOwn && currentUser && (
           <div className="flex justify-center mt-3">
             <Button
@@ -412,51 +345,51 @@ export function ProfilePage() {
           </div>
         )}
 
-        {/* Stats cards — 3 columns */}
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          <div className="bg-ink-800 border border-white/5 rounded-xl p-3 text-center">
-            <p className="text-lg font-bold text-white">{totalPoints.toLocaleString('id-ID')}</p>
-            <p className="text-[10px] text-slate-500">Total Poin</p>
+        {/* ═══ STATS CARDS ═══ */}
+        <div className="grid grid-cols-3 gap-3 mt-5">
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 text-center">
+            <p className="text-xl font-bold text-white">{totalPoints.toLocaleString('id-ID')}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Total Poin</p>
           </div>
-          <div className="bg-ink-800 border border-white/5 rounded-xl p-3 text-center">
-            <div className="w-7 h-7 rounded-full bg-moss-500/20 flex items-center justify-center mx-auto mb-1">
-              <span className="text-xs font-bold text-moss-300">{rank || '—'}</span>
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 text-center">
+            <div className="w-8 h-8 rounded-full bg-moss-500/20 flex items-center justify-center mx-auto mb-1">
+              <span className="text-sm font-bold text-moss-300">{rank || '—'}</span>
             </div>
             <p className="text-[10px] text-slate-500">Peringkat #{rank || '—'}</p>
           </div>
-          <div className="bg-ink-800 border border-white/5 rounded-xl p-3 text-center">
-            <p className="text-lg font-bold text-white">{awards.length}</p>
-            <p className="text-[10px] text-slate-500">Awards</p>
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 text-center">
+            <p className="text-xl font-bold text-white">{awards.length}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Awards</p>
           </div>
         </div>
 
-        {/* Emblem section */}
+        {/* ═══ EMBLEM ═══ */}
         {emblems.length > 0 && (
-          <div className="bg-ink-800 border border-white/5 rounded-xl p-4 mt-4 text-left">
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left">
             <div className="flex items-center gap-2 mb-3">
               <Award size={16} className="text-moss-400" />
               <h3 className="text-sm font-bold text-white">Emblem ({emblems.length})</h3>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2.5">
               {emblems.slice(0, 6).map((e: any, i: number) => (
-                <div key={i} className="w-9 h-9 rounded-full bg-moss-500/15 flex items-center justify-center">
-                  <Award size={16} className="text-moss-400" />
+                <div key={i} className="w-10 h-10 rounded-xl bg-moss-500/15 flex items-center justify-center">
+                  <Award size={18} className="text-moss-400" />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Badge section */}
+        {/* ═══ BADGE ═══ */}
         {badges.length > 0 && (
-          <div className="bg-ink-800 border border-white/5 rounded-xl p-4 mt-3 text-left">
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left">
             <div className="flex items-center gap-2 mb-3">
               <Award size={16} className="text-moss-400" />
               <h3 className="text-sm font-bold text-white">Badge</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               {badges.map((b: string, i: number) => (
-                <span key={i} className="px-3 py-1 rounded-full text-xs font-medium bg-moss-500/15 text-moss-300 border border-moss-500/20">
+                <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium bg-moss-500/15 text-moss-300 border border-moss-500/20">
                   {b}
                 </span>
               ))}
@@ -464,13 +397,13 @@ export function ProfilePage() {
           </div>
         )}
 
-        {/* Kategori Favorit */}
+        {/* ═══ KATEGORI FAVORIT ═══ */}
         {favoriteCategories.length > 0 && (
-          <div className="bg-ink-800 border border-white/5 rounded-xl p-4 mt-3 text-left">
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left">
             <h3 className="text-sm font-bold text-white mb-3">Kategori Favorit</h3>
             <div className="flex flex-wrap gap-2">
               {favoriteCategories.map((cat: string, i: number) => (
-                <span key={i} className="px-3 py-1 rounded-full text-xs font-medium bg-ink-700 text-slate-300 border border-white/10">
+                <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium bg-moss-500/15 text-moss-300 border border-moss-500/20">
                   {CATEGORY_LABELS[cat] || cat}
                 </span>
               ))}
@@ -478,20 +411,18 @@ export function ProfilePage() {
           </div>
         )}
 
-        {/* Tabs — underline style */}
-        <div className="flex border-b border-white/5 mt-4">
-          {tabs.map((tab) => (
+        {/* ═══ TABS ═══ */}
+        <div className="flex border-b border-white/5 mt-5">
+          {([['prestasi', 'Prestasi'], ['lomba', 'Lomba'], ['statistik', 'Statistik']] as const).map(([key, label]) => (
             <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              key={key}
+              onClick={() => setActiveTab(key)}
               className={`flex-1 py-3 text-center text-sm font-medium transition relative ${
-                activeTab === tab.key
-                  ? 'text-moss-300'
-                  : 'text-slate-500 hover:text-slate-300'
+                activeTab === key ? 'text-moss-300' : 'text-slate-500 hover:text-slate-300'
               }`}
             >
-              {tab.label}
-              {activeTab === tab.key && (
+              {label}
+              {activeTab === key && (
                 <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-moss-400 rounded-full" />
               )}
             </button>
@@ -499,13 +430,13 @@ export function ProfilePage() {
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="p-4 pt-2">
-        {/* PRESTASI TAB */}
+      {/* ═══ TAB CONTENT ═══ */}
+      <div className="p-4 pt-3">
+        {/* ── PRESTASI ── */}
         {activeTab === 'prestasi' && (
           <div className="space-y-3">
             {awards.map((a: any) => (
-              <Card key={a.id} className="p-4">
+              <div key={a.id} className="bg-ink-800/80 border border-white/5 rounded-2xl p-4">
                 <div className="flex items-center gap-3">
                   <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
                     a.rank_code === '1' ? 'bg-amber-500/15' :
@@ -521,126 +452,107 @@ export function ProfilePage() {
                     } />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{a.title}</p>
-                    <p className="text-xs text-slate-500">{a.subtitle || a.rank_code || 'Penghargaan'}</p>
+                    <p className="text-sm font-bold text-white truncate">{a.title}</p>
+                    <p className="text-xs text-slate-400">{a.subtitle || a.rank_code || 'Penghargaan'}</p>
                     {a.emblem_url && (
-                      <div className="flex items-center gap-1 mt-1">
+                      <div className="flex items-center gap-1.5 mt-1.5">
                         <span className="text-[10px] text-slate-500">Emblem:</span>
-                        <div className="w-4 h-4 rounded-full bg-moss-500/15 flex items-center justify-center">
-                          <Award size={9} className="text-moss-400" />
+                        <div className="w-5 h-5 rounded-full bg-moss-500/15 flex items-center justify-center">
+                          <Award size={10} className="text-moss-400" />
                         </div>
                       </div>
                     )}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-bold text-moss-300">+{a.points ?? 0}</p>
-                    <p className="text-[10px] text-slate-500">{a.issued_at ? formatShortDate(a.issued_at) : '—'}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{a.issued_at ? formatShortDate(a.issued_at) : '—'}</p>
                   </div>
                 </div>
-                {/* Comment button for award */}
-                <div className="mt-2 pt-2 border-t border-white/5">
-                  <button
-                    onClick={() => setExpandedAward(expandedAward === a.id ? null : a.id)}
-                    className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-moss-300 transition"
-                  >
-                    <MessageCircle size={12} />
-                    Komentar
-                  </button>
-                  {expandedAward === a.id && (
-                    <div className="mt-3 space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          className="input text-xs py-2 flex-1"
-                          placeholder="Tulis komentar untuk penghargaan ini..."
-                          value={awardComments[a.id] || ''}
-                          onChange={(e) => setAwardComments({ ...awardComments, [a.id]: e.target.value })}
-                        />
-                        <Button size="sm" disabled={!awardComments[a.id]?.trim()}>Kirim</Button>
-                      </div>
-                      <p className="text-[10px] text-slate-600 text-center py-2">Komentar untuk penghargaan ini akan segera tersedia.</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
+              </div>
             ))}
             {!awards.length && (
-              <Card className="p-8 text-center text-sm text-slate-500">Belum ada penghargaan.</Card>
+              <div className="text-center py-10 text-sm text-slate-500">Belum ada penghargaan.</div>
             )}
           </div>
         )}
 
-        {/* LOMBA TAB */}
+        {/* ── LOMBA ── */}
         {activeTab === 'lomba' && (
           <div className="space-y-3">
-            {compLoading && <Card className="p-8 text-center text-sm text-slate-500">Memuat lomba…</Card>}
+            {compLoading && <div className="text-center py-10 text-sm text-slate-500">Memuat lomba…</div>}
             {!compLoading && !competitions.length && (
-              <Card className="p-8 text-center text-sm text-slate-500">Belum ada lomba yang diikuti.</Card>
+              <div className="text-center py-10 text-sm text-slate-500">Belum ada lomba yang diikuti.</div>
             )}
             {!compLoading && competitions.map((comp) => {
-              const st = compStatusLabel(comp);
+              const statusColor = comp.competitionStatus === 'LIVE' ? 'moss'
+                : comp.competitionStatus === 'REGISTRATION_OPEN' ? 'info'
+                : 'default';
+              const statusLabel = comp.competitionStatus === 'LIVE' ? 'Berlangsung'
+                : comp.competitionStatus === 'REGISTRATION_OPEN' ? 'Terbuka'
+                : comp.competitionStatus === 'RESULT_PUBLISHED' ? 'Selesai'
+                : comp.competitionStatus;
               return (
                 <Link key={comp.id} to={`/lomba/${comp.competitionId}`} className="block">
-                  <Card className="p-4 flex items-center gap-4 card-hover">
-                    <div className="w-14 h-14 rounded-xl bg-ink-800 overflow-hidden shrink-0">
+                  <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-ink-700 overflow-hidden shrink-0">
                       {comp.posterUrl ? (
-                        <img src={comp.posterUrl} alt={comp.title} className="w-full h-full object-cover" />
+                        <img src={comp.posterUrl} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Trophy size={22} className="text-moss-500/40" />
+                          <Trophy size={20} className="text-moss-500/40" />
                         </div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white truncate">{comp.title}</p>
-                      <p className="text-xs text-slate-500">{CATEGORY_LABELS[comp.category] || comp.category || 'Umum'}</p>
+                      <p className="text-[11px] text-slate-500">{CATEGORY_LABELS[comp.category] || comp.category || 'Umum'}</p>
                     </div>
-                    <Badge color={st.color}>{st.label}</Badge>
-                  </Card>
+                    <Badge color={statusColor}>{statusLabel}</Badge>
+                  </div>
                 </Link>
               );
             })}
           </div>
         )}
 
-        {/* STATISTIK TAB */}
+        {/* ── STATISTIK ── */}
         {activeTab === 'statistik' && (
           <div className="space-y-4">
-            <Card className="p-5">
+            <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 size={17} className="text-moss-400" />
-                <h3 className="font-display font-bold text-white">Statistik Performa</h3>
+                <h3 className="font-display font-bold text-white text-sm">Statistik Performa</h3>
               </div>
               <div className="space-y-4">
                 <StatBar label="Uji kompetensi diikuti" value={stats.diikuti} max={Math.max(stats.diikuti, stats.dimenangkan * 3, 10)} color="bg-moss-400" />
                 <StatBar label="Uji kompetensi dimenangkan" value={stats.dimenangkan} max={Math.max(stats.diikuti, stats.dimenangkan * 3, 10)} color="bg-sky-400" />
                 <StatBar label="Daily tasks selesai" value={stats.dailyTasks} max={Math.max(stats.dailyTasks, 50)} color="bg-moss-400" />
-                <StatBar label="Streak terpanjang" value={stats.streak} max={Math.max(stats.streak * 2, 30)} color="bg-amber-400" />
                 <StatBar label="Rata-rata skor" value={stats.avgScore} max={100} suffix="%" color="bg-moss-400" />
               </div>
-            </Card>
+            </div>
 
             {catDistribution.length > 0 && (
-              <Card className="p-5">
+              <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <TrendingUp size={17} className="text-sky-400" />
-                  <h3 className="font-display font-bold text-white">Distribusi Kategori</h3>
+                  <h3 className="font-display font-bold text-white text-sm">Distribusi Kategori</h3>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {catDistribution.map((cat) => (
                     <div key={cat.category} className="flex items-center gap-3">
                       <p className="text-xs text-slate-400 w-28 shrink-0">{cat.label}</p>
-                      <div className="flex-1 h-2.5 bg-ink-800 rounded-full overflow-hidden">
+                      <div className="flex-1 h-2 bg-ink-700 rounded-full overflow-hidden">
                         <div className="h-full bg-sky-400 rounded-full transition-all duration-500" style={{ width: `${cat.pct}%` }} />
                       </div>
                       <span className="text-xs text-slate-400 font-medium w-10 text-right">{cat.pct}%</span>
                     </div>
                   ))}
                 </div>
-              </Card>
+              </div>
             )}
 
             {!stats.diikuti && !stats.dimenangkan && !stats.dailyTasks && (
-              <Card className="p-8 text-center text-sm text-slate-500">Belum ada data statistik.</Card>
+              <div className="text-center py-10 text-sm text-slate-500">Belum ada data statistik.</div>
             )}
           </div>
         )}
@@ -657,7 +569,7 @@ function StatBar({ label, value, max, suffix = '', color }: { label: string; val
         <p className="text-sm text-slate-300">{label}</p>
         <p className="text-sm font-semibold text-white">{value.toLocaleString('id-ID')}{suffix}</p>
       </div>
-      <div className="h-2.5 bg-ink-800 rounded-full overflow-hidden">
+      <div className="h-2 bg-ink-700 rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${Math.max(pct, 2)}%` }} />
       </div>
     </div>
