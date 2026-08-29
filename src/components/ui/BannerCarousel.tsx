@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Megaphone } from 'lucide-react';
 import { loadActiveBanners, type AdBanner } from '@/services/ad.service';
 
@@ -12,14 +13,14 @@ function getSlotCount() {
 
 function EmptySlot() {
   return (
-    <a
-      href="#/organizer/ads"
+    <Link
+      to="/organizer/ads"
       className="flex-1 bg-ink-800/40 border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-moss-400/60 transition cursor-pointer rounded-xl"
       style={{ aspectRatio: `465/${UPLOAD_H}` }}
     >
       <Megaphone size={22} />
-      <span className="text-[11px]">Pasang iklan hub. Admin</span>
-    </a>
+      <span className="text-[11px]">Pasang Iklan</span>
+    </Link>
   );
 }
 
