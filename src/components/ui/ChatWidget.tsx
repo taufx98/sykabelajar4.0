@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { MessageCircle, X, Send, Star, ArrowLeft, Headphones } from 'lucide-react';
+import { MessageCircle, X, Send, Star, ArrowLeft, Headphones, Plus } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
 import {
@@ -12,12 +12,12 @@ import {
   type ChatMessage,
 } from '@/services/chat.service';
 
-type View = 'closed' | 'form' | 'chat' | 'rating' | 'waiting';
+type View = 'form' | 'waiting' | 'chat' | 'ended' | 'rating';
 
 export function ChatWidget() {
   const { user, toast } = useApp();
   const [isOpen, setIsOpen] = useState(false);
-  const [view, setView] = useState<View>('closed');
+  const [view, setView] = useState<View>('form');
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [title, setTitle] = useState('');
@@ -36,10 +36,16 @@ export function ChatWidget() {
     loadMyThread().then(t => {
       if (t) {
         setThread(t);
+        // If thread is open → go to chat directly
         if (t.status === 'open') {
           setView('chat');
         }
+        // If thread is closed → show ended view (not form)
+        if (t.status === 'closed') {
+          setView('ended');
+        }
       }
+      // If no thread → stay on 'form' (default)
     }).catch(() => {});
   }, [user]);
 
@@ -65,17 +71,21 @@ export function ChatWidget() {
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Open chat widget
   const handleOpen = async () => {
     setIsOpen(true);
+    // If thread exists and open → chat
     if (thread?.status === 'open') {
       setView('chat');
-    } else if (thread?.status === 'closed') {
-      setView('form');
-    } else {
-      setView('form');
     }
+    // If thread exists and closed → ended
+    else if (thread?.status === 'closed') {
+      setView('ended');
+    }
+    // If no thread → form (default)
   };
 
+  // Submit title + description → creates thread + first message
   const handleSubmitForm = async () => {
     if (!title.trim() || !description.trim()) return;
     setLoading(true);
@@ -85,7 +95,8 @@ export function ChatWidget() {
       // Send title + description as first message
       const firstMsg = `📋 *${title.trim()}*\n\n${description.trim()}`;
       await sendMessage(t.id, firstMsg);
-      setMessages([]);
+      setTitle('');
+      setDescription('');
       setView('waiting');
     } catch (e: any) {
       toast(e?.message ?? 'Gagal mengirim.', 'error');
@@ -94,6 +105,7 @@ export function ChatWidget() {
     }
   };
 
+  // Go from waiting to chat
   const handleStartChat = async () => {
     setView('chat');
     if (thread) {
@@ -101,6 +113,7 @@ export function ChatWidget() {
     }
   };
 
+  // Send regular message
   const handleSend = async () => {
     if (!input.trim() || !thread || sending) return;
     setSending(true);
@@ -122,32 +135,37 @@ export function ChatWidget() {
     }
   };
 
+  // Rate and close
   const handleRate = async () => {
     if (!thread || rating === 0) return;
     try {
       await submitRating(thread.id, rating);
       setThread(null);
       setMessages([]);
-      setTitle('');
-      setDescription('');
-      setView('closed');
+      setRating(0);
+      setView('form');
       toast('Terima kasih atas ratingnya! ⭐', 'success');
     } catch (e: any) {
       toast(e?.message ?? 'Gagal memberi rating.', 'error');
     }
   };
 
+  // Start new conversation (from ended view)
   const handleNewChat = () => {
     setThread(null);
     setMessages([]);
-    setTitle('');
-    setDescription('');
     setView('form');
+  };
+
+  // Skip rating, go to ended
+  const handleSkipRating = () => {
+    setThread(null);
+    setMessages([]);
+    setView('ended');
   };
 
   return (
     <div className="fixed bottom-5 right-5 z-50">
-      {/* Chat popup */}
       {isOpen && (
         <div className="mb-3 w-80 h-[420px] bg-ink-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
 
@@ -165,8 +183,9 @@ export function ChatWidget() {
               <div>
                 <p className="text-sm font-semibold text-white">Admin SykaBelajar</p>
                 <p className="text-[10px] text-moss-200">
-                  {view === 'waiting' ? 'Menunggu balasan...' :
-                   view === 'chat' ? 'Online' :
+                  {view === 'chat' ? 'Online' :
+                   view === 'waiting' ? 'Menunggu balasan...' :
+                   view === 'ended' ? 'Chat selesai' :
                    'Siap membantu'}
                 </p>
               </div>
@@ -176,7 +195,7 @@ export function ChatWidget() {
             </button>
           </div>
 
-          {/* ═══ VIEW: FORM (judul + masalah) ═══ */}
+          {/* ═══ VIEW: FORM — Judul + Deskripsi (hanya sekali di awal) ═══ */}
           {view === 'form' && (
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div className="text-center mb-2">
@@ -184,7 +203,7 @@ export function ChatWidget() {
                   <MessageCircle size={24} className="text-moss-400" />
                 </div>
                 <p className="text-sm font-semibold text-white">Hubungi Admin</p>
-                <p className="text-[11px] text-slate-500 mt-1">Jelaskan masalah kamu, admin akan membalas dalam 1×24 jam</p>
+                <p className="text-[11px] text-slate-500 mt-1">Isi judul & deskripsi masalah, lalu chat dengan admin</p>
               </div>
 
               <div>
@@ -219,7 +238,7 @@ export function ChatWidget() {
                 ) : (
                   <Send size={14} />
                 )}
-                Kirim Pesan
+                Kirim & Mulai Chat
               </button>
             </div>
           )}
@@ -233,7 +252,6 @@ export function ChatWidget() {
               <p className="text-sm font-semibold text-white mb-1">Pesan Terkirim!</p>
               <p className="text-xs text-slate-400 mb-1">Admin akan membalas dalam</p>
               <p className="text-lg font-bold text-amber-400 mb-4">1 × 24 Jam</p>
-              <p className="text-[11px] text-slate-500 mb-4">Kami akan memberitahu kamu saat admin membalas.</p>
               <button
                 onClick={handleStartChat}
                 className="px-4 py-2 rounded-xl bg-moss-500 hover:bg-moss-600 text-sm font-medium text-white transition"
@@ -243,7 +261,7 @@ export function ChatWidget() {
             </div>
           )}
 
-          {/* ═══ VIEW: CHAT ═══ */}
+          {/* ═══ VIEW: CHAT — Normal chat ═══ */}
           {view === 'chat' && (
             <>
               <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-ink-800 min-h-0">
@@ -260,8 +278,6 @@ export function ChatWidget() {
                 )}
                 {messages.map(msg => {
                   const isMe = msg.sender_id === user?.id;
-                  const senderName = isMe ? user.displayName : 'Admin';
-                  const senderAvatar = isMe ? user.profilePhoto : undefined;
                   return (
                     <div key={msg.id} className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
                       {!isMe && (
@@ -269,9 +285,9 @@ export function ChatWidget() {
                           <Headphones size={12} className="text-moss-400" />
                         </div>
                       )}
-                      <div className={`max-w-[75%] ${isMe ? 'order-1' : ''}`}>
+                      <div className={`max-w-[75%]`}>
                         <p className={`text-[10px] mb-0.5 ${isMe ? 'text-right text-slate-500' : 'text-slate-500'}`}>
-                          {senderName}
+                          {isMe ? (user.displayName || 'Kamu') : 'Admin'}
                         </p>
                         <div className={`px-3 py-2 rounded-2xl text-sm ${
                           isMe
@@ -285,7 +301,7 @@ export function ChatWidget() {
                         </div>
                       </div>
                       {isMe && (
-                        <Avatar name={user.displayName} id={user.id} size={28} src={senderAvatar || undefined} />
+                        <Avatar name={user.displayName} id={user.id} size={28} src={user.profilePhoto || undefined} />
                       )}
                     </div>
                   );
@@ -293,15 +309,21 @@ export function ChatWidget() {
                 <div ref={messagesEnd} />
               </div>
 
-              {/* Input */}
+              {/* Input — hanya muncul jika thread masih open */}
               <div className="p-3 bg-ink-900 border-t border-white/5 shrink-0">
                 {thread?.status === 'closed' ? (
-                  <div className="text-center">
-                    <p className="text-xs text-slate-500 mb-2">Sesi chat ini telah selesai</p>
-                    <button onClick={handleNewChat}
-                      className="px-4 py-1.5 rounded-lg bg-moss-500 hover:bg-moss-600 text-xs font-medium text-white transition">
-                      Chat Baru
-                    </button>
+                  <div className="text-center space-y-2">
+                    <p className="text-xs text-slate-500">Sesi chat ini telah selesai</p>
+                    <div className="flex gap-2 justify-center">
+                      <button onClick={() => setView('rating')}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 text-xs font-medium hover:bg-amber-500/20 transition">
+                        ⭐ Beri Rating
+                      </button>
+                      <button onClick={handleNewChat}
+                        className="px-3 py-1.5 rounded-lg bg-moss-500/10 text-moss-400 text-xs font-medium hover:bg-moss-500/20 transition flex items-center gap-1">
+                        <Plus size={12} /> Chat Baru
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex gap-2">
@@ -326,6 +348,24 @@ export function ChatWidget() {
             </>
           )}
 
+          {/* ═══ VIEW: ENDED — Chat selesai, bisa mulai baru ═══ */}
+          {view === 'ended' && (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-slate-500/10 flex items-center justify-center mx-auto mb-4">
+                <MessageCircle size={28} className="text-slate-400" />
+              </div>
+              <p className="text-sm font-semibold text-white mb-1">Chat Selesai</p>
+              <p className="text-xs text-slate-400 mb-5">Sesi chat sebelumnya sudah ditutup</p>
+              <button
+                onClick={handleNewChat}
+                className="px-5 py-2.5 rounded-xl bg-moss-500 hover:bg-moss-600 text-sm font-medium text-white transition flex items-center gap-2"
+              >
+                <Plus size={16} />
+                Mulai Chat Baru
+              </button>
+            </div>
+          )}
+
           {/* ═══ VIEW: RATING ═══ */}
           {view === 'rating' && (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
@@ -333,15 +373,21 @@ export function ChatWidget() {
               <p className="text-xs text-slate-400 mb-4">Bagaimana layanan admin kami?</p>
               <div className="flex gap-1 mb-4">
                 {[1, 2, 3, 4, 5].map(s => (
-                  <button key={s} onClick={() => setRating(s)} className="transition">
+                  <button key={s} onClick={() => setRating(s)} className="transition active:scale-110">
                     <Star size={32} className={s <= rating ? 'text-amber-400 fill-amber-400' : 'text-slate-600'} />
                   </button>
                 ))}
               </div>
-              <button onClick={handleRate} disabled={rating === 0}
-                className="w-full py-2.5 rounded-xl bg-moss-500 hover:bg-moss-600 text-sm font-medium text-white disabled:opacity-40 transition">
-                Kirim Rating
-              </button>
+              <div className="flex gap-2 w-full">
+                <button onClick={handleSkipRating}
+                  className="flex-1 py-2.5 rounded-xl bg-ink-800 text-slate-400 text-sm font-medium hover:bg-ink-700 transition">
+                  Lewati
+                </button>
+                <button onClick={handleRate} disabled={rating === 0}
+                  className="flex-1 py-2.5 rounded-xl bg-moss-500 hover:bg-moss-600 text-sm font-medium text-white disabled:opacity-40 transition">
+                  Kirim
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -356,11 +402,7 @@ export function ChatWidget() {
             : 'bg-gradient-to-br from-moss-500 to-moss-600 hover:from-moss-600 hover:to-moss-700 animate-bounce'
         }`}
       >
-        {isOpen ? (
-          <X size={24} className="text-white" />
-        ) : (
-          <MessageCircle size={24} className="text-white" />
-        )}
+        {isOpen ? <X size={24} className="text-white" /> : <MessageCircle size={24} className="text-white" />}
       </button>
     </div>
   );
