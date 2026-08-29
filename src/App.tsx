@@ -56,13 +56,13 @@ function getLastRoute(): string {
 }
 
 function AppRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, authLoading, isGuest } = useApp();
+  const { isAuthenticated, authLoading, authRevalidating, isGuest } = useApp();
   const location = useLocation();
   useEffect(() => { saveLastRoute(location.pathname); }, [location.pathname]);
 
-  // CRITICAL: Never redirect while auth is loading — just render the page
-  // This prevents the flash of landing page during auth resolution
-  if (authLoading) return <>{children}</>;
+  // CRITICAL: Never redirect while auth is loading or revalidating — just render the page
+  // This prevents the flash of landing page during auth resolution or tab switch
+  if (authLoading || authRevalidating) return <>{children}</>;
 
   // Auth loaded: check if user is allowed
   if (isAuthenticated || isGuest) return <>{children}</>;
