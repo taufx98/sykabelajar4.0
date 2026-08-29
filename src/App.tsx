@@ -56,29 +56,19 @@ function getLastRoute(): string {
 }
 
 function AppRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, authLoading, isGuest, user } = useApp();
+  const { isAuthenticated, authLoading, isGuest } = useApp();
   const location = useLocation();
   useEffect(() => { saveLastRoute(location.pathname); }, [location.pathname]);
-  const hasStoredSession = typeof window !== 'undefined' && (
-    localStorage.getItem('sb-jrfogwueytiddnanetth-auth-token') !== null ||
-    localStorage.getItem(GUEST_KEY) === '1'
-  );
-  // If there's a stored session, render immediately (no spinner) — auth resolves in background
-  if (hasStoredSession || isGuest || isAuthenticated) {
-    // Only redirect to landing if auth finished loading AND user is not authenticated AND not guest
-    if (!isAuthenticated && !isGuest && !authLoading) return <Navigate to="/" state={{ from: location }} replace />;
-    return <>{children}</>;
-  }
-  // No stored session + still loading = first visit, show minimal spinner
-  if (authLoading) return (
-    <div className="min-h-screen bg-ink-950 flex items-center justify-center">
-      <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
-        <div className="w-5 h-5 bg-white/30 rounded" />
-      </div>
-    </div>
-  );
-  // Auth loaded, no session, not guest → redirect to landing
-  return <Navigate to="/" replace />;
+
+  // CRITICAL: Never redirect while auth is loading — just render the page
+  // This prevents the flash of landing page during auth resolution
+  if (authLoading) return <>{children}</>;
+
+  // Auth loaded: check if user is allowed
+  if (isAuthenticated || isGuest) return <>{children}</>;
+
+  // Auth loaded, not authenticated, not guest → redirect to landing
+  return <Navigate to="/" state={{ from: location }} replace />;
 }
 
 function RootEntry() {
@@ -88,30 +78,27 @@ function RootEntry() {
     localStorage.getItem(GUEST_KEY) === '1'
   );
 
-  // Has stored session → redirect immediately, no spinner
-  if (hasStoredSession || isGuest) {
-    if (isAuthenticated && user) return <Navigate to={getLastRoute()} replace />;
-    // Still loading auth — redirect optimistically to last route (auth resolves in background)
-    if (authLoading) return <Navigate to={getLastRoute()} replace />;
-    // Auth loaded but no session → session expired, show landing
-    if (!isAuthenticated) return <LandingPage />;
+  // CRITICAL: While auth is loading, redirect immediately to last route (no flash)
+  if (authLoading) {
+    // If has stored session OR guest → go to last route instantly
+    if (hasStoredSession || isGuest) return <Navigate to={getLastRoute()} replace />;
+    // First visit → show spinner briefly
+    return (
+      <div className="min-h-screen bg-ink-950 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
+          <div className="w-5 h-5 bg-white/30 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  // Auth loaded + has session OR guest OR authenticated → go to last route
+  if ((hasStoredSession && isAuthenticated) || isGuest || (isAuthenticated && user)) {
     return <Navigate to={getLastRoute()} replace />;
   }
 
-  // No stored session + auth loaded → landing page
-  if (!authLoading) {
-    if (isAuthenticated && user) return <Navigate to={getLastRoute()} replace />;
-    return <LandingPage />;
-  }
-
-  // First visit, auth loading → minimal spinner
-  return (
-    <div className="min-h-screen bg-ink-950 flex items-center justify-center">
-      <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
-        <div className="w-5 h-5 bg-white/30 rounded" />
-      </div>
-    </div>
-  );
+  // Auth loaded, no session, not authenticated → landing page
+  return <LandingPage />;
 }
 
 function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member'; children: ReactNode }) {
