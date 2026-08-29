@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { env } from '@/lib/env';
 
 export interface CloudinaryUploadResult {
   public_id: string;
@@ -20,23 +21,21 @@ export async function uploadImage(file: File, folder?: string): Promise<Cloudina
   // Direct upload to Cloudinary (no Edge Function needed)
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ?? '');
+  formData.append('upload_preset', env.cloudinaryUploadPreset);
   if (folder) formData.append('folder', folder);
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ?? '';
+  const cloudName = env.cloudinaryCloudName;
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
   if (!response.ok) {
     const errBody = await response.text().catch(() => '');
     throw new Error(`Cloudinary upload gagal (${response.status}): ${errBody}`);
   }
   return response.json() as Promise<CloudinaryUploadResult>;
-}
-
-export async function uploadRawFile(file: File, folder?: string): Promise<CloudinaryUploadResult> {
+}export async function uploadRawFile(file: File, folder?: string): Promise<CloudinaryUploadResult> {
   assertFile(file, 10 * 1024 * 1024);
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ?? '';
+  const cloudName = env.cloudinaryCloudName;
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ?? '');
+  formData.append('upload_preset', env.cloudinaryUploadPreset);
   if (folder) formData.append('folder', folder);
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, { method: 'POST', body: formData });
   if (!response.ok) throw new Error(`Cloudinary file upload gagal (${response.status})`);

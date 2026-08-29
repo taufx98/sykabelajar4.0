@@ -95,10 +95,11 @@ export function EditProfilePage() {
         institution: form.school,
         birth_date: form.birthDate || null,
         grade: form.grade || null,
-        pembina: form.pembina || null,
-        badge_showcase: form.badgeShowcase,
-        badge_showcase_manual: form.badgeShowcaseManual,
       };
+      // Only add new columns if they have values (graceful fallback for missing columns)
+      if (form.pembina) patch.pembina = form.pembina;
+      if (form.badgeShowcase.length > 0) patch.badge_showcase = form.badgeShowcase;
+      if (form.badgeShowcaseManual) patch.badge_showcase_manual = true;
 
       const oldAvatar = current?.avatar_public_id as string | undefined;
       const oldCover = current?.cover_public_id as string | undefined;
