@@ -23,7 +23,7 @@ import {
 
 export function AdminBannersPage() {
   const { toast } = useApp();
-  const [tab, setTab] = useState<'requests' | 'active' | 'settings'>('requests');
+  const [tab, setTab] = useState<'requests' | 'active' | 'settings' | 'payment'>('requests');
   const [requests, setRequests] = useState<AdBannerRequest[]>([]);
   const [activeBanners, setActiveBanners] = useState<AdBanner[]>([]);
   const [settings, setSettings] = useState<AdBannerSettings | null>(null);
@@ -176,7 +176,7 @@ export function AdminBannersPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge color={r.status === 'PENDING' ? 'amber' : r.status === 'APPROVED' ? 'moss' : 'red'}>
+                      <Badge color={r.status === 'PENDING' ? 'warn' : r.status === 'APPROVED' ? 'moss' : 'err'}>
                         {r.status}
                       </Badge>
                       <span className="text-[11px] text-slate-600">

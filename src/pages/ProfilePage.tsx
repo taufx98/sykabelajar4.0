@@ -387,7 +387,7 @@ export function ProfilePage() {
           <div className="flex justify-center mt-3">
             <Button
               size="sm"
-              variant={isFollowing ? 'outline' : 'default'}
+              variant={isFollowing ? 'outline' : 'primary'}
               onClick={toggleFollow}
               disabled={followBusy}
               icon={isFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}

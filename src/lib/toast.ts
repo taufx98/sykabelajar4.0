@@ -1,7 +1,7 @@
 // Global toast notification - can be used anywhere without React context
 type ToastType = 'success' | 'error' | 'info';
 
-interface ToastMessage {
+export interface ToastMessage {
   id: string;
   message: string;
   type: ToastType;

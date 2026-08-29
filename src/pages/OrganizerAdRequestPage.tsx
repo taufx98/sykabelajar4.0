@@ -480,7 +480,7 @@ export function OrganizerAdRequestPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-xs text-white font-medium">{r.slots_requested} slot · {r.duration_days} hari</p>
-                        <Badge color={r.status === 'PENDING' ? 'amber' : r.status === 'APPROVED' ? 'moss' : 'red'}>
+                        <Badge color={r.status === 'PENDING' ? 'warn' : r.status === 'APPROVED' ? 'moss' : 'err'}>
                           {r.status}
                         </Badge>
                       </div>
