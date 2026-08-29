@@ -40,17 +40,45 @@ import { getUserRoles } from '@/services/role.service';
 import { supabase } from '@/lib/supabase';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 
+// Save/restore last route
+const LAST_ROUTE_KEY = 'sykabelajar_last_route';
+const PUBLIC_ROUTES = ['/', '/login', '/register'];
+
+function saveLastRoute(pathname: string) {
+  if (!PUBLIC_ROUTES.includes(pathname) && pathname !== window.location.pathname) {
+    localStorage.setItem(LAST_ROUTE_KEY, pathname);
+  }
+}
+
+function getLastRoute(): string {
+  return localStorage.getItem(LAST_ROUTE_KEY) || '/home';
+}
+
 function AppRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, isGuest, user } = useApp();
   const location = useLocation();
+  useEffect(() => { saveLastRoute(location.pathname); }, [location.pathname]);
   if (!isAuthenticated && !isGuest) return <Navigate to="/" state={{ from: location }} replace />;
-  if (!user && !isGuest) return <div className="min-h-screen flex items-center justify-center text-slate-500">Memuat sesi…</div>;
+  if (!user && !isGuest) return (
+    <div className="min-h-screen bg-ink-950 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
+          <div className="w-5 h-5 bg-white/30 rounded" />
+        </div>
+        <div className="flex gap-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'0ms'}} />
+          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'150ms'}} />
+          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'300ms'}} />
+        </div>
+      </div>
+    </div>
+  );
   return <>{children}</>;
 }
 
 function RootEntry() {
   const { isAuthenticated, isGuest, user } = useApp();
-  if (isAuthenticated && user && !isGuest) return <Navigate to="/home" replace />;
+  if (isAuthenticated && user && !isGuest) return <Navigate to={getLastRoute()} replace />;
   if (!isAuthenticated && !isGuest) return <LandingPage />;
   return <div className="min-h-screen flex items-center justify-center text-slate-500">Memuat sesi…</div>;
 }

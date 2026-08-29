@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { CommentsSection } from '@/components/ui/Comments';
-import { SkeletonCard } from '@/components/ui/Skeleton';
+import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { listPublishedPostsPage, togglePostLike, type SocialPost } from '@/services/social.service';
 import { getPublicCompetitions } from '@/services/platform.service';
 import { timeAgo } from '@/lib/utils';
@@ -318,7 +318,22 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 </button>
               </div>
               <div className="space-y-2.5">
-                {leaderMode === 'xp'
+                {loading && leaders.length === 0 && (
+                  <>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2.5 animate-pulse">
+                        <Skeleton className="w-6 h-6 rounded-full" />
+                        <Skeleton className="w-8 h-8 rounded-full" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3 w-2/3" />
+                          <Skeleton className="h-2.5 w-1/3" />
+                        </div>
+                        <Skeleton className="h-3 w-10" />
+                      </div>
+                    ))}
+                  </>
+                )}
+                {!loading && leaderMode === 'xp'
                   ? leaders.map((u) => {
                       const rankColor =
                         u.rank === 1 ? 'bg-emerald-500/20 text-emerald-400' :
@@ -386,7 +401,17 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 <h3 className="font-display font-semibold text-white text-sm">Deadline Terdekat</h3>
               </div>
               <div className="space-y-3">
-                {competitions
+                {loading && (
+                  <>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="space-y-1.5 animate-pulse">
+                        <Skeleton className="h-3 w-3/4" />
+                        <Skeleton className="h-2.5 w-1/2" />
+                      </div>
+                    ))}
+                  </>
+                )}
+                {!loading && competitions
                   .filter((c: any) => c.deadline || c.registration_end)
                   .slice(0, 3)
                   .map((comp: any) => (
