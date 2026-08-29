@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LandingPage } from '@/pages/LandingPage';
@@ -122,4 +122,4 @@ function AppRoutes() {
   </Routes>;
 }
 
-export default function App() { return <AppProvider><HashRouter><RuntimeGlobals /><AppRoutes /></HashRouter></AppProvider>; }
+export default function App() { return <AppProvider><BrowserRouter><RuntimeGlobals /><AppRoutes /></BrowserRouter></AppProvider>; }
