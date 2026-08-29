@@ -393,16 +393,20 @@ export function ChatWidget() {
         </div>
       )}
 
-      {/* Floating button */}
+      {/* Floating button — small & static, expands on hover */}
       <button
         onClick={() => isOpen ? setIsOpen(false) : void handleOpen()}
-        className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${
+        className={`group rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ease-out ${
           isOpen
-            ? 'bg-slate-700 hover:bg-slate-600'
-            : 'bg-gradient-to-br from-moss-500 to-moss-600 hover:from-moss-600 hover:to-moss-700 animate-bounce'
+            ? 'w-11 h-11 bg-slate-700 hover:bg-slate-600'
+            : 'w-11 h-11 hover:w-[52px] hover:h-[52px] bg-gradient-to-br from-moss-500 to-moss-600 hover:from-moss-600 hover:to-moss-700'
         }`}
+        aria-label="Chat dengan admin"
       >
-        {isOpen ? <X size={24} className="text-white" /> : <MessageCircle size={24} className="text-white" />}
+        {isOpen
+          ? <X size={18} className="text-white transition-transform duration-300 group-active:rotate-90" />
+          : <MessageCircle size={18} className="text-white transition-transform duration-300 group-hover:scale-110" />
+        }
       </button>
     </div>
   );
