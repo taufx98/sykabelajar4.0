@@ -102,15 +102,26 @@ export async function loadMyThread(): Promise<ChatThread | null> {
 export async function adminLoadThreads(): Promise<ChatThread[]> {
   const { data, error } = await supabase
     .from('chat_threads')
-    .select('*, public_profiles:user_id(full_name, username, avatar_url)')
+    .select('*')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((t: any) => ({
-    ...t,
-    user_name: t.public_profiles?.full_name || 'User',
-    username: t.public_profiles?.username || '',
-    avatar_url: t.public_profiles?.avatar_url || null,
-  })) as ChatThread[];
+
+  // Fetch user profiles separately
+  const userIds = [...new Set((data ?? []).map((t: any) => t.user_id).filter(Boolean))];
+  const { data: profiles } = userIds.length
+    ? await supabase.from('public_profiles').select('id, full_name, username, avatar_url').in('id', userIds)
+    : { data: [] as any[] };
+  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+
+  return (data ?? []).map((t: any) => {
+    const profile = profileMap.get(t.user_id);
+    return {
+      ...t,
+      user_name: profile?.full_name || 'User',
+      username: profile?.username || '',
+      avatar_url: profile?.avatar_url || null,
+    };
+  }) as ChatThread[];
 }
 
 // ── Admin: load messages for a thread ──
