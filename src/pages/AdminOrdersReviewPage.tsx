@@ -1,3 +1,4 @@
+import { toast } from "@/lib/toast";
 import { useEffect, useState } from 'react';
 import { Check, ExternalLink, X } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
@@ -20,7 +21,7 @@ export function AdminOrdersReviewPage() {
     setOrders(data ?? []);
   };
 
-  useEffect(() => { void load().catch((e) => alert(e.message)); }, []);
+  useEffect(() => { void load().catch((e) => toast.error(e.message)); }, []);
 
   const review = async (id: string, decision: 'APPROVE' | 'REJECT') => {
     setBusy(id);
@@ -28,7 +29,7 @@ export function AdminOrdersReviewPage() {
       await adminReviewManualOrder(id, decision, decision === 'APPROVE' ? 'Bukti pembayaran disetujui admin' : 'Bukti pembayaran ditolak admin');
       await load();
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message);
     } finally {
       setBusy(null);
     }

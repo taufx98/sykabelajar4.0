@@ -1,3 +1,4 @@
+import { toast } from "@/lib/toast";
 import { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, X, Megaphone, Ban, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -83,7 +84,7 @@ export function AdminPage() {
       ? await supabase.from('competitions').update(payload).eq('id', competitionEditor.id)
       : await supabase.from('competitions').insert(payload);
     setBusy(false);
-    if (result.error) { alert(result.error.message); return; }
+    if (result.error) { toast.error(result.error.message); return; }
     setCompetitionEditor(null); await load();
   };
 
@@ -93,7 +94,7 @@ export function AdminPage() {
     const payload = { title: postEditor.title, body: postEditor.body, cover_url: postEditor.cover_url || null, competition_id: postEditor.competition_id || null, status: postEditor.status || 'PUBLISHED' };
     const result = postEditor.id ? await supabase.from('posts').update(payload).eq('id', postEditor.id) : await supabase.from('posts').insert(payload);
     setBusy(false);
-    if (result.error) { alert(result.error.message); return; }
+    if (result.error) { toast.error(result.error.message); return; }
     setPostEditor(null); await load();
   };
 
@@ -118,7 +119,7 @@ export function AdminPage() {
     };
     const result = productEditor.id ? await supabase.from('commerce_products').update(payload).eq('id', productEditor.id) : await supabase.from('commerce_products').insert(payload);
     setBusy(false);
-    if (result.error) { alert(result.error.message); return; }
+    if (result.error) { toast.error(result.error.message); return; }
     setProductEditor(null); await load();
   };
 
@@ -127,20 +128,20 @@ export function AdminPage() {
     setBusy(true);
     const result = await supabase.from(table as any).delete().eq('id', id);
     setBusy(false);
-    if (result.error) alert(result.error.message); else await load();
+    if (result.error) toast.error(result.error.message); else await load();
   };
 
   const transitionCompetition = async (id: string, status: string) => {
     setBusy(true);
     const { error } = await supabase.rpc('transition_competition', { p_competition_id: id, p_to_status: status, p_reason: 'Admin panel' });
     setBusy(false);
-    if (error) alert(error.message); else await load();
+    if (error) toast.error(error.message); else await load();
   };
 
   const setRole = async (id: string, role: BackendRole) => {
     setBusy(true);
     try { await adminSetUserRole(id, role, true, 'Admin panel'); await load(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { toast.error(e.message); }
     finally { setBusy(false); }
   };
 

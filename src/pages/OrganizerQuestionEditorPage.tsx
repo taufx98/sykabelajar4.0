@@ -1,3 +1,4 @@
+import { toast } from "@/lib/toast";
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Save, FileQuestion } from 'lucide-react';
@@ -24,7 +25,7 @@ export function OrganizerQuestionEditorPage() {
       supabase.from('question_banks').select('id,name,description,status').eq('id', bankId).single(),
       listQuestions(bankId),
     ]);
-    if (bankError) { alert(bankError.message); setLoading(false); return; }
+    if (bankError) { toast.error(bankError.message); setLoading(false); return; }
     const os = await listQuestionOptions(qs.map((q: any) => q.id));
     const grouped: Record<string, Option[]> = {};
     os.forEach((o: any) => { (grouped[o.question_id] ||= []).push(o); });
@@ -42,14 +43,14 @@ export function OrganizerQuestionEditorPage() {
       if (editor.type === 'multiple-choice' && !cleanOptions.some((o: Option) => o.is_correct)) throw new Error('Tentukan minimal satu jawaban benar.');
       await saveQuestion({ id: editor.id, questionBankId: bankId, type: editor.type || 'multiple-choice', prompt: editor.prompt.trim(), points: Number(editor.points || 1), required: editor.required !== false, displayOrder: Number(editor.display_order ?? questions.length), status: editor.status || 'DRAFT', config: editor.config || {}, options: cleanOptions });
       setEditor(null); await load();
-    } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
 
   const editQuestion = (q: any) => setEditor({ ...q, options: options[q.id] || [] });
   const remove = async (id: string) => {
     if (!confirm('Hapus soal ini?')) return;
     setBusy(true);
-    try { await deleteQuestion(id); await load(); } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+    try { await deleteQuestion(id); await load(); } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
 
   return <div className="min-h-screen bg-ink-950 text-slate-200 p-5 md:p-8">

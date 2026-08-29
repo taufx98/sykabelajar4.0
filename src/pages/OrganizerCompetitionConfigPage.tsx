@@ -1,3 +1,4 @@
+import { toast } from "@/lib/toast";
 import { FormEvent, useEffect, useState } from 'react';
 import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -74,7 +75,7 @@ export function OrganizerCompetitionConfigPage() {
       });
       navigate('/organizer');
     } catch (error: any) {
-      alert(error?.message ?? 'Gagal menyimpan konfigurasi lomba.');
+      toast.error(error?.message ?? 'Gagal menyimpan konfigurasi lomba.');
     } finally { setSaving(false); }
   }
 

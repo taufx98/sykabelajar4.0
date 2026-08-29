@@ -1,3 +1,4 @@
+import { toast } from "@/lib/toast";
 import { useEffect, useState } from 'react';
 import { PackageCheck, RefreshCw, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -22,7 +23,7 @@ export function AdminFulfillmentPage() {
     if (error) throw error;
     setOrders(data ?? []);
   };
-  useEffect(() => { void load().catch((e) => alert(e.message)); }, []);
+  useEffect(() => { void load().catch((e) => toast.error(e.message)); }, []);
 
   const transition = async (orderId: string, status: string) => {
     setBusy(orderId);
@@ -36,7 +37,7 @@ export function AdminFulfillmentPage() {
       });
       if (error) throw error;
       await load();
-    } catch (e: any) { alert(e.message); } finally { setBusy(null); }
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(null); }
   };
 
   return <div className="p-5 md:p-7">

@@ -1,3 +1,4 @@
+import { toast } from "@/lib/toast";
 import { useEffect, useState } from 'react';
 import { Activity, Award, ShieldAlert, Settings2, Check, X, RefreshCw, Truck } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -31,19 +32,19 @@ export function AdminOperationsPage() {
     setBusy(id);
     const { error } = await supabase.rpc('admin_set_certificate_status', { p_certificate_verification_id: id, p_to_status: status, p_reason: 'Admin operations' });
     setBusy(null);
-    if (error) alert(error.message); else await load();
+    if (error) toast.error(error.message); else await load();
   };
   const resolveReport = async (id: string, status: 'RESOLVED'|'REJECTED') => {
     setBusy(id);
     const { error } = await supabase.from('comment_reports').update({ status, resolved_at: new Date().toISOString() }).eq('id', id);
     setBusy(null);
-    if (error) alert(error.message); else await load();
+    if (error) toast.error(error.message); else await load();
   };
   const toggleFlag = async (flag: any) => {
     setBusy(flag.key);
     const { error } = await supabase.from('feature_flags').update({ enabled: !flag.enabled, updated_at: new Date().toISOString() }).eq('key', flag.key);
     setBusy(null);
-    if (error) alert(error.message); else await load();
+    if (error) toast.error(error.message); else await load();
   };
   const tabs = [
     { key: 'certificates' as const, label: 'Sertifikat', icon: Award },

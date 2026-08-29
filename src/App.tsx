@@ -38,6 +38,7 @@ import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
 import { AdminChatPage } from '@/pages/AdminChatPage';
 import { getUserRoles } from '@/services/role.service';
 import { supabase } from '@/lib/supabase';
+import { ToastContainer } from '@/components/ui/ToastContainer';
 
 function AppRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, isGuest, user } = useApp();
@@ -122,4 +123,4 @@ function AppRoutes() {
   </Routes>;
 }
 
-export default function App() { return <AppProvider><BrowserRouter><RuntimeGlobals /><AppRoutes /></BrowserRouter></AppProvider>; }
+export default function App() { return <AppProvider><BrowserRouter><RuntimeGlobals /><AppRoutes /><ToastContainer /></BrowserRouter></AppProvider>; }
