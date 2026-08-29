@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -45,6 +45,10 @@ const LAST_ROUTE_KEY = 'sykabelajar_last_route';
 const GUEST_KEY = 'sykabelajar_guest_mode_v1';
 const PUBLIC_ROUTES = ['/', '/login', '/register'];
 
+// Module-level flag: persists across component mount/unmount
+// Only false on the very first app load, then stays true forever
+let hasAppBooted = false;
+
 function saveLastRoute(pathname: string) {
   if (!PUBLIC_ROUTES.includes(pathname)) {
     localStorage.setItem(LAST_ROUTE_KEY, pathname);
@@ -73,18 +77,17 @@ function AppRoute({ children }: { children: ReactNode }) {
 
 function RootEntry() {
   const { isAuthenticated, authLoading, isGuest, user } = useApp();
-  const isInitialLoad = useRef(true);
   const hasStoredSession = typeof window !== 'undefined' && (
     localStorage.getItem('sb-jrfogwueytiddnanetth-auth-token') !== null ||
     localStorage.getItem(GUEST_KEY) === '1'
   );
 
-  // Mark initial load complete after first render
-  useEffect(() => { isInitialLoad.current = false; }, []);
+  // Mark app as booted after first render (module-level, persists across mounts)
+  useEffect(() => { hasAppBooted = true; }, []);
 
-  // On INITIAL LOAD: redirect to last route if user has session
-  // On EXPLICIT NAVIGATION to /: always show landing page
-  if (isInitialLoad.current) {
+  // On INITIAL LOAD ONLY: redirect to last route if user has session
+  // After first render, always show landing page (user can navigate to / explicitly)
+  if (!hasAppBooted) {
     if (authLoading) {
       if (hasStoredSession || isGuest) return <Navigate to={getLastRoute()} replace />;
       return (
@@ -100,7 +103,7 @@ function RootEntry() {
     }
   }
 
-  // Always show landing page on / (either first visit or explicit navigation)
+  // App already booted → always show landing page on /
   return <LandingPage />;
 }
 
