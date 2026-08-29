@@ -371,13 +371,14 @@ export function AdminDashboard() {
                       innerRadius={40} outerRadius={65}
                       paddingAngle={3}
                       dataKey="value"
+                      activeShape={renderActivePieShape}
                     >
                       {processedData.usersByType.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: any) => [`${v} user`, ""]} />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: any) => [`${v} user`, ""]} />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10, color: '#94a3b8' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -392,13 +393,14 @@ export function AdminDashboard() {
                       innerRadius={40} outerRadius={65}
                       paddingAngle={3}
                       dataKey="value"
+                      activeShape={renderActivePieShape}
                     >
                       {processedData.xpDistribution.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: any) => [`${v} user`, ""]} />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: any) => [`${v} user`, ""]} />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10, color: '#94a3b8' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -498,6 +500,55 @@ function StatCard({ label, value, icon: Icon, color, format }: {
   );
 }
 
+// ── Tooltip style ──
+const TOOLTIP_STYLE = { background: '#162032', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' };
+
+// ── Active bar shape (follows bar, no white box) ──
+function ActiveBarShape(props: any) {
+  const { x, y, width, height, fill } = props;
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} rx={4} ry={4} fill={fill} />
+      <rect x={x} y={y} width={width} height={height} rx={4} ry={4} fill="rgba(255,255,255,0.06)" />
+    </g>
+  );
+}
+
+// ── Active pie slice shape (follows slice, slight expand) ──
+function renderActivePieShape(props: any) {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  return (
+    <g>
+      <path
+        d={describeArc(cx, cy, innerRadius, outerRadius + 6, startAngle, endAngle)}
+        fill={fill}
+        style={{ filter: 'brightness(1.2)' }}
+      />
+    </g>
+  );
+}
+
+// SVG arc path helper
+function describeArc(cx: number, cy: number, r1: number, r2: number, startAngle: number, endAngle: number) {
+  const polarToCartesian = (centerX: number, centerY: number, r: number, angleDeg: number) => {
+    const rad = ((angleDeg - 90) * Math.PI) / 180;
+    return { x: centerX + r * Math.cos(rad), y: centerY + r * Math.sin(rad) };
+  };
+  const clampEnd = startAngle === endAngle ? endAngle + 0.1 : endAngle;
+  const outerStart = polarToCartesian(cx, cy, r2, clampEnd);
+  const outerEnd = polarToCartesian(cx, cy, r2, startAngle);
+  const innerStart = polarToCartesian(cx, cy, r1, startAngle);
+  const innerEnd = polarToCartesian(cx, cy, r1, clampEnd);
+  const largeArcFlag = clampEnd - startAngle <= 180 ? '0' : '1';
+  return [
+    'M', outerStart.x, outerStart.y,
+    'A', r2, r2, 0, largeArcFlag, 0, outerEnd.x, outerEnd.y,
+    'L', innerStart.x, innerStart.y,
+    'A', r1, r1, 0, largeArcFlag, 1, innerEnd.x, innerEnd.y,
+    'Z',
+  ].join(' ');
+}
+
 // ── Chart Card Component ──
 function ChartCard({ title, data, chartType, color, onToggleType, valueType, showArea }: {
   title: string; data: any[]; chartType: ChartType; color: string;
@@ -518,14 +569,11 @@ function ChartCard({ title, data, chartType, color, onToggleType, valueType, sho
         return (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} />
-              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={formatValue} />
-              <Tooltip
-                contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }}
-                formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]}
-              />
-              <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#475569' }} tickFormatter={formatValue} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }} formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]} />
+              <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={{ r: 2, fill: color, strokeWidth: 0 }} activeDot={{ r: 4, fill: color, stroke: 'rgba(255,255,255,0.2)', strokeWidth: 2 }} />
             </LineChart>
           </ResponsiveContainer>
         );
@@ -533,14 +581,11 @@ function ChartCard({ title, data, chartType, color, onToggleType, valueType, sho
         return (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} />
-              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={formatValue} />
-              <Tooltip
-                contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }}
-                formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]}
-              />
-              <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#475569' }} tickFormatter={formatValue} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(255,255,255,0.03)' }} formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]} />
+              <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} activeBar={<ActiveBarShape fill={color} />} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -550,14 +595,11 @@ function ChartCard({ title, data, chartType, color, onToggleType, valueType, sho
         return (
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} />
-              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={formatValue} />
-              <Tooltip
-                contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }}
-                formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]}
-              />
-              <Area type="monotone" dataKey="value" stroke={color} fill={color} fillOpacity={0.15} strokeWidth={2} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#475569' }} tickFormatter={formatValue} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }} formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]} />
+              <Area type="monotone" dataKey="value" stroke={color} fill={color} fillOpacity={0.1} strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         );
