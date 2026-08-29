@@ -97,6 +97,8 @@ export function EditProfilePage() {
         grade: form.grade || null,
       };
       // Only add new columns if they have values (graceful fallback for missing columns)
+      // Save favorite categories as comma-separated subjects string
+      patch.subjects = form.favoriteCategories.join(',');
       if (form.pembina) patch.pembina = form.pembina;
       if (form.badgeShowcase.length > 0) patch.badge_showcase = form.badgeShowcase;
       if (form.badgeShowcaseManual) patch.badge_showcase_manual = true;
