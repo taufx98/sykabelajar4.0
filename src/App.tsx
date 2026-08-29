@@ -82,12 +82,13 @@ function RootEntry() {
     localStorage.getItem(GUEST_KEY) === '1'
   );
 
-  // Mark app as booted after first render (module-level, persists across mounts)
-  useEffect(() => { hasAppBooted = true; }, []);
+  // Set IMMEDIATELY during render (not in useEffect which runs after unmount)
+  const isFirstRender = !hasAppBooted;
+  hasAppBooted = true;
 
-  // On INITIAL LOAD ONLY: redirect to last route if user has session
-  // After first render, always show landing page (user can navigate to / explicitly)
-  if (!hasAppBooted) {
+  // On FIRST RENDER ONLY: redirect to last route if user has session
+  // After first render (client-side nav to /), always show landing page
+  if (isFirstRender) {
     if (authLoading) {
       if (hasStoredSession || isGuest) return <Navigate to={getLastRoute()} replace />;
       return (
