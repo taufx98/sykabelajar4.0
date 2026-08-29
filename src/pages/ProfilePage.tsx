@@ -246,11 +246,26 @@ export function ProfilePage() {
   const uploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file || !currentUser || !isOwn) return;
     try {
+      // Get old cover public_id for deletion
+      const oldCoverId = profile?.cover_public_id as string | undefined;
       const result = await uploadImage(file, `sykabelajar/users/covers/${currentUser.id}`);
-      const { error } = await supabase.from('profiles').update({ cover_url: result.secure_url, updated_at: new Date().toISOString() }).eq('id', currentUser.id);
+      const { error } = await supabase.from('profiles').update({
+        cover_url: result.secure_url,
+        cover_public_id: result.public_id,
+        cover_width: result.width ?? null,
+        cover_height: result.height ?? null,
+        cover_version: result.version ? String(result.version) : null,
+        cover_resource_type: result.resource_type || 'image',
+        updated_at: new Date().toISOString(),
+      }).eq('id', currentUser.id);
       if (error) throw error;
+      // Delete old cover from Cloudinary to save space
+      if (oldCoverId && oldCoverId !== result.public_id) {
+        const { deleteImage } = await import('@/services/cloudinary.service');
+        void deleteImage(oldCoverId);
+      }
       toast('Foto sampul diperbarui.', 'success');
-      setProfile((prev: any) => prev ? { ...prev, cover_url: result.secure_url } : prev);
+      setProfile((prev: any) => prev ? { ...prev, cover_url: result.secure_url, cover_public_id: result.public_id } : prev);
     } catch (e: any) { toast(e?.message || 'Upload gagal.', 'error'); }
     finally { e.target.value = ''; }
   };
