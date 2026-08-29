@@ -59,68 +59,59 @@ function AppRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading, isGuest, user } = useApp();
   const location = useLocation();
   useEffect(() => { saveLastRoute(location.pathname); }, [location.pathname]);
-  // Show loading while auth is being checked
-  if (authLoading && !isGuest) return (
+  const hasStoredSession = typeof window !== 'undefined' && (
+    localStorage.getItem('sb-jrfogwueytiddnanetth-auth-token') !== null ||
+    localStorage.getItem(GUEST_KEY) === '1'
+  );
+  // If there's a stored session, render immediately (no spinner) — auth resolves in background
+  if (hasStoredSession || isGuest || isAuthenticated) {
+    // Only redirect to landing if auth finished loading AND user is not authenticated AND not guest
+    if (!isAuthenticated && !isGuest && !authLoading) return <Navigate to="/" state={{ from: location }} replace />;
+    return <>{children}</>;
+  }
+  // No stored session + still loading = first visit, show minimal spinner
+  if (authLoading) return (
     <div className="min-h-screen bg-ink-950 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
-          <div className="w-5 h-5 bg-white/30 rounded" />
-        </div>
-        <div className="flex gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'0ms'}} />
-          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'150ms'}} />
-          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'300ms'}} />
-        </div>
+      <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
+        <div className="w-5 h-5 bg-white/30 rounded" />
       </div>
     </div>
   );
-  // Don't redirect while auth is still loading
-  if (!isAuthenticated && !isGuest && !authLoading) return <Navigate to="/" state={{ from: location }} replace />;
-  if (!user && !isGuest) return (
-    <div className="min-h-screen bg-ink-950 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
-          <div className="w-5 h-5 bg-white/30 rounded" />
-        </div>
-        <div className="flex gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'0ms'}} />
-          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'150ms'}} />
-          <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'300ms'}} />
-        </div>
-      </div>
-    </div>
-  );
-  return <>{children}</>;
+  // Auth loaded, no session, not guest → redirect to landing
+  return <Navigate to="/" replace />;
 }
 
 function RootEntry() {
   const { isAuthenticated, authLoading, isGuest, user } = useApp();
-  // Check if user has a stored session (prevents landing page flash)
   const hasStoredSession = typeof window !== 'undefined' && (
     localStorage.getItem('sb-jrfogwueytiddnanetth-auth-token') !== null ||
     localStorage.getItem(GUEST_KEY) === '1'
   );
 
-  // Show loading while auth is being checked OR if user has stored session but not yet loaded
-  if (authLoading || (hasStoredSession && !isAuthenticated && !isGuest)) {
-    return (
-      <div className="min-h-screen bg-ink-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
-            <div className="w-5 h-5 bg-white/30 rounded" />
-          </div>
-          <div className="flex gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'0ms'}} />
-            <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'150ms'}} />
-            <div className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-bounce" style={{animationDelay:'300ms'}} />
-          </div>
-        </div>
-      </div>
-    );
+  // Has stored session → redirect immediately, no spinner
+  if (hasStoredSession || isGuest) {
+    if (isAuthenticated && user) return <Navigate to={getLastRoute()} replace />;
+    // Still loading auth — redirect optimistically to last route (auth resolves in background)
+    if (authLoading) return <Navigate to={getLastRoute()} replace />;
+    // Auth loaded but no session → session expired, show landing
+    if (!isAuthenticated) return <LandingPage />;
+    return <Navigate to={getLastRoute()} replace />;
   }
-  if (isAuthenticated && user && !isGuest) return <Navigate to={getLastRoute()} replace />;
-  if (!isAuthenticated && !isGuest) return <LandingPage />;
-  return <div className="min-h-screen flex items-center justify-center text-slate-500">Memuat sesi…</div>;
+
+  // No stored session + auth loaded → landing page
+  if (!authLoading) {
+    if (isAuthenticated && user) return <Navigate to={getLastRoute()} replace />;
+    return <LandingPage />;
+  }
+
+  // First visit, auth loading → minimal spinner
+  return (
+    <div className="min-h-screen bg-ink-950 flex items-center justify-center">
+      <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
+        <div className="w-5 h-5 bg-white/30 rounded" />
+      </div>
+    </div>
+  );
 }
 
 function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member'; children: ReactNode }) {

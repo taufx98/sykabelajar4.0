@@ -85,16 +85,8 @@ export function AppLayout(){
   const active=(to:string)=>location.pathname===to||(to==='/home'&&location.pathname==='/');
   const logoutNow=()=>{void logout();navigate('/')};
 
-  if(!isGuest&&!user) return (
-    <div className="min-h-screen bg-ink-950 flex items-center justify-center text-slate-400">
-      <div className="text-center">
-        <div className="w-9 h-9 rounded-xl gradient-moss flex items-center justify-center mx-auto mb-3 animate-pulse">
-          <GraduationCap size={19} className="text-white"/>
-        </div>
-        <p className="text-sm">Menyiapkan sesi akun...</p>
-      </div>
-    </div>
-  );
+  // Don't block render while auth loads — render layout immediately
+  // If user data isn't ready yet, show layout with placeholder sidebar profile
 
   return (
     <>
