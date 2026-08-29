@@ -335,8 +335,14 @@ export function ProfilePage() {
           </span>
         </div>
 
-        {/* Follow button */}
-        {!isOwn && currentUser && (
+        {/* Edit / Follow button */}
+        {isOwn ? (
+          <div className="flex justify-center mt-3">
+            <Link to="/profile/edit">
+              <Button size="sm" variant="outline" icon={<Edit2 size={14} />}>Edit Profil</Button>
+            </Link>
+          </div>
+        ) : currentUser ? (
           <div className="flex justify-center mt-3">
             <Button
               size="sm"
@@ -348,7 +354,7 @@ export function ProfilePage() {
               {isFollowing ? 'Unfollow' : 'Follow'}
             </Button>
           </div>
-        )}
+        ) : null}
 
         {/* ═══ STATS CARDS ═══ */}
         <div className="grid grid-cols-3 gap-3 mt-5 max-w-2xl mx-auto">

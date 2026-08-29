@@ -142,7 +142,19 @@ export function EditProfilePage() {
         });
       }
 
-      await updateProfileRecord(user.id, patch);
+      // Try save with all fields first; if it fails due to missing columns, retry without optional ones
+      try {
+        await updateProfileRecord(user.id, patch);
+      } catch (saveErr: any) {
+        const msg = String(saveErr?.message || saveErr || '');
+        // If error mentions missing column, remove optional fields and retry
+        if (msg.includes('column') && (msg.includes('does not exist') || msg.includes('not found') || msg.includes('schema cache'))) {
+          const { pembina: _p, badge_showcase: _b, badge_showcase_manual: _bm, ...safePatch } = patch;
+          await updateProfileRecord(user.id, safePatch);
+        } else {
+          throw saveErr;
+        }
+      }
 
       // Delete old images from Cloudinary
       if (profileFile && oldAvatar && oldAvatar !== patch.avatar_public_id) void deleteImage(oldAvatar);
