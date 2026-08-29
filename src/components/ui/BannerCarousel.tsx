@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Megaphone } from 'lucide-react';
 import { loadActiveBanners, type AdBanner, type MediaType } from '@/services/ad.service';
+import { useApp } from '@/store/AppContext';
 
 const UPLOAD_H = 300;
 const GAP = 8;
@@ -53,10 +54,12 @@ function BannerMedia({ banner, className }: { banner: AdBanner; className?: stri
 }
 
 export function BannerCarousel() {
+  const { user, isGuest } = useApp();
   const [banners, setBanners] = useState<AdBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [loading, setLoading] = useState(true);
   const [slotCount, setSlotCount] = useState(3);
+  const canSeeEmptySlots = user?.role === 'admin' || user?.role === 'guru' || user?.role === 'penyelenggara';
 
   useEffect(() => {
     const update = () => setSlotCount(getSlotCount());
@@ -101,6 +104,8 @@ export function BannerCarousel() {
   }
 
   if (banners.length === 0) {
+    // Only admin/guru/penyelenggara see empty slots
+    if (!canSeeEmptySlots) return null;
     return (
       <div className="w-full flex gap-2">
         {Array.from({ length: slotCount }).map((_, i) => <EmptySlot key={i} />)}
@@ -145,7 +150,7 @@ export function BannerCarousel() {
                 />
               </a>
             ))}
-            {group.length < slotCount &&
+            {group.length < slotCount && canSeeEmptySlots &&
               Array.from({ length: slotCount - group.length }).map((_, ei) => (
                 <EmptySlot key={`empty-${gi}-${ei}`} />
               ))
