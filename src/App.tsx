@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, type ReactNode } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LandingPage } from '@/pages/LandingPage';
@@ -36,78 +36,35 @@ import { TwibbonPage } from '@/pages/TwibbonPage';
 import { AdminBannersPage } from '@/pages/AdminBannersPage';
 import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
 import { AdminChatPage } from '@/pages/AdminChatPage';
+import { ToastContainer } from '@/components/ui/ToastContainer';
 import { getUserRoles } from '@/services/role.service';
 import { supabase } from '@/lib/supabase';
-import { ToastContainer } from '@/components/ui/ToastContainer';
 
-// Save/restore last route
-const LAST_ROUTE_KEY = 'sykabelajar_last_route';
-const GUEST_KEY = 'sykabelajar_guest_mode_v1';
-const PUBLIC_ROUTES = ['/', '/login', '/register'];
-
-// Module-level flag: persists across component mount/unmount
-// Only false on the very first app load, then stays true forever
-let hasAppBooted = false;
-
-function saveLastRoute(pathname: string) {
-  if (!PUBLIC_ROUTES.includes(pathname)) {
-    localStorage.setItem(LAST_ROUTE_KEY, pathname);
-  }
-}
-
-function getLastRoute(): string {
-  return localStorage.getItem(LAST_ROUTE_KEY) || '/home';
-}
-
-function AppRoute({ children }: { children: ReactNode }) {
+/**
+ * AuthGuard — wraps protected routes.
+ * Rules:
+ *   1. While auth is loading → render children (no redirect, no flash)
+ *   2. Auth loaded + (authenticated or guest) → render children
+ *   3. Auth loaded + not authenticated + not guest → redirect to /
+ * Never redirects during loading. Never overrides user navigation.
+ */
+function AuthGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading, isGuest } = useApp();
-  const location = useLocation();
-  useEffect(() => { saveLastRoute(location.pathname); }, [location.pathname]);
 
-  // CRITICAL: Never redirect while auth is loading or revalidating — just render the page
-  // This prevents the flash of landing page during auth resolution or tab switch
+  // Still checking auth → show page anyway (don't flash landing)
   if (authLoading) return <>{children}</>;
 
-  // Auth loaded: check if user is allowed
+  // Authenticated or guest → allowed
   if (isAuthenticated || isGuest) return <>{children}</>;
 
-  // Auth loaded, not authenticated, not guest → redirect to landing
-  return <Navigate to="/" state={{ from: location }} replace />;
+  // Not authenticated, not guest → send to landing
+  return <Navigate to="/" replace />;
 }
 
-function RootEntry() {
-  const { isAuthenticated, authLoading, isGuest, user } = useApp();
-  const hasStoredSession = typeof window !== 'undefined' && (
-    localStorage.getItem('sb-jrfogwueytiddnanetth-auth-token') !== null ||
-    localStorage.getItem(GUEST_KEY) === '1'
-  );
-
-  // Set IMMEDIATELY during render (not in useEffect which runs after unmount)
-  const isFirstRender = !hasAppBooted;
-  hasAppBooted = true;
-
-  // On FIRST RENDER ONLY: redirect to last route if user has session
-  // After first render (client-side nav to /), always show landing page
-  if (isFirstRender) {
-    if (authLoading) {
-      if (hasStoredSession || isGuest) return <Navigate to={getLastRoute()} replace />;
-      return (
-        <div className="min-h-screen bg-ink-950 flex items-center justify-center">
-          <div className="w-10 h-10 rounded-xl gradient-moss flex items-center justify-center animate-pulse">
-            <div className="w-5 h-5 bg-white/30 rounded" />
-          </div>
-        </div>
-      );
-    }
-    if ((hasStoredSession && isAuthenticated) || isGuest || (isAuthenticated && user)) {
-      return <Navigate to={getLastRoute()} replace />;
-    }
-  }
-
-  // App already booted → always show landing page on /
-  return <LandingPage />;
-}
-
+/**
+ * RoleRoute — wraps role-specific routes (admin, organizer).
+ * Checks role after auth is confirmed by AuthGuard.
+ */
 function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member'; children: ReactNode }) {
   const { isAuthenticated } = useApp();
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -136,11 +93,14 @@ function RuntimeGlobals() {
 
 function AppRoutes() {
   return <Routes>
-    <Route path="/" element={<RootEntry />} />
+    {/* Public routes — no auth guard */}
+    <Route path="/" element={<LandingPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/verify/:code" element={<VerifyPage />} />
-    <Route element={<AppRoute><AppLayout /></AppRoute>}>
+
+    {/* Protected routes — wrapped in AuthGuard */}
+    <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
       <Route path="/home" element={<HomePage />} />
       <Route path="/feed" element={<SocialFeedPage />} />
       <Route path="/lomba/:slug" element={<CompetitionDetailPage />} />
@@ -172,8 +132,20 @@ function AppRoutes() {
       <Route path="/admin/banners" element={<RoleRoute role="admin"><AdminBannersPage /></RoleRoute>} />
       <Route path="/admin/chat" element={<RoleRoute role="admin"><AdminChatPage /></RoleRoute>} />
     </Route>
+
+    {/* Catch-all → landing page */}
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
 }
 
-export default function App() { return <AppProvider><BrowserRouter><RuntimeGlobals /><AppRoutes /><ToastContainer /></BrowserRouter></AppProvider>; }
+export default function App() {
+  return (
+    <AppProvider>
+      <BrowserRouter>
+        <RuntimeGlobals />
+        <AppRoutes />
+        <ToastContainer />
+      </BrowserRouter>
+    </AppProvider>
+  );
+}
