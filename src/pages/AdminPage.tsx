@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, X, Megaphone, Ban } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, X, Megaphone, Ban, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
@@ -18,6 +18,7 @@ const tabs: { key: AdminTab; label: string; icon: typeof Trophy }[] = [
   { key: 'orders', label: 'Pesanan', icon: ShoppingBag },
   { key: 'shop', label: 'Shop', icon: Store },
   { key: 'banners', label: 'Banner Iklan', icon: Megaphone },
+  { key: 'chat', label: 'Chat', icon: MessageCircle },
   { key: 'settings', label: 'Pengaturan', icon: Settings },
 ];
 const roleLabel: Record<string, string> = { student: 'Pelajar', teacher: 'Guru', organizer_member: 'Penyelenggara', admin: 'Admin' };
@@ -173,6 +174,8 @@ export function AdminPage() {
         {tab === 'orders' && <div className="space-y-2">{orders.map((o) => <Card key={o.id} className="p-4 flex items-center gap-3"><ShoppingBag size={18} className="text-moss-400"/><div className="flex-1"><p className="text-sm text-white">Order {o.id.slice(0, 8)}</p><p className="text-xs text-slate-500">{o.user_id} · {new Date(o.created_at).toLocaleString('id-ID')}</p>{o.payment_proof_status === 'SUBMITTED' && <p className="text-[11px] text-amber-300 mt-1">Bukti pembayaran menunggu review</p>}</div><b className="text-sm text-white">Rp {Number(o.total || 0).toLocaleString('id-ID')}</b><Badge>{o.status}</Badge></Card>)}{!orders.length&&<Card className="p-8 text-center text-sm text-slate-500">Belum ada order di backend.</Card>}</div>}
 
         {tab === 'shop' && <><div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={() => setProductEditor({ product_type: 'DIGITAL_ITEM', audiences: ['student'], price: 0, is_active: true, is_featured: false, sort_order: 0 })}>Tambah Produk</Button></div><div className="grid md:grid-cols-2 gap-3">{products.map((p) => <Card key={p.id} className="p-4"><div className="flex gap-3"><div className="flex-1"><p className="font-semibold text-white">{p.name}</p><p className="text-xs text-slate-500">{p.code} · {p.product_type}</p><p className="text-moss-300 font-bold mt-2">Rp {Number(p.price || 0).toLocaleString('id-ID')}</p><p className="text-xs text-slate-500 mt-1">{p.is_active ? 'Aktif' : 'Nonaktif'} · {p.is_featured ? 'Featured' : 'Biasa'}</p></div><button onClick={() => setProductEditor(p)} className="p-2 rounded-lg hover:bg-white/5"><Edit3 size={16}/></button><button onClick={() => void removeRow('commerce_products', p.id)} className="p-2 rounded-lg text-red-400 hover:bg-red-500/10"><Trash2 size={16}/></button></div></Card>)}</div></>}
+
+        {tab === 'chat' && <div><Link to="/admin/chat"><Card className="p-5 hover:bg-white/5 transition cursor-pointer"><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-moss-500/10 flex items-center justify-center"><MessageCircle size={22} className="text-moss-400"/></div><div><p className="font-semibold text-white">Buka Panel Chat Admin</p><p className="text-sm text-slate-400">Lihat dan balas pesan dari pengguna</p></div></div></Card></Link></div>}
 
         {tab === 'settings' && <div className="space-y-3"><Card className="p-5"><h3 className="font-semibold text-white">Platform settings</h3><p className="text-sm text-slate-400 mt-1">Konfigurasi global disimpan di <code>global_settings</code>; audit aktivitas tersedia di <code>audit_logs</code>.</p><Link to="/admin/roles" className="inline-block mt-4"><Button icon={<ShieldCheck size={15}/>}>Manajemen Role Detail</Button></Link></Card><Card className="p-5"><p className="text-xs text-amber-300">Catatan security</p><p className="text-sm text-slate-400 mt-1">RPC administratif harus dibatasi ke role backend yang sesuai. Audit security database sedang ditindaklanjuti terpisah.</p></Card></div>}
       </section>
