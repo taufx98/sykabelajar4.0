@@ -29,7 +29,7 @@ interface Form {
 
 export function EditProfilePage() {
   const navigate = useNavigate();
-  const { user, toast } = useApp();
+  const { user, toast, refreshUser } = useApp();
 
   const [form, setForm] = useState<Form>({
     displayName: user?.displayName || '',
@@ -169,6 +169,8 @@ export function EditProfilePage() {
       setCoverFile(null);
       setPreviews({});
       toast('Profil berhasil diperbarui.', 'success');
+      // Refresh user data in context so profile page shows updated values
+      void refreshUser();
       navigate(`/profile/${form.username}`);
     } catch (error: any) {
       toast(error?.message || 'Profil gagal diperbarui.', 'error');
