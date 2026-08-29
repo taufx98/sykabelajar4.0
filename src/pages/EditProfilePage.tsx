@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { EmblemIcon } from '@/components/ui/Emblem';
 import { useApp } from '@/store/AppContext';
 import { CATEGORY_LABELS, GRADE_OPTIONS } from '@/data/catalog';
-import { deleteImage, uploadImage } from '@/services/cloudinary.service';
+import { uploadImage } from '@/services/cloudinary.service';
 import { getProfileById, updateProfile as updateProfileRecord } from '@/services/profile.service';
 import type { CompetitionCategory, EducationLevel } from '@/types';
 
@@ -105,10 +105,12 @@ export function EditProfilePage() {
 
       const oldAvatar = current?.avatar_public_id as string | undefined;
       const oldCover = current?.cover_public_id as string | undefined;
+      const uname = current?.username || user.username;
 
-      // Upload profile image (direct to Cloudinary, no Edge Function)
+      // Upload profile image — replace existing asset in same folder
       if (profileFile) {
-        const up = await uploadImage(profileFile, `sykabelajar/users/profiles/${user.id}`);
+        const profilePublicId = oldAvatar || `sykabelajar/${uname}/profile`;
+        const up = await uploadImage(profileFile, { publicId: profilePublicId });
         Object.assign(patch, {
           avatar_url: up.secure_url,
           avatar_public_id: up.public_id,
@@ -125,9 +127,10 @@ export function EditProfilePage() {
         });
       }
 
-      // Upload cover image (direct to Cloudinary, no Edge Function)
+      // Upload cover image — replace existing asset in same folder
       if (coverFile) {
-        const up = await uploadImage(coverFile, `sykabelajar/users/covers/${user.id}`);
+        const coverPublicId = oldCover || `sykabelajar/${uname}/cover`;
+        const up = await uploadImage(coverFile, { publicId: coverPublicId });
         Object.assign(patch, {
           cover_url: up.secure_url,
           cover_public_id: up.public_id,
@@ -158,9 +161,7 @@ export function EditProfilePage() {
         }
       }
 
-      // Delete old images from Cloudinary
-      if (profileFile && oldAvatar && oldAvatar !== patch.avatar_public_id) void deleteImage(oldAvatar);
-      if (coverFile && oldCover && oldCover !== patch.cover_public_id) void deleteImage(oldCover);
+      // No need to delete old images — they were replaced in-place by Cloudinary
 
       setForm(f => ({
         ...f,
@@ -250,7 +251,8 @@ export function EditProfilePage() {
           </div>
           <div>
             <label className="label">Username</label>
-            <input className="input" value={form.username} onChange={e => set('username', e.target.value.replace(/\s/g, '').toLowerCase())} />
+            <input className="input bg-ink-800/50 cursor-not-allowed" value={form.username} disabled readOnly />
+            <p className="text-[10px] text-slate-500 mt-1">Username tidak dapat diubah setelah pendaftaran.</p>
           </div>
           <div>
             <label className="label">Bio</label>

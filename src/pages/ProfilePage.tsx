@@ -201,16 +201,13 @@ export function ProfilePage() {
     if (!file || !currentUser || !isOwn) return;
     try {
       const oldCoverId = profile?.cover_public_id as string | undefined;
-      const result = await uploadImage(file, `sykabelajar/users/covers/${currentUser.id}`);
+      const coverPublicId = oldCoverId || `sykabelajar/${profile.username}/cover`;
+      const result = await uploadImage(file, { publicId: coverPublicId });
       const { error } = await supabase.from('profiles').update({
         cover_url: result.secure_url, cover_public_id: result.public_id,
         updated_at: new Date().toISOString(),
       }).eq('id', currentUser.id);
       if (error) throw error;
-      if (oldCoverId && oldCoverId !== result.public_id) {
-        const { deleteImage } = await import('@/services/cloudinary.service');
-        void deleteImage(oldCoverId);
-      }
       toast('Sampul diperbarui.', 'success');
       setProfile((prev: any) => prev ? { ...prev, cover_url: result.secure_url } : prev);
     } catch (e: any) { toast(e?.message || 'Upload gagal.', 'error'); }

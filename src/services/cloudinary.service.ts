@@ -15,14 +15,31 @@ function assertFile(file: File, maxBytes = 10 * 1024 * 1024) {
   if (file.size > maxBytes) throw new Error(`Ukuran file maksimal ${Math.round(maxBytes / 1024 / 1024)}MB.`);
 }
 
-export async function uploadImage(file: File, folder?: string): Promise<CloudinaryUploadResult> {
+export interface UploadImageOptions {
+  folder?: string;
+  /** When provided, Cloudinary will replace the existing asset at this public_id */
+  publicId?: string;
+}
+
+/**
+ * Upload image to Cloudinary.
+ * - If `publicId` is given, the asset is replaced in-place (saves storage).
+ * - `folder` is ignored when `publicId` is provided.
+ */
+export async function uploadImage(file: File, folderOrOptions?: string | UploadImageOptions): Promise<CloudinaryUploadResult> {
   if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar');
   assertFile(file, 5 * 1024 * 1024);
+  const opts: UploadImageOptions = typeof folderOrOptions === 'string' ? { folder: folderOrOptions } : (folderOrOptions ?? {});
   // Direct upload to Cloudinary (no Edge Function needed)
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', env.cloudinaryUploadPreset);
-  if (folder) formData.append('folder', folder);
+  if (opts.publicId) {
+    // Replace existing asset — pass full path as public_id (no folder param needed)
+    formData.append('public_id', opts.publicId);
+  } else if (opts.folder) {
+    formData.append('folder', opts.folder);
+  }
   const cloudName = env.cloudinaryCloudName;
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
   if (!response.ok) {
@@ -42,6 +59,14 @@ export async function uploadImage(file: File, folder?: string): Promise<Cloudina
   return response.json() as Promise<CloudinaryUploadResult>;
 }
 
-export async function uploadProfileImage(file: File, kind: 'profile' | 'cover'): Promise<CloudinaryUploadResult> { return uploadImage(file, kind === 'cover' ? 'sykabelajar/users/covers/' : 'sykabelajar/users/profiles/'); }
+/**
+ * Upload profile/cover image for a user.
+ * Uses a single folder per user named after their username.
+ * Filenames are fixed (profile / cover) so Cloudinary replaces on re-upload.
+ */
+export async function uploadProfileImage(file: File, kind: 'profile' | 'cover', username: string, existingPublicId?: string | null): Promise<CloudinaryUploadResult> {
+  const publicId = existingPublicId || `sykabelajar/${username}/${kind}`;
+  return uploadImage(file, { publicId });
+}
 export function versionedCloudinaryUrl(url?: string | null, version?: string | number | null): string | undefined { if (!url) return undefined; if (!version) return url; return `${String(url).split('?')[0]}?v=${encodeURIComponent(String(version))}`; }
 export async function deleteImage(publicId: string, resourceType = 'image'): Promise<boolean> { if (!publicId) return false; const { error } = await supabase.functions.invoke('cloudinary-delete-profile', { body: { public_id: publicId, resource_type: resourceType } }); if (error) { console.warn('[SykaBelajar] Cloudinary delete skipped', error.message); return false; } return true; }
