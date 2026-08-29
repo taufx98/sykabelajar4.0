@@ -76,7 +76,7 @@ export function AwardsPage() {
           </div>
           <p className="text-xs text-slate-500 mt-0.5">Verifikasi keaslian sertifikat sykabelajar.id</p>
         </div>
-        <div className="p-4 space-y-4 max-w-lg mx-auto">
+        <div className="p-4 space-y-4 max-w-lg mx-auto min-h-[calc(100vh-8rem)] flex flex-col justify-center">
           <Card className="p-6 text-center">
             <div className="w-16 h-16 rounded-full bg-moss-500/10 flex items-center justify-center mx-auto mb-4">
               <QrCode size={32} className="text-moss-400" />
