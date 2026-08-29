@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { uploadImage } from './cloudinary.service';
 
+export type MediaType = 'image' | 'gif' | 'video';
+
 export interface AdBannerSettings {
   id: string;
   slide_duration_seconds: number;
@@ -19,6 +21,7 @@ export interface AdBannerRequest {
   user_id: string;
   image_url: string;
   image_urls?: string[];
+  media_type?: MediaType;
   link_url: string;
   slots_requested: number;
   single_image: boolean;
@@ -36,12 +39,60 @@ export interface AdBanner {
   slot_number: number;
   image_url: string;
   image_urls?: string[];
+  media_type: MediaType;
   link_url: string;
   single_image: boolean;
   image_width_slots: number;
   slide_duration_seconds: number;
   expires_at: string;
+  is_active: boolean;
   organizer_name?: string;
+  title?: string;
+  created_at?: string;
+}
+
+// ── Upload helper for any media type ──
+export async function uploadBannerMedia(
+  file: File,
+  folder: string
+): Promise<{ secure_url: string; public_id: string; media_type: MediaType }> {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const isVideo = ext === 'mp4' || file.type === 'video/mp4';
+  const isGif = ext === 'gif' || file.type === 'image/gif';
+
+  // Validate size: max 2MB for video/gif, 5MB for images
+  const maxSize = isVideo || isGif ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+  if (file.size > maxSize) {
+    const mb = Math.round(maxSize / 1024 / 1024);
+    throw new Error(`Ukuran file maksimal ${mb}MB untuk ${isVideo ? 'video' : isGif ? 'GIF' : 'gambar'}.`);
+  }
+
+  if (isVideo) {
+    // Upload video to Cloudinary as video resource
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ?? '';
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ?? '');
+    formData.append('folder', folder);
+    formData.append('resource_type', 'video');
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/video/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) throw new Error(`Upload video gagal (${response.status})`);
+    const result = await response.json();
+    return { secure_url: result.secure_url, public_id: result.public_id, media_type: 'video' };
+  }
+
+  if (isGif) {
+    // Upload GIF as image (Cloudinary preserves animation)
+    const result = await uploadImage(file, folder);
+    return { secure_url: result.secure_url, public_id: result.public_id, media_type: 'gif' };
+  }
+
+  // Regular image
+  const result = await uploadImage(file, folder);
+  return { secure_url: result.secure_url, public_id: result.public_id, media_type: 'image' };
 }
 
 // ── Public: load active banners ──
@@ -56,7 +107,10 @@ export async function loadActiveBanners(): Promise<AdBanner[]> {
     console.warn('[AdBanner] load failed:', error.message);
     return [];
   }
-  return (data ?? []) as AdBanner[];
+  return (data ?? []).map((r: any) => ({
+    ...r,
+    media_type: r.media_type || 'image',
+  })) as AdBanner[];
 }
 
 // ── Public: load settings ──
@@ -79,25 +133,26 @@ export async function submitBannerRequest(params: {
   singleImage: boolean;
   durationDays: number;
   totalPrice: number;
+  mediaType?: MediaType;
 }): Promise<AdBannerRequest> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Unauthorized');
 
   let primaryUrl: string;
   let allUrls: string[] = [];
+  let mediaType: MediaType = params.mediaType || 'image';
 
   if (params.imageUrls && params.imageUrls.length > 0) {
-    // Multiple pre-uploaded URLs
     allUrls = params.imageUrls;
     primaryUrl = params.imageUrls[0];
   } else if (params.file) {
-    // Single file upload (backward compat)
-    const result = await uploadImage(
+    const uploaded = await uploadBannerMedia(
       params.file,
       `sykabelajar/banners/${params.organizerId}/${params.slotsRequested}slot_${Date.now()}`
     );
-    primaryUrl = result.secure_url;
+    primaryUrl = uploaded.secure_url;
     allUrls = [primaryUrl];
+    mediaType = uploaded.media_type;
   } else {
     throw new Error('No images provided');
   }
@@ -109,6 +164,7 @@ export async function submitBannerRequest(params: {
       user_id: auth.user.id,
       image_url: primaryUrl,
       image_urls: allUrls,
+      media_type: mediaType,
       link_url: params.linkUrl,
       slots_requested: params.slotsRequested,
       single_image: params.singleImage,
@@ -155,7 +211,6 @@ export async function approveBannerRequest(
     .single();
   if (reqErr || !req) throw reqErr ?? new Error('Request not found');
 
-  // Find next available slot numbers
   const { data: existing } = await supabase
     .from('ad_banners')
     .select('slot_number')
@@ -172,12 +227,11 @@ export async function approveBannerRequest(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + req.duration_days);
 
-  // Use image_urls array if available, fallback to single image_url
   const urls: string[] = req.image_urls?.length ? req.image_urls : [req.image_url];
+  const mediaType: MediaType = (req as any).media_type || 'image';
 
   const bannersToInsert: any[] = [];
   if (req.single_image) {
-    // One image fills multiple slots
     bannersToInsert.push({
       request_id: req.id,
       organizer_id: req.organizer_id,
@@ -185,6 +239,7 @@ export async function approveBannerRequest(
       slot_number: startSlot,
       image_url: urls[0],
       image_urls: urls,
+      media_type: mediaType,
       link_url: req.link_url,
       single_image: true,
       image_width_slots: req.slots_requested,
@@ -193,7 +248,6 @@ export async function approveBannerRequest(
       is_active: true,
     });
   } else {
-    // Multiple separate images — one per slot
     for (let i = 0; i < req.slots_requested; i++) {
       bannersToInsert.push({
         request_id: req.id,
@@ -202,6 +256,7 @@ export async function approveBannerRequest(
         slot_number: startSlot + i,
         image_url: urls[i] || urls[0],
         image_urls: urls,
+        media_type: mediaType,
         link_url: req.link_url,
         single_image: false,
         image_width_slots: 1,
@@ -212,7 +267,6 @@ export async function approveBannerRequest(
     }
   }
 
-  // Upsert banners (replace if slot occupied by same organizer)
   for (const banner of bannersToInsert) {
     const { error: upErr } = await supabase
       .from('ad_banners')
@@ -220,7 +274,6 @@ export async function approveBannerRequest(
     if (upErr) console.warn('[AdBanner] upsert failed:', upErr.message);
   }
 
-  // Update request status
   await supabase
     .from('ad_banner_requests')
     .update({ status: 'APPROVED', reviewed_at: new Date().toISOString() })
@@ -253,9 +306,84 @@ export async function updateBannerSettings(settings: Partial<AdBannerSettings>):
   }
 }
 
-// ── Admin: deactivate banner ──
+// ── Admin: deactivate banner (takedown) ──
 export async function deactivateBanner(bannerId: string): Promise<void> {
   await supabase.from('ad_banners').update({ is_active: false }).eq('id', bannerId);
+}
+
+// ── Admin: add banner directly (skip request flow) ──
+export async function adminAddBanner(params: {
+  file: File;
+  slotNumber: number;
+  widthSlots: number;
+  linkUrl: string;
+  title?: string;
+  durationDays: number;
+  slideDuration: number;
+}): Promise<AdBanner> {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error('Unauthorized');
+
+  const uploaded = await uploadBannerMedia(
+    params.file,
+    `sykabelajar/banners/admin/${Date.now()}`
+  );
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + params.durationDays);
+
+  const { data, error } = await supabase
+    .from('ad_banners')
+    .insert({
+      slot_number: params.slotNumber,
+      image_url: uploaded.secure_url,
+      image_urls: [uploaded.secure_url],
+      media_type: uploaded.media_type,
+      link_url: params.linkUrl,
+      title: params.title || '',
+      single_image: params.widthSlots > 1,
+      image_width_slots: params.widthSlots,
+      slide_duration_seconds: params.slideDuration,
+      expires_at: expiresAt.toISOString(),
+      is_active: true,
+      organizer_id: null,
+      user_id: auth.user.id,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return { ...data, media_type: uploaded.media_type } as AdBanner;
+}
+
+// ── Admin: update banner ──
+export async function adminUpdateBanner(bannerId: string, patch: Partial<AdBanner>): Promise<void> {
+  const { error } = await supabase
+    .from('ad_banners')
+    .update(patch)
+    .eq('id', bannerId);
+  if (error) throw error;
+}
+
+// ── Admin: delete banner permanently ──
+export async function adminDeleteBanner(bannerId: string): Promise<void> {
+  const { error } = await supabase
+    .from('ad_banners')
+    .delete()
+    .eq('id', bannerId);
+  if (error) throw error;
+}
+
+// ── Admin: get all slots (including inactive) ──
+export async function adminLoadAllBanners(): Promise<AdBanner[]> {
+  const { data, error } = await supabase
+    .from('ad_banners')
+    .select('*')
+    .order('slot_number', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    ...r,
+    media_type: r.media_type || 'image',
+  })) as AdBanner[];
 }
 
 // ── Helper: calculate price ──
@@ -274,8 +402,7 @@ export function calculateBannerPrice(
   return Math.round(base);
 }
 
-
-// ── Platform Settings (admin banks, WhatsApp, chat) ──
+// ── Platform Settings ──
 export interface AdminBank {
   bank: string;
   name: string;

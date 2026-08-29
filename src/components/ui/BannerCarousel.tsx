@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Megaphone } from 'lucide-react';
-import { loadActiveBanners, type AdBanner } from '@/services/ad.service';
+import { loadActiveBanners, type AdBanner, type MediaType } from '@/services/ad.service';
 
 const UPLOAD_H = 300;
 const GAP = 8;
@@ -24,13 +24,40 @@ function EmptySlot() {
   );
 }
 
+function BannerMedia({ banner, className }: { banner: AdBanner; className?: string }) {
+  const mediaType: MediaType = banner.media_type || 'image';
+
+  if (mediaType === 'video') {
+    return (
+      <video
+        src={banner.image_url}
+        className={className}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+      />
+    );
+  }
+
+  // image or gif — both use <img> (Cloudinary serves GIF with animation)
+  return (
+    <img
+      src={banner.image_url}
+      alt={banner.title || 'Banner'}
+      className={className}
+      loading="lazy"
+    />
+  );
+}
+
 export function BannerCarousel() {
   const [banners, setBanners] = useState<AdBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [loading, setLoading] = useState(true);
   const [slotCount, setSlotCount] = useState(3);
 
-  // Detect viewport size
   useEffect(() => {
     const update = () => setSlotCount(getSlotCount());
     update();
@@ -45,7 +72,6 @@ export function BannerCarousel() {
     }).catch(() => setLoading(false));
   }, []);
 
-  // Group banners by visible slot count
   const groups: AdBanner[][] = [];
   for (let i = 0; i < banners.length; i += slotCount) {
     groups.push(banners.slice(i, i + slotCount));
@@ -113,9 +139,8 @@ export function BannerCarousel() {
                     : `465/${UPLOAD_H}`,
                 }}
               >
-                <img
-                  src={banner.image_url}
-                  alt="Banner"
+                <BannerMedia
+                  banner={banner}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </a>
