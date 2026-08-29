@@ -249,7 +249,12 @@ export function ProfilePage() {
   })();
 
   const emblems = profile.emblems ?? [];
-  const badges = profile.badges ?? [];
+  // Badge showcase: manual selection or auto (latest 3)
+  const badgeShowcase: string[] = profile.badge_showcase ?? [];
+  const badgeShowcaseManual = profile.badge_showcase_manual ?? false;
+  const displayBadges = badgeShowcaseManual && badgeShowcase.length > 0
+    ? badgeShowcase
+    : (profile.badges ?? []).slice(0, 3);
   const favoriteCategories = (profile.subjects ?? '').split(',').map((s: string) => s.trim()).filter(Boolean);
 
   return (
@@ -381,14 +386,14 @@ export function ProfilePage() {
         )}
 
         {/* ═══ BADGE ═══ */}
-        {badges.length > 0 && (
+        {displayBadges.length > 0 && (
           <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left">
             <div className="flex items-center gap-2 mb-3">
               <Award size={16} className="text-moss-400" />
               <h3 className="text-sm font-bold text-white">Badge</h3>
             </div>
             <div className="flex flex-wrap gap-2">
-              {badges.map((b: string, i: number) => (
+              {displayBadges.map((b: string, i: number) => (
                 <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium bg-moss-500/15 text-moss-300 border border-moss-500/20">
                   {b}
                 </span>

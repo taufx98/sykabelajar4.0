@@ -440,4 +440,79 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
   );
 }
 
-function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{post:SocialPost;expanded:boolean;onExpand:()=>void;onLike:()=>void;onShare:()=>void;onOpen:()=>void;isGuest:boolean}){return <Card className="p-4"><div className="flex gap-3"><Link to={`/profile/${post.author_username}`}><Avatar name={post.author_name} id={post.author_user_id} size={44} src={post.avatar_url??undefined}/></Link><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><Link to={`/profile/${post.author_username}`} className="text-sm font-semibold text-white truncate">{post.author_name}</Link><span className="chip bg-moss-500/10 text-moss-300 border border-moss-500/20 text-[10px]">{post.competition_id?'Lomba':'Prestasi'}</span><span className="text-xs text-slate-600">· {timeAgo(post.created_at)}</span></div><p className="text-xs text-slate-500 mb-2">@{post.author_username}</p>{post.competition_id?<button onClick={onOpen} className="text-left w-full"><h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3><p className="text-sm text-slate-300 leading-relaxed mb-3">{post.body}</p>{post.cover_url&&<img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5"/>}<p className="text-xs text-moss-400 flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14}/></p></button>:<><h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3><p className="text-sm text-slate-300 leading-relaxed mb-3 whitespace-pre-line">{post.body}</p>{post.cover_url&&<img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white"/>}</>}<div className="flex items-center justify-between max-w-md text-slate-500 mt-3"><button onClick={onLike} disabled={isGuest} className={`flex items-center gap-1.5 text-xs ${post.liked?'text-moss-400':''}`}><Heart size={16} className={post.liked?'fill-moss-400':''}/>{post.likes}</button><button onClick={onExpand} className="flex items-center gap-1.5 text-xs"><MessageCircle size={16}/>{post.comments}</button><button onClick={onShare} className="flex items-center gap-1.5 text-xs"><Share2 size={16}/></button></div>{expanded&&<CommentsSection postId={post.id}/>}</div></div></Card>}
+function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{post:SocialPost;expanded:boolean;onExpand:()=>void;onLike:()=>void;onShare:()=>void;onOpen:()=>void;isGuest:boolean}){
+  const isAchievement = !post.competition_id;
+  return (
+    <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4">
+      {/* Header: avatar + name + badge + date */}
+      <div className="flex items-start gap-3">
+        <Link to={`/profile/${post.author_username}`}>
+          <Avatar name={post.author_name} id={post.author_user_id} size={44} src={post.avatar_url ?? undefined} />
+        </Link>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link to={`/profile/${post.author_username}`} className="text-sm font-semibold text-white truncate">
+              {post.author_name}
+            </Link>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/20">
+              {post.competition_id ? 'Lomba' : 'Prestasi'}
+            </span>
+            <span className="text-xs text-slate-600">· {timeAgo(post.created_at)}</span>
+          </div>
+          <p className="text-xs text-slate-500">@{post.author_username}</p>
+        </div>
+        <button className="text-slate-600 hover:text-slate-400 p-1">⋯</button>
+      </div>
+
+      {/* Content */}
+      <div className="mt-3">
+        {post.competition_id ? (
+          <button onClick={onOpen} className="text-left w-full">
+            <h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3>
+            <p className="text-sm text-slate-300 leading-relaxed mb-3">{post.body}</p>
+            {post.cover_url && (
+              <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5" />
+            )}
+            <p className="text-xs text-moss-400 flex items-center gap-1 mt-3">
+              Lihat detail uji kompetensi <ChevronRight size={14} />
+            </p>
+          </button>
+        ) : (
+          <>
+            <h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3>
+            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{post.body}</p>
+            {post.cover_url && (
+              <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5 mt-3" />
+            )}
+            {/* Verification badge for achievement posts */}
+            {isAchievement && (
+              <div className="mt-3 px-3 py-2.5 rounded-xl bg-moss-500/8 border border-moss-500/15 flex items-center gap-2">
+                <span className="text-lg">🏆</span>
+                <p className="text-xs text-moss-300">Prestasi ini diverifikasi via sertifikat resmi sykabelajar.id</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-5 mt-3 pt-3 border-t border-white/5 text-slate-500">
+        <button onClick={onLike} disabled={isGuest}
+          className={`flex items-center gap-1.5 text-xs transition ${post.liked ? 'text-moss-400' : 'hover:text-moss-400'}`}>
+          <Heart size={16} className={post.liked ? 'fill-moss-400' : ''} />
+          {post.likes}
+        </button>
+        <button onClick={onExpand} className="flex items-center gap-1.5 text-xs hover:text-moss-400 transition">
+          <MessageCircle size={16} />
+          {post.comments}
+        </button>
+        <button onClick={onShare} className="flex items-center gap-1.5 text-xs hover:text-moss-400 transition">
+          <Share2 size={16} />
+        </button>
+      </div>
+
+      {/* Expanded comments */}
+      {expanded && <CommentsSection postId={post.id} />}
+    </div>
+  );
+}

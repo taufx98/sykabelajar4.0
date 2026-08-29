@@ -21,6 +21,8 @@ interface Form {
   pembina: string;
   favoriteCategories: CompetitionCategory[];
   showcaseEmblems: string[];
+  badgeShowcase: string[];
+  badgeShowcaseManual: boolean;
   profilePhoto: string;
   coverPhoto: string;
 }
@@ -39,6 +41,8 @@ export function EditProfilePage() {
     pembina: (user as any)?.pembina || '',
     favoriteCategories: (user?.favoriteCategories || []) as CompetitionCategory[],
     showcaseEmblems: user?.showcaseEmblems || user?.emblems?.slice(0, 3).map(e => e.id) || [],
+    badgeShowcase: (user as any)?.badgeShowcase || [],
+    badgeShowcaseManual: (user as any)?.badgeShowcaseManual || false,
     profilePhoto: user?.profilePhoto || '',
     coverPhoto: user?.coverPhoto || '',
   });
@@ -92,6 +96,8 @@ export function EditProfilePage() {
         birth_date: form.birthDate || null,
         grade: form.grade || null,
         pembina: form.pembina || null,
+        badge_showcase: form.badgeShowcase,
+        badge_showcase_manual: form.badgeShowcaseManual,
       };
 
       const oldAvatar = current?.avatar_public_id as string | undefined;
@@ -332,6 +338,46 @@ export function EditProfilePage() {
             </div>
           </Card>
         )}
+
+        {/* Badge Showcase — Top 3 */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-display font-semibold text-sm text-white">Badge Showcase</h3>
+              <p className="text-xs text-slate-500">Tampilan badge di profil Anda (maks 3).</p>
+            </div>
+            <button
+              onClick={() => setForm(f => ({ ...f, badgeShowcaseManual: !f.badgeShowcaseManual }))}
+              className={`relative w-10 h-5 rounded-full transition ${form.badgeShowcaseManual ? 'bg-moss-500' : 'bg-ink-700'}`}
+            >
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.badgeShowcaseManual ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-600">
+            {form.badgeShowcaseManual ? 'Mode manual — pilih badge sendiri.' : 'Mode otomatis — badge terbaru ditampilkan.'}
+          </p>
+          {form.badgeShowcaseManual && (
+            <div className="flex flex-wrap gap-2">
+              {['Streak 30 Hari', 'Top 10 Nasional', 'Juara 1 Lomba', 'Siswa Aktif', 'Penggiat Sains'].map(badge => {
+                const selected = form.badgeShowcase.includes(badge);
+                return (
+                  <button key={badge}
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      badgeShowcase: selected
+                        ? f.badgeShowcase.filter(b => b !== badge)
+                        : f.badgeShowcase.length < 3 ? [...f.badgeShowcase, badge] : f.badgeShowcase,
+                    }))}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                      selected ? 'border-moss-500 bg-moss-500/15 text-moss-300' : 'border-white/10 text-slate-400 hover:border-white/20'
+                    }`}>
+                    {badge}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Card>
 
         {/* Actions */}
         <div className="flex gap-2 pb-4">
