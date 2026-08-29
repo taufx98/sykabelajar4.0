@@ -258,7 +258,7 @@ export function ProfilePage() {
   const favoriteCategories = (profile.subjects ?? '').split(',').map((s: string) => s.trim()).filter(Boolean);
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="w-full">
       {/* ═══ COVER (subtle) ═══ */}
       <div className="relative h-28 md:h-36 bg-gradient-to-b from-moss-900/30 via-ink-800 to-ink-900">
         {profile.cover_url && (
@@ -294,7 +294,7 @@ export function ProfilePage() {
 
         {/* Bio */}
         {profile.bio && (
-          <p className="text-sm text-slate-300 mt-2 max-w-sm mx-auto leading-relaxed">{profile.bio}</p>
+          <p className="text-sm text-slate-300 mt-2 max-w-md mx-auto leading-relaxed">{profile.bio}</p>
         )}
 
         {/* Info row */}
@@ -351,7 +351,7 @@ export function ProfilePage() {
         )}
 
         {/* ═══ STATS CARDS ═══ */}
-        <div className="grid grid-cols-3 gap-3 mt-5">
+        <div className="grid grid-cols-3 gap-3 mt-5 max-w-2xl mx-auto">
           <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 text-center">
             <p className="text-xl font-bold text-white">{totalPoints.toLocaleString('id-ID')}</p>
             <p className="text-[10px] text-slate-500 mt-0.5">Total Poin</p>
@@ -370,7 +370,7 @@ export function ProfilePage() {
 
         {/* ═══ EMBLEM ═══ */}
         {emblems.length > 0 && (
-          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left">
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left max-w-2xl mx-auto">
             <div className="flex items-center gap-2 mb-3">
               <Award size={16} className="text-moss-400" />
               <h3 className="text-sm font-bold text-white">Emblem ({emblems.length})</h3>
@@ -387,7 +387,7 @@ export function ProfilePage() {
 
         {/* ═══ BADGE ═══ */}
         {displayBadges.length > 0 && (
-          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left">
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left max-w-2xl mx-auto">
             <div className="flex items-center gap-2 mb-3">
               <Award size={16} className="text-moss-400" />
               <h3 className="text-sm font-bold text-white">Badge</h3>
@@ -404,7 +404,7 @@ export function ProfilePage() {
 
         {/* ═══ KATEGORI FAVORIT ═══ */}
         {favoriteCategories.length > 0 && (
-          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left">
+          <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4 mt-3 text-left max-w-2xl mx-auto">
             <h3 className="text-sm font-bold text-white mb-3">Kategori Favorit</h3>
             <div className="flex flex-wrap gap-2">
               {favoriteCategories.map((cat: string, i: number) => (
@@ -436,7 +436,7 @@ export function ProfilePage() {
       </div>
 
       {/* ═══ TAB CONTENT ═══ */}
-      <div className="p-4 pt-3">
+      <div className="p-4 pt-3 max-w-2xl mx-auto">
         {/* ── PRESTASI ── */}
         {activeTab === 'prestasi' && (
           <div className="space-y-3">
