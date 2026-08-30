@@ -4,84 +4,82 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════
+   THEME TOKENS — OUTSIDE @layer for guaranteed cascade precedence
+   CSS variables MUST be unlayered so Tailwind utilities cannot
+   override them with hardcoded colors.
+   ═══════════════════════════════════════════════════════════════ */
+:root, html.dark {
+  color-scheme: dark;
+  --surface: #0F172A;
+  --surface-card: #1E293B;
+  --surface-elevated: #1a2742;
+  --surface-border: rgba(255, 255, 255, 0.06);
+  --fg: #F8FAFC;
+  --fg-secondary: #CBD5E1;
+  --fg-muted: #64748B;
+  --accent: #10B981;
+  --accent-text: #6EE7B7;
+  --accent-muted: rgba(16, 185, 129, 0.15);
+  --accent-muted-strong: rgba(16, 185, 129, 0.20);
+  --accent-border: rgba(16, 185, 129, 0.30);
+  --badge-accent-bg: rgba(16, 185, 129, 0.15);
+  --badge-accent-text: #6EE7B7;
+  --badge-accent-border: rgba(16, 185, 129, 0.25);
+  --card-shadow: none;
+}
+html.light {
+  color-scheme: light;
+  --surface: #F1F5F9;
+  --surface-card: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --surface-border: #E2E8F0;
+  --fg: #0F172A;
+  --fg-secondary: #334155;
+  --fg-muted: #64748B;
+  --accent: #047857;
+  --accent-text: #065F46;
+  --accent-muted: rgba(4, 120, 87, 0.08);
+  --accent-muted-strong: rgba(4, 120, 87, 0.12);
+  --accent-border: rgba(4, 120, 87, 0.20);
+  --badge-accent-bg: #ECFDF5;
+  --badge-accent-text: #065F46;
+  --badge-accent-border: #D1FAE5;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE RESET — minimal, inside @layer base
+   ═══════════════════════════════════════════════════════════════ */
 @layer base {
   * { -webkit-tap-highlight-color: transparent; }
-  html { color-scheme: dark; }
-  html.light { color-scheme: light; }
-
-  /* ═══════════════════════════════════════════════════════════════
-     DESIGN TOKENS — Dual Theme Color Architecture
-     Dark: Deep navy + vibrant emerald
-     Light: Off-white + deep forest green (WCAG AA)
-     ═══════════════════════════════════════════════════════════════ */
-  :root, html.dark {
-    /* Surface / Background */
-    --surface: #0F172A;
-    --surface-card: #1E293B;
-    --surface-elevated: #1a2742;
-    --surface-border: rgba(255, 255, 255, 0.06);
-    /* Text */
-    --fg: #F8FAFC;
-    --fg-secondary: #CBD5E1;
-    --fg-muted: #64748B;
-    /* Accent Green */
-    --accent: #10B981;
-    --accent-text: #6EE7B7;
-    --accent-muted: rgba(16, 185, 129, 0.15);
-    --accent-muted-strong: rgba(16, 185, 129, 0.20);
-    --accent-border: rgba(16, 185, 129, 0.30);
-    /* Badge / Chip */
-    --badge-accent-bg: rgba(16, 185, 129, 0.15);
-    --badge-accent-text: #6EE7B7;
-    --badge-accent-border: rgba(16, 185, 129, 0.25);
-    /* Card shadow */
-    --card-shadow: none;
-  }
-  html.light {
-    /* Surface / Background */
-    --surface: #F1F5F9;
-    --surface-card: #FFFFFF;
-    --surface-elevated: #FFFFFF;
-    --surface-border: #E2E8F0;
-    /* Text */
-    --fg: #0F172A;
-    --fg-secondary: #334155;
-    --fg-muted: #64748B;
-    /* Accent Green — WCAG AA on white */
-    --accent: #047857;
-    --accent-text: #065F46;
-    --accent-muted: rgba(4, 120, 87, 0.08);
-    --accent-muted-strong: rgba(4, 120, 87, 0.12);
-    --accent-border: rgba(4, 120, 87, 0.20);
-    /* Badge / Chip — pastel */
-    --badge-accent-bg: #ECFDF5;
-    --badge-accent-text: #065F46;
-    --badge-accent-border: #D1FAE5;
-    /* Card shadow */
-    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  }
-
-  body {
-    @apply font-sans antialiased;
-    transition: background-color 0.3s ease, color 0.3s ease;
-  }
-  html.dark body {
-    background-color: var(--surface);
-    color: var(--fg-secondary);
-    background-image:
-      radial-gradient(60rem 60rem at 80% -10%, rgba(16, 185, 129, 0.08), transparent 60%),
-      radial-gradient(50rem 50rem at -10% 10%, rgba(13, 74, 71, 0.10), transparent 55%);
-    background-attachment: fixed;
-  }
-  html.light body {
-    background-color: var(--surface);
-    color: var(--fg-secondary);
-    background-image: none;
-  }
   ::selection { background-color: rgba(16, 185, 129, 0.3); color: #FFFFFF; }
   h1, h2, h3, h4 { @apply font-display; }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   BODY STYLES — OUTSIDE @layer for guaranteed cascade
+   ═══════════════════════════════════════════════════════════════ */
+body {
+  @apply font-sans antialiased;
+  background-color: var(--surface);
+  color: var(--fg-secondary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+html.dark body {
+  background-image:
+    radial-gradient(60rem 60rem at 80% -10%, rgba(16, 185, 129, 0.08), transparent 60%),
+    radial-gradient(50rem 50rem at -10% 10%, rgba(13, 74, 71, 0.10), transparent 55%);
+  background-attachment: fixed;
+}
+html.light body {
+  background-image: none !important;
+  background-attachment: scroll !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENT STYLES
+   ═══════════════════════════════════════════════════════════════ */
 @layer components {
   /* ═══ GLASS ═══ */
   .glass {
@@ -231,26 +229,25 @@
   }
 
   /* ═══ SEMANTIC UTILITY CLASSES ═══ */
-  .surface-bg { background-color: var(--surface); }
-  .surface-card-bg { background-color: var(--surface-card); }
-  .surface-elevated { background-color: var(--surface-elevated); }
-  .surface-border { border-color: var(--surface-border); }
-  .text-fg { color: var(--fg); }
-  .text-fg-secondary { color: var(--fg-secondary); }
-  .text-fg-muted { color: var(--fg-muted); }
-  .text-accent-fg { color: var(--accent); }
-  .bg-accent-muted { background-color: var(--accent-muted); }
-  .bg-accent-muted-strong { background-color: var(--accent-muted-strong); }
-  .border-accent-border { border-color: var(--accent-border); }
+  .surface-bg { background-color: var(--surface) !important; }
+  .surface-card-bg { background-color: var(--surface-card) !important; }
+  .surface-elevated { background-color: var(--surface-elevated) !important; }
+  .surface-border { border-color: var(--surface-border) !important; }
+  .text-fg { color: var(--fg) !important; }
+  .text-fg-secondary { color: var(--fg-secondary) !important; }
+  .text-fg-muted { color: var(--fg-muted) !important; }
+  .text-accent-fg { color: var(--accent) !important; }
+  .bg-accent-muted { background-color: var(--accent-muted) !important; }
+  .bg-accent-muted-strong { background-color: var(--accent-muted-strong) !important; }
+  .border-accent-border { border-color: var(--accent-border) !important; }
 
   .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   LIGHT MODE GLOBAL OVERRIDES
+   LIGHT MODE GLOBAL OVERRIDES — OUTSIDE @layer, highest priority
    Force dark-compatible Tailwind classes to use light-safe colors.
-   This catches ANY hardcoded color from any component/page.
    ═══════════════════════════════════════════════════════════════ */
 html.light {
   /* ── Text colors: ALL must be dark on light bg ── */

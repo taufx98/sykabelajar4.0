@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useLayoutEffect, useCallback } from 'react';
 
 export type Theme = 'light' | 'dark';
 
@@ -22,21 +22,26 @@ function applyTheme(theme: Theme) {
   root.classList.add(theme);
 }
 
+// Apply theme IMMEDIATELY on module load (before React mounts)
+// This prevents the flash of dark mode when index.html starts with class="dark"
+if (typeof window !== 'undefined') {
+  applyTheme(getInitialTheme());
+}
+
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
-  // Apply theme on mount and when it changes
-  useEffect(() => {
+  // Apply theme synchronously before browser paint
+  useLayoutEffect(() => {
     applyTheme(theme);
     localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 
   // Listen for OS preference changes (only when user hasn't set manual preference)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = (e: MediaQueryListEvent) => {
       const stored = localStorage.getItem(STORAGE_KEY);
-      // Only auto-switch if user hasn't explicitly chosen
       if (!stored) {
         setTheme(e.matches ? 'dark' : 'light');
       }

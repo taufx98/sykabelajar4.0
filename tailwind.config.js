@@ -52,9 +52,7 @@ export default {
         teal: {
           deep: '#0d4a47',
         },
-        accent: {
-          DEFAULT: '#10b981',
-        },
+
         warn: {
           DEFAULT: '#f59e0b',
         },
