@@ -15,12 +15,17 @@ import {
   adjustUserCurrency,
   getUserCurrencyLogs,
   getAllCurrencyLogs,
+  fetchFilteredUsers,
+  bulkAdjustCurrency,
   type UserCurrencyInfo,
   type CurrencyAdjustmentLog,
   type CurrencyType,
+  type BulkFilter,
+  type BulkFilterResult,
 } from '@/services/adminCurrency.service';
+import { supabase } from '@/lib/supabase';
 
-type Tab = 'adjust' | 'history';
+type Tab = 'adjust' | 'bulk' | 'history';
 
 export function AdminCurrencyPage() {
   const [tab, setTab] = useState<Tab>('adjust');
@@ -174,6 +179,7 @@ export function AdminCurrencyPage() {
         <div className="flex gap-1 px-4 pb-2">
           {([
             { key: 'adjust' as const, label: 'Atur Currency', icon: Coins },
+            { key: 'bulk' as const, label: 'Bulk Award', icon: TrendingUp },
             { key: 'history' as const, label: 'Riwayat', icon: History },
           ]).map(({ key, label, icon: Icon }) => (
             <button
@@ -305,6 +311,11 @@ export function AdminCurrencyPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* ═══ TAB: BULK AWARD ═══ */}
+        {tab === 'bulk' && (
+          <BulkAwardPanel />
         )}
 
         {/* ═══ TAB: HISTORY ═══ */}
@@ -695,6 +706,241 @@ function LogEntry({ log }: { log: CurrencyAdjustmentLog }) {
         </p>
       </div>
       <p className="text-[10px] text-slate-600 shrink-0 hidden sm:block w-28 text-right">{timeStr}</p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// BulkAwardPanel — filter, preview, execute bulk
+// ═══════════════════════════════════════════════
+function BulkAwardPanel() {
+  const [filter, setFilter] = useState<BulkFilter>({ type: 'all', limit: 20 });
+  const [competitions, setCompetitions] = useState<any[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<BulkFilterResult[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [loadingFilter, setLoadingFilter] = useState(false);
+  const [currencyType, setCurrencyType] = useState<CurrencyType>('xp');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [executing, setExecuting] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  // Load competitions for filter dropdown
+  useEffect(() => {
+    void supabase.from('competitions').select('id,title,status').order('created_at', { ascending: false }).limit(50)
+      .then(({ data }) => setCompetitions(data ?? []));
+  }, []);
+
+  const applyFilter = async () => {
+    setLoadingFilter(true);
+    setResult(null);
+    try {
+      const users = await fetchFilteredUsers(filter);
+      setFilteredUsers(users);
+      setSelected(new Set(users.map(u => u.id)));
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Gagal memuat filter.');
+    } finally {
+      setLoadingFilter(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selected.size === filteredUsers.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filteredUsers.map(u => u.id)));
+    }
+  };
+
+  const executeBulk = async () => {
+    const ids = [...selected];
+    const amt = parseInt(amount, 10);
+    if (!ids.length) { toast.error('Pilih minimal 1 user.'); return; }
+    if (isNaN(amt) || amt === 0) { toast.error('Jumlah harus angka bukan nol.'); return; }
+    if (!reason.trim()) { toast.error('Alasan wajib diisi.'); return; }
+
+    setExecuting(true);
+    try {
+      const res = await bulkAdjustCurrency(ids, currencyType, amt, reason.trim());
+      setResult(res);
+      toast.success(`${res.success} user berhasil diberi ${currencyType === 'xp' ? 'XP' : 'Coin EDU'}!`);
+      setAmount('');
+      setReason('');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Gagal menjalankan bulk award.');
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const filterOptions: { value: BulkFilter['type']; label: string }[] = [
+    { value: 'all', label: 'Semua User' },
+    { value: 'top_xp', label: 'Top XP Terbanyak' },
+    { value: 'top_coin', label: 'Top Coin Terbanyak' },
+    { value: 'recently_active', label: 'Aktif 7 Hari Terakhir' },
+    { value: 'certificate_holders', label: 'Pemegang Sertifikat' },
+    { value: 'competition_participants', label: 'Peserta Kompetisi' },
+  ];
+
+  const previewAmount = parseInt(amount || '0', 10);
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4 border-amber-500/15 bg-amber-500/[0.04]">
+        <div className="flex items-start gap-3">
+          <TrendingUp size={18} className="text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs text-amber-300 font-semibold">Bulk Award Mode</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Pilih user berdasarkan filter, tentukan nominal, dan eksekusi sekaligus. Semua penerima akan mendapat notifikasi.</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Filter Section ── */}
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-fg mb-3">Filter Pengguna</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-xs text-slate-400 font-medium mb-1.5 block">Kriteria</label>
+            <select className="input" value={filter.type} onChange={e => setFilter(f => ({ ...f, type: e.target.value as BulkFilter['type'] }))}>
+              {filterOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 font-medium mb-1.5 block">Batas Jumlah</label>
+            <select className="input" value={filter.limit} onChange={e => setFilter(f => ({ ...f, limit: Number(e.target.value) }))}>
+              {[10, 20, 50, 100, 200, 500].map(n => <option key={n} value={n}>Top {n}</option>)}
+            </select>
+          </div>
+          {filter.type === 'competition_participants' && (
+            <div>
+              <label className="text-xs text-slate-400 font-medium mb-1.5 block">Kompetisi</label>
+              <select className="input" value={filter.competitionId ?? ''} onChange={e => setFilter(f => ({ ...f, competitionId: e.target.value }))}>
+                <option value="">Pilih kompetisi</option>
+                {competitions.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="mt-3">
+          <Button size="sm" onClick={() => void applyFilter()} loading={loadingFilter} icon={<Search size={14} />}>
+            Terapkan Filter
+          </Button>
+        </div>
+      </Card>
+
+      {/* ── Preview Table ── */}
+      {filteredUsers.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="p-4 border-b surface-border flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-fg">Pratinjau ({filteredUsers.length} user)</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">{selected.size} dipilih · Centang/uncentang untuk mengecualikan</p>
+            </div>
+            <button onClick={toggleAll} className="text-xs text-accent hover:underline">
+              {selected.size === filteredUsers.length ? 'Batal Pilih Semua' : 'Pilih Semua'}
+            </button>
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {filteredUsers.map(u => (
+              <label key={u.id} className="flex items-center gap-3 px-4 py-2.5 border-b surface-border last:border-0 hover:bg-accent-muted/5 cursor-pointer transition">
+                <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleSelect(u.id)} className="accent-emerald-500 w-4 h-4" />
+                <Avatar name={u.full_name || u.username} id={u.id} size={28} src={u.avatar_url || undefined} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-fg truncate">{u.full_name || u.username}</p>
+                  <p className="text-[10px] text-slate-500 truncate">@{u.username} · {u.institution || '—'}</p>
+                </div>
+                {u.stat_label && (
+                  <div className="text-right shrink-0">
+                    <p className="text-[10px] text-slate-500">{u.stat_label}</p>
+                    <p className="text-xs font-bold text-fg tabular-nums">{u.stat_value?.toLocaleString('id-ID')}</p>
+                  </div>
+                )}
+                <div className="text-right shrink-0 w-16">
+                  <p className="text-[10px] text-amber-400">XP {u.total_xp.toLocaleString('id-ID')}</p>
+                  <p className="text-[10px] text-purple-400">Coin {u.edu_coin.toLocaleString('id-ID')}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Execution Section ── */}
+      {selected.size > 0 && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-fg mb-4">Eksekusi Bulk Award</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Currency type */}
+            <div>
+              <label className="text-xs text-slate-400 font-medium mb-1.5 block">Jenis Currency</label>
+              <div className="flex gap-2">
+                {([
+                  { value: 'xp' as const, label: 'XP', color: 'amber' },
+                  { value: 'edu_coin' as const, label: 'Coin EDU', color: 'purple' },
+                ]).map(({ value, label, color }) => (
+                  <button key={value} onClick={() => setCurrencyType(value)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                    currencyType === value
+                      ? color === 'amber' ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-purple-500/30 bg-purple-500/10 text-purple-300'
+                      : 'surface-border surface-elevated text-slate-500'
+                  }`}>{label}</button>
+                ))}
+              </div>
+            </div>
+            {/* Amount */}
+            <div>
+              <label className="text-xs text-slate-400 font-medium mb-1.5 block">Jumlah per User</label>
+              <input type="number" className="input text-lg font-semibold tabular-nums" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" />
+              {previewAmount > 0 && (
+                <p className="text-[11px] text-slate-500 mt-1">Total: <span className="text-accent font-bold">{(previewAmount * selected.size).toLocaleString('id-ID')}</span> {currencyType === 'xp' ? 'XP' : 'Coin EDU'} → {selected.size} user</p>
+              )}
+            </div>
+          </div>
+          {/* Reason */}
+          <div className="mt-4">
+            <label className="text-xs text-slate-400 font-medium mb-1.5 block">Alasan / Catatan</label>
+            <input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="Contoh: Hadiah Peserta Event X" maxLength={200} />
+          </div>
+          {/* Execute button */}
+          <div className="mt-4 flex justify-end">
+            <Button onClick={() => void executeBulk()} loading={executing} disabled={!selected.size || !amount || !reason.trim()}>
+              Kirim {currencyType === 'xp' ? 'XP' : 'Coin EDU'} ke {selected.size} User
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* ── Result ── */}
+      {result && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-fg mb-3">Hasil Eksekusi</h3>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="text-center p-3 rounded-xl bg-green-500/10"><p className="text-xl font-bold text-green-400">{result.success}</p><p className="text-[10px] text-slate-500">Berhasil</p></div>
+            <div className="text-center p-3 rounded-xl bg-red-500/10"><p className="text-xl font-bold text-red-400">{result.failed}</p><p className="text-[10px] text-slate-500">Gagal</p></div>
+            <div className="text-center p-3 rounded-xl bg-amber-500/10"><p className="text-xl font-bold text-amber-400">{result.skipped}</p><p className="text-[10px] text-slate-500">Dilewati</p></div>
+          </div>
+          {result.results?.length > 0 && (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {result.results.map((r: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 text-xs py-1">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${r.status === 'ok' ? 'bg-green-400' : r.status === 'not_found' ? 'bg-slate-500' : 'bg-red-400'}`} />
+                  <span className="text-fg truncate flex-1">{r.username || r.user_id?.slice(0, 8)}</span>
+                  <span className="text-slate-500 tabular-nums">{r.status === 'ok' ? `${r.old} → ${r.new}` : r.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
