@@ -182,7 +182,7 @@ export function OrganizerPage() {
       if (!auth.user) throw new Error('Unauthorized');
       const { data: org, error } = await supabase.from('organizers').select('*').ilike('name', loginOrgName.trim()).eq('access_code', loginOrgPass.trim()).maybeSingle();
       if (error || !org) throw new Error('Organisasi tidak ditemukan atau password salah.');
-      const { error: memberError } = await supabase.from('organizer_members').insert({ organizer_id: org.id, user_id: auth.user.id, role: 'member' });
+      const { error: memberError } = await supabase.from('organizer_members').insert({ organizer_id: org.id, user_id: auth.user.id, role: 'editor' });
       if (memberError && !memberError.message?.includes('duplicate')) throw memberError;
       toast.success('Berhasil masuk ke organisasi!');
       setLoginOrgName('');

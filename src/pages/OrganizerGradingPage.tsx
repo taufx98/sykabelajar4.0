@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { supabase } from '@/lib/supabase';
 import { listOrganizerCompetitions } from '@/services/organizer.service';
+import { resolveCurrentUserOrganizer } from '@/services/organizerAuth.service';
 import { getAttemptForGrading, listGradableAttempts, saveManualGrade, finalizeManualAttempt } from '@/services/manualGrading.service';
 
 export function OrganizerGradingPage() {
@@ -21,10 +22,7 @@ export function OrganizerGradingPage() {
   const load = async () => {
     setLoading(true); setMessage('');
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) throw new Error('Sesi login tidak tersedia.');
-      const { data: org, error } = await supabase.from('organizers').select('id').eq('owner_user_id', auth.user.id).maybeSingle();
-      if (error) throw error;
+      const org = await resolveCurrentUserOrganizer();
       if (!org) throw new Error('Organisasi tidak ditemukan.');
       const competitions = await listOrganizerCompetitions(org.id);
       const rows = await listGradableAttempts(competitions.map((c: any) => c.id));

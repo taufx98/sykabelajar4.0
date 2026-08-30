@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
+import { resolveCurrentUserOrganizer } from '@/services/organizerAuth.service';
 import {
   loadMyBannerRequests,
   loadBannerSettings,
@@ -177,8 +178,7 @@ export function OrganizerAdRequestPage() {
     if (!canSubmit || !user) return;
     setSubmitting(true);
     try {
-      const { data: org } = await supabase
-        .from('organizers').select('id').eq('owner_user_id', user.id).maybeSingle();
+      const org = await resolveCurrentUserOrganizer();
       if (!org) throw new Error('Akun organizer tidak ditemukan.');
 
       // Upload all files to cloudinary

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { supabase } from '@/lib/supabase';
+import { resolveCurrentUserOrganizer } from '@/services/organizerAuth.service';
 
 export function OrganizerMembersPage() {
   const [org, setOrg] = useState<any>(null);
@@ -16,13 +17,10 @@ export function OrganizerMembersPage() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return;
-    const { data: ownerOrg, error: orgError } = await supabase.from('organizers').select('id,name').eq('owner_user_id', auth.user.id).maybeSingle();
-    if (orgError) throw orgError;
-    if (!ownerOrg) return;
-    setOrg(ownerOrg);
-    const { data: memberRows, error } = await supabase.from('organizer_members').select('*').eq('organizer_id', ownerOrg.id).order('created_at');
+    const orgResult = await resolveCurrentUserOrganizer();
+    if (!orgResult) return;
+    setOrg(orgResult);
+    const { data: memberRows, error } = await supabase.from('organizer_members').select('*').eq('organizer_id', orgResult.id).order('created_at');
     if (error) throw error;
     setMembers(memberRows ?? []);
     const ids = (memberRows ?? []).map((m: any) => m.user_id).filter(Boolean);

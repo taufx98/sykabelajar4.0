@@ -16,6 +16,7 @@ interface Organizer {
   created_at: string;
   _members?: any[];
   _competitionCount?: number;
+  _ownerProfile?: { username: string; full_name: string; avatar_url: string | null } | null;
 }
 
 export function AdminOrganizersPage() {
@@ -24,7 +25,7 @@ export function AdminOrganizersPage() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberUsername, setNewMemberUsername] = useState('');
   const [newAccessCode, setNewAccessCode] = useState('');
 
   const load = async () => {
@@ -38,14 +39,16 @@ export function AdminOrganizersPage() {
 
       const enriched = await Promise.all(
         (orgs || []).map(async (org) => {
-          const [membersRes, compRes] = await Promise.all([
+          const [membersRes, compRes, ownerRes] = await Promise.all([
             supabase.from('organizer_members').select('*').eq('organizer_id', org.id),
             supabase.from('competitions').select('id', { count: 'exact', head: true }).eq('organizer_id', org.id),
+            supabase.from('profiles').select('username,full_name,avatar_url').eq('id', org.owner_user_id).maybeSingle(),
           ]);
           return {
             ...org,
             _members: membersRes.data || [],
             _competitionCount: compRes.count || 0,
+            _ownerProfile: ownerRes.data || null,
           };
         })
       );
@@ -91,27 +94,27 @@ export function AdminOrganizersPage() {
   };
 
   const addMember = async (orgId: string) => {
-    if (!newMemberEmail.trim()) return;
+    if (!newMemberUsername.trim()) return;
     setBusy(true);
     try {
-      // Find user by email
-      const { data: profiles, error: pErr } = await supabase
+      // Find user by username (profiles table has no email column)
+      const { data: profile, error: pErr } = await supabase
         .from('profiles')
-        .select('id')
-        .eq('email', newMemberEmail.trim())
+        .select('id,username')
+        .eq('username', newMemberUsername.trim())
         .maybeSingle();
-      if (pErr || !profiles) throw new Error('User dengan email tersebut tidak ditemukan.');
+      if (pErr || !profile) throw new Error('User dengan username tersebut tidak ditemukan.');
 
       const { error } = await supabase.from('organizer_members').insert({
         organizer_id: orgId,
-        user_id: profiles.id,
-        role: 'member',
+        user_id: profile.id,
+        role: 'editor',
       });
       if (error) {
         if (error.message?.includes('duplicate')) throw new Error('User sudah menjadi member.');
         throw error;
       }
-      setNewMemberEmail('');
+      setNewMemberUsername('');
       await load();
     } catch (e: any) {
       alert(e?.message ?? 'Gagal menambah member');
@@ -231,7 +234,9 @@ export function AdminOrganizersPage() {
                         {/* Owner */}
                         <div className="flex items-center gap-2 p-2 rounded-lg surface-elevated">
                           <Shield size={12} className="text-amber-400" />
-                          <span className="text-xs text-fg flex-1">Owner: {org.owner_user_id.slice(0, 12)}...</span>
+                          <span className="text-xs text-fg flex-1">
+                            Owner: {org._ownerProfile?.full_name || org._ownerProfile?.username || org.owner_user_id.slice(0, 8) + '...'}
+                          </span>
                           <Badge color="moss">owner</Badge>
                         </div>
                         {/* Members */}
@@ -254,12 +259,12 @@ export function AdminOrganizersPage() {
                       <div className="flex gap-2">
                         <input
                           className="input flex-1"
-                          placeholder="Email user untuk ditambahkan"
-                          value={newMemberEmail}
-                          onChange={e => setNewMemberEmail(e.target.value)}
+                          placeholder="Username user untuk ditambahkan"
+                          value={newMemberUsername}
+                          onChange={e => setNewMemberUsername(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') void addMember(org.id); }}
                         />
-                        <Button size="sm" onClick={() => void addMember(org.id)} disabled={busy || !newMemberEmail.trim()} icon={<Plus size={14} />}>
+                        <Button size="sm" onClick={() => void addMember(org.id)} disabled={busy || !newMemberUsername.trim()} icon={<Plus size={14} />}>
                           Tambah
                         </Button>
                       </div>
