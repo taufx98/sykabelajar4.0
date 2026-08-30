@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-react';
-import { subscribeToasts, type ToastMessage, type ToastType } from '@/lib/toast';
+import { dismissToast, subscribeToasts, type ToastMessage, type ToastType } from '@/lib/toast';
 
 const meta: Record<ToastType, { icon: typeof CheckCircle2; container: string; iconClass: string; title: string }> = {
   success: { icon: CheckCircle2, container: 'border-emerald-400/25 bg-emerald-500/10 shadow-emerald-950/20', iconClass: 'text-emerald-400', title: 'Berhasil' },
@@ -34,12 +34,7 @@ export function ToastContainer() {
                 <p className={`text-xs font-bold uppercase tracking-wide ${m.iconClass}`}>{toast.title || m.title}</p>
                 <p className="mt-0.5 text-sm leading-relaxed text-fg">{toast.message}</p>
               </div>
-              <button
-                type="button"
-                aria-label="Tutup notifikasi"
-                onClick={() => window.dispatchEvent(new CustomEvent('syka-toast-dismiss', { detail: toast.id }))}
-                className="shrink-0 rounded-lg p-1 text-fg-muted hover:bg-white/10 hover:text-fg transition"
-              >
+              <button type="button" aria-label="Tutup notifikasi" onClick={() => dismissToast(toast.id)} className="shrink-0 rounded-lg p-1 text-fg-muted hover:bg-white/10 hover:text-fg transition">
                 <X size={15} />
               </button>
             </div>
