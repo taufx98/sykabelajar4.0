@@ -37,6 +37,7 @@ import { AdminBannersPage } from '@/pages/AdminBannersPage';
 import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
 import { AdminChatPage } from '@/pages/AdminChatPage';
 import { AdminOrganizersPage } from '@/pages/AdminOrganizersPage';
+import { AdminCurrencyPage } from '@/pages/AdminCurrencyPage';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { getUserRoles } from '@/services/role.service';
 import { supabase } from '@/lib/supabase';
@@ -134,6 +135,7 @@ function AppRoutes() {
       <Route path="/admin/banners" element={<RoleRoute role="admin"><AdminBannersPage /></RoleRoute>} />
       <Route path="/admin/chat" element={<RoleRoute role="admin"><AdminChatPage /></RoleRoute>} />
       <Route path="/admin/organizers" element={<RoleRoute role="admin"><AdminOrganizersPage /></RoleRoute>} />
+      <Route path="/admin/currency" element={<RoleRoute role="admin"><AdminCurrencyPage /></RoleRoute>} />
     </Route>
 
     {/* Catch-all → landing page */}
