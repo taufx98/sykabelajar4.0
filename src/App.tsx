@@ -2,6 +2,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { ChatUXBridge } from '@/components/chat/ChatUXBridge';
 import { OrganizerShell } from '@/components/layout/OrganizerShell';
 import { LandingPage } from '@/pages/LandingPage';
 import { RegisterPage } from '@/pages/RegisterPage';
@@ -125,6 +126,10 @@ function AppRoutes() {
   </Routes>;
 }
 
+function ChatAwareApp() {
+  return <><AppRoutes /><ChatUXBridge /></>;
+}
+
 export default function App() {
-  return <AppProvider><BrowserRouter><RuntimeGlobals /><AppRoutes /><ToastContainer /></BrowserRouter></AppProvider>;
+  return <AppProvider><BrowserRouter><RuntimeGlobals /><ChatAwareApp /><ToastContainer /></BrowserRouter></AppProvider>;
 }
