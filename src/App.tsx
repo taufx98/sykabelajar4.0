@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LandingPage } from '@/pages/LandingPage';
@@ -45,23 +45,31 @@ import { supabase } from '@/lib/supabase';
 /**
  * AuthGuard — wraps protected routes.
  * Rules:
- *   1. While auth is loading → render children (no redirect, no flash)
+ *   1. While auth is loading → show a minimal loading state (don't flash redirect)
  *   2. Auth loaded + (authenticated or guest) → render children
- *   3. Auth loaded + not authenticated + not guest → redirect to /
- * Never redirects during loading. Never overrides user navigation.
+ *   3. Auth loaded + not authenticated + not guest → redirect to /login with returnTo
  */
 function AuthGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading, isGuest } = useApp();
+  const location = useLocation();
 
-  // Still checking auth → show page anyway (don't flash landing)
-  if (authLoading) return <>{children}</>;
+  // Still checking auth → show loading spinner (never flash redirect)
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center surface-bg">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-moss-500/30 border-t-moss-500 rounded-full animate-spin" />
+          <p className="text-xs text-slate-500">Memuat sesi...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Authenticated or guest → allowed
   if (isAuthenticated || isGuest) return <>{children}</>;
 
-  // Not authenticated, not guest → redirect to landing page (not login)
-  // This makes the site behave like a normal website on refresh
-  return <Navigate to="/" replace />;
+  // Not authenticated → redirect to /login with redirect param so user comes back after login
+  return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
 }
 
 /**
@@ -82,8 +90,9 @@ function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member'; chi
     })().catch(() => on && setAllowed(false));
     return () => { on = false; };
   }, [isAuthenticated, role]);
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (allowed === null) return <div className="min-h-screen flex items-center justify-center text-slate-500">Memeriksa akses…</div>;
+  // AuthGuard already blocks unauthenticated users — this is a safety fallback
+  if (!isAuthenticated) return <div className="min-h-screen flex items-center justify-center surface-bg"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 border-2 border-moss-500/30 border-t-moss-500 rounded-full animate-spin" /><p className="text-xs text-slate-500">Memeriksa sesi...</p></div></div>;
+  if (allowed === null) return <div className="min-h-screen flex items-center justify-center surface-bg"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 border-2 border-moss-500/30 border-t-moss-500 rounded-full animate-spin" /><p className="text-xs text-slate-500">Memeriksa akses…</p></div></div>;
   if (!allowed) return <Navigate to="/home" replace />;
   return <>{children}</>;
 }
