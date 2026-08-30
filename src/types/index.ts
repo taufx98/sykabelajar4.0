@@ -38,7 +38,7 @@ export type CertificateType = 'winner' | 'participant' | 'finalist' | 'achieveme
 export interface Certificate { id: string; code: string; userId: string; competitionId: string; competitionTitle: string; type: CertificateType; rank?: number; score?: number; issuedAt: string; verified: boolean; }
 export type AwardType = 'certificate' | 'medal' | 'badge';
 export interface Award { id: string; type: AwardType; title: string; subtitle: string; date: string; competitionId?: string; certificateId?: string; imageUrl?: string; color: string; emblems?: string[]; points?: number; }
-export type NotificationType = 'competition-start' | 'result-out' | 'registration-approved' | 'registration-rejected' | 'order-update' | 'daily-reminder' | 'rank-up' | 'twibbon-verified';
+export type NotificationType = 'competition-start' | 'result-out' | 'registration-approved' | 'registration-rejected' | 'order-update' | 'daily-reminder' | 'rank-up' | 'twibbon-verified' | 'follow-request' | 'follow-accepted';
 export interface AppNotification { id: string; type: NotificationType; title: string; body: string; createdAt: string; read: boolean; link?: string; icon?: string; }
 export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled';
 export interface OrderItem { id: string; category: 'sertifikat' | 'medali' | 'emblem'; itemName: string; quantity: number; price: number; }
