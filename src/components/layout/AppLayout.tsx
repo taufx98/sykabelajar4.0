@@ -14,6 +14,7 @@ export function AppLayout(){
   const location=useLocation();const navigate=useNavigate();const[drawerOpen,setDrawerOpen]=useState(false);
   const[unreadChat,setUnreadChat]=useState(0);
   const[unreadOrders,setUnreadOrders]=useState(0);
+  const[unreadMessages,setUnreadMessages]=useState(0);
   const isAdmin=user?.role==='admin';
   const isOrganizer=user?.role==='penyelenggara';
 
@@ -40,6 +41,38 @@ export function AppLayout(){
     const t=setInterval(()=>void poll(),10000);
     return()=>{alive=false;clearInterval(t);};
   },[isAdmin]);
+
+  // Poll unread DM messages for all users
+  useEffect(()=>{
+    if(isGuest||!user){setUnreadMessages(0);return;}
+    let alive=true;
+    const poll=async()=>{
+      try{
+        const lastVisit=localStorage.getItem('user_messages_last_visit');
+        let q=supabase.from('chat_threads').select('id').or(`user_id.eq.${user.id},participant_id.eq.${user.id}`).eq('status','open');
+        if(lastVisit) q=q.gt('created_at',lastVisit);
+        const{data:threads}=await q;
+        if(!alive)return;
+        const threadIds=(threads??[]).map((t:any)=>t.id);
+        if(!threadIds.length){setUnreadMessages(0);return;}
+        // Count messages from others in these threads since last visit
+        const since=lastVisit||new Date(0).toISOString();
+        const{count}=await supabase.from('chat_messages').select('id',{count:'exact',head:true}).in('thread_id',threadIds).neq('sender_id',user.id).gt('created_at',since);
+        if(alive)setUnreadMessages(count??0);
+      }catch{}
+    };
+    void poll();
+    const t=setInterval(()=>void poll(),12000);
+    return()=>{alive=false;clearInterval(t);};
+  },[isGuest,user?.id]);
+
+  // Mark messages as visited when on messages page
+  useEffect(()=>{
+    if(user&&location.pathname==='/admin/chat'){
+      localStorage.setItem('user_messages_last_visit',new Date().toISOString());
+      setUnreadMessages(0);
+    }
+  },[location.pathname,user]);
 
   // Mark chat as visited when on chat admin page
   useEffect(()=>{
@@ -102,7 +135,9 @@ export function AppLayout(){
     ["/orders","Pesanan",ShoppingBag,unreadOrders>0?unreadOrders:undefined],
   ];
   if(isOrganizer){userNav.push(["/organizer","Penyelenggara",Building2,undefined],["/organizer/ads","Pasang Iklan",Megaphone,undefined]);}
-  if(isAdmin){userNav.push(["/admin","Admin",ShieldCheck,undefined],["/admin/organizers","Organisasi",Building2,undefined],["/admin/chat","Chat Admin",MessageCircle,unreadChat>0?unreadChat:undefined]);}
+  // Pesan (messaging) — available for all users
+  userNav.push(["/admin/chat","Pesan",MessageCircle,unreadMessages>0?unreadMessages:undefined]);
+  if(isAdmin){userNav.push(["/admin","Admin",ShieldCheck,undefined],["/admin/organizers","Organisasi",Building2,undefined]);}
   userNav.push([user?`/profile/${user.username}`:"/home","Profil",UserIcon,undefined]);
   const nav:NavItem[]=isGuest?guestNav:userNav;
 
@@ -240,7 +275,7 @@ export function AppLayout(){
             [`/profile/${user.username}`,'Profil',UserIcon,undefined],
             ['/home','Beranda',Home,undefined],
             [isAdmin?'/admin':isOrganizer?'/organizer':`/profile/${user.username}`,isAdmin?'Admin':isOrganizer?'Penyelenggara':'Peringkat',isAdmin?ShieldCheck:isOrganizer?Building2:BarChart3,undefined],
-            ...(isAdmin?[[`/admin/chat`,'Chat',MessageCircle,unreadChat>0?unreadChat:undefined] as NavItem]:[]),
+            ['/admin/chat','Pesan',MessageCircle,unreadMessages>0?unreadMessages:undefined],
           ] as NavItem[]).map(([to,label,Icon,badge])=>{
             const isActive=location.pathname===to||(to==='/home'&&location.pathname==='/');
             return (
