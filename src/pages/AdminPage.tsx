@@ -1,6 +1,6 @@
 import { toast } from "@/lib/toast";
 import { useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, X, Megaphone, Ban, MessageCircle, Eye, ExternalLink } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, X, Megaphone, Ban, MessageCircle, Eye, ExternalLink, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
@@ -10,7 +10,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { adminSetUserRole, type BackendRole } from '@/services/role.service';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 
-type AdminTab = 'dashboard' | 'competitions' | 'users' | 'posts' | 'orders' | 'shop' | 'banners' | 'chat' | 'settings';
+type AdminTab = 'dashboard' | 'competitions' | 'users' | 'posts' | 'orders' | 'shop' | 'banners' | 'organizers' | 'chat' | 'settings';
 const tabs: { key: AdminTab; label: string; icon: typeof Trophy }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'competitions', label: 'Lomba', icon: Trophy },
@@ -19,6 +19,7 @@ const tabs: { key: AdminTab; label: string; icon: typeof Trophy }[] = [
   { key: 'orders', label: 'Pesanan', icon: ShoppingBag },
   { key: 'shop', label: 'Shop', icon: Store },
   { key: 'banners', label: 'Banner Iklan', icon: Megaphone },
+  { key: 'organizers', label: 'Organisasi', icon: Building2 },
   { key: 'chat', label: 'Chat', icon: MessageCircle },
   { key: 'settings', label: 'Pengaturan', icon: Settings },
 ];
@@ -344,6 +345,24 @@ export function AdminPage() {
             ))}
           </div>
         </>}
+
+        {/* ═══ ORGANIZERS ═══ */}
+        {tab === 'organizers' && (
+          <Link to="/admin/organizers" className="block group">
+            <div className="p-5 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all duration-200 active:scale-[0.99]">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-moss-500/10 flex items-center justify-center group-hover:bg-moss-500/15 group-hover:scale-110 transition-all">
+                  <Building2 size={24} className="text-accent" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-semibold text-fg group-hover:text-accent transition">Kelola Organisasi</p>
+                  <p className="text-sm text-slate-400 mt-0.5">Konfirmasi, set password, tambah member, dan kelola semua organisasi</p>
+                </div>
+                <ExternalLink size={16} className="text-slate-600 group-hover:text-accent transition" />
+              </div>
+            </div>
+          </Link>
+        )}
 
         {/* ═══ CHAT ═══ */}
         {tab === 'chat' && (

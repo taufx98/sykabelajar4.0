@@ -79,7 +79,7 @@ export function AppLayout(){
     ["/orders","Pesanan",ShoppingBag,unreadOrders>0?unreadOrders:undefined],
   ];
   if(isOrganizer){userNav.push(["/organizer","Penyelenggara",Building2,undefined],["/organizer/ads","Pasang Iklan",Megaphone,undefined]);}
-  if(isAdmin){userNav.push(["/admin","Admin",ShieldCheck,undefined],["/admin/chat","Chat Admin",MessageCircle,unreadChat>0?unreadChat:undefined]);}
+  if(isAdmin){userNav.push(["/admin","Admin",ShieldCheck,undefined],["/admin/organizers","Organisasi",Building2,undefined],["/admin/chat","Chat Admin",MessageCircle,unreadChat>0?unreadChat:undefined]);}
   userNav.push([user?`/profile/${user.username}`:"/home","Profil",UserIcon,undefined]);
   const nav:NavItem[]=isGuest?guestNav:userNav;
 
@@ -135,8 +135,7 @@ export function AppLayout(){
                 className="group flex items-center gap-3 p-2.5 rounded-xl transition-all duration-150 hover:bg-white/5 dark:hover:bg-white/5">
                 {/* Avatar with online indicator */}
                 <div className="relative shrink-0">
-                  <Avatar name={user.displayName} id={user.id} size={40} src={user.profilePhoto || undefined}/>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 surface-bg"/>
+                  <Avatar name={user.displayName} id={user.id} size={40} src={user.profilePhoto || undefined}/>                   <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white dark:border-[#1a2742]"/>
                 </div>
                 {/* Name + XP inline */}
                 <div className="min-w-0 flex-1">

@@ -165,7 +165,7 @@ export function ChatWidget() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50">
+    <div className="fixed bottom-20 md:bottom-5 right-5 z-50">
       {isOpen && (
         <div className="mb-3 w-80 h-[420px] surface-card-bg border surface-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
 
@@ -203,7 +203,7 @@ export function ChatWidget() {
                   <MessageCircle size={24} className="text-accent" />
                 </div>
                 <p className="text-sm font-semibold text-fg">Hubungi Admin</p>
-                <p className="text-[11px] text-slate-500 mt-1">Isi judul & deskripsi masalah, lalu chat dengan admin</p>
+                <p className="text-[11px] text-fg-muted mt-1">Isi judul & deskripsi masalah, lalu chat dengan admin</p>
               </div>
 
               <div>
@@ -213,7 +213,7 @@ export function ChatWidget() {
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   placeholder="Contoh: Masalah Login"
-                  className="w-full surface-card-bg border surface-border rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50"
+                  className="input"
                 />
               </div>
 
@@ -224,7 +224,7 @@ export function ChatWidget() {
                   onChange={e => setDescription(e.target.value)}
                   placeholder="Jelaskan masalah kamu secara detail..."
                   rows={4}
-                  className="w-full surface-card-bg border surface-border rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50 resize-none"
+                  className="input resize-none"
                 />
               </div>
 
@@ -249,8 +249,8 @@ export function ChatWidget() {
               <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
                 <Headphones size={28} className="text-amber-400" />
               </div>
-              <p className="text-sm font-semibold text-white mb-1">Pesan Terkirim!</p>
-              <p className="text-xs text-slate-400 mb-1">Admin akan membalas dalam</p>
+              <p className="text-sm font-semibold text-fg mb-1">Pesan Terkirim!</p>
+              <p className="text-xs text-fg-muted mb-1">Admin akan membalas dalam</p>
               <p className="text-lg font-bold text-amber-400 mb-4">1 × 24 Jam</p>
               <button
                 onClick={handleStartChat}
@@ -333,7 +333,7 @@ export function ChatWidget() {
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder="Ketik pesan..."
-                      className="flex-1 surface-card-bg border surface-border rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50"
+                      className="flex-1 input"
                     />
                     <button
                       onClick={handleSend}
@@ -354,8 +354,8 @@ export function ChatWidget() {
               <div className="w-16 h-16 rounded-full bg-slate-500/10 flex items-center justify-center mx-auto mb-4">
                 <MessageCircle size={28} className="text-slate-400" />
               </div>
-              <p className="text-sm font-semibold text-white mb-1">Chat Selesai</p>
-              <p className="text-xs text-slate-400 mb-5">Sesi chat sebelumnya sudah ditutup</p>
+              <p className="text-sm font-semibold text-fg mb-1">Chat Selesai</p>
+              <p className="text-xs text-fg-muted mb-5">Sesi chat sebelumnya sudah ditutup</p>
               <button
                 onClick={handleNewChat}
                 className="px-5 py-2.5 rounded-xl bg-moss-500 hover:bg-moss-600 text-sm font-medium text-white transition flex items-center gap-2"
@@ -369,8 +369,8 @@ export function ChatWidget() {
           {/* ═══ VIEW: RATING ═══ */}
           {view === 'rating' && (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-              <p className="text-sm font-semibold text-white mb-1">Beri Rating</p>
-              <p className="text-xs text-slate-400 mb-4">Bagaimana layanan admin kami?</p>
+              <p className="text-sm font-semibold text-fg mb-1">Beri Rating</p>
+              <p className="text-xs text-fg-muted mb-4">Bagaimana layanan admin kami?</p>
               <div className="flex gap-1 mb-4">
                 {[1, 2, 3, 4, 5].map(s => (
                   <button key={s} onClick={() => setRating(s)} className="transition active:scale-110">

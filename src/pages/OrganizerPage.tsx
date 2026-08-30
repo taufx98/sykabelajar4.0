@@ -46,7 +46,17 @@ export function OrganizerPage() {
   const load = async () => {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
-    const { data: org } = await supabase.from('organizers').select('*').eq('owner_user_id', auth.user.id).maybeSingle();
+    // First check if user owns an org
+    const { data: ownerOrg } = await supabase.from('organizers').select('*').eq('owner_user_id', auth.user.id).maybeSingle();
+    let org = ownerOrg;
+    if (!org) {
+      // Check if user is a member of any org
+      const { data: membership } = await supabase.from('organizer_members').select('organizer_id,role').eq('user_id', auth.user.id).maybeSingle();
+      if (membership) {
+        const { data: memberOrg } = await supabase.from('organizers').select('*').eq('id', membership.organizer_id).maybeSingle();
+        org = memberOrg ? { ...memberOrg, _memberRole: membership.role } as any : null;
+      }
+    }
     if (!org) { setOrganizer(null); return; }
     setOrganizer(org);
     const [c,m,p,b,t] = await Promise.all([
@@ -150,7 +160,8 @@ export function OrganizerPage() {
     try {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) throw new Error('Unauthorized');
-      const { error } = await supabase.from('organizers').insert({ name: orgName.trim(), owner_user_id: auth.user.id, status: 'ACTIVE' });
+      const slugified = orgName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org-' + Date.now();
+      const { error } = await supabase.from('organizers').insert({ name: orgName.trim(), slug: slugified, owner_user_id: auth.user.id, status: 'ACTIVE', access_code: '0' });
       if (error) throw error;
       toast.success('Organisasi berhasil dibuat!');
       setOrgName('');

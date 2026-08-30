@@ -36,6 +36,7 @@ import { TwibbonPage } from '@/pages/TwibbonPage';
 import { AdminBannersPage } from '@/pages/AdminBannersPage';
 import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
 import { AdminChatPage } from '@/pages/AdminChatPage';
+import { AdminOrganizersPage } from '@/pages/AdminOrganizersPage';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { getUserRoles } from '@/services/role.service';
 import { supabase } from '@/lib/supabase';
@@ -57,12 +58,9 @@ function AuthGuard({ children }: { children: ReactNode }) {
   // Authenticated or guest → allowed
   if (isAuthenticated || isGuest) return <>{children}</>;
 
-  // Not authenticated, not guest → save current path and redirect to login
-  const currentPath = window.location.pathname + window.location.search;
-  const loginUrl = currentPath && currentPath !== '/'
-    ? `/login?redirect=${encodeURIComponent(currentPath)}`
-    : '/login';
-  return <Navigate to={loginUrl} replace />;
+  // Not authenticated, not guest → redirect to landing page (not login)
+  // This makes the site behave like a normal website on refresh
+  return <Navigate to="/" replace />;
 }
 
 /**
@@ -135,6 +133,7 @@ function AppRoutes() {
       <Route path="/admin/fulfillment" element={<RoleRoute role="admin"><AdminFulfillmentPage /></RoleRoute>} />
       <Route path="/admin/banners" element={<RoleRoute role="admin"><AdminBannersPage /></RoleRoute>} />
       <Route path="/admin/chat" element={<RoleRoute role="admin"><AdminChatPage /></RoleRoute>} />
+      <Route path="/admin/organizers" element={<RoleRoute role="admin"><AdminOrganizersPage /></RoleRoute>} />
     </Route>
 
     {/* Catch-all → landing page */}

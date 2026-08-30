@@ -42,11 +42,20 @@ export function NotificationsPage() {
     if (!user) { setNotifications([]); setLoading(false); return () => { alive = false; }; }
     setLoading(true);
     listNotifications(user.id)
-      .then((rows) => { if (alive) setNotifications(rows.map(mapNotification)); })
+      .then(async (rows) => {
+        if (!alive) return;
+        setNotifications(rows.map(mapNotification));
+        // Auto-mark all unread as read when opening the page
+        const unreadRows = rows.filter((r: any) => !r.read_at);
+        if (unreadRows.length > 0) {
+          try { await markAllNotificationsRead(); } catch {}
+          if (alive) setNotifications(rows.map(mapNotification).map(n => ({ ...n, read: true })));
+        }
+      })
       .catch((error) => { if (alive) toast(error?.message ?? 'Notifikasi gagal dimuat', 'error'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [user, toast]);
+  }, [user, toast, markAllNotificationsRead]);
 
   const handleRead = async (id: string) => {
     if (!user) return;
