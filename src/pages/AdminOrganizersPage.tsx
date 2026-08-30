@@ -1,10 +1,12 @@
+import { toast } from '@/lib/toast';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Building2, Users, Check, X, Key, Plus, Trash2, Shield, Search, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Building2, Users, Check, X, Key, Plus, Trash2, Shield, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { UserPicker, type PickedUser } from '@/components/ui/UserPicker';
 
 interface Organizer {
   id: string;
@@ -17,7 +19,7 @@ interface Organizer {
   _members?: any[];
   _competitionCount?: number;
   _ownerProfile?: { username: string; full_name: string; avatar_url: string | null } | null;
-  _memberProfiles?: Record<string, { username: string; full_name: string } | null>;
+  _memberProfiles?: Record<string, { username: string; full_name: string; avatar_url: string | null } | null>;
 }
 
 export function AdminOrganizersPage() {
@@ -26,8 +28,9 @@ export function AdminOrganizersPage() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [newMemberUsername, setNewMemberUsername] = useState('');
   const [newAccessCode, setNewAccessCode] = useState('');
+  // Multi-select user picker state: pending users per org
+  const [pendingUsers, setPendingUsers] = useState<Record<string, PickedUser[]>>({});
 
   const load = async () => {
     setLoading(true);
@@ -45,16 +48,15 @@ export function AdminOrganizersPage() {
             supabase.from('competitions').select('id', { count: 'exact', head: true }).eq('organizer_id', org.id),
             supabase.from('profiles').select('username,full_name,avatar_url').eq('id', org.owner_user_id).maybeSingle(),
           ]);
-          // Load profiles for all members
           const memberUserIds = (membersRes.data || []).map((m: any) => m.user_id).filter(Boolean);
-          const memberProfilesMap: Record<string, { username: string; full_name: string } | null> = {};
+          const memberProfilesMap: Record<string, { username: string; full_name: string; avatar_url: string | null } | null> = {};
           if (memberUserIds.length) {
             const { data: memberProfiles } = await supabase
               .from('profiles')
-              .select('id,username,full_name')
+              .select('id,username,full_name,avatar_url')
               .in('id', memberUserIds);
             for (const p of memberProfiles || []) {
-              memberProfilesMap[p.id] = { username: p.username, full_name: p.full_name };
+              memberProfilesMap[p.id] = { username: p.username, full_name: p.full_name, avatar_url: p.avatar_url };
             }
           }
           return {
@@ -77,8 +79,7 @@ export function AdminOrganizersPage() {
   useEffect(() => { void load(); }, []);
 
   const filtered = organizers.filter(o =>
-    o.name.toLowerCase().includes(search.toLowerCase()) ||
-    o.slug?.toLowerCase().includes(search.toLowerCase())
+    o.name.toLowerCase().includes(search.toLowerCase()) || o.slug?.toLowerCase().includes(search.toLowerCase())
   );
 
   const toggleStatus = async (org: Organizer, newStatus: string) => {
@@ -86,9 +87,10 @@ export function AdminOrganizersPage() {
     try {
       const { error } = await supabase.from('organizers').update({ status: newStatus }).eq('id', org.id);
       if (error) throw error;
+      toast.success(`Status diubah ke ${newStatus}`);
       await load();
     } catch (e: any) {
-      alert(e?.message ?? 'Gagal update status');
+      toast.error(e?.message ?? 'Gagal update status');
     } finally {
       setBusy(false);
     }
@@ -99,39 +101,41 @@ export function AdminOrganizersPage() {
     try {
       const { error } = await supabase.from('organizers').update({ access_code: code }).eq('id', orgId);
       if (error) throw error;
+      toast.success('Access code berhasil diatur');
       await load();
     } catch (e: any) {
-      alert(e?.message ?? 'Gagal set access code');
+      toast.error(e?.message ?? 'Gagal set access code');
     } finally {
       setBusy(false);
     }
   };
 
-  const addMember = async (orgId: string) => {
-    if (!newMemberUsername.trim()) return;
+  /** Add all pending users to the org at once */
+  const addMembers = async (orgId: string) => {
+    const users = pendingUsers[orgId] || [];
+    if (!users.length) return;
     setBusy(true);
+    let added = 0;
+    let skipped = 0;
     try {
-      // Find user by username (profiles table has no email column)
-      const { data: profile, error: pErr } = await supabase
-        .from('profiles')
-        .select('id,username')
-        .eq('username', newMemberUsername.trim())
-        .maybeSingle();
-      if (pErr || !profile) throw new Error('User dengan username tersebut tidak ditemukan.');
-
-      const { error } = await supabase.from('organizer_members').insert({
-        organizer_id: orgId,
-        user_id: profile.id,
-        role: 'editor',
-      });
-      if (error) {
-        if (error.message?.includes('duplicate')) throw new Error('User sudah menjadi member.');
-        throw error;
+      for (const u of users) {
+        const { error } = await supabase.from('organizer_members').insert({
+          organizer_id: orgId,
+          user_id: u.id,
+          role: 'editor',
+        });
+        if (error) {
+          if (error.message?.includes('duplicate')) { skipped++; continue; }
+          throw error;
+        }
+        added++;
       }
-      setNewMemberUsername('');
+      if (skipped > 0) toast.info(`${added} ditambahkan, ${skipped} sudah ada (duplikat).`);
+      else if (added > 0) toast.success(`${added} anggota berhasil ditambahkan!`);
+      setPendingUsers((prev) => ({ ...prev, [orgId]: [] }));
       await load();
     } catch (e: any) {
-      alert(e?.message ?? 'Gagal menambah member');
+      toast.error(e?.message ?? 'Gagal menambah anggota');
     } finally {
       setBusy(false);
     }
@@ -143,9 +147,10 @@ export function AdminOrganizersPage() {
     try {
       const { error } = await supabase.from('organizer_members').delete().eq('id', memberId);
       if (error) throw error;
+      toast.success('Member dihapus');
       await load();
     } catch (e: any) {
-      alert(e?.message ?? 'Gagal menghapus member');
+      toast.error(e?.message ?? 'Gagal menghapus member');
     } finally {
       setBusy(false);
     }
@@ -155,6 +160,13 @@ export function AdminOrganizersPage() {
     if (s === 'ACTIVE') return 'moss';
     if (s === 'SUSPENDED') return 'err';
     return 'default';
+  };
+
+  /** Build excluded user IDs for a given org (owner + existing members) */
+  const getExcludedIds = (org: Organizer): string[] => {
+    const ids = [org.owner_user_id];
+    for (const m of org._members || []) ids.push(m.user_id);
+    return ids;
   };
 
   return (
@@ -249,18 +261,28 @@ export function AdminOrganizersPage() {
                         <div className="flex items-center gap-2 p-2 rounded-lg surface-elevated">
                           <Shield size={12} className="text-amber-400" />
                           <span className="text-xs text-fg flex-1">
-                            Owner: {org._ownerProfile ? `${org._ownerProfile.full_name || org._ownerProfile.username} | ${org._ownerProfile.username}` : org.owner_user_id.slice(0, 8) + '...'}
+                            Owner: {org._ownerProfile ? `${org._ownerProfile.full_name || org._ownerProfile.username} | @${org._ownerProfile.username}` : org.owner_user_id.slice(0, 8) + '...'}
                           </span>
                           <Badge color="moss">owner</Badge>
                         </div>
                         {/* Members */}
                         {(org._members || []).map((m: any) => {
                           const mp = org._memberProfiles?.[m.user_id];
-                          const displayName = mp ? `${mp.full_name || mp.username} | ${mp.username}` : m.user_id.slice(0, 8) + '...';
+                          const displayName = mp ? `${mp.full_name || mp.username}` : m.user_id.slice(0, 8) + '...';
+                          const displayUsername = mp?.username || '';
                           return (
                             <div key={m.id} className="flex items-center gap-2 p-2 rounded-lg surface-elevated">
-                              <Users size={12} className="text-fg-muted" />
-                              <span className="text-xs text-fg flex-1">{displayName}</span>
+                              {mp ? (
+                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-moss-400 to-moss-600 flex items-center justify-center text-[9px] font-bold text-white shrink-0">
+                                  {String(displayName).slice(0, 1).toUpperCase()}
+                                </div>
+                              ) : (
+                                <Users size={12} className="text-fg-muted" />
+                              )}
+                              <span className="text-xs text-fg flex-1 truncate">
+                                {displayName}
+                                {displayUsername && <span className="text-fg-muted ml-1">@{displayUsername}</span>}
+                              </span>
                               <Badge>{m.role}</Badge>
                               <button
                                 className="text-red-400 hover:text-red-300 p-1"
@@ -273,19 +295,16 @@ export function AdminOrganizersPage() {
                           );
                         })}
                       </div>
-                      {/* Add member */}
-                      <div className="flex gap-2">
-                        <input
-                          className="input flex-1"
-                          placeholder="Username user untuk ditambahkan"
-                          value={newMemberUsername}
-                          onChange={e => setNewMemberUsername(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') void addMember(org.id); }}
-                        />
-                        <Button size="sm" onClick={() => void addMember(org.id)} disabled={busy || !newMemberUsername.trim()} icon={<Plus size={14} />}>
-                          Tambah
-                        </Button>
-                      </div>
+
+                      {/* Multi-Select User Picker */}
+                      <UserPicker
+                        excludedUserIds={getExcludedIds(org)}
+                        selected={pendingUsers[org.id] || []}
+                        onSelectionChange={(users) => setPendingUsers((prev) => ({ ...prev, [org.id]: users }))}
+                        onAdd={() => void addMembers(org.id)}
+                        disabled={busy}
+                        placeholder="Cari nama atau username untuk ditambahkan..."
+                      />
                     </div>
 
                     {/* Info */}
