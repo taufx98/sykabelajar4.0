@@ -2,6 +2,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { OrganizerShell } from '@/components/layout/OrganizerShell';
 import { LandingPage } from '@/pages/LandingPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -24,7 +25,6 @@ import { AdminFulfillmentPage } from '@/pages/AdminFulfillmentPage';
 import { AdminAwardsPage } from '@/pages/AdminAwardsPage';
 import { AdminModerationPage } from '@/pages/AdminModerationPage';
 import { OrganizerPage } from '@/pages/OrganizerPage';
-import { OrganizerWorkspaceGate } from '@/pages/OrganizerWorkspaceGate';
 import { OrganizerQuestionEditorPage } from '@/pages/OrganizerQuestionEditorPage';
 import { OrganizerRegistrationsPage } from '@/pages/OrganizerRegistrationsPage';
 import { OrganizerMembersPage } from '@/pages/OrganizerMembersPage';
@@ -71,6 +71,10 @@ function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member'; chi
   return <>{children}</>;
 }
 
+function OrganizerShellRoute({ children }: { children: ReactNode }) {
+  return <RoleRoute role="organizer_member"><OrganizerShell>{children}</OrganizerShell></RoleRoute>;
+}
+
 function RuntimeGlobals() {
   const { toast } = useApp();
   useEffect(() => { globalThis.toast = toast; return () => { globalThis.toast = undefined; }; }, [toast]);
@@ -96,14 +100,14 @@ function AppRoutes() {
       <Route path="/profile/edit" element={<EditProfilePage />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/orders" element={<OrdersPage />} />
-      <Route path="/organizer" element={<RoleRoute role="organizer_member"><OrganizerWorkspaceGate /></RoleRoute>} />
-      <Route path="/organizer/question-bank/:bankId" element={<RoleRoute role="organizer_member"><OrganizerQuestionEditorPage /></RoleRoute>} />
-      <Route path="/organizer/registrations" element={<RoleRoute role="organizer_member"><OrganizerRegistrationsPage /></RoleRoute>} />
-      <Route path="/organizer/members" element={<RoleRoute role="organizer_member"><OrganizerMembersPage /></RoleRoute>} />
-      <Route path="/organizer/competition/:id/config" element={<RoleRoute role="organizer_member"><OrganizerCompetitionConfigPage /></RoleRoute>} />
-      <Route path="/organizer/grading" element={<RoleRoute role="organizer_member"><OrganizerGradingPage /></RoleRoute>} />
-      <Route path="/organizer/plan" element={<RoleRoute role="organizer_member"><OrganizerPlanPage /></RoleRoute>} />
-      <Route path="/organizer/ads" element={<RoleRoute role="organizer_member"><OrganizerAdRequestPage /></RoleRoute>} />
+      <Route path="/organizer" element={<OrganizerShellRoute><OrganizerPage /></OrganizerShellRoute>} />
+      <Route path="/organizer/question-bank/:bankId" element={<OrganizerShellRoute><OrganizerQuestionEditorPage /></OrganizerShellRoute>} />
+      <Route path="/organizer/registrations" element={<OrganizerShellRoute><OrganizerRegistrationsPage /></OrganizerShellRoute>} />
+      <Route path="/organizer/members" element={<OrganizerShellRoute><OrganizerMembersPage /></OrganizerShellRoute>} />
+      <Route path="/organizer/competition/:id/config" element={<OrganizerShellRoute><OrganizerCompetitionConfigPage /></OrganizerShellRoute>} />
+      <Route path="/organizer/grading" element={<OrganizerShellRoute><OrganizerGradingPage /></OrganizerShellRoute>} />
+      <Route path="/organizer/plan" element={<OrganizerShellRoute><OrganizerPlanPage /></OrganizerShellRoute>} />
+      <Route path="/organizer/ads" element={<OrganizerShellRoute><OrganizerAdRequestPage /></OrganizerShellRoute>} />
       <Route path="/admin" element={<RoleRoute role="admin"><AdminPage /></RoleRoute>} />
       <Route path="/admin/roles" element={<RoleRoute role="admin"><AdminRolesPage /></RoleRoute>} />
       <Route path="/admin/orders/review" element={<RoleRoute role="admin"><AdminOrdersReviewPage /></RoleRoute>} />
