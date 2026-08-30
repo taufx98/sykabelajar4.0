@@ -45,7 +45,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
         <div className="relative overflow-hidden bg-moss-500/5 border-t border-moss-500/10">
           <div className="flex whitespace-nowrap animate-marquee py-1.5" style={{ animationDuration: '25s' }}>
             {[...runningTexts, ...runningTexts, ...runningTexts].map((text, i) => (
-              <span key={i} className="inline-flex items-center gap-2 mx-6 text-[11px] text-moss-300/80">
+              <span key={i} className="inline-flex items-center gap-2 mx-6 text-[11px] text-accent/80">
                 <span className="w-1.5 h-1.5 rounded-full bg-moss-400/60 shrink-0" />
                 {text}
               </span>
@@ -71,7 +71,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                   onClick={() => setSearchQuery('')}
                 >
                   <div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">
-                    {r.type === 'competition' ? <Trophy size={13} className="text-moss-400" /> : <FileText size={13} className="text-moss-400" />}
+                    {r.type === 'competition' ? <Trophy size={13} className="text-accent" /> : <FileText size={13} className="text-accent" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-fg truncate">{r.title}</p>
@@ -99,7 +99,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                   onClick={() => setTab(t)}
                   className={`flex-1 py-3 text-sm font-medium transition-all relative ${
                     tab === t
-                      ? 'text-moss-300'
+                      ? 'text-accent'
                       : 'text-slate-500 hover:text-fg-secondary'
                   }`}
                 >
@@ -124,12 +124,12 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                     <div className="p-4">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 rounded-xl bg-moss-500/10 flex items-center justify-center">
-                          <Trophy size={18} className="text-moss-400" />
+                          <Trophy size={18} className="text-accent" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-fg">{comp.organizer_name || 'Penyelenggara'}</p>
                           <div className="flex items-center gap-2">
-                            <span className="chip bg-moss-500/10 text-moss-300 border border-moss-500/20 text-[10px]">Lomba</span>
+                            <span className="chip bg-moss-500/10 text-accent border border-moss-500/20 text-[10px]">Lomba</span>
                             <span className="text-[11px] text-slate-600">· {comp.category || 'Kompetisi'}</span>
                           </div>
                         </div>
@@ -138,7 +138,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                         <h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{comp.title}</h3>
                         {comp.short_description && <p className="text-sm text-fg-secondary leading-relaxed mb-3">{comp.short_description}</p>}
                         {comp.poster_url && <img src={comp.poster_url} alt={comp.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border surface-border mt-2" />}
-                        <p className="text-xs text-moss-400 flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14} /></p>
+                        <p className="text-xs text-accent flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14} /></p>
                       </Link>
                     </div>
                     <div className="px-4 py-3 border-t surface-border flex items-center gap-4 text-xs text-slate-500">
@@ -235,9 +235,9 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                     ) : (
                       <div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">
                         {r.type === 'competition' ? (
-                          <Trophy size={13} className="text-moss-400" />
+                          <Trophy size={13} className="text-accent" />
                         ) : (
-                          <FileText size={13} className="text-moss-400" />
+                          <FileText size={13} className="text-accent" />
                         )}
                       </div>
                     )}
@@ -258,7 +258,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             {/* Uji Kompetensi Trending */}
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-3">
-                <Sparkles size={16} className="text-moss-400" />
+                <Sparkles size={16} className="text-accent" />
                 <h3 className="font-display font-semibold text-fg text-sm">Uji Kompetensi Trending</h3>
               </div>
               <div className="space-y-3">
@@ -269,14 +269,14 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                     className="flex items-start gap-3 group"
                   >
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5 ${
-                      idx === 0 ? 'bg-moss-500/20 text-moss-300' :
+                      idx === 0 ? 'bg-moss-500/20 text-accent' :
                       idx === 1 ? 'bg-sky-500/20 text-sky-300' :
                       'bg-amber-500/20 text-amber-300'
                     }`}>
                       {idx + 1}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-fg group-hover:text-moss-300 transition line-clamp-2">
+                      <p className="text-xs font-semibold text-fg group-hover:text-accent transition line-clamp-2">
                         {comp.title}
                       </p>
                       <p className="text-[10px] text-slate-500 mt-0.5">
@@ -294,8 +294,8 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             {/* Top 5 Peringkat — XP / Point Edu toggle */}
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-moss-400"><path d="M12 2l2.09 6.26L20.18 9l-5.09 3.74L16.18 19 12 15.77 7.82 19l1.09-6.26L3.82 9l6.09-.74L12 2z" fill="currentColor"/></svg><h3 className="font-display font-semibold text-fg text-sm">Top 5 Peringkat</h3></div>
-                <Link to="/leaderboard" className="text-[11px] text-moss-400 hover:text-moss-300">
+                <div className="flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-accent"><path d="M12 2l2.09 6.26L20.18 9l-5.09 3.74L16.18 19 12 15.77 7.82 19l1.09-6.26L3.82 9l6.09-.74L12 2z" fill="currentColor"/></svg><h3 className="font-display font-semibold text-fg text-sm">Top 5 Peringkat</h3></div>
+                <Link to="/leaderboard" className="text-[11px] text-accent hover:text-accent">
                   Lihat semua
                 </Link>
               </div>
@@ -303,7 +303,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 <button
                   onClick={() => setLeaderMode('xp')}
                   className={`text-[11px] py-1.5 rounded-md font-medium transition ${
-                    leaderMode === 'xp' ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'
+                    leaderMode === 'xp' ? 'bg-moss-500/15 text-accent' : 'text-slate-500'
                   }`}
                 >
                   XP Global
@@ -311,7 +311,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 <button
                   onClick={() => setLeaderMode('coin')}
                   className={`text-[11px] py-1.5 rounded-md font-medium transition ${
-                    leaderMode === 'coin' ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'
+                    leaderMode === 'coin' ? 'bg-moss-500/15 text-accent' : 'text-slate-500'
                   }`}
                 >
                   Point Edu
@@ -354,7 +354,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-fg truncate">{u.display_name || u.username}</p>
                           </div>
-                          <span className="text-xs text-moss-300 font-semibold tabular-nums">
+                          <span className="text-xs text-accent font-semibold tabular-nums">
                             {Number(u.xp || 0).toLocaleString('id-ID')}
                           </span>
                         </Link>
@@ -420,7 +420,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                       to={`/lomba/${comp.slug}`}
                       className="block group"
                     >
-                      <p className="text-xs font-semibold text-fg group-hover:text-moss-300 transition line-clamp-1">
+                      <p className="text-xs font-semibold text-fg group-hover:text-accent transition line-clamp-1">
                         {comp.title}
                       </p>
                       <p className="text-[11px] text-amber-400/80 mt-0.5">
@@ -473,7 +473,7 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
             {post.cover_url && (
               <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border surface-border" />
             )}
-            <p className="text-xs text-moss-400 flex items-center gap-1 mt-3">
+            <p className="text-xs text-accent flex items-center gap-1 mt-3">
               Lihat detail uji kompetensi <ChevronRight size={14} />
             </p>
           </button>
@@ -488,7 +488,7 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
             {isAchievement && (
               <div className="mt-3 px-3 py-2.5 rounded-xl bg-moss-500/8 border border-moss-500/15 flex items-center gap-2">
                 <span className="text-lg">🏆</span>
-                <p className="text-xs text-moss-300">Prestasi ini diverifikasi via sertifikat resmi sykabelajar.id</p>
+                <p className="text-xs text-accent">Prestasi ini diverifikasi via sertifikat resmi sykabelajar.id</p>
               </div>
             )}
           </>
@@ -498,15 +498,15 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
       {/* Actions */}
       <div className="flex items-center gap-5 mt-3 pt-3 border-t surface-border text-slate-500">
         <button onClick={onLike} disabled={isGuest}
-          className={`flex items-center gap-1.5 text-xs transition ${post.liked ? 'text-moss-400' : 'hover:text-moss-400'}`}>
+          className={`flex items-center gap-1.5 text-xs transition ${post.liked ? 'text-accent' : 'hover:text-accent'}`}>
           <Heart size={16} className={post.liked ? 'fill-moss-400' : ''} />
           {post.likes}
         </button>
-        <button onClick={onExpand} className="flex items-center gap-1.5 text-xs hover:text-moss-400 transition">
+        <button onClick={onExpand} className="flex items-center gap-1.5 text-xs hover:text-accent transition">
           <MessageCircle size={16} />
           {post.comments}
         </button>
-        <button onClick={onShare} className="flex items-center gap-1.5 text-xs hover:text-moss-400 transition">
+        <button onClick={onShare} className="flex items-center gap-1.5 text-xs hover:text-accent transition">
           <Share2 size={16} />
         </button>
       </div>

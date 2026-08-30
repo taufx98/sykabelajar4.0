@@ -113,7 +113,7 @@ export function AdminChatPage() {
         </Link>
 
         <div className="flex items-center gap-2 mb-6">
-          <MessageCircle size={20} className="text-moss-400" />
+          <MessageCircle size={20} className="text-accent" />
           <h1 className="text-2xl font-bold text-fg">Chat Admin</h1>
           <Badge color="moss">{openThreads.length} aktif</Badge>
         </div>

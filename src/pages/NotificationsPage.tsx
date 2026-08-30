@@ -11,12 +11,12 @@ import type { AppNotification, NotificationType } from '@/types';
 const ICONS: Record<NotificationType, React.ReactNode> = {
   'competition-start': <Play size={16} className="text-sky-400" />,
   'result-out': <Trophy size={16} className="text-amber-400" />,
-  'registration-approved': <Check size={16} className="text-moss-400" />,
+  'registration-approved': <Check size={16} className="text-accent" />,
   'registration-rejected': <AlertCircle size={16} className="text-red-400" />,
   'order-update': <Truck size={16} className="text-sky-400" />,
   'daily-reminder': <Clock size={16} className="text-amber-400" />,
-  'rank-up': <TrendingUp size={16} className="text-moss-400" />,
-  'twibbon-verified': <Check size={16} className="text-moss-400" />,
+  'rank-up': <TrendingUp size={16} className="text-accent" />,
+  'twibbon-verified': <Check size={16} className="text-accent" />,
 };
 
 function mapNotification(n: any): AppNotification {

@@ -284,7 +284,7 @@ export function AdminBannersPage() {
 
         <div className="flex items-center justify-between mb-6">
           <div>
-            <p className="text-xs text-moss-400">BANNER ADS</p>
+            <p className="text-xs text-accent">BANNER ADS</p>
             <h1 className="text-2xl font-bold text-fg">Manajemen Iklan</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -305,7 +305,7 @@ export function AdminBannersPage() {
               key={key}
               onClick={() => setTab(key)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition whitespace-nowrap ${
-                tab === key ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500 hover:text-fg-secondary'
+                tab === key ? 'bg-moss-500/15 text-accent' : 'text-slate-500 hover:text-fg-secondary'
               }`}
             >
               <Icon size={14} />
@@ -400,7 +400,7 @@ export function AdminBannersPage() {
                                 await load();
                                 setBusy(null);
                               }}
-                              className="p-2 rounded-lg hover:bg-moss-500/10 text-moss-400 hover:text-moss-300 transition"
+                              className="p-2 rounded-lg hover:bg-moss-500/10 text-accent hover:text-accent transition"
                               title="Aktifkan"
                               disabled={busy === b.id}
                             >
@@ -453,7 +453,7 @@ export function AdminBannersPage() {
                       {r.slots_requested} slot · {r.duration_days} hari ·{' '}
                       {r.image_urls?.length ? `${r.image_urls.length} gambar` : '1 gambar'}
                     </p>
-                    <p className="text-sm text-moss-300 font-semibold mt-1">
+                    <p className="text-sm text-accent font-semibold mt-1">
                       Rp {r.total_price.toLocaleString('id-ID')}
                     </p>
                     {r.admin_note && (
@@ -480,7 +480,7 @@ export function AdminBannersPage() {
         {tab === 'settings' && settings && (
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-4 text-fg font-semibold">
-              <Settings size={18} className="text-moss-400" /> Pengaturan Harga & Durasi
+              <Settings size={18} className="text-accent" /> Pengaturan Harga & Durasi
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
@@ -532,7 +532,7 @@ export function AdminBannersPage() {
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-fg font-semibold">
-                  <CreditCard size={18} className="text-moss-400" /> Rekening Bank Admin
+                  <CreditCard size={18} className="text-accent" /> Rekening Bank Admin
                 </div>
                 <Button size="sm" icon={<Plus size={14} />} onClick={addBank}>Tambah</Button>
               </div>
@@ -540,7 +540,7 @@ export function AdminBannersPage() {
                 {platformSettings.admin_banks.map((bank, i) => (
                   <div key={i} className="surface-elevated rounded-lg p-3 flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-moss-400 font-semibold">{bank.bank}</p>
+                      <p className="text-xs text-accent font-semibold">{bank.bank}</p>
                       <p className="text-sm text-fg">{bank.number}</p>
                       <p className="text-[11px] text-slate-500">a.n. {bank.name}</p>
                     </div>
@@ -579,7 +579,7 @@ export function AdminBannersPage() {
 
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-4 text-fg font-semibold">
-                <MessageCircle size={18} className="text-moss-400" /> Pengaturan Chat & WhatsApp
+                <MessageCircle size={18} className="text-accent" /> Pengaturan Chat & WhatsApp
               </div>
               <div className="space-y-4">
                 <div>
@@ -601,7 +601,7 @@ export function AdminBannersPage() {
                     {(['whatsapp', 'internal'] as const).map(t => (
                       <button key={t} onClick={() => setPlatformSettings({ ...platformSettings, chat_type: t })}
                         className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                          platformSettings.chat_type === t ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
+                          platformSettings.chat_type === t ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-500 hover:border-white/20'
                         }`}>
                         {t === 'whatsapp' ? 'WhatsApp' : 'Chat Internal'}
                       </button>
@@ -653,7 +653,7 @@ export function AdminBannersPage() {
                 ) : (
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="w-full h-32 rounded-xl border-2 border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition"
+                    className="w-full h-32 rounded-xl border-2 border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition"
                   >
                     <Upload size={24} />
                     <span className="text-xs">Klik untuk upload</span>

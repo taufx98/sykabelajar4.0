@@ -42,14 +42,14 @@ export function AdminFulfillmentPage() {
 
   return <div className="p-5 md:p-7">
     <div className="flex items-center justify-between mb-6">
-      <div><p className="text-xs text-moss-400 font-semibold">ADMIN · FULFILLMENT</p><h1 className="font-display text-2xl font-bold text-white">Order & Pengiriman</h1><p className="text-sm text-slate-500 mt-1">State order dikontrol melalui RPC backend Supabase.</p></div>
+      <div><p className="text-xs text-accent font-semibold">ADMIN · FULFILLMENT</p><h1 className="font-display text-2xl font-bold text-white">Order & Pengiriman</h1><p className="text-sm text-slate-500 mt-1">State order dikontrol melalui RPC backend Supabase.</p></div>
       <Button size="sm" variant="outline" icon={<RefreshCw size={14}/>} onClick={() => void load()}>Refresh</Button>
     </div>
     <div className="space-y-3">{orders.map((o) => {
       const shipment = o.shipments?.[0];
       return <Card key={o.id} className="p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <PackageCheck size={19} className="text-moss-400" />
+          <PackageCheck size={19} className="text-accent" />
           <div className="flex-1 min-w-[220px]"><p className="text-sm font-semibold text-white">Order {String(o.id).slice(0,8)}</p><p className="text-xs text-slate-500">User {String(o.user_id).slice(0,8)} · {o.payment_method || '—'}</p></div>
           <b className="text-white">Rp {Number(o.total || 0).toLocaleString('id-ID')}</b><Badge>{o.status}</Badge>
         </div>

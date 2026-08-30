@@ -69,7 +69,7 @@ export function LandingPage() {
             <div className="w-9 h-9 rounded-xl gradient-moss flex items-center justify-center shadow-glow">
               <GraduationCap size={20} className="text-white" />
             </div>
-            <span className="font-display font-bold text-lg text-white">sykabelajar<span className="text-moss-400">.id</span></span>
+            <span className="font-display font-bold text-lg text-white">sykabelajar<span className="text-accent">.id</span></span>
           </div>
 
           {/* Header buttons based on auth state */}
@@ -85,7 +85,7 @@ export function LandingPage() {
               <>
                 <Link to={`/profile/${user.username}`} className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-white/5 transition group">
                   <Avatar name={user.displayName} id={user.id} size={28} src={user.profilePhoto || undefined} />
-                  <span className="text-sm text-white font-medium group-hover:text-moss-300 transition hidden sm:inline">{user.displayName}</span>
+                  <span className="text-sm text-white font-medium group-hover:text-accent transition hidden sm:inline">{user.displayName}</span>
                 </Link>
                 <Link to="/home">
                   <Button size="sm" icon={<ArrowRight size={15} />}>Masuk ke Dashboard</Button>
@@ -114,7 +114,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 pt-16 pb-20 md:pt-24 md:pb-32">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="animate-slide-up">
-              <div className="inline-flex items-center gap-2 chip bg-moss-500/10 text-moss-300 border border-moss-500/20 mb-6">
+              <div className="inline-flex items-center gap-2 chip bg-moss-500/10 text-accent border border-moss-500/20 mb-6">
                 <Sparkles size={14} /> Platform Uji Kompetensi Nasional Non-Formal
               </div>
               <h1 className="font-display font-extrabold text-4xl md:text-6xl text-white leading-[1.1] mb-6">
@@ -170,9 +170,9 @@ export function LandingPage() {
               <div className="absolute -inset-4 bg-moss-500/10 blur-3xl rounded-full" />
               <div className="relative card p-5">
                 <div className="flex items-center gap-2 mb-4">
-                  <BarChart3 size={18} className="text-moss-400" />
+                  <BarChart3 size={18} className="text-accent" />
                   <h3 className="font-display font-semibold text-white">Papan Peringkat</h3>
-                  <span className="ml-auto chip bg-moss-500/10 text-moss-300 text-[10px]">Live</span>
+                  <span className="ml-auto chip bg-moss-500/10 text-accent text-[10px]">Live</span>
                 </div>
                 <div className="space-y-3">
                   {topUsers.length ? topUsers.map((u) => (
@@ -183,7 +183,7 @@ export function LandingPage() {
                         <p className="text-sm text-white truncate">{u.display_name}</p>
                         <p className="text-xs text-slate-500 truncate">{u.institution || '—'}</p>
                       </div>
-                      <span className="text-sm font-semibold text-moss-300">{u.xp.toLocaleString('id-ID')}</span>
+                      <span className="text-sm font-semibold text-accent">{u.xp.toLocaleString('id-ID')}</span>
                     </div>
                   )) : <p className="text-sm text-slate-500 text-center py-8">Belum ada XP tercatat.</p>}
                 </div>
@@ -216,16 +216,16 @@ export function LandingPage() {
           {competitions.length ? competitions.slice(0, 6).map((c) => (
             <Link key={c.id} to={`/lomba/${c.slug}`} className="card card-hover p-0 overflow-hidden group">
               <div className="h-40 bg-gradient-to-br from-ink-700 to-ink-850 relative">
-                {c.posterUrl ? <img src={c.posterUrl} alt={c.title} className="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition" /> : <div className="w-full h-full flex items-center justify-center"><Trophy size={40} className="text-moss-400/60" /></div>}
+                {c.posterUrl ? <img src={c.posterUrl} alt={c.title} className="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition" /> : <div className="w-full h-full flex items-center justify-center"><Trophy size={40} className="text-accent/60" /></div>}
                 <div className="absolute inset-0 bg-gradient-to-t from-ink-900 to-transparent" />
-                <div className="absolute top-3 left-3 chip bg-moss-500/20 text-moss-300 border border-moss-500/30">{CATEGORY_LABELS[c.category] || c.category}</div>
+                <div className="absolute top-3 left-3 chip bg-moss-500/20 text-accent border border-moss-500/30">{CATEGORY_LABELS[c.category] || c.category}</div>
                 <div className="absolute top-3 right-3 chip bg-black/40 text-white"><Users size={12} /> {c.participants.toLocaleString('id-ID')}</div>
               </div>
               <div className="p-5">
-                <h3 className="font-display font-semibold text-lg text-white mb-2 group-hover:text-moss-300 transition">{c.title}</h3>
+                <h3 className="font-display font-semibold text-lg text-white mb-2 group-hover:text-accent transition">{c.title}</h3>
                 <p className="text-sm text-slate-400 line-clamp-2 mb-4">{c.shortDesc}</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-moss-300 font-semibold">{c.status === 'open' ? 'Pendaftaran dibuka' : c.status === 'in-progress' ? 'Sedang berlangsung' : 'Informasi lomba'}</span>
+                  <span className="text-sm text-accent font-semibold">{c.status === 'open' ? 'Pendaftaran dibuka' : c.status === 'in-progress' ? 'Sedang berlangsung' : 'Informasi lomba'}</span>
                   <span className="text-xs text-slate-500 flex items-center gap-1">Lihat detail <ArrowRight size={14} /></span>
                 </div>
               </div>
@@ -255,7 +255,7 @@ export function LandingPage() {
             return (
               <div key={f.title} className="card p-6 hover:border-moss-500/20 transition">
                 <div className="w-12 h-12 rounded-xl bg-moss-500/10 flex items-center justify-center mb-4">
-                  <Icon size={22} className="text-moss-400" />
+                  <Icon size={22} className="text-accent" />
                 </div>
                 <h3 className="font-display font-semibold text-lg text-white mb-2">{f.title}</h3>
                 <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
@@ -309,7 +309,7 @@ export function LandingPage() {
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <div className="w-9 h-9 rounded-lg bg-moss-500/10 flex items-center justify-center text-moss-400 shrink-0">{icon}</div>
+      <div className="w-9 h-9 rounded-lg bg-moss-500/10 flex items-center justify-center text-accent shrink-0">{icon}</div>
       <div className="min-w-0">
         <p className="text-xl font-bold text-white tabular-nums">{value}</p>
         <p className="text-[10px] text-slate-500 whitespace-nowrap truncate">{label}</p>

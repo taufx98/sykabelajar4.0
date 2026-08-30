@@ -269,7 +269,7 @@ export function OrganizerAdRequestPage() {
           </Link>
 
           <div className="flex items-center gap-2 mb-6">
-            <Megaphone size={20} className="text-moss-400" />
+            <Megaphone size={20} className="text-accent" />
             <h1 className="text-2xl font-bold text-fg">Pasang Iklan Banner</h1>
           </div>
 
@@ -277,20 +277,20 @@ export function OrganizerAdRequestPage() {
           {settings && (
             <Card className="p-4 mb-6">
               <div className="flex items-center gap-2 mb-2 text-fg font-semibold text-sm">
-                <CreditCard size={15} className="text-moss-400" /> Info Harga
+                <CreditCard size={15} className="text-accent" /> Info Harga
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                 <div className="surface-elevated rounded-lg p-3">
                   <p className="text-slate-500">Base per slot/hari</p>
-                  <p className="text-moss-300 font-semibold">Rp {BASE_PRICE.toLocaleString('id-ID')}</p>
+                  <p className="text-accent font-semibold">Rp {BASE_PRICE.toLocaleString('id-ID')}</p>
                 </div>
                 <div className="surface-elevated rounded-lg p-3">
                   <p className="text-slate-500">Setiap slot tambahan</p>
-                  <p className="text-moss-300 font-semibold">× {MULTIPLIER} (95%)</p>
+                  <p className="text-accent font-semibold">× {MULTIPLIER} (95%)</p>
                 </div>
                 <div className="surface-elevated rounded-lg p-3">
                   <p className="text-slate-500">Pembulatan</p>
-                  <p className="text-moss-300 font-semibold">Nearest 50rb</p>
+                  <p className="text-accent font-semibold">Nearest 50rb</p>
                 </div>
               </div>
             </Card>
@@ -306,7 +306,7 @@ export function OrganizerAdRequestPage() {
                 {[1, 2, 3].map(s => (
                   <button key={s} onClick={() => setSlots(s)}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition ${
-                      slots === s ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
+                      slots === s ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-500 hover:border-white/20'
                     }`}>
                     {s} slot
                   </button>
@@ -322,14 +322,14 @@ export function OrganizerAdRequestPage() {
                 <div className="flex gap-2">
                   <button onClick={() => setGroupMode('none')}
                     className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                      groupMode === 'none' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
+                      groupMode === 'none' ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-500 hover:border-white/20'
                     }`}>
                     1 slot = 1 gambar
                   </button>
                   {slots >= 2 && (
                     <button onClick={() => setGroupMode(groupMode === '2' ? 'none' : '2')}
                       className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                        groupMode === '2' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
+                        groupMode === '2' ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-500 hover:border-white/20'
                       }`}>
                       1 gambar isi 2 slot
                     </button>
@@ -337,7 +337,7 @@ export function OrganizerAdRequestPage() {
                   {slots >= 3 && (
                     <button onClick={() => setGroupMode(groupMode === '3' ? 'none' : '3')}
                       className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                        groupMode === '3' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
+                        groupMode === '3' ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-500 hover:border-white/20'
                       }`}>
                       1 gambar isi 3 slot
                     </button>
@@ -381,7 +381,7 @@ export function OrganizerAdRequestPage() {
                         </div>
                       ) : (
                         <button onClick={() => fileRefs.current[idx]?.click()}
-                          className="w-full border-2 border-dashed surface-border rounded-lg flex flex-col items-center justify-center gap-1 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition"
+                          className="w-full border-2 border-dashed surface-border rounded-lg flex flex-col items-center justify-center gap-1 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition"
                           style={{ aspectRatio: ratio, maxHeight: 160 }}>
                           <Upload size={16} />
                           <span className="text-[10px]">Slot {idx + 1}</span>
@@ -406,7 +406,7 @@ export function OrganizerAdRequestPage() {
                 </p>
               )}
               {linkUrl && linkValid && (
-                <p className="text-[11px] text-moss-400 mt-1">✓ Link valid</p>
+                <p className="text-[11px] text-accent mt-1">✓ Link valid</p>
               )}
             </div>
 
@@ -417,7 +417,7 @@ export function OrganizerAdRequestPage() {
                 {DURATION_OPTIONS.map((opt, i) => (
                   <button key={i} onClick={() => { setDurationPreset(i); setShowCustom(i === DURATION_OPTIONS.length - 1); }}
                     className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                      durationPreset === i ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
+                      durationPreset === i ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-500 hover:border-white/20'
                     }`}>
                     <Calendar size={12} className="inline mr-1" />
                     {opt.label}
@@ -437,7 +437,7 @@ export function OrganizerAdRequestPage() {
             <div className="bg-moss-500/5 border border-moss-500/10 rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-400">Estimasi Harga</span>
-                <span className="text-lg font-bold text-moss-300">
+                <span className="text-lg font-bold text-accent">
                   Rp {basePrice.toLocaleString('id-ID')}
                 </span>
               </div>
@@ -524,7 +524,7 @@ export function OrganizerAdRequestPage() {
         </button>
 
         <div className="flex items-center gap-2 mb-6">
-          <Banknote size={20} className="text-moss-400" />
+          <Banknote size={20} className="text-accent" />
           <h1 className="text-2xl font-bold text-fg">Pembayaran</h1>
         </div>
 
@@ -538,7 +538,7 @@ export function OrganizerAdRequestPage() {
             <div className="flex justify-between"><span className="text-slate-400">Kode unik</span><span className="text-amber-300">+ Rp {uniqueCodeValue.toLocaleString('id-ID')}</span></div>
             <div className="border-t surface-border pt-2 flex justify-between font-bold">
               <span className="text-fg">Total Transfer</span>
-              <span className="text-moss-300 text-lg">Rp {totalWithUnique.toLocaleString('id-ID')}</span>
+              <span className="text-accent text-lg">Rp {totalWithUnique.toLocaleString('id-ID')}</span>
             </div>
           </div>
         </Card>
@@ -550,7 +550,7 @@ export function OrganizerAdRequestPage() {
             {(platformSettings?.admin_banks ?? []).map((bank, i) => (
               <div key={i} className="surface-elevated rounded-lg p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-moss-400 font-semibold">{bank.bank}</p>
+                  <p className="text-xs text-accent font-semibold">{bank.bank}</p>
                   <p className="text-sm text-fg">{bank.number}</p>
                   <p className="text-[11px] text-slate-500">a.n. {bank.name}</p>
                 </div>
@@ -584,7 +584,7 @@ export function OrganizerAdRequestPage() {
             </div>
           ) : (
             <label htmlFor="payment-proof"
-              className="flex flex-col items-center justify-center gap-2 border-2 border-dashed surface-border rounded-lg p-8 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition cursor-pointer">
+              className="flex flex-col items-center justify-center gap-2 border-2 border-dashed surface-border rounded-lg p-8 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition cursor-pointer">
               <Upload size={24} />
               <span className="text-sm">Klik untuk upload bukti transfer</span>
               <span className="text-[11px] text-slate-600">JPG, PNG, max 2MB</span>

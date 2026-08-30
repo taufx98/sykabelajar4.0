@@ -200,7 +200,7 @@ export function ChatWidget() {
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div className="text-center mb-2">
                 <div className="w-14 h-14 rounded-full bg-moss-500/10 flex items-center justify-center mx-auto mb-3">
-                  <MessageCircle size={24} className="text-moss-400" />
+                  <MessageCircle size={24} className="text-accent" />
                 </div>
                 <p className="text-sm font-semibold text-fg">Hubungi Admin</p>
                 <p className="text-[11px] text-slate-500 mt-1">Isi judul & deskripsi masalah, lalu chat dengan admin</p>
@@ -282,7 +282,7 @@ export function ChatWidget() {
                     <div key={msg.id} className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
                       {!isMe && (
                         <div className="w-7 h-7 rounded-full bg-moss-500/20 flex items-center justify-center shrink-0 mt-1">
-                          <Headphones size={12} className="text-moss-400" />
+                          <Headphones size={12} className="text-accent" />
                         </div>
                       )}
                       <div className={`max-w-[75%]`}>
@@ -320,7 +320,7 @@ export function ChatWidget() {
                         ⭐ Beri Rating
                       </button>
                       <button onClick={handleNewChat}
-                        className="px-3 py-1.5 rounded-lg bg-moss-500/10 text-moss-400 text-xs font-medium hover:bg-moss-500/20 transition flex items-center gap-1">
+                        className="px-3 py-1.5 rounded-lg bg-moss-500/10 text-accent text-xs font-medium hover:bg-moss-500/20 transition flex items-center gap-1">
                         <Plus size={12} /> Chat Baru
                       </button>
                     </div>

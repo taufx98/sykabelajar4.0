@@ -25,9 +25,16 @@
     --fg: #F8FAFC;
     --fg-secondary: #CBD5E1;
     --fg-muted: #64748B;
+    /* Accent: vibrant emerald — great contrast on dark bg */
     --accent: #10B981;
-    --accent-light: #6EE7B7;
+    --accent-text: #6EE7B7;            /* light green for text on dark */
     --accent-muted: rgba(16, 185, 129, 0.15);
+    --accent-muted-strong: rgba(16, 185, 129, 0.20);
+    --accent-border: rgba(16, 185, 129, 0.30);
+    /* Badge/Chip: subtle bg + bright text */
+    --badge-accent-bg: rgba(16, 185, 129, 0.15);
+    --badge-accent-text: #6EE7B7;
+    --badge-accent-border: rgba(16, 185, 129, 0.25);
   }
   html.light {
     --surface: #F1F5F9;
@@ -37,9 +44,16 @@
     --fg: #0F172A;
     --fg-secondary: #334155;
     --fg-muted: #64748B;
-    --accent: #059669;
-    --accent-light: #10B981;
-    --accent-muted: rgba(5, 150, 105, 0.10);
+    /* Accent: deep forest green — WCAG AA on white (4.6:1 ratio) */
+    --accent: #047857;
+    --accent-text: #065F46;            /* deeper green for text on light */
+    --accent-muted: rgba(4, 120, 87, 0.08);
+    --accent-muted-strong: rgba(4, 120, 87, 0.12);
+    --accent-border: rgba(4, 120, 87, 0.20);
+    /* Badge/Chip: pastel bg + deep green text (WCAG AA) */
+    --badge-accent-bg: #ECFDF5;        /* emerald-50 */
+    --badge-accent-text: #065F46;      /* emerald-800 */
+    --badge-accent-border: #D1FAE5;    /* emerald-200 */
   }
 
   body {
@@ -113,7 +127,20 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none select-none;
   }
   .btn-primary {
-    @apply btn bg-moss-600 text-white hover:bg-moss-500 shadow-[0_6px_20px_-6px_rgba(16,185,129,0.6)];
+    @apply btn text-white font-semibold;
+    background-color: var(--accent);
+    box-shadow: 0 6px 20px -6px var(--accent-muted);
+  }
+  html.dark .btn-primary {
+    background-color: #059669;
+    box-shadow: 0 6px 20px -6px rgba(16,185,129,0.6);
+  }
+  html.light .btn-primary {
+    background-color: #047857;
+    box-shadow: 0 6px 20px -6px rgba(4,120,87,0.4);
+  }
+  html.light .btn-primary:hover {
+    background-color: #065F46;
   }
   .btn-ghost {
     @apply btn;
@@ -153,16 +180,16 @@
   }
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
-    background-color: var(--accent-muted);
-    color: var(--accent-light);
   }
   html.dark .chip {
-    background-color: rgba(16, 185, 129, 0.15);
-    color: #6ee7b7;
+    background-color: var(--badge-accent-bg);
+    color: var(--badge-accent-text);
+    border: 1px solid var(--badge-accent-border);
   }
   html.light .chip {
-    background-color: rgba(5, 150, 105, 0.10);
-    color: #059669;
+    background-color: var(--badge-accent-bg);
+    color: var(--badge-accent-text);
+    border: 1px solid var(--badge-accent-border);
   }
   .skeleton {
     @apply relative overflow-hidden rounded-lg;
@@ -226,6 +253,21 @@
   .text-fg-muted { color: var(--fg-muted); }
   .text-accent-fg { color: var(--accent); }
   .bg-accent-muted { background-color: var(--accent-muted); }
+  .bg-accent-muted-strong { background-color: var(--accent-muted-strong); }
+  .border-accent-border { border-color: var(--accent-border); }
+  html.light .text-accent { color: #047857 !important; }
+  html.light .text-moss-300 { color: #047857 !important; }
+  html.light .text-moss-400 { color: #047857 !important; }
+  html.light .text-emerald-400 { color: #047857 !important; }
+  html.light .text-emerald-300 { color: #065F46 !important; }
+  html.light .bg-accent-muted { background-color: rgba(4, 120, 87, 0.08) !important; }
+  html.light .bg-moss-500\/10 { background-color: rgba(4, 120, 87, 0.08) !important; }
+  html.light .bg-moss-500\/12 { background-color: rgba(4, 120, 87, 0.10) !important; }
+  html.light .bg-moss-500\/15 { background-color: rgba(4, 120, 87, 0.10) !important; }
+  html.light .border-accent\/20 { border-color: rgba(4, 120, 87, 0.20) !important; }
+  html.light .border-accent\/30 { border-color: rgba(4, 120, 87, 0.25) !important; }
+  html.light .border-accent\/40 { border-color: rgba(4, 120, 87, 0.30) !important; }
+  html.light .shadow-accent\/5 { box-shadow: 0 0 0 1px rgba(4, 120, 87, 0.05) !important; }
   .gradient-text {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, #6ee7b7 0%, #34d399 50%, #10b981 100%);

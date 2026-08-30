@@ -147,7 +147,7 @@ export function AdminPage() {
           <div className="flex items-center gap-3">
             <Link to="/home" className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-fg text-xs transition">← Kembali</Link>
             <div>
-              <p className="text-[10px] text-moss-400 font-semibold uppercase tracking-wide">SYKABELAJAR</p>
+              <p className="text-[10px] text-accent font-semibold uppercase tracking-wide">SYKABELAJAR</p>
               <h1 className="font-display font-bold text-base text-white leading-tight">Panel Admin</h1>
             </div>
           </div>
@@ -161,7 +161,7 @@ export function AdminPage() {
               onClick={() => setTab(key)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                 tab === key
-                  ? 'bg-moss-500/15 text-moss-300 shadow-sm shadow-moss-500/10'
+                  ? 'bg-moss-500/15 text-accent shadow-sm shadow-moss-500/10'
                   : 'text-slate-500 hover:bg-surface-elevated/50 hover:text-fg-secondary active:scale-95'
               }`}
             >
@@ -193,10 +193,10 @@ export function AdminPage() {
               <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all duration-200 cursor-pointer active:scale-[0.99]"
                 onClick={() => setCompetitionEditor(c)}>
                 <div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center group-hover:bg-moss-500/15 transition">
-                  <Trophy size={18} className="text-moss-400" />
+                  <Trophy size={18} className="text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition truncate">{c.title}</p>
+                  <p className="text-sm font-semibold text-fg group-hover:text-accent transition truncate">{c.title}</p>
                   <p className="text-[11px] text-slate-500">{c.slug} · {c.visibility}</p>
                 </div>
                 <select className="input w-40 text-xs" value={c.status} onClick={e => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); void transitionCompetition(c.id, e.target.value); }} disabled={busy}>
@@ -228,12 +228,12 @@ export function AdminPage() {
                 onClick={() => window.open(`/profile/${u.username}`, '_blank')}>
                 <Avatar name={u.full_name || u.username || 'U'} id={u.id} size={38} src={u.avatar_url || undefined} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition truncate">{u.full_name || u.username}</p>
+                  <p className="text-sm font-semibold text-fg group-hover:text-accent transition truncate">{u.full_name || u.username}</p>
                   <p className="text-[11px] text-slate-500 truncate">@{u.username || '—'} · {u.institution || '—'}</p>
                 </div>
                 <Badge color={u.status === 'BANNED' ? 'err' : 'default'}>{roleLabel[u.account_type] || u.account_type}</Badge>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                  <Link to={`/profile/${u.username}`} className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-moss-300 transition active:scale-90" onClick={e => e.stopPropagation()}>
+                  <Link to={`/profile/${u.username}`} className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-accent transition active:scale-90" onClick={e => e.stopPropagation()}>
                     <ExternalLink size={14} />
                   </Link>
                   <button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition active:scale-90" onClick={async (e) => {
@@ -323,7 +323,7 @@ export function AdminPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-fg group-hover:text-purple-300 transition truncate">{p.name}</p>
                     <p className="text-[11px] text-slate-500">{p.code} · {p.product_type}</p>
-                    <p className="text-moss-300 font-bold text-sm mt-1">Rp {Number(p.price || 0).toLocaleString('id-ID')}</p>
+                    <p className="text-accent font-bold text-sm mt-1">Rp {Number(p.price || 0).toLocaleString('id-ID')}</p>
                   </div>
                   <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition">
                     <button className="p-1.5 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-fg transition active:scale-90" onClick={(e) => { e.stopPropagation(); setProductEditor(p); }}>
@@ -335,7 +335,7 @@ export function AdminPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${p.is_active ? 'bg-moss-500/10 text-moss-400' : 'bg-slate-500/10 text-slate-500'}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${p.is_active ? 'bg-moss-500/10 text-accent' : 'bg-slate-500/10 text-slate-500'}`}>
                     {p.is_active ? 'Aktif' : 'Nonaktif'}
                   </span>
                   {p.is_featured && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">Featured</span>}
@@ -351,13 +351,13 @@ export function AdminPage() {
             <div className="p-5 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all duration-200 active:scale-[0.99]">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-xl bg-moss-500/10 flex items-center justify-center group-hover:bg-moss-500/15 group-hover:scale-110 transition-all">
-                  <MessageCircle size={24} className="text-moss-400" />
+                  <MessageCircle size={24} className="text-accent" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-base font-semibold text-fg group-hover:text-moss-300 transition">Buka Panel Chat Admin</p>
+                  <p className="text-base font-semibold text-fg group-hover:text-accent transition">Buka Panel Chat Admin</p>
                   <p className="text-sm text-slate-400 mt-0.5">Lihat dan balas pesan dari pengguna secara real-time</p>
                 </div>
-                <ExternalLink size={16} className="text-slate-600 group-hover:text-moss-400 transition" />
+                <ExternalLink size={16} className="text-slate-600 group-hover:text-accent transition" />
               </div>
             </div>
           </Link>
@@ -367,7 +367,7 @@ export function AdminPage() {
         {tab === 'settings' && <div className="space-y-3">
           <div className="p-5 rounded-xl surface-card-bg border surface-border hover:surface-border transition">
             <h3 className="font-semibold text-fg">Platform settings</h3>
-            <p className="text-sm text-slate-400 mt-1">Konfigurasi global disimpan di <code className="text-moss-400 bg-moss-500/10 px-1.5 py-0.5 rounded">global_settings</code></p>
+            <p className="text-sm text-slate-400 mt-1">Konfigurasi global disimpan di <code className="text-accent bg-moss-500/10 px-1.5 py-0.5 rounded">global_settings</code></p>
             <Link to="/admin/roles" className="inline-block mt-4">
               <Button icon={<ShieldCheck size={15}/>}>Manajemen Role Detail</Button>
             </Link>

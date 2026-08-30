@@ -71,7 +71,7 @@ export function AwardsPage() {
       <div>
         <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-moss-400" />
+            <ShieldCheck size={16} className="text-accent" />
             <h2 className="font-display font-bold text-lg text-fg">Cek Sertifikat</h2>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">Verifikasi keaslian sertifikat sykabelajar.id</p>
@@ -79,7 +79,7 @@ export function AwardsPage() {
         <div className="p-4 space-y-4 max-w-lg mx-auto min-h-[calc(100vh-8rem)] flex flex-col justify-center">
           <Card className="p-6 text-center">
             <div className="w-16 h-16 rounded-full bg-moss-500/10 flex items-center justify-center mx-auto mb-4">
-              <QrCode size={32} className="text-moss-400" />
+              <QrCode size={32} className="text-accent" />
             </div>
             <h3 className="font-display font-bold text-fg text-lg mb-2">Verifikasi Sertifikat</h3>
             <p className="text-sm text-slate-400 mb-6">
@@ -104,7 +104,7 @@ export function AwardsPage() {
             <Card className={`p-5 ${verifyResult.status === 'APPROVED' ? 'border-moss-500/20' : 'border-red-500/20'}`}>
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${verifyResult.status === 'APPROVED' ? 'bg-moss-500/10' : 'bg-red-500/10'}`}>
-                  <ShieldCheck size={20} className={verifyResult.status === 'APPROVED' ? 'text-moss-400' : 'text-red-400'} />
+                  <ShieldCheck size={20} className={verifyResult.status === 'APPROVED' ? 'text-accent' : 'text-red-400'} />
                 </div>
                 <div>
                   <p className="font-semibold text-fg">{verifyResult.status === 'APPROVED' ? 'Terverifikasi ASLI' : 'Tidak Valid'}</p>
@@ -114,7 +114,7 @@ export function AwardsPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-slate-500">Nama</span><span className="text-fg">{verifyResult.public_name}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Kompetisi</span><span className="text-fg">{verifyResult.competition_title}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Kode</span><span className="text-moss-300 font-mono text-xs">{verifyResult.verification_code}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Kode</span><span className="text-accent font-mono text-xs">{verifyResult.verification_code}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Tanggal</span><span className="text-fg">{verifyResult.issued_at ? formatShortDate(verifyResult.issued_at) : '—'}</span></div>
               </div>
             </Card>
@@ -136,7 +136,7 @@ export function AwardsPage() {
       <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-moss-400" />
+            <ShieldCheck size={16} className="text-accent" />
             <h2 className="font-display font-bold text-lg text-fg">Piagam Saya</h2>
           </div>
           <Button size="sm" variant="outline" icon={<QrCode size={14} />} onClick={() => setShowVerify(!showVerify)}>
@@ -159,7 +159,7 @@ export function AwardsPage() {
             </div>
             {verifyResult && (
               <div className={`mt-3 p-3 rounded-lg ${verifyResult.status === 'APPROVED' ? 'bg-moss-500/5 border border-moss-500/10' : 'bg-red-500/5 border border-red-500/10'}`}>
-                <p className={`text-sm font-semibold ${verifyResult.status === 'APPROVED' ? 'text-moss-300' : 'text-red-300'}`}>
+                <p className={`text-sm font-semibold ${verifyResult.status === 'APPROVED' ? 'text-accent' : 'text-red-300'}`}>
                   {verifyResult.status === 'APPROVED' ? '✓ Terverifikasi ASLI' : '✗ Tidak Valid'}
                 </p>
                 <p className="text-xs text-slate-400 mt-1">{verifyResult.public_name} — {verifyResult.achievement_title}</p>
@@ -172,7 +172,7 @@ export function AwardsPage() {
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {(['all', 'certificate', 'medal', 'badge'] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${filter === f ? 'bg-moss-500/15 text-moss-300' : 'surface-elevated text-slate-400'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${filter === f ? 'bg-moss-500/15 text-accent' : 'surface-elevated text-slate-400'}`}>
               {f === 'all' ? 'Semua' : f === 'certificate' ? 'Sertifikat' : f === 'medal' ? 'Medali' : 'Badge'}
             </button>
           ))}
@@ -191,7 +191,7 @@ export function AwardsPage() {
           {visibleAwards.map((award) => (
             <Card key={award.id} className="overflow-hidden">
               <div className="h-28 bg-gradient-to-br from-surface-card to-surface flex items-center justify-center">
-                {award.type === 'certificate' ? <ShieldCheck size={28} className="text-moss-400" /> :
+                {award.type === 'certificate' ? <ShieldCheck size={28} className="text-accent" /> :
                  award.type === 'medal' ? <Medal size={28} className="text-amber-400" /> :
                  <BadgeCheck size={28} className="text-sky-400" />}
               </div>
@@ -234,7 +234,7 @@ export function AwardsPage() {
       {shareLink && (
         <Modal open onClose={() => setShareLink('')} title="Link Verifikasi">
           <div className="space-y-4">
-            <div className="p-3 rounded-xl surface-elevated text-xs text-moss-300 font-mono break-all">{shareLink}</div>
+            <div className="p-3 rounded-xl surface-elevated text-xs text-accent font-mono break-all">{shareLink}</div>
             <Button fullWidth onClick={() => { void navigator.clipboard?.writeText(shareLink); toast('Link verifikasi disalin.', 'success'); setShareLink(''); }}>Salin Link</Button>
           </div>
         </Modal>

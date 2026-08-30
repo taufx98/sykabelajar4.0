@@ -192,7 +192,7 @@ export function OrganizerPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-moss-500/10 flex items-center justify-center mx-auto mb-4">
-              <Building2 size={28} className="text-moss-400" />
+              <Building2 size={28} className="text-accent" />
             </div>
             <h1 className="text-2xl font-bold text-fg mb-2">Panel Penyelenggara</h1>
             <p className="text-sm text-slate-400">Buat atau masuk ke organisasi untuk mulai mengelola lomba</p>
@@ -207,13 +207,13 @@ export function OrganizerPage() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-moss-500/10 flex items-center justify-center group-hover:bg-moss-500/15 transition">
-                    <Plus size={18} className="text-moss-400" />
+                    <Plus size={18} className="text-accent" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition">Buat Organisasi Baru</p>
+                    <p className="text-sm font-semibold text-fg group-hover:text-accent transition">Buat Organisasi Baru</p>
                     <p className="text-[11px] text-slate-500">Daftarkan organisasi kamu</p>
                   </div>
-                  <ChevronRight size={16} className="text-slate-600 group-hover:text-moss-400 transition" />
+                  <ChevronRight size={16} className="text-slate-600 group-hover:text-accent transition" />
                 </div>
               </button>
 
@@ -291,7 +291,7 @@ export function OrganizerPage() {
       {/* Sidebar */}
       <aside className="w-56 shrink-0 border-r surface-border p-3 sticky top-0 h-screen hidden md:block">
         <div className="px-3 py-3 mb-4">
-          <p className="text-[10px] text-moss-400 font-semibold uppercase">Penyelenggara</p>
+          <p className="text-[10px] text-accent font-semibold uppercase">Penyelenggara</p>
           <h1 className="text-lg font-bold text-fg truncate">{organizer.name}</h1>
         </div>
         <nav className="space-y-1">
@@ -300,7 +300,7 @@ export function OrganizerPage() {
               key={key}
               onClick={() => setTab(key)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${
-                tab === key ? 'bg-moss-500/10 text-moss-300' : 'text-slate-400 hover:bg-surface-elevated/50 hover:text-fg-secondary'
+                tab === key ? 'bg-moss-500/10 text-accent' : 'text-slate-400 hover:bg-surface-elevated/50 hover:text-fg-secondary'
               }`}
             >
               <Icon size={17} />
@@ -322,7 +322,7 @@ export function OrganizerPage() {
         {/* Mobile tabs */}
         <div className="md:hidden flex gap-1 overflow-x-auto no-scrollbar mb-4 pb-2">
           {tabs.map(({ key, label, Icon }) => (
-            <button key={key} onClick={() => setTab(key)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition ${tab === key ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'}`}>
+            <button key={key} onClick={() => setTab(key)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition ${tab === key ? 'bg-moss-500/15 text-accent' : 'text-slate-500'}`}>
               <Icon size={14} />{label}
             </button>
           ))}
@@ -354,9 +354,9 @@ export function OrganizerPage() {
             <div className="space-y-2">
               {competitions.map(c => (
                 <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all cursor-pointer active:scale-[0.99]" onClick={() => setCompetitionEditor(c)}>
-                  <div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center"><Trophy size={18} className="text-moss-400" /></div>
+                  <div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center"><Trophy size={18} className="text-accent" /></div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition truncate">{c.title}</p>
+                    <p className="text-sm font-semibold text-fg group-hover:text-accent transition truncate">{c.title}</p>
                     <p className="text-[11px] text-slate-500">{c.slug}</p>
                   </div>
                   <select className="input w-40 text-xs" value={c.status} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); void transition(c.id, e.target.value); }} disabled={busy}>
@@ -393,7 +393,7 @@ export function OrganizerPage() {
             <div className="space-y-2">
               {banks.map(b => (
                 <div key={b.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:surface-border transition cursor-pointer" onClick={() => setQuestionEditor(b)}>
-                  <FileQuestion size={18} className="text-moss-400" />
+                  <FileQuestion size={18} className="text-accent" />
                   <div className="flex-1">
                     <p className="text-fg font-semibold text-sm">{b.name}</p>
                     <p className="text-[11px] text-slate-500">{b.grade_code || 'Semua jenjang'} · {b.status}</p>

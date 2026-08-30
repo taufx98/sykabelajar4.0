@@ -238,7 +238,7 @@ export function AdminDashboard() {
               key={p}
               onClick={() => setPeriod(p)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                period === p ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500 hover:text-fg-secondary'
+                period === p ? 'bg-moss-500/15 text-accent' : 'text-slate-500 hover:text-fg-secondary'
               }`}
             >
               {p === 'daily' ? 'Harian' : p === 'weekly' ? 'Mingguan' : p === 'monthly' ? 'Bulanan' : 'Tahunan'}
@@ -268,7 +268,7 @@ export function AdminDashboard() {
                 onClick={() => toggleSection(s.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
                   s.visible
-                    ? 'border-moss-500/30 bg-moss-500/10 text-moss-300'
+                    ? 'border-moss-500/30 bg-moss-500/10 text-accent'
                     : 'surface-border surface-elevated text-slate-500'
                 }`}
               >

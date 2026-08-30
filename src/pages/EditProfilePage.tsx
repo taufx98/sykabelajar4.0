@@ -363,7 +363,7 @@ export function EditProfilePage() {
                   <button key={key} onClick={() => toggleCat(key as CompetitionCategory)}
                     className={`p-3 rounded-xl border text-sm flex items-center justify-between transition ${
                       selected
-                        ? 'border-accent bg-accent-muted text-accent font-medium'
+                        ? 'border-accent bg-accent-muted-strong text-accent font-medium'
                         : 'surface-border text-fg-secondary hover:border-accent/30'
                     }`}>
                     {label}
@@ -401,7 +401,7 @@ export function EditProfilePage() {
                           : f.badgeShowcase.length < 3 ? [...f.badgeShowcase, badge] : f.badgeShowcase,
                       }))}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
-                        selected ? 'border-accent bg-accent-muted text-accent' : 'surface-border text-fg-muted hover:border-accent/30'
+                        selected ? 'border-accent bg-accent-muted-strong text-accent' : 'surface-border text-fg-muted hover:border-accent/30'
                       }`}>
                       {badge}
                     </button>

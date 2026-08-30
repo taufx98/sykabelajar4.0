@@ -38,7 +38,7 @@ export function AdminOrdersReviewPage() {
   return (
     <div className="p-5 md:p-7">
       <div className="mb-6">
-        <p className="text-xs text-moss-400 font-semibold">ADMIN · PAYMENT REVIEW</p>
+        <p className="text-xs text-accent font-semibold">ADMIN · PAYMENT REVIEW</p>
         <h1 className="font-display text-2xl font-bold text-fg">Review Bukti Pembayaran</h1>
         <p className="text-sm text-slate-500 mt-1">Semua perubahan diproses melalui RPC backend Supabase.</p>
       </div>
@@ -50,7 +50,7 @@ export function AdminOrdersReviewPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap gap-2 items-center"><p className="text-fg font-semibold">Order {String(order.id).slice(0, 8)}</p><Badge>{order.payment_proof_status || order.status}</Badge></div>
                 <p className="text-xs text-slate-500 mt-1">User {String(order.user_id).slice(0, 8)} · {order.payment_method || 'metode belum dicatat'}</p>
-                <p className="text-moss-300 font-bold mt-2">Rp {Number(order.total || 0).toLocaleString('id-ID')}</p>
+                <p className="text-accent font-bold mt-2">Rp {Number(order.total || 0).toLocaleString('id-ID')}</p>
               </div>
               <div className="flex items-center gap-2">
                 {order.payment_proof_url && <a href={order.payment_proof_url} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-white/5 text-fg-muted"><ExternalLink size={16} /></a>}

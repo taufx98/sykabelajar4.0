@@ -134,7 +134,7 @@ export function LeaderboardPage() {
           {([['xp', 'XP Global'], ['coin', 'Edu Coin']] as const).map(([key, label]) => (
             <button key={key} onClick={() => { setMode(key); setPage(1); }}
               className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${
-                mode === key ? 'bg-accent-muted text-accent' : 'text-fg-muted hover:text-fg-secondary'
+                mode === key ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg-secondary'
               }`}>
               {label}
             </button>
@@ -223,7 +223,7 @@ export function LeaderboardPage() {
               return (
                 <button key={pageNum} onClick={() => setPage(pageNum)}
                   className={`w-8 h-8 rounded-lg text-xs font-medium transition ${
-                    pageNum === safePage ? 'bg-accent-muted text-accent' : 'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5'
+                    pageNum === safePage ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5'
                   }`}>
                   {pageNum}
                 </button>

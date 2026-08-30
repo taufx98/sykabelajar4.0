@@ -18,11 +18,13 @@ export default {
           secondary: 'var(--fg-secondary)', // secondary text
           muted: 'var(--fg-muted)',       // muted text
         },
-        // ── Accent (emerald green, theme-aware) ──
+        // ── Accent (emerald green, WCAG-compliant) ──
         accent: {
           DEFAULT: 'var(--accent)',
-          light: 'var(--accent-light)',
+          text: 'var(--accent-text)',
           muted: 'var(--accent-muted)',
+          'muted-strong': 'var(--accent-muted-strong)',
+          border: 'var(--accent-border)',
         },
         ink: {
           950: '#070b14',

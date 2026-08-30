@@ -16,16 +16,16 @@ export function RankBadge({ rank, size = 'md' }: { rank: number; size?: 'sm' | '
 }
 
 export function MedalIcon({ rank, size = 24 }: { rank: number; size?: number }) {
-  if (rank === 1) return <Trophy size={size} className="text-moss-400" />;
+  if (rank === 1) return <Trophy size={size} className="text-accent" />;
   if (rank === 2) return <Medal size={size} className="text-fg-secondary" />;
   if (rank === 3) return <Medal size={size} className="text-amber-500" />;
-  return <AwardIcon size={size} className="text-slate-500" />;
+  return <AwardIcon size={size} className="text-fg-muted" />;
 }
 
 export function Badge({ children, color = 'default' }: { children: ReactNode; color?: 'default' | 'moss' | 'warn' | 'err' | 'info' }) {
   const colors = {
     default: 'surface-card-bg text-fg-secondary border surface-border',
-    moss: 'bg-accent-muted text-accent border border-accent/20',
+    moss: 'bg-accent-muted-strong text-accent border border-accent/20',
     warn: 'bg-amber-500/15 text-amber-600 border border-amber-500/20 dark:text-amber-300',
     err: 'bg-red-500/15 text-red-600 border border-red-500/20 dark:text-red-300',
     info: 'bg-sky-500/15 text-sky-600 border border-sky-500/20 dark:text-sky-300',

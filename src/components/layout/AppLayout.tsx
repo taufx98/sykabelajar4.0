@@ -109,7 +109,7 @@ export function AppLayout(){
             {nav.map(([to,label,Icon,badge]: NavItem)=>{
               const isActive=active(to);
               return (
-                <Link key={to} to={to} className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive?'bg-accent-muted text-accent shadow-sm shadow-accent/5':'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5 hover:text-fg'}`}>
+                <Link key={to} to={to} className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive?'bg-accent-muted-strong text-accent shadow-sm shadow-accent/5':'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5 hover:text-fg'}`}>
                   <Icon size={19} className={isActive?'text-accent':'text-fg-muted group-hover:text-fg transition'}/>
                   <span className="flex-1">{label}</span>
                   {badge != null && badge > 0 && (
@@ -191,7 +191,7 @@ export function AppLayout(){
                 {nav.map(([to,label,Icon,badge]: NavItem)=>{
                   const isActive=active(to);
                   return (
-                    <Link key={to} to={to} onClick={()=>setDrawerOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive?'bg-accent-muted text-accent':'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5 hover:text-fg'}`}>
+                    <Link key={to} to={to} onClick={()=>setDrawerOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive?'bg-accent-muted-strong text-accent':'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5 hover:text-fg'}`}>
                       <Icon size={18}/>
                       <span className="flex-1">{label}</span>
                       {badge != null && badge > 0 && (
