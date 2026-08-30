@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
-import { uploadImage } from '@/services/cloudinary.service';
+import { uploadProfileImage } from '@/services/cloudinary.service';
 import { formatShortDate } from '@/lib/utils';
 import { CATEGORY_LABELS, GRADE_OPTIONS } from '@/data/catalog';
 
@@ -200,9 +200,7 @@ export function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !currentUser || !isOwn) return;
     try {
-      const oldCoverId = profile?.cover_public_id as string | undefined;
-      const coverPublicId = oldCoverId || `sykabelajar/${profile.username}/cover`;
-      const result = await uploadImage(file, { publicId: coverPublicId });
+      const result = await uploadProfileImage(file, 'cover', currentUser.id);
       const { error } = await supabase.from('profiles').update({
         cover_url: result.secure_url, cover_public_id: result.public_id,
         updated_at: new Date().toISOString(),
