@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
+export type ChatThreadType = 'dm' | 'ticket' | string;
+
 export interface ChatThread {
   id: string;
   user_id: string;
@@ -8,7 +10,9 @@ export interface ChatThread {
   rating: number | null;
   closed_at: string | null;
   created_at: string;
-  // Joined fields
+  thread_type?: ChatThreadType;
+  subject?: string | null;
+  description?: string | null;
   user_name?: string;
   username?: string;
   avatar_url?: string;
@@ -28,86 +32,103 @@ export interface ChatMessage {
   created_at: string;
 }
 
-// ═══════════════════════════════════════
-// USER FUNCTIONS
-// ═══════════════════════════════════════
+export type FollowStatus = 'none' | 'pending' | 'approved' | 'auto';
 
-/** Get or create a DM thread with another user */
+function mapRpcError(error: any): Error {
+  const msg = String(error?.message ?? error ?? 'Terjadi kesalahan.');
+  const known: Record<string, string> = {
+    ACTIVE_TICKET_EXISTS: 'Anda masih memiliki laporan yang sedang berjalan. Tunggu hingga laporan diselesaikan oleh Admin.',
+    ADMIN_UNAVAILABLE: 'Admin sedang tidak tersedia. Silakan coba lagi nanti.',
+    FOLLOW_REQUIRED: 'Anda harus mengikuti pengguna tersebut dan menunggu persetujuan sebelum dapat mengirim pesan.',
+    MESSAGES_NOT_ACCEPTED: 'Pengguna tersebut tidak menerima pesan.',
+    THREAD_CLOSED: 'Percakapan ini sudah ditutup.',
+    ACCESS_DENIED: 'Anda tidak memiliki akses ke percakapan ini.',
+    INVALID_RECIPIENT: 'Penerima pesan tidak valid.',
+    USER_NOT_FOUND: 'Pengguna tidak ditemukan.',
+    MESSAGE_REQUIRED: 'Pesan tidak boleh kosong.',
+  };
+  const key = Object.keys(known).find((k) => msg.includes(k));
+  return new Error(key ? known[key] : msg);
+}
+
 export async function getOrCreateDmThread(otherUserId: string): Promise<ChatThread> {
-  const { data, error } = await supabase.rpc('get_or_create_dm_thread', {
-    p_other_user_id: otherUserId,
-  });
-  if (error) throw error;
+  const { data, error } = await supabase.rpc('get_or_create_dm_thread', { p_other_user_id: otherUserId });
+  if (error) throw mapRpcError(error);
   return data as ChatThread;
 }
 
-/** Load all threads for current user (DMs + admin threads) */
 export async function loadMyThreads(): Promise<ChatThread[]> {
   const { data, error } = await supabase.rpc('load_my_threads');
   if (error) throw error;
   return (data ?? []) as ChatThread[];
 }
 
-/** Send a message in a thread */
 export async function sendMessage(threadId: string, body: string): Promise<ChatMessage> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('Unauthorized');
-
-  const { data, error } = await supabase
-    .from('chat_messages')
-    .insert({ thread_id: threadId, sender_id: auth.user.id, body: body.trim() })
-    .select()
-    .single();
-  if (error) throw error;
+  const text = body.trim();
+  if (!text) throw new Error('Pesan tidak boleh kosong.');
+  const { data, error } = await supabase.rpc('send_chat_message', { p_thread_id: threadId, p_body: text });
+  if (error) throw mapRpcError(error);
   return data as ChatMessage;
 }
 
-/** Load messages for a thread */
 export async function loadMessages(threadId: string): Promise<ChatMessage[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('chat_messages')
-    .select('*')
+    .select('id,thread_id,sender_id,body,created_at')
     .eq('thread_id', threadId)
     .order('created_at', { ascending: true });
+  if (error) throw error;
   return (data ?? []) as ChatMessage[];
 }
 
-/** Submit rating and close thread */
-export async function submitRating(threadId: string, rating: number): Promise<void> {
-  await supabase
-    .from('chat_threads')
-    .update({ rating, status: 'closed', closed_at: new Date().toISOString() })
-    .eq('id', threadId);
-  await supabase.from('chat_messages').delete().eq('thread_id', threadId);
+export async function markThreadRead(threadId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_chat_thread_read', { p_thread_id: threadId });
+  if (error) throw mapRpcError(error);
 }
 
-/** Legacy: get or create thread for current user (admin support chat) */
-export async function getOrCreateThread(): Promise<ChatThread> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('Unauthorized');
-
-  const { data: existing } = await supabase
-    .from('chat_threads')
-    .select('*')
-    .eq('user_id', auth.user.id)
-    .eq('status', 'open')
-    .is('participant_id', null)
-    .maybeSingle();
-
-  if (existing) return existing as ChatThread;
-
-  const { data, error } = await supabase
-    .from('chat_threads')
-    .insert({ user_id: auth.user.id, status: 'open' })
-    .select()
-    .single();
+export async function getUnreadChatCount(): Promise<number> {
+  const { data, error } = await supabase.rpc('get_my_unread_chat_count');
   if (error) throw error;
+  return Number(data ?? 0);
+}
+
+export async function submitRating(threadId: string, rating: number): Promise<void> {
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error('Rating harus 1-5.');
+  const { error } = await supabase.rpc('close_chat_thread', { p_thread_id: threadId, p_rating: rating });
+  if (error) throw mapRpcError(error);
+}
+
+export async function closeThread(threadId: string, rating?: number): Promise<ChatThread> {
+  const { data, error } = await supabase.rpc('close_chat_thread', { p_thread_id: threadId, p_rating: rating ?? null });
+  if (error) throw mapRpcError(error);
   return data as ChatThread;
 }
 
-// ═══════════════════════════════════════
-// SEARCH USERS FOR NEW CHAT
-// ═══════════════════════════════════════
+export async function createTicketThread(subject: string, description: string): Promise<ChatThread> {
+  const trimmedSubject = subject.trim();
+  const trimmedDescription = description.trim();
+  if (!trimmedSubject) throw new Error('Subjek wajib diisi.');
+  if (!trimmedDescription) throw new Error('Deskripsi wajib diisi.');
+  const { data, error } = await supabase.rpc('create_support_ticket', {
+    p_subject: trimmedSubject,
+    p_description: trimmedDescription,
+  });
+  if (error) throw mapRpcError(error);
+  return data as ChatThread;
+}
+
+/** Backward-compatible: return the current open support ticket, without creating duplicates. */
+export async function getOrCreateThread(): Promise<ChatThread> {
+  const { data, error } = await supabase.rpc('get_or_create_support_thread');
+  if (error) throw mapRpcError(error);
+  return data as ChatThread;
+}
+
+export const loadMyThread = async (): Promise<ChatThread | null> => {
+  const threads = await loadMyThreads();
+  return threads.find((t) => t.thread_type === 'ticket' && t.status === 'open') ?? null;
+};
+export const loadMyMessages = loadMessages;
 
 export interface SearchUserResult {
   id: string;
@@ -116,145 +137,70 @@ export interface SearchUserResult {
   avatar_url: string | null;
 }
 
-// Backward compat aliases for ChatWidget
-export const loadMyThread = async (): Promise<ChatThread | null> => {
-  const threads = await loadMyThreads();
-  return threads.find(t => t.status === 'open' && !t.participant_id) ?? null;
-};
-export const loadMyMessages = loadMessages;
-
 export async function searchUsersForChat(query: string, limit = 10): Promise<SearchUserResult[]> {
-  if (!query.trim()) return [];
+  const q = query.trim();
+  if (!q) return [];
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return [];
-
-  const { data } = await supabase
+  const safe = q.replace(/[%_,]/g, ' ');
+  const { data, error } = await supabase
     .from('profiles')
     .select('id,username,full_name,avatar_url')
-    .or(`full_name.ilike.%${query}%,username.ilike.%${query}%`)
+    .or(`full_name.ilike.%${safe}%,username.ilike.%${safe}%`)
     .neq('id', auth.user.id)
     .limit(limit);
-  return (data ?? []).map((r: any) => ({
-    id: r.id,
-    username: r.username ?? '',
-    full_name: r.full_name ?? '',
-    avatar_url: r.avatar_url ?? null,
-  }));
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({ id: r.id, username: r.username ?? '', full_name: r.full_name ?? '', avatar_url: r.avatar_url ?? null }));
 }
 
-// ═══════════════════════════════════════
-// TICKET SYSTEM (Hubungi Admin)
-// ═══════════════════════════════════════
-
-/** Create a helpdesk ticket thread with admin */
-export async function createTicketThread(subject: string, description: string): Promise<ChatThread> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('Unauthorized');
-
-  // Find an admin user
-  const { data: adminRole } = await supabase
-    .from('user_roles')
-    .select('user_id')
-    .eq('role', 'admin')
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
-
-  const adminId = adminRole?.user_id;
-
-  // Create ticket thread
-  const { data: thread, error: tErr } = await supabase
-    .from('chat_threads')
-    .insert({
-      user_id: auth.user.id,
-      participant_id: adminId || null,
-      status: 'open',
-      thread_type: 'ticket',
-      subject: subject.trim(),
-      description: description.trim(),
-    })
-    .select()
-    .single();
-  if (tErr) throw tErr;
-
-  // Send first message with subject & description
-  const firstMsg = `📋 *${subject.trim()}*\n\n${description.trim()}`;
-  await sendMessage(thread.id, firstMsg);
-
-  return thread as ChatThread;
-}
-
-// ═══════════════════════════════════════
-// DM FROM PROFILE (Redirect)
-// ═══════════════════════════════════════
-
-/** Create DM thread from profile page and return thread */
 export async function createDmFromProfile(targetUserId: string): Promise<ChatThread> {
   return getOrCreateDmThread(targetUserId);
 }
 
-// ═══════════════════════════════════════
-// FOLLOW WITH APPROVAL
-// ═══════════════════════════════════════
+export async function getFollowStatus(followerId: string, followingId: string): Promise<FollowStatus> {
+  const { data, error } = await supabase.rpc('get_follow_status', {
+    p_follower_id: followerId,
+    p_following_id: followingId,
+  });
+  if (error) throw error;
+  return (data as FollowStatus) ?? 'none';
+}
 
-/** Check if a follow request is approved */
+export async function requestFollow(targetUserId: string): Promise<{ id: string; follower_id: string; following_id: string; status: string }> {
+  const { data, error } = await supabase.rpc('create_follow_request', { p_target_user_id: targetUserId });
+  if (error) throw mapRpcError(error);
+  return data as any;
+}
+
+export async function respondFollowRequest(followerId: string, accept: boolean): Promise<any> {
+  const { data, error } = await supabase.rpc('respond_follow_request', {
+    p_follower_id: followerId,
+    p_accept: accept,
+  });
+  if (error) throw mapRpcError(error);
+  return data;
+}
+
 export async function isFollowApproved(followerId: string, followingId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('follows')
-    .select('status')
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId)
-    .maybeSingle();
-  if (!data) return false;
-  return data.status === 'approved' || data.status === 'auto';
+  const status = await getFollowStatus(followerId, followingId);
+  return status === 'approved' || status === 'auto';
 }
 
-/** Get follow status between two users */
-export async function getFollowStatus(followerId: string, followingId: string): Promise<'none' | 'pending' | 'approved'> {
-  const { data } = await supabase
-    .from('follows')
-    .select('status')
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId)
-    .maybeSingle();
-  if (!data) return 'none';
-  if (data.status === 'pending') return 'pending';
-  return 'approved';
-}
-
-/** Accept a follow request */
-export async function acceptFollow(followerId: string, followingId: string): Promise<void> {
-  await supabase
-    .from('follows')
-    .update({ status: 'approved' })
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId);
-}
-
-/** Reject a follow request */
-export async function rejectFollow(followerId: string, followingId: string): Promise<void> {
-  await supabase
-    .from('follows')
-    .delete()
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId);
-}
-
-/** Get user privacy setting */
-export async function getUserPrivacy(userId: string): Promise<string> {
-  const { data } = await supabase
-    .from('profiles')
-    .select('accept_messages')
-    .eq('id', userId)
-    .maybeSingle();
-  return (data as any)?.accept_messages ?? 'public';
-}
-
-/** Check if current user can DM target user */
 export async function canDmUser(currentUserId: string, targetUserId: string): Promise<boolean> {
-  const privacy = await getUserPrivacy(targetUserId);
-  if (privacy === 'public') return true;
-  if (privacy === 'private') return false;
-  // 'followers' — check if follow is approved
   return isFollowApproved(currentUserId, targetUserId);
+}
+
+/** Legacy aliases retained for components that still import them. */
+export async function acceptFollow(followerId: string, followingId: string): Promise<void> {
+  if (followerId !== followingId) await respondFollowRequest(followerId, true);
+}
+
+export async function rejectFollow(followerId: string, followingId: string): Promise<void> {
+  if (followerId !== followingId) await respondFollowRequest(followerId, false);
+}
+
+export async function getUserPrivacy(userId: string): Promise<string> {
+  const { data, error } = await supabase.from('profiles').select('accept_messages').eq('id', userId).maybeSingle();
+  if (error) throw error;
+  return data?.accept_messages ?? 'public';
 }
