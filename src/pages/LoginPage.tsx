@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { GraduationCap, Mail, Lock, ArrowRight, UserRound, School, Building2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
@@ -15,6 +15,8 @@ const ROLE_OPTIONS: { value: LoginRole; label: string; icon: typeof UserRound }[
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/home';
   const { login, toast } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +34,8 @@ export function LoginPage() {
       const result = await login(email, password, requestedRole);
       if (!result.ok) { toast(result.error || 'Login gagal', 'error'); return; }
       toast('Selamat datang kembali!', 'success');
-      navigate('/home');
+      // Navigate to saved redirect URL or default /home
+      navigate(redirectTo, { replace: true });
     } finally {
       setLoading(false);
     }

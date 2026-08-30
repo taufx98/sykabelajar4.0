@@ -57,8 +57,12 @@ function AuthGuard({ children }: { children: ReactNode }) {
   // Authenticated or guest → allowed
   if (isAuthenticated || isGuest) return <>{children}</>;
 
-  // Not authenticated, not guest → send to landing
-  return <Navigate to="/" replace />;
+  // Not authenticated, not guest → save current path and redirect to login
+  const currentPath = window.location.pathname + window.location.search;
+  const loginUrl = currentPath && currentPath !== '/'
+    ? `/login?redirect=${encodeURIComponent(currentPath)}`
+    : '/login';
+  return <Navigate to={loginUrl} replace />;
 }
 
 /**
