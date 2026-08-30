@@ -10,14 +10,33 @@ import { ChatWidget } from '@/components/ui/ChatWidget';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 export function AppLayout(){
-  const{user,isGuest,logout,notifications}=useApp();
+  const{user,isGuest,logout,notifications,markAllNotificationsRead}=useApp();
   const location=useLocation();const navigate=useNavigate();const[drawerOpen,setDrawerOpen]=useState(false);
   const[unreadChat,setUnreadChat]=useState(0);
+  const visitedBadgePagesRef=useRef(new Set<string>());
   const[unreadOrders,setUnreadOrders]=useState(0);
   const[unreadAwards,setUnreadAwards]=useState(0);
   const unread=notifications.filter(n=>!n.read).length;
   const isAdmin=user?.role==='admin';
   const isOrganizer=user?.role==='penyelenggara';
+
+  // ── Badge visibility: clear badge when user navigates to the corresponding page ──
+  useEffect(()=>{
+    const path=location.pathname;
+    // Mark this page as visited so badge is hidden while staying on it
+    if(['/notifications','/orders','/awards'].includes(path)||(isAdmin&&path==='/admin/chat')){
+      visitedBadgePagesRef.current.add(path);
+    }
+    // When on notifications page, mark all as read so badge disappears
+    if(path==='/notifications'&&user&&!isGuest){
+      void markAllNotificationsRead().catch(()=>{});
+    }
+  },[location.pathname,user,isGuest,isAdmin,markAllNotificationsRead]);
+
+  // Reset visited pages on logout
+  useEffect(()=>{
+    if(!user&&!isGuest) visitedBadgePagesRef.current.clear();
+  },[user,isGuest]);
 
   // Poll unread chat threads for admin
   useEffect(()=>{
@@ -70,16 +89,17 @@ export function AppLayout(){
     ["/leaderboard","Peringkat",BarChart3,undefined],
     ["/awards","Piagam",Award,undefined],
   ];
+  const hideBadge=(to:string)=>!visitedBadgePagesRef.current.has(to);
   const userNav:NavItem[]=[
     ["/home","Beranda",Home,undefined],
     ["/daily-tasks","Daily Tasks",CalendarCheck,undefined],
     ["/leaderboard","Peringkat",BarChart3,undefined],
-    ["/awards","Piagam",Award,unreadAwards>0?unreadAwards:undefined],
-    ["/notifications","Notifikasi",Bell,unread>0?unread:undefined],
-    ["/orders","Pesanan",ShoppingBag,unreadOrders>0?unreadOrders:undefined],
+    ["/awards","Piagam",Award,unreadAwards>0&&hideBadge('/awards')?unreadAwards:undefined],
+    ["/notifications","Notifikasi",Bell,unread>0&&hideBadge('/notifications')?unread:undefined],
+    ["/orders","Pesanan",ShoppingBag,unreadOrders>0&&hideBadge('/orders')?unreadOrders:undefined],
   ];
   if(isOrganizer){userNav.push(["/organizer","Penyelenggara",Building2,undefined],["/organizer/ads","Pasang Iklan",Megaphone,undefined]);}
-  if(isAdmin){userNav.push(["/admin","Admin",ShieldCheck,undefined],["/admin/organizers","Organisasi",Building2,undefined],["/admin/chat","Chat Admin",MessageCircle,unreadChat>0?unreadChat:undefined]);}
+  if(isAdmin){userNav.push(["/admin","Admin",ShieldCheck,undefined],["/admin/organizers","Organisasi",Building2,undefined],["/admin/chat","Chat Admin",MessageCircle,unreadChat>0&&hideBadge('/admin/chat')?unreadChat:undefined]);}
   userNav.push([user?`/profile/${user.username}`:"/home","Profil",UserIcon,undefined]);
   const nav:NavItem[]=isGuest?guestNav:userNav;
 
