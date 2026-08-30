@@ -101,7 +101,13 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
   .card-hover {
-    @apply transition-all duration-200 hover:border-white/10 hover:bg-ink-850/80;
+    @apply transition-all duration-200;
+  }
+  html.dark .card-hover {
+    @apply hover:border-white/10 hover:bg-ink-850/80;
+  }
+  html.light .card-hover {
+    @apply hover:border-slate-300 hover:bg-slate-50;
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none select-none;
@@ -110,10 +116,22 @@
     @apply btn bg-moss-600 text-white hover:bg-moss-500 shadow-[0_6px_20px_-6px_rgba(16,185,129,0.6)];
   }
   .btn-ghost {
-    @apply btn text-slate-300 hover:bg-white/5;
+    @apply btn;
+  }
+  html.dark .btn-ghost {
+    @apply text-slate-300 hover:bg-white/5;
+  }
+  html.light .btn-ghost {
+    @apply text-slate-600 hover:bg-slate-100;
   }
   .btn-outline {
-    @apply btn border border-white/10 text-slate-200 hover:bg-white/5 hover:border-white/20;
+    @apply btn border;
+  }
+  html.dark .btn-outline {
+    @apply border-white/10 text-slate-200 hover:bg-white/5 hover:border-white/20;
+  }
+  html.light .btn-outline {
+    @apply border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300;
   }
   .btn-danger {
     @apply btn bg-err/90 text-white hover:bg-err;
@@ -147,12 +165,23 @@
     color: #059669;
   }
   .skeleton {
-    @apply relative overflow-hidden bg-ink-700/60 rounded-lg;
+    @apply relative overflow-hidden rounded-lg;
+  }
+  html.dark .skeleton {
+    background-color: rgba(26, 39, 66, 0.6);
+  }
+  html.light .skeleton {
+    background-color: rgba(226, 232, 240, 0.6);
   }
   .skeleton::after {
     content: '';
     @apply absolute inset-0 -translate-x-full animate-shimmer;
+  }
+  html.dark .skeleton::after {
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  }
+  html.light .skeleton::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
   }
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -162,8 +191,13 @@
     width: 6px;
     height: 6px;
   }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-white/10 rounded-full;
+  html.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 9999px;
+  }
+  html.light .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 9999px;
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;

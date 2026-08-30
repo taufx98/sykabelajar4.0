@@ -55,13 +55,13 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="px-4 h-16 flex items-center justify-between border-b border-white/5">
-        <Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white" /></div><span className="font-display font-bold text-white">sykabelajar<span className="text-moss-400">.id</span></span></Link>
-        <Link to="/register" className="text-sm text-slate-400 hover:text-white">Belum punya akun? <span className="text-moss-400">Daftar</span></Link>
+        <Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white" /></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-moss-400">.id</span></span></Link>
+        <Link to="/register" className="text-sm text-slate-400 hover:text-fg">Belum punya akun? <span className="text-moss-400">Daftar</span></Link>
       </header>
       <div className="flex-1 flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-md">
           <div className="card p-6 md:p-8 animate-slide-up">
-            <h1 className="font-display font-bold text-2xl text-white mb-1">Masuk</h1>
+            <h1 className="font-display font-bold text-2xl text-fg mb-1">Masuk</h1>
             <p className="text-sm text-slate-400 mb-6">Pilih jenis akun untuk verifikasi role dari backend.</p>
             <div className="mb-5">
               <label className="label">Masuk sebagai</label>

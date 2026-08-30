@@ -64,7 +64,7 @@ export function NotificationsPage() {
   return (
     <div>
       <div className="sticky top-0 z-20 glass border-b border-white/5 px-4 py-3 flex items-center justify-between">
-        <div><h2 className="font-display font-bold text-lg text-white">Notifikasi</h2><p className="text-xs text-slate-500">{unread.length} belum dibaca</p></div>
+        <div><h2 className="font-display font-bold text-lg text-fg">Notifikasi</h2><p className="text-xs text-slate-500">{unread.length} belum dibaca</p></div>
         {unread.length > 0 && <Button size="sm" variant="ghost" onClick={() => void handleAllRead()} icon={<CheckCheck size={14} />}>Tandai Semua</Button>}
       </div>
       <div className="p-4 space-y-2">
@@ -74,7 +74,7 @@ export function NotificationsPage() {
           <Link key={n.id} to={n.link || '#'} onClick={() => void handleRead(n.id)}>
             <Card className={`p-4 flex items-start gap-3 transition cursor-pointer ${!n.read ? 'border-moss-500/20 bg-moss-500/5' : 'opacity-70'}`}>
               <div className="w-9 h-9 rounded-xl bg-ink-800 flex items-center justify-center shrink-0">{ICONS[n.type] ?? <Bell size={16} className="text-slate-400"/>}</div>
-              <div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><p className="text-sm font-semibold text-white">{n.title}</p>{!n.read && <span className="w-2 h-2 rounded-full bg-moss-400 shrink-0"/>}</div><p className="text-xs text-slate-400 line-clamp-2">{n.body}</p><p className="text-[10px] text-slate-600 mt-1">{timeAgo(n.createdAt)}</p></div>
+              <div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><p className="text-sm font-semibold text-fg">{n.title}</p>{!n.read && <span className="w-2 h-2 rounded-full bg-moss-400 shrink-0"/>}</div><p className="text-xs text-slate-400 line-clamp-2">{n.body}</p><p className="text-[10px] text-slate-600 mt-1">{timeAgo(n.createdAt)}</p></div>
               <button className="p-1 text-slate-600 hover:text-slate-400" onClick={(e) => { e.preventDefault(); void handleRead(n.id); }}>{n.read ? <MoreHorizontal size={14}/> : <div className="w-2 h-2 rounded-full bg-moss-400"/>}</button>
             </Card>
           </Link>

@@ -94,14 +94,14 @@ export function AppLayout(){
       <div className="min-h-screen max-w-[1440px] mx-auto flex surface-bg">
 
         {/* ═══ DESKTOP SIDEBAR ═══ */}
-        <aside className="hidden md:flex w-[250px] xl:w-[270px] shrink-0 sticky top-0 h-screen border-r border-white/5 p-3 flex-col">
+        <aside className="hidden md:flex w-[250px] xl:w-[270px] shrink-0 sticky top-0 h-screen border-r surface-border p-3 flex-col">
 
           {/* Logo */}
           <Link to="/home" className="flex items-center gap-2.5 px-3 py-3 mb-4">
             <div className="w-9 h-9 rounded-xl gradient-moss flex items-center justify-center shadow-lg shadow-moss-500/20">
               <GraduationCap size={19} className="text-white"/>
             </div>
-            <span className="font-display font-bold text-lg text-white">sykabelajar</span>
+            <span className="font-display font-bold text-lg text-fg">sykabelajar</span>
           </Link>
 
           {/* Navigation */}
@@ -109,8 +109,8 @@ export function AppLayout(){
             {nav.map(([to,label,Icon,badge]: NavItem)=>{
               const isActive=active(to);
               return (
-                <Link key={to} to={to} className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive?'bg-moss-500/12 text-moss-300 shadow-sm shadow-moss-500/5':'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}>
-                  <Icon size={19} className={isActive?'text-moss-400':'text-slate-500 group-hover:text-slate-300 transition'}/>
+                <Link key={to} to={to} className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive?'bg-accent-muted text-accent shadow-sm shadow-accent/5':'text-fg-muted hover:bg-white/5 hover:text-fg'}`}>
+                  <Icon size={19} className={isActive?'text-accent':'text-fg-muted group-hover:text-fg transition'}/>
                   <span className="flex-1">{label}</span>
                   {badge != null && badge > 0 && (
                     <span className="min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full bg-red-500 text-white px-1">{badge>99?'99+':badge}</span>
@@ -123,8 +123,8 @@ export function AppLayout(){
           {/* Guest prompt */}
           {isGuest ? (
             <div className="card p-3 mt-2">
-              <p className="text-sm font-semibold text-white">Mode Tamu</p>
-              <p className="text-xs text-slate-500 mt-1 mb-3">Masuk untuk mengikuti lomba dan menyimpan progres.</p>
+              <p className="text-sm font-semibold text-fg">Mode Tamu</p>
+              <p className="text-xs text-fg-muted mt-1 mb-3">Masuk untuk mengikuti lomba dan menyimpan progres.</p>
               <Link to="/register"><Button fullWidth size="sm" className="mb-2" icon={<UserPlus size={15}/>}>Daftar Gratis</Button></Link>
               <Link to="/login"><Button fullWidth size="sm" variant="outline" icon={<LogIn size={15}/>}>Masuk</Button></Link>
             </div>
@@ -163,17 +163,17 @@ export function AppLayout(){
         </aside>
 
         {/* ═══ MOBILE HEADER ═══ */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-white/5 px-4 py-3 flex justify-between items-center">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b surface-border px-4 py-3 flex justify-between items-center">
           <Link to="/home" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center">
               <GraduationCap size={16} className="text-white"/>
             </div>
-            <b className="text-white text-sm">sykabelajar</b>
+            <b className="text-fg text-sm">sykabelajar</b>
           </Link>
           <div className="flex items-center gap-1.5">
             <ThemeToggle />
             <button onClick={()=>setDrawerOpen(true)} className="relative p-1.5">
-              <Menu size={21} className="text-slate-300"/>
+              <Menu size={21} className="text-fg"/>
             </button>
           </div>
         </div>
@@ -182,16 +182,16 @@ export function AppLayout(){
         {drawerOpen && (
           <div className="md:hidden fixed inset-0 z-50">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={()=>setDrawerOpen(false)}/>
-            <div className="absolute left-0 top-0 bottom-0 w-72 bg-ink-900 border-r border-white/5 p-4 flex flex-col">
+            <div className="absolute left-0 top-0 bottom-0 w-72 surface-card-bg border-r surface-border p-4 flex flex-col">
               <div className="flex justify-between items-center mb-5">
-                <b className="text-white font-display">Menu</b>
-                <button onClick={()=>setDrawerOpen(false)} className="text-slate-400 hover:text-white p-1">✕</button>
+                <b className="text-fg font-display">Menu</b>
+                <button onClick={()=>setDrawerOpen(false)} className="text-fg-muted hover:text-fg p-1">✕</button>
               </div>
               <nav className="space-y-0.5 flex-1 overflow-y-auto">
                 {nav.map(([to,label,Icon,badge]: NavItem)=>{
                   const isActive=active(to);
                   return (
-                    <Link key={to} to={to} onClick={()=>setDrawerOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive?'bg-moss-500/12 text-moss-300':'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}>
+                    <Link key={to} to={to} onClick={()=>setDrawerOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive?'bg-accent-muted text-accent':'text-fg-muted hover:bg-white/5 hover:text-fg'}`}>
                       <Icon size={18}/>
                       <span className="flex-1">{label}</span>
                       {badge != null && badge > 0 && (
@@ -213,7 +213,7 @@ export function AppLayout(){
 
       {/* ═══ MOBILE BOTTOM NAV ═══ */}
       {!isGuest && user && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 glass border-t border-white/5 px-2 py-1.5 flex items-center justify-around safe-area-bottom">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 glass border-t surface-border px-2 py-1.5 flex items-center justify-around safe-area-bottom">
           {([
             [`/profile/${user.username}`,'Profil',UserIcon,undefined],
             ['/home','Beranda',Home,undefined],
@@ -222,7 +222,7 @@ export function AppLayout(){
           ] as NavItem[]).map(([to,label,Icon,badge])=>{
             const isActive=location.pathname===to||(to==='/home'&&location.pathname==='/');
             return (
-              <Link key={to} to={to} className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition ${isActive?'text-moss-300':'text-slate-500'}`}>
+              <Link key={to} to={to} className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition ${isActive?'text-accent':'text-fg-muted'}`}>
                 <Icon size={20}/>
                 <span className="text-[10px] font-medium">{label}</span>
                 {badge != null && badge > 0 && (

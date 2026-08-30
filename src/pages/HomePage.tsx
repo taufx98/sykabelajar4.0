@@ -37,7 +37,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
  return (
     <div>
       {/* ===== STICKY HEADER ===== */}
-      <div className="sticky top-0 z-20 glass border-b border-white/5">
+      <div className="sticky top-0 z-20 glass border-b surface-border">
         <div className="px-4 py-2">
           <BannerCarousel />
         </div>
@@ -74,7 +74,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                     {r.type === 'competition' ? <Trophy size={13} className="text-moss-400" /> : <FileText size={13} className="text-moss-400" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-white truncate">{r.title}</p>
+                    <p className="text-xs font-semibold text-fg truncate">{r.title}</p>
                     <p className="text-[10px] text-slate-500 truncate">{r.subtitle}</p>
                   </div>
                 </Link>
@@ -92,7 +92,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
           {/* ===== CENTER COLUMN ===== */}
           <main className="space-y-4 min-w-0">
             {/* Lomba / Prestasi tabs — full width, underline style */}
-            <div className="flex border-b border-white/5">
+            <div className="flex border-b surface-border">
               {(['lomba', 'prestasi'] as const).map((t) => (
                 <button
                   key={t}
@@ -100,7 +100,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                   className={`flex-1 py-3 text-sm font-medium transition-all relative ${
                     tab === t
                       ? 'text-moss-300'
-                      : 'text-slate-500 hover:text-slate-300'
+                      : 'text-slate-500 hover:text-fg-secondary'
                   }`}
                 >
                   {t === 'lomba' ? 'Lomba' : 'Prestasi'}
@@ -127,7 +127,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                           <Trophy size={18} className="text-moss-400" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-white">{comp.organizer_name || 'Penyelenggara'}</p>
+                          <p className="text-sm font-semibold text-fg">{comp.organizer_name || 'Penyelenggara'}</p>
                           <div className="flex items-center gap-2">
                             <span className="chip bg-moss-500/10 text-moss-300 border border-moss-500/20 text-[10px]">Lomba</span>
                             <span className="text-[11px] text-slate-600">· {comp.category || 'Kompetisi'}</span>
@@ -135,13 +135,13 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                         </div>
                       </div>
                       <Link to={`/lomba/${comp.slug}`}>
-                        <h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{comp.title}</h3>
-                        {comp.short_description && <p className="text-sm text-slate-300 leading-relaxed mb-3">{comp.short_description}</p>}
+                        <h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{comp.title}</h3>
+                        {comp.short_description && <p className="text-sm text-fg-secondary leading-relaxed mb-3">{comp.short_description}</p>}
                         {comp.poster_url && <img src={comp.poster_url} alt={comp.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5 mt-2" />}
                         <p className="text-xs text-moss-400 flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14} /></p>
                       </Link>
                     </div>
-                    <div className="px-4 py-3 border-t border-white/5 flex items-center gap-4 text-xs text-slate-500">
+                    <div className="px-4 py-3 border-t surface-border flex items-center gap-4 text-xs text-slate-500">
                       <span>{comp.participant_count || 0} peserta</span>
                       <span className="ml-auto">
                         {comp.status === 'REGISTRATION_OPEN' ? 'Pendaftaran dibuka' :
@@ -242,7 +242,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-white truncate">{r.title}</p>
+                      <p className="text-xs font-semibold text-fg truncate">{r.title}</p>
                       <p className="text-[10px] text-slate-500 truncate">
                         {r.subtitle || (r.type === 'competition' ? 'Lomba' : r.type === 'user' ? 'Pengguna' : 'Postingan')}
                       </p>
@@ -259,7 +259,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles size={16} className="text-moss-400" />
-                <h3 className="font-display font-semibold text-white text-sm">Uji Kompetensi Trending</h3>
+                <h3 className="font-display font-semibold text-fg text-sm">Uji Kompetensi Trending</h3>
               </div>
               <div className="space-y-3">
                 {competitions.slice(0, 3).map((comp: any, idx: number) => (
@@ -276,7 +276,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                       {idx + 1}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-white group-hover:text-moss-300 transition line-clamp-2">
+                      <p className="text-xs font-semibold text-fg group-hover:text-moss-300 transition line-clamp-2">
                         {comp.title}
                       </p>
                       <p className="text-[10px] text-slate-500 mt-0.5">
@@ -294,7 +294,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             {/* Top 5 Peringkat — XP / Point Edu toggle */}
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-moss-400"><path d="M12 2l2.09 6.26L20.18 9l-5.09 3.74L16.18 19 12 15.77 7.82 19l1.09-6.26L3.82 9l6.09-.74L12 2z" fill="currentColor"/></svg><h3 className="font-display font-semibold text-white text-sm">Top 5 Peringkat</h3></div>
+                <div className="flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-moss-400"><path d="M12 2l2.09 6.26L20.18 9l-5.09 3.74L16.18 19 12 15.77 7.82 19l1.09-6.26L3.82 9l6.09-.74L12 2z" fill="currentColor"/></svg><h3 className="font-display font-semibold text-fg text-sm">Top 5 Peringkat</h3></div>
                 <Link to="/leaderboard" className="text-[11px] text-moss-400 hover:text-moss-300">
                   Lihat semua
                 </Link>
@@ -352,7 +352,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                             src={u.avatar_url || undefined}
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-white truncate">{u.display_name || u.username}</p>
+                            <p className="text-xs text-fg truncate">{u.display_name || u.username}</p>
                           </div>
                           <span className="text-xs text-moss-300 font-semibold tabular-nums">
                             {Number(u.xp || 0).toLocaleString('id-ID')}
@@ -379,7 +379,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                             src={u.avatar_url || undefined}
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-white truncate">{u.display_name || u.username}</p>
+                            <p className="text-xs text-fg truncate">{u.display_name || u.username}</p>
                           </div>
                           <span className="text-xs text-amber-300 font-semibold tabular-nums">
                             {Number(u.edu_coin || 0).toLocaleString('id-ID')}
@@ -398,7 +398,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Calendar size={16} className="text-amber-400" />
-                <h3 className="font-display font-semibold text-white text-sm">Deadline Terdekat</h3>
+                <h3 className="font-display font-semibold text-fg text-sm">Deadline Terdekat</h3>
               </div>
               <div className="space-y-3">
                 {loading && (
@@ -420,7 +420,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                       to={`/lomba/${comp.slug}`}
                       className="block group"
                     >
-                      <p className="text-xs font-semibold text-white group-hover:text-moss-300 transition line-clamp-1">
+                      <p className="text-xs font-semibold text-fg group-hover:text-moss-300 transition line-clamp-1">
                         {comp.title}
                       </p>
                       <p className="text-[11px] text-amber-400/80 mt-0.5">
@@ -451,7 +451,7 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <Link to={`/profile/${post.author_username}`} className="text-sm font-semibold text-white truncate">
+            <Link to={`/profile/${post.author_username}`} className="text-sm font-semibold text-fg truncate">
               {post.author_name}
             </Link>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/20">
@@ -468,8 +468,8 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
       <div className="mt-3">
         {post.competition_id ? (
           <button onClick={onOpen} className="text-left w-full">
-            <h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3>
-            <p className="text-sm text-slate-300 leading-relaxed mb-3">{post.body}</p>
+            <h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{post.title}</h3>
+            <p className="text-sm text-fg-secondary leading-relaxed mb-3">{post.body}</p>
             {post.cover_url && (
               <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5" />
             )}
@@ -479,8 +479,8 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
           </button>
         ) : (
           <>
-            <h3 className="font-display font-semibold text-[15px] text-white mb-1.5">{post.title}</h3>
-            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{post.body}</p>
+            <h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{post.title}</h3>
+            <p className="text-sm text-fg-secondary leading-relaxed whitespace-pre-line">{post.body}</p>
             {post.cover_url && (
               <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5 mt-3" />
             )}
@@ -496,7 +496,7 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-5 mt-3 pt-3 border-t border-white/5 text-slate-500">
+      <div className="flex items-center gap-5 mt-3 pt-3 border-t surface-border text-slate-500">
         <button onClick={onLike} disabled={isGuest}
           className={`flex items-center gap-1.5 text-xs transition ${post.liked ? 'text-moss-400' : 'hover:text-moss-400'}`}>
           <Heart size={16} className={post.liked ? 'fill-moss-400' : ''} />

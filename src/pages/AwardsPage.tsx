@@ -72,7 +72,7 @@ export function AwardsPage() {
         <div className="sticky top-0 z-20 glass border-b border-white/5 px-4 py-3">
           <div className="flex items-center gap-2">
             <ShieldCheck size={16} className="text-moss-400" />
-            <h2 className="font-display font-bold text-lg text-white">Cek Sertifikat</h2>
+            <h2 className="font-display font-bold text-lg text-fg">Cek Sertifikat</h2>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">Verifikasi keaslian sertifikat sykabelajar.id</p>
         </div>
@@ -81,7 +81,7 @@ export function AwardsPage() {
             <div className="w-16 h-16 rounded-full bg-moss-500/10 flex items-center justify-center mx-auto mb-4">
               <QrCode size={32} className="text-moss-400" />
             </div>
-            <h3 className="font-display font-bold text-white text-lg mb-2">Verifikasi Sertifikat</h3>
+            <h3 className="font-display font-bold text-fg text-lg mb-2">Verifikasi Sertifikat</h3>
             <p className="text-sm text-slate-400 mb-6">
               Masukkan kode serial number atau nomor sertifikat untuk memeriksa keaslian.
             </p>
@@ -107,15 +107,15 @@ export function AwardsPage() {
                   <ShieldCheck size={20} className={verifyResult.status === 'APPROVED' ? 'text-moss-400' : 'text-red-400'} />
                 </div>
                 <div>
-                  <p className="font-semibold text-white">{verifyResult.status === 'APPROVED' ? 'Terverifikasi ASLI' : 'Tidak Valid'}</p>
+                  <p className="font-semibold text-fg">{verifyResult.status === 'APPROVED' ? 'Terverifikasi ASLI' : 'Tidak Valid'}</p>
                   <p className="text-xs text-slate-500">{verifyResult.achievement_title}</p>
                 </div>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-500">Nama</span><span className="text-white">{verifyResult.public_name}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Kompetisi</span><span className="text-white">{verifyResult.competition_title}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Nama</span><span className="text-fg">{verifyResult.public_name}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Kompetisi</span><span className="text-fg">{verifyResult.competition_title}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Kode</span><span className="text-moss-300 font-mono text-xs">{verifyResult.verification_code}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Tanggal</span><span className="text-white">{verifyResult.issued_at ? formatShortDate(verifyResult.issued_at) : '—'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Tanggal</span><span className="text-fg">{verifyResult.issued_at ? formatShortDate(verifyResult.issued_at) : '—'}</span></div>
               </div>
             </Card>
           )}
@@ -137,7 +137,7 @@ export function AwardsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck size={16} className="text-moss-400" />
-            <h2 className="font-display font-bold text-lg text-white">Piagam Saya</h2>
+            <h2 className="font-display font-bold text-lg text-fg">Piagam Saya</h2>
           </div>
           <Button size="sm" variant="outline" icon={<QrCode size={14} />} onClick={() => setShowVerify(!showVerify)}>
             Cek Sertifikat
@@ -179,7 +179,7 @@ export function AwardsPage() {
           <div className="ml-auto flex items-center gap-1">
             <Filter size={14} className="text-slate-500" />
             <select value={sort} onChange={(e) => setSort(e.target.value as 'date' | 'type')}
-              className="bg-ink-800 text-xs text-slate-300 rounded-lg px-2 py-1.5">
+              className="bg-ink-800 text-xs text-fg-secondary rounded-lg px-2 py-1.5">
               <option value="date">Terbaru</option>
               <option value="type">Tipe</option>
             </select>
@@ -196,7 +196,7 @@ export function AwardsPage() {
                  <BadgeCheck size={28} className="text-sky-400" />}
               </div>
               <div className="p-3">
-                <p className="text-sm font-semibold text-white truncate">{award.title}</p>
+                <p className="text-sm font-semibold text-fg truncate">{award.title}</p>
                 <p className="text-xs text-slate-500 truncate">{award.subtitle}</p>
                 <p className="text-[10px] text-slate-600 mt-2 flex items-center gap-1"><Calendar size={10} />{formatShortDate(award.date)}</p>
                 <div className="flex gap-1.5 mt-3">

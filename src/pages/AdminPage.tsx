@@ -175,7 +175,7 @@ export function AdminPage() {
       <section className="p-4 md:p-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="font-display text-xl font-bold text-white">{tabs.find((t) => t.key === tab)?.label}</h2>
+            <h2 className="font-display text-xl font-bold text-fg">{tabs.find((t) => t.key === tab)?.label}</h2>
             <p className="text-[11px] text-slate-500 mt-0.5">Data live Supabase · perubahan langsung tersimpan</p>
           </div>
         </div>
@@ -196,7 +196,7 @@ export function AdminPage() {
                   <Trophy size={18} className="text-moss-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white group-hover:text-moss-300 transition truncate">{c.title}</p>
+                  <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition truncate">{c.title}</p>
                   <p className="text-[11px] text-slate-500">{c.slug} · {c.visibility}</p>
                 </div>
                 <select className="input w-40 text-xs" value={c.status} onClick={e => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); void transitionCompetition(c.id, e.target.value); }} disabled={busy}>
@@ -228,7 +228,7 @@ export function AdminPage() {
                 onClick={() => window.open(`/profile/${u.username}`, '_blank')}>
                 <Avatar name={u.full_name || u.username || 'U'} id={u.id} size={38} src={u.avatar_url || undefined} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white group-hover:text-moss-300 transition truncate">{u.full_name || u.username}</p>
+                  <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition truncate">{u.full_name || u.username}</p>
                   <p className="text-[11px] text-slate-500 truncate">@{u.username || '—'} · {u.institution || '—'}</p>
                 </div>
                 <Badge color={u.status === 'BANNED' ? 'err' : 'default'}>{roleLabel[u.account_type] || u.account_type}</Badge>
@@ -265,7 +265,7 @@ export function AdminPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-white group-hover:text-blue-300 transition truncate">{p.title}</p>
+                    <p className="text-sm font-semibold text-fg group-hover:text-blue-300 transition truncate">{p.title}</p>
                     <Badge>{p.status}</Badge>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.body}</p>
@@ -291,7 +291,7 @@ export function AdminPage() {
                 <ShoppingBag size={18} className="text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">Order {o.id.slice(0, 8)}</p>
+                <p className="text-sm font-semibold text-fg">Order {o.id.slice(0, 8)}</p>
                 <p className="text-[11px] text-slate-500">{new Date(o.created_at).toLocaleString('id-ID')}</p>
                 {o.payment_proof_status === 'SUBMITTED' && (
                   <p className="text-[11px] text-amber-400 mt-0.5 flex items-center gap-1">
@@ -321,7 +321,7 @@ export function AdminPage() {
                     <Store size={18} className="text-purple-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white group-hover:text-purple-300 transition truncate">{p.name}</p>
+                    <p className="text-sm font-semibold text-fg group-hover:text-purple-300 transition truncate">{p.name}</p>
                     <p className="text-[11px] text-slate-500">{p.code} · {p.product_type}</p>
                     <p className="text-moss-300 font-bold text-sm mt-1">Rp {Number(p.price || 0).toLocaleString('id-ID')}</p>
                   </div>
@@ -354,7 +354,7 @@ export function AdminPage() {
                   <MessageCircle size={24} className="text-moss-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-base font-semibold text-white group-hover:text-moss-300 transition">Buka Panel Chat Admin</p>
+                  <p className="text-base font-semibold text-fg group-hover:text-moss-300 transition">Buka Panel Chat Admin</p>
                   <p className="text-sm text-slate-400 mt-0.5">Lihat dan balas pesan dari pengguna secara real-time</p>
                 </div>
                 <ExternalLink size={16} className="text-slate-600 group-hover:text-moss-400 transition" />
@@ -366,7 +366,7 @@ export function AdminPage() {
         {/* ═══ SETTINGS ═══ */}
         {tab === 'settings' && <div className="space-y-3">
           <div className="p-5 rounded-xl bg-ink-900/50 border border-white/5 hover:border-white/10 transition">
-            <h3 className="font-semibold text-white">Platform settings</h3>
+            <h3 className="font-semibold text-fg">Platform settings</h3>
             <p className="text-sm text-slate-400 mt-1">Konfigurasi global disimpan di <code className="text-moss-400 bg-moss-500/10 px-1.5 py-0.5 rounded">global_settings</code></p>
             <Link to="/admin/roles" className="inline-block mt-4">
               <Button icon={<ShieldCheck size={15}/>}>Manajemen Role Detail</Button>
@@ -425,7 +425,7 @@ function Editor({ title, children, onClose, onSave, busy }: any) {
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-auto bg-ink-900 border border-white/10 rounded-2xl shadow-2xl p-6 animate-in slide-in-from-bottom-4">
         <div className="flex justify-between items-center mb-5">
-          <h3 className="font-display font-bold text-lg text-white">{title}</h3>
+          <h3 className="font-display font-bold text-lg text-fg">{title}</h3>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition active:scale-90">
             <X size={18} />
           </button>

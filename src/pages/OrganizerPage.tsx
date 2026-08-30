@@ -194,7 +194,7 @@ export function OrganizerPage() {
             <div className="w-16 h-16 rounded-2xl bg-moss-500/10 flex items-center justify-center mx-auto mb-4">
               <Building2 size={28} className="text-moss-400" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">Panel Penyelenggara</h1>
+            <h1 className="text-2xl font-bold text-fg mb-2">Panel Penyelenggara</h1>
             <p className="text-sm text-slate-400">Buat atau masuk ke organisasi untuk mulai mengelola lomba</p>
           </div>
 
@@ -210,7 +210,7 @@ export function OrganizerPage() {
                     <Plus size={18} className="text-moss-400" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-white group-hover:text-moss-300 transition">Buat Organisasi Baru</p>
+                    <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition">Buat Organisasi Baru</p>
                     <p className="text-[11px] text-slate-500">Daftarkan organisasi kamu</p>
                   </div>
                   <ChevronRight size={16} className="text-slate-600 group-hover:text-moss-400 transition" />
@@ -226,7 +226,7 @@ export function OrganizerPage() {
                     <LogIn size={18} className="text-sky-400" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-white group-hover:text-sky-300 transition">Masuk ke Organisasi</p>
+                    <p className="text-sm font-semibold text-fg group-hover:text-sky-300 transition">Masuk ke Organisasi</p>
                     <p className="text-[11px] text-slate-500">Gabung dengan organisasi yang sudah ada</p>
                   </div>
                   <ChevronRight size={16} className="text-slate-600 group-hover:text-sky-400 transition" />
@@ -239,8 +239,8 @@ export function OrganizerPage() {
           {showCreateForm && (
             <div className="bg-ink-900/50 border border-moss-500/20 rounded-xl p-5 animate-slide-up">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-white">Buat Organisasi</h3>
-                <button onClick={() => setShowCreateForm(false)} className="text-slate-500 hover:text-white"><X size={16} /></button>
+                <h3 className="text-sm font-semibold text-fg">Buat Organisasi</h3>
+                <button onClick={() => setShowCreateForm(false)} className="text-slate-500 hover:text-fg"><X size={16} /></button>
               </div>
               <div className="space-y-3">
                 <div>
@@ -258,8 +258,8 @@ export function OrganizerPage() {
           {showLoginForm && (
             <div className="bg-ink-900/50 border border-sky-500/20 rounded-xl p-5 animate-slide-up">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-white">Masuk ke Organisasi</h3>
-                <button onClick={() => setShowLoginForm(false)} className="text-slate-500 hover:text-white"><X size={16} /></button>
+                <h3 className="text-sm font-semibold text-fg">Masuk ke Organisasi</h3>
+                <button onClick={() => setShowLoginForm(false)} className="text-slate-500 hover:text-fg"><X size={16} /></button>
               </div>
               <div className="space-y-3">
                 <div>
@@ -292,7 +292,7 @@ export function OrganizerPage() {
       <aside className="w-56 shrink-0 border-r border-white/5 p-3 sticky top-0 h-screen hidden md:block">
         <div className="px-3 py-3 mb-4">
           <p className="text-[10px] text-moss-400 font-semibold uppercase">Penyelenggara</p>
-          <h1 className="text-lg font-bold text-white truncate">{organizer.name}</h1>
+          <h1 className="text-lg font-bold text-fg truncate">{organizer.name}</h1>
         </div>
         <nav className="space-y-1">
           {tabs.map(({ key, label, Icon }) => (
@@ -316,7 +316,7 @@ export function OrganizerPage() {
         {/* Mobile header */}
         <div className="md:hidden flex items-center gap-3 mb-4">
           <Link to="/home" className="p-2 rounded-lg hover:bg-white/5 text-slate-400"><ArrowLeft size={18} /></Link>
-          <h1 className="font-bold text-white truncate">{organizer.name}</h1>
+          <h1 className="font-bold text-fg truncate">{organizer.name}</h1>
         </div>
 
         {/* Mobile tabs */}
@@ -330,7 +330,7 @@ export function OrganizerPage() {
 
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="font-display text-xl font-bold text-white hidden md:block">{tabs.find(t => t.key === tab)?.label}</h2>
+            <h2 className="font-display text-xl font-bold text-fg hidden md:block">{tabs.find(t => t.key === tab)?.label}</h2>
             <p className="text-[11px] text-slate-500 mt-0.5">{organizer.name} · live Supabase</p>
           </div>
           <Badge color="moss">{organizer.status}</Badge>
@@ -356,7 +356,7 @@ export function OrganizerPage() {
                 <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-moss-500/20 hover:bg-ink-800/50 transition-all cursor-pointer active:scale-[0.99]" onClick={() => setCompetitionEditor(c)}>
                   <div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center"><Trophy size={18} className="text-moss-400" /></div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white group-hover:text-moss-300 transition truncate">{c.title}</p>
+                    <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition truncate">{c.title}</p>
                     <p className="text-[11px] text-slate-500">{c.slug}</p>
                   </div>
                   <select className="input w-40 text-xs" value={c.status} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); void transition(c.id, e.target.value); }} disabled={busy}>
@@ -375,7 +375,7 @@ export function OrganizerPage() {
               <div key={r.id} className="flex items-center gap-3 p-4 rounded-xl bg-ink-900/50 border border-white/5">
                 <Users size={17} className="text-slate-500" />
                 <div className="flex-1">
-                  <p className="text-sm text-white">User {r.user_id.slice(0, 8)}</p>
+                  <p className="text-sm text-fg">User {r.user_id.slice(0, 8)}</p>
                   <p className="text-[11px] text-slate-500">{new Date(r.submitted_at || r.created_at).toLocaleString('id-ID')}</p>
                 </div>
                 <Badge>{r.status}</Badge>
@@ -433,7 +433,7 @@ export function OrganizerPage() {
         {tab === 'ads' && (
           <div className="space-y-4">
             <Card className="p-5">
-              <h3 className="font-semibold text-white mb-2">Pasang Iklan Banner</h3>
+              <h3 className="font-semibold text-fg mb-2">Pasang Iklan Banner</h3>
               <p className="text-sm text-slate-400">Ajukan iklan banner untuk ditampilkan di halaman beranda.</p>
               <Link to="/organizer/ads" className="inline-block mt-3">
                 <Button icon={<Megaphone size={15} />}>Buka Form Request</Button>
@@ -490,7 +490,7 @@ function Editor({ title, children, onClose, onSave, busy }: { title: string; chi
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
       <div className="w-full max-w-xl bg-ink-900 border border-white/10 rounded-2xl shadow-2xl p-5 animate-in slide-in-from-bottom-4">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-white">{title}</h3>
+          <h3 className="font-bold text-fg">{title}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition"><X size={18} /></button>
         </div>
         <div className="space-y-3">{children}</div>
@@ -516,7 +516,7 @@ function Metric({ label, value }: { label: string; value: any }) {
   return (
     <Card className="p-4">
       <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-2xl font-bold text-white mt-1">{Number(value || 0).toLocaleString('id-ID')}</p>
+      <p className="text-2xl font-bold text-fg mt-1">{Number(value || 0).toLocaleString('id-ID')}</p>
     </Card>
   );
 }
