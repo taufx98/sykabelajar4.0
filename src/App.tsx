@@ -24,6 +24,7 @@ import { AdminFulfillmentPage } from '@/pages/AdminFulfillmentPage';
 import { AdminAwardsPage } from '@/pages/AdminAwardsPage';
 import { AdminModerationPage } from '@/pages/AdminModerationPage';
 import { OrganizerPage } from '@/pages/OrganizerPage';
+import { OrganizerWorkspaceGate } from '@/pages/OrganizerWorkspaceGate';
 import { OrganizerQuestionEditorPage } from '@/pages/OrganizerQuestionEditorPage';
 import { OrganizerRegistrationsPage } from '@/pages/OrganizerRegistrationsPage';
 import { OrganizerMembersPage } from '@/pages/OrganizerMembersPage';
@@ -42,40 +43,14 @@ import { ToastContainer } from '@/components/ui/ToastContainer';
 import { getUserRoles } from '@/services/role.service';
 import { supabase } from '@/lib/supabase';
 
-/**
- * AuthGuard — wraps protected routes.
- * Rules:
- *   1. While auth is loading → show a minimal loading state (don't flash redirect)
- *   2. Auth loaded + (authenticated or guest) → render children
- *   3. Auth loaded + not authenticated + not guest → redirect to /login with returnTo
- */
 function AuthGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading, isGuest } = useApp();
   const location = useLocation();
-
-  // Still checking auth → show loading spinner (never flash redirect)
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center surface-bg">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-moss-500/30 border-t-moss-500 rounded-full animate-spin" />
-          <p className="text-xs text-slate-500">Memuat sesi...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Authenticated or guest → allowed
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center surface-bg"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 border-2 border-moss-500/30 border-t-moss-500 rounded-full animate-spin" /><p className="text-xs text-slate-500">Memuat sesi...</p></div></div>;
   if (isAuthenticated || isGuest) return <>{children}</>;
-
-  // Not authenticated → redirect to /login with redirect param so user comes back after login
   return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
 }
 
-/**
- * RoleRoute — wraps role-specific routes (admin, organizer).
- * Checks role after auth is confirmed by AuthGuard.
- */
 function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member'; children: ReactNode }) {
   const { isAuthenticated } = useApp();
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -90,9 +65,8 @@ function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member'; chi
     })().catch(() => on && setAllowed(false));
     return () => { on = false; };
   }, [isAuthenticated, role]);
-  // AuthGuard already blocks unauthenticated users — this is a safety fallback
-  if (!isAuthenticated) return <div className="min-h-screen flex items-center justify-center surface-bg"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 border-2 border-moss-500/30 border-t-moss-500 rounded-full animate-spin" /><p className="text-xs text-slate-500">Memeriksa sesi...</p></div></div>;
-  if (allowed === null) return <div className="min-h-screen flex items-center justify-center surface-bg"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 border-2 border-moss-500/30 border-t-moss-500 rounded-full animate-spin" /><p className="text-xs text-slate-500">Memeriksa akses…</p></div></div>;
+  if (!isAuthenticated) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-slate-500">Memeriksa sesi...</p></div>;
+  if (allowed === null) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-slate-500">Memeriksa akses…</p></div>;
   if (!allowed) return <Navigate to="/home" replace />;
   return <>{children}</>;
 }
@@ -105,13 +79,10 @@ function RuntimeGlobals() {
 
 function AppRoutes() {
   return <Routes>
-    {/* Public routes — no auth guard */}
     <Route path="/" element={<LandingPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/verify/:code" element={<VerifyPage />} />
-
-    {/* Protected routes — wrapped in AuthGuard */}
     <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
       <Route path="/home" element={<HomePage />} />
       <Route path="/feed" element={<SocialFeedPage />} />
@@ -125,7 +96,7 @@ function AppRoutes() {
       <Route path="/profile/edit" element={<EditProfilePage />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/orders" element={<OrdersPage />} />
-      <Route path="/organizer" element={<RoleRoute role="organizer_member"><OrganizerPage /></RoleRoute>} />
+      <Route path="/organizer" element={<RoleRoute role="organizer_member"><OrganizerWorkspaceGate /></RoleRoute>} />
       <Route path="/organizer/question-bank/:bankId" element={<RoleRoute role="organizer_member"><OrganizerQuestionEditorPage /></RoleRoute>} />
       <Route path="/organizer/registrations" element={<RoleRoute role="organizer_member"><OrganizerRegistrationsPage /></RoleRoute>} />
       <Route path="/organizer/members" element={<RoleRoute role="organizer_member"><OrganizerMembersPage /></RoleRoute>} />
@@ -146,20 +117,10 @@ function AppRoutes() {
       <Route path="/admin/organizers" element={<RoleRoute role="admin"><AdminOrganizersPage /></RoleRoute>} />
       <Route path="/admin/currency" element={<RoleRoute role="admin"><AdminCurrencyPage /></RoleRoute>} />
     </Route>
-
-    {/* Catch-all → landing page */}
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
 }
 
 export default function App() {
-  return (
-    <AppProvider>
-      <BrowserRouter>
-        <RuntimeGlobals />
-        <AppRoutes />
-        <ToastContainer />
-      </BrowserRouter>
-    </AppProvider>
-  );
+  return <AppProvider><BrowserRouter><RuntimeGlobals /><AppRoutes /><ToastContainer /></BrowserRouter></AppProvider>;
 }
