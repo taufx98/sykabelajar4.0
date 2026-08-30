@@ -23,13 +23,16 @@ export function AppLayout(){
     void refreshUnreadCount().catch(()=>{});
   },[user?.id,isGuest]);
 
-  // Poll unread chat threads for admin
+  // Poll unread chat threads for admin — only count threads created AFTER last visit
   useEffect(()=>{
     if(!isAdmin){setUnreadChat(0);return;}
     let alive=true;
     const poll=async()=>{
       try{
-        const{data}=await supabase.from('chat_threads').select('id').eq('status','open');
+        const lastVisit=localStorage.getItem('admin_chat_last_visit');
+        let q=supabase.from('chat_threads').select('id').eq('status','open');
+        if(lastVisit) q=q.gt('created_at',lastVisit);
+        const{data}=await q;
         if(alive)setUnreadChat((data??[]).length);
       }catch{}
     };
@@ -38,13 +41,24 @@ export function AppLayout(){
     return()=>{alive=false;clearInterval(t);};
   },[isAdmin]);
 
-  // Poll unread orders for admin
+  // Mark chat as visited when on chat admin page
+  useEffect(()=>{
+    if(isAdmin&&location.pathname==='/admin/chat'){
+      localStorage.setItem('admin_chat_last_visit',new Date().toISOString());
+      setUnreadChat(0);
+    }
+  },[location.pathname,isAdmin]);
+
+  // Poll unread orders for admin — only count orders created AFTER last visit
   useEffect(()=>{
     if(!isAdmin){setUnreadOrders(0);return;}
     let alive=true;
     const poll=async()=>{
       try{
-        const{count}=await supabase.from('orders').select('id',{count:'exact',head:true}).eq('payment_proof_status','SUBMITTED');
+        const lastVisit=localStorage.getItem('admin_orders_last_visit');
+        let q=supabase.from('orders').select('id',{count:'exact',head:true}).eq('payment_proof_status','SUBMITTED');
+        if(lastVisit) q=q.gt('created_at',lastVisit);
+        const{count}=await q;
         if(alive)setUnreadOrders(count??0);
       }catch{}
     };
@@ -52,6 +66,14 @@ export function AppLayout(){
     const t=setInterval(()=>void poll(),30000);
     return()=>{alive=false;clearInterval(t);};
   },[isAdmin]);
+
+  // Mark orders as visited when on orders review page
+  useEffect(()=>{
+    if(isAdmin&&location.pathname==='/admin/orders/review'){
+      localStorage.setItem('admin_orders_last_visit',new Date().toISOString());
+      setUnreadOrders(0);
+    }
+  },[location.pathname,isAdmin]);
 
   // Poll unread notification count for badge
   useEffect(()=>{
