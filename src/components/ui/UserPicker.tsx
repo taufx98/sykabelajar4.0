@@ -39,28 +39,84 @@ export function UserPicker({
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // ── Dead-end cache: prefixes that returned 0 results ──
+  // If user types "abc" and gets 0 results, "abcx", "abcy" etc. skip the API call
+  const deadEndsRef = useRef(new Set<string>());
+  // Track the last query we actually searched (to know when to re-search)
+  const lastSearchedRef = useRef('');
 
   const excludedSet = new Set([...excludedUserIds, ...selected.map((u) => u.id)]);
 
-  // ── Search with debounce ──
+  /** Check if query is under a dead-end prefix */
+  const isUnderDeadEnd = useCallback((q: string): boolean => {
+    const lower = q.toLowerCase();
+    for (const dead of deadEndsRef.current) {
+      if (lower.startsWith(dead)) return true;
+    }
+    return false;
+  }, []);
+
+  /** Clear dead-ends that are no longer relevant (user backspaced) */
+  const pruneDeadEnds = useCallback((q: string) => {
+    const lower = q.toLowerCase();
+    for (const dead of deadEndsRef.current) {
+      // If current query no longer starts with this dead-end, remove it
+      if (!lower.startsWith(dead)) {
+        deadEndsRef.current.delete(dead);
+      }
+    }
+  }, []);
+
+  // ── Search with dead-end optimization ──
   const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) { setResults([]); return; }
+    const trimmed = q.trim();
+    if (!trimmed) {
+      setResults([]);
+      lastSearchedRef.current = '';
+      return;
+    }
+
+    const lower = trimmed.toLowerCase();
+
+    // Prune dead-ends that are no longer relevant (user backspaced)
+    pruneDeadEnds(lower);
+
+    // If this exact query was already searched, skip
+    if (lower === lastSearchedRef.current) return;
+
+    // If query extends a dead-end prefix, show "not found" instantly
+    if (isUnderDeadEnd(lower)) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
     setSearching(true);
     try {
       const { data } = await supabase
         .from('profiles')
         .select('id,username,full_name,avatar_url')
-        .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
+        .or(`full_name.ilike.%${trimmed}%,username.ilike.%${trimmed}%`)
         .limit(8);
-      setResults((data ?? []).filter((u: any) => !excludedSet.has(u.id)));
+
+      const filtered = (data ?? []).filter((u: any) => !excludedSet.has(u.id));
+      setResults(filtered);
+      lastSearchedRef.current = lower;
+
+      // If 0 results, mark this query as a dead-end
+      if (filtered.length === 0) {
+        deadEndsRef.current.add(lower);
+      }
     } catch {
       setResults([]);
     } finally {
       setSearching(false);
     }
-  }, [excludedSet]);
+  }, [excludedSet, isUnderDeadEnd, pruneDeadEnds]);
 
+  // ── Debounced search trigger ──
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => void doSearch(query), 300);
@@ -81,6 +137,7 @@ export function UserPicker({
     onSelectionChange([...selected, user]);
     setQuery('');
     setResults([]);
+    lastSearchedRef.current = '';
     inputRef.current?.focus();
   };
 
@@ -90,6 +147,8 @@ export function UserPicker({
   };
 
   const showDropdown = open && (query.trim().length > 0 || results.length > 0);
+  const trimmedQuery = query.trim().toLowerCase();
+  const isDeadEnd = trimmedQuery.length > 0 && deadEndsRef.current.has(trimmedQuery);
 
   return (
     <div ref={wrapperRef} className="relative w-full">
@@ -129,12 +188,6 @@ export function UserPicker({
             value={query}
             onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && query.trim() && results.length === 0 && !searching) {
-                // If no results, try direct username lookup
-                e.preventDefault();
-              }
-            }}
             disabled={disabled}
           />
           {searching && (
@@ -155,7 +208,7 @@ export function UserPicker({
       {/* ── Dropdown ── */}
       {showDropdown && (
         <div className="absolute z-50 mt-1 w-full rounded-xl border surface-border bg-white dark:bg-[#1a2742] shadow-xl overflow-hidden animate-slide-up">
-          {searching && results.length === 0 ? (
+          {searching ? (
             <div className="px-4 py-3 text-xs text-fg-muted flex items-center gap-2">
               <Loader2 size={13} className="animate-spin" /> Mencari...
             </div>
