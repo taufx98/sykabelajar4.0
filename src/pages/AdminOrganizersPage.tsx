@@ -17,6 +17,7 @@ interface Organizer {
   _members?: any[];
   _competitionCount?: number;
   _ownerProfile?: { username: string; full_name: string; avatar_url: string | null } | null;
+  _memberProfiles?: Record<string, { username: string; full_name: string } | null>;
 }
 
 export function AdminOrganizersPage() {
@@ -44,11 +45,24 @@ export function AdminOrganizersPage() {
             supabase.from('competitions').select('id', { count: 'exact', head: true }).eq('organizer_id', org.id),
             supabase.from('profiles').select('username,full_name,avatar_url').eq('id', org.owner_user_id).maybeSingle(),
           ]);
+          // Load profiles for all members
+          const memberUserIds = (membersRes.data || []).map((m: any) => m.user_id).filter(Boolean);
+          const memberProfilesMap: Record<string, { username: string; full_name: string } | null> = {};
+          if (memberUserIds.length) {
+            const { data: memberProfiles } = await supabase
+              .from('profiles')
+              .select('id,username,full_name')
+              .in('id', memberUserIds);
+            for (const p of memberProfiles || []) {
+              memberProfilesMap[p.id] = { username: p.username, full_name: p.full_name };
+            }
+          }
           return {
             ...org,
             _members: membersRes.data || [],
             _competitionCount: compRes.count || 0,
             _ownerProfile: ownerRes.data || null,
+            _memberProfiles: memberProfilesMap,
           };
         })
       );
@@ -235,25 +249,29 @@ export function AdminOrganizersPage() {
                         <div className="flex items-center gap-2 p-2 rounded-lg surface-elevated">
                           <Shield size={12} className="text-amber-400" />
                           <span className="text-xs text-fg flex-1">
-                            Owner: {org._ownerProfile?.full_name || org._ownerProfile?.username || org.owner_user_id.slice(0, 8) + '...'}
+                            Owner: {org._ownerProfile ? `${org._ownerProfile.full_name || org._ownerProfile.username} | ${org._ownerProfile.username}` : org.owner_user_id.slice(0, 8) + '...'}
                           </span>
                           <Badge color="moss">owner</Badge>
                         </div>
                         {/* Members */}
-                        {(org._members || []).map((m: any) => (
-                          <div key={m.id} className="flex items-center gap-2 p-2 rounded-lg surface-elevated">
-                            <Users size={12} className="text-fg-muted" />
-                            <span className="text-xs text-fg flex-1">{m.user_id.slice(0, 12)}...</span>
-                            <Badge>{m.role}</Badge>
-                            <button
-                              className="text-red-400 hover:text-red-300 p-1"
-                              onClick={() => void removeMember(m.id)}
-                              disabled={busy}
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        ))}
+                        {(org._members || []).map((m: any) => {
+                          const mp = org._memberProfiles?.[m.user_id];
+                          const displayName = mp ? `${mp.full_name || mp.username} | ${mp.username}` : m.user_id.slice(0, 8) + '...';
+                          return (
+                            <div key={m.id} className="flex items-center gap-2 p-2 rounded-lg surface-elevated">
+                              <Users size={12} className="text-fg-muted" />
+                              <span className="text-xs text-fg flex-1">{displayName}</span>
+                              <Badge>{m.role}</Badge>
+                              <button
+                                className="text-red-400 hover:text-red-300 p-1"
+                                onClick={() => void removeMember(m.id)}
+                                disabled={busy}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                       {/* Add member */}
                       <div className="flex gap-2">
