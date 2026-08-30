@@ -6,7 +6,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { RankBadge } from '@/components/ui/Badge';
 import { supabase } from '@/lib/supabase';
-import { ChatWidget } from '@/components/ui/ChatWidget';
+
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 export function AppLayout(){
@@ -291,8 +291,7 @@ export function AppLayout(){
         </nav>
       )}
 
-      {/* ═══ CHAT WIDGET ═══ */}
-      {!isGuest && user && <ChatWidget />}
+
     </>
   );
 }

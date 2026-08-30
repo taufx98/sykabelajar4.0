@@ -142,7 +142,7 @@ function AppRoutes() {
       <Route path="/admin/moderation" element={<RoleRoute role="admin"><AdminModerationPage /></RoleRoute>} />
       <Route path="/admin/fulfillment" element={<RoleRoute role="admin"><AdminFulfillmentPage /></RoleRoute>} />
       <Route path="/admin/banners" element={<RoleRoute role="admin"><AdminBannersPage /></RoleRoute>} />
-      <Route path="/admin/chat" element={<RoleRoute role="admin"><AdminChatPage /></RoleRoute>} />
+      <Route path="/admin/chat" element={<AdminChatPage />} />
       <Route path="/admin/organizers" element={<RoleRoute role="admin"><AdminOrganizersPage /></RoleRoute>} />
       <Route path="/admin/currency" element={<RoleRoute role="admin"><AdminCurrencyPage /></RoleRoute>} />
     </Route>

@@ -125,8 +125,8 @@ export function AdminChatPage() {
   return (
     <div className="min-h-screen surface-bg text-fg-secondary p-5 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <Link to="/admin" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-fg mb-5">
-          <ArrowLeft size={14} /> Kembali ke Admin
+        <Link to="/home" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-fg mb-5">
+          <ArrowLeft size={14} /> Kembali
         </Link>
 
         <div className="flex items-center justify-between mb-6">
