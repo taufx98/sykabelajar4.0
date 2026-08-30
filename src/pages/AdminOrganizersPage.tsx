@@ -203,7 +203,7 @@ export function AdminOrganizersPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map(org => (
-              <Card key={org.id} className="overflow-hidden">
+              <Card key={org.id}>
                 {/* Header row */}
                 <div
                   className="flex items-center gap-3 p-4 cursor-pointer hover:bg-accent-muted/5 transition"
@@ -223,7 +223,7 @@ export function AdminOrganizersPage() {
 
                 {/* Expanded details */}
                 {expandedId === org.id && (
-                  <div className="border-t surface-border p-4 space-y-4 animate-slide-down">
+                  <div className="border-t surface-border p-4 space-y-4 animate-slide-down relative">
                     {/* Status controls */}
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant={org.status === 'ACTIVE' ? 'primary' : 'outline'} onClick={() => void toggleStatus(org, 'ACTIVE')} disabled={busy} icon={<Check size={14} />}>
