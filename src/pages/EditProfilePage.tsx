@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { ArrowLeft, Camera, Calendar, Check, GraduationCap, School, User as UserIcon, UserCheck, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
@@ -27,26 +27,20 @@ interface Form {
   coverPhoto: string;
 }
 
-/** Compute remaining cooldown in seconds from last_name_change timestamp. */
-function computeCooldownSeconds(lastChange: string | null | undefined): number {
-  if (!lastChange) return 0;
-  const lastMs = new Date(lastChange).getTime();
-  const cooldownMs = 7 * 24 * 60 * 60 * 1000; // 7 days
-  const remaining = lastMs + cooldownMs - Date.now();
-  return Math.max(0, Math.floor(remaining / 1000));
-}
+// ── Cooldown constants ─────────────────────────────────────────
+const COOLDOWN_DAYS = 7;
+const COOLDOWN_MS = COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
 
-/** Format seconds into human-readable Indonesian string. */
-function formatCooldown(totalSeconds: number): string {
-  if (totalSeconds <= 0) return '';
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days} hari`);
-  if (hours > 0) parts.push(`${hours} jam`);
-  if (minutes > 0 && days === 0) parts.push(`${minutes} menit`);
-  return parts.join(' ');
+/** Calculate remaining cooldown in { days, hours, minutes } from a timestamp. */
+function getCooldownRemaining(lastChange: string | null): { locked: boolean; days: number; hours: number; minutes: number; totalMs: number } {
+  if (!lastChange) return { locked: false, days: 0, hours: 0, minutes: 0, totalMs: 0 };
+  const elapsed = Date.now() - new Date(lastChange).getTime();
+  const remaining = COOLDOWN_MS - elapsed;
+  if (remaining <= 0) return { locked: false, days: 0, hours: 0, minutes: 0, totalMs: 0 };
+  const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+  return { locked: true, days, hours, minutes, totalMs: remaining };
 }
 
 export function EditProfilePage() {
@@ -76,45 +70,49 @@ export function EditProfilePage() {
   const profileRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
 
-  // ── Display Name Cooldown ──
-  const [nameCooldownSec, setNameCooldownSec] = useState(0);
+  // ── Name cooldown state ──────────────────────────────────────
+  const originalDisplayName = user?.displayName || '';
+  const [lastNameChange, setLastNameChange] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(() => getCooldownRemaining(null));
 
-  useEffect(() => () => Object.values(previews).forEach(url => url && URL.revokeObjectURL(url)), [previews]);
-
-  // Load last_name_change from DB for cooldown
+  // Fetch the last_name_change timestamp on mount
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     let alive = true;
-    let interval: ReturnType<typeof setInterval> | null = null;
-
     (async () => {
       try {
         const profile = await getProfileById(user.id);
-        if (!alive) return;
-        const remaining = computeCooldownSeconds((profile as any)?.last_name_change);
-        if (alive) setNameCooldownSec(remaining);
+        if (alive && profile?.last_name_change) {
+          setLastNameChange(profile.last_name_change);
+          setCooldown(getCooldownRemaining(profile.last_name_change));
+        }
       } catch {
         // Column might not exist yet — treat as no cooldown
-        if (alive) setNameCooldownSec(0);
       }
     })();
+    return () => { alive = false; };
+  }, [user?.id]);
 
-    // Tick every second for live countdown
-    interval = setInterval(() => {
-      setNameCooldownSec(prev => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+  // Tick every 60 seconds to update the cooldown display
+  useEffect(() => {
+    if (!cooldown.locked) return;
+    const id = setInterval(() => {
+      setCooldown(getCooldownRemaining(lastNameChange));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [cooldown.locked, lastNameChange]);
 
-    return () => { alive = false; if (interval) clearInterval(interval); };
-  }, [user]);
+  // Clean up object URLs on unmount
+  useEffect(() => () => Object.values(previews).forEach(url => url && URL.revokeObjectURL(url)), [previews]);
 
   if (!user) return null;
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm(f => ({ ...f, [k]: v }));
 
-  const nameCooldownActive = nameCooldownSec > 0;
-  const nameCooldownText = nameCooldownActive
-    ? `Anda dapat mengubah nama lagi dalam ${formatCooldown(nameCooldownSec)}`
-    : '';
+  // Whether the display name input should be disabled
+  const nameDisabled = cooldown.locked || saving;
+  // Whether the name has actually changed from original
+  const nameChanged = form.displayName.trim() !== originalDisplayName.trim();
 
   const choose = (e: React.ChangeEvent<HTMLInputElement>, kind: 'profile' | 'cover') => {
     const file = e.target.files?.[0];
@@ -141,21 +139,16 @@ export function EditProfilePage() {
       toast('Nama dan username wajib diisi.', 'error');
       return;
     }
+
+    // ── Validate cooldown before saving ────────────────────────
+    if (nameChanged && cooldown.locked) {
+      toast(`Anda dapat mengubah nama lagi dalam ${cooldown.days} hari ${cooldown.hours} jam.`, 'error');
+      return;
+    }
+
     setSaving(true);
     try {
       const current = await getProfileById(user.id);
-
-      // Check display name cooldown
-      const nameChanged = form.displayName !== (user.displayName || '');
-      if (nameChanged) {
-        const canChange = computeCooldownSeconds((current as any)?.last_name_change) <= 0;
-        if (!canChange) {
-          toast('Anda baru mengubah nama tampilan. Tunggu 7 hari sebelum mengubah lagi.', 'error');
-          setSaving(false);
-          return;
-        }
-      }
-
       const patch: Record<string, any> = {
         username: form.username,
         full_name: form.displayName,
@@ -164,22 +157,22 @@ export function EditProfilePage() {
         birth_date: form.birthDate || null,
         grade: form.grade || null,
       };
-
-      // Update last_name_change if display name was changed
-      if (nameChanged) {
-        patch.last_name_change = new Date().toISOString();
-      }
-
+      // Only add new columns if they have values (graceful fallback for missing columns)
+      // Save favorite categories as comma-separated subjects string
       patch.subjects = form.favoriteCategories.join(',');
       if (form.pembina) patch.pembina = form.pembina;
       if (form.badgeShowcase.length > 0) patch.badge_showcase = form.badgeShowcase;
       if (form.badgeShowcaseManual) patch.badge_showcase_manual = true;
 
+      // ── Upload profile image via signed path ─────────────────
+      const oldAvatar = current?.avatar_public_id as string | undefined;
+      const oldCover = current?.cover_public_id as string | undefined;
       const uname = current?.username || user.username;
 
-      // Upload profile image — signed preset (replace in-place)
       if (profileFile) {
-        const up = await uploadProfileImage(profileFile, 'profile', user.id);
+        const profilePublicId = oldAvatar || `sykabelajar/${uname}/profile`;
+        // Uses signed upload via Edge Function → Cloudinary with overwrite preset
+        const up = await uploadProfileImage(profileFile, 'profile', uname, profilePublicId);
         Object.assign(patch, {
           avatar_url: up.secure_url,
           avatar_public_id: up.public_id,
@@ -188,11 +181,18 @@ export function EditProfilePage() {
           avatar_version: up.version ? String(up.version) : null,
           avatar_resource_type: up.resource_type || 'image',
         });
+      } else if (!form.profilePhoto && oldAvatar) {
+        Object.assign(patch, {
+          avatar_url: null, avatar_public_id: null,
+          avatar_width: null, avatar_height: null,
+          avatar_version: null, avatar_resource_type: null,
+        });
       }
 
-      // Upload cover image — signed preset (replace in-place)
+      // ── Upload cover image via signed path ───────────────────
       if (coverFile) {
-        const up = await uploadProfileImage(coverFile, 'cover', user.id);
+        const coverPublicId = oldCover || `sykabelajar/${uname}/cover`;
+        const up = await uploadProfileImage(coverFile, 'cover', uname, coverPublicId);
         Object.assign(patch, {
           cover_url: up.secure_url,
           cover_public_id: up.public_id,
@@ -201,24 +201,38 @@ export function EditProfilePage() {
           cover_version: up.version ? String(up.version) : null,
           cover_resource_type: up.resource_type || 'image',
         });
+      } else if (!form.coverPhoto && oldCover) {
+        Object.assign(patch, {
+          cover_url: null, cover_public_id: null,
+          cover_width: null, cover_height: null,
+          cover_version: null, cover_resource_type: null,
+        });
       }
 
-      // Try save with all fields first; retry without optional columns on error
+      // ── Update last_name_change when name actually changes ───
+      if (nameChanged) {
+        patch.last_name_change = new Date().toISOString();
+      }
+
+      // Try save with all fields first; if it fails due to missing columns, retry without optional ones
       try {
         await updateProfileRecord(user.id, patch);
       } catch (saveErr: any) {
         const msg = String(saveErr?.message || saveErr || '');
+        // If error mentions missing column, remove optional fields and retry
         if (msg.includes('column') && (msg.includes('does not exist') || msg.includes('not found') || msg.includes('schema cache'))) {
-          const { pembina: _p, badge_showcase: _b, badge_showcase_manual: _bm, last_name_change: _l, ...safePatch } = patch;
+          const { pembina: _p, badge_showcase: _b, badge_showcase_manual: _bm, last_name_change: _lnc, ...safePatch } = patch;
           await updateProfileRecord(user.id, safePatch);
         } else {
           throw saveErr;
         }
       }
 
-      // Update cooldown state after successful name change
+      // ── Update local cooldown state after successful name change ──
       if (nameChanged) {
-        setNameCooldownSec(7 * 24 * 60 * 60);
+        const now = new Date().toISOString();
+        setLastNameChange(now);
+        setCooldown(getCooldownRemaining(now));
       }
 
       setForm(f => ({
@@ -230,6 +244,7 @@ export function EditProfilePage() {
       setCoverFile(null);
       setPreviews({});
       toast('Profil berhasil diperbarui.', 'success');
+      // Refresh user data in context so profile page shows updated values
       void refreshUser();
       navigate(`/profile/${form.username}`);
     } catch (error: any) {
@@ -242,6 +257,7 @@ export function EditProfilePage() {
   const profileSrc = previews.profile || form.profilePhoto || undefined;
   const coverSrc = previews.cover || form.coverPhoto || undefined;
 
+  // Group grades by SD/SMP/SMA
   const gradeGroups = GRADE_OPTIONS.reduce((acc, opt) => {
     if (!acc[opt.group]) acc[opt.group] = [];
     acc[opt.group].push(opt);
@@ -303,17 +319,33 @@ export function EditProfilePage() {
             <div className="relative">
               <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
-                className={`input pl-9 ${nameCooldownActive ? 'bg-ink-800/50 cursor-not-allowed' : ''}`}
+                className={`input pl-9 ${nameDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                 value={form.displayName}
                 onChange={e => set('displayName', e.target.value)}
-                disabled={nameCooldownActive}
+                disabled={nameDisabled}
               />
             </div>
-            {nameCooldownActive && (
-              <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
-                <Clock size={10} />
-                {nameCooldownText}
-              </p>
+            {/* ── Cooldown timer ──────────────────────────────── */}
+            {cooldown.locked && (
+              <div className="flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <Clock size={14} className="text-amber-400 shrink-0" />
+                <p className="text-xs text-amber-300">
+                  Anda dapat mengubah nama lagi dalam{' '}
+                  <span className="font-semibold text-amber-200">
+                    {cooldown.days > 0 && `${cooldown.days} hari `}
+                    {cooldown.hours} jam {cooldown.minutes} menit
+                  </span>
+                </p>
+              </div>
+            )}
+            {/* ── Name change warning ─────────────────────────── */}
+            {!cooldown.locked && nameChanged && (
+              <div className="flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg bg-moss-500/10 border border-moss-500/20">
+                <Check size={14} className="text-moss-400 shrink-0" />
+                <p className="text-xs text-moss-300">
+                  Setelah disimpan, nama hanya bisa diubah kembali dalam 7 hari.
+                </p>
+              </div>
             )}
           </div>
           <div>
@@ -345,6 +377,7 @@ export function EditProfilePage() {
             </div>
           </div>
 
+          {/* Granular grade selection */}
           <div>
             <label className="label">Tingkat / Kelas</label>
             <div className="relative">
@@ -362,6 +395,7 @@ export function EditProfilePage() {
             </div>
           </div>
 
+          {/* Pembina */}
           <div>
             <label className="label">Nama Pembina</label>
             <div className="relative">
@@ -423,7 +457,7 @@ export function EditProfilePage() {
           </Card>
         )}
 
-        {/* Badge Showcase */}
+        {/* Badge Showcase — Top 3 */}
         <Card className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>

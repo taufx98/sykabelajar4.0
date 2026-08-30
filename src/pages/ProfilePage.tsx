@@ -195,12 +195,14 @@ export function ProfilePage() {
     return () => { alive = false; };
   }, [activeTab, profile?.id]);
 
-  // ── Cover upload ──
+  // ── Cover upload (signed via Edge Function) ──
   const uploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser || !isOwn) return;
     try {
-      const result = await uploadProfileImage(file, 'cover', currentUser.id);
+      const oldCoverId = profile?.cover_public_id as string | undefined;
+      const coverPublicId = oldCoverId || `sykabelajar/${profile.username}/cover`;
+      const result = await uploadProfileImage(file, 'cover', profile.username, coverPublicId);
       const { error } = await supabase.from('profiles').update({
         cover_url: result.secure_url, cover_public_id: result.public_id,
         updated_at: new Date().toISOString(),

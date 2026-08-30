@@ -1,35 +1,13 @@
--- Add last_name_change column to profiles for display name cooldown (7-day limit)
--- Initial value set to created_at so existing users can change immediately
+-- Add last_name_change column to profiles for the 7-day display name cooldown
+-- Safe to run multiple times (IF NOT EXISTS)
 ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS last_name_change TIMESTAMPTZ;
 
--- Backfill existing rows: set last_name_change = created_at so existing users aren't locked out
-UPDATE profiles
-  SET last_name_change = created_at
-  WHERE last_name_change IS NULL;
+-- Backfill: treat existing users as never having changed → NULL means "eligible to change now"
+-- No UPDATE needed; NULL is the default for existing rows.
 
--- Make it NOT NULL after backfill
-ALTER TABLE profiles
-  ALTER COLUMN last_name_change SET NOT NULL;
-
--- Default for future inserts: NOW()
-ALTER TABLE profiles
-  ALTER COLUMN last_name_change SET DEFAULT NOW();
-
--- RPC function: check if user can change display name (cooldown = 7 days)
-CREATE OR REPLACE FUNCTION can_change_display_name(p_user_id UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-AS $$
-  SELECT (
-    SELECT last_name_change FROM profiles WHERE id = p_user_id
-  ) <= NOW() - INTERVAL '7 days';
-$$;
-
--- RPC function: get remaining cooldown in seconds for display name change
-CREATE OR REPLACE FUNCTION get_display_name_cooldown(p_user_id UUID)
+-- Optional: RPC helper that returns seconds remaining before the user can change name again
+CREATE OR REPLACE FUNCTION public.get_name_change_cooldown(p_user_id UUID)
 RETURNS INTEGER
 LANGUAGE sql
 STABLE
@@ -42,3 +20,6 @@ AS $$
     ))::INTEGER
   );
 $$;
+
+-- Grant execute to authenticated users (they'll call it for their own user)
+GRANT EXECUTE ON FUNCTION public.get_name_change_cooldown(UUID) TO authenticated;

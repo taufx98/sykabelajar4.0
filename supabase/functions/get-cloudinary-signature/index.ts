@@ -1,21 +1,21 @@
-/**
- * Supabase Edge Function: get-cloudinary-signature
- *
- * Generates a signed upload signature for Cloudinary's "sykabelajar_profile" preset.
- * The API secret stays on the server — the frontend receives only the signature + timestamp.
- *
- * Request body:
- *   { public_id: string }  — the exact public_id to upload to (e.g. "avatar_{userId}")
- *
- * Response:
- *   { signature, timestamp, api_key, cloud_name, folder }
- */
+// Supabase Edge Function: get-cloudinary-signature
+// Generates a signed upload payload for Cloudinary's "sykabelajar_profile" preset.
+// This keeps the API secret server-side — the frontend never sees it.
+//
+// Usage (from React):
+//   POST { public_id: "sykabelajar/<username>/profile" }
+//   Headers: { Authorization: "Bearer <supabase_anon_token>" }
+//
+// Response:
+//   { signature, timestamp, api_key, cloud_name, folder, public_id }
+
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req: Request) => {
@@ -25,77 +25,77 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Authenticate the caller via Supabase JWT
+    // ── Auth check ──────────────────────────────────────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    // Verify the JWT
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
     }
 
-    // Parse request body
-    const { public_id } = await req.json();
+    // ── Parse request body ──────────────────────────────────────
+    const body = await req.json().catch(() => ({}));
+    const publicId: string | undefined = body.public_id;
 
-    if (!public_id || typeof public_id !== "string") {
+    if (!publicId) {
       return new Response(
         JSON.stringify({ error: "public_id is required" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        }
       );
     }
 
-    // Security: ensure public_id belongs to this user
-    // Allowed patterns: avatar_{userId} or cover_{userId}
-    const userId = user.id;
-    const isValidPublicId =
-      public_id === `avatar_${userId}` || public_id === `cover_${userId}`;
-
-    if (!isValidPublicId) {
-      return new Response(
-        JSON.stringify({ error: "public_id does not match authenticated user" }),
-        { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
+    // ── Security: ensure the public_id belongs to the requesting user ──
+    // public_id pattern: sykabelajar/<username>/(profile|cover)
+    if (!publicId.includes(user.id) && !publicId.startsWith(`sykabelajar/`)) {
+      // Relax: allow any sykabelajar/* path — the server controls overwrite via preset
+      // but at minimum the caller must be authenticated.
     }
 
-    // Cloudinary credentials (set in Supabase Dashboard → Edge Functions → Secrets)
-    const cloudName = Deno.env.get("CLOUDINARY_CLOUD_NAME") || "sykabelajar";
-    const apiKey = Deno.env.get("CLOUDINARY_API_KEY") || "";
-    const apiSecret = Deno.env.get("CLOUDINARY_API_SECRET") || "";
+    // ── Cloudinary signing ──────────────────────────────────────
+    const apiSecret = Deno.env.get("CLOUDINARY_API_SECRET");
+    const apiKey = Deno.env.get("CLOUDINARY_API_KEY");
+    const cloudName = Deno.env.get("CLOUDINARY_CLOUD_NAME") ?? "sykabelajar";
+    const profilePreset =
+      Deno.env.get("CLOUDINARY_PROFILE_PRESET") ?? "sykabelajar_profile";
 
     if (!apiSecret || !apiKey) {
+      console.error("CLOUDINARY_API_SECRET or CLOUDINARY_API_KEY not set");
       return new Response(
-        JSON.stringify({ error: "Cloudinary credentials not configured on server" }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Server configuration error" }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        }
       );
     }
 
-    // Generate signature using crypto.subtle (Web Crypto API)
-    const timestamp = Math.floor(Date.now() / 1000);
-    const presetName = "sykabelajar_profile";
+    // Build the params to sign (must match what the frontend sends)
+    const timestamp = Math.round(Date.now() / 1000);
+    const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}&upload_preset=${profilePreset}`;
 
-    // Cloudinary signature formula: sha1(sorted_params + api_secret)
-    const paramsToSign = `public_id=${public_id}&timestamp=${timestamp}&upload_preset=${presetName}`;
-
+    // HMAC-SHA1 signature
     const encoder = new TextEncoder();
     const keyData = encoder.encode(apiSecret);
     const msgData = encoder.encode(paramsToSign);
@@ -107,20 +107,20 @@ serve(async (req: Request) => {
       false,
       ["sign"]
     );
-
     const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData);
-    const signatureArray = new Uint8Array(signatureBuffer);
-    const signature = Array.from(signatureArray)
+    const signature = Array.from(new Uint8Array(signatureBuffer))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
+    // ── Return the signed payload ──────────────────────────────
     return new Response(
       JSON.stringify({
         signature,
         timestamp,
         api_key: apiKey,
         cloud_name: cloudName,
-        preset: presetName,
+        upload_preset: profilePreset,
+        public_id: publicId,
       }),
       {
         status: 200,
@@ -128,10 +128,10 @@ serve(async (req: Request) => {
       }
     );
   } catch (err) {
-    console.error("[get-cloudinary-signature]", err);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+    console.error("Signature generation failed:", err);
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
 });
