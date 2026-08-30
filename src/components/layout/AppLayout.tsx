@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Home, CalendarCheck, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Sparkles, Megaphone, MessageCircle } from 'lucide-react';
+import { Home, CalendarCheck, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Sparkles, Megaphone, MessageCircle, Sun, Moon } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { RankBadge } from '@/components/ui/Badge';
 import { supabase } from '@/lib/supabase';
 import { ChatWidget } from '@/components/ui/ChatWidget';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 export function AppLayout(){
   const{user,isGuest,logout,notifications}=useApp();
@@ -90,7 +91,7 @@ export function AppLayout(){
 
   return (
     <>
-      <div className="min-h-screen max-w-[1440px] mx-auto flex bg-ink-950">
+      <div className="min-h-screen max-w-[1440px] mx-auto flex surface-bg">
 
         {/* ═══ DESKTOP SIDEBAR ═══ */}
         <aside className="hidden md:flex w-[250px] xl:w-[270px] shrink-0 sticky top-0 h-screen border-r border-white/5 p-3 flex-col">
@@ -150,11 +151,14 @@ export function AppLayout(){
                 <p className="text-xl font-bold text-moss-300 tabular-nums">{user.points.toLocaleString('id-ID')}</p>
               </div>
 
-              {/* Logout */}
-              <button onClick={logoutNow} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all duration-150">
-                <LogOut size={16}/>
-                <span>Keluar</span>
-              </button>
+              {/* Theme toggle + Logout */}
+              <div className="flex items-center gap-2">
+                <ThemeToggle className="flex-1" />
+                <button onClick={logoutNow} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all duration-150">
+                  <LogOut size={16}/>
+                  <span>Keluar</span>
+                </button>
+              </div>
             </div>
           ) : null}
         </aside>
@@ -167,9 +171,12 @@ export function AppLayout(){
             </div>
             <b className="text-white text-sm">sykabelajar</b>
           </Link>
-          <button onClick={()=>setDrawerOpen(true)} className="relative p-1.5">
-            <Menu size={21} className="text-slate-300"/>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle />
+            <button onClick={()=>setDrawerOpen(true)} className="relative p-1.5">
+              <Menu size={21} className="text-slate-300"/>
+            </button>
+          </div>
         </div>
 
         {/* ═══ MOBILE DRAWER ═══ */}

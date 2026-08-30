@@ -5,6 +5,25 @@ export default {
   theme: {
     extend: {
       colors: {
+        // ── Semantic surface colors (theme-aware via CSS) ──
+        surface: {
+          DEFAULT: 'var(--surface)',       // body background
+          card: 'var(--surface-card)',     // cards, panels
+          elevated: 'var(--surface-elevated)', // elevated elements
+          border: 'var(--surface-border)', // borders
+        },
+        // ── Semantic text colors ──
+        fg: {
+          DEFAULT: 'var(--fg)',           // primary text
+          secondary: 'var(--fg-secondary)', // secondary text
+          muted: 'var(--fg-muted)',       // muted text
+        },
+        // ── Accent (emerald green, theme-aware) ──
+        accent: {
+          DEFAULT: 'var(--accent)',
+          light: 'var(--accent-light)',
+          muted: 'var(--accent-muted)',
+        },
         ink: {
           950: '#070b14',
           900: '#0b1220',

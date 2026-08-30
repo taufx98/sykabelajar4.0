@@ -95,20 +95,12 @@ serve(async (req: Request) => {
     const timestamp = Math.round(Date.now() / 1000);
     const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}&upload_preset=${profilePreset}`;
 
-    // HMAC-SHA1 signature
+    // Cloudinary signature = SHA1(params_to_sign + api_secret)
+    // This is a plain SHA1 hash, NOT HMAC-SHA1.
+    const dataToHash = paramsToSign + apiSecret;
     const encoder = new TextEncoder();
-    const keyData = encoder.encode(apiSecret);
-    const msgData = encoder.encode(paramsToSign);
-
-    const cryptoKey = await crypto.subtle.importKey(
-      "raw",
-      keyData,
-      { name: "HMAC", hash: "SHA-1" },
-      false,
-      ["sign"]
-    );
-    const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData);
-    const signature = Array.from(new Uint8Array(signatureBuffer))
+    const hashBuffer = await crypto.subtle.digest("SHA-1", encoder.encode(dataToHash));
+    const signature = Array.from(new Uint8Array(hashBuffer))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 

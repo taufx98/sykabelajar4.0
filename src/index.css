@@ -11,12 +11,53 @@
   html {
     color-scheme: dark;
   }
+  html.light {
+    color-scheme: light;
+  }
+
+  /* ── Theme CSS Variables ── */
+  :root,
+  html.dark {
+    --surface: #0F172A;
+    --surface-card: #1E293B;
+    --surface-elevated: #1a2742;
+    --surface-border: rgba(255, 255, 255, 0.06);
+    --fg: #F8FAFC;
+    --fg-secondary: #CBD5E1;
+    --fg-muted: #64748B;
+    --accent: #10B981;
+    --accent-light: #6EE7B7;
+    --accent-muted: rgba(16, 185, 129, 0.15);
+  }
+  html.light {
+    --surface: #F1F5F9;
+    --surface-card: #FFFFFF;
+    --surface-elevated: #FFFFFF;
+    --surface-border: #E2E8F0;
+    --fg: #0F172A;
+    --fg-secondary: #334155;
+    --fg-muted: #64748B;
+    --accent: #059669;
+    --accent-light: #10B981;
+    --accent-muted: rgba(5, 150, 105, 0.10);
+  }
+
   body {
-    @apply bg-ink-950 text-slate-200 font-sans antialiased;
+    @apply font-sans antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  html.dark body {
+    background-color: #0F172A;
+    color: #CBD5E1;
     background-image:
       radial-gradient(60rem 60rem at 80% -10%, rgba(16, 185, 129, 0.08), transparent 60%),
       radial-gradient(50rem 50rem at -10% 10%, rgba(13, 74, 71, 0.10), transparent 55%);
     background-attachment: fixed;
+  }
+  html.light body {
+    background-color: #F1F5F9;
+    color: #334155;
+    background-image: none;
   }
   ::selection {
     @apply bg-moss-500/30 text-white;
@@ -28,10 +69,36 @@
 
 @layer components {
   .glass {
-    @apply bg-ink-900/70 backdrop-blur-xl border border-white/5;
+    @apply backdrop-blur-xl;
+    background-color: var(--surface-card);
+    border-color: var(--surface-border);
+    border-width: 1px;
+    border-style: solid;
+  }
+  html.dark .glass {
+    background-color: rgba(11, 18, 32, 0.7);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+  html.light .glass {
+    background-color: rgba(255, 255, 255, 0.85);
+    border-color: #E2E8F0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
   .card {
-    @apply glass rounded-2xl shadow-card;
+    @apply rounded-2xl;
+    background-color: var(--surface-card);
+    border-color: var(--surface-border);
+    border-width: 1px;
+    border-style: solid;
+  }
+  html.dark .card {
+    background-color: rgba(30, 41, 59, 0.8);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+  html.light .card {
+    background-color: #FFFFFF;
+    border-color: #E2E8F0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
   .card-hover {
     @apply transition-all duration-200 hover:border-white/10 hover:bg-ink-850/80;
@@ -52,13 +119,32 @@
     @apply btn bg-err/90 text-white hover:bg-err;
   }
   .input {
-    @apply w-full rounded-xl bg-ink-800/80 border border-white/10 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-moss-500/60 focus:ring-2 focus:ring-moss-500/20;
+    @apply w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition;
+  }
+  html.dark .input {
+    @apply bg-ink-800/80 border border-white/10 text-slate-100 placeholder:text-slate-500;
+    @apply focus:border-moss-500/60 focus:ring-2 focus:ring-moss-500/20;
+  }
+  html.light .input {
+    @apply bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400;
+    @apply focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20;
   }
   .label {
-    @apply text-xs font-medium text-slate-400 mb-1.5 block;
+    @apply text-xs font-medium mb-1.5 block;
+    color: var(--fg-muted);
   }
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+    background-color: var(--accent-muted);
+    color: var(--accent-light);
+  }
+  html.dark .chip {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #6ee7b7;
+  }
+  html.light .chip {
+    background-color: rgba(5, 150, 105, 0.10);
+    color: #059669;
   }
   .skeleton {
     @apply relative overflow-hidden bg-ink-700/60 rounded-lg;
@@ -89,6 +175,23 @@
   .gradient-moss {
     background-image: linear-gradient(135deg, #047857 0%, #10b981 100%);
   }
+  .surface-bg {
+    background-color: var(--surface);
+  }
+  .surface-card-bg {
+    background-color: var(--surface-card);
+  }
+  .surface-elevated {
+    background-color: var(--surface-elevated);
+  }
+  .surface-border {
+    border-color: var(--surface-border);
+  }
+  .text-fg { color: var(--fg); }
+  .text-fg-secondary { color: var(--fg-secondary); }
+  .text-fg-muted { color: var(--fg-muted); }
+  .text-accent-fg { color: var(--accent); }
+  .bg-accent-muted { background-color: var(--accent-muted); }
   .gradient-text {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, #6ee7b7 0%, #34d399 50%, #10b981 100%);
