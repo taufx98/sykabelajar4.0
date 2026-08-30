@@ -18,17 +18,17 @@ function notify() {
 }
 
 /**
- * Keep visual state consistent across the whole application.
- * - success: operation completed
- * - warning: recoverable/validation/system error
- * - error: failed/rejected/forbidden operation
- * - info: neutral informational message
+ * Semantic fallback for callers that do not explicitly provide a state.
+ * success = completed
+ * warning = an error/problem that needs attention but is not an explicit rejection/failure
+ * error = failed/rejected/forbidden operation
+ * info = neutral message
  */
 export function classifyToastType(message: string, requested?: ToastType): ToastType {
   if (requested) return requested;
   const text = String(message ?? '').toLowerCase();
-  if (/(ditolak|ditolak|rejected|forbidden|unauthorized|access_denied|tidak diizinkan|gagal|failed|failure|error|exception|invalid|expired|blocked|suspend|suspended|duplicate|already exists|not allowed|denied)/i.test(text)) return 'error';
-  if (/(periksa|cek|harap|silakan|belum|tidak dapat|tidak tersedia|warning|peringatan|mencapai batas|limit|akan kedaluwarsa|belum lengkap|wajib)/i.test(text)) return 'warning';
+  if (/(ditolak|rejected|forbidden|unauthorized|access_denied|tidak diizinkan|gagal|failed|failure|blocked|denied|suspended|duplicate|already exists|not allowed)/i.test(text)) return 'error';
+  if (/(error|exception|terjadi kesalahan|ada kesalahan|kendala|warning|peringatan|periksa|cek|harap|silakan|belum|tidak tersedia|mencapai batas|limit|akan kedaluwarsa|belum lengkap|wajib)/i.test(text)) return 'warning';
   return 'info';
 }
 
