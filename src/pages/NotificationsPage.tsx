@@ -32,7 +32,7 @@ function mapNotification(n: any): AppNotification {
 }
 
 export function NotificationsPage() {
-  const { user, toast, markNotificationRead, markAllNotificationsRead } = useApp();
+  const { user, toast, markNotificationRead, markAllNotificationsRead, refreshUnreadCount } = useApp();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const unread = notifications.filter((n) => !n.read);
@@ -61,12 +61,15 @@ export function NotificationsPage() {
     if (!user) return;
     await markNotificationRead(id);
     setNotifications((items) => items.map((n) => n.id === id ? { ...n, read: true } : n));
+    // Sync badge count from DB
+    void refreshUnreadCount();
   };
 
   const handleAllRead = async () => {
     if (!user) return;
     await markAllNotificationsRead();
     setNotifications((items) => items.map((n) => ({ ...n, read: true })));
+    void refreshUnreadCount();
     toast('Semua notifikasi ditandai dibaca', 'info');
   };
 

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 
+/** Fetch all notifications for a user */
 export async function listNotifications(userId: string) {
   const { data, error } = await supabase
     .from('notifications')
@@ -10,6 +11,18 @@ export async function listNotifications(userId: string) {
   return data ?? [];
 }
 
+/** Get the count of unread notifications (for sidebar badge) */
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .is('read_at', null);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/** Mark a single notification as read */
 export async function markNotificationRead(userId: string, notificationId: string) {
   const { error } = await supabase
     .from('notifications')
@@ -19,6 +32,7 @@ export async function markNotificationRead(userId: string, notificationId: strin
   if (error) throw error;
 }
 
+/** Mark all notifications as read */
 export async function markAllNotificationsRead(userId: string) {
   const { error } = await supabase
     .from('notifications')

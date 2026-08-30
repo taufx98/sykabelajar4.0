@@ -10,13 +10,11 @@ import { ChatWidget } from '@/components/ui/ChatWidget';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 export function AppLayout(){
-  const{user,isGuest,logout,notifications,markAllNotificationsRead}=useApp();
+  const{user,isGuest,logout,notifications,unreadNotificationCount,refreshUnreadCount,markAllNotificationsRead}=useApp();
   const location=useLocation();const navigate=useNavigate();const[drawerOpen,setDrawerOpen]=useState(false);
   const[unreadChat,setUnreadChat]=useState(0);
   const visitedBadgePagesRef=useRef(new Set<string>());
   const[unreadOrders,setUnreadOrders]=useState(0);
-  const[unreadAwards,setUnreadAwards]=useState(0);
-  const unread=notifications.filter(n=>!n.read).length;
   const isAdmin=user?.role==='admin';
   const isOrganizer=user?.role==='penyelenggara';
 
@@ -27,9 +25,9 @@ export function AppLayout(){
     if(['/notifications','/orders','/awards'].includes(path)||(isAdmin&&path==='/admin/chat')){
       visitedBadgePagesRef.current.add(path);
     }
-    // When on notifications page, mark all as read so badge disappears
+    // When on notifications page, refresh badge count from DB
     if(path==='/notifications'&&user&&!isGuest){
-      void markAllNotificationsRead().catch(()=>{});
+      void refreshUnreadCount().catch(()=>{});
     }
   },[location.pathname,user,isGuest,isAdmin,markAllNotificationsRead]);
 
@@ -68,20 +66,17 @@ export function AppLayout(){
     return()=>{alive=false;clearInterval(t);};
   },[isAdmin]);
 
-  // Poll new awards for current user
+  // Poll unread notification count for badge
   useEffect(()=>{
-    if(isGuest||!user){setUnreadAwards(0);return;}
+    if(isGuest||!user){return;}
     let alive=true;
     const poll=async()=>{
-      try{
-        const{count}=await supabase.from('awards').select('id',{count:'exact',head:true}).eq('user_id',user.id).gt('created_at',new Date(Date.now()-7*24*60*60*1000).toISOString());
-        if(alive)setUnreadAwards(count??0);
-      }catch{}
+      try{await refreshUnreadCount();}catch{}
     };
     void poll();
-    const t=setInterval(()=>void poll(),30000);
+    const t=setInterval(()=>void poll(),15000);
     return()=>{alive=false;clearInterval(t);};
-  },[isGuest,user?.id]);
+  },[isGuest,user?.id,refreshUnreadCount]);
 
   type NavItem=[string,string,typeof Home,number|undefined];
   const guestNav:NavItem[]=[
@@ -94,8 +89,8 @@ export function AppLayout(){
     ["/home","Beranda",Home,undefined],
     ["/daily-tasks","Daily Tasks",CalendarCheck,undefined],
     ["/leaderboard","Peringkat",BarChart3,undefined],
-    ["/awards","Piagam",Award,unreadAwards>0&&hideBadge('/awards')?unreadAwards:undefined],
-    ["/notifications","Notifikasi",Bell,unread>0&&hideBadge('/notifications')?unread:undefined],
+    ["/awards","Piagam",Award,undefined],
+    ["/notifications","Notifikasi",Bell,unreadNotificationCount>0?unreadNotificationCount:undefined],
     ["/orders","Pesanan",ShoppingBag,unreadOrders>0&&hideBadge('/orders')?unreadOrders:undefined],
   ];
   if(isOrganizer){userNav.push(["/organizer","Penyelenggara",Building2,undefined],["/organizer/ads","Pasang Iklan",Megaphone,undefined]);}
