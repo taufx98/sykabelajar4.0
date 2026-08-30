@@ -13,28 +13,15 @@ export function AppLayout(){
   const{user,isGuest,logout,notifications,unreadNotificationCount,refreshUnreadCount,markAllNotificationsRead}=useApp();
   const location=useLocation();const navigate=useNavigate();const[drawerOpen,setDrawerOpen]=useState(false);
   const[unreadChat,setUnreadChat]=useState(0);
-  const visitedBadgePagesRef=useRef(new Set<string>());
   const[unreadOrders,setUnreadOrders]=useState(0);
   const isAdmin=user?.role==='admin';
   const isOrganizer=user?.role==='penyelenggara';
 
-  // ── Badge visibility: clear badge when user navigates to the corresponding page ──
+  // ── Fetch unread count from DB on mount and whenever auth changes ──
   useEffect(()=>{
-    const path=location.pathname;
-    // Mark this page as visited so badge is hidden while staying on it
-    if(['/notifications','/orders','/awards'].includes(path)||(isAdmin&&path==='/admin/chat')){
-      visitedBadgePagesRef.current.add(path);
-    }
-    // When on notifications page, refresh badge count from DB
-    if(path==='/notifications'&&user&&!isGuest){
-      void refreshUnreadCount().catch(()=>{});
-    }
-  },[location.pathname,user,isGuest,isAdmin,markAllNotificationsRead]);
-
-  // Reset visited pages on logout
-  useEffect(()=>{
-    if(!user&&!isGuest) visitedBadgePagesRef.current.clear();
-  },[user,isGuest]);
+    if(isGuest||!user){return;}
+    void refreshUnreadCount().catch(()=>{});
+  },[user?.id,isGuest]);
 
   // Poll unread chat threads for admin
   useEffect(()=>{
@@ -84,17 +71,16 @@ export function AppLayout(){
     ["/leaderboard","Peringkat",BarChart3,undefined],
     ["/awards","Piagam",Award,undefined],
   ];
-  const hideBadge=(to:string)=>!visitedBadgePagesRef.current.has(to);
   const userNav:NavItem[]=[
     ["/home","Beranda",Home,undefined],
     ["/daily-tasks","Daily Tasks",CalendarCheck,undefined],
     ["/leaderboard","Peringkat",BarChart3,undefined],
     ["/awards","Piagam",Award,undefined],
     ["/notifications","Notifikasi",Bell,unreadNotificationCount>0?unreadNotificationCount:undefined],
-    ["/orders","Pesanan",ShoppingBag,unreadOrders>0&&hideBadge('/orders')?unreadOrders:undefined],
+    ["/orders","Pesanan",ShoppingBag,unreadOrders>0?unreadOrders:undefined],
   ];
   if(isOrganizer){userNav.push(["/organizer","Penyelenggara",Building2,undefined],["/organizer/ads","Pasang Iklan",Megaphone,undefined]);}
-  if(isAdmin){userNav.push(["/admin","Admin",ShieldCheck,undefined],["/admin/organizers","Organisasi",Building2,undefined],["/admin/chat","Chat Admin",MessageCircle,unreadChat>0&&hideBadge('/admin/chat')?unreadChat:undefined]);}
+  if(isAdmin){userNav.push(["/admin","Admin",ShieldCheck,undefined],["/admin/organizers","Organisasi",Building2,undefined],["/admin/chat","Chat Admin",MessageCircle,unreadChat>0?unreadChat:undefined]);}
   userNav.push([user?`/profile/${user.username}`:"/home","Profil",UserIcon,undefined]);
   const nav:NavItem[]=isGuest?guestNav:userNav;
 
