@@ -39,21 +39,21 @@ export function AdminOrdersReviewPage() {
     <div className="p-5 md:p-7">
       <div className="mb-6">
         <p className="text-xs text-moss-400 font-semibold">ADMIN · PAYMENT REVIEW</p>
-        <h1 className="font-display text-2xl font-bold text-white">Review Bukti Pembayaran</h1>
+        <h1 className="font-display text-2xl font-bold text-fg">Review Bukti Pembayaran</h1>
         <p className="text-sm text-slate-500 mt-1">Semua perubahan diproses melalui RPC backend Supabase.</p>
       </div>
       <div className="space-y-3">
         {orders.map((order) => (
           <Card key={order.id} className="p-4">
             <div className="flex gap-4 items-start">
-              {order.payment_proof_url ? <a href={order.payment_proof_url} target="_blank" rel="noreferrer" className="w-28 h-20 rounded-xl overflow-hidden bg-ink-800 shrink-0"><img src={order.payment_proof_url} alt="Bukti pembayaran" className="w-full h-full object-cover" /></a> : null}
+              {order.payment_proof_url ? <a href={order.payment_proof_url} target="_blank" rel="noreferrer" className="w-28 h-20 rounded-xl overflow-hidden surface-elevated shrink-0"><img src={order.payment_proof_url} alt="Bukti pembayaran" className="w-full h-full object-cover" /></a> : null}
               <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap gap-2 items-center"><p className="text-white font-semibold">Order {String(order.id).slice(0, 8)}</p><Badge>{order.payment_proof_status || order.status}</Badge></div>
+                <div className="flex flex-wrap gap-2 items-center"><p className="text-fg font-semibold">Order {String(order.id).slice(0, 8)}</p><Badge>{order.payment_proof_status || order.status}</Badge></div>
                 <p className="text-xs text-slate-500 mt-1">User {String(order.user_id).slice(0, 8)} · {order.payment_method || 'metode belum dicatat'}</p>
                 <p className="text-moss-300 font-bold mt-2">Rp {Number(order.total || 0).toLocaleString('id-ID')}</p>
               </div>
               <div className="flex items-center gap-2">
-                {order.payment_proof_url && <a href={order.payment_proof_url} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-white/5 text-slate-400"><ExternalLink size={16} /></a>}
+                {order.payment_proof_url && <a href={order.payment_proof_url} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-white/5 text-fg-muted"><ExternalLink size={16} /></a>}
                 <Button size="sm" icon={<Check size={14}/>} loading={busy === order.id} onClick={() => void review(order.id, 'APPROVE')}>Setujui</Button>
                 <Button size="sm" variant="outline" icon={<X size={14}/>} loading={busy === order.id} onClick={() => void review(order.id, 'REJECT')}>Tolak</Button>
               </div>

@@ -106,15 +106,15 @@ export function AdminChatPage() {
   const closedThreads = threads.filter(t => t.status === 'closed');
 
   return (
-    <div className="min-h-screen bg-ink-950 text-slate-200 p-5 md:p-8">
+    <div className="min-h-screen surface-bg text-fg-secondary p-5 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <Link to="/admin" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-white mb-5">
+        <Link to="/admin" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-fg mb-5">
           <ArrowLeft size={14} /> Kembali ke Admin
         </Link>
 
         <div className="flex items-center gap-2 mb-6">
           <MessageCircle size={20} className="text-moss-400" />
-          <h1 className="text-2xl font-bold text-white">Chat Admin</h1>
+          <h1 className="text-2xl font-bold text-fg">Chat Admin</h1>
           <Badge color="moss">{openThreads.length} aktif</Badge>
         </div>
 
@@ -128,7 +128,7 @@ export function AdminChatPage() {
                 className={`w-full text-left p-3 rounded-xl border transition ${
                   selectedThread?.id === t.id
                     ? 'border-moss-500 bg-moss-500/10'
-                    : 'border-white/5 bg-ink-800/50 hover:bg-ink-800'
+                    : 'surface-border surface-elevated hover:surface-elevated'
                 }`}>
                 <div className="flex items-center gap-2">
                   <Avatar name={t.user_name || 'U'} id={t.user_id} size={32} src={t.avatar_url ?? undefined} />
@@ -149,7 +149,7 @@ export function AdminChatPage() {
               <>
                 <p className="text-xs text-slate-500 font-semibold px-1 mt-4 mb-1">Selesai ({closedThreads.length})</p>
                 {closedThreads.slice(0, 10).map(t => (
-                  <div key={t.id} className="p-3 rounded-xl border border-white/5 bg-ink-800/30 opacity-60">
+                  <div key={t.id} className="p-3 rounded-xl border surface-border surface-elevated/30 opacity-60">
                     <div className="flex items-center gap-2">
                       <Avatar name={t.user_name || 'U'} id={t.user_id} size={28} src={t.avatar_url ?? undefined} />
                       <div className="flex-1 min-w-0">
@@ -171,15 +171,15 @@ export function AdminChatPage() {
           </div>
 
           {/* Chat area */}
-          <div className="flex-1 flex flex-col bg-ink-800/30 rounded-2xl border border-white/5 overflow-hidden">
+          <div className="flex-1 flex flex-col surface-elevated/30 rounded-2xl border surface-border overflow-hidden">
             {selectedThread ? (
               <>
                 {/* Chat header */}
-                <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                <div className="px-4 py-3 border-b surface-border flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar name={selectedThread.user_name || 'U'} id={selectedThread.user_id} size={36} src={selectedThread.avatar_url ?? undefined} />
                     <div>
-                      <p className="text-sm text-white font-semibold">{selectedThread.user_name}</p>
+                      <p className="text-sm text-fg font-semibold">{selectedThread.user_name}</p>
                       <p className="text-[11px] text-slate-500">@{selectedThread.username}</p>
                     </div>
                   </div>
@@ -205,7 +205,7 @@ export function AdminChatPage() {
                         <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
                           isAdmin
                             ? 'bg-moss-600 text-white rounded-br-sm'
-                            : 'bg-ink-700 text-slate-200 rounded-bl-sm'
+                            : 'surface-elevated text-fg-secondary rounded-bl-sm'
                         }`}>
                           <p>{msg.body}</p>
                           <p className={`text-[9px] mt-1 ${isAdmin ? 'text-moss-200' : 'text-slate-500'}`}>
@@ -220,7 +220,7 @@ export function AdminChatPage() {
 
                 {/* Input */}
                 {selectedThread.status === 'open' && (
-                  <div className="p-3 border-t border-white/5">
+                  <div className="p-3 border-t surface-border">
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -228,7 +228,7 @@ export function AdminChatPage() {
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Balas pesan..."
-                        className="flex-1 bg-ink-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-moss-500/50"
+                        className="flex-1 surface-card-bg border surface-border rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-moss-500/50"
                       />
                       <button
                         onClick={handleSend}

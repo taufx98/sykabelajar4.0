@@ -188,7 +188,7 @@ export function OrganizerPage() {
   // ═══ NO ORGANIZER — Show setup screen ═══
   if (!organizer) {
     return (
-      <div className="min-h-screen bg-ink-950 flex items-center justify-center p-6">
+      <div className="min-h-screen surface-bg flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-moss-500/10 flex items-center justify-center mx-auto mb-4">
@@ -203,7 +203,7 @@ export function OrganizerPage() {
             <div className="space-y-3">
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="w-full p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-moss-500/30 hover:bg-ink-800/50 transition-all duration-200 text-left group active:scale-[0.98]"
+                className="w-full p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/30 hover:surface-elevated transition-all duration-200 text-left group active:scale-[0.98]"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-moss-500/10 flex items-center justify-center group-hover:bg-moss-500/15 transition">
@@ -219,7 +219,7 @@ export function OrganizerPage() {
 
               <button
                 onClick={() => setShowLoginForm(true)}
-                className="w-full p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-sky-500/30 hover:bg-ink-800/50 transition-all duration-200 text-left group active:scale-[0.98]"
+                className="w-full p-4 rounded-xl surface-card-bg border surface-border hover:border-sky-500/30 hover:surface-elevated transition-all duration-200 text-left group active:scale-[0.98]"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center group-hover:bg-sky-500/15 transition">
@@ -237,7 +237,7 @@ export function OrganizerPage() {
 
           {/* Create Form */}
           {showCreateForm && (
-            <div className="bg-ink-900/50 border border-moss-500/20 rounded-xl p-5 animate-slide-up">
+            <div className="surface-card-bg border border-moss-500/20 rounded-xl p-5 animate-slide-up">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-fg">Buat Organisasi</h3>
                 <button onClick={() => setShowCreateForm(false)} className="text-slate-500 hover:text-fg"><X size={16} /></button>
@@ -256,7 +256,7 @@ export function OrganizerPage() {
 
           {/* Login Form */}
           {showLoginForm && (
-            <div className="bg-ink-900/50 border border-sky-500/20 rounded-xl p-5 animate-slide-up">
+            <div className="surface-card-bg border border-sky-500/20 rounded-xl p-5 animate-slide-up">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-fg">Masuk ke Organisasi</h3>
                 <button onClick={() => setShowLoginForm(false)} className="text-slate-500 hover:text-fg"><X size={16} /></button>
@@ -277,7 +277,7 @@ export function OrganizerPage() {
             </div>
           )}
 
-          <Link to="/home" className="block mt-6 text-center text-xs text-slate-500 hover:text-white transition">
+          <Link to="/home" className="block mt-6 text-center text-xs text-slate-500 hover:text-fg transition">
             ← Kembali ke Beranda
           </Link>
         </div>
@@ -287,9 +287,9 @@ export function OrganizerPage() {
 
   // ═══ HAS ORGANIZER — Show dashboard ═══
   return (
-    <div className="min-h-screen flex bg-ink-950">
+    <div className="min-h-screen flex surface-bg">
       {/* Sidebar */}
-      <aside className="w-56 shrink-0 border-r border-white/5 p-3 sticky top-0 h-screen hidden md:block">
+      <aside className="w-56 shrink-0 border-r surface-border p-3 sticky top-0 h-screen hidden md:block">
         <div className="px-3 py-3 mb-4">
           <p className="text-[10px] text-moss-400 font-semibold uppercase">Penyelenggara</p>
           <h1 className="text-lg font-bold text-fg truncate">{organizer.name}</h1>
@@ -300,7 +300,7 @@ export function OrganizerPage() {
               key={key}
               onClick={() => setTab(key)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${
-                tab === key ? 'bg-moss-500/10 text-moss-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-300'
+                tab === key ? 'bg-moss-500/10 text-moss-300' : 'text-slate-400 hover:bg-surface-elevated/50 hover:text-fg-secondary'
               }`}
             >
               <Icon size={17} />
@@ -308,14 +308,14 @@ export function OrganizerPage() {
             </button>
           ))}
         </nav>
-        <Link to="/home" className="block px-3 mt-6 text-xs text-slate-500 hover:text-white transition">← Kembali</Link>
+        <Link to="/home" className="block px-3 mt-6 text-xs text-slate-500 hover:text-fg transition">← Kembali</Link>
       </aside>
 
       {/* Main */}
       <section className="flex-1 p-5 md:p-7 overflow-auto">
         {/* Mobile header */}
         <div className="md:hidden flex items-center gap-3 mb-4">
-          <Link to="/home" className="p-2 rounded-lg hover:bg-white/5 text-slate-400"><ArrowLeft size={18} /></Link>
+          <Link to="/home" className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400"><ArrowLeft size={18} /></Link>
           <h1 className="font-bold text-fg truncate">{organizer.name}</h1>
         </div>
 
@@ -353,7 +353,7 @@ export function OrganizerPage() {
             </div>
             <div className="space-y-2">
               {competitions.map(c => (
-                <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-moss-500/20 hover:bg-ink-800/50 transition-all cursor-pointer active:scale-[0.99]" onClick={() => setCompetitionEditor(c)}>
+                <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all cursor-pointer active:scale-[0.99]" onClick={() => setCompetitionEditor(c)}>
                   <div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center"><Trophy size={18} className="text-moss-400" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-fg group-hover:text-moss-300 transition truncate">{c.title}</p>
@@ -372,7 +372,7 @@ export function OrganizerPage() {
         {tab === 'registrations' && (
           <div className="space-y-2">
             {registrations.map(r => (
-              <div key={r.id} className="flex items-center gap-3 p-4 rounded-xl bg-ink-900/50 border border-white/5">
+              <div key={r.id} className="flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border">
                 <Users size={17} className="text-slate-500" />
                 <div className="flex-1">
                   <p className="text-sm text-fg">User {r.user_id.slice(0, 8)}</p>
@@ -392,13 +392,13 @@ export function OrganizerPage() {
             </div>
             <div className="space-y-2">
               {banks.map(b => (
-                <div key={b.id} className="group flex items-center gap-3 p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-white/10 transition cursor-pointer" onClick={() => setQuestionEditor(b)}>
+                <div key={b.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:surface-border transition cursor-pointer" onClick={() => setQuestionEditor(b)}>
                   <FileQuestion size={18} className="text-moss-400" />
                   <div className="flex-1">
-                    <p className="text-white font-semibold text-sm">{b.name}</p>
+                    <p className="text-fg font-semibold text-sm">{b.name}</p>
                     <p className="text-[11px] text-slate-500">{b.grade_code || 'Semua jenjang'} · {b.status}</p>
                   </div>
-                  <button className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-white/5 text-red-400 transition" onClick={e => { e.stopPropagation(); void remove('question_banks', b.id); }}>
+                  <button className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-surface-elevated/50 text-red-400 transition" onClick={e => { e.stopPropagation(); void remove('question_banks', b.id); }}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -414,13 +414,13 @@ export function OrganizerPage() {
             </div>
             <div className="grid md:grid-cols-2 gap-3">
               {twibbons.map(t => (
-                <div key={t.id} className="group p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-white/10 transition cursor-pointer" onClick={() => setTwibbonEditor(t)}>
+                <div key={t.id} className="group p-4 rounded-xl surface-card-bg border surface-border hover:surface-border transition cursor-pointer" onClick={() => setTwibbonEditor(t)}>
                   <div className="flex gap-3">
-                    <div className="w-20 h-14 rounded-lg bg-ink-800 overflow-hidden shrink-0">
+                    <div className="w-20 h-14 rounded-lg surface-elevated overflow-hidden shrink-0">
                       {t.image_url && <img src={t.image_url} className="w-full h-full object-cover" />}
                     </div>
                     <div className="flex-1">
-                      <p className="text-white font-semibold text-sm">{t.name}</p>
+                      <p className="text-fg font-semibold text-sm">{t.name}</p>
                       <p className="text-[11px] text-slate-500">{t.is_required ? 'Wajib' : 'Opsional'} · {t.is_active ? 'Aktif' : 'Nonaktif'}</p>
                     </div>
                   </div>
@@ -445,9 +445,9 @@ export function OrganizerPage() {
         {tab === 'plans' && (
           <div className="space-y-2">
             {plans.map(p => (
-              <div key={p.id} className="flex items-center justify-between p-4 rounded-xl bg-ink-900/50 border border-white/5">
+              <div key={p.id} className="flex items-center justify-between p-4 rounded-xl surface-card-bg border surface-border">
                 <div>
-                  <p className="text-white font-semibold text-sm">{p.plan_code}</p>
+                  <p className="text-fg font-semibold text-sm">{p.plan_code}</p>
                   <p className="text-[11px] text-slate-500">
                     {new Date(p.starts_at).toLocaleDateString('id-ID')} — {p.ends_at ? new Date(p.ends_at).toLocaleDateString('id-ID') : 'aktif'}
                   </p>
@@ -488,13 +488,13 @@ export function OrganizerPage() {
 function Editor({ title, children, onClose, onSave, busy }: { title: string; children: any; onClose: () => void; onSave: () => void; busy: boolean }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-      <div className="w-full max-w-xl bg-ink-900 border border-white/10 rounded-2xl shadow-2xl p-5 animate-in slide-in-from-bottom-4">
+      <div className="w-full max-w-xl surface-card-bg border surface-border rounded-2xl shadow-2xl p-5 animate-in slide-in-from-bottom-4">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-fg">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition"><X size={18} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-fg transition"><X size={18} /></button>
         </div>
         <div className="space-y-3">{children}</div>
-        <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-white/5">
+        <div className="flex justify-end gap-2 mt-5 pt-4 border-t surface-border">
           <Button variant="outline" onClick={onClose}>Batal</Button>
           <Button onClick={onSave} loading={busy}>Simpan</Button>
         </div>

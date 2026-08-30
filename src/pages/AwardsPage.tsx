@@ -217,7 +217,7 @@ export function AwardsPage() {
       {viewAward && (
         <Modal open onClose={() => setViewAward(null)} title={viewAward.title} size="xl">
           <div className="space-y-4">
-            <div className="rounded-xl overflow-hidden border border-moss-500/20 bg-ink-950">
+            <div className="rounded-xl overflow-hidden border border-moss-500/20 surface-card-bg">
               <div dangerouslySetInnerHTML={{ __html: certificateSvg(viewAward, user?.displayName || 'Pengguna') }} />
             </div>
             <div className="grid sm:grid-cols-4 gap-2">

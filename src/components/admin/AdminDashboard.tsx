@@ -219,10 +219,10 @@ export function AdminDashboard() {
       <div className="space-y-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-24 rounded-xl bg-ink-800 animate-pulse" />
+            <div key={i} className="h-24 rounded-xl surface-elevated animate-pulse" />
           ))}
         </div>
-        <div className="h-64 rounded-xl bg-ink-800 animate-pulse" />
+        <div className="h-64 rounded-xl surface-elevated animate-pulse" />
       </div>
     );
   }
@@ -232,13 +232,13 @@ export function AdminDashboard() {
       {/* ═══ CONTROLS BAR ═══ */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Period selector */}
-        <div className="flex bg-ink-800 rounded-xl p-1">
+        <div className="flex surface-elevated rounded-xl p-1">
           {(['daily', 'weekly', 'monthly', 'yearly'] as Period[]).map(p => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                period === p ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500 hover:text-slate-300'
+                period === p ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500 hover:text-fg-secondary'
               }`}
             >
               {p === 'daily' ? 'Harian' : p === 'weekly' ? 'Mingguan' : p === 'monthly' ? 'Bulanan' : 'Tahunan'}
@@ -260,7 +260,7 @@ export function AdminDashboard() {
       {/* ═══ FILTER PANEL ═══ */}
       {showFilters && (
         <Card className="p-4">
-          <p className="text-xs text-slate-400 font-semibold mb-3">Tampilkan/Sembunyikan Section</p>
+          <p className="text-xs text-fg-muted font-semibold mb-3">Tampilkan/Sembunyikan Section</p>
           <div className="flex flex-wrap gap-2">
             {sections.map(s => (
               <button
@@ -269,7 +269,7 @@ export function AdminDashboard() {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
                   s.visible
                     ? 'border-moss-500/30 bg-moss-500/10 text-moss-300'
-                    : 'border-white/5 bg-ink-800 text-slate-500'
+                    : 'surface-border surface-elevated text-slate-500'
                 }`}
               >
                 {s.visible ? <Eye size={12} /> : <EyeOff size={12} />}
@@ -350,7 +350,7 @@ export function AdminDashboard() {
         {sections.find(s => s.id === 'distribution')?.visible && (
           <Card className="p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-white">Distribusi</h3>
+              <h3 className="text-sm font-semibold text-fg">Distribusi</h3>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {/* Users by Type */}
@@ -420,12 +420,12 @@ export function AdminDashboard() {
         {/* Users by Grade Table */}
         {sections.find(s => s.id === 'distribution')?.visible && (
           <Card className="p-4">
-            <h3 className="text-sm font-semibold text-white mb-3">User per Jenjang</h3>
+            <h3 className="text-sm font-semibold text-fg mb-3">User per Jenjang</h3>
             <div className="space-y-2">
               {processedData.usersByGrade.map((g, i) => (
                 <div key={g.name} className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 w-12">{g.name}</span>
-                  <div className="flex-1 bg-ink-800 rounded-full h-2 overflow-hidden">
+                  <span className="text-xs text-fg-muted w-12">{g.name}</span>
+                  <div className="flex-1 surface-elevated rounded-full h-2 overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
@@ -434,7 +434,7 @@ export function AdminDashboard() {
                       }}
                     />
                   </div>
-                  <span className="text-xs text-white font-medium w-8 text-right">{g.value}</span>
+                  <span className="text-xs text-fg font-medium w-8 text-right">{g.value}</span>
                 </div>
               ))}
             </div>
@@ -444,23 +444,23 @@ export function AdminDashboard() {
         {/* Recent Competitions Table */}
         {sections.find(s => s.id === 'competitions')?.visible && (
           <Card className="p-4">
-            <h3 className="text-sm font-semibold text-white mb-3">Lomba Terbaru</h3>
+            <h3 className="text-sm font-semibold text-fg mb-3">Lomba Terbaru</h3>
             <div className="space-y-2">
               {competitions.slice(0, 5).map(c => (
-                <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg bg-ink-800/50">
+                <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg surface-elevated/50">
                   <div className={`w-2 h-2 rounded-full ${
                     c.status === 'LIVE' ? 'bg-green-400 animate-pulse' :
                     c.status === 'REGISTRATION_OPEN' ? 'bg-blue-400' :
                     'bg-slate-500'
                   }`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-white truncate">{c.title}</p>
+                    <p className="text-xs text-fg truncate">{c.title}</p>
                     <p className="text-[10px] text-slate-500">{c.category}</p>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                     c.status === 'LIVE' ? 'bg-green-500/10 text-green-400' :
                     c.status === 'REGISTRATION_OPEN' ? 'bg-blue-500/10 text-blue-400' :
-                    'bg-slate-500/10 text-slate-400'
+                    'bg-slate-500/10 text-fg-muted'
                   }`}>
                     {c.status}
                   </span>
@@ -488,7 +488,7 @@ function StatCard({ label, value, icon: Icon, color, format }: {
         <p className="text-[11px] text-slate-500">{label}</p>
         <Icon size={16} className={`text-${color}-400`} />
       </div>
-      <p className="text-xl font-bold text-white">{displayValue}</p>
+      <p className="text-xl font-bold text-fg">{displayValue}</p>
     </Card>
   );
 }
@@ -558,10 +558,10 @@ function ChartCard({ title, data, chartType, color, onToggleType, valueType, sho
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <h3 className="text-sm font-semibold text-fg">{title}</h3>
         <button
           onClick={onToggleType}
-          className="text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1 px-2 py-1 rounded bg-ink-800 transition cursor-pointer"
+          className="text-[10px] text-slate-500 hover:text-fg-secondary flex items-center gap-1 px-2 py-1 rounded surface-elevated transition cursor-pointer"
         >
           <BarChart3 size={10} />
           {chartType}

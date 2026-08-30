@@ -262,33 +262,33 @@ export function OrganizerAdRequestPage() {
   // ─── STEP 1: Form ───
   if (step === 'form') {
     return (
-      <div className="min-h-screen bg-ink-950 text-slate-200 p-5 md:p-8">
+      <div className="min-h-screen surface-bg text-fg-secondary p-5 md:p-8">
         <div className="max-w-3xl mx-auto">
-          <Link to="/organizer" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-white mb-5">
+          <Link to="/organizer" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-fg mb-5">
             <ArrowLeft size={14} /> Kembali
           </Link>
 
           <div className="flex items-center gap-2 mb-6">
             <Megaphone size={20} className="text-moss-400" />
-            <h1 className="text-2xl font-bold text-white">Pasang Iklan Banner</h1>
+            <h1 className="text-2xl font-bold text-fg">Pasang Iklan Banner</h1>
           </div>
 
           {/* Pricing info */}
           {settings && (
             <Card className="p-4 mb-6">
-              <div className="flex items-center gap-2 mb-2 text-white font-semibold text-sm">
+              <div className="flex items-center gap-2 mb-2 text-fg font-semibold text-sm">
                 <CreditCard size={15} className="text-moss-400" /> Info Harga
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                <div className="bg-ink-800/50 rounded-lg p-3">
+                <div className="surface-elevated rounded-lg p-3">
                   <p className="text-slate-500">Base per slot/hari</p>
                   <p className="text-moss-300 font-semibold">Rp {BASE_PRICE.toLocaleString('id-ID')}</p>
                 </div>
-                <div className="bg-ink-800/50 rounded-lg p-3">
+                <div className="surface-elevated rounded-lg p-3">
                   <p className="text-slate-500">Setiap slot tambahan</p>
                   <p className="text-moss-300 font-semibold">× {MULTIPLIER} (95%)</p>
                 </div>
-                <div className="bg-ink-800/50 rounded-lg p-3">
+                <div className="surface-elevated rounded-lg p-3">
                   <p className="text-slate-500">Pembulatan</p>
                   <p className="text-moss-300 font-semibold">Nearest 50rb</p>
                 </div>
@@ -297,7 +297,7 @@ export function OrganizerAdRequestPage() {
           )}
 
           <Card className="p-6">
-            <h3 className="font-semibold text-white mb-4">Form Request Banner</h3>
+            <h3 className="font-semibold text-fg mb-4">Form Request Banner</h3>
 
             {/* 1. Jumlah Slot */}
             <div className="mb-4">
@@ -306,7 +306,7 @@ export function OrganizerAdRequestPage() {
                 {[1, 2, 3].map(s => (
                   <button key={s} onClick={() => setSlots(s)}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition ${
-                      slots === s ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'border-white/10 text-slate-500 hover:border-white/20'
+                      slots === s ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
                     }`}>
                     {s} slot
                   </button>
@@ -322,14 +322,14 @@ export function OrganizerAdRequestPage() {
                 <div className="flex gap-2">
                   <button onClick={() => setGroupMode('none')}
                     className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                      groupMode === 'none' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'border-white/10 text-slate-500 hover:border-white/20'
+                      groupMode === 'none' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
                     }`}>
                     1 slot = 1 gambar
                   </button>
                   {slots >= 2 && (
                     <button onClick={() => setGroupMode(groupMode === '2' ? 'none' : '2')}
                       className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                        groupMode === '2' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'border-white/10 text-slate-500 hover:border-white/20'
+                        groupMode === '2' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
                       }`}>
                       1 gambar isi 2 slot
                     </button>
@@ -337,7 +337,7 @@ export function OrganizerAdRequestPage() {
                   {slots >= 3 && (
                     <button onClick={() => setGroupMode(groupMode === '3' ? 'none' : '3')}
                       className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                        groupMode === '3' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'border-white/10 text-slate-500 hover:border-white/20'
+                        groupMode === '3' ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
                       }`}>
                       1 gambar isi 3 slot
                     </button>
@@ -367,11 +367,11 @@ export function OrganizerAdRequestPage() {
                         onChange={e => onFileChange(idx, e)}
                       />
                       {previews[idx] ? (
-                        <div className="relative rounded-lg overflow-hidden border border-white/10 bg-ink-800">
+                        <div className="relative rounded-lg overflow-hidden border surface-border surface-elevated">
                           <div style={{ aspectRatio: ratio }} className="w-full overflow-hidden">
                             <img src={previews[idx]} alt="" className="w-full h-full object-cover" />
                           </div>
-                          <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/60 rounded px-1.5 py-0.5 text-[9px] text-white">
+                          <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/60 rounded px-1.5 py-0.5 text-[9px] text-fg">
                             <Crop size={8} /> {label}
                           </div>
                           <button onClick={() => removeFile(idx)}
@@ -381,7 +381,7 @@ export function OrganizerAdRequestPage() {
                         </div>
                       ) : (
                         <button onClick={() => fileRefs.current[idx]?.click()}
-                          className="w-full border-2 border-dashed border-white/10 rounded-lg flex flex-col items-center justify-center gap-1 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition"
+                          className="w-full border-2 border-dashed surface-border rounded-lg flex flex-col items-center justify-center gap-1 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition"
                           style={{ aspectRatio: ratio, maxHeight: 160 }}>
                           <Upload size={16} />
                           <span className="text-[10px]">Slot {idx + 1}</span>
@@ -417,7 +417,7 @@ export function OrganizerAdRequestPage() {
                 {DURATION_OPTIONS.map((opt, i) => (
                   <button key={i} onClick={() => { setDurationPreset(i); setShowCustom(i === DURATION_OPTIONS.length - 1); }}
                     className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                      durationPreset === i ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'border-white/10 text-slate-500 hover:border-white/20'
+                      durationPreset === i ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
                     }`}>
                     <Calendar size={12} className="inline mr-1" />
                     {opt.label}
@@ -464,7 +464,7 @@ export function OrganizerAdRequestPage() {
 
           {/* Riwayat */}
           <div className="mt-6">
-            <h3 className="font-semibold text-white mb-3">Riwayat Request</h3>
+            <h3 className="font-semibold text-fg mb-3">Riwayat Request</h3>
             <div className="space-y-2">
               {myRequests.length === 0 && (
                 <Card className="p-6 text-center text-sm text-slate-500">Belum ada request.</Card>
@@ -472,7 +472,7 @@ export function OrganizerAdRequestPage() {
               {myRequests.map(r => (
                 <Card key={r.id} className="p-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-16 h-10 rounded overflow-hidden bg-ink-800 shrink-0 flex">
+                    <div className="w-16 h-10 rounded overflow-hidden surface-elevated shrink-0 flex">
                       {(r.image_urls?.length ? r.image_urls : [r.image_url]).slice(0, 3).map((url, i) => (
                         <img key={i} src={url} alt="" className="h-full object-cover" style={{ width: `${100 / Math.min(r.image_urls?.length || 1, 3)}%` }} />
                       ))}
@@ -517,27 +517,27 @@ export function OrganizerAdRequestPage() {
 
   // ─── STEP 2: Payment ───
   return (
-    <div className="min-h-screen bg-ink-950 text-slate-200 p-5 md:p-8">
+    <div className="min-h-screen surface-bg text-fg-secondary p-5 md:p-8">
       <div className="max-w-2xl mx-auto">
-        <button onClick={() => setStep('form')} className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-white mb-5">
+        <button onClick={() => setStep('form')} className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-fg mb-5">
           <ArrowLeft size={14} /> Kembali ke Form
         </button>
 
         <div className="flex items-center gap-2 mb-6">
           <Banknote size={20} className="text-moss-400" />
-          <h1 className="text-2xl font-bold text-white">Pembayaran</h1>
+          <h1 className="text-2xl font-bold text-fg">Pembayaran</h1>
         </div>
 
         {/* Order summary */}
         <Card className="p-5 mb-4">
-          <h3 className="font-semibold text-white mb-3">Ringkasan Pesanan</h3>
+          <h3 className="font-semibold text-fg mb-3">Ringkasan Pesanan</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-400">Slot</span><span className="text-white">{slots} slot</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Durasi</span><span className="text-white">{durationDays} hari</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Harga dasar</span><span className="text-white">Rp {basePrice.toLocaleString('id-ID')}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Slot</span><span className="text-fg">{slots} slot</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Durasi</span><span className="text-fg">{durationDays} hari</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Harga dasar</span><span className="text-fg">Rp {basePrice.toLocaleString('id-ID')}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Kode unik</span><span className="text-amber-300">+ Rp {uniqueCodeValue.toLocaleString('id-ID')}</span></div>
-            <div className="border-t border-white/10 pt-2 flex justify-between font-bold">
-              <span className="text-white">Total Transfer</span>
+            <div className="border-t surface-border pt-2 flex justify-between font-bold">
+              <span className="text-fg">Total Transfer</span>
               <span className="text-moss-300 text-lg">Rp {totalWithUnique.toLocaleString('id-ID')}</span>
             </div>
           </div>
@@ -545,17 +545,17 @@ export function OrganizerAdRequestPage() {
 
         {/* Bank accounts */}
         <Card className="p-5 mb-4">
-          <h3 className="font-semibold text-white mb-3">Transfer ke:</h3>
+          <h3 className="font-semibold text-fg mb-3">Transfer ke:</h3>
           <div className="space-y-3">
             {(platformSettings?.admin_banks ?? []).map((bank, i) => (
-              <div key={i} className="bg-ink-800/50 rounded-lg p-3 flex items-center justify-between">
+              <div key={i} className="surface-elevated rounded-lg p-3 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-moss-400 font-semibold">{bank.bank}</p>
-                  <p className="text-sm text-white">{bank.number}</p>
+                  <p className="text-sm text-fg">{bank.number}</p>
                   <p className="text-[11px] text-slate-500">a.n. {bank.name}</p>
                 </div>
                 <button onClick={() => copyNumber(bank.number)}
-                  className="px-3 py-1.5 rounded-lg bg-white/5 text-xs text-slate-300 hover:bg-white/10 transition flex items-center gap-1">
+                  className="px-3 py-1.5 rounded-lg bg-white/5 text-xs text-fg-secondary hover:bg-white/10 transition flex items-center gap-1">
                   <Copy size={12} /> Salin
                 </button>
               </div>
@@ -568,15 +568,15 @@ export function OrganizerAdRequestPage() {
 
         {/* Upload bukti transfer */}
         <Card className="p-5 mb-4">
-          <h3 className="font-semibold text-white mb-3">Bukti Transfer</h3>
+          <h3 className="font-semibold text-fg mb-3">Bukti Transfer</h3>
           <input type="file" accept="image/*" className="hidden" id="payment-proof"
             onChange={e => {
               const f = e.target.files?.[0];
               if (f) { setPaymentProof(f); setPaymentProofPreview(URL.createObjectURL(f)); }
             }} />
           {paymentProofPreview ? (
-            <div className="relative rounded-lg overflow-hidden border border-white/10">
-              <img src={paymentProofPreview} alt="Bukti" className="w-full max-h-60 object-contain bg-ink-800" />
+            <div className="relative rounded-lg overflow-hidden border surface-border">
+              <img src={paymentProofPreview} alt="Bukti" className="w-full max-h-60 object-contain surface-elevated" />
               <button onClick={() => { setPaymentProof(null); setPaymentProofPreview(''); }}
                 className="absolute top-2 right-2 w-6 h-6 bg-black/60 rounded-full text-white text-xs flex items-center justify-center hover:bg-black/80">
                 ✕
@@ -584,7 +584,7 @@ export function OrganizerAdRequestPage() {
             </div>
           ) : (
             <label htmlFor="payment-proof"
-              className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-white/10 rounded-lg p-8 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition cursor-pointer">
+              className="flex flex-col items-center justify-center gap-2 border-2 border-dashed surface-border rounded-lg p-8 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition cursor-pointer">
               <Upload size={24} />
               <span className="text-sm">Klik untuk upload bukti transfer</span>
               <span className="text-[11px] text-slate-600">JPG, PNG, max 2MB</span>

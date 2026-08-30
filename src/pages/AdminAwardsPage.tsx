@@ -38,9 +38,9 @@ export function AdminAwardsPage() {
   };
 
   const visible = awards.filter((a) => !competitionId || a.competition_id === competitionId);
-  return <div className="min-h-screen bg-ink-950 p-5 md:p-8 text-slate-200">
+  return <div className="min-h-screen surface-bg p-5 md:p-8 text-fg-secondary">
     <div className="max-w-6xl mx-auto space-y-5">
-      <div><p className="text-xs text-moss-400 uppercase tracking-wider">Admin · Awards</p><h1 className="font-display text-2xl md:text-3xl font-bold text-white">Generate Award & Sertifikat</h1><p className="text-sm text-slate-500 mt-1">Berbasis attempt FINALIZED dan reward lomba di Supabase.</p></div>
+      <div><p className="text-xs text-moss-400 uppercase tracking-wider">Admin · Awards</p><h1 className="font-display text-2xl md:text-3xl font-bold text-fg">Generate Award & Sertifikat</h1><p className="text-sm text-slate-500 mt-1">Berbasis attempt FINALIZED dan reward lomba di Supabase.</p></div>
       <Card className="p-5">
         <div className="flex flex-col md:flex-row gap-3 items-end">
           <div className="flex-1 w-full"><label className="label">Lomba</label><select className="input" value={competitionId} onChange={e=>setCompetitionId(e.target.value)} disabled={loading}><option value="">Pilih lomba</option>{competitions.map(c=><option key={c.id} value={c.id}>{c.title} · {c.status}</option>)}</select></div>
@@ -50,8 +50,8 @@ export function AdminAwardsPage() {
         {message && <p className="text-sm mt-3 text-moss-300">{message}</p>}
       </Card>
       <Card className="p-5">
-        <div className="flex items-center gap-2 mb-4"><Award size={18} className="text-moss-400"/><h2 className="font-semibold text-white">Award yang sudah tersedia</h2></div>
-        <div className="space-y-2">{visible.map(a=><div key={a.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[.03] border border-white/5"><div className="flex-1"><p className="text-sm text-white">{a.title}</p><p className="text-xs text-slate-500 font-mono">{a.user_id} · {a.rank_code}</p></div><Badge>{a.points} pts</Badge></div>)}{!visible.length&&!loading&&<p className="text-sm text-slate-500">Belum ada award untuk lomba ini.</p>}</div>
+        <div className="flex items-center gap-2 mb-4"><Award size={18} className="text-moss-400"/><h2 className="font-semibold text-fg">Award yang sudah tersedia</h2></div>
+        <div className="space-y-2">{visible.map(a=><div key={a.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[.03] border surface-border"><div className="flex-1"><p className="text-sm text-fg">{a.title}</p><p className="text-xs text-slate-500 font-mono">{a.user_id} · {a.rank_code}</p></div><Badge>{a.points} pts</Badge></div>)}{!visible.length&&!loading&&<p className="text-sm text-slate-500">Belum ada award untuk lomba ini.</p>}</div>
       </Card>
     </div>
   </div>;

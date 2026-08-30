@@ -276,16 +276,16 @@ export function AdminBannersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950 text-slate-200 p-5 md:p-8">
+    <div className="min-h-screen surface-bg text-fg-secondary p-5 md:p-8">
       <div className="max-w-5xl mx-auto">
-        <Link to="/admin" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-white mb-5">
+        <Link to="/admin" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-fg mb-5">
           <ArrowLeft size={14} /> Kembali ke Admin
         </Link>
 
         <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-xs text-moss-400">BANNER ADS</p>
-            <h1 className="text-2xl font-bold text-white">Manajemen Iklan</h1>
+            <h1 className="text-2xl font-bold text-fg">Manajemen Iklan</h1>
           </div>
           <div className="flex items-center gap-2">
             <Badge color="moss">{activeBanners.length} aktif</Badge>
@@ -294,7 +294,7 @@ export function AdminBannersPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-ink-800 rounded-xl p-1 mb-6 overflow-x-auto no-scrollbar">
+        <div className="flex gap-1 surface-elevated rounded-xl p-1 mb-6 overflow-x-auto no-scrollbar">
           {([
             ['slots', 'Slot Iklan', Layers],
             ['requests', 'Request Masuk', Megaphone],
@@ -305,7 +305,7 @@ export function AdminBannersPage() {
               key={key}
               onClick={() => setTab(key)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition whitespace-nowrap ${
-                tab === key ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500 hover:text-slate-300'
+                tab === key ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500 hover:text-fg-secondary'
               }`}
             >
               <Icon size={14} />
@@ -339,12 +339,12 @@ export function AdminBannersPage() {
                   const isExpired = new Date(b.expires_at) < new Date();
                   return (
                     <Card key={b.id} className={`p-4 transition-all duration-200 ${
-                      !b.is_active ? 'opacity-50 border-white/5' :
-                      isExpired ? 'border-amber-500/20' : 'border-white/5 hover:border-moss-500/20'
+                      !b.is_active ? 'opacity-50 surface-border' :
+                      isExpired ? 'border-amber-500/20' : 'surface-border hover:border-moss-500/20'
                     }`}>
                       <div className="flex items-center gap-4">
                         {/* Preview */}
-                        <div className="w-28 h-18 rounded-lg overflow-hidden bg-ink-800 shrink-0 flex">
+                        <div className="w-28 h-18 rounded-lg overflow-hidden surface-elevated shrink-0 flex">
                           {b.media_type === 'video' ? (
                             <video src={b.image_url} className="w-full h-full object-cover" muted preload="metadata" />
                           ) : (
@@ -377,7 +377,7 @@ export function AdminBannersPage() {
                         <div className="flex gap-1 shrink-0">
                           <button
                             onClick={() => openEditEditor(b)}
-                            className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition"
+                            className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-fg transition"
                             title="Edit"
                           >
                             <Edit3 size={14} />
@@ -435,7 +435,7 @@ export function AdminBannersPage() {
             {requests.map((r) => (
               <Card key={r.id} className="p-4">
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="w-20 h-14 rounded-lg overflow-hidden bg-ink-800 shrink-0 flex">
+                  <div className="w-20 h-14 rounded-lg overflow-hidden surface-elevated shrink-0 flex">
                     {(r.image_urls?.length ? r.image_urls : [r.image_url]).slice(0, 3).map((url, i) => (
                       <img key={i} src={url} alt="" className="h-full object-cover" style={{ width: `${100 / Math.min(r.image_urls?.length || 1, 3)}%` }} />
                     ))}
@@ -479,7 +479,7 @@ export function AdminBannersPage() {
         {/* ═══ TAB: SETTINGS ═══ */}
         {tab === 'settings' && settings && (
           <Card className="p-6">
-            <div className="flex items-center gap-2 mb-4 text-white font-semibold">
+            <div className="flex items-center gap-2 mb-4 text-fg font-semibold">
               <Settings size={18} className="text-moss-400" /> Pengaturan Harga & Durasi
             </div>
             <div className="grid md:grid-cols-2 gap-4">
@@ -514,7 +514,7 @@ export function AdminBannersPage() {
                   className="input text-sm w-full" />
               </div>
             </div>
-            <div className="mt-4 p-3 rounded-lg bg-ink-800/50 border border-white/5">
+            <div className="mt-4 p-3 rounded-lg surface-elevated border surface-border">
               <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
                 <AlertTriangle size={12} className="text-amber-400" />
                 Format yang didukung: Gambar (JPG, PNG, WebP, max 5MB) · GIF (max 2MB) · Video MP4 (max 2MB)
@@ -531,17 +531,17 @@ export function AdminBannersPage() {
           <div className="space-y-6">
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-white font-semibold">
+                <div className="flex items-center gap-2 text-fg font-semibold">
                   <CreditCard size={18} className="text-moss-400" /> Rekening Bank Admin
                 </div>
                 <Button size="sm" icon={<Plus size={14} />} onClick={addBank}>Tambah</Button>
               </div>
               <div className="space-y-3">
                 {platformSettings.admin_banks.map((bank, i) => (
-                  <div key={i} className="bg-ink-800/50 rounded-lg p-3 flex items-center justify-between">
+                  <div key={i} className="surface-elevated rounded-lg p-3 flex items-center justify-between">
                     <div>
                       <p className="text-xs text-moss-400 font-semibold">{bank.bank}</p>
-                      <p className="text-sm text-white">{bank.number}</p>
+                      <p className="text-sm text-fg">{bank.number}</p>
                       <p className="text-[11px] text-slate-500">a.n. {bank.name}</p>
                     </div>
                     <button onClick={() => void removeBank(i)} className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 transition">
@@ -554,7 +554,7 @@ export function AdminBannersPage() {
                 )}
               </div>
               {bankEditor && (
-                <div className="mt-4 bg-ink-800/30 rounded-lg p-4 space-y-3">
+                <div className="mt-4 surface-elevated/30 rounded-lg p-4 space-y-3">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-slate-400 block mb-1">Bank</label>
@@ -578,7 +578,7 @@ export function AdminBannersPage() {
             </Card>
 
             <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4 text-white font-semibold">
+              <div className="flex items-center gap-2 mb-4 text-fg font-semibold">
                 <MessageCircle size={18} className="text-moss-400" /> Pengaturan Chat & WhatsApp
               </div>
               <div className="space-y-4">
@@ -591,7 +591,7 @@ export function AdminBannersPage() {
                 <div className="flex items-center gap-3">
                   <label className="text-xs text-slate-400">Aktifkan Chat</label>
                   <button onClick={() => setPlatformSettings({ ...platformSettings, chat_enabled: !platformSettings.chat_enabled })}
-                    className={`w-10 h-5 rounded-full transition ${platformSettings.chat_enabled ? 'bg-moss-500' : 'bg-ink-700'}`}>
+                    className={`w-10 h-5 rounded-full transition ${platformSettings.chat_enabled ? 'bg-moss-500' : 'surface-elevated'}`}>
                     <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${platformSettings.chat_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
@@ -601,7 +601,7 @@ export function AdminBannersPage() {
                     {(['whatsapp', 'internal'] as const).map(t => (
                       <button key={t} onClick={() => setPlatformSettings({ ...platformSettings, chat_type: t })}
                         className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                          platformSettings.chat_type === t ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'border-white/10 text-slate-500 hover:border-white/20'
+                          platformSettings.chat_type === t ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-500 hover:border-white/20'
                         }`}>
                         {t === 'whatsapp' ? 'WhatsApp' : 'Chat Internal'}
                       </button>
@@ -624,12 +624,12 @@ export function AdminBannersPage() {
         {editor && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => !uploading && setEditor(null)} />
-            <div className="relative bg-ink-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+            <div className="relative surface-card-bg border surface-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold text-white">
+                <h3 className="text-lg font-bold text-fg">
                   {editor.mode === 'add' ? 'Tambah Iklan Baru' : 'Edit Iklan'}
                 </h3>
-                <button onClick={() => !uploading && setEditor(null)} className="text-slate-400 hover:text-white">✕</button>
+                <button onClick={() => !uploading && setEditor(null)} className="text-slate-400 hover:text-fg">✕</button>
               </div>
 
               {/* File upload */}
@@ -637,7 +637,7 @@ export function AdminBannersPage() {
                 <label className="text-xs text-slate-400 block mb-2">File Media</label>
                 <input ref={fileRef} type="file" accept="image/*,video/mp4,.gif" className="hidden" onChange={handleFileSelect} />
                 {editor.previewUrl ? (
-                  <div className="relative rounded-xl overflow-hidden bg-ink-800">
+                  <div className="relative rounded-xl overflow-hidden surface-elevated">
                     {editor.mediaType === 'video' ? (
                       <video src={editor.previewUrl} className="w-full h-40 object-cover" controls muted />
                     ) : (
@@ -653,7 +653,7 @@ export function AdminBannersPage() {
                 ) : (
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="w-full h-32 rounded-xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition"
+                    className="w-full h-32 rounded-xl border-2 border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-500 hover:border-moss-500/30 hover:text-moss-400/60 transition"
                   >
                     <Upload size={24} />
                     <span className="text-xs">Klik untuk upload</span>

@@ -140,12 +140,12 @@ export function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950 text-slate-200">
+    <div className="min-h-screen surface-bg text-fg-secondary">
       {/* ═══ HEADER ═══ */}
-      <div className="sticky top-0 z-30 glass border-b border-white/5">
+      <div className="sticky top-0 z-30 glass border-b surface-border">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/home" className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white text-xs transition">← Kembali</Link>
+            <Link to="/home" className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-fg text-xs transition">← Kembali</Link>
             <div>
               <p className="text-[10px] text-moss-400 font-semibold uppercase tracking-wide">SYKABELAJAR</p>
               <h1 className="font-display font-bold text-base text-white leading-tight">Panel Admin</h1>
@@ -162,7 +162,7 @@ export function AdminPage() {
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                 tab === key
                   ? 'bg-moss-500/15 text-moss-300 shadow-sm shadow-moss-500/10'
-                  : 'text-slate-500 hover:bg-white/5 hover:text-slate-300 active:scale-95'
+                  : 'text-slate-500 hover:bg-surface-elevated/50 hover:text-fg-secondary active:scale-95'
               }`}
             >
               <Icon size={15} />
@@ -190,7 +190,7 @@ export function AdminPage() {
           </div>
           <div className="space-y-2">
             {competitions.map((c) => (
-              <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-moss-500/20 hover:bg-ink-800/50 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+              <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all duration-200 cursor-pointer active:scale-[0.99]"
                 onClick={() => setCompetitionEditor(c)}>
                 <div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center group-hover:bg-moss-500/15 transition">
                   <Trophy size={18} className="text-moss-400" />
@@ -203,7 +203,7 @@ export function AdminPage() {
                   {competitionStatuses.map((s) => <option key={s}>{s}</option>)}
                 </select>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                  <button className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition active:scale-90" onClick={(e) => { e.stopPropagation(); setCompetitionEditor(c); }}>
+                  <button className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-fg transition active:scale-90" onClick={(e) => { e.stopPropagation(); setCompetitionEditor(c); }}>
                     <Edit3 size={14} />
                   </button>
                   <button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition active:scale-90" onClick={(e) => { e.stopPropagation(); void removeRow('competitions', c.id); }}>
@@ -224,7 +224,7 @@ export function AdminPage() {
           </div>
           <div className="space-y-1.5">
             {filteredUsers.map((u) => (
-              <div key={u.id} className="group flex items-center gap-3 p-3 rounded-xl hover:bg-ink-800/50 border border-transparent hover:border-white/5 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+              <div key={u.id} className="group flex items-center gap-3 p-3 rounded-xl hover:surface-elevated border border-transparent hover:surface-border transition-all duration-200 cursor-pointer active:scale-[0.99]"
                 onClick={() => window.open(`/profile/${u.username}`, '_blank')}>
                 <Avatar name={u.full_name || u.username || 'U'} id={u.id} size={38} src={u.avatar_url || undefined} />
                 <div className="flex-1 min-w-0">
@@ -233,7 +233,7 @@ export function AdminPage() {
                 </div>
                 <Badge color={u.status === 'BANNED' ? 'err' : 'default'}>{roleLabel[u.account_type] || u.account_type}</Badge>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                  <Link to={`/profile/${u.username}`} className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-moss-300 transition active:scale-90" onClick={e => e.stopPropagation()}>
+                  <Link to={`/profile/${u.username}`} className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-moss-300 transition active:scale-90" onClick={e => e.stopPropagation()}>
                     <ExternalLink size={14} />
                   </Link>
                   <button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition active:scale-90" onClick={async (e) => {
@@ -258,7 +258,7 @@ export function AdminPage() {
           </div>
           <div className="space-y-2">
             {posts.map((p) => (
-              <div key={p.id} className="group flex items-center gap-3 p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-moss-500/20 hover:bg-ink-800/50 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+              <div key={p.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all duration-200 cursor-pointer active:scale-[0.99]"
                 onClick={() => setPostEditor(p)}>
                 <div className="w-11 h-11 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/15 transition">
                   <FileText size={18} className="text-blue-400" />
@@ -271,7 +271,7 @@ export function AdminPage() {
                   <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.body}</p>
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                  <button className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition active:scale-90" onClick={(e) => { e.stopPropagation(); setPostEditor(p); }}>
+                  <button className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-fg transition active:scale-90" onClick={(e) => { e.stopPropagation(); setPostEditor(p); }}>
                     <Edit3 size={14} />
                   </button>
                   <button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition active:scale-90" onClick={(e) => { e.stopPropagation(); void removeRow('posts', p.id); }}>
@@ -286,7 +286,7 @@ export function AdminPage() {
         {/* ═══ ORDERS ═══ */}
         {tab === 'orders' && <div className="space-y-2">
           {orders.map((o) => (
-            <div key={o.id} className="group flex items-center gap-3 p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-amber-500/20 hover:bg-ink-800/50 transition-all duration-200">
+            <div key={o.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-amber-500/20 hover:surface-elevated transition-all duration-200">
               <div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/15 transition">
                 <ShoppingBag size={18} className="text-amber-400" />
               </div>
@@ -314,7 +314,7 @@ export function AdminPage() {
           </div>
           <div className="grid md:grid-cols-2 gap-3">
             {products.map((p) => (
-              <div key={p.id} className="group p-4 rounded-xl bg-ink-900/50 border border-white/5 hover:border-purple-500/20 hover:bg-ink-800/50 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+              <div key={p.id} className="group p-4 rounded-xl surface-card-bg border surface-border hover:border-purple-500/20 hover:surface-elevated transition-all duration-200 cursor-pointer active:scale-[0.99]"
                 onClick={() => setProductEditor(p)}>
                 <div className="flex gap-3">
                   <div className="w-11 h-11 rounded-xl bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/15 transition shrink-0">
@@ -326,7 +326,7 @@ export function AdminPage() {
                     <p className="text-moss-300 font-bold text-sm mt-1">Rp {Number(p.price || 0).toLocaleString('id-ID')}</p>
                   </div>
                   <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition">
-                    <button className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition active:scale-90" onClick={(e) => { e.stopPropagation(); setProductEditor(p); }}>
+                    <button className="p-1.5 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-fg transition active:scale-90" onClick={(e) => { e.stopPropagation(); setProductEditor(p); }}>
                       <Edit3 size={13} />
                     </button>
                     <button className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 transition active:scale-90" onClick={(e) => { e.stopPropagation(); void removeRow('commerce_products', p.id); }}>
@@ -348,7 +348,7 @@ export function AdminPage() {
         {/* ═══ CHAT ═══ */}
         {tab === 'chat' && (
           <Link to="/admin/chat" className="block group">
-            <div className="p-5 rounded-xl bg-ink-900/50 border border-white/5 hover:border-moss-500/20 hover:bg-ink-800/50 transition-all duration-200 active:scale-[0.99]">
+            <div className="p-5 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all duration-200 active:scale-[0.99]">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-xl bg-moss-500/10 flex items-center justify-center group-hover:bg-moss-500/15 group-hover:scale-110 transition-all">
                   <MessageCircle size={24} className="text-moss-400" />
@@ -365,7 +365,7 @@ export function AdminPage() {
 
         {/* ═══ SETTINGS ═══ */}
         {tab === 'settings' && <div className="space-y-3">
-          <div className="p-5 rounded-xl bg-ink-900/50 border border-white/5 hover:border-white/10 transition">
+          <div className="p-5 rounded-xl surface-card-bg border surface-border hover:surface-border transition">
             <h3 className="font-semibold text-fg">Platform settings</h3>
             <p className="text-sm text-slate-400 mt-1">Konfigurasi global disimpan di <code className="text-moss-400 bg-moss-500/10 px-1.5 py-0.5 rounded">global_settings</code></p>
             <Link to="/admin/roles" className="inline-block mt-4">
@@ -423,15 +423,15 @@ export function AdminPage() {
 function Editor({ title, children, onClose, onSave, busy }: any) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-auto bg-ink-900 border border-white/10 rounded-2xl shadow-2xl p-6 animate-in slide-in-from-bottom-4">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-auto surface-card-bg border surface-border rounded-2xl shadow-2xl p-6 animate-in slide-in-from-bottom-4">
         <div className="flex justify-between items-center mb-5">
           <h3 className="font-display font-bold text-lg text-fg">{title}</h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition active:scale-90">
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-fg transition active:scale-90">
             <X size={18} />
           </button>
         </div>
         <div className="space-y-4">{children}</div>
-        <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-white/5">
+        <div className="flex justify-end gap-2 mt-6 pt-4 border-t surface-border">
           <Button variant="outline" onClick={onClose}>Batal</Button>
           <Button onClick={onSave} loading={busy}>Simpan</Button>
         </div>
