@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
   Edit2, Calendar, Trophy, Award, GraduationCap, BarChart3, TrendingUp,
   CheckCircle2, User, UserPlus, UserMinus, MessageCircle, School, Heart,
+  Coins, Flame, Lock, Eye, ChevronRight, Wallet,
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -47,6 +48,7 @@ export function ProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const isOwn = currentUser?.username === username;
+  const [eduCoin, setEduCoin] = useState(0);
 
   // ── Load profile data ──
   useEffect(() => {
@@ -94,6 +96,7 @@ export function ProfilePage() {
           setFollowers(flCount ?? 0);
           setFollowing(fgCount ?? 0);
           setIsFollowing(followed);
+          setEduCoin(Number(p.edu_coin ?? 0));
         }
       } catch (e: any) {
         if (alive) toast(e?.message || 'Profil gagal dimuat.', 'error');
@@ -339,31 +342,79 @@ export function ProfilePage() {
           </span>
         </div>
 
-        {/* Action button */}
-        <div className="flex justify-center mt-4">
+        {/* Action buttons */}
+        <div className="flex justify-center mt-4 gap-2">
           {isOwn ? (
-            <Link to="/profile/edit">
-              <Button size="sm" variant="outline" icon={<Edit2 size={14} />}>Edit Profil</Button>
-            </Link>
+            <>
+              <Link to="/profile/edit">
+                <Button size="sm" variant="outline" icon={<Edit2 size={14} />}>Edit Profil</Button>
+              </Link>
+              <Link to="/awards">
+                <Button size="sm" variant="ghost" icon={<Award size={14} />}>Lihat Semua Piagam</Button>
+              </Link>
+            </>
           ) : currentUser ? (
-            <Button
-              size="sm"
-              variant={isFollowing ? 'outline' : 'primary'}
-              onClick={toggleFollow}
-              disabled={followBusy}
-              icon={isFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}
-            >
-              {isFollowing ? 'Unfollow' : 'Follow'}
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant={isFollowing ? 'outline' : 'primary'}
+                onClick={toggleFollow}
+                disabled={followBusy}
+                icon={isFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}
+              >
+                {isFollowing ? 'Unfollow' : 'Follow'}
+              </Button>
+              <Link to="/admin/chat">
+                <Button size="sm" variant="outline" icon={<MessageCircle size={14} />}>Pesan</Button>
+              </Link>
+            </>
           ) : null}
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════════
-           STATS ROW — 3 mini cards, always horizontal
-         ════════════════════════════════════════════════════════════ */}
+      {/* ═══ WALLET & XP BAR (Private Only) ═══ */}
+      {isOwn && (
+        <div className="px-4 md:px-8 pb-4">
+          <div className="max-w-2xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* EduCoin Wallet */}
+            <Card className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center">
+                  <Coins size={18} className="text-purple-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[11px] text-fg-muted">EduCoin</p>
+                  <p className="text-lg font-bold text-fg tabular-nums">{eduCoin.toLocaleString('id-ID')}</p>
+                </div>
+                <Link to="/leaderboard">
+                  <Button size="sm" variant="ghost" icon={<Wallet size={14} />}>Lihat</Button>
+                </Link>
+              </div>
+            </Card>
+            {/* XP Progress */}
+            <Card className="p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                  <TrendingUp size={18} className="text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[11px] text-fg-muted">Level {Math.floor(totalPoints / 1000) + 1}</p>
+                  <p className="text-lg font-bold text-fg tabular-nums">{totalPoints.toLocaleString('id-ID')} XP</p>
+                </div>
+                <Flame size={16} className="text-orange-400" />
+              </div>
+              <div className="h-1.5 surface-elevated rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-700" style={{ width: `${(totalPoints % 1000) / 10}%` }} />
+              </div>
+              <p className="text-[10px] text-fg-muted mt-1">{1000 - (totalPoints % 1000)} XP lagi ke Level {Math.floor(totalPoints / 1000) + 2}</p>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ STATS ROW ═══ */}
       <div className="px-4 md:px-8 pb-2">
-        <div className="grid grid-cols-3 gap-3 max-w-2xl mx-auto">
+        <div className={`grid gap-3 max-w-2xl mx-auto ${isOwn ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}>
           <div className="surface-card-bg border surface-border rounded-2xl p-4 text-center transition-colors duration-300">
             <p className="text-xl font-bold text-fg">{totalPoints.toLocaleString('id-ID')}</p>
             <p className="text-[10px] text-fg-muted mt-0.5">Total Poin</p>
@@ -378,6 +429,12 @@ export function ProfilePage() {
             <p className="text-xl font-bold text-fg">{awards.length}</p>
             <p className="text-[10px] text-fg-muted mt-0.5">Awards</p>
           </div>
+          {isOwn && (
+            <div className="surface-card-bg border surface-border rounded-2xl p-4 text-center transition-colors duration-300">
+              <p className="text-xl font-bold text-fg">{eduCoin.toLocaleString('id-ID')}</p>
+              <p className="text-[10px] text-fg-muted mt-0.5">EduCoin</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -407,19 +464,44 @@ export function ProfilePage() {
             )}
 
             {/* Badges */}
-            {displayBadges.length > 0 && (
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Award size={16} className="text-accent" />
-                  <h3 className="text-sm font-bold text-fg">Badge</h3>
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Award size={16} className="text-accent" />
+                <h3 className="text-sm font-bold text-fg">Badge</h3>
+              </div>
+              {isOwn ? (
+                <div className="space-y-2">
+                  {/* Earned badges */}
+                  {(profile.badges ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {(profile.badges ?? []).map((b: string, i: number) => (
+                        <span key={i} className="chip flex items-center gap-1">
+                          <CheckCircle2 size={10} className="text-accent" /> {b}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {/* Locked badges */}
+                  {['Pemburu Sertifikat', 'Raja Streak', 'Top 10 Global', 'Ahli Matematika', 'Social Butterfly'].filter(b => !(profile.badges ?? []).includes(b)).map((b, i) => (
+                    <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20 opacity-50">
+                      <Lock size={10} /> {b}
+                    </span>
+                  ))}
+                  {!(profile.badges ?? []).length && (
+                    <p className="text-xs text-fg-muted">Selesaikan tantangan untuk membuka badge!</p>
+                  )}
                 </div>
+              ) : (
                 <div className="flex flex-wrap gap-2">
                   {displayBadges.map((b: string, i: number) => (
                     <span key={i} className="chip">{b}</span>
                   ))}
+                  {!displayBadges.length && (
+                    <p className="text-xs text-fg-muted">Belum ada badge.</p>
+                  )}
                 </div>
-              </Card>
-            )}
+              )}
+            </Card>
 
             {/* Favorite Categories */}
             {favoriteCategories.length > 0 && (
@@ -461,7 +543,7 @@ export function ProfilePage() {
             {/* ── PRESTASI ── */}
             {activeTab === 'prestasi' && (
               <div className="space-y-3">
-                {awards.map((a: any) => (
+                {(isOwn ? awards.slice(0, 5) : awards.slice(0, 5)).map((a: any) => (
                   <Card key={a.id} className="p-4 transition-colors duration-300">
                     <div className="flex items-center gap-3">
                       <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
@@ -498,6 +580,11 @@ export function ProfilePage() {
                 ))}
                 {!awards.length && (
                   <div className="text-center py-10 text-sm text-fg-muted">Belum ada penghargaan.</div>
+                )}
+                {isOwn && awards.length > 5 && (
+                  <Link to="/awards" className="flex items-center justify-center gap-1 py-3 text-sm text-accent hover:underline">
+                    Lihat Semua Piagam Saya <ChevronRight size={14} />
+                  </Link>
                 )}
               </div>
             )}
