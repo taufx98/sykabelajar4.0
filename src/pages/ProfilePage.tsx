@@ -364,8 +364,8 @@ export function ProfilePage() {
               >
                 {isFollowing ? 'Unfollow' : 'Follow'}
               </Button>
-              <Link to="/admin/chat">
-                <Button size="sm" variant="outline" icon={<MessageCircle size={14} />}>Pesan</Button>
+              <Link to={`/admin/chat?user_id=${profile.id}`}>
+                <Button size="sm" variant="outline" icon={<MessageCircle size={14} />}>Kirim Pesan</Button>
               </Link>
             </>
           ) : null}

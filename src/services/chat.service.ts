@@ -141,3 +141,120 @@ export async function searchUsersForChat(query: string, limit = 10): Promise<Sea
     avatar_url: r.avatar_url ?? null,
   }));
 }
+
+// ═══════════════════════════════════════
+// TICKET SYSTEM (Hubungi Admin)
+// ═══════════════════════════════════════
+
+/** Create a helpdesk ticket thread with admin */
+export async function createTicketThread(subject: string, description: string): Promise<ChatThread> {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error('Unauthorized');
+
+  // Find an admin user
+  const { data: adminRole } = await supabase
+    .from('user_roles')
+    .select('user_id')
+    .eq('role', 'admin')
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  const adminId = adminRole?.user_id;
+
+  // Create ticket thread
+  const { data: thread, error: tErr } = await supabase
+    .from('chat_threads')
+    .insert({
+      user_id: auth.user.id,
+      participant_id: adminId || null,
+      status: 'open',
+      thread_type: 'ticket',
+      subject: subject.trim(),
+      description: description.trim(),
+    })
+    .select()
+    .single();
+  if (tErr) throw tErr;
+
+  // Send first message with subject & description
+  const firstMsg = `📋 *${subject.trim()}*\n\n${description.trim()}`;
+  await sendMessage(thread.id, firstMsg);
+
+  return thread as ChatThread;
+}
+
+// ═══════════════════════════════════════
+// DM FROM PROFILE (Redirect)
+// ═══════════════════════════════════════
+
+/** Create DM thread from profile page and return thread */
+export async function createDmFromProfile(targetUserId: string): Promise<ChatThread> {
+  return getOrCreateDmThread(targetUserId);
+}
+
+// ═══════════════════════════════════════
+// FOLLOW WITH APPROVAL
+// ═══════════════════════════════════════
+
+/** Check if a follow request is approved */
+export async function isFollowApproved(followerId: string, followingId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('follows')
+    .select('status')
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+    .maybeSingle();
+  if (!data) return false;
+  return data.status === 'approved' || data.status === 'auto';
+}
+
+/** Get follow status between two users */
+export async function getFollowStatus(followerId: string, followingId: string): Promise<'none' | 'pending' | 'approved'> {
+  const { data } = await supabase
+    .from('follows')
+    .select('status')
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+    .maybeSingle();
+  if (!data) return 'none';
+  if (data.status === 'pending') return 'pending';
+  return 'approved';
+}
+
+/** Accept a follow request */
+export async function acceptFollow(followerId: string, followingId: string): Promise<void> {
+  await supabase
+    .from('follows')
+    .update({ status: 'approved' })
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId);
+}
+
+/** Reject a follow request */
+export async function rejectFollow(followerId: string, followingId: string): Promise<void> {
+  await supabase
+    .from('follows')
+    .delete()
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId);
+}
+
+/** Get user privacy setting */
+export async function getUserPrivacy(userId: string): Promise<string> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('accept_messages')
+    .eq('id', userId)
+    .maybeSingle();
+  return (data as any)?.accept_messages ?? 'public';
+}
+
+/** Check if current user can DM target user */
+export async function canDmUser(currentUserId: string, targetUserId: string): Promise<boolean> {
+  const privacy = await getUserPrivacy(targetUserId);
+  if (privacy === 'public') return true;
+  if (privacy === 'private') return false;
+  // 'followers' — check if follow is approved
+  return isFollowApproved(currentUserId, targetUserId);
+}

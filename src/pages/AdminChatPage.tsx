@@ -1,7 +1,7 @@
 import { toast } from '@/lib/toast';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, MessageCircle, Send, CheckCircle, Star, Plus, Search, X, ShieldAlert } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, MessageCircle, Send, CheckCircle, Star, Plus, Search, X, ShieldAlert, Headphones } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -12,7 +12,7 @@ import {
   loadMessages,
   sendMessage,
   getOrCreateDmThread,
-  searchUsersForChat,
+  createTicketThread,
   type ChatThread,
   type ChatMessage,
   type SearchUserResult,
@@ -26,7 +26,8 @@ export function AdminChatPage() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showNewChat, setShowNewChat] = useState(false);
+  const [showTicket, setShowTicket] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const messagesEnd = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -42,6 +43,27 @@ export function AdminChatPage() {
   }, [appToast]);
 
   useEffect(() => { void loadThreads(); }, [loadThreads]);
+
+  // Handle DM redirect via ?user_id=XXX
+  useEffect(() => {
+    const targetUserId = searchParams.get('user_id');
+    if (!targetUserId || !user) return;
+    let alive = true;
+    (async () => {
+      try {
+        const thread = await getOrCreateDmThread(targetUserId);
+        if (!alive) return;
+        await loadThreads();
+        setSelectedThread(thread);
+      } catch (e: any) {
+        appToast(e?.message ?? 'Gagal membuka chat.', 'error');
+      } finally {
+        searchParams.delete('user_id');
+        setSearchParams(searchParams, { replace: true });
+      }
+    })();
+    return () => { alive = false; };
+  }, [searchParams, setSearchParams, user, loadThreads, appToast]);
 
   // Load messages for selected thread
   const loadMsgs = useCallback(async () => {
@@ -92,22 +114,19 @@ export function AdminChatPage() {
     }
   };
 
-  const startNewChat = async (targetUser: SearchUserResult) => {
+  const handleCreateTicket = async (subject: string, description: string) => {
     try {
-      const thread = await getOrCreateDmThread(targetUser.id);
-      setShowNewChat(false);
+      const thread = await createTicketThread(subject, description);
+      setShowTicket(false);
       await loadThreads();
-      // Select the thread (may need to re-fetch from updated list)
-      setSelectedThread({
-        ...thread,
-        other_user_name: targetUser.full_name,
-        other_username: targetUser.username,
-        other_avatar_url: targetUser.avatar_url ?? undefined,
-      });
+      setSelectedThread(thread);
+      appToast('Ticket berhasil dibuat!', 'success');
     } catch (e: any) {
-      appToast(e?.message ?? 'Gagal memulai chat.', 'error');
+      appToast(e?.message ?? 'Gagal membuat ticket.', 'error');
     }
   };
+
+  const isAdmin = user?.role === 'admin';
 
   const getDisplayName = (t: ChatThread) => {
     return t.other_user_name || t.user_name || 'User';
@@ -135,9 +154,11 @@ export function AdminChatPage() {
             <h1 className="text-2xl font-bold text-fg">Pesan</h1>
             <Badge color="moss">{openThreads.length} aktif</Badge>
           </div>
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowNewChat(true)}>
-            Pesan Baru
-          </Button>
+          {!isAdmin && (
+            <Button size="sm" icon={<Headphones size={14} />} onClick={() => setShowTicket(true)}>
+              Hubungi Admin
+            </Button>
+          )}
         </div>
 
         <div className="flex gap-4 h-[calc(100vh-180px)]">
@@ -278,11 +299,11 @@ export function AdminChatPage() {
         </div>
       </div>
 
-      {/* ═══ NEW CHAT MODAL ═══ */}
-      {showNewChat && (
-        <NewChatModal
-          onClose={() => setShowNewChat(false)}
-          onSelect={startNewChat}
+      {/* ═══ TICKET MODAL ═══ */}
+      {showTicket && (
+        <TicketModal
+          onClose={() => setShowTicket(false)}
+          onSubmit={handleCreateTicket}
         />
       )}
     </div>
@@ -290,94 +311,59 @@ export function AdminChatPage() {
 }
 
 // ═══════════════════════════════════════
-// NewChatModal — search & start DM
+// TicketModal — Hubungi Admin form
 // ═══════════════════════════════════════
-function NewChatModal({ onClose, onSelect }: { onClose: () => void; onSelect: (user: SearchUserResult) => void }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchUserResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const deadEndsRef = useRef(new Set<string>());
-  const lastSearchedRef = useRef('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+function TicketModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (subject: string, description: string) => void }) {
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const doSearch = useCallback(async (q: string) => {
-    const trimmed = q.trim();
-    if (!trimmed) { setResults([]); lastSearchedRef.current = ''; return; }
-    const lower = trimmed.toLowerCase();
-
-    // Dead-end cache: skip if extending a zero-result prefix
-    for (const dead of deadEndsRef.current) {
-      if (lower.startsWith(dead)) { setResults([]); setSearching(false); return; }
-    }
-    // Prune irrelevant dead-ends
-    for (const dead of deadEndsRef.current) {
-      if (!lower.startsWith(dead)) deadEndsRef.current.delete(dead);
-    }
-    if (lower === lastSearchedRef.current) return;
-
-    setSearching(true);
-    try {
-      const users = await searchUsersForChat(trimmed, 10);
-      setResults(users);
-      lastSearchedRef.current = lower;
-      if (users.length === 0) deadEndsRef.current.add(lower);
-    } catch {
-      setResults([]);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => void doSearch(query), 300);
-    return () => clearTimeout(debounceRef.current);
-  }, [query, doSearch]);
+  const handleSubmit = async () => {
+    if (!subject.trim() || !description.trim()) return;
+    setBusy(true);
+    await onSubmit(subject.trim(), description.trim());
+    setBusy(false);
+  };
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md card p-0 animate-scale-in max-h-[80vh] overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-md card p-0 animate-scale-in">
         <div className="flex items-center justify-between px-5 py-4 border-b surface-border">
-          <h3 className="font-display font-semibold text-base text-fg">Pesan Baru</h3>
+          <div className="flex items-center gap-2">
+            <Headphones size={18} className="text-accent" />
+            <h3 className="font-display font-semibold text-base text-fg">Hubungi Admin</h3>
+          </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-fg-muted hover:text-fg transition">
             <X size={18} />
           </button>
         </div>
-        <div className="px-5 pt-4">
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none" />
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs text-fg-muted font-medium mb-1.5 block">Judul / Subjek Kendala *</label>
             <input
-              className="input pl-9 w-full"
-              placeholder="Cari nama atau username..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
+              className="input w-full"
+              placeholder="Contoh: Bug pada fitur lomba"
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
               autoFocus
             />
-            {searching && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-fg-muted">Mencari...</div>}
           </div>
-        </div>
-        <div className="overflow-y-auto flex-1 px-5 py-3 space-y-1">
-          {query.trim() && !searching && results.length === 0 && (
-            <p className="text-xs text-fg-muted text-center py-4">Pengguna tidak ditemukan.</p>
-          )}
-          {!query.trim() && (
-            <p className="text-xs text-fg-muted text-center py-4">Ketik nama atau username untuk mencari.</p>
-          )}
-          {results.map(u => (
-            <button
-              key={u.id}
-              onClick={() => onSelect(u)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent-muted/10 transition text-left"
-            >
-              <Avatar name={u.full_name || u.username} id={u.id} size={36} src={u.avatar_url || undefined} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-fg truncate">{u.full_name || u.username}</p>
-                <p className="text-[11px] text-fg-muted truncate">@{u.username}</p>
-              </div>
-              <MessageCircle size={14} className="text-fg-muted shrink-0" />
-            </button>
-          ))}
+          <div>
+            <label className="text-xs text-fg-muted font-medium mb-1.5 block">Deskripsi / Pesan Awal *</label>
+            <textarea
+              className="input w-full min-h-28"
+              placeholder="Jelaskan kendala atau bantuan yang dibutuhkan..."
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={onClose}>Batal</Button>
+            <Button onClick={() => void handleSubmit()} loading={busy} disabled={!subject.trim() || !description.trim()} icon={<Send size={14} />}>
+              Kirim Ticket
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -25,6 +25,7 @@ interface Form {
   badgeShowcaseManual: boolean;
   profilePhoto: string;
   coverPhoto: string;
+  acceptMessages: string;
 }
 
 // ── Cooldown ───────────────────────────────────────────────────
@@ -60,6 +61,7 @@ export function EditProfilePage() {
     badgeShowcaseManual: (user as any)?.badgeShowcaseManual || false,
     profilePhoto: user?.profilePhoto || '',
     coverPhoto: user?.coverPhoto || '',
+    acceptMessages: (user as any)?.accept_messages || 'public',
   });
 
   const [profileFile, setProfileFile] = useState<File | null>(null);
@@ -138,6 +140,7 @@ export function EditProfilePage() {
       };
       patch.subjects = form.favoriteCategories.join(',');
       if (form.pembina) patch.pembina = form.pembina;
+      patch.accept_messages = form.acceptMessages;
       if (form.badgeShowcase.length > 0) patch.badge_showcase = form.badgeShowcase;
       if (form.badgeShowcaseManual) patch.badge_showcase_manual = true;
 
@@ -296,6 +299,21 @@ export function EditProfilePage() {
             <div>
               <label className="label">Bio <span className="text-fg-muted">({form.bio.length}/160)</span></label>
               <textarea className="input min-h-[80px] resize-none" maxLength={160} value={form.bio} onChange={e => set('bio', e.target.value)} />
+            </div>
+
+            {/* Privacy: Accept Messages */}
+            <div>
+              <label className="label">Siapa yang bisa mengirim pesan</label>
+              <select className="input" value={form.acceptMessages} onChange={e => set('acceptMessages', e.target.value)}>
+                <option value="public">Semua orang (Publik)</option>
+                <option value="followers">Hanya Pengikut</option>
+                <option value="private">Tidak ada (Privat)</option>
+              </select>
+              <p className="text-[10px] text-fg-muted mt-1">
+                {form.acceptMessages === 'public' && 'Semua pengguna bisa mengirim pesan langsung.'}
+                {form.acceptMessages === 'followers' && 'Hanya pengikut yang disetujui yang bisa mengirim pesan.'}
+                {form.acceptMessages === 'private' && 'Tidak ada yang bisa mengirim pesan langsung.'}
+              </p>
             </div>
 
             {/* Tanggal Lahir */}
