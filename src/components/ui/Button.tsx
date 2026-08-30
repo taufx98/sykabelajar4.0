@@ -26,7 +26,7 @@ export function Button({
     variant === 'ghost' ? 'btn-ghost' :
     variant === 'outline' ? 'btn-outline' :
     variant === 'danger' ? 'btn-danger' :
-    'btn bg-white/5 text-slate-200 hover:bg-white/10';
+    'btn bg-white/5 text-fg-secondary hover:bg-white/10';
 
   const sizes = {
     sm: 'text-xs px-3 py-2',

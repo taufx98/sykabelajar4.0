@@ -69,7 +69,7 @@ export function AwardsPage() {
   if (isGuest) {
     return (
       <div>
-        <div className="sticky top-0 z-20 glass border-b border-white/5 px-4 py-3">
+        <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
           <div className="flex items-center gap-2">
             <ShieldCheck size={16} className="text-moss-400" />
             <h2 className="font-display font-bold text-lg text-fg">Cek Sertifikat</h2>
@@ -133,7 +133,7 @@ export function AwardsPage() {
   // Logged-in user: awards + verification tab
   return (
     <div>
-      <div className="sticky top-0 z-20 glass border-b border-white/5 px-4 py-3">
+      <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck size={16} className="text-moss-400" />
@@ -172,14 +172,14 @@ export function AwardsPage() {
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {(['all', 'certificate', 'medal', 'badge'] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${filter === f ? 'bg-moss-500/15 text-moss-300' : 'bg-ink-800 text-slate-400'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${filter === f ? 'bg-moss-500/15 text-moss-300' : 'surface-elevated text-slate-400'}`}>
               {f === 'all' ? 'Semua' : f === 'certificate' ? 'Sertifikat' : f === 'medal' ? 'Medali' : 'Badge'}
             </button>
           ))}
           <div className="ml-auto flex items-center gap-1">
             <Filter size={14} className="text-slate-500" />
             <select value={sort} onChange={(e) => setSort(e.target.value as 'date' | 'type')}
-              className="bg-ink-800 text-xs text-fg-secondary rounded-lg px-2 py-1.5">
+              className="surface-elevated text-xs text-fg-secondary rounded-lg px-2 py-1.5">
               <option value="date">Terbaru</option>
               <option value="type">Tipe</option>
             </select>
@@ -190,7 +190,7 @@ export function AwardsPage() {
         <div className="grid sm:grid-cols-2 gap-3">
           {visibleAwards.map((award) => (
             <Card key={award.id} className="overflow-hidden">
-              <div className="h-28 bg-gradient-to-br from-ink-800 to-ink-900 flex items-center justify-center">
+              <div className="h-28 bg-gradient-to-br from-surface-card to-surface flex items-center justify-center">
                 {award.type === 'certificate' ? <ShieldCheck size={28} className="text-moss-400" /> :
                  award.type === 'medal' ? <Medal size={28} className="text-amber-400" /> :
                  <BadgeCheck size={28} className="text-sky-400" />}
@@ -234,7 +234,7 @@ export function AwardsPage() {
       {shareLink && (
         <Modal open onClose={() => setShareLink('')} title="Link Verifikasi">
           <div className="space-y-4">
-            <div className="p-3 rounded-xl bg-ink-800 text-xs text-moss-300 font-mono break-all">{shareLink}</div>
+            <div className="p-3 rounded-xl surface-elevated text-xs text-moss-300 font-mono break-all">{shareLink}</div>
             <Button fullWidth onClick={() => { void navigator.clipboard?.writeText(shareLink); toast('Link verifikasi disalin.', 'success'); setShareLink(''); }}>Salin Link</Button>
           </div>
         </Modal>

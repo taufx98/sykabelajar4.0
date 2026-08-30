@@ -35,7 +35,7 @@ const RANK_STYLES = {
   },
   2: {
     ring: 'ring-4 ring-slate-300/50',
-    crown: 'text-slate-300',
+    crown: 'text-fg-secondary',
     crownBg: 'bg-slate-400/15',
     card: 'border-slate-300/25',
     cardBg: 'bg-surface-card',
@@ -211,7 +211,7 @@ export function LeaderboardPage() {
         {!loading && totalPages > 1 && (
           <div className="flex items-center justify-center gap-1 pt-2">
             <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1}
-              className="p-1.5 rounded-lg text-fg-muted hover:bg-white/5 disabled:opacity-30 transition">
+              className="p-1.5 rounded-lg text-fg-muted hover:bg-white/5 dark:hover:bg-white/5 disabled:opacity-30 transition">
               <ChevronLeft size={16} />
             </button>
             {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
@@ -223,14 +223,14 @@ export function LeaderboardPage() {
               return (
                 <button key={pageNum} onClick={() => setPage(pageNum)}
                   className={`w-8 h-8 rounded-lg text-xs font-medium transition ${
-                    pageNum === safePage ? 'bg-accent-muted text-accent' : 'text-fg-muted hover:bg-white/5'
+                    pageNum === safePage ? 'bg-accent-muted text-accent' : 'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5'
                   }`}>
                   {pageNum}
                 </button>
               );
             })}
             <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages}
-              className="p-1.5 rounded-lg text-fg-muted hover:bg-white/5 disabled:opacity-30 transition">
+              className="p-1.5 rounded-lg text-fg-muted hover:bg-white/5 dark:hover:bg-white/5 disabled:opacity-30 transition">
               <ChevronRight size={16} />
             </button>
           </div>

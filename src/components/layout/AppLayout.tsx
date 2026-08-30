@@ -99,7 +99,7 @@ export function AppLayout(){
           {/* Logo */}
           <Link to="/home" className="flex items-center gap-2.5 px-3 py-3 mb-4">
             <div className="w-9 h-9 rounded-xl gradient-moss flex items-center justify-center shadow-lg shadow-moss-500/20">
-              <GraduationCap size={19} className="text-white"/>
+              <GraduationCap size={19} className="text-fg"/>
             </div>
             <span className="font-display font-bold text-lg text-fg">sykabelajar</span>
           </Link>
@@ -109,7 +109,7 @@ export function AppLayout(){
             {nav.map(([to,label,Icon,badge]: NavItem)=>{
               const isActive=active(to);
               return (
-                <Link key={to} to={to} className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive?'bg-accent-muted text-accent shadow-sm shadow-accent/5':'text-fg-muted hover:bg-white/5 hover:text-fg'}`}>
+                <Link key={to} to={to} className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive?'bg-accent-muted text-accent shadow-sm shadow-accent/5':'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5 hover:text-fg'}`}>
                   <Icon size={19} className={isActive?'text-accent':'text-fg-muted group-hover:text-fg transition'}/>
                   <span className="flex-1">{label}</span>
                   {badge != null && badge > 0 && (
@@ -132,7 +132,7 @@ export function AppLayout(){
             <div className="mt-2 space-y-2 border-t surface-border pt-3">
               {/* Compact integrated profile card */}
               <Link to={`/profile/${user.username}`}
-                className="group flex items-center gap-3 p-2.5 rounded-xl transition-all duration-150 hover:bg-white/5">
+                className="group flex items-center gap-3 p-2.5 rounded-xl transition-all duration-150 hover:bg-white/5 dark:hover:bg-white/5">
                 {/* Avatar with online indicator */}
                 <div className="relative shrink-0">
                   <Avatar name={user.displayName} id={user.id} size={40} src={user.profilePhoto || undefined}/>
@@ -166,7 +166,7 @@ export function AppLayout(){
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b surface-border px-4 py-3 flex justify-between items-center">
           <Link to="/home" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center">
-              <GraduationCap size={16} className="text-white"/>
+              <GraduationCap size={16} className="text-fg"/>
             </div>
             <b className="text-fg text-sm">sykabelajar</b>
           </Link>
@@ -191,7 +191,7 @@ export function AppLayout(){
                 {nav.map(([to,label,Icon,badge]: NavItem)=>{
                   const isActive=active(to);
                   return (
-                    <Link key={to} to={to} onClick={()=>setDrawerOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive?'bg-accent-muted text-accent':'text-fg-muted hover:bg-white/5 hover:text-fg'}`}>
+                    <Link key={to} to={to} onClick={()=>setDrawerOpen(false)} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive?'bg-accent-muted text-accent':'text-fg-muted hover:bg-white/5 dark:hover:bg-white/5 hover:text-fg'}`}>
                       <Icon size={18}/>
                       <span className="flex-1">{label}</span>
                       {badge != null && badge > 0 && (

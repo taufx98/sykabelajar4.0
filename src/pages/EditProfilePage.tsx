@@ -205,7 +205,7 @@ export function EditProfilePage() {
         {/* ═══ MEDIA HEADER — Compact Banner + Avatar ═══ */}
         <Card className="p-0 overflow-hidden">
           {/* Cover */}
-          <div className="relative h-28 md:h-36 bg-gradient-to-br from-ink-700 to-ink-850">
+          <div className="relative h-28 md:h-36 bg-gradient-to-br from-surface-elevated to-ink-850">
             {coverSrc && <img src={coverSrc} alt="Cover" className="w-full h-full object-cover" />}
             <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface-card to-transparent" />
             <button type="button" onClick={() => coverRef.current?.click()}
@@ -380,7 +380,7 @@ export function EditProfilePage() {
               <h3 className="font-display font-semibold text-sm text-fg">Badge Showcase</h3>
               <button
                 onClick={() => setForm(f => ({ ...f, badgeShowcaseManual: !f.badgeShowcaseManual }))}
-                className={`relative w-10 h-5 rounded-full transition ${form.badgeShowcaseManual ? 'bg-accent' : 'bg-ink-700'}`}
+                className={`relative w-10 h-5 rounded-full transition ${form.badgeShowcaseManual ? 'bg-accent' : 'surface-elevated'}`}
               >
                 <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.badgeShowcaseManual ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>

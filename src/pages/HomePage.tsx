@@ -62,7 +62,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           {searchQuery && (
-            <div className="absolute left-4 right-4 top-full mt-1 z-30 bg-ink-800 border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+            <div className="absolute left-4 right-4 top-full mt-1 z-30 surface-elevated border surface-border rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
               {searchResults.length > 0 ? searchResults.map((r) => (
                 <Link
                   key={r.id + r.type}
@@ -137,7 +137,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                       <Link to={`/lomba/${comp.slug}`}>
                         <h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{comp.title}</h3>
                         {comp.short_description && <p className="text-sm text-fg-secondary leading-relaxed mb-3">{comp.short_description}</p>}
-                        {comp.poster_url && <img src={comp.poster_url} alt={comp.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5 mt-2" />}
+                        {comp.poster_url && <img src={comp.poster_url} alt={comp.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border surface-border mt-2" />}
                         <p className="text-xs text-moss-400 flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14} /></p>
                       </Link>
                     </div>
@@ -218,7 +218,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             {searchQuery && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-ink-800 border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+              <div className="absolute left-0 right-0 top-full mt-1 z-30 surface-elevated border surface-border rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
                 {searchResults.length > 0 ? searchResults.map((r) => (
                   <Link
                     key={r.id + r.type}
@@ -299,7 +299,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
                   Lihat semua
                 </Link>
               </div>
-              <div className="grid grid-cols-2 bg-ink-800 rounded-lg p-1 mb-3">
+              <div className="grid grid-cols-2 surface-elevated rounded-lg p-1 mb-3">
                 <button
                   onClick={() => setLeaderMode('xp')}
                   className={`text-[11px] py-1.5 rounded-md font-medium transition ${
@@ -443,7 +443,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
 function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{post:SocialPost;expanded:boolean;onExpand:()=>void;onLike:()=>void;onShare:()=>void;onOpen:()=>void;isGuest:boolean}){
   const isAchievement = !post.competition_id;
   return (
-    <div className="bg-ink-800/80 border border-white/5 rounded-2xl p-4">
+    <div className="surface-elevated/80 border surface-border rounded-2xl p-4">
       {/* Header: avatar + name + badge + date */}
       <div className="flex items-start gap-3">
         <Link to={`/profile/${post.author_username}`}>
@@ -471,7 +471,7 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
             <h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{post.title}</h3>
             <p className="text-sm text-fg-secondary leading-relaxed mb-3">{post.body}</p>
             {post.cover_url && (
-              <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5" />
+              <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border surface-border" />
             )}
             <p className="text-xs text-moss-400 flex items-center gap-1 mt-3">
               Lihat detail uji kompetensi <ChevronRight size={14} />
@@ -482,7 +482,7 @@ function FeedPostCard({post,expanded,onExpand,onLike,onShare,onOpen,isGuest}:{po
             <h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{post.title}</h3>
             <p className="text-sm text-fg-secondary leading-relaxed whitespace-pre-line">{post.body}</p>
             {post.cover_url && (
-              <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border border-white/5 mt-3" />
+              <img src={post.cover_url} alt={post.title} loading="lazy" className="w-full aspect-video object-cover rounded-xl border surface-border mt-3" />
             )}
             {/* Verification badge for achievement posts */}
             {isAchievement && (

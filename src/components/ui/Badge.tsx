@@ -12,12 +12,12 @@ export function RankBadge({ rank, size = 'md' }: { rank: number; size?: 'sm' | '
   if (rank === 3) {
     return <div className={`${sizes[size]} rounded-full bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center font-bold text-white`}>{rank}</div>;
   }
-  return <div className={`${sizes[size]} rounded-full bg-ink-700 border border-white/10 flex items-center justify-center font-semibold text-white/70 dark:text-slate-300`}>{rank}</div>;
+  return <div className={`${sizes[size]} rounded-full surface-elevated border surface-border flex items-center justify-center font-semibold text-white/70 dark:text-fg-secondary`}>{rank}</div>;
 }
 
 export function MedalIcon({ rank, size = 24 }: { rank: number; size?: number }) {
   if (rank === 1) return <Trophy size={size} className="text-moss-400" />;
-  if (rank === 2) return <Medal size={size} className="text-slate-300" />;
+  if (rank === 2) return <Medal size={size} className="text-fg-secondary" />;
   if (rank === 3) return <Medal size={size} className="text-amber-500" />;
   return <AwardIcon size={size} className="text-slate-500" />;
 }

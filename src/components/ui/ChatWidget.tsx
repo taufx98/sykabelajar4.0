@@ -167,21 +167,21 @@ export function ChatWidget() {
   return (
     <div className="fixed bottom-5 right-5 z-50">
       {isOpen && (
-        <div className="mb-3 w-80 h-[420px] bg-ink-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
+        <div className="mb-3 w-80 h-[420px] surface-card-bg border surface-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
 
           {/* ═══ HEADER ═══ */}
           <div className="bg-gradient-to-r from-moss-600 to-moss-700 px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               {view === 'chat' && (
-                <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white">
+                <button onClick={() => setIsOpen(false)} className="text-fg/70 hover:text-fg">
                   <ArrowLeft size={16} />
                 </button>
               )}
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                <Headphones size={16} className="text-white" />
+                <Headphones size={16} className="text-fg" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Admin SykaBelajar</p>
+                <p className="text-sm font-semibold text-fg">Admin SykaBelajar</p>
                 <p className="text-[10px] text-moss-200">
                   {view === 'chat' ? 'Online' :
                    view === 'waiting' ? 'Menunggu balasan...' :
@@ -190,7 +190,7 @@ export function ChatWidget() {
                 </p>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition">
+            <button onClick={() => setIsOpen(false)} className="text-fg/70 hover:text-white transition">
               <X size={18} />
             </button>
           </div>
@@ -202,7 +202,7 @@ export function ChatWidget() {
                 <div className="w-14 h-14 rounded-full bg-moss-500/10 flex items-center justify-center mx-auto mb-3">
                   <MessageCircle size={24} className="text-moss-400" />
                 </div>
-                <p className="text-sm font-semibold text-white">Hubungi Admin</p>
+                <p className="text-sm font-semibold text-fg">Hubungi Admin</p>
                 <p className="text-[11px] text-slate-500 mt-1">Isi judul & deskripsi masalah, lalu chat dengan admin</p>
               </div>
 
@@ -213,7 +213,7 @@ export function ChatWidget() {
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   placeholder="Contoh: Masalah Login"
-                  className="w-full bg-ink-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50"
+                  className="w-full surface-card-bg border surface-border rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50"
                 />
               </div>
 
@@ -224,7 +224,7 @@ export function ChatWidget() {
                   onChange={e => setDescription(e.target.value)}
                   placeholder="Jelaskan masalah kamu secara detail..."
                   rows={4}
-                  className="w-full bg-ink-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50 resize-none"
+                  className="w-full surface-card-bg border surface-border rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50 resize-none"
                 />
               </div>
 
@@ -264,7 +264,7 @@ export function ChatWidget() {
           {/* ═══ VIEW: CHAT — Normal chat ═══ */}
           {view === 'chat' && (
             <>
-              <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-ink-800 min-h-0">
+              <div className="flex-1 overflow-y-auto p-3 space-y-3 surface-elevated min-h-0">
                 {loading && (
                   <div className="text-center py-4">
                     <div className="w-5 h-5 border-2 border-moss-400 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -292,7 +292,7 @@ export function ChatWidget() {
                         <div className={`px-3 py-2 rounded-2xl text-sm ${
                           isMe
                             ? 'bg-moss-600 text-white rounded-br-sm'
-                            : 'bg-ink-700 text-slate-200 rounded-bl-sm'
+                            : 'surface-elevated text-fg-secondary rounded-bl-sm'
                         }`}>
                           <p className="whitespace-pre-wrap">{msg.body}</p>
                           <p className={`text-[9px] mt-1 ${isMe ? 'text-moss-200' : 'text-slate-500'}`}>
@@ -310,7 +310,7 @@ export function ChatWidget() {
               </div>
 
               {/* Input — hanya muncul jika thread masih open */}
-              <div className="p-3 bg-ink-900 border-t border-white/5 shrink-0">
+              <div className="p-3 surface-card-bg border-t surface-border shrink-0">
                 {thread?.status === 'closed' ? (
                   <div className="text-center space-y-2">
                     <p className="text-xs text-slate-500">Sesi chat ini telah selesai</p>
@@ -333,7 +333,7 @@ export function ChatWidget() {
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder="Ketik pesan..."
-                      className="flex-1 bg-ink-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50"
+                      className="flex-1 surface-card-bg border surface-border rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-moss-500/50"
                     />
                     <button
                       onClick={handleSend}
@@ -380,7 +380,7 @@ export function ChatWidget() {
               </div>
               <div className="flex gap-2 w-full">
                 <button onClick={handleSkipRating}
-                  className="flex-1 py-2.5 rounded-xl bg-ink-800 text-slate-400 text-sm font-medium hover:bg-ink-700 transition">
+                  className="flex-1 py-2.5 rounded-xl surface-elevated text-slate-400 text-sm font-medium hover:surface-elevated transition">
                   Lewati
                 </button>
                 <button onClick={handleRate} disabled={rating === 0}
@@ -404,8 +404,8 @@ export function ChatWidget() {
         aria-label="Chat dengan admin"
       >
         {isOpen
-          ? <X size={18} className="text-white transition-transform duration-300 group-active:rotate-90" />
-          : <MessageCircle size={18} className="text-white transition-transform duration-300 group-hover:scale-110" />
+          ? <X size={18} className="text-fg transition-transform duration-300 group-active:rotate-90" />
+          : <MessageCircle size={18} className="text-fg transition-transform duration-300 group-hover:scale-110" />
         }
       </button>
     </div>

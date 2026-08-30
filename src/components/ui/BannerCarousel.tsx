@@ -16,7 +16,7 @@ function EmptySlot() {
   return (
     <Link
       to="/organizer/ads"
-      className="flex-1 bg-ink-800/40 border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-moss-400/60 transition cursor-pointer rounded-xl"
+      className="flex-1 surface-elevated border border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-moss-400/60 transition cursor-pointer rounded-xl"
       style={{ aspectRatio: `465/${UPLOAD_H}` }}
     >
       <Megaphone size={22} />
@@ -97,7 +97,7 @@ export function BannerCarousel() {
   if (loading) {
     return (
       <div
-        className="w-full rounded-xl bg-ink-800/50 border border-white/5 animate-pulse"
+        className="w-full rounded-xl surface-elevated border surface-border animate-pulse"
         style={{ aspectRatio: `465/${UPLOAD_H}` }}
       />
     );

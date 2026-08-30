@@ -20,7 +20,7 @@ export function EmblemIcon({ emblem, size = 20 }: { emblem: EmblemType; size?: n
       style={{ width: size, height: size }}
       title={emblem.name}
     >
-      <Icon size={size * 0.6} className="text-white" />
+      <Icon size={size * 0.6} className="text-fg" />
     </div>
   );
 }
@@ -93,7 +93,7 @@ export function EmblemPopup({ emblem, onClose }: { emblem: EmblemType | null; on
         onClick={(e) => e.stopPropagation()}
         style={{ position: 'relative' }}
       >
-        <button onClick={onClose} className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-white/5 text-slate-400 transition z-10">
+        <button onClick={onClose} className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-white/5 dark:hover:bg-white/5 text-slate-400 transition z-10">
           <X size={16} />
         </button>
         <div className="flex justify-center mb-3">
@@ -101,9 +101,9 @@ export function EmblemPopup({ emblem, onClose }: { emblem: EmblemType | null; on
         </div>
         <h3 className="font-display font-bold text-white mb-1">{emblem.name}</h3>
         <p className="text-xs text-slate-500 mb-3">{emblem.position}</p>
-        <div className="bg-ink-800/50 rounded-xl p-3 text-left">
+        <div className="surface-elevated rounded-xl p-3 text-left">
           <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Didapatkan dari</p>
-          <p className="text-sm text-white font-medium">{emblem.competitionTitle}</p>
+          <p className="text-sm text-fg font-medium">{emblem.competitionTitle}</p>
         </div>
       </div>
     </div>,

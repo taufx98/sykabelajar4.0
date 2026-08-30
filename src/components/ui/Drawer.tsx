@@ -28,9 +28,9 @@ export function Drawer({ open, onClose, title, children, side = 'right' }: Drawe
         }`}
       >
         {title && (
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-            <h3 className="font-display font-semibold text-base text-white">{title}</h3>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition">
+          <div className="flex items-center justify-between px-5 py-4 border-b surface-border">
+            <h3 className="font-display font-semibold text-base text-fg">{title}</h3>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 dark:hover:bg-white/5 text-slate-400 hover:text-white transition">
               <X size={18} />
             </button>
           </div>

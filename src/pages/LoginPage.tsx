@@ -54,7 +54,7 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-4 h-16 flex items-center justify-between border-b border-white/5">
+      <header className="px-4 h-16 flex items-center justify-between border-b surface-border">
         <Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white" /></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-moss-400">.id</span></span></Link>
         <Link to="/register" className="text-sm text-slate-400 hover:text-fg">Belum punya akun? <span className="text-moss-400">Daftar</span></Link>
       </header>
@@ -66,7 +66,7 @@ export function LoginPage() {
             <div className="mb-5">
               <label className="label">Masuk sebagai</label>
               <div className="grid grid-cols-3 gap-2">
-                {ROLE_OPTIONS.map(({ value, label, icon: Icon }) => <button key={value} type="button" onClick={() => setRequestedRole(value)} className={`rounded-xl border p-3 flex flex-col items-center gap-2 transition ${requestedRole === value ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'border-white/10 text-slate-400 hover:border-white/20'}`}><Icon size={18} /><span className="text-xs font-medium">{label}</span></button>)}
+                {ROLE_OPTIONS.map(({ value, label, icon: Icon }) => <button key={value} type="button" onClick={() => setRequestedRole(value)} className={`rounded-xl border p-3 flex flex-col items-center gap-2 transition ${requestedRole === value ? 'border-moss-500 bg-moss-500/10 text-moss-300' : 'surface-border text-slate-400 hover:surface-border'}`}><Icon size={18} /><span className="text-xs font-medium">{label}</span></button>)}
               </div>
             </div>
             <div className="space-y-4">
