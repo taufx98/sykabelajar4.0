@@ -1,9 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
-import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { TrendingUp, ChevronLeft, ChevronRight, Crown, Medal, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
-import { RankBadge } from '@/components/ui/Badge';
 import { getPublicLeaderboard, type PublicLeaderboardRow } from '@/services/platform.service';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/store/AppContext';
@@ -21,6 +20,45 @@ const GRADES = [
 const PER_PAGE = 10;
 const MAX_RANK = 100;
 
+const RANK_STYLES = {
+  1: {
+    ring: 'ring-4 ring-amber-400/80',
+    crown: 'text-amber-400',
+    crownBg: 'bg-amber-500/20',
+    card: 'border-amber-400/40',
+    cardBg: 'bg-gradient-to-b from-amber-500/8 to-surface-card',
+    glow: 'shadow-[0_0_20px_rgba(245,158,11,0.15)]',
+    nameColor: 'text-fg',
+    scoreBg: 'bg-amber-500',
+    scoreText: 'text-white',
+    label: '🥇',
+  },
+  2: {
+    ring: 'ring-4 ring-slate-300/50',
+    crown: 'text-slate-300',
+    crownBg: 'bg-slate-400/15',
+    card: 'border-slate-300/25',
+    cardBg: 'bg-surface-card',
+    glow: '',
+    nameColor: 'text-fg',
+    scoreBg: 'bg-slate-400/20',
+    scoreText: 'text-fg',
+    label: '🥈',
+  },
+  3: {
+    ring: 'ring-4 ring-orange-400/50',
+    crown: 'text-orange-400',
+    crownBg: 'bg-orange-500/15',
+    card: 'border-orange-400/25',
+    cardBg: 'bg-surface-card',
+    glow: '',
+    nameColor: 'text-fg',
+    scoreBg: 'bg-orange-500/15',
+    scoreText: 'text-fg',
+    label: '🥉',
+  },
+} as const;
+
 export function LeaderboardPage() {
   const { user } = useApp();
   const [mode, setMode] = useState<Mode>('xp');
@@ -34,16 +72,15 @@ export function LeaderboardPage() {
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      setLoading(true);
-      setError('');
+    (async () => {
+      setLoading(true); setError('');
       try {
         if (mode === 'xp') {
           const rows = await getPublicLeaderboard(MAX_RANK);
           if (active) setEntries(rows);
         } else {
-          const { data, error } = await supabase.rpc('get_public_coin_leaderboard', { p_limit: MAX_RANK });
-          if (error) throw error;
+          const { data, error: rpcErr } = await supabase.rpc('get_public_coin_leaderboard', { p_limit: MAX_RANK });
+          if (rpcErr) throw rpcErr;
           if (active) setCoins(((data ?? []) as any[]).map(r => ({
             user_id: String(r.user_id), username: String(r.username ?? ''),
             display_name: String(r.display_name ?? r.username ?? 'Pengguna'),
@@ -55,107 +92,75 @@ export function LeaderboardPage() {
       } catch (e: any) {
         if (active) { setError(e?.message ?? 'Gagal memuat.'); setEntries([]); setCoins([]); }
       } finally { if (active) setLoading(false); }
-    };
-    void load();
+    })();
     return () => { active = false; };
   }, [mode]);
 
-  // Filter by grade
   const allRows = useMemo(() => {
     const rows = mode === 'xp' ? entries : (coins as any[]);
     if (grade === 'all' && !subGrade) return rows;
-    if (subGrade) {
-      return rows.filter((r: any) => {
-        const inst = (r.institution || '').toLowerCase();
-        return inst.includes(subGrade.toLowerCase());
-      });
-    }
+    if (subGrade) return rows.filter((r: any) => (r.institution || '').toLowerCase().includes(subGrade.toLowerCase()));
     const gradeMap: Record<string, string[]> = {
       sd: ['SD', 'Sekolah Dasar', '1', '2', '3', '4', '5', '6'],
       smp: ['SMP', 'Sekolah Menengah Pertama', '7', '8', '9'],
       sma: ['SMA', 'SMK', 'Sekolah Menengah Atas', '10', '11', '12'],
     };
     const keywords = gradeMap[grade] || [];
-    return rows.filter((r: any) => {
-      const inst = (r.institution || '').toLowerCase();
-      return keywords.some(k => inst.includes(k.toLowerCase()));
-    });
+    return rows.filter((r: any) => keywords.some(k => (r.institution || '').toLowerCase().includes(k.toLowerCase())));
   }, [entries, coins, mode, grade, subGrade]);
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(allRows.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const top3 = allRows.slice(0, 3);
   const paged = allRows.slice(3 + (safePage - 1) * PER_PAGE, 3 + safePage * PER_PAGE);
-  const startRank = 4 + (safePage - 1) * PER_PAGE;
 
-  // Podium order: 2nd, 1st, 3rd (for desktop side-by-side)
-  const podium = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
-  // Mobile order: 1st, 2nd, 3rd
+  // Podium: 2nd, 1st, 3rd for desktop (center is tallest)
+  const podiumDesktop = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
   const podiumMobile = top3.length >= 3 ? [top3[0], top3[1], top3[2]] : top3;
 
   return (
-    <div>
-      {/* Sticky header */}
-      <div className="sticky top-0 z-20 glass border-b border-white/5 px-4 py-3">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="font-display font-bold text-lg text-white">Papan Peringkat</h2>
-          <span className="flex items-center gap-1 text-xs text-moss-400">
-            <span className="w-2 h-2 rounded-full bg-moss-400 animate-pulse" />Live
+    <div className="min-h-screen">
+      {/* ═══ STICKY HEADER ═══ */}
+      <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-display font-bold text-lg text-fg">Papan Peringkat</h2>
+          <span className="flex items-center gap-1.5 text-xs text-accent">
+            <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />Live
           </span>
         </div>
 
-        {/* XP / Edu toggle */}
-        <div className="flex gap-1 bg-ink-800 rounded-lg p-1 mb-2">
-          <button onClick={() => { setMode('xp'); setPage(1); }}
-            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${mode === 'xp' ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'}`}>
-            XP Global
-          </button>
-          <button onClick={() => { setMode('coin'); setPage(1); }}
-            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${mode === 'coin' ? 'bg-moss-500/15 text-moss-300' : 'text-slate-500'}`}>
-            Edu Coin
-          </button>
+        {/* Mode toggle */}
+        <div className="flex gap-1 surface-elevated rounded-lg p-1 mb-3">
+          {([['xp', 'XP Global'], ['coin', 'Edu Coin']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => { setMode(key); setPage(1); }}
+              className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${
+                mode === key ? 'bg-accent-muted text-accent' : 'text-fg-muted hover:text-fg-secondary'
+              }`}>
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Grade filter — single row, inline expansion, underline style */}
-        <div className="flex overflow-x-auto no-scrollbar border-b border-white/5">
+        {/* Grade filter */}
+        <div className="flex overflow-x-auto no-scrollbar border-b surface-border">
           {(() => {
             const items: { key: string; label: string; active: boolean; onClick: () => void }[] = [];
-            // Always start with Semua
             items.push({ key: 'all', label: 'Semua', active: grade === 'all' && !subGrade, onClick: () => { setGrade('all'); setSubGrade(null); setPage(1); } });
             GRADES.filter(g => g.key !== 'all').forEach((g) => {
-              items.push({
-                key: g.key,
-                label: g.label,
-                active: grade === g.key && !subGrade,
-                onClick: () => { setGrade(g.key); setSubGrade(null); setPage(1); },
-              });
-              // If this grade is active and has children, expand them inline
+              items.push({ key: g.key, label: g.label, active: grade === g.key && !subGrade, onClick: () => { setGrade(g.key); setSubGrade(null); setPage(1); } });
               if (grade === g.key && g.children) {
                 g.children.forEach((lvl) => {
-                  items.push({
-                    key: `${g.key}-${lvl}`,
-                    label: lvl,
-                    active: subGrade === lvl,
-                    onClick: () => { setSubGrade(lvl); setPage(1); },
-                  });
+                  items.push({ key: `${g.key}-${lvl}`, label: lvl, active: subGrade === lvl, onClick: () => { setSubGrade(lvl); setPage(1); } });
                 });
               }
             });
             return items.map((item) => (
-              <button
-                key={item.key}
-                onClick={item.onClick}
+              <button key={item.key} onClick={item.onClick}
                 className={`px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-all relative shrink-0 ${
-                  item.active
-                    ? 'text-moss-300'
-                    : 'text-slate-500 hover:text-slate-300'
-                }`}
-              >
+                  item.active ? 'text-accent' : 'text-fg-muted hover:text-fg-secondary'
+                }`}>
                 {item.label}
-                {item.active && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-moss-400 rounded-full" />
-                )}
+                {item.active && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-accent rounded-full" />}
               </button>
             ));
           })()}
@@ -163,80 +168,75 @@ export function LeaderboardPage() {
       </div>
 
       <div className="p-4 space-y-4">
-        {loading && <Card className="p-8 text-center text-sm text-slate-500">Memuat...</Card>}
-        {error && <Card className="p-8 text-center text-sm text-red-300">{error}</Card>}
+        {loading && <Card className="p-8 text-center text-sm text-fg-muted animate-pulse">Memuat peringkat…</Card>}
+        {error && <Card className="p-8 text-center text-sm text-red-400">{error}</Card>}
 
-        {/* Top 3 podium */}
-        {!loading && !error && podium.length >= 3 && (
+        {/* ═══ TOP 3 PODIUM ═══ */}
+        {!loading && !error && podiumDesktop.length >= 3 && (
           <>
-            {/* Desktop: side by side — order 2nd, 1st, 3rd */}
-            <div className="hidden sm:flex items-end justify-center gap-4 lg:gap-5 px-2 pt-8 pb-2">
-              {podium.map((entry: any, idx: number) => {
-                const place = idx === 0 ? 2 : idx === 1 ? 1 : 3;
-                return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} layout="vertical" />;
+            {/* Desktop: 2nd — 1st — 3rd */}
+            <div className="hidden sm:flex items-end justify-center gap-4 lg:gap-6 px-2 pt-6 pb-2">
+              {podiumDesktop.map((entry: any, idx: number) => {
+                const place = (idx === 0 ? 2 : idx === 1 ? 1 : 3) as 1 | 2 | 3;
+                return <PodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} compact={false} />;
               })}
             </div>
-            {/* Mobile: stacked — order 1st, 2nd, 3rd */}
-            <div className="flex sm:hidden flex-col gap-4 pt-4">
+            {/* Mobile: 1st, 2nd, 3rd stacked */}
+            <div className="flex sm:hidden flex-col gap-3 pt-4">
               {podiumMobile.map((entry: any, idx: number) => {
-                const place = idx === 0 ? 1 : idx === 1 ? 2 : 3;
-                return <TopBox key={entry.user_id} entry={entry} place={place as 1 | 2 | 3} mode={mode} layout="horizontal" />;
+                const place = (idx === 0 ? 1 : idx === 1 ? 2 : 3) as 1 | 2 | 3;
+                return <PodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} compact />;
               })}
             </div>
           </>
         )}
 
-        {/* Ranks 4-10 (current page) */}
-        {!loading && !error && podium.length >= 3 && (
-          <div className="border-t border-white/5 my-1" />
-        )}
+        {/* Divider */}
+        {!loading && !error && podiumDesktop.length >= 3 && <div className="border-t surface-border" />}
+
+        {/* ═══ RANK 4+ LIST ═══ */}
         {!loading && !error && (
           <div className="space-y-2">
             {paged.map((entry: any) => (
-              <LeaderboardRow key={entry.user_id} entry={entry} currentUserId={user?.id} mode={mode} />
+              <RankRow key={entry.user_id} entry={entry} currentUserId={user?.id} mode={mode} />
             ))}
           </div>
         )}
 
         {!loading && !error && !allRows.length && (
-          <Card className="p-8 text-center text-sm text-slate-500">Belum ada data.</Card>
+          <Card className="p-8 text-center text-sm text-fg-muted">Belum ada data peringkat.</Card>
         )}
 
         {/* Pagination */}
         {!loading && totalPages > 1 && (
           <div className="flex items-center justify-center gap-1 pt-2">
             <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1}
-              className="p-1.5 rounded-lg text-slate-500 hover:bg-white/5 disabled:opacity-30">
+              className="p-1.5 rounded-lg text-fg-muted hover:bg-white/5 disabled:opacity-30 transition">
               <ChevronLeft size={16} />
             </button>
             {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
               let pageNum: number;
-              if (totalPages <= 7) {
-                pageNum = i + 1;
-              } else if (safePage <= 4) {
-                pageNum = i + 1;
-              } else if (safePage >= totalPages - 3) {
-                pageNum = totalPages - 6 + i;
-              } else {
-                pageNum = safePage - 3 + i;
-              }
+              if (totalPages <= 7) pageNum = i + 1;
+              else if (safePage <= 4) pageNum = i + 1;
+              else if (safePage >= totalPages - 3) pageNum = totalPages - 6 + i;
+              else pageNum = safePage - 3 + i;
               return (
                 <button key={pageNum} onClick={() => setPage(pageNum)}
                   className={`w-8 h-8 rounded-lg text-xs font-medium transition ${
-                    pageNum === safePage ? 'bg-moss-500/20 text-moss-300' : 'text-slate-500 hover:bg-white/5'
+                    pageNum === safePage ? 'bg-accent-muted text-accent' : 'text-fg-muted hover:bg-white/5'
                   }`}>
                   {pageNum}
                 </button>
               );
             })}
             <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages}
-              className="p-1.5 rounded-lg text-slate-500 hover:bg-white/5 disabled:opacity-30">
+              className="p-1.5 rounded-lg text-fg-muted hover:bg-white/5 disabled:opacity-30 transition">
               <ChevronRight size={16} />
             </button>
           </div>
         )}
 
-        <p className="text-center text-xs text-slate-600 pt-2">
+        <p className="text-center text-xs text-fg-muted pt-1">
           Menampilkan {allRows.length} dari max {MAX_RANK} peringkat
         </p>
       </div>
@@ -244,145 +244,104 @@ export function LeaderboardPage() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────
-   TopBox – Podium card for Rank 1 / 2 / 3
-   ───────────────────────────────────────────────────────── */
-function TopBox({ entry, place, mode, layout }: { entry: any; place: 1 | 2 | 3; mode: Mode; layout: 'vertical' | 'horizontal' }) {
+/* ═══════════════════════════════════════════════════════════════
+   PodiumCard — Rank 1/2/3 with circular avatar + crown icon
+   ═══════════════════════════════════════════════════════════════ */
+function PodiumCard({ entry, place, mode, compact }: { entry: any; place: 1 | 2 | 3; mode: Mode; compact: boolean }) {
+  const s = RANK_STYLES[place];
   const is1st = place === 1;
-  const colors = is1st
-    ? { border: 'border-amber-500/60', bg: 'bg-gradient-to-br from-amber-900/30 to-ink-800', badge: 'bg-amber-500 text-white', medal: '🥇', nameColor: 'text-amber-300', scoreColor: 'text-amber-300', glowBg: 'bg-amber-500', glowShadow: 'shadow-[0_0_12px_rgba(245,158,11,0.4)]' }
-    : place === 2
-    ? { border: 'border-slate-400/30', bg: 'bg-gradient-to-br from-slate-700/20 to-ink-800', badge: 'bg-slate-500/80 text-white', medal: '🥈', nameColor: 'text-white', scoreColor: 'text-white', glowBg: 'bg-amber-500', glowShadow: 'shadow-[0_0_12px_rgba(245,158,11,0.4)]' }
-    : { border: 'border-orange-600/30', bg: 'bg-gradient-to-br from-orange-900/20 to-ink-800', badge: 'bg-orange-600/80 text-white', medal: '🥉', nameColor: 'text-white', scoreColor: 'text-white', glowBg: 'bg-amber-500', glowShadow: 'shadow-[0_0_12px_rgba(245,158,11,0.4)]' };
-
   const score = Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID');
+  const avatarSize = is1st ? (compact ? 72 : 96) : (compact ? 56 : 72);
 
-  const avatarFallback = (size: string) => (
-    <div className="w-full h-full flex items-center justify-center bg-moss-500/10">
-      <span className={`${size} font-bold text-moss-300`}>{(entry.display_name || 'U').charAt(0).toUpperCase()}</span>
-    </div>
-  );
-
-  const badgeIcons = (
-    <div className="flex gap-1.5 justify-center">
-      {[
-        'bg-amber-500/25 text-amber-400',
-        'bg-emerald-500/25 text-emerald-400',
-        'bg-sky-500/25 text-sky-400',
-        'bg-rose-500/25 text-rose-400',
-      ].map((cls, i) => (
-        <div key={i} className={`w-6 h-6 rounded-full ${cls} flex items-center justify-center`}>
-          <span className="text-[10px]">🏆</span>
-        </div>
-      ))}
-    </div>
-  );
-
-  const infoBlock = (
-    <div className="text-center w-full">
-      <Link to={`/profile/${entry.username}`}>
-        <p className={`font-bold text-sm ${colors.nameColor}`}>{entry.display_name}</p>
-        <p className="text-[11px] text-slate-400">@{entry.username}</p>
-      </Link>
-      <p className="text-[11px] text-slate-400 mt-0.5">{entry.institution || '—'}</p>
-      <p className="text-[10px] text-slate-500 mt-0.5">Pembina: -</p>
-    </div>
-  );
-
-  /* Total poin inside glowing yellow container */
-  const scoreBlock = (
-    <div className="mt-auto pt-2">
-      {badgeIcons}
-      <div className={`${colors.glowBg} ${colors.glowShadow} rounded-xl py-2 mt-2 text-center`}>
-        <p className="text-sm font-bold text-white">{score}</p>
-        <p className="text-[10px] text-white/70">total poin</p>
-      </div>
-    </div>
-  );
-
-  const rankBadge = (
-    <div className={`${colors.badge} px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 mb-[-14px] z-10 shadow-lg self-center shrink-0 w-fit mx-auto`}>
-      <span>{colors.medal}</span> RANK {place}
-    </div>
-  );
-
-  /* ── VERTICAL (Desktop) ── */
-  if (layout === 'vertical') {
-    return (
-      <div className="flex-1 min-w-0 max-w-[320px]">
-        {rankBadge}
-        <div className={`${colors.bg} ${colors.border} border-2 rounded-2xl p-3 flex flex-col overflow-hidden`}>
-          {/* Large photo — NO rank label on photo */}
-          <div className="relative w-full aspect-[3/4] rounded-xl overflow-hidden bg-ink-700 mb-3">
-            {entry.avatar_url ? (
-              <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
-            ) : avatarFallback('text-4xl')}
-          </div>
-          {infoBlock}
-          {scoreBlock}
-        </div>
-      </div>
-    );
-  }
-
-  /* ── HORIZONTAL (Mobile) ── */
   return (
-    <div className="w-full">
-      {rankBadge}
-      <div className={`${colors.bg} ${colors.border} border-2 rounded-2xl p-3 flex flex-col overflow-hidden`}>
-        {/* Photo + Info side by side */}
-        <div className="flex gap-3">
-          {/* Photo — NO rank label on photo */}
-          <div className="relative w-24 h-28 rounded-xl overflow-hidden bg-ink-700 shrink-0">
-            {entry.avatar_url ? (
-              <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
-            ) : avatarFallback('text-2xl')}
-          </div>
-          {/* Detail info */}
-          <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <Link to={`/profile/${entry.username}`}>
-              <p className={`font-bold text-sm ${colors.nameColor}`}>{entry.display_name}</p>
-              <p className="text-[11px] text-slate-400 truncate">@{entry.username}</p>
-            </Link>
-            <p className="text-[11px] text-slate-400 mt-0.5">{entry.institution || '—'}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">Pembina: -</p>
-          </div>
+    <div className={`flex-1 ${is1st ? 'max-w-[280px]' : 'max-w-[240px]'} ${!compact ? (is1st ? '-mt-4' : place === 2 ? 'mt-4' : 'mt-6') : ''}`}>
+      {/* Crown / Medal badge */}
+      <div className={`flex justify-center mb-2`}>
+        <div className={`${s.crownBg} rounded-full px-3 py-1 flex items-center gap-1.5`}>
+          <span className="text-base">{s.label}</span>
+          <span className={`text-[11px] font-bold ${s.crown}`}>Rank {place}</span>
         </div>
-        {/* Score below */}
-        <div className="mt-2 pt-2 border-t border-white/5">
-          {badgeIcons}
-          <div className={`${colors.glowBg} ${colors.glowShadow} rounded-xl py-2 mt-2 text-center`}>
-            <p className="text-sm font-bold text-white">{score}</p>
-            <p className="text-[10px] text-white/70">total poin</p>
+      </div>
+
+      {/* Card */}
+      <div className={`${s.cardBg} ${s.card} border-2 rounded-2xl p-4 flex flex-col items-center ${s.glow} transition-all duration-300`}>
+        {/* Avatar — circular */}
+        <div className="relative mb-3">
+          <div className={`${s.ring} rounded-full overflow-hidden`}>
+            <Avatar
+              name={entry.display_name} id={entry.user_id}
+              size={avatarSize} src={entry.avatar_url ?? undefined}
+            />
           </div>
+          {/* Crown icon overlay for rank 1 */}
+          {is1st && (
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2">
+              <Crown size={20} className="text-amber-400 drop-shadow-lg" />
+            </div>
+          )}
+        </div>
+
+        {/* Name + username */}
+        <Link to={`/profile/${entry.username}`} className="text-center group">
+          <p className={`font-bold text-sm ${s.nameColor} group-hover:text-accent transition truncate max-w-full`}>
+            {entry.display_name}
+          </p>
+          <p className="text-[11px] text-fg-muted truncate">@{entry.username}</p>
+        </Link>
+
+        {/* Institution */}
+        <p className="text-[10px] text-fg-muted mt-1 truncate max-w-full">{entry.institution || '—'}</p>
+
+        {/* Score badge */}
+        <div className={`${s.scoreBg} ${is1st ? 'text-white' : s.scoreText} rounded-xl px-4 py-2 mt-3 text-center w-full`}>
+          <p className="text-lg font-bold tabular-nums">{score}</p>
+          <p className={`text-[10px] ${is1st ? 'text-white/70' : 'text-fg-muted'}`}>{mode === 'xp' ? 'Total XP' : 'Edu Coin'}</p>
         </div>
       </div>
     </div>
   );
 }
 
-function LeaderboardRow({ entry, currentUserId, mode }: { entry: any; currentUserId?: string; mode: Mode }) {
+/* ═══════════════════════════════════════════════════════════════
+   RankRow — Rank 4+ list item
+   ═══════════════════════════════════════════════════════════════ */
+function RankRow({ entry, currentUserId, mode }: { entry: any; currentUserId?: string; mode: Mode }) {
+  const isMe = currentUserId === entry.user_id;
+  const score = Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID');
+
   return (
-    <Card className={`p-3 ${currentUserId === entry.user_id ? 'border-moss-500/40 bg-moss-500/5' : ''}`}>
-      <div className="flex items-center gap-3">
-        <div className="w-8 text-center">
-          <span className="text-sm font-bold text-slate-300">{entry.rank}</span>
-        </div>
-        <Link to={`/profile/${entry.username}`}>
-          <Avatar name={entry.display_name} id={entry.user_id} size={36} ring={currentUserId === entry.user_id} src={entry.avatar_url ?? undefined} shape="square" />
-        </Link>
-        <div className="flex-1 min-w-0">
-          <Link to={`/profile/${entry.username}`}>
-            <p className={`text-sm font-semibold truncate ${currentUserId === entry.user_id ? 'text-moss-300' : 'text-white'}`}>
-              {entry.display_name}{currentUserId === entry.user_id ? ' (Kamu)' : ''}
-            </p>
-            <p className="text-xs text-slate-500 truncate">{entry.institution || '—'}</p>
-          </Link>
-        </div>
-        <span className={`text-sm font-semibold tabular-nums w-20 text-right ${mode === 'xp' ? 'text-moss-300' : 'text-amber-300'}`}>
-          {Number(mode === 'xp' ? entry.xp : entry.edu_coin).toLocaleString('id-ID')} {mode === 'xp' ? 'XP' : 'Coin'}
-        </span>
+    <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-150 ${
+      isMe
+        ? 'border-accent/40 bg-accent-muted'
+        : 'surface-border surface-card-bg hover:border-accent/20 hover:bg-surface-elevated'
+    }`}>
+      {/* Rank number */}
+      <div className="w-8 text-center shrink-0">
+        <span className={`text-sm font-bold ${isMe ? 'text-accent' : 'text-fg-muted'}`}>{entry.rank}</span>
       </div>
-    </Card>
+
+      {/* Avatar */}
+      <Link to={`/profile/${entry.username}`} className="shrink-0">
+        <Avatar name={entry.display_name} id={entry.user_id} size={36} src={entry.avatar_url ?? undefined} />
+      </Link>
+
+      {/* Name + institution */}
+      <div className="flex-1 min-w-0">
+        <Link to={`/profile/${entry.username}`}>
+          <p className={`text-sm font-semibold truncate ${isMe ? 'text-accent' : 'text-fg'}`}>
+            {entry.display_name}{isMe && <span className="text-fg-muted font-normal ml-1">(Kamu)</span>}
+          </p>
+          <p className="text-[11px] text-fg-muted truncate">{entry.institution || '—'}</p>
+        </Link>
+      </div>
+
+      {/* Score */}
+      <div className="text-right shrink-0">
+        <p className={`text-sm font-bold tabular-nums ${mode === 'xp' ? 'text-accent' : 'text-amber-400'}`}>
+          {score}
+        </p>
+        <p className="text-[10px] text-fg-muted">{mode === 'xp' ? 'XP' : 'Coin'}</p>
+      </div>
+    </div>
   );
 }

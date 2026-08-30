@@ -129,32 +129,31 @@ export function AppLayout(){
               <Link to="/login"><Button fullWidth size="sm" variant="outline" icon={<LogIn size={15}/>}>Masuk</Button></Link>
             </div>
           ) : user ? (
-            <div className="mt-2 space-y-2 border-t border-white/5 pt-3">
-              {/* Profile card — professional */}
-              <Link to={`/profile/${user.username}`} className="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5 transition-all duration-150">
+            <div className="mt-2 space-y-2 border-t surface-border pt-3">
+              {/* Compact integrated profile card */}
+              <Link to={`/profile/${user.username}`}
+                className="group flex items-center gap-3 p-2.5 rounded-xl transition-all duration-150 hover:bg-white/5">
+                {/* Avatar with online indicator */}
                 <div className="relative shrink-0">
                   <Avatar name={user.displayName} id={user.id} size={40} src={user.profilePhoto || undefined}/>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-ink-950"/>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 surface-bg"/>
                 </div>
+                {/* Name + XP inline */}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-white font-semibold truncate group-hover:text-moss-300 transition">{user.displayName}</p>
-                  <p className="text-[11px] text-slate-500 truncate">@{user.username}</p>
+                  <p className="text-sm text-fg font-semibold truncate group-hover:text-accent transition">{user.displayName}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-[11px] text-fg-muted truncate">@{user.username}</p>
+                    <span className="text-[11px] font-bold text-accent tabular-nums">{user.points.toLocaleString('id-ID')} XP</span>
+                  </div>
                 </div>
+                {/* Rank badge */}
+                <RankBadge rank={user.rank} size="sm"/>
               </Link>
-
-              {/* XP card */}
-              <div className="card p-3">
-                <div className="flex justify-between items-center text-xs text-slate-500 mb-1.5">
-                  <span>XP</span>
-                  <RankBadge rank={user.rank} size="sm"/>
-                </div>
-                <p className="text-xl font-bold text-moss-300 tabular-nums">{user.points.toLocaleString('id-ID')}</p>
-              </div>
 
               {/* Theme toggle + Logout */}
               <div className="flex items-center gap-2">
                 <ThemeToggle className="flex-1" />
-                <button onClick={logoutNow} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all duration-150">
+                <button onClick={logoutNow} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-sm text-fg-muted hover:bg-red-500/10 hover:text-red-400 transition-all duration-150">
                   <LogOut size={16}/>
                   <span>Keluar</span>
                 </button>
