@@ -17,13 +17,6 @@ function notify() {
   _listeners.forEach(fn => fn([..._toasts]));
 }
 
-/**
- * Semantic fallback for callers that do not explicitly provide a state.
- * success = completed
- * warning = an error/problem that needs attention but is not an explicit rejection/failure
- * error = failed/rejected/forbidden operation
- * info = neutral message
- */
 export function classifyToastType(message: string, requested?: ToastType): ToastType {
   if (requested) return requested;
   const text = String(message ?? '').toLowerCase();
@@ -36,21 +29,24 @@ export function showToast(message: string, type?: ToastType, title?: string) {
   const id = crypto.randomUUID();
   const finalType = classifyToastType(message, type);
   const finalTitle = title ?? ({
-    success: 'Berhasil',
-    warning: 'Perhatian',
-    error: 'Gagal',
-    info: 'Informasi',
+    success: 'Berhasil', warning: 'Perhatian', error: 'Gagal', info: 'Informasi',
   } as const)[finalType];
   _toasts = [..._toasts, { id, message, type: finalType, title: finalTitle }];
   notify();
-  setTimeout(() => {
-    _toasts = _toasts.filter(t => t.id !== id);
-    notify();
-  }, 4200);
+  window.setTimeout(() => dismissToast(id), 4200);
+  return id;
+}
+
+export function dismissToast(id: string) {
+  const next = _toasts.filter(t => t.id !== id);
+  if (next.length === _toasts.length) return;
+  _toasts = next;
+  notify();
 }
 
 export function subscribeToasts(fn: ToastListener) {
   _listeners.push(fn);
+  fn([..._toasts]);
   return () => { _listeners = _listeners.filter(l => l !== fn); };
 }
 
