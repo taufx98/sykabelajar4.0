@@ -1,44 +1,57 @@
 import { supabase } from '@/lib/supabase';
 
-/**
- * Resolve the current user's organizer.
- * Priority: owner → member. Returns null if user has no organizer.
- */
-export async function resolveCurrentUserOrganizer(): Promise<{
+export type CurrentOrganizer = {
   id: string;
   name: string;
   slug?: string;
   status?: string;
   _memberRole?: string;
-} | null> {
+};
+
+/**
+ * Resolve the current user's organizer safely.
+ * Owner wins; otherwise only an ACTIVE member is accepted.
+ */
+export async function resolveCurrentUserOrganizer(): Promise<CurrentOrganizer | null> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return null;
 
-  // 1. Check if user owns an org
-  const { data: ownerOrg } = await supabase
+  const { data: ownerOrg, error: ownerError } = await supabase
     .from('organizers')
     .select('id,name,slug,status')
     .eq('owner_user_id', auth.user.id)
     .maybeSingle();
 
-  if (ownerOrg) return ownerOrg;
+  if (ownerError) throw ownerError;
+  if (ownerOrg && ownerOrg.status === 'ACTIVE') {
+    return { ...ownerOrg, _memberRole: 'owner' };
+  }
 
-  // 2. Check if user is a member of any org
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from('organizer_members')
-    .select('organizer_id,role')
+    .select('organizer_id,role,member_role,status,is_active')
     .eq('user_id', auth.user.id)
+    .eq('status', 'ACTIVE')
+    .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle();
 
+  if (membershipError) throw membershipError;
   if (!membership) return null;
 
-  const { data: memberOrg } = await supabase
+  const { data: memberOrg, error: memberOrgError } = await supabase
     .from('organizers')
     .select('id,name,slug,status')
     .eq('id', membership.organizer_id)
+    .eq('status', 'ACTIVE')
     .maybeSingle();
 
+  if (memberOrgError) throw memberOrgError;
   if (!memberOrg) return null;
 
-  return { ...memberOrg, _memberRole: membership.role };
+  return {
+    ...memberOrg,
+    _memberRole: membership.role || membership.member_role || 'editor',
+  };
 }
