@@ -63,7 +63,7 @@ export function LandingPage() {
   return (
     <div className="min-h-screen">
       {/* ═══ HEADER ═══ */}
-      <header className="sticky top-0 z-30 glass border-b border-white/5">
+      <header className="sticky top-0 z-30 glass border-b surface-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl gradient-moss flex items-center justify-center shadow-glow">
@@ -215,9 +215,9 @@ export function LandingPage() {
         <div className="grid md:grid-cols-2 gap-5">
           {competitions.length ? competitions.slice(0, 6).map((c) => (
             <Link key={c.id} to={`/lomba/${c.slug}`} className="card card-hover p-0 overflow-hidden group">
-              <div className="h-40 bg-gradient-to-br from-ink-700 to-ink-850 relative">
+              <div className="h-40 bg-gradient-to-br from-ink-700 to-surface-card relative">
                 {c.posterUrl ? <img src={c.posterUrl} alt={c.title} className="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition" /> : <div className="w-full h-full flex items-center justify-center"><Trophy size={40} className="text-accent/60" /></div>}
-                <div className="absolute inset-0 bg-gradient-to-t from-ink-900 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-surface to-transparent" />
                 <div className="absolute top-3 left-3 chip bg-moss-500/20 text-accent border border-moss-500/30">{CATEGORY_LABELS[c.category] || c.category}</div>
                 <div className="absolute top-3 right-3 chip bg-black/40 text-white"><Users size={12} /> {c.participants.toLocaleString('id-ID')}</div>
               </div>
@@ -297,7 +297,7 @@ export function LandingPage() {
       </section>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="border-t border-white/5 py-8">
+      <footer className="border-t surface-border py-8">
         <div className="max-w-6xl mx-auto px-4 text-center text-sm text-slate-600">
           sykabelajar.id © 2026 — Platform Uji Kompetensi Nasional Non-Formal
         </div>

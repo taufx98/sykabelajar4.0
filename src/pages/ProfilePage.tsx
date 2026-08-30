@@ -472,7 +472,7 @@ export function ProfilePage() {
                       }`}>
                         <Award size={18} className={
                           a.rank_code === '1' ? 'text-amber-400' :
-                          a.rank_code === '2' ? 'text-slate-300' :
+                          a.rank_code === '2' ? 'text-fg-secondary' :
                           a.rank_code === '3' ? 'text-orange-400' :
                           'text-accent'
                         } />

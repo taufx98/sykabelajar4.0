@@ -205,7 +205,7 @@ export function EditProfilePage() {
         {/* ═══ MEDIA HEADER — Compact Banner + Avatar ═══ */}
         <Card className="p-0 overflow-hidden">
           {/* Cover */}
-          <div className="relative h-28 md:h-36 bg-gradient-to-br from-surface-elevated to-ink-850">
+          <div className="relative h-28 md:h-36 bg-gradient-to-br from-surface-elevated to-surface-card">
             {coverSrc && <img src={coverSrc} alt="Cover" className="w-full h-full object-cover" />}
             <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface-card to-transparent" />
             <button type="button" onClick={() => coverRef.current?.click()}
