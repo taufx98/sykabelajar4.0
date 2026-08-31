@@ -1,1 +1,1 @@
-export { MessagesPageV4 as MessagesPageV3 } from './MessagesPageV4';
+export { MessagesPageV6 as MessagesPageV3 } from './MessagesPageV6';
