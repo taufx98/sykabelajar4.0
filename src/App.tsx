@@ -47,6 +47,7 @@ import { OrganizerCompetitionConfigPage } from '@/pages/OrganizerCompetitionConf
 import { OrganizerCompetitionCreatePage } from '@/pages/OrganizerCompetitionCreatePage';
 import { OrganizerGradingPage } from '@/pages/OrganizerGradingPage';
 import { OrganizerPlanPage } from '@/pages/OrganizerPlanPage';
+import { OrganizerPage } from '@/pages/OrganizerPage';
 import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { getUserRoles } from '@/services/role.service';

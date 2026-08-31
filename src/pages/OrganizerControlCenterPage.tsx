@@ -57,7 +57,7 @@ export function OrganizerControlCenterPage() {
       setBanks(b.data ?? []);
       setPlan(ent.planCode);
     } catch (e: any) {
-      toast.error(e?.message ?? 'Gagal memuat Control Center penyelenggara.');
+      toast(e?.message ?? 'Gagal memuat Control Center penyelenggara.', 'error');
     } finally {
       setLoading(false);
     }
@@ -88,10 +88,10 @@ export function OrganizerControlCenterPage() {
       if (error) throw error;
       setBankOpen(false);
       setBankName(''); setBankDescription(''); setBankGrade('');
-      toast.success('Bank soal berhasil dibuat.');
+      toast('Bank soal berhasil dibuat.', 'success');
       navigate(`/organizer/question-bank/${data.id}`);
     } catch (e: any) {
-      toast.error(e?.message ?? 'Gagal membuat bank soal.');
+      toast(e?.message ?? 'Gagal membuat bank soal.', 'error');
     } finally { setSavingBank(false); }
   };
 
