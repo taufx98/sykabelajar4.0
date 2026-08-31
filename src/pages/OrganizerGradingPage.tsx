@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ClipboardCheck, Loader2, Save } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, Loader2, Save, Sparkles } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -17,6 +17,7 @@ export function OrganizerGradingPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
+  const [autoGrading, setAutoGrading] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
   const load = async () => {
@@ -48,6 +49,15 @@ export function OrganizerGradingPage() {
 
   const total = useMemo(() => Object.values(scores).reduce((sum, value) => sum + (Number(value) || 0), 0), [scores]);
 
+  const reloadDetail = async () => {
+    if (!selectedId) return;
+    const value = await getAttemptForGrading(selectedId);
+    setDetail(value);
+    const nextScores: Record<string, string> = {}; const nextFeedback: Record<string, string> = {};
+    value.items.forEach((item: any) => { nextScores[item.id] = item.score == null ? '' : String(item.score); nextFeedback[item.id] = item.feedback ?? ''; });
+    setScores(nextScores); setFeedback(nextFeedback);
+  };
+
   const saveItem = async (item: any) => {
     const score = Number(scores[item.id]);
     if (!Number.isFinite(score) || score < 0 || score > Number(item.question?.points ?? 0)) {
@@ -59,7 +69,17 @@ export function OrganizerGradingPage() {
     finally { setSaving(null); }
   };
 
-  const reloadDetail = async () => { if (!selectedId) return; const value = await getAttemptForGrading(selectedId); setDetail(value); };
+  const autoGradeEssay = async (item: any) => {
+    setAutoGrading(item.id); setMessage('Menghitung AI Similarity Grade…');
+    try {
+      const { data, error } = await supabase.rpc('auto_grade_essay_item', { p_attempt_id: selectedId, p_question_id: item.question.id });
+      if (error) throw error;
+      setMessage(`AI Similarity Grade: ${Number(data?.similarity_percent ?? 0).toFixed(2)}% · skor ${Number(data?.score ?? 0).toFixed(2)}/${Number(data?.max_score ?? 0).toFixed(2)}.`);
+      await reloadDetail();
+    } catch (e: any) { setMessage(String(e?.message ?? '').includes('PREMIUM_REQUIRED') ? 'AI Similarity Grade hanya tersedia untuk Paket Premium.' : e?.message ?? 'Auto grade gagal.'); }
+    finally { setAutoGrading(null); }
+  };
+
   const finalize = async () => {
     if (!detail || detail.items.some((item: any) => item.score == null && item.question?.type !== 'multiple-choice')) { setMessage('Selesaikan semua penilaian manual sebelum finalisasi.'); return; }
     setBusy(true);
@@ -69,11 +89,11 @@ export function OrganizerGradingPage() {
   };
 
   return <div className="min-h-screen surface-bg text-fg-secondary p-5 md:p-8"><div className="max-w-6xl mx-auto space-y-5">
-    <div><p className="text-xs text-accent font-semibold">PENYELENGGARA · GRADING</p><h1 className="font-display text-2xl md:text-3xl font-bold text-fg">Penilaian Manual</h1><p className="text-sm text-slate-500 mt-1">Nilai essay/file disimpan sebagai grading item di Supabase sebelum hasil difinalisasi.</p></div>
+    <div><p className="text-xs text-accent font-semibold">PENYELENGGARA · GRADING</p><h1 className="font-display text-2xl md:text-3xl font-bold text-fg">Penilaian</h1><p className="text-sm text-slate-500 mt-1">Essay dapat memakai AI Similarity Grade hanya saat bank soal mengaktifkan kunci jawaban dan paket memiliki entitlement Premium.</p></div>
     {message && <Card className="p-3 text-sm text-amber-200 border-amber-500/20">{message}</Card>}
     <div className="grid lg:grid-cols-[320px_1fr] gap-5">
       <Card className="p-4"><div className="flex items-center gap-2 mb-3"><ClipboardCheck size={17} className="text-accent"/><h2 className="font-semibold text-fg">Attempt</h2></div>{loading?<div className="py-8 text-center text-slate-500"><Loader2 className="animate-spin mx-auto mb-2"/>Memuat…</div>:attempts.length===0?<p className="text-sm text-slate-500">Belum ada attempt yang menunggu penilaian.</p>:<div className="space-y-2">{attempts.map((a)=><button key={a.id} onClick={()=>setSelectedId(a.id)} className={`w-full text-left p-3 rounded-xl border ${selectedId===a.id?'border-moss-500/40 bg-moss-500/10':'surface-border bg-white/[.02]'}`}><p className="text-sm text-white truncate">{a.id.slice(0,12)}</p><p className="text-xs text-slate-500">{a.status} · {a.attempt_number ? `Attempt ${a.attempt_number}`:''}</p></button>)}</div>}</Card>
-      <Card className="p-5">{!detail?<div className="py-16 text-center text-slate-500">Pilih attempt untuk mulai menilai.</div>:<><div className="flex items-center justify-between gap-3 mb-5"><div><p className="text-sm text-fg font-semibold">Attempt {detail.attempt.id.slice(0,12)}</p><p className="text-xs text-slate-500">{detail.items.length} item · skor sementara {total}</p></div><Button loading={busy} onClick={()=>void finalize()} icon={<CheckCircle2 size={15}/>}>Finalisasi</Button></div><div className="space-y-4">{detail.items.map((item:any,index:number)=><Card key={item.id} className="p-4 bg-white/[.02]"><div className="flex items-start gap-3"><div className="w-7 h-7 rounded-lg bg-moss-500/10 text-accent flex items-center justify-center text-xs font-bold">{index+1}</div><div className="flex-1 min-w-0"><p className="text-sm text-white whitespace-pre-wrap">{item.question?.prompt || 'Soal'}</p><p className="text-xs text-slate-500 mt-1">{item.question?.type} · maksimal {item.question?.points ?? 0} poin</p><div className="mt-3 p-3 rounded-xl surface-card-bg border surface-border text-sm text-fg-secondary whitespace-pre-wrap break-words">{item.answer?.value ?? (item.answer ? JSON.stringify(item.answer) : 'Belum ada jawaban')}</div><div className="grid md:grid-cols-[160px_1fr_auto] gap-2 mt-3"><input className="input" type="number" min="0" max={Number(item.question?.points ?? 0)} step="0.1" placeholder="Nilai" value={scores[item.id] ?? ''} onChange={e=>setScores(s=>({...s,[item.id]:e.target.value}))}/><input className="input" placeholder="Feedback untuk peserta" value={feedback[item.id] ?? ''} onChange={e=>setFeedback(s=>({...s,[item.id]:e.target.value}))}/><Button size="sm" loading={saving===item.id} onClick={()=>void saveItem(item)} icon={<Save size={14}/>}>Simpan</Button></div></div></div></Card>)}</div></>}</Card>
+      <Card className="p-5">{!detail?<div className="py-16 text-center text-slate-500">Pilih attempt untuk mulai menilai.</div>:<><div className="flex items-center justify-between gap-3 mb-5"><div><p className="text-sm text-fg font-semibold">Attempt {detail.attempt.id.slice(0,12)}</p><p className="text-xs text-slate-500">{detail.items.length} item · skor sementara {total}</p></div><Button loading={busy} onClick={()=>void finalize()} icon={<CheckCircle2 size={15}/>}>Finalisasi</Button></div><div className="space-y-4">{detail.items.map((item:any,index:number)=><Card key={item.id} className="p-4 bg-white/[.02]"><div className="flex items-start gap-3"><div className="w-7 h-7 rounded-lg bg-moss-500/10 text-accent flex items-center justify-center text-xs font-bold">{index+1}</div><div className="flex-1 min-w-0"><div className="flex items-center gap-2 flex-wrap"><p className="text-sm text-white whitespace-pre-wrap">{item.question?.prompt || 'Soal'}</p>{item.question?.type==='essay'&&item.question?.config?.ai_assessment?.enabled&&<Badge color="moss"><Sparkles size={10}/> AI</Badge>}</div><p className="text-xs text-slate-500 mt-1">{item.question?.type} · maksimal {item.question?.points ?? 0} poin</p><div className="mt-3 p-3 rounded-xl surface-card-bg border surface-border text-sm text-fg-secondary whitespace-pre-wrap break-words">{item.answer?.value ?? (item.answer ? JSON.stringify(item.answer) : 'Belum ada jawaban')}</div>{item.question?.type==='essay'&&item.question?.config?.ai_assessment?.enabled&&<div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="outline" loading={autoGrading===item.id} disabled={autoGrading!==null} onClick={()=>void autoGradeEssay(item)} icon={<Sparkles size={14}/>}>Cek Otomatis</Button><span className="text-[11px] text-fg-muted self-center">Similarity dibulatkan 2 desimal.</span></div>}<div className="grid md:grid-cols-[160px_1fr_auto] gap-2 mt-3"><input className="input" type="number" min="0" max={Number(item.question?.points ?? 0)} step="0.01" placeholder="Nilai" value={scores[item.id] ?? ''} onChange={e=>setScores(s=>({...s,[item.id]:e.target.value}))}/><input className="input" placeholder="Feedback untuk peserta" value={feedback[item.id] ?? ''} onChange={e=>setFeedback(s=>({...s,[item.id]:e.target.value}))}/><Button size="sm" loading={saving===item.id} onClick={()=>void saveItem(item)} icon={<Save size={14}/>}>Simpan</Button></div></div></div></Card>)}</div></>}</Card>
     </div>
   </div></div>;
 }
