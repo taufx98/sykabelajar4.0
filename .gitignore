@@ -3,4 +3,7 @@ node_modules/
 .DS_Store
 dist/
 *.local
+.env
+.env.*
+!.env.example
 supabase/.temp/
