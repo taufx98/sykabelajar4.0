@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Typecheck
-        run: npx tsc --noEmit -p tsconfig.app.json
+        run: npm run typecheck
 
       - name: Build
         run: npm run build
@@ -36,3 +36,5 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+          VITE_CLOUDINARY_PROFILE_PRESET: ${{ secrets.VITE_CLOUDINARY_PROFILE_PRESET }}
+          VITE_EDGE_FUNCTION_URL: ${{ secrets.VITE_EDGE_FUNCTION_URL }}
