@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Building2, MessageCircle, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, ShoppingBag, Store, Building2, MessageCircle, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, CreditCard } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
@@ -9,11 +9,11 @@ interface AdminModule { title: string; description: string; path: string; icon: 
 
 const MODULES: AdminModule[] = [
   { title: 'Lomba', description: 'Kelola kompetisi, status, jadwal, dan publikasi.', path: '/admin/operations', icon: Trophy },
-  { title: 'Pengguna', description: 'Moderasi akun, role, profil, dan status pengguna.', path: '/admin/roles', icon: Users },
+  { title: 'Pengguna & Role', description: 'Moderasi akun, role, profil, dan status pengguna.', path: '/admin/roles', icon: Users },
   { title: 'Organisasi', description: 'Verifikasi dan kelola penyelenggara serta anggota.', path: '/admin/organizers', icon: Building2 },
   { title: 'Chat Customer Service', description: 'Kelola ticket, klaim, penyelesaian, history, dan rating.', path: '/admin/chat', icon: MessageCircle, badge: 'CS' },
   { title: 'Pesanan', description: 'Review pembayaran dan proses pemenuhan pesanan.', path: '/admin/orders/review', icon: ShoppingBag },
-  { title: 'Shop', description: 'Atur produk, harga, status aktif, dan katalog.', path: '/admin', icon: Store, badge: 'Data Core' },
+  { title: 'Shop', description: 'Atur produk, harga, status aktif, dan katalog.', path: '/admin/core', icon: Store, badge: 'Core' },
   { title: 'XP & Coin', description: 'Kelola penyesuaian XP dan Coin EDU pengguna.', path: '/admin/currency', icon: Coins },
   { title: 'Banner Iklan', description: 'Kelola banner dan materi promosi platform.', path: '/admin/banners', icon: Megaphone },
   { title: 'Penghargaan', description: 'Kelola badge, medali, sertifikat, dan lifecycle.', path: '/admin/awards', icon: Award },
