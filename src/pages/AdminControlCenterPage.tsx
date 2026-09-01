@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Trophy, Users, ShoppingBag, Store, Building2, MessageCircle, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Building2, MessageCircle, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, CreditCard } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
@@ -14,7 +14,7 @@ const MODULES: AdminModule[] = [
   { title: 'Chat Customer Service', description: 'Kelola ticket, klaim, penyelesaian, history, dan rating.', path: '/admin/chat', icon: MessageCircle, badge: 'CS' },
   { title: 'Pesanan', description: 'Review pembayaran dan proses pemenuhan pesanan.', path: '/admin/core?tab=orders', icon: ShoppingBag },
   { title: 'Shop', description: 'Atur produk, harga, status aktif, dan katalog.', path: '/admin/core?tab=shop', icon: Store, badge: 'Core' },
-  { title: 'Postingan', description: 'Kelola berita, artikel, status, dan publikasi konten.', path: '/admin/core?tab=posts', icon: FileTextIconFallback },
+  { title: 'Postingan', description: 'Kelola berita, artikel, status, dan publikasi konten.', path: '/admin/core?tab=posts', icon: FileText },
   { title: 'XP & Coin', description: 'Kelola penyesuaian XP dan Coin EDU pengguna.', path: '/admin/currency', icon: Coins },
   { title: 'Banner Iklan', description: 'Kelola banner dan materi promosi platform.', path: '/admin/banners', icon: Megaphone },
   { title: 'Penghargaan', description: 'Kelola badge, medali, sertifikat, dan lifecycle.', path: '/admin/awards', icon: Award },
@@ -25,8 +25,6 @@ const MODULES: AdminModule[] = [
   { title: 'Pengaturan Sosial & Notifikasi', description: 'Atur verification mark dan perilaku notifikasi.', path: '/admin/social-notification-settings', icon: Settings },
   { title: 'Role & Akses', description: 'Atur role detail dan otorisasi admin.', path: '/admin/roles', icon: ShieldCheck },
 ];
-
-const FileTextIconFallback = FileText;
 
 export function AdminControlCenterPage() {
   const groups = useMemo(() => ({ operasi: MODULES.slice(0, 7), platform: MODULES.slice(7, 11), akses: MODULES.slice(11) }), []);
