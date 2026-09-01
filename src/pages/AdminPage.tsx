@@ -1,13 +1,25 @@
 import { toast } from "@/lib/toast";
 import { useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, X, Megaphone, Ban, MessageCircle, ExternalLink, Building2, Coins } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, X, ExternalLink } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
-import { adminSetUserRole, type BackendRole } from '@/services/role.service';
+import {
+  banUser,
+  deleteCompetition,
+  deletePost,
+  deleteProduct,
+  loadAdminCore,
+  saveCompetition,
+  savePost,
+  saveProduct,
+  setUserRole,
+  transitionCompetition,
+} from '@/services/adminCore.service';
+import type { BackendRole } from '@/services/role.service';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 
 type CoreAdminTab = 'dashboard' | 'competitions' | 'users' | 'posts' | 'orders' | 'shop' | 'settings';
@@ -43,162 +55,155 @@ export function AdminPage() {
     if (requestedTab && tabs.some(t => t.key === requestedTab)) setTab(requestedTab);
   }, [requestedTab]);
 
+  const load = async () => {
+    setBusy(true);
+    try {
+      const data = await loadAdminCore();
+      setStats(data.stats);
+      setCompetitions(data.competitions);
+      setUsers(data.users);
+      setPosts(data.posts);
+      setOrders(data.orders);
+      setProducts(data.products);
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Gagal memuat data Admin.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    const channel = supabase
+      .channel('admin-core-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'competitions' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commerce_products' }, () => { void load(); })
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') toast.warning('Realtime Admin terputus; data tetap dapat dimuat manual.');
+      });
+    return () => { void supabase.removeChannel(channel); };
+  }, []);
+
   const selectTab = (next: CoreAdminTab) => {
     setTab(next);
     if (next === 'dashboard') setSearchParams({}, { replace: true });
     else setSearchParams({ tab: next }, { replace: true });
   };
 
-  const load = async () => {
-    setBusy(true);
-    const results = await Promise.all([
-      supabase.rpc('get_platform_stats'),
-      supabase.from('competitions').select('*').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id,username,full_name,institution,avatar_url,status,account_type').order('created_at', { ascending: false }),
-      supabase.from('posts').select('id,title,body,cover_url,status,competition_id,created_at,author_user_id').order('created_at', { ascending: false }),
-      supabase.from('orders').select('id,user_id,status,total,payment_proof_url,payment_proof_status,created_at').order('created_at', { ascending: false }),
-      supabase.from('commerce_products').select('*').order('sort_order'),
-    ]);
-    const [s, c, u, p, o, pr] = results;
-    const firstError = [s, c, u, p, o, pr].find((r) => r.error)?.error;
-    setStats(s.data?.[0] || {});
-    setCompetitions(c.data || []);
-    setUsers(u.data || []);
-    setPosts(p.data || []);
-    setOrders(o.data || []);
-    setProducts(pr.data || []);
-    setBusy(false);
-    if (firstError) toast.warning(`Sebagian data Admin gagal dimuat: ${firstError.message}`);
-  };
-
-  useEffect(() => { void load(); }, []);
-
   const filteredUsers = useMemo(() => users.filter((u) => `${u.full_name || ''} ${u.username || ''} ${u.institution || ''}`.toLowerCase().includes(search.toLowerCase())), [users, search]);
 
-  const saveCompetition = async () => {
+  const saveCompetitionAction = async () => {
     if (!competitionEditor?.title || !competitionEditor?.slug) {
       toast.warning('Judul dan slug lomba wajib diisi.');
       return;
     }
     setBusy(true);
     try {
-      const payload = {
-        title: competitionEditor.title, slug: competitionEditor.slug,
-        short_description: competitionEditor.short_description || null,
-        description: competitionEditor.description || null,
-        category: competitionEditor.category || 'Kompetisi',
-        poster_url: competitionEditor.poster_url || null,
-        visibility: competitionEditor.visibility || 'PUBLIC',
-        status: competitionEditor.status || 'DRAFT',
-        registration_starts_at: competitionEditor.registration_starts_at || null,
-        registration_ends_at: competitionEditor.registration_ends_at || null,
-        starts_at: competitionEditor.starts_at || null,
-        ends_at: competitionEditor.ends_at || null,
-        juknis_url: competitionEditor.juknis_url || null,
-        kisi_kisi_published: !!competitionEditor.kisi_kisi_published,
-        kisi_kisi_content: competitionEditor.kisi_kisi_content || null,
-      };
-      const result = competitionEditor.id
-        ? await supabase.from('competitions').update(payload).eq('id', competitionEditor.id)
-        : await supabase.from('competitions').insert(payload);
-      if (result.error) throw result.error;
+      const saved = await saveCompetition(competitionEditor);
+      if (competitionEditor.id) setCompetitions((rows) => rows.map((row) => row.id === competitionEditor.id ? { ...row, ...saved } : row));
+      else if (saved) setCompetitions((rows) => [saved, ...rows]);
       toast.success(competitionEditor.id ? 'Lomba berhasil diperbarui.' : 'Lomba berhasil dibuat.');
       setCompetitionEditor(null);
-      await load();
     } catch (error: any) {
       toast.error(error?.message ?? 'Gagal menyimpan lomba.');
     } finally { setBusy(false); }
   };
 
-  const savePost = async () => {
+  const savePostAction = async () => {
     if (!postEditor?.title || !postEditor?.body) {
       toast.warning('Judul dan isi postingan wajib diisi.');
       return;
     }
     setBusy(true);
     try {
-      const payload = { title: postEditor.title, body: postEditor.body, cover_url: postEditor.cover_url || null, competition_id: postEditor.competition_id || null, status: postEditor.status || 'PUBLISHED' };
-      const result = postEditor.id ? await supabase.from('posts').update(payload).eq('id', postEditor.id) : await supabase.from('posts').insert(payload);
-      if (result.error) throw result.error;
+      const saved = await savePost(postEditor);
+      if (postEditor.id) setPosts((rows) => rows.map((row) => row.id === postEditor.id ? { ...row, ...saved } : row));
+      else if (saved) setPosts((rows) => [saved, ...rows]);
       toast.success(postEditor.id ? 'Postingan berhasil diperbarui.' : 'Postingan berhasil dibuat.');
       setPostEditor(null);
-      await load();
     } catch (error: any) {
       toast.error(error?.message ?? 'Gagal menyimpan postingan.');
     } finally { setBusy(false); }
   };
 
-  const saveProduct = async () => {
+  const saveProductAction = async () => {
     if (!productEditor?.name || !productEditor?.code || !productEditor?.slug) {
       toast.warning('Nama, kode, dan slug produk wajib diisi.');
       return;
     }
     setBusy(true);
     try {
-      const payload = {
-        code: productEditor.code, slug: productEditor.slug, name: productEditor.name,
-        short_description: productEditor.short_description || null,
-        description: productEditor.description || null,
-        product_type: productEditor.product_type || 'DIGITAL_ITEM',
-        audiences: productEditor.audiences || ['student'],
-        price: Number(productEditor.price || 0), currency: 'IDR',
-        image_url: productEditor.image_url || null,
-        is_active: !!productEditor.is_active, is_featured: !!productEditor.is_featured,
-        sort_order: Number(productEditor.sort_order || 0), metadata: productEditor.metadata || {},
-      };
-      const result = productEditor.id ? await supabase.from('commerce_products').update(payload).eq('id', productEditor.id) : await supabase.from('commerce_products').insert(payload);
-      if (result.error) throw result.error;
+      const saved = await saveProduct(productEditor);
+      if (productEditor.id) setProducts((rows) => rows.map((row) => row.id === productEditor.id ? { ...row, ...saved } : row));
+      else if (saved) setProducts((rows) => [saved, ...rows]);
       toast.success(productEditor.id ? 'Produk berhasil diperbarui.' : 'Produk berhasil dibuat.');
       setProductEditor(null);
-      await load();
     } catch (error: any) {
       toast.error(error?.message ?? 'Gagal menyimpan produk.');
     } finally { setBusy(false); }
   };
 
-  const removeRow = async (table: string, id: string) => {
+  const removeRow = async (kind: 'competition' | 'post' | 'product', id: string) => {
     if (!confirm('Hapus data ini?')) return;
     setBusy(true);
+    const rollback = kind === 'competition' ? competitions : kind === 'post' ? posts : products;
+    if (kind === 'competition') setCompetitions((rows) => rows.filter((row) => row.id !== id));
+    if (kind === 'post') setPosts((rows) => rows.filter((row) => row.id !== id));
+    if (kind === 'product') setProducts((rows) => rows.filter((row) => row.id !== id));
     try {
-      const result = await supabase.from(table as any).delete().eq('id', id);
-      if (result.error) throw result.error;
+      if (kind === 'competition') await deleteCompetition(id);
+      else if (kind === 'post') await deletePost(id);
+      else await deleteProduct(id);
       toast.success('Data berhasil dihapus.');
-      await load();
     } catch (error: any) {
+      if (kind === 'competition') setCompetitions(rollback);
+      if (kind === 'post') setPosts(rollback);
+      if (kind === 'product') setProducts(rollback);
       toast.error(error?.message ?? 'Gagal menghapus data.');
     } finally { setBusy(false); }
   };
 
-  const transitionCompetition = async (id: string, status: string) => {
+  const transitionCompetitionAction = async (id: string, status: string) => {
+    const previous = competitions.find((row) => row.id === id)?.status;
+    setCompetitions((rows) => rows.map((row) => row.id === id ? { ...row, status } : row));
     setBusy(true);
     try {
-      const { error } = await supabase.rpc('transition_competition', { p_competition_id: id, p_to_status: status, p_reason: 'Admin panel' });
-      if (error) throw error;
+      const saved = await transitionCompetition(id, status);
+      if (saved) setCompetitions((rows) => rows.map((row) => row.id === id ? { ...row, ...saved } : row));
       toast.success('Status lomba diperbarui.');
-      await load();
     } catch (error: any) {
+      setCompetitions((rows) => rows.map((row) => row.id === id ? { ...row, status: previous } : row));
       toast.error(error?.message ?? 'Gagal mengubah status lomba.');
     } finally { setBusy(false); }
   };
 
-  const banUser = async (id: string) => {
+  const banUserAction = async (id: string) => {
     if (!confirm('Ban user ini?')) return;
+    const previous = users.find((row) => row.id === id)?.status;
+    setUsers((rows) => rows.map((row) => row.id === id ? { ...row, status: 'BANNED' } : row));
     setBusy(true);
     try {
-      const { error } = await supabase.from('profiles').update({ status: 'BANNED' }).eq('id', id);
-      if (error) throw error;
+      const saved = await banUser(id);
+      if (saved) setUsers((rows) => rows.map((row) => row.id === id ? { ...row, ...saved } : row));
       toast.success('Pengguna berhasil dibanned.');
-      await load();
     } catch (error: any) {
+      setUsers((rows) => rows.map((row) => row.id === id ? { ...row, status: previous } : row));
       toast.error(error?.message ?? 'Gagal membanned pengguna.');
     } finally { setBusy(false); }
   };
 
   const setRole = async (id: string, role: BackendRole) => {
     setBusy(true);
-    try { await adminSetUserRole(id, role, true, 'Admin panel'); toast.success('Role pengguna diperbarui.'); await load(); }
-    catch (error: any) { toast.error(error?.message ?? 'Gagal memperbarui role.'); }
-    finally { setBusy(false); }
+    try {
+      const saved = await setUserRole(id, role);
+      if (saved) setUsers((rows) => rows.map((row) => row.id === id ? { ...row, role: saved.role ?? role, account_type: role === 'teacher' ? 'teacher' : role === 'organizer_member' ? 'organizer' : role === 'admin' ? 'admin' : 'student' } : row));
+      toast.success('Role pengguna diperbarui.');
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Gagal memperbarui role.');
+    } finally { setBusy(false); }
   };
 
   return (
@@ -218,16 +223,16 @@ export function AdminPage() {
       <section className="p-4 md:p-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-5"><div><h2 className="font-display text-xl font-bold text-fg">{tabs.find((t) => t.key === tab)?.label}</h2><p className="text-[11px] text-slate-500 mt-0.5">Data live Supabase · aksi sensitif tervalidasi server</p></div></div>
         {tab === 'dashboard' && <AdminDashboard />}
-        {tab === 'competitions' && <><div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={() => setCompetitionEditor({ status: 'DRAFT', visibility: 'PUBLIC', category: 'Kompetisi' })}>Tambah Lomba</Button></div><div className="space-y-2">{competitions.map((c) => <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all cursor-pointer" onClick={() => setCompetitionEditor(c)}><div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center"><Trophy size={18} className="text-accent"/></div><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{c.title}</p><p className="text-[11px] text-slate-500">{c.slug} · {c.visibility}</p></div><select className="input w-40 text-xs" value={c.status} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();void transitionCompetition(c.id,e.target.value)}} disabled={busy}>{competitionStatuses.map(s=><option key={s}>{s}</option>)}</select><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><button className="p-2 rounded-lg text-slate-400 hover:text-fg" onClick={e=>{e.stopPropagation();setCompetitionEditor(c)}}><Edit3 size={14}/></button><button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10" onClick={e=>{e.stopPropagation();void removeRow('competitions',c.id)}}><Trash2 size={14}/></button></div></div>)}{!competitions.length&&<Card className="p-8 text-center text-sm text-slate-500">Belum ada lomba.</Card>}</div></>}
-        {tab === 'users' && <><div className="relative mb-3"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/><input className="input pl-9" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari nama, username, atau institusi..."/></div><div className="space-y-1.5">{filteredUsers.map((u)=><div key={u.id} className="group flex items-center gap-3 p-3 rounded-xl hover:surface-elevated border border-transparent hover:surface-border transition cursor-pointer" onClick={()=>window.open(`/profile/@${u.username}`,'_blank')}><Avatar name={u.full_name||u.username||'U'} id={u.id} size={38} src={u.avatar_url||undefined}/><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{u.full_name||u.username}</p><p className="text-[11px] text-slate-500 truncate">@{u.username||'—'} · {u.institution||'—'}</p></div><Badge color={u.status==='BANNED'?'err':'default'}>{roleLabel[u.account_type]||u.account_type}</Badge><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><Link to={`/profile/@${u.username}`} className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-accent" onClick={e=>e.stopPropagation()}><ExternalLink size={14}/></Link><Button size="sm" variant="danger" onClick={e=>{e.stopPropagation();void banUser(u.id)}} disabled={busy}>Ban</Button></div></div>)}</div></>}
-        {tab === 'posts' && <><div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={()=>setPostEditor({status:'PUBLISHED'})}>Tambah Postingan</Button></div><div className="space-y-2">{posts.map(p=><div key={p.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:surface-elevated transition cursor-pointer" onClick={()=>setPostEditor(p)}><div className="w-11 h-11 rounded-xl bg-blue-500/10 flex items-center justify-center"><FileText size={18} className="text-blue-400"/></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-semibold text-fg truncate">{p.title}</p><Badge>{p.status}</Badge></div><p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.body}</p></div><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><button className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400" onClick={e=>{e.stopPropagation();setPostEditor(p)}}><Edit3 size={14}/></button><button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10" onClick={e=>{e.stopPropagation();void removeRow('posts',p.id)}}><Trash2 size={14}/></button></div></div>)}{!posts.length&&<Card className="p-8 text-center text-sm text-slate-500">Belum ada postingan.</Card>}</div></>}
+        {tab === 'competitions' && <><div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={() => setCompetitionEditor({ status: 'DRAFT', visibility: 'PUBLIC', category: 'Kompetisi' })}>Tambah Lomba</Button></div><div className="space-y-2">{competitions.map((c) => <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all cursor-pointer" onClick={() => setCompetitionEditor(c)}><div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center"><Trophy size={18} className="text-accent"/></div><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{c.title}</p><p className="text-[11px] text-slate-500">{c.slug} · {c.visibility}</p></div><select className="input w-40 text-xs" value={c.status} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();void transitionCompetitionAction(c.id,e.target.value)}} disabled={busy}>{competitionStatuses.map(s=><option key={s}>{s}</option>)}</select><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><button className="p-2 rounded-lg text-slate-400 hover:text-fg" onClick={e=>{e.stopPropagation();setCompetitionEditor(c)}}><Edit3 size={14}/></button><button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10" onClick={e=>{e.stopPropagation();void removeRow('competition',c.id)}}><Trash2 size={14}/></button></div></div>)}{!competitions.length&&<Card className="p-8 text-center text-sm text-slate-500">Belum ada lomba.</Card>}</div></>}
+        {tab === 'users' && <><div className="relative mb-3"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/><input className="input pl-9" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari nama, username, atau institusi..."/></div><div className="space-y-1.5">{filteredUsers.map((u)=><div key={u.id} className="group flex items-center gap-3 p-3 rounded-xl hover:surface-elevated border border-transparent hover:surface-border transition cursor-pointer" onClick={()=>window.open(`/profile/@${u.username}`,'_blank')}><Avatar name={u.full_name||u.username||'U'} id={u.id} size={38} src={u.avatar_url||undefined}/><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{u.full_name||u.username}</p><p className="text-[11px] text-slate-500 truncate">@{u.username||'—'} · {u.institution||'—'}</p></div><Badge color={u.status==='BANNED'?'err':'default'}>{roleLabel[u.account_type]||u.account_type}</Badge><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><Link to={`/profile/@${u.username}`} className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400 hover:text-accent" onClick={e=>e.stopPropagation()}><ExternalLink size={14}/></Link><Button size="sm" variant="danger" onClick={e=>{e.stopPropagation();void banUserAction(u.id)}} disabled={busy}>Ban</Button></div></div>)}</div></>}
+        {tab === 'posts' && <><div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={()=>setPostEditor({status:'PUBLISHED'})}>Tambah Postingan</Button></div><div className="space-y-2">{posts.map(p=><div key={p.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:surface-elevated transition cursor-pointer" onClick={()=>setPostEditor(p)}><div className="w-11 h-11 rounded-xl bg-blue-500/10 flex items-center justify-center"><FileText size={18} className="text-blue-400"/></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-semibold text-fg truncate">{p.title}</p><Badge>{p.status}</Badge></div><p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.body}</p></div><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><button className="p-2 rounded-lg hover:bg-surface-elevated/50 text-slate-400" onClick={e=>{e.stopPropagation();setPostEditor(p)}}><Edit3 size={14}/></button><button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10" onClick={e=>{e.stopPropagation();void removeRow('post',p.id)}}><Trash2 size={14}/></button></div></div>)}{!posts.length&&<Card className="p-8 text-center text-sm text-slate-500">Belum ada postingan.</Card>}</div></>}
         {tab === 'orders' && <div className="space-y-2">{orders.map(o=><div key={o.id} className="flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border"><div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center"><ShoppingBag size={18} className="text-amber-400"/></div><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg">Order {o.id.slice(0,8)}</p><p className="text-[11px] text-slate-500">{new Date(o.created_at).toLocaleString('id-ID')}</p>{o.payment_proof_status==='SUBMITTED'&&<p className="text-[11px] text-amber-400 mt-0.5">Bukti pembayaran menunggu review</p>}</div><b className="text-sm text-white tabular-nums">Rp {Number(o.total||0).toLocaleString('id-ID')}</b><Badge color={o.status==='COMPLETED'?'moss':o.status==='PENDING_PAYMENT'?'warn':'default'}>{o.status}</Badge></div>)}{!orders.length&&<Card className="p-8 text-center text-sm text-slate-500">Belum ada order.</Card>}</div>}
-        {tab === 'shop' && <><div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={()=>setProductEditor({product_type:'DIGITAL_ITEM',audiences:['student'],price:0,is_active:true,is_featured:false,sort_order:0})}>Tambah Produk</Button></div><div className="grid md:grid-cols-2 gap-3">{products.map(p=><div key={p.id} className="group p-4 rounded-xl surface-card-bg border surface-border hover:surface-elevated transition cursor-pointer" onClick={()=>setProductEditor(p)}><div className="flex gap-3"><div className="w-11 h-11 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0"><Store size={18} className="text-purple-400"/></div><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{p.name}</p><p className="text-[11px] text-slate-500">{p.code} · {p.product_type}</p><p className="text-accent font-bold text-sm mt-1">Rp {Number(p.price||0).toLocaleString('id-ID')}</p></div><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><button className="p-1.5 rounded-lg text-slate-400 hover:text-fg" onClick={e=>{e.stopPropagation();setProductEditor(p)}}><Edit3 size={13}/></button><button className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10" onClick={e=>{e.stopPropagation();void removeRow('commerce_products',p.id)}}><Trash2 size={13}/></button></div></div><div className="flex items-center gap-2 mt-2"><span className={`text-[10px] px-2 py-0.5 rounded-full ${p.is_active?'bg-moss-500/10 text-accent':'bg-slate-500/10 text-slate-500'}`}>{p.is_active?'Aktif':'Nonaktif'}</span>{p.is_featured&&<span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">Featured</span>}</div></div>)}</div></>}
+        {tab === 'shop' && <><div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={()=>setProductEditor({product_type:'DIGITAL_ITEM',audiences:['student'],price:0,is_active:true,is_featured:false,sort_order:0})}>Tambah Produk</Button></div><div className="grid md:grid-cols-2 gap-3">{products.map(p=><div key={p.id} className="group p-4 rounded-xl surface-card-bg border surface-border hover:surface-elevated transition cursor-pointer" onClick={()=>setProductEditor(p)}><div className="flex gap-3"><div className="w-11 h-11 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0"><Store size={18} className="text-purple-400"/></div><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{p.name}</p><p className="text-[11px] text-slate-500">{p.code} · {p.product_type}</p><p className="text-accent font-bold text-sm mt-1">Rp {Number(p.price||0).toLocaleString('id-ID')}</p></div><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><button className="p-1.5 rounded-lg text-slate-400 hover:text-fg" onClick={e=>{e.stopPropagation();setProductEditor(p)}}><Edit3 size={13}/></button><button className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10" onClick={e=>{e.stopPropagation();void removeRow('product',p.id)}}><Trash2 size={13}/></button></div></div><div className="flex items-center gap-2 mt-2"><span className={`text-[10px] px-2 py-0.5 rounded-full ${p.is_active?'bg-moss-500/10 text-accent':'bg-slate-500/10 text-slate-500'}`}>{p.is_active?'Aktif':'Nonaktif'}</span>{p.is_featured&&<span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">Featured</span>}</div></div>)}</div></>}
         {tab === 'settings' && <div className="space-y-3"><Card className="p-5"><h3 className="font-semibold text-fg">Pengaturan Platform</h3><p className="text-sm text-fg-muted mt-1">Akses lanjutan tetap tersedia melalui modul admin khusus.</p><Link to="/admin/roles" className="inline-block mt-4"><Button icon={<ShieldCheck size={15}/>}>Role & Akses</Button></Link></Card></div>}
       </section>
-      {competitionEditor&&<Editor title={competitionEditor.id?'Edit Lomba':'Tambah Lomba'} onClose={()=>setCompetitionEditor(null)} onSave={()=>void saveCompetition()} busy={busy}><Field label="Judul" value={competitionEditor.title||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,title:v}))}/><Field label="Slug" value={competitionEditor.slug||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,slug:v}))}/><Field label="Kategori" value={competitionEditor.category||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,category:v}))}/><Field label="Deskripsi singkat" value={competitionEditor.short_description||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,short_description:v}))}/><Field label="Poster URL" value={competitionEditor.poster_url||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,poster_url:v}))}/><div className="grid md:grid-cols-2 gap-3"><Field label="Mulai registrasi" type="datetime-local" value={competitionEditor.registration_starts_at?.slice(0,16)||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,registration_starts_at:v?new Date(v).toISOString():null}))}/><Field label="Selesai registrasi" type="datetime-local" value={competitionEditor.registration_ends_at?.slice(0,16)||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,registration_ends_at:v?new Date(v).toISOString():null}))}/></div></Editor>}
-      {postEditor&&<Editor title={postEditor.id?'Edit Postingan':'Tambah Postingan'} onClose={()=>setPostEditor(null)} onSave={()=>void savePost()} busy={busy}><Field label="Judul" value={postEditor.title||''} onChange={v=>setPostEditor((x:any)=>({...x,title:v}))}/><Field label="Isi" value={postEditor.body||''} onChange={v=>setPostEditor((x:any)=>({...x,body:v}))} textarea/><Field label="Cover URL" value={postEditor.cover_url||''} onChange={v=>setPostEditor((x:any)=>({...x,cover_url:v}))}/><div><label className="label">Status</label><select className="input" value={postEditor.status||'PUBLISHED'} onChange={e=>setPostEditor((x:any)=>({...x,status:e.target.value}))}><option>DRAFT</option><option>PUBLISHED</option><option>HIDDEN</option><option>ARCHIVED</option></select></div></Editor>}
-      {productEditor&&<Editor title={productEditor.id?'Edit Produk':'Tambah Produk'} onClose={()=>setProductEditor(null)} onSave={()=>void saveProduct()} busy={busy}><Field label="Nama" value={productEditor.name||''} onChange={v=>setProductEditor((x:any)=>({...x,name:v}))}/><Field label="Kode Produk" value={productEditor.code||''} onChange={v=>setProductEditor((x:any)=>({...x,code:v}))}/><Field label="Slug" value={productEditor.slug||''} onChange={v=>setProductEditor((x:any)=>({...x,slug:v}))}/><Field label="Harga (Rupiah)" value={String(productEditor.price ?? 0)} onChange={v=>setProductEditor((x:any)=>({...x,price:Number(v.replace(/[^0-9]/g,''))}))}/><Field label="Image URL" value={productEditor.image_url||''} onChange={v=>setProductEditor((x:any)=>({...x,image_url:v}))}/><div className="flex gap-4 text-xs"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!productEditor.is_active} onChange={e=>setProductEditor((x:any)=>({...x,is_active:e.target.checked}))}/> Aktif</label><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!productEditor.is_featured} onChange={e=>setProductEditor((x:any)=>({...x,is_featured:e.target.checked}))}/> Featured</label></div></Editor>}
+      {competitionEditor&&<Editor title={competitionEditor.id?'Edit Lomba':'Tambah Lomba'} onClose={()=>setCompetitionEditor(null)} onSave={()=>void saveCompetitionAction()} busy={busy}><Field label="Judul" value={competitionEditor.title||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,title:v}))}/><Field label="Slug" value={competitionEditor.slug||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,slug:v}))}/><Field label="Kategori" value={competitionEditor.category||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,category:v}))}/><Field label="Deskripsi singkat" value={competitionEditor.short_description||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,short_description:v}))}/><Field label="Poster URL" value={competitionEditor.poster_url||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,poster_url:v}))}/><div className="grid md:grid-cols-2 gap-3"><Field label="Mulai registrasi" type="datetime-local" value={competitionEditor.registration_starts_at?.slice(0,16)||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,registration_starts_at:v?new Date(v).toISOString():null}))}/><Field label="Selesai registrasi" type="datetime-local" value={competitionEditor.registration_ends_at?.slice(0,16)||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,registration_ends_at:v?new Date(v).toISOString():null}))}</div></Editor>}
+      {postEditor&&<Editor title={postEditor.id?'Edit Postingan':'Tambah Postingan'} onClose={()=>setPostEditor(null)} onSave={()=>void savePostAction()} busy={busy}><Field label="Judul" value={postEditor.title||''} onChange={v=>setPostEditor((x:any)=>({...x,title:v}))}/><Field label="Isi" value={postEditor.body||''} onChange={v=>setPostEditor((x:any)=>({...x,body:v}))} textarea/><Field label="Cover URL" value={postEditor.cover_url||''} onChange={v=>setPostEditor((x:any)=>({...x,cover_url:v}))}/><div><label className="label">Status</label><select className="input" value={postEditor.status||'PUBLISHED'} onChange={e=>setPostEditor((x:any)=>({...x,status:e.target.value}))}><option>DRAFT</option><option>PUBLISHED</option><option>HIDDEN</option><option>ARCHIVED</option></select></div></Editor>}
+      {productEditor&&<Editor title={productEditor.id?'Edit Produk':'Tambah Produk'} onClose={()=>setProductEditor(null)} onSave={()=>void saveProductAction()} busy={busy}><Field label="Nama" value={productEditor.name||''} onChange={v=>setProductEditor((x:any)=>({...x,name:v}))}/><Field label="Kode Produk" value={productEditor.code||''} onChange={v=>setProductEditor((x:any)=>({...x,code:v}))}/><Field label="Slug" value={productEditor.slug||''} onChange={v=>setProductEditor((x:any)=>({...x,slug:v}))}/><Field label="Harga (Rupiah)" value={String(productEditor.price ?? 0)} onChange={v=>setProductEditor((x:any)=>({...x,price:Number(v.replace(/[^0-9]/g,''))}))}/><Field label="Image URL" value={productEditor.image_url||''} onChange={v=>setProductEditor((x:any)=>({...x,image_url:v}))}/><div className="flex gap-4 text-xs"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!productEditor.is_active} onChange={e=>setProductEditor((x:any)=>({...x,is_active:e.target.checked}))}/> Aktif</label><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!productEditor.is_featured} onChange={e=>setProductEditor((x:any)=>({...x,is_featured:e.target.checked}))}/> Featured</label></div></Editor>}
     </div>
   );
 }
