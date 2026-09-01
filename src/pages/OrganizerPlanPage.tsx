@@ -23,7 +23,7 @@ const CAPABILITY_LABELS: Record<string, string> = {
 };
 
 function labelFor(capability?: string | null) {
-  return CAPABILITY_LABELS[capability ?? ''] ?? String(capability ?? '').replace(/_/g, ' ').replace(/\b\w/g, (m: string) => m.toUpperCase()) || 'Fitur';
+  return CAPABILITY_LABELS[capability ?? ''] ?? (String(capability ?? '').replace(/_/g, ' ').replace(/\b\w/g, (m: string) => m.toUpperCase()) || 'Fitur');
 }
 
 export function OrganizerPlanPage() {
