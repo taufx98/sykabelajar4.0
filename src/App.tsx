@@ -26,6 +26,7 @@ import { TwibbonPage } from '@/pages/TwibbonPage';
 import { MessagesPageV3 } from '@/pages/MessagesPageV3';
 import { AdminChatConsolePage } from '@/pages/AdminChatConsolePage';
 import { AdminPage } from '@/pages/AdminPage';
+import { AdminControlCenterPage } from '@/pages/AdminControlCenterPage';
 import { AdminRolesPage } from '@/pages/AdminRolesPage';
 import { AdminOrdersReviewPage } from '@/pages/AdminOrdersReviewPage';
 import { AdminOperationsPage } from '@/pages/AdminOperationsPage';
@@ -119,7 +120,8 @@ function AppRoutes() {
       <Route path="/organizer/grading" element={<OrganizerShellRoute><OrganizerGradingPage /></OrganizerShellRoute>} />
       <Route path="/organizer/plan" element={<OrganizerShellRoute><OrganizerPlanPage /></OrganizerShellRoute>} />
       <Route path="/organizer/ads" element={<OrganizerShellRoute><OrganizerAdRequestPage /></OrganizerShellRoute>} />
-      <Route path="/admin" element={<RoleRoute role="admin"><AdminPage /></RoleRoute>} />
+      <Route path="/admin" element={<RoleRoute role="admin"><AdminControlCenterPage /></RoleRoute>} />
+      <Route path="/admin/core" element={<RoleRoute role="admin"><AdminPage /></RoleRoute>} />
       <Route path="/admin/roles" element={<RoleRoute role="admin"><AdminRolesPage /></RoleRoute>} />
       <Route path="/admin/orders/review" element={<RoleRoute role="admin"><AdminOrdersReviewPage /></RoleRoute>} />
       <Route path="/admin/operations" element={<RoleRoute role="admin"><AdminOperationsPage /></RoleRoute>} />
