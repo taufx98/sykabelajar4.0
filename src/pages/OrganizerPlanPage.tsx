@@ -22,8 +22,8 @@ const CAPABILITY_LABELS: Record<string, string> = {
   member_limit: 'Batas Anggota',
 };
 
-function labelFor(capability: string) {
-  return CAPABILITY_LABELS[capability] ?? capability.replaceAll('_', ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+function labelFor(capability?: string | null) {
+  return CAPABILITY_LABELS[capability ?? ''] ?? String(capability ?? '').replace(/_/g, ' ').replace(/\b\w/g, (m: string) => m.toUpperCase()) || 'Fitur';
 }
 
 export function OrganizerPlanPage() {
