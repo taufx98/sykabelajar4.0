@@ -17,6 +17,17 @@ export interface CommerceProduct {
   sort_order: number;
 }
 
+export interface OrganizerPlanCatalogRow {
+  plan_code: string;
+  name: string;
+  description: string | null;
+  monthly_price: number;
+  yearly_price: number;
+  currency: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
 export async function listActiveProducts(): Promise<CommerceProduct[]> {
   const { data, error } = await supabase
     .from('commerce_products')
@@ -40,6 +51,79 @@ export async function listActiveProducts(): Promise<CommerceProduct[]> {
     is_featured: Boolean(p.is_featured),
     sort_order: Number(p.sort_order ?? 0),
   }));
+}
+
+export async function listActiveOrganizerPlans(): Promise<OrganizerPlanCatalogRow[]> {
+  const { data, error } = await supabase
+    .from('plan_catalog')
+    .select('plan_code,name,description,monthly_price,yearly_price,currency,sort_order,is_active')
+    .eq('is_active', true)
+    .in('plan_code', ['PREMIUM', 'PRO'])
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as Array<Record<string, unknown>>).map((p) => ({
+    plan_code: String(p.plan_code),
+    name: String(p.name ?? p.plan_code),
+    description: p.description == null ? null : String(p.description),
+    monthly_price: Number(p.monthly_price ?? 0),
+    yearly_price: Number(p.yearly_price ?? 0),
+    currency: String(p.currency ?? 'IDR'),
+    sort_order: Number(p.sort_order ?? 0),
+    is_active: Boolean(p.is_active),
+  }));
+}
+
+export async function createOrganizerPlanOrderV2(input: {
+  organizerId: string;
+  planCode: string;
+  billingPeriod: 'MONTHLY' | 'YEARLY';
+  whatsapp: string;
+  proofUrl: string;
+  proofPublicId?: string;
+  proofWidth?: number;
+  proofHeight?: number;
+  proofVersion?: string;
+  proofResourceType?: string;
+}) {
+  if (!input.organizerId) throw new Error('Organisasi wajib dipilih.');
+  if (!['PREMIUM', 'PRO'].includes(input.planCode.toUpperCase())) throw new Error('Plan berbayar tidak valid.');
+  if (!input.whatsapp.trim()) throw new Error('WhatsApp wajib diisi.');
+  if (!input.proofUrl.trim()) throw new Error('Bukti pembayaran wajib diisi.');
+
+  const { data, error } = await supabase.rpc('create_organizer_plan_order_v2', {
+    p_organizer_id: input.organizerId,
+    p_plan_code: input.planCode.toUpperCase(),
+    p_billing_period: input.billingPeriod,
+    p_whatsapp: input.whatsapp.trim(),
+    p_proof_url: input.proofUrl.trim(),
+    p_proof_public_id: input.proofPublicId ?? null,
+    p_proof_width: input.proofWidth ?? null,
+    p_proof_height: input.proofHeight ?? null,
+    p_proof_version: input.proofVersion ?? null,
+    p_proof_resource_type: input.proofResourceType ?? null,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function requestCustomOrganizerPlan(input: {
+  organizerId: string;
+  requestedFeatures: string[];
+  notes?: string;
+  contactWhatsapp?: string;
+}) {
+  const features = input.requestedFeatures.map((x) => x.trim()).filter(Boolean);
+  if (!input.organizerId) throw new Error('Organisasi wajib dipilih.');
+  if (!features.length) throw new Error('Pilih minimal satu fitur custom.');
+
+  const { data, error } = await supabase.rpc('request_custom_organizer_plan', {
+    p_organizer_id: input.organizerId,
+    p_requested_features: features,
+    p_notes: input.notes?.trim() || null,
+    p_contact_whatsapp: input.contactWhatsapp?.trim() || null,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data[0] : data;
 }
 
 export async function createProductOrder(productId: string, quantity: number) {
