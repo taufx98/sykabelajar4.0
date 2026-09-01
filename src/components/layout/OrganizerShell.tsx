@@ -1,14 +1,16 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Building2, Users, ClipboardList, Gauge, Megaphone, ChevronDown } from 'lucide-react';
+import { BarChart3, Building2, ClipboardList, FileQuestion, Gauge, Megaphone, Trophy, Users } from 'lucide-react';
 import { listCurrentUserOrganizers, resolveCurrentUserOrganizer, setSelectedOrganizerId, type CurrentOrganizer } from '@/services/organizerAuth.service';
 
 const items = [
   ['/organizer', 'Ringkasan', Building2],
+  ['/organizer?tab=competitions', 'Lomba', Trophy],
+  ['/organizer?tab=question-bank', 'Bank Soal', FileQuestion],
   ['/organizer/registrations', 'Pendaftar', ClipboardList],
   ['/organizer/members', 'Member', Users],
   ['/organizer/grading', 'Penilaian', Gauge],
-  ['/organizer/plan', 'Plan & Usage', Gauge],
+  ['/organizer/plan', 'Plan & Usage', BarChart3],
   ['/organizer/ads', 'Iklan', Megaphone],
 ] as const;
 
@@ -39,7 +41,13 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
     if (!org) return;
     setSelectedOrganizerId(id);
     setSelected(org);
-    window.location.reload();
+  };
+
+  const isActive = (to: string) => {
+    const [pathname, search] = to.split('?');
+    if (location.pathname !== pathname) return false;
+    if (!search) return !location.search || location.pathname !== '/organizer';
+    return location.search === `?${search}`;
   };
 
   return (
@@ -59,10 +67,11 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
             )}
           </div>
           <nav className="flex gap-1 overflow-x-auto no-scrollbar pb-2">
-            {items.map(([to, label, Icon]) => {
-              const active = location.pathname === to;
-              return <Link key={to} to={to} className={`inline-flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition ${active ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg hover:bg-surface-elevated/50'}`}><Icon size={14} />{label}</Link>;
-            })}
+            {items.map(([to, label, Icon]) => (
+              <Link key={to} to={to} className={`inline-flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition ${isActive(to) ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg hover:bg-surface-elevated/50'}`}>
+                <Icon size={14} />{label}
+              </Link>
+            ))}
           </nav>
         </div>
       </header>
