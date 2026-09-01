@@ -1,0 +1,1 @@
+Admin Core now centralizes sensitive mutations through server-side RPCs with admin authorization and audit logging. The UI uses a service layer, optimistic rollback for destructive/status actions, and Supabase Realtime refresh for core tables.
