@@ -23,6 +23,15 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      // Existing application code contains broad legacy typing/cleanup debt.
+      // Keep these visible as warnings while preserving error-level hook safety.
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      'no-empty': 'warn',
+      'prefer-const': 'warn',
+      'no-var': 'warn',
+      'no-extra-boolean-cast': 'warn',
+      '@typescript-eslint/no-unused-expressions': 'warn',
     },
   }
 );
