@@ -1,0 +1,170 @@
+name: Phase 2 Optimize
+
+on:
+  workflow_dispatch:
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Apply Phase 2 optimizations
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          # 1) Remove 30s chat polling; keep initial/manual refresh + existing Realtime.
+          p = Path('src/pages/MessagesPageV6.tsx')
+          s = p.read_text()
+          old = "useEffect(()=>{void refresh();const t=window.setInterval(()=>void refresh(),30000);return()=>window.clearInterval(t)},[refresh]);"
+          new = "useEffect(()=>{void refresh()},[refresh]);"
+          if old not in s:
+              raise SystemExit('Expected MessagesPageV6 polling effect not found')
+          p.write_text(s.replace(old, new, 1))
+
+          # 2) Centralized Cloudinary delivery optimization.
+          p = Path('src/services/cloudinary.service.ts')
+          s = p.read_text()
+          start = s.index('/**\n * Append a cache-busting version query to a Cloudinary URL.\n */')
+          end = s.index('\n\n/**\n * Delete an image from Cloudinary via Edge Function.', start)
+          helper = '''/**
+ * Build an optimized Cloudinary delivery URL.
+ *
+ * Only Cloudinary image delivery URLs are transformed. Non-Cloudinary URLs
+ * are returned unchanged so external/CDN assets remain safe and compatible.
+ */
+export function optimizedCloudinaryUrl(
+  url?: string | null,
+  options: { width?: number; version?: string | number | null } = {},
+): string | undefined {
+  if (!url) return undefined;
+  const value = String(url);
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return value;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (!host.endsWith('.cloudinary.com')) return value;
+  if (!parsed.pathname.includes('/image/upload/')) return value;
+
+  const width = Number.isFinite(options.width) && Number(options.width) > 0
+    ? Math.round(Number(options.width))
+    : undefined;
+  const transforms = [`f_auto`, `q_auto`, ...(width ? [`w_${width}`] : [])];
+  const marker = '/image/upload/';
+  const index = parsed.pathname.indexOf(marker);
+  if (index < 0) return value;
+
+  const before = parsed.pathname.slice(0, index + marker.length);
+  const after = parsed.pathname.slice(index + marker.length);
+  const hasDeliveryTransform = /^[^/]+(?:,[^/]+)*(?:\/|$)/.test(after) && !after.startsWith('v');
+  const optimizedPath = `${before}${transforms.join(',')}/${hasDeliveryTransform ? after : after}`;
+  parsed.pathname = optimizedPath;
+
+  if (options.version != null && String(options.version)) {
+    parsed.searchParams.set('v', String(options.version));
+  }
+  return parsed.toString();
+}
+
+/**
+ * Append a cache-busting version query to a Cloudinary URL.
+ */
+export function versionedCloudinaryUrl(
+  url?: string | null,
+  version?: string | number | null,
+): string | undefined {
+  return optimizedCloudinaryUrl(url, { version });
+}
+'''
+          p.write_text(s[:start] + helper + s[end:])
+
+          # 3) Apply optimizer to avatar.
+          p = Path('src/components/ui/Avatar.tsx')
+          s = p.read_text()
+          if "from '@/services/cloudinary.service'" not in s:
+              s = s.replace("import { initials, avatarGradient } from '@/lib/utils';", "import { initials, avatarGradient } from '@/lib/utils';\nimport { optimizedCloudinaryUrl } from '@/services/cloudinary.service';")
+          old = "if(src) return <img src={src}"
+          new = "if(src) return <img src={optimizedCloudinaryUrl(src,{width:size<=80?150:300})}"
+          if old not in s:
+              raise SystemExit('Expected Avatar image render not found')
+          p.write_text(s.replace(old, new, 1))
+
+          # 4) Apply optimizer to public banners.
+          p = Path('src/components/ui/BannerCarousel.tsx')
+          s = p.read_text()
+          if "from '@/services/cloudinary.service'" not in s:
+              s = s.replace("import { useApp } from '@/store/AppContext';", "import { useApp } from '@/store/AppContext';\nimport { optimizedCloudinaryUrl } from '@/services/cloudinary.service';")
+          old = "return <img src={banner.image_url}"
+          new = "return <img src={optimizedCloudinaryUrl(banner.image_url,{width:800})}"
+          if old not in s:
+              raise SystemExit('Expected BannerMedia image render not found')
+          p.write_text(s.replace(old, new, 1))
+
+          # 5) Apply optimizer to Home competition posters and feed covers.
+          p = Path('src/pages/HomePage.tsx')
+          s = p.read_text()
+          if "from '@/services/cloudinary.service'" not in s:
+              s = s.replace("import { supabase } from '@/lib/supabase';", "import { supabase } from '@/lib/supabase';\nimport { optimizedCloudinaryUrl } from '@/services/cloudinary.service';")
+          s = s.replace('src={comp.poster_url}', 'src={optimizedCloudinaryUrl(comp.poster_url,{width:800})}')
+          s = s.replace('src={post.cover_url}', 'src={optimizedCloudinaryUrl(post.cover_url,{width:800})}')
+          p.write_text(s)
+
+          # Sanity checks before validation.
+          if 'setInterval(()=>void refresh(),30000)' in Path('src/pages/MessagesPageV6.tsx').read_text():
+              raise SystemExit('30s chat polling still present')
+          print('Cloudinary usages:', sum('optimizedCloudinaryUrl' in x.read_text() for x in [
+              Path('src/services/cloudinary.service.ts'),
+              Path('src/components/ui/Avatar.tsx'),
+              Path('src/components/ui/BannerCarousel.tsx'),
+              Path('src/pages/HomePage.tsx'),
+          ]))
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Optimization stats
+        run: |
+          echo '--- poll target ---'
+          grep -n "setInterval\|30000" src/pages/MessagesPageV6.tsx || true
+          echo '--- cloudinary optimizer callsites ---'
+          grep -R -n "optimizedCloudinaryUrl" src/components/ui/Avatar.tsx src/components/ui/BannerCarousel.tsx src/pages/HomePage.tsx src/services/cloudinary.service.ts
+          echo '--- broad competition request in HomePage ---'
+          grep -n "getPublicCompetitions" src/pages/HomePage.tsx || true
+          echo '--- diff stat ---'
+          git diff --stat
+
+      - name: Commit and remove temporary workflow
+        if: success()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/MessagesPageV6.tsx src/services/cloudinary.service.ts src/components/ui/Avatar.tsx src/components/ui/BannerCarousel.tsx src/pages/HomePage.tsx
+          git rm .github/workflows/phase2-optimize.yml
+          git commit -m 'perf(phase2): optimize chat requests and Cloudinary delivery'
+          git push origin HEAD:main
