@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Clock, Check, AlertCircle, Upload, Send, Loader2, FileText } from 'lucide-react';
+import { ArrowLeft, Clock, Check, AlertCircle, Send, Loader2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -90,7 +90,7 @@ export function CompetitionWorkPage() {
   const requiredLeft = questions.filter((q) => q.required && !answers[q.id]).length;
 
   async function handleSubmit(auto = false) {
-    if (!currentAttempt || !submitting === false || submitted) return;
+    if (!currentAttempt || submitting || submitted) return;
     if (!auto && requiredLeft > 0) { toast(`Masih ada ${requiredLeft} soal wajib belum dijawab`, 'error'); return; }
     if (Object.values(saveTimers.current).some(Boolean)) await new Promise((resolve) => window.setTimeout(resolve, 550));
     setSubmitting(true);
