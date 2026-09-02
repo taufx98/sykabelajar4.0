@@ -26,20 +26,18 @@ jobs:
           def read(p): return Path(p).read_text()
           def write(p, s): Path(p).write_text(s)
 
-          # 1. Rules of Hooks: blocking rule.
           p='eslint.config.js'
           text=read(p)
           if "'react-hooks/rules-of-hooks': 'warn'" not in text:
               raise SystemExit('Expected Rules of Hooks warning rule was not found')
           write(p, text.replace("'react-hooks/rules-of-hooks': 'warn'", "'react-hooks/rules-of-hooks': 'error'", 1))
 
-          # 2. HomePage: precise view models, unknown error handling, stable first load.
           p='src/pages/HomePage.tsx'
           text=read(p)
           text=text.replace("import type { PublicLeaderboardRow } from '@/services/platform.service';", "import type { HomeSnapshot, PublicLeaderboardRow } from '@/services/platform.service';", 1)
           marker="import { supabase } from '@/lib/supabase';\n"
           if 'type HomeCompetition' not in text:
-              helpers='''\n\ntype HomeCompetition = {\n  id:string; title:string; slug:string; category:string; organizer_name:string; short_description:string; poster_url:string|null;\n  participant_count:number; participants_count:number; status:string; deadline:string; registration_end:string;\n};\ntype HomeFeedRow = HomeSnapshot['feed'][number];\nconst readString=(row:Record<string,unknown>,key:string,fallback=''):string=>row[key]==null?fallback:String(row[key]);\nconst readNullableString=(row:Record<string,unknown>,key:string):string|null=>row[key]==null?null:String(row[key]);\nconst readNumber=(row:Record<string,unknown>,key:string,fallback=0):number=>{const value=Number(row[key]??fallback);return Number.isFinite(value)?value:fallback;};\nconst normalizeCompetition=(row:Record<string,unknown>):HomeCompetition=>{const participants=readNumber(row,'participants_count',readNumber(row,'participant_count'));return {\n  id:readString(row,'id'),title:readString(row,'title'),slug:readString(row,'slug'),category:readString(row,'category','Kompetisi'),organizer_name:readString(row,'organizer_name','Penyelenggara'),\n  short_description:readString(row,'short_description'),poster_url:readNullableString(row,'poster_url'),participant_count:participants,participants_count:participants,status:readString(row,'status'),\n  deadline:readString(row,'deadline'),registration_end:readString(row,'registration_end')};};\nconst normalizeHomeFeedRow=(row:HomeFeedRow):SocialPost=>({\n  id:readString(row,'id'),author_user_id:readString(row,'author_user_id'),author_name:readString(row,'author_name','Pengguna'),author_username:readString(row,'author_username'),\n  avatar_url:readNullableString(row,'avatar_url'),title:readString(row,'title'),body:readString(row,'body'),cover_url:readNullableString(row,'cover_url'),created_at:readString(row,'created_at'),\n  competition_id:readNullableString(row,'competition_id'),competition_slug:readNullableString(row,'competition_slug'),likes:readNumber(row,'likes'),liked:Boolean(row.liked),comments:readNumber(row,'comments')});\nconst errorMessage=(error:unknown,fallback:string):string=>error instanceof Error?error.message:fallback;\n'''
+              helpers='''\n\ntype HomeCompetition = {\n  id:string; title:string; slug:string; category:string; organizer_name:string; short_description:string; poster_url:string|null;\n  participant_count:number; participants_count:number; status:string; deadline:string; registration_end:string;\n};\ntype HomeFeedRow = HomeSnapshot['feed'][number];\nconst readString=(row:Record<string,unknown>,key:string,fallback=''):string=>row[key]==null?fallback:String(row[key]);\nconst readNullableString=(row:Record<string,unknown>,key:string):string|null=>row[key]==null?null:String(row[key]);\nconst readNumber=(row:Record<string,unknown>,key:string,fallback=0):number=>{const value=Number(row[key]??fallback);return Number.isFinite(value)?value:fallback;};\nconst normalizeCompetition=(row:Record<string,unknown>):HomeCompetition=>{const participants=readNumber(row,'participants_count',readNumber(row,'participant_count'));return {id:readString(row,'id'),title:readString(row,'title'),slug:readString(row,'slug'),category:readString(row,'category','Kompetisi'),organizer_name:readString(row,'organizer_name','Penyelenggara'),short_description:readString(row,'short_description'),poster_url:readNullableString(row,'poster_url'),participant_count:participants,participants_count:participants,status:readString(row,'status'),deadline:readString(row,'deadline'),registration_end:readString(row,'registration_end')};};\nconst normalizeHomeFeedRow=(row:HomeFeedRow):SocialPost=>({id:readString(row,'id'),author_user_id:readString(row,'author_user_id'),author_name:readString(row,'author_name','Pengguna'),author_username:readString(row,'author_username'),avatar_url:readNullableString(row,'avatar_url'),title:readString(row,'title'),body:readString(row,'body'),cover_url:readNullableString(row,'cover_url'),created_at:readString(row,'created_at'),competition_id:readNullableString(row,'competition_id'),competition_slug:readNullableString(row,'competition_slug'),likes:readNumber(row,'likes'),liked:Boolean(row.liked),comments:readNumber(row,'comments')});\nconst errorMessage=(error:unknown,fallback:string):string=>error instanceof Error?error.message:fallback;\n'''
               text=text.replace(marker, marker+helpers, 1)
           text=text.replace('useState<any[]>([]);const[leaders','useState<HomeCompetition[]>([]);const[leaders',1)
           text=text.replace("const[searchAllComps,setSearchAllComps]=useState<any[]>([]);const[searchUsers,setSearchUsers]=useState<any[]>([]);", "const[searchAllComps,setSearchAllComps]=useState<HomeCompetition[]>([]);const[searchUsers,setSearchUsers]=useState<Record<string,unknown>[]>([]);", 1)
@@ -48,6 +46,7 @@ jobs:
           text=text.replace('setSearchAllComps(compRes)', 'setSearchAllComps(compRes.map(normalizeCompetition))', 1)
           text=text.replace("useEffect(()=>{void loadFirst()},[]);", "useEffect(()=>{void loadFirst()},[loadFirst]);", 1)
           text=text.replace('(comp: any, idx: number)', '(comp, idx: number)')
+          text=text.replace('(comp: any)', '(comp)')
           text=re.sub(r'catch\s*\(e\s*:\s*any\s*\)', 'catch(error:unknown)', text)
           text=text.replace("e?.message??'Feed gagal dimuat.'", "errorMessage(error,'Feed gagal dimuat.')")
           text=text.replace("e?.message??'Gagal memperbarui like.'", "errorMessage(error,'Gagal memperbarui like.')")
@@ -56,7 +55,6 @@ jobs:
           text=re.sub(r'\(p\s*:\s*any\)', '(p)', text)
           write(p,text)
 
-          # 3. NotificationsPageV2: explicit notification payload contract.
           p='src/pages/NotificationsPageV2.tsx'
           text=read(p)
           old_type='type DetailNotification=AppNotification&{data?:any};'
@@ -73,20 +71,18 @@ jobs:
           action="const actionFor=(n:DetailNotification):NotificationAction|null=>{const d=n.data??{};if(d.action)return d.action;switch(n.type){case'follow-request':return null;case'rank-up':return{label:'Cek Profil',url:d.link??'/leaderboard'};case'result-out':return{label:'Lihat Hasil',url:d.link??'/awards'};case'registration-approved':return{label:'Lihat Lomba',url:d.link??'/awards'};case'twibbon-verified':return{label:'Lihat',url:d.link??'/awards'};default:return d.link?{label:'Buka',url:d.link}:null;}};"
           lines[map_i]=mapper
           if action_i==map_i+1: lines[action_i]=action
-          else:
-              lines[action_i]=action
-              del lines[map_i+1:action_i]
+          else: lines[action_i]=action; del lines[map_i+1:action_i]
           text='\n'.join(lines)+'\n'
           text=text.replace('mapNotification(payload.new)', 'mapNotification(payload.new as NotificationRow)')
           text=re.sub(r'catch\s*\(e\s*:\s*any\s*\)', 'catch(e:unknown)', text)
           text=re.sub(r'e\?\.message\s*(\?\?|\|\|)\s*(\'[^\']*\')', r'(e instanceof Error ? e.message : \2)', text)
           write(p,text)
 
-          # 4. Chat critical errors only; realtime cleanup remains untouched.
           for p in ['src/pages/MessagesPageV6.tsx','src/components/ui/ChatWidget.tsx']:
               text=read(p)
               if 'function errorMessage(' not in text:
                   text='function errorMessage(error:unknown,fallback:string):string{return error instanceof Error?error.message:fallback;}\n'+text
+              text=text.replace('catch (e: any)', 'catch (e: unknown)')
               text=re.sub(r'catch\s*\(e\s*:\s*any\s*\)', 'catch(e:unknown)', text)
               text=re.sub(r'e\?\.message\s*(\?\?|\|\|)\s*(\'[^\']*\')', r'errorMessage(e, \2)', text)
               write(p,text)
@@ -97,8 +93,7 @@ jobs:
               for i,line in enumerate(read(p).splitlines(),1):
                   if re.search(r'\bany\b',line): leftovers.append(f'{p}:{i}:{line}')
           if leftovers:
-              print('\n'.join(leftovers))
-              raise SystemExit('Explicit any remains in Phase 1 target files')
+              print('\n'.join(leftovers)); raise SystemExit('Explicit any remains in Phase 1 target files')
           PY
       - name: Install
         run: npm ci
