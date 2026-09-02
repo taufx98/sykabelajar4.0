@@ -60,7 +60,7 @@ export function AppLayout() {
         const lastVisit = localStorage.getItem('admin_orders_last_visit');
         let query = supabase.from('orders').select('id', { count: 'exact', head: true }).eq('payment_proof_status', 'SUBMITTED');
         if (lastVisit) query = query.gt('created_at', lastVisit);
-        void query.then(({ count }) => {
+        void Promise.resolve(query).then(({ count }) => {
           const value = count ?? 0;
           setUnreadOrders(value);
           setPersistentCache(orderCacheKey, value, { ttlMs: ORDER_CACHE_TTL });
