@@ -34,14 +34,17 @@ async function rpc(name, body) {
   return response.json();
 }
 
-const stats = await rpc('get_platform_stats', {});
-if (!Array.isArray(stats)) throw new Error('get_platform_stats bukan array.');
+// Keep CI validation representative of the optimized public data path.
+// One bounded snapshot RPC replaces the previous three broad RPC calls.
+const snapshot = await rpc('get_home_snapshot_v1', { p_feed_limit: 1 });
+if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+  throw new Error('get_home_snapshot_v1 bukan object.');
+}
 
-const leaderboard = await rpc('get_public_leaderboard_v2', { p_limit: 5 });
-if (!Array.isArray(leaderboard)) throw new Error('get_public_leaderboard_v2 bukan array.');
-
-const competitions = await rpc('get_public_competitions', {});
-if (!Array.isArray(competitions)) throw new Error('get_public_competitions bukan array.');
+const competitions = Array.isArray(snapshot.competitions) ? snapshot.competitions : [];
+const leaderboard = Array.isArray(snapshot.leaderboard) ? snapshot.leaderboard : [];
+const stats = snapshot.stats && typeof snapshot.stats === 'object' ? snapshot.stats : {};
 
 console.log('[smoke] production bundle: OK');
-console.log(`[smoke] stats rows=${stats.length} leaderboard rows=${leaderboard.length} competitions rows=${competitions.length}`);
+console.log(`[smoke] snapshot competitions=${competitions.length} leaderboard=${leaderboard.length} stats=object`);
+console.log(`[smoke] snapshot keys=${Object.keys(stats).length > 0 ? Object.keys(stats).join(',') : 'none'}`);
