@@ -14,11 +14,14 @@ type CertificateOption = { id: string; competition_id: string; status: string; s
 
 const QR_ENDPOINT = 'https://quickchart.io/qr';
 
+function verificationUrl(payload: string) {
+  if (payload.startsWith('http://') || payload.startsWith('https://')) return payload;
+  if (payload.startsWith('/')) return new URL(payload, window.location.origin).toString();
+  return new URL(`/verify/${encodeURIComponent(payload)}`, window.location.origin).toString();
+}
+
 function qrUrl(payload: string) {
-  const verificationUrl = payload.startsWith('http://') || payload.startsWith('https://')
-    ? payload
-    : `${window.location.origin}/verify/${encodeURIComponent(payload)}`;
-  return `${QR_ENDPOINT}?text=${encodeURIComponent(verificationUrl)}&size=180&margin=1`;
+  return `${QR_ENDPOINT}?text=${encodeURIComponent(verificationUrl(payload))}&size=180&margin=1`;
 }
 
 function statusColor(status: string) {
