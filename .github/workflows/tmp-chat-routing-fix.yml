@@ -1,0 +1,77 @@
+name: tmp-chat-routing-fix
+on:
+  push:
+    branches: [main]
+    paths: ['.chat-routing-trigger']
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply chat routing isolation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          
+          def replace_once(path, old, new):
+              p=Path(path)
+              s=p.read_text()
+              if old not in s:
+                  raise SystemExit(f'Pattern not found in {path}: {old[:160]!r}')
+              p.write_text(s.replace(old,new,1))
+          
+          replace_once('src/services/chat.service.ts',
+            "function err(error:any){const m=String(error?.message??error??'Terjadi kesalahan.');const map:Record<string,string>={ACTIVE_TICKET_EXISTS:'Anda masih memiliki laporan yang sedang berjalan. Tunggu hingga laporan diselesaikan oleh Admin.',FOLLOW_REQUIRED:'Anda harus mengikuti pengguna tersebut dan menunggu persetujuan sebelum dapat mengirim pesan.',THREAD_CLOSED:'Percakapan ini sudah ditutup.',ACCESS_DENIED:'Anda tidak memiliki akses ke percakapan ini.',MESSAGE_REQUIRED:'Pesan tidak boleh kosong.',CHAT_BLOCKED:'Anda tidak dapat mengirim pesan karena hubungan chat diblokir.',TICKET_NOT_OPEN:'Ticket sudah tidak aktif.',TICKET_ALREADY_CLAIMED:'Ticket sudah diambil oleh petugas lain.',INVALID_RATING:'Rating harus 1-5.'};",
+            "function err(error:any){const m=String(error?.message??error??'Terjadi kesalahan.');const map:Record<string,string>={ACTIVE_TICKET_EXISTS:'Anda masih memiliki laporan yang sedang berjalan. Tunggu hingga laporan diselesaikan oleh Admin.',FOLLOW_REQUIRED:'Anda harus mengikuti pengguna tersebut dan menunggu persetujuan sebelum dapat mengirim pesan.',THREAD_CLOSED:'Percakapan ini sudah ditutup.',ACCESS_DENIED:'Anda tidak memiliki akses ke percakapan ini.',MESSAGE_REQUIRED:'Pesan tidak boleh kosong.',CHAT_BLOCKED:'Anda tidak dapat mengirim pesan karena hubungan chat diblokir.',TICKET_NOT_OPEN:'Ticket sudah tidak aktif.',TICKET_ALREADY_CLAIMED:'Ticket sudah diambil oleh petugas lain.',INVALID_RATING:'Rating harus 1-5.',INVALID_RECIPIENT:'Penerima chat tidak valid.'};")
+          replace_once('src/services/chat.service.ts',
+            "export async function getOrCreateDmThread(otherUserId:string){const{data,error}=await supabase.rpc('get_or_create_dm_thread',{p_other_user_id:otherUserId});if(error)throw err(error);invalidateChatCaches();return data as ChatThread}",
+            "export async function getOrCreateDmThread(otherUserId:string){const target=String(otherUserId??'').trim();const me=await currentSessionUserId();if(!me)throw new Error('UNAUTHORIZED');if(!target||target===me)throw new Error('INVALID_RECIPIENT');const{data,error}=await supabase.rpc('get_or_create_dm_thread',{p_other_user_id:target});if(error)throw err(error);const thread=data as ChatThread;const participantId=thread.participant_id??null;const validDm=thread.thread_type==='dm'&&participantId!==null&&thread.user_id!==thread.participant_id&&((thread.user_id===me&&participantId===target)||(thread.user_id===target&&participantId===me));if(!validDm)throw new Error('INVALID_RECIPIENT');invalidateChatCaches();return thread}")
+          
+          replace_once('src/pages/MessagesPageV6.tsx',
+            "const target=params.get('user_id');if(!target||!user)return;",
+            "const target=params.get('user_id')?.trim();if(!target||!user||target===user.id)return;")
+          replace_once('src/pages/MessagesPageV6.tsx',
+            "try{const t=await getOrCreateDmThread(target);if(live){setSelected(t);setMobileList(false);setThreads(v=>[t,...v.filter(x=>x.id!==t.id)])}}catch(e:unknown){",
+            "try{const t=await getOrCreateDmThread(target);const participantId=t.participant_id??'';const validDm=t.thread_type==='dm'&&participantId!==''&&((t.user_id===user.id&&participantId===target)||(t.user_id===target&&participantId===user.id));if(!validDm)throw new Error('Penerima chat tidak valid.');if(live){setSelected(t);setMobileList(false);setThreads(v=>[t,...v.filter(x=>x.id!==t.id)])}}catch(e:unknown){")
+          
+          replace_once('src/pages/AdminChatConsolePage.tsx',
+            "const refresh = useCallback(async () => { try { setThreads(await loadMyThreads(true)); } catch (e:any) {",
+            "const refresh = useCallback(async () => { try { const rows = await loadMyThreads(true); setThreads(rows.filter(t => t.thread_type === 'ticket')); } catch (e:any) {")
+          replace_once('src/pages/AdminChatConsolePage.tsx',
+            "const channel = supabase.channel('admin-chat-threads-live').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_threads'},()=>void refresh()).on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_threads'},payload=>{const updated=payload.new as ChatThread;setThreads(current=>current.map(item=>item.id===updated.id?{...item,...updated}:item));}).subscribe",
+            "const channel = supabase.channel('admin-chat-threads-live').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_threads'},payload=>{const row=payload.new as ChatThread;if(row.thread_type!=='ticket')return;void refresh();}).on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_threads'},payload=>{const updated=payload.new as ChatThread;if(updated.thread_type!=='ticket'){setThreads(current=>current.filter(item=>item.id!==updated.id));return;}setThreads(current=>current.map(item=>item.id===updated.id?{...item,...updated}:item));}).subscribe")
+          replace_once('src/pages/AdminChatConsolePage.tsx',
+            "const activeTickets = useMemo(() => threads.filter(t => t.status === 'open' && t.thread_type === 'ticket'), [threads]); const otherActive = useMemo(() => threads.filter(t => t.status === 'open' && t.thread_type !== 'ticket'), [threads]);",
+            "const activeTickets = useMemo(() => threads.filter(t => t.status === 'open' && t.thread_type === 'ticket'), [threads]);")
+          replace_once('src/pages/AdminChatConsolePage.tsx',
+            "const selectThread = async (thread: ChatThread) => { setSelected(thread); await markThreadRead(thread.id).catch(() => {}); };",
+            "const selectThread = async (thread: ChatThread) => { if (thread.thread_type !== 'ticket') return; setSelected(thread); await markThreadRead(thread.id).catch(() => {}); };")
+          replace_once('src/pages/AdminChatConsolePage.tsx',
+            "if (!selected || selected.status !== 'open' || !input.trim() || sending) return; if (selected.thread_type === 'ticket' && !selected.handled_by)",
+            "if (!selected || selected.status !== 'open' || selected.thread_type !== 'ticket' || !input.trim() || sending) return; if (!selected.handled_by)")
+          replace_once('src/pages/AdminChatConsolePage.tsx',
+            "{activeTickets.length} membutuhkan penanganan · {otherActive.length} chat aktif",
+            "{activeTickets.length} membutuhkan penanganan")
+          replace_once('src/pages/AdminChatConsolePage.tsx',
+            "{[...activeTickets,...otherActive].map(t=><button",
+            "{activeTickets.map(t=><button")
+          
+          replace_once('src/lib/realtimeHub.ts',
+            ".on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {\n      emitSykaEvent({ type: 'chat-thread-updated', thread: (payload.new ?? payload.old ?? {}) as Record<string, unknown> });\n    })",
+            ".on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {\n      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;\n      if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;\n      emitSykaEvent({ type: 'chat-thread-updated', thread: row });\n    })")
+          replace_once('src/lib/realtimeHub.ts',
+            ".on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, (payload) => {\n      emitSykaEvent({ type: 'chat-thread-updated', thread: (payload.new ?? payload.old ?? {}) as Record<string, unknown> });\n    });",
+            ".on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, (payload) => {\n      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;\n      if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;\n      emitSykaEvent({ type: 'chat-thread-updated', thread: row });\n    });")
+          
+          Path('.chat-routing-trigger').unlink(missing_ok=True)
+          Path('.chat-audit-trigger').unlink(missing_ok=True)
+          Path('.github/workflows/tmp-chat-routing-fix.yml').unlink(missing_ok=True)
+          print('chat routing isolation patched')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(chat): isolate direct messages from admin support'
+          git push
