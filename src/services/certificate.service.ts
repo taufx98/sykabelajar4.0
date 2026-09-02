@@ -8,7 +8,11 @@ export async function issueCertificateForAward(awardId: string) {
 }
 
 export async function getPublicCertificate(code: string) {
-  const { data, error } = await supabase.from('certificate_verifications').select('certificate_id,verification_code,status,public_name,competition_title,achievement_title,issued_at,revoked_at').eq('verification_code', code).maybeSingle();
+  const { data, error } = await supabase
+    .from('certificate_verifications_public')
+    .select('certificate_id,verification_code,status,public_name,competition_title,achievement_title,issued_at,revoked_at')
+    .eq('verification_code', code)
+    .maybeSingle();
   if (error) throw error;
   return data;
 }
