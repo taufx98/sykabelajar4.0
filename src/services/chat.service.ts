@@ -11,13 +11,14 @@ let threadsCache: ChatThread[] | null = null;
 let threadsCacheAt = 0;
 let threadsInFlight: Promise<ChatThread[]> | null = null;
 const THREADS_CACHE_MS = 20_000;
+const THREADS_SERVER_LIMIT = 50;
 let unreadCountCache: number | null = null;
 let unreadCountCacheAt = 0;
 let unreadCountInFlight: Promise<number> | null = null;
 const UNREAD_COUNT_CACHE_MS = 15_000;
 function invalidateChatCaches(){threadsCache=null;threadsCacheAt=0;unreadCountCache=null;unreadCountCacheAt=0}
 export async function getOrCreateDmThread(otherUserId:string){const{data,error}=await supabase.rpc('get_or_create_dm_thread',{p_other_user_id:otherUserId});if(error)throw err(error);invalidateChatCaches();return data as ChatThread}
-export async function loadMyThreads(force=false){const now=Date.now();if(!force&&threadsCache&&now-threadsCacheAt<THREADS_CACHE_MS)return threadsCache;if(!force&&threadsInFlight)return threadsInFlight;const request:Promise<ChatThread[]>=(async()=>{const{data,error}=await supabase.rpc('load_my_threads');if(error)throw error;const rows=(data??[])as ChatThread[];threadsCache=rows;threadsCacheAt=Date.now();return rows})();threadsInFlight=request;try{return await request}finally{if(threadsInFlight===request)threadsInFlight=null}}
+export async function loadMyThreads(force=false){const now=Date.now();if(!force&&threadsCache&&now-threadsCacheAt<THREADS_CACHE_MS)return threadsCache;if(!force&&threadsInFlight)return threadsInFlight;const request:Promise<ChatThread[]>=(async()=>{const{data,error}=await supabase.rpc('load_my_threads_v2',{p_limit:THREADS_SERVER_LIMIT});if(error)throw error;const rows=(data??[])as ChatThread[];threadsCache=rows;threadsCacheAt=Date.now();return rows})();threadsInFlight=request;try{return await request}finally{if(threadsInFlight===request)threadsInFlight=null}}
 export async function sendMessage(threadId:string,body:string){const text=body.trim();if(!text)throw new Error('MESSAGE_REQUIRED');const{data,error}=await supabase.rpc('send_chat_message',{p_thread_id:threadId,p_body:text});if(error)throw err(error);invalidateChatCaches();emitSykaEvent({type:'chat-unread',threadId});return data as ChatMessage}
 export async function loadChatMessagesPage(threadId:string,limit=50,before?:string|null){const{data,error}=await supabase.rpc('get_chat_messages_page',{p_thread_id:threadId,p_limit:Math.min(Math.max(limit,1),100),p_before:before??null});if(error)throw err(error);return[...(data??[])].reverse()as ChatMessage[]}
 export async function markThreadRead(threadId:string){const{error}=await supabase.rpc('mark_chat_thread_read',{p_thread_id:threadId});if(error)throw err(error);invalidateChatCaches();emitSykaEvent({type:'chat-read',threadId})}
