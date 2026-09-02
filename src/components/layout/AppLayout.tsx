@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { getUnreadChatCount } from '@/services/chat.service';
 import { getPersistentCache, setPersistentCache } from '@/lib/persistentCache';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
-import { startPublicRealtime, startUserRealtime } from '@/lib/realtimeHub';
+import { startPublicRealtime } from '@/lib/realtimeHub';
 import { subscribeSykaEvents } from '@/lib/realtimeBus';
 
 type NavItem = [string, string, typeof Home, number | undefined];
@@ -70,7 +70,6 @@ export function AppLayout() {
       setUnreadOrders(0);
     }
 
-    const stopUser = startUserRealtime(user.id, isAdmin);
     const unsubscribe = subscribeSykaEvents((event) => {
       if (event.type === 'notification-inserted') {
         setLiveUnreadNotifications((value) => value + 1);
@@ -102,6 +101,13 @@ export function AppLayout() {
         });
         return;
       }
+      if (event.type === 'chat-thread-updated') {
+        void getUnreadChatCount(true).then((count) => {
+          setUnreadMessages(count);
+          setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
+        }).catch(() => {});
+        return;
+      }
       if (event.type === 'order-changed' && isAdmin) {
         const order = event.order;
         if (String(order.payment_proof_status ?? '') !== 'SUBMITTED') return;
@@ -118,7 +124,6 @@ export function AppLayout() {
 
     return () => {
       unsubscribe();
-      stopUser();
       stopPublic();
     };
   }, [isGuest, user?.id, isAdmin]);
