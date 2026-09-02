@@ -45,23 +45,22 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       const notificationId = String((payload.new as Record<string, unknown>)?.id ?? '');
       if (notificationId) emitSykaEvent({ type: 'notification-inserted', notificationId });
     })
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
-      emitSykaEvent({ type: 'chat-message', message: payload.new as Record<string, unknown> });
-    })
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_threads' }, (payload) => {
-      emitSykaEvent({ type: 'chat-thread-updated', thread: payload.new as Record<string, unknown> });
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'follows' }, (payload) => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
-      const followerId = String(row.follower_id ?? '');
-      const followingId = String(row.following_id ?? '');
-      if (followerId === userId || followingId === userId) {
-        emitSykaEvent({ type: 'follow-updated', userId: followerId === userId ? followingId : followerId, status: String(row.status ?? 'none') });
-      }
+      emitSykaEvent({ type: 'follow-updated', userId: String(row.following_id ?? ''), status: String(row.status ?? 'none') });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${userId}` }, (payload) => {
+      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+      emitSykaEvent({ type: 'follow-updated', userId: String(row.follower_id ?? ''), status: String(row.status ?? 'none') });
     });
 
+  // Chat messages are intentionally not subscribed globally here: a chat message row
+  // only contains thread_id, so an unfiltered listener would stream every user's
+  // message payload to every connected client. ChatWidget owns the active-thread
+  // subscription and loads the message history through a scoped RPC.
+
   if (isAdmin) {
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'payment_proof_status=eq.SUBMITTED' }, (payload) => {
       emitSykaEvent({ type: 'order-changed', order: payload.new as Record<string, unknown> });
     });
   }
