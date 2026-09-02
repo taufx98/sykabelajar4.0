@@ -5,6 +5,7 @@ import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { RankBadge } from '@/components/ui/Badge';
+import { supabase } from '@/lib/supabase';
 import { getUnreadChatCount } from '@/services/chat.service';
 import { getPersistentCache, setPersistentCache } from '@/lib/persistentCache';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
@@ -48,9 +49,7 @@ export function AppLayout() {
       void getUnreadChatCount(true).then((count) => {
         setUnreadMessages(count);
         setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
-      }).catch(() => {
-        setUnreadMessages(0);
-      });
+      }).catch(() => setUnreadMessages(0));
     }
 
     if (isAdmin) {
@@ -59,10 +58,7 @@ export function AppLayout() {
         setUnreadOrders(Math.max(0, Number(cachedOrders.data) || 0));
       } else {
         const lastVisit = localStorage.getItem('admin_orders_last_visit');
-        let query = (await import('@/lib/supabase')).supabase
-          .from('orders')
-          .select('id', { count: 'exact', head: true })
-          .eq('payment_proof_status', 'SUBMITTED');
+        let query = supabase.from('orders').select('id', { count: 'exact', head: true }).eq('payment_proof_status', 'SUBMITTED');
         if (lastVisit) query = query.gt('created_at', lastVisit);
         void query.then(({ count }) => {
           const value = count ?? 0;
@@ -144,7 +140,7 @@ export function AppLayout() {
   }, [location.pathname, isAdmin, user?.id]);
 
   const profilePath = user?.username ? `/profile/@${user.username}` : '/home';
-  const guestNav: NavItem[] = [['/home', 'Beranda', Home, undefined], ['/leaderboard', 'Peringkat', BarChart3, undefined], ['/awards', 'Piagam', Award, undefined];
+  const guestNav: NavItem[] = [['/home', 'Beranda', Home, undefined], ['/leaderboard', 'Peringkat', BarChart3, undefined], ['/awards', 'Piagam', Award, undefined]];
   const userNav: NavItem[] = [['/home', 'Beranda', Home, undefined], ['/daily-tasks', 'Daily Tasks', CalendarCheck, undefined], ['/leaderboard', 'Peringkat', BarChart3, undefined], ['/awards', 'Piagam', Award, undefined], ['/notifications', 'Notifikasi', Bell, liveUnreadNotifications > 0 ? liveUnreadNotifications : undefined], ['/orders', 'Pesanan', ShoppingBag, unreadOrders > 0 ? unreadOrders : undefined]];
   if (isOrganizer) userNav.push(['/organizer', 'Penyelenggara', Building2, undefined], ['/organizer/ads', 'Pasang Iklan', Megaphone, undefined]);
   userNav.push([chatPath, 'Pesan', MessageCircle, unreadMessages > 0 ? unreadMessages : undefined]);
