@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Calendar, Clock, FileText, Image as ImageIcon, Trophy, Users, ShieldCheck } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { CommentsSection } from '@/components/ui/Comments';
 import { useApp } from '@/store/AppContext';
 import { getCompetitionBySlug, getCompetitionDetails } from '@/services/competition.service';
+import { listCompetitionPosts } from '@/services/social.service';
 import { CATEGORY_LABELS, LEVEL_LABELS } from '@/data/catalog';
 import { formatShortDate, countdown } from '@/lib/utils';
 
 function statusUi(status: string){if(status==='REGISTRATION_OPEN')return{label:'Pendaftaran Dibuka',color:'moss' as const};if(status==='LIVE')return{label:'Sedang Berlangsung',color:'warn' as const};if(status==='RESULT_PUBLISHED'||status==='ARCHIVED')return{label:'Selesai',color:'default' as const};if(status==='REGISTRATION_CLOSED')return{label:'Pendaftaran Ditutup',color:'info' as const};return{label:'Segera Dibuka',color:'default' as const};}
 
 export function CompetitionDetailPage(){
- const{slug=''}=useParams();const navigate=useNavigate();const{isGuest,user,feed}=useApp();const[detail,setDetail]=useState<any>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState('');
- useEffect(()=>{let active=true;(async()=>{setLoading(true);setError('');try{const base=await getCompetitionBySlug(slug);if(!base){if(active){setDetail(null);setError('Uji kompetensi tidak ditemukan.');}return;}const next=await getCompetitionDetails(String(base.id));if(active)setDetail(next);}catch(e:any){if(active)setError(e?.message??'Gagal memuat detail lomba.');}finally{if(active)setLoading(false);}})();return()=>{active=false;}},[slug]);
+ const{slug=''}=useParams();const navigate=useNavigate();const{isGuest,user}=useApp();const[detail,setDetail]=useState<any>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState('');const[postId,setPostId]=useState<string|null>(null);
+ useEffect(()=>{let active=true;(async()=>{setLoading(true);setError('');try{const base=await getCompetitionBySlug(slug);if(!base){if(active){setDetail(null);setPostId(null);setError('Uji kompetensi tidak ditemukan.');}return;}const [next,posts]=await Promise.all([getCompetitionDetails(String(base.id)),listCompetitionPosts(String(base.id),1)]);if(active){setDetail(next);setPostId(posts[0]?.id??null);}}catch(e:any){if(active)setError(e?.message??'Gagal memuat detail lomba.');}finally{if(active)setLoading(false);}})();return()=>{active=false;}},[slug]);
  const competition=detail?.competition;const rules=detail?.rules;const rewards=detail?.rewards??[];const levels=detail?.levels??[];const twibbons=detail?.twibbons??[];const[clock,setClock]=useState(Date.now());useEffect(()=>{const t=window.setInterval(()=>setClock(Date.now()),1000);return()=>window.clearInterval(t)},[]);void clock;
- const cd=competition?.registration_ends_at?countdown(String(competition.registration_ends_at)):{days:0,hours:0,minutes:0,seconds:0,expired:true};const joinable=competition?.status==='REGISTRATION_OPEN'&&!cd.expired;const category=CATEGORY_LABELS[String(competition?.category??'')]??String(competition?.category??'Kompetisi');const grades=useMemo(()=>[...new Set(levels.flatMap((l:any)=>l.allowed_grades??[]))],[levels]);const postId=feed.find(p=>p.competitionId===competition?.id)?.id;
+ const cd=competition?.registration_ends_at?countdown(String(competition.registration_ends_at)):{days:0,hours:0,minutes:0,seconds:0,expired:true};const joinable=competition?.status==='REGISTRATION_OPEN'&&!cd.expired;const category=CATEGORY_LABELS[String(competition?.category??'')]??String(competition?.category??'Kompetisi');const grades=useMemo(()=>[...new Set(levels.flatMap((l:any)=>l.allowed_grades??[]))],[levels]);
  if(loading)return <div className="p-5 space-y-4"><div className="h-56 rounded-2xl surface-elevated animate-pulse"/><Card className="p-6"><div className="h-6 w-2/3 rounded surface-elevated animate-pulse"/><div className="h-4 w-1/2 rounded surface-elevated animate-pulse mt-3"/></Card></div>;
  if(!competition)return <div className="p-8 text-center"><Trophy size={36} className="mx-auto text-slate-600 mb-3"/><p className="text-fg-muted">{error||'Uji kompetensi tidak ditemukan.'}</p><Button variant="ghost" className="mt-4" onClick={()=>navigate(-1)}>Kembali</Button></div>;
  const st=statusUi(String(competition.status));
