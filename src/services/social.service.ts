@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 export interface SocialPost { id:string; author_user_id:string; author_name:string; author_username:string; avatar_url:string|null; title:string; body:string; cover_url:string|null; created_at:string; competition_id:string|null; competition_slug:string|null; likes:number; liked:boolean; comments:number; }
 export interface SocialComment { id:string; postId:string; userId:string; authorName:string; authorUsername:string; authorId:string; body:string; createdAt:string; likes:number; liked:boolean; parentId:string|null; }
 export interface SocialPostPage { items:SocialPost[]; nextCursor:string|null; }
-async function currentUserId(){const{data}=await supabase.auth.getUser();return data.user?.id??null;}
+async function currentUserId(){const{data}=await supabase.auth.getSession();return data.session?.user?.id??null;}
 async function mapPostRows(rows:Array<Record<string,unknown>>):Promise<SocialPost[]>{
  const ids=rows.map(p=>String(p.id));const userIds=[...new Set(rows.map(p=>String(p.author_user_id)))];const compIds=[...new Set(rows.map(p=>p.competition_id).filter(Boolean).map(String))];const userId=await currentUserId();
  const[{data:profiles},{data:likes},{data:comments},{data:competitions}]=await Promise.all([
