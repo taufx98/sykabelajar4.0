@@ -11,10 +11,8 @@ jobs:
   phase1:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -25,109 +23,55 @@ jobs:
           from pathlib import Path
           import re
 
-          def read(path):
-              return Path(path).read_text()
-          def write(path, text):
-              Path(path).write_text(text)
+          def read(p): return Path(p).read_text()
+          def write(p, s): Path(p).write_text(s)
 
-          # Rules of Hooks must be blocking.
-          p = 'eslint.config.js'
-          text = read(p).replace("'react-hooks/rules-of-hooks': 'warn'", "'react-hooks/rules-of-hooks': 'error'")
-          write(p, text)
+          # ESLint: Rules of Hooks are blocking.
+          p='eslint.config.js'
+          write(p, read(p).replace("'react-hooks/rules-of-hooks': 'warn'", "'react-hooks/rules-of-hooks': 'error'"))
 
-          # HomePage: explicit view-model types + stable first-load callback.
-          p = 'src/pages/HomePage.tsx'
-          text = read(p)
-          text = text.replace("import type { PublicLeaderboardRow } from '@/services/platform.service';", "import type { HomeSnapshot, PublicLeaderboardRow } from '@/services/platform.service';")
-          marker = "import { supabase } from '@/lib/supabase';\n"
-          helpers = r'''
-
-          type HomeCompetition = {
-            id: string; title: string; slug: string; category: string; organizer_name: string;
-            short_description: string; poster_url: string | null; participant_count: number; status: string;
-          };
-          type HomeFeedRow = HomeSnapshot['feed'][number];
-          const readString = (row: Record<string, unknown>, key: string, fallback = '') => row[key] == null ? fallback : String(row[key]);
-          const readNullableString = (row: Record<string, unknown>, key: string): string | null => row[key] == null ? null : String(row[key]);
-          const readNumber = (row: Record<string, unknown>, key: string, fallback = 0): number => { const value = Number(row[key] ?? fallback); return Number.isFinite(value) ? value : fallback; };
-          const normalizeCompetition = (row: Record<string, unknown>): HomeCompetition => ({
-            id: readString(row, 'id'), title: readString(row, 'title'), slug: readString(row, 'slug'), category: readString(row, 'category', 'Kompetisi'),
-            organizer_name: readString(row, 'organizer_name', 'Penyelenggara'), short_description: readString(row, 'short_description'),
-            poster_url: readNullableString(row, 'poster_url'), participant_count: readNumber(row, 'participant_count'), status: readString(row, 'status'),
-          });
-          const normalizeHomeFeedRow = (row: HomeFeedRow): SocialPost => ({
-            id: readString(row, 'id'), author_user_id: readString(row, 'author_user_id'), author_name: readString(row, 'author_name', 'Pengguna'),
-            author_username: readString(row, 'author_username'), avatar_url: readNullableString(row, 'avatar_url'), title: readString(row, 'title'), body: readString(row, 'body'),
-            cover_url: readNullableString(row, 'cover_url'), created_at: readString(row, 'created_at'), competition_id: readNullableString(row, 'competition_id'),
-            competition_slug: readNullableString(row, 'competition_slug'), likes: readNumber(row, 'likes'), liked: Boolean(row.liked), comments: readNumber(row, 'comments'),
-          });
-          const errorMessage = (error: unknown, fallback: string): string => error instanceof Error ? error.message : fallback;
-          '''
+          # HomePage critical typing + stable effect.
+          p='src/pages/HomePage.tsx'; text=read(p)
+          text=text.replace("import type { PublicLeaderboardRow } from '@/services/platform.service';", "import type { HomeSnapshot, PublicLeaderboardRow } from '@/services/platform.service';")
+          marker="import { supabase } from '@/lib/supabase';\n"
           if marker in text and 'type HomeCompetition' not in text:
-              text = text.replace(marker, marker + helpers, 1)
-          text = text.replace('useState<any[]>([]);const[leaders', 'useState<HomeCompetition[]>([]);const[leaders', 1)
-          text = text.replace("const[searchAllComps,setSearchAllComps]=useState<any[]>([]);const[searchUsers,setSearchUsers]=useState<any[]>([]);", "const[searchAllComps,setSearchAllComps]=useState<HomeCompetition[]>([]);const[searchUsers,setSearchUsers]=useState<Record<string, unknown>[]>([]);")
-          text = text.replace("const[coinLeaders,setCoinLeaders]=useState<any[]>([]);", "const[coinLeaders,setCoinLeaders]=useState<HomeSnapshot['coin_leaderboard']>([]);")
-          text = re.sub(r" const loadFirst=async\(\)=>\{.*?\};\n", " const loadFirst=useCallback(async()=>{setLoading(true);try{const home=await getHomeSnapshot(15);const feedRows=home.feed;const initialPosts=feedRows.slice(0,15).map(normalizeHomeFeedRow);setPosts(initialPosts);setCursor(feedRows.length>15?String(feedRows[14]?.created_at??''):null);setCompetitions(home.competitions.map(normalizeCompetition));setLeaders(home.leaderboard);setCoinLeaders(home.coin_leaderboard);}catch(error:unknown){toast(errorMessage(error,'Beranda gagal dimuat.'),'error')}finally{setLoading(false)}},[toast]);\n", text, count=1, flags=re.S)
-          text = text.replace('setSearchAllComps(compRes)', 'setSearchAllComps(compRes.map(normalizeCompetition))')
-          text = text.replace("catch(e:any){toast(e?.message??'Feed gagal dimuat.','error')}", "catch(error:unknown){toast(errorMessage(error,'Feed gagal dimuat.'),'error')}")
-          text = text.replace("catch(e:any){toast(e?.message??'Gagal memperbarui like.','error')}", "catch(error:unknown){toast(errorMessage(error,'Gagal memperbarui like.'),'error')}")
-          text = text.replace("useEffect(()=>{void loadFirst()},[]);", "useEffect(()=>{void loadFirst()},[loadFirst]);")
-          text = re.sub(r'\(c\s*:\s*any\)', '(c)', text)
-          text = re.sub(r'\(p\s*:\s*any\)', '(p)', text)
-          text = re.sub(r'\(comp\s*:\s*any\s*,\s*idx:\s*number\)', '(comp, idx: number)', text)
-          text = re.sub(r'\(row\s*:\s*any\)', '(row: HomeFeedRow)', text)
-          write(p, text)
+              helpers='''\n\ntype HomeCompetition = {\n  id: string; title: string; slug: string; category: string; organizer_name: string;\n  short_description: string; poster_url: string | null; participant_count: number; participants_count: number;\n  status: string; deadline: string | null; registration_end: string | null;\n};\ntype HomeFeedRow = HomeSnapshot['feed'][number];\nconst readString = (row: Record<string, unknown>, key: string, fallback = ''): string => row[key] == null ? fallback : String(row[key]);\nconst readNullableString = (row: Record<string, unknown>, key: string): string | null => row[key] == null ? null : String(row[key]);\nconst readNumber = (row: Record<string, unknown>, key: string, fallback = 0): number => { const value=Number(row[key] ?? fallback); return Number.isFinite(value) ? value : fallback; };\nconst normalizeCompetition = (row: Record<string, unknown>): HomeCompetition => { const participants=readNumber(row,'participants_count',readNumber(row,'participant_count')); return {\n  id:readString(row,'id'), title:readString(row,'title'), slug:readString(row,'slug'), category:readString(row,'category','Kompetisi'), organizer_name:readString(row,'organizer_name','Penyelenggara'),\n  short_description:readString(row,'short_description'), poster_url:readNullableString(row,'poster_url'), participant_count:participants, participants_count:participants, status:readString(row,'status'),\n  deadline:readNullableString(row,'deadline'), registration_end:readNullableString(row,'registration_end')\n}; };\nconst normalizeHomeFeedRow = (row: HomeFeedRow): SocialPost => ({\n  id:readString(row,'id'), author_user_id:readString(row,'author_user_id'), author_name:readString(row,'author_name','Pengguna'), author_username:readString(row,'author_username'),\n  avatar_url:readNullableString(row,'avatar_url'), title:readString(row,'title'), body:readString(row,'body'), cover_url:readNullableString(row,'cover_url'), created_at:readString(row,'created_at'),\n  competition_id:readNullableString(row,'competition_id'), competition_slug:readNullableString(row,'competition_slug'), likes:readNumber(row,'likes'), liked:Boolean(row.liked), comments:readNumber(row,'comments')\n});\nconst errorMessage=(error:unknown,fallback:string):string=>error instanceof Error?error.message:fallback;\n'''
+              text=text.replace(marker, marker+helpers, 1)
+          text=text.replace('useState<any[]>([]);const[leaders','useState<HomeCompetition[]>([]);const[leaders',1)
+          text=text.replace("const[searchAllComps,setSearchAllComps]=useState<any[]>([]);const[searchUsers,setSearchUsers]=useState<any[]>([]);", "const[searchAllComps,setSearchAllComps]=useState<HomeCompetition[]>([]);const[searchUsers,setSearchUsers]=useState<Record<string, unknown>[]>([]);")
+          text=text.replace("const[coinLeaders,setCoinLeaders]=useState<any[]>([]);", "const[coinLeaders,setCoinLeaders]=useState<HomeSnapshot['coin_leaderboard']>([]);")
+          text=re.sub(r" const loadFirst=async\(\)=>\{.*?\};\n", " const loadFirst=useCallback(async()=>{setLoading(true);try{const home=await getHomeSnapshot(15);const feedRows=home.feed;const initialPosts=feedRows.slice(0,15).map(normalizeHomeFeedRow);setPosts(initialPosts);setCursor(feedRows.length>15?String(feedRows[14]?.created_at??''):null);setCompetitions(home.competitions.map(normalizeCompetition));setLeaders(home.leaderboard);setCoinLeaders(home.coin_leaderboard);}catch(error:unknown){toast(errorMessage(error,'Beranda gagal dimuat.'),'error')}finally{setLoading(false)}},[toast]);\n", text, count=1, flags=re.S)
+          text=text.replace('setSearchAllComps(compRes)', 'setSearchAllComps(compRes.map(normalizeCompetition))')
+          text=text.replace("useEffect(()=>{void loadFirst()},[]);", "useEffect(()=>{void loadFirst()},[loadFirst]);")
+          text=re.sub(r'catch\(e:any\)', 'catch(error:unknown)', text)
+          text=text.replace("e?.message??'Feed gagal dimuat.'", "errorMessage(error,'Feed gagal dimuat.')")
+          text=text.replace("e?.message??'Gagal memperbarui like.'", "errorMessage(error,'Gagal memperbarui like.')")
+          text=text.replace('(u:any,idx:number)', '(u,idx:number)')
+          text=re.sub(r'\(comp\s*:\s*any\)', '(comp)', text)
+          text=re.sub(r'\(c\s*:\s*any\)', '(c)', text)
+          text=re.sub(r'\(p\s*:\s*any\)', '(p)', text)
+          write(p,text)
 
-          # Notifications: explicit JSON data contract + service-inferred DB row type.
-          p = 'src/pages/NotificationsPageV2.tsx'
-          text = read(p)
-          pattern = r'type DetailNotification=AppNotification&\{data\?:any\};\s*const iconFor='
-          replacement = r'''type NotificationAction = { label: string; url: string };
-          type NotificationData = {
-            link?: string; action?: NotificationAction; follower_id?: string; resolved?: boolean;
-            description?: string; amount?: number; sender_name?: string; from_admin?: boolean;
-            organization_name?: string; urgent?: boolean;
-          };
-          type DetailNotification = AppNotification & { data?: NotificationData | null };
-          type NotificationRow = Awaited<ReturnType<typeof listNotifications>>[number];
-          const isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==='object'&&value!==null;
-          const toNotificationData=(value:unknown):NotificationData|null=>{
-            if(!isRecord(value))return null;
-            const action=isRecord(value.action)&&typeof value.action.label==='string'&&typeof value.action.url==='string'?{label:value.action.label,url:value.action.url}:undefined;
-            return {link:typeof value.link==='string'?value.link:undefined,action,follower_id:typeof value.follower_id==='string'?value.follower_id:undefined,
-              resolved:typeof value.resolved==='boolean'?value.resolved:undefined,description:typeof value.description==='string'?value.description:undefined,
-              amount:typeof value.amount==='number'?value.amount:undefined,sender_name:typeof value.sender_name==='string'?value.sender_name:undefined,
-              from_admin:typeof value.from_admin==='boolean'?value.from_admin:undefined,organization_name:typeof value.organization_name==='string'?value.organization_name:undefined,
-              urgent:typeof value.urgent==='boolean'?value.urgent:undefined};
-          };
-          const mapNotification=(n:NotificationRow):DetailNotification=>{const data=toNotificationData(n.data);return {id:String(n.id),type:String(n.type) as AppNotification['type'],title:String(n.title??''),body:String(n.body??''),createdAt:String(n.created_at),read:Boolean(n.read_at),link:data?.link,data};};
-          const actionFor=(n:DetailNotification):NotificationAction|null=>{const d=n.data??{};if(d.action)return d.action;switch(n.type){case'follow-request':return null;case'rank-up':return{label:'Cek Profil',url:d.link??'/leaderboard'};case'result-out':return{label:'Lihat Hasil',url:d.link??'/awards'};case'registration-approved':return{label:'Lihat Lomba',url:d.link??'/awards'};case'twibbon-verified':return{label:'Lihat',url:d.link??'/awards'};default:return d.link?{label:'Buka',url:d.link}:null;}};
-          const iconFor='''
-          text, changed = re.subn(pattern, replacement, text, count=1)
-          if not changed:
-              raise SystemExit('Notifications type marker not found')
-          text = text.replace('mapNotification(payload.new)', 'mapNotification(payload.new as NotificationRow)')
-          # Any remaining catch variables in these critical pages become unknown.
-          text = re.sub(r'catch\s*\(\s*e\s*:\s*any\s*\)', 'catch(e:unknown)', text)
-          text = re.sub(r'e\?\.message\s*(\?\?|\|\|)\s*(\'[^\']*\')', r'errorMessage(e, \2)', text)
-          if 'function errorMessage(' not in text:
-              text = "const errorMessage=(error:unknown,fallback:string):string=>error instanceof Error?error.message:fallback;\n" + text
-          write(p, text)
+          # Notifications: replace old map/action definitions in place.
+          p='src/pages/NotificationsPageV2.tsx'; text=read(p)
+          text=text.replace('type DetailNotification=AppNotification&{data?:any};', '''type NotificationAction = { label: string; url: string };\ntype NotificationData = { link?: string; action?: NotificationAction; follower_id?: string; resolved?: boolean; description?: string; amount?: number | string; sender_name?: string; from_admin?: boolean; organization_name?: string; urgent?: boolean };\ntype DetailNotification = AppNotification & { data?: NotificationData | null };\ntype NotificationRow = Awaited<ReturnType<typeof listNotifications>>[number];\nconst isRecord=(value:unknown):value is Record<string,unknown>=>typeof value==='object'&&value!==null;\nconst toNotificationData=(value:unknown):NotificationData|null=>{ if(!isRecord(value))return null; const action=isRecord(value.action)&&typeof value.action.label==='string'&&typeof value.action.url==='string'?{label:value.action.label,url:value.action.url}:undefined; return {link:typeof value.link==='string'?value.link:undefined,action,follower_id:typeof value.follower_id==='string'?value.follower_id:undefined,resolved:typeof value.resolved==='boolean'?value.resolved:undefined,description:typeof value.description==='string'?value.description:undefined,amount:typeof value.amount==='number'||typeof value.amount==='string'?value.amount:undefined,sender_name:typeof value.sender_name==='string'?value.sender_name:undefined,from_admin:typeof value.from_admin==='boolean'?value.from_admin:undefined,organization_name:typeof value.organization_name==='string'?value.organization_name:undefined,urgent:typeof value.urgent==='boolean'?value.urgent:undefined}; };''')
+          # Remove any old/new duplicate declarations and install exactly one pair.
+          text=re.sub(r"const mapNotification=.*?;const actionFor=.*?;(?=const iconFor=)", "const mapNotification=(n:NotificationRow):DetailNotification=>{const data=toNotificationData(n.data);return {id:String(n.id),type:String(n.type) as AppNotification['type'],title:String(n.title??''),body:String(n.body??''),createdAt:String(n.created_at),read:Boolean(n.read_at),link:data?.link,data};};const actionFor=(n:DetailNotification):NotificationAction|null=>{const d=n.data??{};if(d.action)return d.action;switch(n.type){case'follow-request':return null;case'rank-up':return{label:'Cek Profil',url:d.link??'/leaderboard'};case'result-out':return{label:'Lihat Hasil',url:d.link??'/awards'};case'registration-approved':return{label:'Lihat Lomba',url:d.link??'/awards'};case'twibbon-verified':return{label:'Lihat',url:d.link??'/awards'};default:return d.link?{label:'Buka',url:d.link}:null;}};", text, count=1, flags=re.S)
+          text=text.replace('mapNotification(payload.new)', 'mapNotification(payload.new as NotificationRow)')
+          text=re.sub(r'catch\(e:any\)', 'catch(e:unknown)', text)
+          text=re.sub(r'e\?\.message\s*(\?\?|\|\|)\s*(\'[^\']*\')', r'(e instanceof Error ? e.message : \2)', text)
+          write(p,text)
 
-          # Chat pages: preserve existing cleanup; only narrow caught errors.
-          for p in ['src/pages/MessagesPageV6.tsx', 'src/components/ui/ChatWidget.tsx']:
-              text = read(p)
+          # Chat critical error typing only; do not touch realtime cleanup.
+          for p in ['src/pages/MessagesPageV6.tsx','src/components/ui/ChatWidget.tsx']:
+              text=read(p)
               if 'function errorMessage(' not in text:
-                  text = "function errorMessage(error: unknown, fallback: string): string { return error instanceof Error ? error.message : fallback; }\n" + text
-              text = re.sub(r'catch\s*\(\s*e\s*:\s*any\s*\)', 'catch(e:unknown)', text)
-              text = re.sub(r'e\?\.message\s*(\?\?|\|\|)\s*(\'[^\']*\')', r'errorMessage(e, \2)', text)
-              write(p, text)
-
+                  text='function errorMessage(error: unknown, fallback: string): string { return error instanceof Error ? error.message : fallback; }\n'+text
+              text=re.sub(r'catch\(e:any\)', 'catch(e:unknown)', text)
+              text=re.sub(r'e\?\.message\s*(\?\?|\|\|)\s*(\'[^\']*\')', r'errorMessage(e, \2)', text)
+              write(p,text)
           PY
-          echo '--- remaining explicit any in Phase 1 target files ---'
           grep -nE '\bany\b' src/pages/HomePage.tsx src/pages/NotificationsPageV2.tsx src/pages/MessagesPageV6.tsx src/components/ui/ChatWidget.tsx || true
-
       - name: Install
         run: npm ci
       - name: Lint
