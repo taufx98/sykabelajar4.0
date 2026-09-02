@@ -48,6 +48,7 @@ import { OrganizerCompetitionConfigPage } from '@/pages/OrganizerCompetitionConf
 import { OrganizerCompetitionCreatePage } from '@/pages/OrganizerCompetitionCreatePage';
 import { OrganizerGradingPage } from '@/pages/OrganizerGradingPage';
 import { OrganizerPlanPage } from '@/pages/OrganizerPlanPage';
+import { OrganizerSerialsPage } from '@/pages/OrganizerSerialsPage';
 import { OrganizerPage } from '@/pages/OrganizerPage';
 import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
 import { ToastContainer } from '@/components/ui/ToastContainer';
@@ -119,6 +120,7 @@ function AppRoutes() {
       <Route path="/organizer/competition/:id/config" element={<OrganizerShellRoute><OrganizerCompetitionConfigPage /></OrganizerShellRoute>} />
       <Route path="/organizer/grading" element={<OrganizerShellRoute><OrganizerGradingPage /></OrganizerShellRoute>} />
       <Route path="/organizer/plan" element={<OrganizerShellRoute><OrganizerPlanPage /></OrganizerShellRoute>} />
+      <Route path="/organizer/serials" element={<OrganizerShellRoute><OrganizerSerialsPage /></OrganizerShellRoute>} />
       <Route path="/organizer/ads" element={<OrganizerShellRoute><OrganizerAdRequestPage /></OrganizerShellRoute>} />
       <Route path="/admin" element={<RoleRoute role="admin"><AdminControlCenterPage /></RoleRoute>} />
       <Route path="/admin/core" element={<RoleRoute role="admin"><AdminPage /></RoleRoute>} />
