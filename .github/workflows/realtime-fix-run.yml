@@ -1,0 +1,57 @@
+name: Run realtime flow fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply realtime fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def repl(path, old, new):
+              p=Path(path); s=p.read_text()
+              if old not in s: raise SystemExit(f'NOT FOUND: {path}: {old[:100]!r}')
+              p.write_text(s.replace(old,new,1))
+
+          repl('src/lib/realtimeBus.ts', "  | { type: 'notification-inserted'; notificationId: string }", "  | { type: 'notification-inserted'; notificationId: string; notification?: Record<string, unknown> }")
+
+          repl('src/lib/realtimeHub.ts', "      if (notificationId) emitSykaEvent({ type: 'notification-inserted', notificationId });", "      if (notificationId) emitSykaEvent({ type: 'notification-inserted', notificationId, notification: (payload.new ?? {}) as Record<string, unknown> });")
+
+          repl('src/lib/realtimeHub.ts', "    .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${userId}` }, (payload) => {\n      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;\n      emitSykaEvent({ type: 'follow-updated', userId: String(row.follower_id ?? ''), status: String(row.status ?? 'none') });\n    });", "    .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${userId}` }, (payload) => {\n      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;\n      emitSykaEvent({ type: 'follow-updated', userId: String(row.follower_id ?? ''), status: String(row.status ?? 'none') });\n    })\n    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {\n      emitSykaEvent({ type: 'chat-thread-updated', thread: (payload.new ?? payload.old ?? {}) as Record<string, unknown> });\n    })\n    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, (payload) => {\n      emitSykaEvent({ type: 'chat-thread-updated', thread: (payload.new ?? payload.old ?? {}) as Record<string, unknown> });\n    });")
+
+          repl('src/components/ui/ChatWidget.tsx', "import { subscribeSykaEvents } from '@/lib/realtimeBus';", "import { subscribeSykaEvents } from '@/lib/realtimeBus';\nimport { supabase } from '@/lib/supabase';")
+          old="""  useEffect(() => {\n    if (!isOpen || view !== 'chat' || !thread || thread.status !== 'open') return;\n    void loadMessages();\n    const unsubscribe = subscribeSykaEvents((event) => {\n      if (event.type === 'chat-message') {\n        const message = event.message as unknown as ChatMessage;\n        if (message.thread_id !== thread.id) return;\n        setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);\n      }\n      if (event.type === 'chat-thread-updated') {\n        const updated = event.thread as unknown as ChatThread;\n        if (updated.id !== thread.id) return;\n        setThread(updated);\n        if (updated.status === 'closed') setView('ended');\n      }\n    });\n    return unsubscribe;\n  }, [isOpen, view, thread, loadMessages]);"""
+          new="""  useEffect(() => {\n    if (!isOpen || view !== 'chat' || !thread) return;\n    let alive = true;\n    void loadMessages();\n    const channel = supabase\n      .channel(`chat-widget-${thread.id}`)\n      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${thread.id}` }, (payload) => {\n        const message = payload.new as ChatMessage;\n        if (!alive || !message?.id) return;\n        setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);\n      })\n      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_threads', filter: `id=eq.${thread.id}` }, (payload) => {\n        if (!alive) return;\n        const updated = payload.new as ChatThread;\n        setThread((current) => current ? { ...current, ...updated } : updated);\n        if (updated.status === 'closed') setView('ended');\n      })\n      .subscribe((status, error) => {\n        if (error) console.error('[SykaBelajar] chat widget realtime error', status, error);\n      });\n    const unsubscribe = subscribeSykaEvents((event) => {\n      if (event.type !== 'chat-thread-updated' || String(event.thread.id ?? '') !== thread.id) return;\n      const updated = event.thread as unknown as ChatThread;\n      setThread((current) => current ? { ...current, ...updated } : updated);\n      if (updated.status === 'closed') setView('ended');\n    });\n    return () => {\n      alive = false;\n      unsubscribe();\n      void supabase.removeChannel(channel);\n    };\n  }, [isOpen, view, thread?.id, loadMessages]);"""
+          repl('src/components/ui/ChatWidget.tsx',old,new)
+
+          repl('src/pages/MessagesPageV6.tsx', "import { supabase } from '@/lib/supabase';", "import { supabase } from '@/lib/supabase';\nimport { emitSykaEvent } from '@/lib/realtimeBus';")
+          repl('src/pages/MessagesPageV6.tsx', "const ch=supabase.channel('chat-stable-'+selected.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:'thread_id=eq.'+selected.id},p=>{const m=p.new as ChatMessage;setMessages(v=>{if(v.some(x=>x.id===m.id))return v;const n=[...v,m];cacheSet(selected.id,n);return n});requestAnimationFrame(()=>{if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight});void refresh()}).on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_threads',filter:'id=eq.'+selected.id},p=>setSelected(p.new as ChatThread)).subscribe();", "const ch=supabase.channel('chat-stable-'+selected.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:'thread_id=eq.'+selected.id},p=>{const m=p.new as ChatMessage;setMessages(v=>{if(v.some(x=>x.id===m.id))return v;const n=[...v,m];cacheSet(selected.id,n);return n});emitSykaEvent({type:'chat-message',message:m as unknown as Record<string,unknown>});requestAnimationFrame(()=>{if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight})}).on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_threads',filter:'id=eq.'+selected.id},p=>setSelected(v=>v?{...v,...(p.new as ChatThread)}:p.new as ChatThread)).subscribe((status,error)=>{if(error)console.error('[SykaBelajar] chat realtime error',status,error)});")
+
+          repl('src/pages/NotificationsPageV2.tsx', "import { supabase } from '@/lib/supabase';\n", "")
+          repl('src/pages/NotificationsPageV2.tsx', " useEffect(()=>{if(!user)return;const channel=supabase.channel(`notifications-center-${user.id}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`user_id=eq.${user.id}`},payload=>{const n=mapNotification(payload.new as NotificationRow);setRows(prev=>[n,...prev.filter(x=>x.id!==n.id)]);emitSykaEvent({type:'notification-inserted',notificationId:n.id});}).on('postgres_changes',{event:'UPDATE',schema:'public',table:'notifications',filter:`user_id=eq.${user.id}`},payload=>{const n=mapNotification(payload.new as NotificationRow);setRows(prev=>prev.map(x=>x.id===n.id?n:x));if(n.read)emitSykaEvent({type:'notification-read',notificationId:n.id});}).subscribe();return()=>{void supabase.removeChannel(channel);};},[user?.id]);", " useEffect(()=>{if(!user)return;const unsubscribe=subscribeSykaEvents((event)=>{if(event.type==='notification-inserted'&&event.notification){const n=mapNotification(event.notification as unknown as NotificationRow);setRows(prev=>prev.some(x=>x.id===n.id)?prev:[n,...prev]);}if(event.type==='notification-read'){setRows(prev=>prev.map(x=>x.id===event.notificationId?{...x,read:true}:x));}if(event.type==='notification-all-read'){setRows(prev=>prev.map(x=>x.data?.urgent?x:{...x,read:true}));}});return unsubscribe;},[user?.id]);")
+
+          repl('src/pages/AdminChatConsolePage.tsx', "import { Link } from 'react-router-dom';", "import { Link } from 'react-router-dom';\nimport { supabase } from '@/lib/supabase';")
+          repl('src/pages/AdminChatConsolePage.tsx', "  useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 10000); return () => window.clearInterval(timer); }, [refresh]);", "  useEffect(() => { void refresh(); const channel = supabase.channel('admin-chat-threads-live').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_threads'},()=>void refresh()).on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_threads'},payload=>{const updated=payload.new as ChatThread;setThreads(current=>current.map(item=>item.id===updated.id?{...item,...updated}:item));void refresh();}).subscribe((status,error)=>{if(error)console.error('[SykaBelajar] admin chat thread realtime error',status,error)});return()=>{void supabase.removeChannel(channel);}; }, [refresh]);")
+          repl('src/pages/AdminChatConsolePage.tsx', "  useEffect(() => { if (!selected) { setMessages([]); return; } let live = true; void loadChatMessagesPage(selected.id).then(v => { if (live) setMessages(v); }).catch(e => live && toast(e?.message ?? 'Gagal memuat percakapan.', 'error')); void markThreadRead(selected.id).catch(() => {}); return () => { live = false; }; }, [selected?.id, toast]);", "  useEffect(() => { if (!selected) { setMessages([]); return; } let live = true; void loadChatMessagesPage(selected.id).then(v => { if (live) setMessages(v); }).catch(e => live && toast(e?.message ?? 'Gagal memuat percakapan.', 'error')); void markThreadRead(selected.id).catch(() => {}); const channel=supabase.channel(`admin-chat-thread-${selected.id}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:`thread_id=eq.${selected.id}`},payload=>{const m=payload.new as ChatMessage;if(live)setMessages(v=>v.some(x=>x.id===m.id)?v:[...v,m]);}).on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_threads',filter:`id=eq.${selected.id}`},payload=>{if(live)setSelected(v=>v?{...v,...(payload.new as ChatThread)}:v);}).subscribe((status,error)=>{if(error)console.error('[SykaBelajar] admin selected chat realtime error',status,error)}); return () => { live = false; void supabase.removeChannel(channel); }; }, [selected?.id, toast]);")
+          PY
+          npm ci
+          npm run lint
+          npx tsc --noEmit
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src
+          git rm .github/workflows/realtime-fix-run.yml .github/workflows/patch-realtime-flow.yml || true
+          git commit -m 'fix(realtime): restore live chat notifications and lifecycle'
+          git push
