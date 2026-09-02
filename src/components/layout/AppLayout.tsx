@@ -100,14 +100,6 @@ export function AppLayout() {
         return;
       }
       if (String(event.type) === 'chat-thread-updated') {
-        setUnreadMessages((value) => {
-          const next = Math.max(0, value - 1);
-          setPersistentCache(chatCacheKey, next, { ttlMs: CHAT_CACHE_TTL });
-          return next;
-        });
-        return;
-      }
-      if (event.type === 'chat-thread-updated') {
         void getUnreadChatCount(true).then((count) => {
           setUnreadMessages(count);
           setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
