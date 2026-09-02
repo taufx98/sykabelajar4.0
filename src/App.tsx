@@ -23,7 +23,7 @@ import { OrdersPage } from '@/pages/OrdersPage';
 import { ReferralPage } from '@/pages/ReferralPage';
 import { SocialFeedPage } from '@/pages/SocialFeedPage';
 import { TwibbonPage } from '@/pages/TwibbonPage';
-import { MessagesPageV3 } from '@/pages/MessagesPageV3';
+import { MessagesPageV6 } from '@/pages/MessagesPageV6';
 import { AdminChatConsolePage } from '@/pages/AdminChatConsolePage';
 import { AdminPage } from '@/pages/AdminPage';
 import { AdminControlCenterPage } from '@/pages/AdminControlCenterPage';
@@ -110,7 +110,7 @@ function AppRoutes() {
       <Route path="/profile/edit" element={<EditProfilePage />} />
       <Route path="/notifications" element={<NotificationsPageV2 />} />
       <Route path="/orders" element={<OrdersPage />} />
-      <Route path="/pesan" element={<MessagesPageV3 />} />
+      <Route path="/pesan" element={<MessagesPageV6 />} />
       <Route path="/organizer" element={<OrganizerShellRoute><OrganizerControlCenterPage /></OrganizerShellRoute>} />
       <Route path="/organizer/legacy" element={<OrganizerShellRoute><OrganizerPage /></OrganizerShellRoute>} />
       <Route path="/organizer/competition/new" element={<OrganizerShellRoute><OrganizerCompetitionCreatePage /></OrganizerShellRoute>} />
