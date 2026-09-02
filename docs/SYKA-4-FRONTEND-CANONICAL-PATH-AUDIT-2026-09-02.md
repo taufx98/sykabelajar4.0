@@ -45,6 +45,22 @@ The following files were deleted after confirming they were not part of the cano
 
 `/pesan` now points directly to `MessagesPageV6`, so there is no intermediate V3 dispatcher.
 
+## Service / RPC canonicalization
+
+Active frontend service callers are now routed through canonical service APIs. In particular, `HomePage.tsx` uses `getPublicLeaderboard()` and `getPublicCoinLeaderboard()` instead of calling legacy leaderboard RPC names directly. The service layer remains the boundary for reusable platform reads.
+
+Confirmed obsolete RPC entry points were removed from the live database and recorded in the repository migration:
+
+- `get_public_leaderboard(integer)` → `get_public_leaderboard_v2(integer)` via `platform.service.ts`
+- `get_public_coin_leaderboard(integer)` → `get_public_coin_leaderboard_v2(integer)` via `platform.service.ts`
+- `register_for_competition(...)` → `register_for_competition_v4_8(...)` via `registration.service.ts`
+- `create_organizer_plan_order(...)` → `create_organizer_plan_order_v2(...)` via `commerce.service.ts`
+- `get_or_create_support_thread()` removed; current chat flow uses the explicit ticket/thread RPCs
+- `get_public_profile_by_username(text)` removed; current profile flow uses the canonical profile service/table access
+- `get_name_change_cooldown(uuid)` / `get_display_name_cooldown(uuid)` removed; current edit-profile flow computes the cooldown from the canonical profile record
+
+The destructive database cleanup is represented by `supabase/migrations/20260902060000_remove_confirmed_legacy_rpcs.sql`.
+
 ## Intentionally retained compatibility path
 
 `src/pages/OrganizerPage.tsx` remains because `/organizer/legacy` is still an explicit route. This is the only currently identified page-level legacy route that remains intentionally reachable. It must be migrated behind `/organizer` before deletion.
@@ -55,14 +71,15 @@ Supabase migration files are append-only deployment history. A later migration s
 
 ## Verification rule
 
-Before deleting any future page/service:
+Before deleting any future page/service/RPC:
 
 1. Confirm route ownership in `src/App.tsx`.
 2. Confirm no adapter/wrapper imports the candidate.
 3. Confirm the replacement preserves all user-facing behavior.
-4. Update the canonical path map.
-5. Run lint, typecheck, production build, and smoke test.
+4. Confirm no live database dependency remains.
+5. Update the canonical path map.
+6. Run lint, typecheck, production build, and smoke test.
 
 ## Next cleanup targets
 
-The next audit should trace service-level duplication and direct page-level Supabase access, then consolidate only where a single replacement path is behaviorally complete. Lint warnings should be cleaned without suppressing them.
+The next audit target is service-level duplication that is not versioned by page name, especially direct table/RPC access duplicated across pages and any remaining service exports that have no live consumers. Lint warnings should continue to be cleaned without suppressing them.
