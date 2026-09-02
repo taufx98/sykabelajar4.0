@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { BarChart3, Building2, ClipboardList, FileQuestion, Gauge, KeyRound, Megaphone, Trophy, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, Building2, ClipboardList, FileQuestion, Gauge, Megaphone, Trophy, Users } from 'lucide-react';
 import { listCurrentUserOrganizers, resolveCurrentUserOrganizer, setSelectedOrganizerId, type CurrentOrganizer } from '@/services/organizerAuth.service';
 
 const items = [
@@ -10,6 +10,7 @@ const items = [
   ['/organizer/registrations', 'Pendaftar', ClipboardList],
   ['/organizer/members', 'Member', Users],
   ['/organizer/grading', 'Penilaian', Gauge],
+  ['/organizer/serials', 'QR / Serial', KeyRound],
   ['/organizer/plan', 'Plan & Usage', BarChart3],
   ['/organizer/ads', 'Iklan', Megaphone],
 ] as const;
