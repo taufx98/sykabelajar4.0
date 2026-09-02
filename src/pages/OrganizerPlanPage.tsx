@@ -25,6 +25,7 @@ const CAPABILITY_LABELS: Record<string, string> = {
   essay_ai_assessment: 'AI Assessment Esai',
   twibbon_canvas: 'Twibbon Canvas',
   twibbon: 'Twibbon',
+  certificate_serials: 'QR / Serial',
   qr_serial: 'QR / Serial',
   certificate: 'Sertifikat',
   certificate_create: 'Jumlah Sertifikat',
