@@ -37,7 +37,7 @@ export function fireConfetti(duration = 2500) {
     });
   }
 
-  let start = performance.now();
+  const start = performance.now();
   function frame(now: number) {
     const elapsed = now - start;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -60,11 +60,8 @@ export function fireConfetti(duration = 2500) {
       }
       ctx.restore();
     });
-    if (elapsed < duration) {
-      requestAnimationFrame(frame);
-    } else {
-      canvas.remove();
-    }
+    if (elapsed < duration) requestAnimationFrame(frame);
+    else canvas.remove();
   }
   requestAnimationFrame(frame);
 }
