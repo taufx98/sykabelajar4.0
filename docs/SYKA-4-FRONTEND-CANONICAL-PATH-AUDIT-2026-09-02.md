@@ -33,8 +33,6 @@ Prevent duplicate/versioned frontend implementations from being loaded or mainta
 
 ## Removed redundant implementations
 
-The following files were deleted after confirming they were not part of the canonical route graph:
-
 - `src/pages/MessagesPage.tsx`
 - `src/pages/MessagesPageV3.tsx`
 - `src/pages/NotificationsPage.tsx`
@@ -43,43 +41,55 @@ The following files were deleted after confirming they were not part of the cano
 - `src/pages/AdminChatPage.tsx`
 - `src/pages/AdminChatPageV2.tsx`
 
-`/pesan` now points directly to `MessagesPageV6`, so there is no intermediate V3 dispatcher.
+`/pesan` now points directly to `MessagesPageV6`.
 
 ## Service / RPC canonicalization
 
-Active frontend service callers are now routed through canonical service APIs. In particular, `HomePage.tsx` uses `getPublicLeaderboard()` and `getPublicCoinLeaderboard()` instead of calling legacy leaderboard RPC names directly. The service layer remains the boundary for reusable platform reads.
+The confirmed legacy entry points were removed from the live database. Active frontend code now uses canonical service functions for the affected domains.
 
-Confirmed obsolete RPC entry points were removed from the live database and recorded in the repository migration:
+### Canonical platform reads
 
-- `get_public_leaderboard(integer)` → `get_public_leaderboard_v2(integer)` via `platform.service.ts`
-- `get_public_coin_leaderboard(integer)` → `get_public_coin_leaderboard_v2(integer)` via `platform.service.ts`
-- `register_for_competition(...)` → `register_for_competition_v4_8(...)` via `registration.service.ts`
-- `create_organizer_plan_order(...)` → `create_organizer_plan_order_v2(...)` via `commerce.service.ts`
-- `get_or_create_support_thread()` removed; current chat flow uses the explicit ticket/thread RPCs
-- `get_public_profile_by_username(text)` removed; current profile flow uses the canonical profile service/table access
-- `get_name_change_cooldown(uuid)` / `get_display_name_cooldown(uuid)` removed; current edit-profile flow computes the cooldown from the canonical profile record
+`platform.service.ts` owns public statistics, competitions, XP leaderboard, and EduCoin leaderboard reads with client caching. `HomePage.tsx` now uses `getPublicLeaderboard()` and `getPublicCoinLeaderboard()` rather than invoking legacy RPC names directly.
 
-The destructive database cleanup is represented by `supabase/migrations/20260902060000_remove_confirmed_legacy_rpcs.sql`.
+### Canonical registration / commerce
+
+`registration.service.ts` uses `register_for_competition_v4_8()`.
+
+`commerce.service.ts` uses `create_organizer_plan_order_v2()` with an explicit MONTHLY/YEARLY billing period.
+
+### Canonical chat
+
+`chat.service.ts` owns the active chat primitives. `AdminChatConsolePage.tsx` and `MessagesPageV6.tsx` use `loadChatMessagesPage()` directly. `ChatWidget.tsx` uses `createTicketThread()` for ticket creation and `loadChatMessagesPage()` for messages.
+
+Obsolete chat aliases `loadMessages`, `loadMyMessages`, and `getOrCreateThread` were removed after their active callers were migrated.
+
+### Confirmed legacy RPCs removed
+
+- `get_public_leaderboard(integer)`
+- `get_public_coin_leaderboard(integer)`
+- `register_for_competition(uuid,text,uuid,text,boolean)`
+- `create_organizer_plan_order(uuid,text,text,text,integer,integer,text,text)`
+- `get_or_create_support_thread()`
+- `get_public_profile_by_username(text)`
+- `get_name_change_cooldown(uuid)`
+- `get_display_name_cooldown(uuid)`
+
+The database cleanup is recorded in `supabase/migrations/20260902060000_remove_confirmed_legacy_rpcs.sql`. A verification query after the migration returned zero matching legacy functions.
 
 ## Intentionally retained compatibility path
 
-`src/pages/OrganizerPage.tsx` remains because `/organizer/legacy` is still an explicit route. This is the only currently identified page-level legacy route that remains intentionally reachable. It must be migrated behind `/organizer` before deletion.
+`src/pages/OrganizerPage.tsx` remains because `/organizer/legacy` is still an explicit route. It is the only currently identified page-level legacy route intentionally reachable and is the next deletion candidate after behavioral migration into the canonical organizer workspace.
 
 ## Backend / migration rule
 
-Supabase migration files are append-only deployment history. A later migration superseding an earlier migration does **not** make the earlier migration safe to delete from the repository. Frontend cleanup must not remove database migration history.
+Supabase migration files are append-only deployment history and are not deleted merely because a later migration supersedes their behavior.
 
 ## Verification rule
 
 Before deleting any future page/service/RPC:
 
-1. Confirm route ownership in `src/App.tsx`.
+1. Confirm route ownership.
 2. Confirm no adapter/wrapper imports the candidate.
-3. Confirm the replacement preserves all user-facing behavior.
+3. Confirm the replacement preserves behavior.
 4. Confirm no live database dependency remains.
-5. Update the canonical path map.
-6. Run lint, typecheck, production build, and smoke test.
-
-## Next cleanup targets
-
-The next audit target is service-level duplication that is not versioned by page name, especially direct table/RPC access duplicated across pages and any remaining service exports that have no live consumers. Lint warnings should continue to be cleaned without suppressing them.
+5. Run lint, typecheck, production build, and smoke test.
