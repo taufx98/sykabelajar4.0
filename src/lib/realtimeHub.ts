@@ -54,10 +54,14 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       emitSykaEvent({ type: 'follow-updated', userId: String(row.follower_id ?? ''), status: String(row.status ?? 'none') });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {
-      emitSykaEvent({ type: 'chat-thread-updated', thread: (payload.new ?? payload.old ?? {}) as Record<string, unknown> });
+      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+      if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;
+      emitSykaEvent({ type: 'chat-thread-updated', thread: row });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, (payload) => {
-      emitSykaEvent({ type: 'chat-thread-updated', thread: (payload.new ?? payload.old ?? {}) as Record<string, unknown> });
+      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+      if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;
+      emitSykaEvent({ type: 'chat-thread-updated', thread: row });
     });
 
   // Chat messages are intentionally not subscribed globally here: a chat message row
