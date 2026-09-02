@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -52,8 +52,6 @@ import { OrganizerSerialsPage } from '@/pages/OrganizerSerialsPage';
 import { OrganizerPage } from '@/pages/OrganizerPage';
 import { OrganizerAdRequestPage } from '@/pages/OrganizerAdRequestPage';
 import { ToastContainer } from '@/components/ui/ToastContainer';
-import { getUserRoles } from '@/services/role.service';
-import { supabase } from '@/lib/supabase';
 
 function AuthGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading, isGuest } = useApp();
@@ -64,21 +62,10 @@ function AuthGuard({ children }: { children: ReactNode }) {
 }
 
 function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member'; children: ReactNode }) {
-  const { isAuthenticated } = useApp();
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-  useEffect(() => {
-    let live = true;
-    if (!isAuthenticated) { setAllowed(false); return () => { live = false; }; }
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) { if (live) setAllowed(false); return; }
-      const roles = await getUserRoles(data.user.id);
-      if (live) setAllowed(roles.includes(role) || roles.includes('admin'));
-    })().catch(() => { if (live) setAllowed(false); });
-    return () => { live = false; };
-  }, [isAuthenticated, role]);
-  if (!isAuthenticated) return <div className="min-h-screen surface-bg" />;
-  if (allowed === null) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-fg-muted">Memeriksa akses...</p></div>;
+  const { isAuthenticated, authLoading, user } = useApp();
+  const allowed = !!user && (role === 'admin' ? user.role === 'admin' : user.role === 'penyelenggara' || user.role === 'admin');
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-fg-muted">Memuat sesi...</p></div>;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (!allowed) return <Navigate to="/home" replace />;
   return <>{children}</>;
 }
@@ -87,7 +74,7 @@ function OrganizerShellRoute({ children }: { children: ReactNode }) {
   return <RoleRoute role="organizer_member"><OrganizerShell>{children}</OrganizerShell></RoleRoute>;
 }
 
-function RuntimeGlobals() { useApp(); return <MobileNavigationOverride />; }
+function RuntimeGlobals() { useEffect(() => undefined, []); return <MobileNavigationOverride />; }
 
 function AppRoutes() {
   return <Routes>
