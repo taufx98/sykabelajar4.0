@@ -41,7 +41,7 @@ const CACHE_TTL = {
   competitions: 90_000,
 } as const;
 
-function readCache<T>(key: string, ttl: number): T | null {
+function readCache<T>(key: string): T | null {
   try {
     const raw = sessionStorage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
@@ -71,7 +71,7 @@ const competitionsMemory = new Map<number, { expiresAt: number; data: Array<Reco
 
 export async function getPlatformStats(): Promise<PlatformStats> {
   if (statsMemory && statsMemory.expiresAt > Date.now()) return statsMemory.data;
-  const cached = readCache<PlatformStats>('stats', CACHE_TTL.stats);
+  const cached = readCache<PlatformStats>('stats');
   if (cached) {
     statsMemory = { expiresAt: Date.now() + CACHE_TTL.stats, data: cached };
     return cached;
@@ -96,7 +96,7 @@ export async function getPublicLeaderboard(limit = 100): Promise<PublicLeaderboa
   const safeLimit = Math.max(1, Math.min(limit, 1000));
   const memory = leaderboardMemory.get(safeLimit);
   if (memory && memory.expiresAt > Date.now()) return memory.data;
-  const cached = readCache<PublicLeaderboardRow[]>(`leaderboard.${safeLimit}`, CACHE_TTL.leaderboard);
+  const cached = readCache<PublicLeaderboardRow[]>(`leaderboard.${safeLimit}`);
   if (cached) {
     leaderboardMemory.set(safeLimit, { expiresAt: Date.now() + CACHE_TTL.leaderboard, data: cached });
     return cached;
@@ -124,7 +124,7 @@ export async function getPublicCoinLeaderboard(limit = 100): Promise<PublicCoinL
   const safeLimit = Math.max(1, Math.min(limit, 1000));
   const memory = coinLeaderboardMemory.get(safeLimit);
   if (memory && memory.expiresAt > Date.now()) return memory.data;
-  const cached = readCache<PublicCoinLeaderboardRow[]>(`coinLeaderboard.${safeLimit}`, CACHE_TTL.coinLeaderboard);
+  const cached = readCache<PublicCoinLeaderboardRow[]>(`coinLeaderboard.${safeLimit}`);
   if (cached) {
     coinLeaderboardMemory.set(safeLimit, { expiresAt: Date.now() + CACHE_TTL.coinLeaderboard, data: cached });
     return cached;
@@ -150,7 +150,7 @@ export async function getPublicCompetitions(limit = 6) {
   const safeLimit = Math.max(1, Math.min(limit, 1000));
   const memory = competitionsMemory.get(safeLimit);
   if (memory && memory.expiresAt > Date.now()) return memory.data;
-  const cached = readCache<Array<Record<string, unknown>>>(`competitions.${safeLimit}`, CACHE_TTL.competitions);
+  const cached = readCache<Array<Record<string, unknown>>>(`competitions.${safeLimit}`);
   if (cached) {
     competitionsMemory.set(safeLimit, { expiresAt: Date.now() + CACHE_TTL.competitions, data: cached });
     return cached;
