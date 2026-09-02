@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageCircle, X, Send, Star, ArrowLeft, Headphones, Plus } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
+import { supabase } from '@/lib/supabase';
 import {
   getOrCreateThread,
   sendMessage,
@@ -27,9 +28,7 @@ export function ChatWidget() {
   const [loading, setLoading] = useState(false);
   const [rating, setRating] = useState(0);
   const messagesEnd = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load thread on mount when an authenticated user is available.
   useEffect(() => {
     if (!user) return;
     loadMyThread().then(t => {
@@ -38,31 +37,60 @@ export function ChatWidget() {
         if (t.status === 'open') setView('chat');
         if (t.status === 'closed') setView('ended');
       }
-    }).catch(() => {});
+    }).catch(() => { /* Non-critical: widget remains usable. */ });
   }, [user]);
 
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     if (!thread || thread.status === 'closed') return;
     try {
       const msgs = await loadMyMessages(thread.id);
       setMessages(msgs);
-    } catch {}
-  };
+    } catch {
+      // Realtime remains active; a transient read failure should not break the widget.
+    }
+  }, [thread]);
 
   useEffect(() => {
-    if (isOpen && view === 'chat' && thread && thread.status === 'open') {
-      void loadMessages();
-      pollRef.current = setInterval(() => void loadMessages(), 3000);
-      return () => { if (pollRef.current) clearInterval(pollRef.current); };
-    }
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [isOpen, view, thread]);
+    if (!isOpen || view !== 'chat' || !thread || thread.status !== 'open') return;
+    void loadMessages();
+    const channel = supabase
+      .channel(`chat-widget-${thread.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `thread_id=eq.${thread.id}`,
+        },
+        payload => {
+          const message = payload.new as ChatMessage;
+          setMessages(current => current.some(item => item.id === message.id) ? current : [...current, message]);
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chat_threads',
+          filter: `id=eq.${thread.id}`,
+        },
+        payload => {
+          const updated = payload.new as ChatThread;
+          setThread(updated);
+          if (updated.status === 'closed') setView('ended');
+        },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [isOpen, view, thread, loadMessages]);
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleOpen = async () => {
+  const handleOpen = () => {
     setIsOpen(true);
     if (thread?.status === 'open') setView('chat');
     else if (thread?.status === 'closed') setView('ended');
@@ -86,9 +114,9 @@ export function ChatWidget() {
     }
   };
 
-  const handleStartChat = async () => {
+  const handleStartChat = () => {
     setView('chat');
-    if (thread) void loadMessages();
+    void loadMessages();
   };
 
   const handleSend = async () => {
@@ -96,7 +124,7 @@ export function ChatWidget() {
     setSending(true);
     try {
       const msg = await sendMessage(thread.id, input.trim());
-      setMessages(prev => [...prev, msg]);
+      setMessages(prev => prev.some(item => item.id === msg.id) ? prev : [...prev, msg]);
       setInput('');
     } catch (e: any) {
       toast(e?.message ?? 'Gagal mengirim.', 'error');
@@ -108,7 +136,7 @@ export function ChatWidget() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -233,7 +261,7 @@ export function ChatWidget() {
                 ) : (
                   <div className="flex gap-2">
                     <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ketik pesan..." className="flex-1 input" />
-                    <button onClick={handleSend} disabled={!input.trim() || sending} className="w-9 h-9 rounded-xl bg-moss-500 hover:bg-moss-600 flex items-center justify-center text-white transition disabled:opacity-40 shrink-0"><Send size={16} /></button>
+                    <button onClick={() => void handleSend()} disabled={!input.trim() || sending} className="w-9 h-9 rounded-xl bg-moss-500 hover:bg-moss-600 flex items-center justify-center text-white transition disabled:opacity-40 shrink-0"><Send size={16} /></button>
                   </div>
                 )}
               </div>
@@ -265,7 +293,7 @@ export function ChatWidget() {
         </div>
       )}
 
-      <button onClick={() => isOpen ? setIsOpen(false) : void handleOpen()} className={`group rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ease-out ${isOpen ? 'w-11 h-11 bg-slate-700 hover:bg-slate-600' : 'w-11 h-11 hover:w-[52px] hover:h-[52px] bg-gradient-to-br from-moss-500 to-moss-600 hover:from-moss-600 hover:to-moss-700'}`} aria-label="Chat dengan admin">
+      <button onClick={() => isOpen ? setIsOpen(false) : handleOpen()} className={`group rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ease-out ${isOpen ? 'w-11 h-11 bg-slate-700 hover:bg-slate-600' : 'w-11 h-11 hover:w-[52px] hover:h-[52px] bg-gradient-to-br from-moss-500 to-moss-600 hover:from-moss-600 hover:to-moss-700'}`} aria-label="Chat dengan admin">
         {isOpen ? <X size={18} className="text-fg transition-transform duration-300 group-active:rotate-90" /> : <MessageCircle size={18} className="text-fg transition-transform duration-300 group-hover:scale-110" />}
       </button>
     </div>
