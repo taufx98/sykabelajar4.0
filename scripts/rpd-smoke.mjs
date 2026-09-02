@@ -13,7 +13,7 @@ if (!/supabase/i.test(html)) {
   let bundle = '';
   for (const src of bundleMatches) {
     const filename = src.replace(/^\//, '');
-    try { bundle += await readFile(`dist/${filename}`, 'utf8'); } catch { /* HTML contract still protects the build. */ }
+    try { bundle += await readFile(`dist/${filename}`, 'utf8'); } catch { /* ignore missing optional bundle */ }
   }
   if (!/supabase/i.test(bundle)) throw new Error('Bundle production tidak memuat referensi Supabase.');
 }
@@ -37,8 +37,8 @@ async function rpc(name, body) {
 const stats = await rpc('get_platform_stats', {});
 if (!Array.isArray(stats)) throw new Error('get_platform_stats bukan array.');
 
-const leaderboard = await rpc('get_public_leaderboard', { p_limit: 5 });
-if (!Array.isArray(leaderboard)) throw new Error('get_public_leaderboard bukan array.');
+const leaderboard = await rpc('get_public_leaderboard_v2', { p_limit: 5 });
+if (!Array.isArray(leaderboard)) throw new Error('get_public_leaderboard_v2 bukan array.');
 
 const competitions = await rpc('get_public_competitions', {});
 if (!Array.isArray(competitions)) throw new Error('get_public_competitions bukan array.');
