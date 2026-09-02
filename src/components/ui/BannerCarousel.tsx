@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Megaphone } from 'lucide-react';
 import { loadPublicBanners, type PublicBanner } from '@/services/public-banner.service';
 import { useApp } from '@/store/AppContext';
+import { optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 
 const UPLOAD_H = 300;
 
@@ -21,7 +22,7 @@ function EmptySlot() {
 }
 
 function BannerMedia({ banner, className }: { banner: PublicBanner; className?: string }) {
-  return <img src={banner.image_url} alt={banner.title || 'Banner'} className={className} loading="lazy" />;
+  return <img src={optimizedCloudinaryUrl(banner.image_url,{width:800})} alt={banner.title || 'Banner'} className={className} loading="lazy" decoding="async" />;
 }
 
 export function BannerCarousel() {

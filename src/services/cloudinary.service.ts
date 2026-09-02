@@ -169,15 +169,50 @@ export async function uploadProfileImage(
 }
 
 /**
- * Append a cache-busting version query to a Cloudinary URL.
+ * Build an optimized Cloudinary delivery URL.
+ * Cloudinary image delivery URLs receive f_auto,q_auto and an optional width.
+ * Non-Cloudinary or non-image URLs are returned unchanged.
+ */
+export function optimizedCloudinaryUrl(
+  url?: string | null,
+  options: { width?: number; version?: string | number | null } = {},
+): string | undefined {
+  if (!url) return undefined;
+  const value = String(url);
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return value;
+  }
+  if (!parsed.hostname.toLowerCase().endsWith('.cloudinary.com')) return value;
+
+  const marker = '/image/upload/';
+  const index = parsed.pathname.indexOf(marker);
+  if (index < 0) return value;
+
+  const width = Number.isFinite(options.width) && Number(options.width) > 0
+    ? Math.round(Number(options.width))
+    : undefined;
+  const transforms = ['f_auto', 'q_auto', ...(width ? [`w_${width}`] : [])];
+  const before = parsed.pathname.slice(0, index + marker.length);
+  const after = parsed.pathname.slice(index + marker.length);
+  parsed.pathname = `${before}${transforms.join(',')}/${after}`;
+
+  if (options.version != null && String(options.version)) {
+    parsed.searchParams.set('v', String(options.version));
+  }
+  return parsed.toString();
+}
+
+/**
+ * Append a cache-busting version query to a Cloudinary URL while applying delivery optimization.
  */
 export function versionedCloudinaryUrl(
   url?: string | null,
   version?: string | number | null,
 ): string | undefined {
-  if (!url) return undefined;
-  if (!version) return url;
-  return `${String(url).split('?')[0]}?v=${encodeURIComponent(String(version))}`;
+  return optimizedCloudinaryUrl(url, { version });
 }
 
 /**
