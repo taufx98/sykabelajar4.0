@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ElementType } from 'react';
 import { ArrowLeft, Download, KeyRound, Printer, QrCode, RefreshCw, ShieldCheck, Ban } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from '@/lib/toast';
-import { resolveCurrentUserOrganizer } from '@/services/organizerAuth.service';
+import { resolveCurrentUserOrganizer, type CurrentOrganizer } from '@/services/organizerAuth.service';
 import { getActiveOrganizerEntitlements } from '@/services/organizerEntitlement.service';
 import { assignOrganizerSerial, generateOrganizerSerials, listOrganizerSerials, revokeOrganizerSerial, type OrganizerSerial } from '@/services/organizerSerial.service';
 import { supabase } from '@/lib/supabase';
 
-type CertificateOption = { id: string; competition_id: string; status: string; serial_number: string | null; created_at: string; };
+type CertificateOption = { id: string; competition_id: string; status: string; serial_number: string | null; created_at: string };
 
 const QR_ENDPOINT = 'https://quickchart.io/qr';
 
@@ -23,7 +23,7 @@ function statusColor(status: string) {
 }
 
 export function OrganizerSerialsPage() {
-  const [org, setOrg] = useState<any>(null);
+  const [org, setOrg] = useState<CurrentOrganizer | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
   const [serials, setSerials] = useState<OrganizerSerial[]>([]);
   const [certificates, setCertificates] = useState<CertificateOption[]>([]);
@@ -125,29 +125,28 @@ export function OrganizerSerialsPage() {
   if (loading) return <div className="p-6"><Card className="p-8 text-center text-fg-muted">Memuat QR / Serial…</Card></div>;
   if (!org) return <div className="p-6"><Card className="p-8 text-center text-fg-muted">Organisasi belum ditemukan.</Card></div>;
 
+  const stats: Array<[string, string | number, ElementType]> = [
+    ['Plan', plan ?? '—', ShieldCheck],
+    ['Total', counts.total, KeyRound],
+    ['Tersedia', counts.available, QrCode],
+    ['Terpakai', counts.assigned, ShieldCheck],
+  ];
+
   return (
     <div className="min-h-screen surface-bg text-fg-secondary p-5 md:p-8 print:p-0">
       <div className="max-w-7xl mx-auto print:max-w-none">
         <div className="no-print flex items-center justify-between gap-3 mb-5">
           <Link to="/organizer/plan" className="inline-flex items-center gap-2 text-xs text-fg-muted hover:text-fg"><ArrowLeft size={14}/> Kembali ke Plan</Link>
-          <Button variant="secondary" onClick={print} icon={<Printer size={15}/>}>Cetak QR</Button>
+          <Button onClick={print} icon={<Printer size={15}/>}>Cetak QR</Button>
         </div>
-
         <div className="mb-6">
           <p className="text-xs text-accent font-semibold">PENYELENGGARA · QR / SERIAL</p>
           <h1 className="text-2xl font-bold text-fg">QR & Serial Sertifikat</h1>
           <p className="text-sm text-fg-muted mt-1">Generate serial resmi, pasangkan ke sertifikat, dan revoke serial yang tidak boleh dipakai lagi.</p>
         </div>
-
         <div className="grid sm:grid-cols-4 gap-3 mb-5">
-          {[
-            ['Plan', plan ?? '—', ShieldCheck],
-            ['Total', counts.total, KeyRound],
-            ['Tersedia', counts.available, QrCode],
-            ['Terpakai', counts.assigned, ShieldCheck],
-          ].map(([label, value, Icon]) => <Card key={String(label)} className="p-4"><div className="flex items-center gap-3"><Icon size={18} className="text-accent"/><div><p className="text-xs text-fg-muted">{label}</p><p className="text-lg font-bold text-fg">{value}</p></div></div></Card>)}
+          {stats.map(([label, value, Icon]) => <Card key={label} className="p-4"><div className="flex items-center gap-3"><Icon size={18} className="text-accent"/><div><p className="text-xs text-fg-muted">{label}</p><p className="text-lg font-bold text-fg">{value}</p></div></div></Card>)}
         </div>
-
         <Card className="p-5 mb-5 no-print">
           <div className="flex items-start gap-3 mb-4"><QrCode className="text-accent mt-0.5" size={20}/><div><h2 className="font-bold text-fg">Generate serial</h2><p className="text-sm text-fg-muted mt-1">Jumlah yang dibuat akan dihitung terhadap entitlement plan aktif.</p></div></div>
           <div className="flex flex-col md:flex-row gap-3">
@@ -156,7 +155,6 @@ export function OrganizerSerialsPage() {
             <div className="text-xs text-fg-muted flex items-center">Tersedia: {counts.available} · Terpakai: {counts.assigned} · Direvoke: {counts.revoked}</div>
           </div>
         </Card>
-
         {selectedSerial && <Card className="p-5 mb-5 no-print border-accent/20">
           <div className="flex items-start justify-between gap-3 mb-4"><div><p className="text-xs text-accent font-semibold">ASSIGN SERIAL</p><h2 className="font-bold text-fg">{selectedSerial.serial_code}</h2><p className="text-xs text-fg-muted mt-1">Pilih sertifikat organizer yang belum memiliki serial.</p></div><button className="text-xs text-fg-muted" onClick={() => setSelectedSerial(null)}>Tutup</button></div>
           <div className="flex flex-col md:flex-row gap-3">
@@ -167,7 +165,6 @@ export function OrganizerSerialsPage() {
             <Button loading={busy} disabled={!certificateId} onClick={() => void assign()}>Pasangkan</Button>
           </div>
         </Card>}
-
         <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {serials.map((serial) => (
             <Card key={serial.id} className="p-4 serial-card break-inside-avoid">
@@ -181,7 +178,7 @@ export function OrganizerSerialsPage() {
               <p className="font-mono text-sm font-bold text-fg break-all">{serial.serial_code}</p>
               <p className="text-[11px] text-fg-muted mt-1 truncate">{serial.certificate_id ? `Certificate: ${serial.certificate_id}` : 'Belum dipasangkan ke sertifikat'}</p>
               <div className="flex gap-2 mt-3 no-print">
-                {serial.status === 'AVAILABLE' && <Button variant="secondary" className="flex-1" disabled={busy} onClick={() => setSelectedSerial(serial)}>Pasangkan</Button>}
+                {serial.status === 'AVAILABLE' && <Button className="flex-1" disabled={busy} onClick={() => setSelectedSerial(serial)}>Pasangkan</Button>}
                 <a className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs border border-surface-border hover:bg-surface-elevated/50" href={qrUrl(serial.qr_payload)} target="_blank" rel="noreferrer"><Download size={14}/> QR</a>
                 {serial.status !== 'REVOKED' && <button className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-red-400 border border-red-500/20 hover:bg-red-500/10" disabled={busy} onClick={() => void revoke(serial)} title="Revoke"><Ban size={14}/></button>}
               </div>
