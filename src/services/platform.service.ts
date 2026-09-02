@@ -33,23 +33,24 @@ export interface PublicCoinLeaderboardRow {
   rank: number;
 }
 
-const CACHE_PREFIX = 'syka.public.v2.';
+const CACHE_PREFIX = 'syka.public.v3.';
 const CACHE_TTL = {
-  stats: 5 * 60_000,
-  leaderboard: 2 * 60_000,
-  coinLeaderboard: 2 * 60_000,
-  competitions: 5 * 60_000,
+  stats: 15 * 60_000,
+  leaderboard: 15 * 60_000,
+  coinLeaderboard: 30 * 60_000,
+  competitions: 30 * 60_000,
 } as const;
 const NEGATIVE_CACHE_TTL = 10 * 60_000;
 const COMPETITIONS_CACHE_LIMIT = 20;
 
 function readCache<T>(key: string): T | null {
   try {
-    const raw = sessionStorage.getItem(CACHE_PREFIX + key);
+    const storage = localStorage;
+    const raw = storage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { expiresAt: number; data: T };
     if (!parsed || parsed.expiresAt <= Date.now()) {
-      sessionStorage.removeItem(CACHE_PREFIX + key);
+      storage.removeItem(CACHE_PREFIX + key);
       return null;
     }
     return parsed.data;
@@ -60,11 +61,20 @@ function readCache<T>(key: string): T | null {
 
 function writeCache<T>(key: string, data: T, ttl: number) {
   try {
-    sessionStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ expiresAt: Date.now() + ttl, data }));
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ expiresAt: Date.now() + ttl, data }));
   } catch {
-    // Session storage is optional.
+    // Local storage is optional and may be unavailable or full.
   }
 }
+
+const emptyStats = (): PlatformStats => ({
+  total_users: 0,
+  total_students: 0,
+  total_schools: 0,
+  total_competitions: 0,
+  total_public_competitions: 0,
+  total_certificates: 0,
+});
 
 let statsMemory: { expiresAt: number; data: PlatformStats } | null = null;
 const leaderboardMemory = new Map<number, { expiresAt: number; data: PublicLeaderboardRow[] }>();
@@ -87,7 +97,7 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     statsMemory = { expiresAt: now + CACHE_TTL.stats, data: cached };
     return cached;
   }
-  if (statsFailureUntil > now) return { total_users: 0, total_students: 0, total_schools: 0, total_competitions: 0, total_public_competitions: 0, total_certificates: 0 };
+  if (statsFailureUntil > now) return emptyStats();
   if (statsInFlight) return statsInFlight;
 
   statsInFlight = (async () => {
@@ -112,8 +122,8 @@ export async function getPlatformStats(): Promise<PlatformStats> {
   })();
   try {
     return await statsInFlight;
-  } catch (error) {
-    return { total_users: 0, total_students: 0, total_schools: 0, total_competitions: 0, total_public_competitions: 0, total_certificates: 0 };
+  } catch {
+    return emptyStats();
   } finally {
     statsInFlight = null;
   }
