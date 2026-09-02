@@ -287,7 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const current = authUserRef.current;
     if (!current) return;
     try {
-      const profile = await getProfileById(current.id);
+      const profile = await getAuthenticatedProfileById(current.id);
       if (!profile || !aliveRef.current || authUserRef.current?.id !== current.id) return;
       const roles = await getUserRoles(current.id).catch(() => [] as BackendRole[]);
       const mapped = mapProfileToUser(profile, current.email);
