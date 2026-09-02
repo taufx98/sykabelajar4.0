@@ -40,6 +40,7 @@ const CACHE_TTL = {
   coinLeaderboard: 60_000,
   competitions: 90_000,
 } as const;
+const COMPETITIONS_CACHE_LIMIT = 100;
 
 function readCache<T>(key: string): T | null {
   try {
@@ -67,7 +68,8 @@ function writeCache<T>(key: string, data: T, ttl: number) {
 let statsMemory: { expiresAt: number; data: PlatformStats } | null = null;
 const leaderboardMemory = new Map<number, { expiresAt: number; data: PublicLeaderboardRow[] }>();
 const coinLeaderboardMemory = new Map<number, { expiresAt: number; data: PublicCoinLeaderboardRow[] }>();
-const competitionsMemory = new Map<number, { expiresAt: number; data: Array<Record<string, unknown>> }>();
+let competitionsMemory: { expiresAt: number; data: Array<Record<string, unknown>> } | null = null;
+let competitionsInFlight: Promise<Array<Record<string, unknown>>> | null = null;
 
 export async function getPlatformStats(): Promise<PlatformStats> {
   if (statsMemory && statsMemory.expiresAt > Date.now()) return statsMemory.data;
@@ -147,18 +149,32 @@ export async function getPublicCoinLeaderboard(limit = 100): Promise<PublicCoinL
 }
 
 export async function getPublicCompetitions(limit = 6) {
-  const safeLimit = Math.max(1, Math.min(limit, 1000));
-  const memory = competitionsMemory.get(safeLimit);
-  if (memory && memory.expiresAt > Date.now()) return memory.data;
-  const cached = readCache<Array<Record<string, unknown>>>(`competitions.${safeLimit}`);
-  if (cached) {
-    competitionsMemory.set(safeLimit, { expiresAt: Date.now() + CACHE_TTL.competitions, data: cached });
-    return cached;
+  const safeLimit = Math.max(1, Math.min(limit, COMPETITIONS_CACHE_LIMIT));
+  const now = Date.now();
+  if (competitionsMemory && competitionsMemory.expiresAt > now) {
+    return competitionsMemory.data.slice(0, safeLimit);
   }
-  const { data, error } = await supabase.rpc('get_public_competitions');
-  if (error) throw error;
-  const result = ((data ?? []) as Array<Record<string, unknown>>).slice(0, safeLimit);
-  competitionsMemory.set(safeLimit, { expiresAt: Date.now() + CACHE_TTL.competitions, data: result });
-  writeCache(`competitions.${safeLimit}`, result, CACHE_TTL.competitions);
-  return result;
+  const cached = readCache<Array<Record<string, unknown>>>(`competitions.${COMPETITIONS_CACHE_LIMIT}`);
+  if (cached) {
+    competitionsMemory = { expiresAt: now + CACHE_TTL.competitions, data: cached };
+    return cached.slice(0, safeLimit);
+  }
+  if (competitionsInFlight) {
+    const rows = await competitionsInFlight;
+    return rows.slice(0, safeLimit);
+  }
+  competitionsInFlight = (async () => {
+    const { data, error } = await supabase.rpc('get_public_competitions');
+    if (error) throw error;
+    const result = ((data ?? []) as Array<Record<string, unknown>>).slice(0, COMPETITIONS_CACHE_LIMIT);
+    competitionsMemory = { expiresAt: Date.now() + CACHE_TTL.competitions, data: result };
+    writeCache(`competitions.${COMPETITIONS_CACHE_LIMIT}`, result, CACHE_TTL.competitions);
+    return result;
+  })();
+  try {
+    const rows = await competitionsInFlight;
+    return rows.slice(0, safeLimit);
+  } finally {
+    competitionsInFlight = null;
+  }
 }
