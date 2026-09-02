@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Role, User, AppNotification, Order, Award, Certificate, FeedPost } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { signIn, signUp, signOut } from '@/services/auth.service';
-import { getProfileById, updateProfile as updateProfileRecord } from '@/services/profile.service';
+import { getAuthenticatedProfileById, getProfileById, updateProfile as updateProfileRecord } from '@/services/profile.service';
 import { loadAwards } from '@/services/runtime.service';
 import { liveAwards } from '@/data/live';
 import { backendRoleToUiRole, getUserRoles, hasAllowedLoginRole, uiRoleToAccountType, type BackendRole } from '@/services/role.service';
@@ -128,7 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const hydrateCurrentUser = useCallback(async (userId: string, email = '', roles?: BackendRole[]) => {
     const [profile, resolvedRoles] = await Promise.all([
-      getProfileById(userId),
+      getAuthenticatedProfileById(userId),
       roles ? Promise.resolve(roles) : getUserRoles(userId),
     ]);
     if (!profile) throw new Error('PROFILE_NOT_FOUND');
