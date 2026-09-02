@@ -35,7 +35,7 @@ export default tseslint.config(
       // These two files currently contain legacy conditional-hook patterns.
       // Keep them visible but do not block the repository-wide lint gate until
       // their behavior-preserving hook refactor is completed.
-      'react-hooks/rules-of-hooks': 'warn',
+      'react-hooks/rules-of-hooks': 'error',
     },
   }
 );

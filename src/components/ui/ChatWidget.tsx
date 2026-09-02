@@ -1,3 +1,4 @@
+function errorMessage(error:unknown,fallback:string):string{return error instanceof Error?error.message:fallback;}
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageCircle, X, Send, Star, ArrowLeft, Headphones, Plus } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
@@ -89,8 +90,8 @@ export function ChatWidget() {
       setDescription('');
       setMessages([]);
       setView('waiting');
-    } catch (e: any) {
-      toast(e?.message ?? 'Gagal mengirim.', 'error');
+    } catch (e: unknown) {
+      toast(errorMessage(e, 'Gagal mengirim.'), 'error');
     } finally {
       setLoading(false);
     }
@@ -108,8 +109,8 @@ export function ChatWidget() {
       const msg = await sendMessage(thread.id, input.trim());
       setMessages((prev) => prev.some((item) => item.id === msg.id) ? prev : [...prev, msg]);
       setInput('');
-    } catch (e: any) {
-      toast(e?.message ?? 'Gagal mengirim.', 'error');
+    } catch (e: unknown) {
+      toast(errorMessage(e, 'Gagal mengirim.'), 'error');
     } finally {
       setSending(false);
     }
@@ -131,8 +132,8 @@ export function ChatWidget() {
       setRating(0);
       setView('form');
       toast('Terima kasih atas ratingnya! ⭐', 'success');
-    } catch (e: any) {
-      toast(e?.message ?? 'Gagal memberi rating.', 'error');
+    } catch (e: unknown) {
+      toast(errorMessage(e, 'Gagal memberi rating.'), 'error');
     }
   };
 
