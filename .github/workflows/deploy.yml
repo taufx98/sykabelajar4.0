@@ -26,9 +26,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (baseline debt report)
+      - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Typecheck
         run: npm run typecheck
