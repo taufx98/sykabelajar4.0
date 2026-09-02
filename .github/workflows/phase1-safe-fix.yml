@@ -1,0 +1,240 @@
+name: Phase 1 Safe Fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  phase1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply Phase 1 cleanup
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text()
+
+          def write(path, text):
+              Path(path).write_text(text)
+
+          # 1) Rules of Hooks must be blocking.
+          p = 'eslint.config.js'
+          text = read(p)
+          text = text.replace("'react-hooks/rules-of-hooks': 'warn'", "'react-hooks/rules-of-hooks': 'error'")
+          write(p, text)
+
+          # 2) HomePage: replace broad any usage with explicit view-model types and
+          # stable callbacks. The backend snapshot is already bounded and typed.
+          p = 'src/pages/HomePage.tsx'
+          text = read(p)
+          text = text.replace(
+              "import type { PublicLeaderboardRow } from '@/services/platform.service';",
+              "import type { HomeSnapshot, PublicLeaderboardRow } from '@/services/platform.service';"
+          )
+          marker = "import { supabase } from '@/lib/supabase';\n"
+          helpers = r'''
+          
+          type HomeCompetition = {
+            id: string;
+            title: string;
+            slug: string;
+            category: string;
+            organizer_name: string;
+            short_description: string;
+            poster_url: string | null;
+            participant_count: number;
+            status: string;
+          };
+
+          type HomeFeedRow = HomeSnapshot['feed'][number];
+
+          function readString(row: Record<string, unknown>, key: string, fallback = ''): string {
+            const value = row[key];
+            return value == null ? fallback : String(value);
+          }
+
+          function readNullableString(row: Record<string, unknown>, key: string): string | null {
+            const value = row[key];
+            return value == null ? null : String(value);
+          }
+
+          function readNumber(row: Record<string, unknown>, key: string, fallback = 0): number {
+            const value = Number(row[key] ?? fallback);
+            return Number.isFinite(value) ? value : fallback;
+          }
+
+          function normalizeCompetition(row: Record<string, unknown>): HomeCompetition {
+            return {
+              id: readString(row, 'id'),
+              title: readString(row, 'title'),
+              slug: readString(row, 'slug'),
+              category: readString(row, 'category', 'Kompetisi'),
+              organizer_name: readString(row, 'organizer_name', 'Penyelenggara'),
+              short_description: readString(row, 'short_description'),
+              poster_url: readNullableString(row, 'poster_url'),
+              participant_count: readNumber(row, 'participant_count'),
+              status: readString(row, 'status'),
+            };
+          }
+
+          function normalizeHomeFeedRow(row: HomeFeedRow): SocialPost {
+            return {
+              id: readString(row, 'id'),
+              author_user_id: readString(row, 'author_user_id'),
+              author_name: readString(row, 'author_name', 'Pengguna'),
+              author_username: readString(row, 'author_username'),
+              avatar_url: readNullableString(row, 'avatar_url'),
+              title: readString(row, 'title'),
+              body: readString(row, 'body'),
+              cover_url: readNullableString(row, 'cover_url'),
+              created_at: readString(row, 'created_at'),
+              competition_id: readNullableString(row, 'competition_id'),
+              competition_slug: readNullableString(row, 'competition_slug'),
+              likes: readNumber(row, 'likes'),
+              liked: Boolean(row.liked),
+              comments: readNumber(row, 'comments'),
+            };
+          }
+
+          function errorMessage(error: unknown, fallback: string): string {
+            return error instanceof Error ? error.message : fallback;
+          }
+          '''
+          if marker in text and 'type HomeCompetition' not in text:
+              text = text.replace(marker, marker + helpers, 1)
+
+          text = text.replace("useState<any[]>([]);const[leaders", "useState<HomeCompetition[]>([]);const[leaders", 1)
+          text = text.replace("const[searchAllComps,setSearchAllComps]=useState<any[]>([]);const[searchUsers,setSearchUsers]=useState<any[]>([]);", "const[searchAllComps,setSearchAllComps]=useState<HomeCompetition[]>([]);const[searchUsers,setSearchUsers]=useState<Record<string, unknown>[]>([]);")
+          text = text.replace("const[coinLeaders,setCoinLeaders]=useState<any[]>([]);", "const[coinLeaders,setCoinLeaders]=useState<HomeSnapshot['coin_leaderboard']>([]);")
+
+          text = re.sub(
+              r" const loadFirst=async\(\)=>\{.*?\};\n",
+              " const loadFirst=useCallback(async()=>{setLoading(true);try{const home=await getHomeSnapshot(15);const feedRows=home.feed;const initialPosts=feedRows.slice(0,15).map(normalizeHomeFeedRow);setPosts(initialPosts);setCursor(feedRows.length>15?String(feedRows[14]?.created_at??''):null);setCompetitions(home.competitions.map(normalizeCompetition));setLeaders(home.leaderboard);setCoinLeaders(home.coin_leaderboard);}catch(error:unknown){toast(errorMessage(error,'Beranda gagal dimuat.'),'error')}finally{setLoading(false)}},[toast]);\n",
+              text,
+              count=1,
+              flags=re.S,
+          )
+          text = text.replace("setSearchAllComps(compRes)", "setSearchAllComps(compRes.map(normalizeCompetition))")
+          text = text.replace("catch(e:any){toast(e?.message??'Feed gagal dimuat.','error')}", "catch(error:unknown){toast(errorMessage(error,'Feed gagal dimuat.'),'error')}")
+          text = text.replace("catch(e:any){toast(e?.message??'Gagal memperbarui like.','error')}", "catch(error:unknown){toast(errorMessage(error,'Gagal memperbarui like.'),'error')}")
+          text = text.replace("useEffect(()=>{void loadFirst()},[]);", "useEffect(()=>{void loadFirst()},[loadFirst]);")
+          text = text.replace("filter((c:any)=>", "filter((c)=>")
+          text = text.replace(".map((c:any)=>", ".map((c)=>")
+          text = text.replace("filter((p:any)=>", "filter((p)=>")
+          text = text.replace(".map((p:any)=>", ".map((p)=>")
+          text = text.replace("competitions.find((c:any)=>", "competitions.find((c)=>")
+          text = text.replace("competitions.slice(0, 3).map((comp: any, idx: number)", "competitions.slice(0, 3).map((comp, idx: number)")
+          write(p, text)
+
+          # 3) Notifications: model JSON payload data explicitly and infer DB row type
+          # from the service so no schema-shaped any remains at the page boundary.
+          p = 'src/pages/NotificationsPageV2.tsx'
+          text = read(p)
+          old_types = "type DetailNotification=AppNotification&{data?:any};\nconst iconFor="
+          new_types = r'''type NotificationAction = { label: string; url: string };
+          type NotificationData = {
+            link?: string;
+            action?: NotificationAction;
+            follower_id?: string;
+            resolved?: boolean;
+            description?: string;
+            amount?: number;
+            sender_name?: string;
+            from_admin?: boolean;
+            organization_name?: string;
+            urgent?: boolean;
+          };
+          type DetailNotification = AppNotification & { data?: NotificationData | null };
+          type NotificationRow = Awaited<ReturnType<typeof listNotifications>>[number];
+
+          function isRecord(value: unknown): value is Record<string, unknown> {
+            return typeof value === 'object' && value !== null;
+          }
+
+          function toNotificationData(value: unknown): NotificationData | null {
+            if (!isRecord(value)) return null;
+            const action = isRecord(value.action)
+              && typeof value.action.label === 'string'
+              && typeof value.action.url === 'string'
+              ? { label: value.action.label, url: value.action.url }
+              : undefined;
+            return {
+              link: typeof value.link === 'string' ? value.link : undefined,
+              action,
+              follower_id: typeof value.follower_id === 'string' ? value.follower_id : undefined,
+              resolved: typeof value.resolved === 'boolean' ? value.resolved : undefined,
+              description: typeof value.description === 'string' ? value.description : undefined,
+              amount: typeof value.amount === 'number' ? value.amount : undefined,
+              sender_name: typeof value.sender_name === 'string' ? value.sender_name : undefined,
+              from_admin: typeof value.from_admin === 'boolean' ? value.from_admin : undefined,
+              organization_name: typeof value.organization_name === 'string' ? value.organization_name : undefined,
+              urgent: typeof value.urgent === 'boolean' ? value.urgent : undefined,
+            };
+          }
+
+          const mapNotification=(n:NotificationRow):DetailNotification=>({id:String(n.id),type:String(n.type) as AppNotification['type'],title:String(n.title??''),body:String(n.body??''),createdAt:String(n.created_at),read:Boolean(n.read_at),link:toNotificationData(n.data)?.link,data:toNotificationData(n.data)});
+          const actionFor=(n:DetailNotification):NotificationAction|null=>{const d=n.data??{};if(d.action)return d.action;switch(n.type){case'follow-request':return null;case'rank-up':return{label:'Cek Profil',url:d.link??'/leaderboard'};case'result-out':return{label:'Lihat Hasil',url:d.link??'/awards'};case'registration-approved':return{label:'Lihat Lomba',url:d.link??'/awards'};case'twibbon-verified':return{label:'Lihat',url:d.link??'/awards'};default:return d.link?{label:'Buka',url:d.link}:null;}};
+          const iconFor='''
+          if old_types in text:
+              text = text.replace(old_types, new_types, 1)
+          else:
+              raise SystemExit('Notifications type marker not found')
+          text = text.replace("mapNotification(payload.new)", "mapNotification(payload.new as NotificationRow)")
+          # Preserve error messages without any.
+          text = text.replace("catch(e:any){showToast(e?.message??'Gagal menandai notifikasi.','error');}", "catch(error:unknown){showToast(error instanceof Error ? error.message : 'Gagal menandai notifikasi.','error');}")
+          text = text.replace("catch(e:any){showToast(e?.message??'Gagal memproses permintaan.','error');}", "catch(error:unknown){showToast(error instanceof Error ? error.message : 'Gagal memproses permintaan.','error');}")
+          write(p, text)
+
+          # 4) Chat pages: catch variables are unknown by design; narrow errors before
+          # reading message strings. Realtime cleanup is intentionally untouched.
+          for p in ['src/pages/MessagesPageV6.tsx', 'src/components/ui/ChatWidget.tsx']:
+              text = read(p)
+              if 'function errorMessage(' not in text:
+                  marker = "import {"
+                  # Add helper before first import is safest for these files.
+                  helper = "function errorMessage(error: unknown, fallback: string): string { return error instanceof Error ? error.message : fallback; }\n"
+                  text = helper + text
+              text = text.replace('catch(e:any)', 'catch(e:unknown)')
+              text = text.replace('e?.message||', 'errorMessage(e, ')
+              write(p, text)
+          
+          PY
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit successful Phase 1 cleanup
+        if: success()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/phase1-safe-fix.yml
+          git add eslint.config.js src/pages/HomePage.tsx src/pages/NotificationsPageV2.tsx src/pages/MessagesPageV6.tsx src/components/ui/ChatWidget.tsx .github/workflows/phase1-safe-fix.yml
+          git commit -m "refactor(phase1): harden hooks and critical types" || exit 0
+          git push
