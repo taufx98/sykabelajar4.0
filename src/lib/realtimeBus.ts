@@ -8,7 +8,7 @@ export type SykaRealtimeEvent =
   | { type: 'chat-thread-updated'; thread: Record<string, unknown> }
   | { type: 'follow-updated'; userId: string; status: string }
   | { type: 'profile-updated'; userId: string; fields?: string[] }
-  | { type: 'notification-inserted'; notificationId: string }
+  | { type: 'notification-inserted'; notificationId: string; notification?: Record<string, unknown> }
   | { type: 'notification-read'; notificationId: string }
   | { type: 'notification-all-read' }
   | { type: 'order-changed'; order: Record<string, unknown> }

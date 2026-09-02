@@ -5,6 +5,7 @@ import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { createTicketThread, sendMessage, loadChatMessagesPage, submitRating, loadMyThread, type ChatThread, type ChatMessage } from '@/services/chat.service';
 import { subscribeSykaEvents } from '@/lib/realtimeBus';
+import { supabase } from '@/lib/supabase';
 
 type View = 'form' | 'waiting' | 'chat' | 'ended' | 'rating';
 
@@ -51,23 +52,37 @@ export function ChatWidget() {
   }, [thread]);
 
   useEffect(() => {
-    if (!isOpen || view !== 'chat' || !thread || thread.status !== 'open') return;
+    if (!isOpen || view !== 'chat' || !thread) return;
+    let alive = true;
     void loadMessages();
-    const unsubscribe = subscribeSykaEvents((event) => {
-      if (event.type === 'chat-message') {
-        const message = event.message as unknown as ChatMessage;
-        if (message.thread_id !== thread.id) return;
+    const channel = supabase
+      .channel(`chat-widget-${thread.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${thread.id}` }, (payload) => {
+        const message = payload.new as ChatMessage;
+        if (!alive || !message?.id) return;
         setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
-      }
-      if (event.type === 'chat-thread-updated') {
-        const updated = event.thread as unknown as ChatThread;
-        if (updated.id !== thread.id) return;
-        setThread(updated);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_threads', filter: `id=eq.${thread.id}` }, (payload) => {
+        if (!alive) return;
+        const updated = payload.new as ChatThread;
+        setThread((current) => current ? { ...current, ...updated } : updated);
         if (updated.status === 'closed') setView('ended');
-      }
+      })
+      .subscribe((status, error) => {
+        if (error) console.error('[SykaBelajar] chat widget realtime error', status, error);
+      });
+    const unsubscribe = subscribeSykaEvents((event) => {
+      if (event.type !== 'chat-thread-updated' || String(event.thread.id ?? '') !== thread.id) return;
+      const updated = event.thread as unknown as ChatThread;
+      setThread((current) => current ? { ...current, ...updated } : updated);
+      if (updated.status === 'closed') setView('ended');
     });
-    return unsubscribe;
-  }, [isOpen, view, thread, loadMessages]);
+    return () => {
+      alive = false;
+      unsubscribe();
+      void supabase.removeChannel(channel);
+    };
+  }, [isOpen, view, thread?.id, loadMessages]);
 
   useEffect(() => {
     if (isOpen) messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });

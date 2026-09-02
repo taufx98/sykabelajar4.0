@@ -43,7 +43,7 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload) => {
       const notificationId = String((payload.new as Record<string, unknown>)?.id ?? '');
-      if (notificationId) emitSykaEvent({ type: 'notification-inserted', notificationId });
+      if (notificationId) emitSykaEvent({ type: 'notification-inserted', notificationId, notification: (payload.new ?? {}) as Record<string, unknown> });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
@@ -52,6 +52,12 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       emitSykaEvent({ type: 'follow-updated', userId: String(row.follower_id ?? ''), status: String(row.status ?? 'none') });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {
+      emitSykaEvent({ type: 'chat-thread-updated', thread: (payload.new ?? payload.old ?? {}) as Record<string, unknown> });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, (payload) => {
+      emitSykaEvent({ type: 'chat-thread-updated', thread: (payload.new ?? payload.old ?? {}) as Record<string, unknown> });
     });
 
   // Chat messages are intentionally not subscribed globally here: a chat message row
