@@ -5,7 +5,6 @@ import { loadActiveBanners, type AdBanner, type MediaType } from '@/services/ad.
 import { useApp } from '@/store/AppContext';
 
 const UPLOAD_H = 300;
-const GAP = 8;
 
 function getSlotCount() {
   if (typeof window === 'undefined') return 3;
@@ -14,11 +13,7 @@ function getSlotCount() {
 
 function EmptySlot() {
   return (
-    <Link
-      to="/organizer/ads"
-      className="flex-1 surface-elevated border border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-accent/60 transition cursor-pointer rounded-xl"
-      style={{ aspectRatio: `465/${UPLOAD_H}` }}
-    >
+    <Link to="/organizer/ads" className="flex-1 surface-elevated border border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-accent/60 transition cursor-pointer rounded-xl" style={{ aspectRatio: `465/${UPLOAD_H}` }}>
       <Megaphone size={22} />
       <span className="text-[11px]">Pasang Iklan</span>
     </Link>
@@ -27,34 +22,14 @@ function EmptySlot() {
 
 function BannerMedia({ banner, className }: { banner: AdBanner; className?: string }) {
   const mediaType: MediaType = banner.media_type || 'image';
-
   if (mediaType === 'video') {
-    return (
-      <video
-        src={banner.image_url}
-        className={className}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="metadata"
-      />
-    );
+    return <video src={banner.image_url} className={className} autoPlay muted loop playsInline preload="metadata" />;
   }
-
-  // image or gif — both use <img> (Cloudinary serves GIF with animation)
-  return (
-    <img
-      src={banner.image_url}
-      alt={banner.title || 'Banner'}
-      className={className}
-      loading="lazy"
-    />
-  );
+  return <img src={banner.image_url} alt={banner.title || 'Banner'} className={className} loading="lazy" />;
 }
 
 export function BannerCarousel() {
-  const { user, isGuest } = useApp();
+  const { user } = useApp();
   const [banners, setBanners] = useState<AdBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -76,16 +51,10 @@ export function BannerCarousel() {
   }, []);
 
   const groups: AdBanner[][] = [];
-  for (let i = 0; i < banners.length; i += slotCount) {
-    groups.push(banners.slice(i, i + slotCount));
-  }
-
+  for (let i = 0; i < banners.length; i += slotCount) groups.push(banners.slice(i, i + slotCount));
   const totalGroups = groups.length || 1;
   const needsSlide = banners.length > slotCount;
-
-  const advance = useCallback(() => {
-    setCurrentGroup((g) => (g + 1) % totalGroups);
-  }, [totalGroups]);
+  const advance = useCallback(() => setCurrentGroup((g) => (g + 1) % totalGroups), [totalGroups]);
 
   useEffect(() => {
     if (!needsSlide || banners.length === 0) return;
@@ -94,84 +63,29 @@ export function BannerCarousel() {
     return () => clearInterval(timer);
   }, [needsSlide, banners, advance]);
 
-  if (loading) {
-    return (
-      <div
-        className="w-full rounded-xl surface-elevated border surface-border animate-pulse"
-        style={{ aspectRatio: `465/${UPLOAD_H}` }}
-      />
-    );
-  }
-
+  if (loading) return <div className="w-full rounded-xl surface-elevated border surface-border animate-pulse" style={{ aspectRatio: `465/${UPLOAD_H}` }} />;
   if (banners.length === 0) {
-    // Only admin/guru/penyelenggara see empty slots
     if (!canSeeEmptySlots) return null;
-    return (
-      <div className="w-full flex gap-2">
-        {Array.from({ length: slotCount }).map((_, i) => <EmptySlot key={i} />)}
-      </div>
-    );
+    return <div className="w-full flex gap-2">{Array.from({ length: slotCount }).map((_, i) => <EmptySlot key={i} />)}</div>;
   }
 
-  const getSlotFlex = (banner: AdBanner) => {
-    if (banner.single_image && banner.image_width_slots > 1) {
-      return banner.image_width_slots;
-    }
-    return 1;
-  };
+  const getSlotFlex = (banner: AdBanner) => banner.single_image && banner.image_width_slots > 1 ? banner.image_width_slots : 1;
 
   return (
     <div className="relative w-full overflow-hidden rounded-xl">
-      <div
-        className="flex transition-transform duration-700 ease-in-out"
-        style={{ transform: `translateX(-${currentGroup * 100}%)`, width: `${totalGroups * 100}%` }}
-      >
+      <div className="flex transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${currentGroup * 100}%)`, width: `${totalGroups * 100}%` }}>
         {groups.map((group, gi) => (
-          <div
-            key={gi}
-            className="flex gap-2 shrink-0"
-            style={{ width: `${100 / totalGroups}%` }}
-          >
+          <div key={gi} className="flex gap-2 shrink-0" style={{ width: `${100 / totalGroups}%` }}>
             {group.map((banner) => (
-              <a
-                key={banner.id}
-                href={banner.link_url || '#/home'}
-                className="relative rounded-xl overflow-hidden group shrink-0"
-                style={{
-                  flex: getSlotFlex(banner),
-                  aspectRatio: banner.single_image && banner.image_width_slots > 1
-                    ? `${465 * banner.image_width_slots}/${UPLOAD_H}`
-                    : `465/${UPLOAD_H}`,
-                }}
-              >
-                <BannerMedia
-                  banner={banner}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+              <a key={banner.id} href={banner.link_url || '#/home'} className="relative rounded-xl overflow-hidden group shrink-0" style={{ flex: getSlotFlex(banner), aspectRatio: banner.single_image && banner.image_width_slots > 1 ? `${465 * banner.image_width_slots}/${UPLOAD_H}` : `465/${UPLOAD_H}` }}>
+                <BannerMedia banner={banner} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               </a>
             ))}
-            {group.length < slotCount && canSeeEmptySlots &&
-              Array.from({ length: slotCount - group.length }).map((_, ei) => (
-                <EmptySlot key={`empty-${gi}-${ei}`} />
-              ))
-            }
+            {group.length < slotCount && canSeeEmptySlots && Array.from({ length: slotCount - group.length }).map((_, ei) => <EmptySlot key={`empty-${gi}-${ei}`} />)}
           </div>
         ))}
       </div>
-
-      {needsSlide && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/40 rounded-full px-2 py-1">
-          {groups.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentGroup(i)}
-              className={`rounded-full transition-all ${
-                i === currentGroup ? 'bg-moss-400 w-4 h-1.5' : 'bg-white/30 w-1.5 h-1.5'
-              }`}
-            />
-          ))}
-        </div>
-      )}
+      {needsSlide && <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/40 rounded-full px-2 py-1">{groups.map((_, i) => <button key={i} onClick={() => setCurrentGroup(i)} className={`rounded-full transition-all ${i === currentGroup ? 'bg-moss-400 w-4 h-1.5' : 'bg-white/30 w-1.5 h-1.5'}`} />)}</div>}
     </div>
   );
 }
