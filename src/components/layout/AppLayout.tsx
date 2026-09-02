@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { getUnreadChatCount } from '@/services/chat.service';
 import { getPersistentCache, setPersistentCache } from '@/lib/persistentCache';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
-import { startPublicRealtime } from '@/lib/realtimeHub';
+import { startPublicRealtime, startUserRealtime } from '@/lib/realtimeHub';
 import { subscribeSykaEvents } from '@/lib/realtimeBus';
 
 type NavItem = [string, string, typeof Home, number | undefined];
@@ -39,6 +39,8 @@ export function AppLayout() {
       setUnreadOrders(0);
       return () => stopPublic();
     }
+
+    const stopUser = startUserRealtime(user.id, isAdmin);
 
     const chatCacheKey = `chat.unread.${user.id}`;
     const orderCacheKey = `admin.orders.unread.${user.id}`;
@@ -94,6 +96,10 @@ export function AppLayout() {
         return;
       }
       if (event.type === 'chat-read' || event.type === 'chat-hidden') {
+        void getUnreadChatCount(true).then((count) => { setUnreadMessages(count); setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL }); }).catch(() => {});
+        return;
+      }
+      if (event.type === 'chat-thread-updated') {
         setUnreadMessages((value) => {
           const next = Math.max(0, value - 1);
           setPersistentCache(chatCacheKey, next, { ttlMs: CHAT_CACHE_TTL });
@@ -124,6 +130,7 @@ export function AppLayout() {
 
     return () => {
       unsubscribe();
+      stopUser();
       stopPublic();
     };
   }, [isGuest, user?.id, isAdmin]);

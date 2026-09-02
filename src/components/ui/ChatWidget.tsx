@@ -4,7 +4,7 @@ import { MessageCircle, X, Send, Star, ArrowLeft, Headphones, Plus } from 'lucid
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { createTicketThread, sendMessage, loadChatMessagesPage, submitRating, loadMyThread, type ChatThread, type ChatMessage } from '@/services/chat.service';
-import { subscribeSykaEvents } from '@/lib/realtimeBus';
+import { emitSykaEvent, subscribeSykaEvents } from '@/lib/realtimeBus';
 import { supabase } from '@/lib/supabase';
 
 type View = 'form' | 'waiting' | 'chat' | 'ended' | 'rating';
@@ -44,8 +44,7 @@ export function ChatWidget() {
   const loadMessages = useCallback(async () => {
     if (!thread || thread.status === 'closed') return;
     try {
-      const msgs = await loadChatMessagesPage(thread.id);
-      setMessages(msgs);
+      const msgs = await loadChatMessagesPage(thread.id); setMessages(current => { const byId = new Map(msgs.map(x => [x.id, x])); for (const item of current) if (!byId.has(item.id)) byId.set(item.id, item); return [...byId.values()].sort((a,b) => a.created_at.localeCompare(b.created_at)); });
     } catch {
       // Realtime remains active; a transient read failure should not break the widget.
     }
@@ -59,8 +58,7 @@ export function ChatWidget() {
       .channel(`chat-widget-${thread.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${thread.id}` }, (payload) => {
         const message = payload.new as ChatMessage;
-        if (!alive || !message?.id) return;
-        setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+        if (!alive || !message?.id) return; setMessages((current) => { const next = current.some((item) => item.id === message.id) ? current : [...current, message]; return next.sort((a,b) => a.created_at.localeCompare(b.created_at)); }); emitSykaEvent({ type: 'chat-message', message: message as unknown as Record<string, unknown> });
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_threads', filter: `id=eq.${thread.id}` }, (payload) => {
         if (!alive) return;
@@ -122,8 +120,7 @@ export function ChatWidget() {
     setSending(true);
     try {
       const msg = await sendMessage(thread.id, input.trim());
-      setMessages((prev) => prev.some((item) => item.id === msg.id) ? prev : [...prev, msg]);
-      setInput('');
+      setMessages((prev) => { const next = prev.some((item) => item.id === msg.id) ? prev : [...prev, msg]; next.sort((a,b) => a.created_at.localeCompare(b.created_at)); return next; }); emitSykaEvent({ type: 'chat-message', message: msg as unknown as Record<string, unknown> }); setInput('');
     } catch (e: unknown) {
       toast(errorMessage(e, 'Gagal mengirim.'), 'error');
     } finally {
