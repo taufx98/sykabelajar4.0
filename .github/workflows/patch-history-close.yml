@@ -1,0 +1,50 @@
+name: Patch Customer Service History Close
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, 'chore: apply customer service history close action')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch history action
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/AdminChatConsolePage.tsx')
+          text = p.read_text()
+          old = "  const finish = async () => { if (!selected) return; setClosing(true); try { const t = await closeThread(selected.id); setSelected(t); setThreads(v => v.map(x => x.id === t.id ? t : x)); toast('Percakapan ditandai selesai.', 'success'); if (tab === 'history') void refreshHistory(); } catch (e:any) { toast(e?.message ?? 'Gagal menyelesaikan percakapan.', 'error'); } finally { setClosing(false); } };\n"
+          new = old + "  const finishHistory = async (row: ChatHistoryRow) => { if (row.status === 'closed') return; setClosing(true); try { await closeThread(row.thread_id); toast('Percakapan ditandai selesai.', 'success'); await refreshHistory(); } catch (e:any) { toast(e?.message ?? 'Gagal menyelesaikan percakapan.', 'error'); } finally { setClosing(false); } };\n"
+          if old not in text:
+              raise SystemExit('finish function anchor not found')
+          text = text.replace(old, new, 1)
+          old_card = "<Button size=\"sm\" variant=\"outline\" onClick={()=>setPreview(row)}>View Chat</Button>"
+          new_card = "{row.status==='open'&&<Button size=\"sm\" variant=\"outline\" onClick={()=>void finishHistory(row)} loading={closing} icon={<CheckCircle2 size={14}/>}>Selesaikan</Button>}<Button size=\"sm\" variant=\"outline\" onClick={()=>setPreview(row)}>View Chat</Button>"
+          if old_card not in text:
+              raise SystemExit('history card anchor not found')
+          text = text.replace(old_card, new_card, 1)
+          p.write_text(text)
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/AdminChatConsolePage.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(admin-cs): add close action to chat history'
+          git push
+      - name: Remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/patch-history-close.yml
+          git add .github/workflows/patch-history-close.yml
+          git commit -m 'chore: remove temporary history patch workflow'
+          git push
