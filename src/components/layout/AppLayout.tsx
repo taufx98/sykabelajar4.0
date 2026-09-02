@@ -46,7 +46,7 @@ export function AppLayout() {
     if (cachedChat) {
       setUnreadMessages(Math.max(0, Number(cachedChat.data) || 0));
     } else {
-      void getUnreadChatCount(true).then((count) => {
+      void getUnreadChatCount().then((count) => {
         setUnreadMessages(count);
         setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
       }).catch(() => setUnreadMessages(0));
