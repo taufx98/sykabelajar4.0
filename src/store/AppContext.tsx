@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Role, User, AppNotification, Order, Award } from '@/types';
+import type { Role, User, AppNotification, Order, Award, Certificate, FeedPost } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { signIn, signUp, signOut } from '@/services/auth.service';
 import { getProfileById, updateProfile as updateProfileRecord } from '@/services/profile.service';
@@ -17,7 +17,9 @@ interface AppState {
   unreadNotificationCount: number;
   refreshUnreadCount: () => Promise<void>;
   awards: Award[];
+  certificates: Certificate[];
   orders: Order[];
+  feed: FeedPost[];
   login: (email: string, password: string, requestedRole?: Exclude<Role, 'admin'>) => Promise<{ ok: boolean; error?: string }>;
   register: (data: Partial<User> & { email: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
   loginAsGuest: () => void;
@@ -87,7 +89,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [awards, setAwards] = useState<Award[]>([]);
+  const [certificates] = useState<Certificate[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [feed] = useState<FeedPost[]>([]);
   const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'error' | 'info' }[]>([]);
 
   const authUserRef = useRef(authUser);
@@ -133,8 +137,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser({ ...mapProfileToUser(profile, email), role: preferredRole(resolvedRoles) });
     setAuthUser({ id: userId, email: email || undefined });
 
-    // Awards are the only legacy global collection still required by AwardsPage.
-    // Load them once per signed-in user rather than hydrating the entire application.
+    // Awards remains available to its legacy page, but is loaded only once per user.
     if (loadedAwardsFor.current !== userId) {
       loadedAwardsFor.current = userId;
       liveAwards.length = 0;
@@ -329,13 +332,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addNotification = useCallback(async (n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
     const current = authUserRef.current;
     if (!current) return;
-    const { data, error } = await supabase.from('notifications').insert({
-      user_id: current.id,
-      type: n.type,
-      title: n.title,
-      body: n.body,
-      data: { link: n.link, icon: n.icon },
-    }).select('id,type,title,body,data,created_at').single();
+    const { data, error } = await supabase.from('notifications').insert({ user_id: current.id, type: n.type, title: n.title, body: n.body, data: { link: n.link, icon: n.icon } }).select('id,type,title,body,data,created_at').single();
     if (error) throw error;
     setNotifications((items) => [{ id: data.id, type: data.type, title: data.title, body: data.body ?? '', createdAt: data.created_at, read: false, link: data.data?.link }, ...items]);
     setUnreadNotificationCount((count) => count + 1);
@@ -387,7 +384,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     unreadNotificationCount,
     refreshUnreadCount,
     awards,
+    certificates,
     orders,
+    feed,
     login,
     register,
     loginAsGuest,
@@ -403,7 +402,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addComment,
     toast,
     refreshUser,
-  }), [user, authUser, authLoading, isGuest, notifications, unreadNotificationCount, refreshUnreadCount, awards, orders, login, register, loginAsGuest, logout, updateProfile, markNotificationRead, markAllNotificationsRead, addPoints, addNotification, addOrder, togglePostLike, toggleCommentLike, addComment, toast, refreshUser]);
+  }), [user, authUser, authLoading, isGuest, notifications, unreadNotificationCount, refreshUnreadCount, awards, certificates, orders, feed, login, register, loginAsGuest, logout, updateProfile, markNotificationRead, markAllNotificationsRead, addPoints, addNotification, addOrder, togglePostLike, toggleCommentLike, addComment, toast, refreshUser]);
 
   return (
     <AppContext.Provider value={value}>
