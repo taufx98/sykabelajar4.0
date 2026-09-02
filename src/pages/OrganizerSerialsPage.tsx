@@ -15,7 +15,10 @@ type CertificateOption = { id: string; competition_id: string; status: string; s
 const QR_ENDPOINT = 'https://quickchart.io/qr';
 
 function qrUrl(payload: string) {
-  return `${QR_ENDPOINT}?text=${encodeURIComponent(payload)}&size=180&margin=1`;
+  const verificationUrl = payload.startsWith('http://') || payload.startsWith('https://')
+    ? payload
+    : `${window.location.origin}/verify/${encodeURIComponent(payload)}`;
+  return `${QR_ENDPOINT}?text=${encodeURIComponent(verificationUrl)}&size=180&margin=1`;
 }
 
 function statusColor(status: string) {
