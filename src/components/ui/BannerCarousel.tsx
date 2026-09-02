@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Megaphone } from 'lucide-react';
-import { loadActiveBanners, type AdBanner, type MediaType } from '@/services/ad.service';
+import { loadPublicBanners, type PublicBanner } from '@/services/public-banner.service';
 import { useApp } from '@/store/AppContext';
 
 const UPLOAD_H = 300;
@@ -20,17 +20,13 @@ function EmptySlot() {
   );
 }
 
-function BannerMedia({ banner, className }: { banner: AdBanner; className?: string }) {
-  const mediaType: MediaType = banner.media_type || 'image';
-  if (mediaType === 'video') {
-    return <video src={banner.image_url} className={className} autoPlay muted loop playsInline preload="metadata" />;
-  }
+function BannerMedia({ banner, className }: { banner: PublicBanner; className?: string }) {
   return <img src={banner.image_url} alt={banner.title || 'Banner'} className={className} loading="lazy" />;
 }
 
 export function BannerCarousel() {
   const { user } = useApp();
-  const [banners, setBanners] = useState<AdBanner[]>([]);
+  const [banners, setBanners] = useState<PublicBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [loading, setLoading] = useState(true);
   const [slotCount, setSlotCount] = useState(3);
@@ -44,13 +40,19 @@ export function BannerCarousel() {
   }, []);
 
   useEffect(() => {
-    loadActiveBanners().then((b) => {
-      setBanners(b);
+    let alive = true;
+    void loadPublicBanners().then((items) => {
+      if (!alive) return;
+      setBanners(items);
+      setCurrentGroup(0);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => {
+      if (alive) setLoading(false);
+    });
+    return () => { alive = false; };
   }, []);
 
-  const groups: AdBanner[][] = [];
+  const groups: PublicBanner[][] = [];
   for (let i = 0; i < banners.length; i += slotCount) groups.push(banners.slice(i, i + slotCount));
   const totalGroups = groups.length || 1;
   const needsSlide = banners.length > slotCount;
@@ -58,10 +60,9 @@ export function BannerCarousel() {
 
   useEffect(() => {
     if (!needsSlide || banners.length === 0) return;
-    const duration = banners[0]?.slide_duration_seconds ?? 45;
-    const timer = setInterval(advance, duration * 1000);
+    const timer = setInterval(advance, 45_000);
     return () => clearInterval(timer);
-  }, [needsSlide, banners, advance]);
+  }, [needsSlide, banners.length, advance]);
 
   if (loading) return <div className="w-full rounded-xl surface-elevated border surface-border animate-pulse" style={{ aspectRatio: `465/${UPLOAD_H}` }} />;
   if (banners.length === 0) {
@@ -69,15 +70,13 @@ export function BannerCarousel() {
     return <div className="w-full flex gap-2">{Array.from({ length: slotCount }).map((_, i) => <EmptySlot key={i} />)}</div>;
   }
 
-  const getSlotFlex = (banner: AdBanner) => banner.single_image && banner.image_width_slots > 1 ? banner.image_width_slots : 1;
-
   return (
     <div className="relative w-full overflow-hidden rounded-xl">
       <div className="flex transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${currentGroup * 100}%)`, width: `${totalGroups * 100}%` }}>
         {groups.map((group, gi) => (
           <div key={gi} className="flex gap-2 shrink-0" style={{ width: `${100 / totalGroups}%` }}>
             {group.map((banner) => (
-              <a key={banner.id} href={banner.link_url || '#/home'} className="relative rounded-xl overflow-hidden group shrink-0" style={{ flex: getSlotFlex(banner), aspectRatio: banner.single_image && banner.image_width_slots > 1 ? `${465 * banner.image_width_slots}/${UPLOAD_H}` : `465/${UPLOAD_H}` }}>
+              <a key={banner.id} href={banner.link_url || '#/home'} className="relative rounded-xl overflow-hidden group shrink-0" style={{ flex: 1, aspectRatio: `465/${UPLOAD_H}` }}>
                 <BannerMedia banner={banner} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               </a>
             ))}
