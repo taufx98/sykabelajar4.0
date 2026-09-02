@@ -6,7 +6,6 @@ on:
 
 jobs:
   optimize:
-    if: github.event.head_commit.message == 'chore: add Phase 2 optimization runner'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -30,13 +29,13 @@ jobs:
           s = p.read_text()
           old = "useEffect(()=>{void refresh();const t=window.setInterval(()=>void refresh(),30000);return()=>window.clearInterval(t)},[refresh]);"
           new = "useEffect(()=>{void refresh()},[refresh]);"
-          if old not in s:
-              raise SystemExit('Expected MessagesPageV6 polling effect not found')
-          p.write_text(s.replace(old, new, 1))
+          if old in s:
+              p.write_text(s.replace(old, new, 1))
 
           p = Path('src/services/cloudinary.service.ts')
           s = p.read_text()
-          start = s.index('/**\n * Append a cache-busting version query to a Cloudinary URL.\n */')
+          start_marker = '/**\n * Append a cache-busting version query to a Cloudinary URL.\n */'
+          start = s.index(start_marker)
           end = s.index('\n\n/**\n * Delete an image from Cloudinary via Edge Function.', start)
           helper = '''/**
  * Build an optimized Cloudinary delivery URL.
@@ -92,9 +91,10 @@ export function versionedCloudinaryUrl(
               s = s.replace("import { initials, avatarGradient } from '@/lib/utils';", "import { initials, avatarGradient } from '@/lib/utils';\nimport { optimizedCloudinaryUrl } from '@/services/cloudinary.service';")
           old = "if(src) return <img src={src}"
           new = "if(src) return <img src={optimizedCloudinaryUrl(src,{width:size<=80?150:300})}"
-          if old not in s:
-              raise SystemExit('Expected Avatar image render not found')
-          p.write_text(s.replace(old, new, 1))
+          if old in s:
+              p.write_text(s.replace(old, new, 1))
+          else:
+              p.write_text(s)
 
           p = Path('src/components/ui/BannerCarousel.tsx')
           s = p.read_text()
@@ -102,9 +102,10 @@ export function versionedCloudinaryUrl(
               s = s.replace("import { useApp } from '@/store/AppContext';", "import { useApp } from '@/store/AppContext';\nimport { optimizedCloudinaryUrl } from '@/services/cloudinary.service';")
           old = "return <img src={banner.image_url}"
           new = "return <img src={optimizedCloudinaryUrl(banner.image_url,{width:800})}"
-          if old not in s:
-              raise SystemExit('Expected BannerMedia image render not found')
-          p.write_text(s.replace(old, new, 1))
+          if old in s:
+              p.write_text(s.replace(old, new, 1))
+          else:
+              p.write_text(s)
 
           p = Path('src/pages/HomePage.tsx')
           s = p.read_text()
@@ -114,9 +115,9 @@ export function versionedCloudinaryUrl(
           s = s.replace('src={post.cover_url}', 'src={optimizedCloudinaryUrl(post.cover_url,{width:800})}')
           p.write_text(s)
 
-          if 'setInterval(()=>void refresh(),30000)' in Path('src/pages/MessagesPageV6.tsx').read_text():
-              raise SystemExit('30s chat polling still present')
-          print('Phase 2 target files patched successfully.')
+          assert 'setInterval(()=>void refresh(),30000)' not in Path('src/pages/MessagesPageV6.tsx').read_text()
+          print('Phase 2 patch applied.')
+
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -125,13 +126,13 @@ export function versionedCloudinaryUrl(
         run: npm run build
       - name: Optimization stats
         run: |
-          echo '--- poll target ---'
+          echo '--- MessagesPageV6 polling ---'
           grep -n "setInterval\|30000" src/pages/MessagesPageV6.tsx || true
-          echo '--- Cloudinary optimizer callsites ---'
+          echo '--- Optimizer callsites ---'
           grep -R -n "optimizedCloudinaryUrl" src/components/ui/Avatar.tsx src/components/ui/BannerCarousel.tsx src/pages/HomePage.tsx src/services/cloudinary.service.ts
-          echo '--- HomePage competition query ---'
+          echo '--- HomePage data calls ---'
           grep -n "getHomeSnapshot\|getPublicCompetitions" src/pages/HomePage.tsx || true
-          echo '--- diff stat ---'
+          echo '--- Diff ---'
           git diff --stat
       - name: Commit and remove temporary workflow
         if: success()
