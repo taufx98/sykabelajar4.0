@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { liveAwards, liveCertificates, liveCompetitions, liveDailyTasks, liveFeed, liveLeaderboard, liveNotifications, liveOrders, liveUsers, liveQuestions, printCatalog, type PrintCatalogItem } from '@/data/live';
 import type { Award, AppNotification, Certificate, Competition, DailyTask, FeedPost, LeaderboardEntry, User, Order, OrderItem, OrderStatus } from '@/types';
-import { getProfileById } from '@/services/profile.service';
 import { versionedCloudinaryUrl } from '@/services/cloudinary.service';
 
 const HYDRATE_TTL_MS = 45_000;
