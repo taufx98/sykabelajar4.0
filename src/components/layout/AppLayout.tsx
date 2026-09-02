@@ -102,14 +102,6 @@ export function AppLayout() {
         });
         return;
       }
-      if (event.type === 'chat-unread') {
-        setUnreadMessages((value) => {
-          const next = value + 1;
-          setPersistentCache(chatCacheKey, next, { ttlMs: CHAT_CACHE_TTL });
-          return next;
-        });
-        return;
-      }
       if (event.type === 'order-changed' && isAdmin) {
         const order = event.order;
         if (String(order.payment_proof_status ?? '') !== 'SUBMITTED') return;
