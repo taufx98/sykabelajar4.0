@@ -33,12 +33,21 @@ export interface PublicCoinLeaderboardRow {
   rank: number;
 }
 
+export interface HomeSnapshot {
+  competitions: Array<Record<string, unknown>>;
+  leaderboard: PublicLeaderboardRow[];
+  coin_leaderboard: PublicCoinLeaderboardRow[];
+  stats: PlatformStats;
+  feed: Array<Record<string, unknown>>;
+}
+
 const CACHE_PREFIX = 'syka.public.v3.';
 const CACHE_TTL = {
   stats: 15 * 60_000,
   leaderboard: 15 * 60_000,
   coinLeaderboard: 30 * 60_000,
   competitions: 30 * 60_000,
+  home: 15 * 60_000,
 } as const;
 const NEGATIVE_CACHE_TTL = 10 * 60_000;
 const COMPETITIONS_CACHE_LIMIT = 20;
@@ -76,18 +85,101 @@ const emptyStats = (): PlatformStats => ({
   total_certificates: 0,
 });
 
+const emptyHomeSnapshot = (): HomeSnapshot => ({
+  competitions: [],
+  leaderboard: [],
+  coin_leaderboard: [],
+  stats: emptyStats(),
+  feed: [],
+});
+
 let statsMemory: { expiresAt: number; data: PlatformStats } | null = null;
 const leaderboardMemory = new Map<number, { expiresAt: number; data: PublicLeaderboardRow[] }>();
 const coinLeaderboardMemory = new Map<number, { expiresAt: number; data: PublicCoinLeaderboardRow[] }>();
 let competitionsMemory: { expiresAt: number; data: Array<Record<string, unknown>> } | null = null;
+let homeMemory: { expiresAt: number; data: HomeSnapshot } | null = null;
 let statsInFlight: Promise<PlatformStats> | null = null;
 let leaderboardInFlight: Promise<PublicLeaderboardRow[]> | null = null;
 let coinLeaderboardInFlight: Promise<PublicCoinLeaderboardRow[]> | null = null;
 let competitionsInFlight: Promise<Array<Record<string, unknown>>> | null = null;
+let homeInFlight: Promise<HomeSnapshot> | null = null;
 let statsFailureUntil = 0;
 let leaderboardFailureUntil = 0;
 let coinLeaderboardFailureUntil = 0;
 let competitionsFailureUntil = 0;
+let homeFailureUntil = 0;
+
+export async function getHomeSnapshot(feedLimit = 15): Promise<HomeSnapshot> {
+  const safeFeedLimit = Math.max(1, Math.min(feedLimit + 1, 16));
+  const now = Date.now();
+  if (homeMemory && homeMemory.expiresAt > now && homeMemory.data.feed.length >= Math.min(feedLimit, 15)) {
+    return homeMemory.data;
+  }
+  const cached = readCache<HomeSnapshot>('home');
+  if (cached && cached.feed.length >= Math.min(feedLimit, 15)) {
+    homeMemory = { expiresAt: now + CACHE_TTL.home, data: cached };
+    return cached;
+  }
+  if (homeFailureUntil > now) return emptyHomeSnapshot();
+  if (homeInFlight) return homeInFlight;
+
+  homeInFlight = (async () => {
+    const { data, error } = await supabase.rpc('get_home_snapshot_v1', { p_feed_limit: safeFeedLimit });
+    if (error) {
+      homeFailureUntil = Date.now() + NEGATIVE_CACHE_TTL;
+      throw error;
+    }
+    const payload = (data ?? {}) as Record<string, unknown>;
+    const result: HomeSnapshot = {
+      competitions: Array.isArray(payload.competitions) ? payload.competitions as Array<Record<string, unknown>> : [],
+      leaderboard: Array.isArray(payload.leaderboard) ? (payload.leaderboard as Array<Record<string, unknown>>).map((row) => ({
+        user_id: String(row.user_id),
+        username: String(row.username ?? ''),
+        display_name: String(row.display_name ?? row.username ?? 'Pengguna'),
+        institution: row.institution == null ? null : String(row.institution),
+        avatar_url: row.avatar_url == null ? null : String(row.avatar_url),
+        grade: row.grade == null ? null : String(row.grade),
+        xp: Number(row.xp ?? 0),
+        rank: Number(row.rank ?? 0),
+        rank_change: row.rank_change === 'up' || row.rank_change === 'down' ? row.rank_change : 'same',
+        point_change: Number(row.point_change ?? 0),
+      })) : [],
+      coin_leaderboard: Array.isArray(payload.coin_leaderboard) ? (payload.coin_leaderboard as Array<Record<string, unknown>>).map((row) => ({
+        user_id: String(row.user_id),
+        username: String(row.username ?? ''),
+        display_name: String(row.display_name ?? row.username ?? 'Pengguna'),
+        institution: row.institution == null ? null : String(row.institution),
+        avatar_url: row.avatar_url == null ? null : String(row.avatar_url),
+        grade: row.grade == null ? null : String(row.grade),
+        edu_coin: Number(row.edu_coin ?? 0),
+        rank: Number(row.rank ?? 0),
+      })) : [],
+      stats: (() => {
+        const row = (payload.stats ?? {}) as Record<string, unknown>;
+        return {
+          total_users: Number(row.total_users ?? 0),
+          total_students: Number(row.total_students ?? 0),
+          total_schools: Number(row.total_schools ?? 0),
+          total_competitions: Number(row.total_competitions ?? 0),
+          total_public_competitions: Number(row.total_public_competitions ?? 0),
+          total_certificates: Number(row.total_certificates ?? 0),
+        };
+      })(),
+      feed: Array.isArray(payload.feed) ? payload.feed as Array<Record<string, unknown>> : [],
+    };
+    homeMemory = { expiresAt: Date.now() + CACHE_TTL.home, data: result };
+    homeFailureUntil = 0;
+    writeCache('home', result, CACHE_TTL.home);
+    return result;
+  })();
+  try {
+    return await homeInFlight;
+  } catch {
+    return emptyHomeSnapshot();
+  } finally {
+    homeInFlight = null;
+  }
+}
 
 export async function getPlatformStats(): Promise<PlatformStats> {
   const now = Date.now();
