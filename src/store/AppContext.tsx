@@ -137,7 +137,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser({ ...mapProfileToUser(profile, email), role: preferredRole(resolvedRoles) });
     setAuthUser({ id: userId, email: email || undefined });
 
-    // Awards remains available to its legacy page, but is loaded only once per user.
     if (loadedAwardsFor.current !== userId) {
       loadedAwardsFor.current = userId;
       liveAwards.length = 0;
@@ -153,7 +152,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     aliveRef.current = true;
-    let mounted = false;
+    let bootstrapped = false;
 
     const bootstrap = async () => {
       try {
@@ -175,7 +174,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (aliveRef.current) clearUserState();
       } finally {
         if (aliveRef.current) {
-          mounted = true;
+          bootstrapped = true;
           setAuthLoading(false);
         }
       }
@@ -185,22 +184,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!aliveRef.current) return;
-      if (session?.user) {
-        const email = session.user.email ?? '';
-        const currentId = authUserRef.current?.id;
-        setAuthUser({ id: session.user.id, email: email || undefined });
-        setIsGuest(false);
-        localStorage.removeItem(GUEST_KEY);
-        if (!mounted || currentId !== session.user.id) {
-          void hydrateCurrentUser(session.user.id, email).catch((error) => {
-            console.error('[SykaBelajar] auth user hydration failed', error);
-            if (aliveRef.current && authUserRef.current?.id === session.user.id) clearUserState();
-          });
-          void refreshUnreadCount(session.user.id);
-        }
+      if (event === 'SIGNED_OUT') {
+        clearUserState();
         return;
       }
-      if (event === 'SIGNED_OUT') clearUserState();
+      if (!session?.user) return;
+
+      const email = session.user.email ?? '';
+      const uid = session.user.id;
+      setAuthUser({ id: uid, email: email || undefined });
+      setIsGuest(false);
+      localStorage.removeItem(GUEST_KEY);
+
+      // Never execute Supabase queries directly inside the auth callback.
+      // Login() performs hydration for an explicit sign-in; passive session events
+      // hydrate on the next task only after the auth event has released its lock.
+      if (bootstrapped) {
+        window.setTimeout(() => {
+          if (!aliveRef.current || authUserRef.current?.id !== uid) return;
+          void hydrateCurrentUser(uid, email).catch((error) => {
+            console.error('[SykaBelajar] auth user hydration failed', error);
+            if (aliveRef.current && authUserRef.current?.id === uid) clearUserState();
+          });
+          void refreshUnreadCount(uid);
+        }, 0);
+      }
     });
 
     return () => {
