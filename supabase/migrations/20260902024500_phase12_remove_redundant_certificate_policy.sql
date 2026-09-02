@@ -1,0 +1,1 @@
+drop policy if exists certificate_verifications_public_read on public.certificate_verifications;
