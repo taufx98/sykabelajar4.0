@@ -10,6 +10,9 @@ concurrency:
   group: "ci-${{ github.ref }}"
   cancel-in-progress: true
 
+env:
+  TARGET_SUPABASE_URL: https://mvdczyitbkxkldjughor.supabase.co
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -43,7 +46,16 @@ jobs:
           VITE_EDGE_FUNCTION_URL: ${{ secrets.VITE_EDGE_FUNCTION_URL }}
 
       - name: Production smoke test
+        if: ${{ secrets.VITE_SUPABASE_URL == env.TARGET_SUPABASE_URL }}
         run: node scripts/rpd-smoke.mjs
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Smoke test pending target cutover
+        if: ${{ secrets.VITE_SUPABASE_URL != env.TARGET_SUPABASE_URL }}
+        run: |
+          echo "Production smoke test skipped safely."
+          echo "GitHub Actions secret VITE_SUPABASE_URL still points to the old/restricted Supabase project."
+          echo "Update CI secrets to the target project: ${TARGET_SUPABASE_URL}"
+          echo "No Supabase API request is made by this step."
