@@ -10,7 +10,7 @@
 - [x] Tambahkan dukungan TTL (Time-to-Live) pada cache
 - [x] Buat skema Versioning data untuk mitigasi perubahan struktur DB
 - [x] Terapkan Per-User Key untuk isolasi data antar akun
-- [ ] Buat fungsi Auto-Clear cache saat user logout / ganti akun
+- [x] Buat fungsi Auto-Clear cache saat user logout / ganti akun
 - [x] Pastikan prinsip cache hanya untuk 'fast render', bukan source of truth
 
 ## 🔍 FASE 2: AUDIT & PEMETAAN SUPABASE
@@ -58,6 +58,6 @@
 6. Setiap fitur baru wajib dicatat ke fase audit ini sebelum dinyatakan selesai.
 
 ## 📍 STATUS SAAT INI
-**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications, realtime-driven cache invalidation, notification cache-first, platform/home shared cache, dan penghapusan double subscription chat mobile.
+**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications, auto-clear cache lifecycle saat logout/ganti akun, realtime-driven cache invalidation, notification cache-first, platform/home shared cache, dan penghapusan double subscription chat mobile.
 
-**Belum selesai:** auto-clear cache logout/ganti akun, selective sync lintas seluruh fitur, reconnect reconciliation, audit Orders/Awards/Feed/Organizer/Admin, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan ini.
+**Belum selesai:** selective sync lintas seluruh fitur, reconnect reconciliation, audit Orders/Awards/Feed/Organizer/Admin, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan ini.
