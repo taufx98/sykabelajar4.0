@@ -1,16 +1,32 @@
 import { supabase } from '@/lib/supabase';
+import { CACHE_TTL, CACHE_VERSION, userCacheKey } from '@/lib/cacheRegistry';
+import { getPersistentCache, removePersistentCache, setPersistentCache } from '@/lib/persistentCache';
 
 const NOTIFICATION_LIST_LIMIT = 50;
 const UNREAD_CACHE_MS = 30_000;
 const unreadCache = new Map<string, { value: number; expiresAt: number }>();
 const unreadInFlight = new Map<string, Promise<number>>();
 
+function listCacheKey(userId: string) {
+  return userCacheKey('notifications', userId);
+}
+
 function invalidateUnread(userId: string) {
   unreadCache.delete(userId);
 }
 
-/** Fetch the latest notifications for a user, bounded to keep home/session reads predictable. */
-export async function listNotifications(userId: string) {
+function invalidateList(userId: string) {
+  removePersistentCache(listCacheKey(userId));
+}
+
+/** Fetch the latest notifications for a user, using local cache before the backend. */
+export async function listNotifications(userId: string, force = false) {
+  const cacheKey = listCacheKey(userId);
+  if (!force) {
+    const cached = getPersistentCache<Array<Record<string, unknown>>>(cacheKey, CACHE_VERSION);
+    if (cached?.data) return cached.data;
+  }
+
   const { data, error } = await supabase
     .from('notifications')
     .select('id,type,title,body,data,read_at,created_at')
@@ -18,7 +34,9 @@ export async function listNotifications(userId: string) {
     .order('created_at', { ascending: false })
     .limit(NOTIFICATION_LIST_LIMIT);
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  setPersistentCache(cacheKey, rows, { ttlMs: CACHE_TTL.notifications, version: CACHE_VERSION });
+  return rows;
 }
 
 /** Get the count of unread notifications (for sidebar badge), with short-lived dedupe/cache. */
@@ -60,6 +78,7 @@ export async function markNotificationRead(userId: string, notificationId: strin
     .eq('user_id', userId);
   if (error) throw error;
   invalidateUnread(userId);
+  invalidateList(userId);
 }
 
 /** Mark all notifications as read */
@@ -71,4 +90,5 @@ export async function markAllNotificationsRead(userId: string) {
     .is('read_at', null);
   if (error) throw error;
   invalidateUnread(userId);
+  invalidateList(userId);
 }
