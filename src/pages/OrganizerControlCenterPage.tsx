@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BarChart3, BookOpen, Building2, ClipboardList, FileQuestion, Gauge, Megaphone, Plus, Trophy, Users } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, BarChart3, BookOpen, Building2, Camera, ClipboardList, FileQuestion, Gauge, Megaphone, Plus, Trophy, Users } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
 import { listCurrentUserOrganizers, resolveCurrentUserOrganizer, setSelectedOrganizerId, type CurrentOrganizer } from '@/services/organizerAuth.service';
 import { getActiveOrganizerEntitlements } from '@/services/organizerEntitlement.service';
+import { uploadProfileImageSigned, optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 import { supabase } from '@/lib/supabase';
 
 const TABS = [
@@ -47,8 +48,10 @@ export function OrganizerControlCenterPage() {
   const [bankName, setBankName] = useState('');
   const [bankDescription, setBankDescription] = useState('');
   const [bankGrade, setBankGrade] = useState('');
+  const logoRef = useRef<HTMLInputElement>(null);
 
   const canEdit = org?._memberRole === 'owner' || org?._memberRole === 'editor';
+  const canManageProfile = org?._memberRole === 'owner';
 
   const load = async () => {
     setLoading(true);
@@ -92,6 +95,34 @@ export function OrganizerControlCenterPage() {
     if (!workspaces.some((x) => x.id === id)) return;
     setSelectedOrganizerId(id);
     void load();
+  };
+
+  const chooseLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !org || !canManageProfile || busy) return;
+    if (!file.type.startsWith('image/')) { toast('File harus berupa gambar.', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast('Ukuran maksimal 5MB.', 'error'); return; }
+
+    setBusy(true);
+    try {
+      const publicId = `sykabelajar/organizers/${org.slug || org.id}/profile`;
+      const uploaded = await uploadProfileImageSigned(file, publicId);
+      const { error } = await supabase
+        .from('organizers')
+        .update({ logo_asset_url: uploaded.secure_url })
+        .eq('id', org.id)
+        .eq('owner_user_id', (await supabase.auth.getUser()).data.user?.id ?? '');
+      if (error) throw error;
+
+      setOrg(current => current ? { ...current, logo_asset_url: uploaded.secure_url } : current);
+      setWorkspaces(items => items.map(item => item.id === org.id ? { ...item, logo_asset_url: uploaded.secure_url } : item));
+      toast('Foto profil penyelenggara berhasil diperbarui.', 'success');
+    } catch (e: any) {
+      toast(e?.message ?? 'Gagal mengunggah foto profil penyelenggara.', 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const createBank = async () => {
@@ -138,7 +169,11 @@ export function OrganizerControlCenterPage() {
       <div className="absolute -right-20 -top-24 w-64 h-64 rounded-full bg-moss-500/10 blur-3xl pointer-events-none" />
       <div className="relative flex flex-col xl:flex-row xl:items-center gap-5">
         <div className="flex items-center gap-4 min-w-0 flex-1">
-          <div className="w-14 h-14 rounded-2xl bg-moss-500/10 flex items-center justify-center shrink-0"><Building2 size={25} className="text-accent" /></div>
+          <div className="relative shrink-0">
+            {org.logo_asset_url ? <img src={optimizedCloudinaryUrl(org.logo_asset_url, { width: 112 })} alt={org.name} loading="lazy" decoding="async" className="w-14 h-14 rounded-2xl object-cover border surface-border" /> : <div className="w-14 h-14 rounded-2xl bg-moss-500/10 flex items-center justify-center"><Building2 size={25} className="text-accent" /></div>}
+            {canManageProfile && <button type="button" onClick={() => logoRef.current?.click()} disabled={busy} aria-label="Ubah foto profil penyelenggara" title="Ubah foto profil penyelenggara" className="absolute -right-1 -bottom-1 w-7 h-7 rounded-full bg-accent text-white flex items-center justify-center border-2 surface-card-bg shadow disabled:opacity-50"><Camera size={13} /></button>}
+            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={chooseLogo} />
+          </div>
           <div className="min-w-0"><p className="text-[10px] uppercase tracking-widest text-accent font-semibold">Organizer Control Center</p><h1 className="text-2xl md:text-3xl font-bold text-fg truncate">{org.name}</h1><div className="flex flex-wrap items-center gap-2 mt-2"><Badge color="moss">{org._memberRole || 'member'}</Badge><Badge>{humanStatus(org.status)}</Badge>{plan && <Badge color="moss">Plan {plan}</Badge>}</div></div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
