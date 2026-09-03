@@ -47,12 +47,15 @@ export function AppLayout() {
     const cachedChat = getPersistentCache<number>(chatCacheKey);
     if (cachedChat) {
       setUnreadMessages(Math.max(0, Number(cachedChat.data) || 0));
-    } else {
-      void getUnreadChatCount().then((count) => {
-        setUnreadMessages(count);
-        setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
-      }).catch(() => setUnreadMessages(0));
     }
+
+    // Cache is only for instant paint; reconcile the badge from backend immediately.
+    void getUnreadChatCount(true).then((count) => {
+      setUnreadMessages(count);
+      setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
+    }).catch(() => {
+      if (!cachedChat) setUnreadMessages(0);
+    });
 
     if (isAdmin) {
       const cachedOrders = getPersistentCache<number>(orderCacheKey);
@@ -72,6 +75,17 @@ export function AppLayout() {
       setUnreadOrders(0);
     }
 
+    let chatBadgeTimer: number | undefined;
+    const scheduleChatBadgeRefresh = () => {
+      if (chatBadgeTimer) window.clearTimeout(chatBadgeTimer);
+      chatBadgeTimer = window.setTimeout(() => {
+        void getUnreadChatCount(true).then((count) => {
+          setUnreadMessages(count);
+          setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
+        }).catch(() => undefined);
+      }, 180);
+    };
+
     const unsubscribe = subscribeSykaEvents((event) => {
       if (event.type === 'notification-inserted') {
         setLiveUnreadNotifications((value) => value + 1);
@@ -85,25 +99,16 @@ export function AppLayout() {
         setLiveUnreadNotifications(0);
         return;
       }
-      if (event.type === 'chat-message') {
-        const senderId = String(event.message.sender_id ?? '');
-        if (senderId === user.id) return;
-        setUnreadMessages((value) => {
-          const next = value + 1;
-          setPersistentCache(chatCacheKey, next, { ttlMs: CHAT_CACHE_TTL });
-          return next;
-        });
-        return;
-      }
-      if (event.type === 'chat-read' || event.type === 'chat-hidden') {
-        void getUnreadChatCount(true).then((count) => { setUnreadMessages(count); setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL }); }).catch(() => {});
-        return;
-      }
-      if (String(event.type) === 'chat-thread-updated') {
-        void getUnreadChatCount(true).then((count) => {
-          setUnreadMessages(count);
-          setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
-        }).catch(() => {});
+      if (
+        event.type === 'chat-message' ||
+        event.type === 'chat-unread' ||
+        event.type === 'chat-read' ||
+        event.type === 'chat-hidden' ||
+        event.type === 'chat-thread-updated' ||
+        event.type === 'chat-reconciled' ||
+        (event.type === 'realtime-status' && event.scope === 'user' && event.reconnected)
+      ) {
+        scheduleChatBadgeRefresh();
         return;
       }
       if (event.type === 'order-changed' && isAdmin) {
@@ -121,6 +126,7 @@ export function AppLayout() {
     });
 
     return () => {
+      if (chatBadgeTimer) window.clearTimeout(chatBadgeTimer);
       unsubscribe();
       stopUser();
       stopPublic();
