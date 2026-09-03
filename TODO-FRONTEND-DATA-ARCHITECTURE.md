@@ -20,7 +20,7 @@
 - [x] Audit halaman: Awards — per-user cache + SWR; sertifikat/verification tetap backend-authoritative.
 - [x] Audit halaman: Notifications — per-user cache + SWR; Realtime notification insert/read; backend authoritative untuk status read.
 - [x] Audit halaman: Orders — daftar metadata boleh cache, tetapi status pembayaran/payment proof wajib live backend; aksi order melalui RPC/RLS.
-- [x] Audit halaman: Feed — public cache TTL; sekarang memiliki global Realtime `posts` change signal dan selective patch berdasarkan `post.id`; integrasi cache-aware end-to-end masih berlanjut.
+- [x] Audit halaman: Feed — public cache TTL; global Realtime `posts` change signal; selective patch berdasarkan `post.id`.
 - [x] Audit halaman: Organizer — per-user/per-organizer cache untuk daftar workspace dan UI state; membership/entitlement/access code/plan tetap backend-authoritative; Realtime organizer signal masih perlu dikonsolidasikan.
 - [x] Audit halaman: Admin — default no-cache untuk payment, role, permission, premium, fulfillment, moderation, and other sensitive transactional state; cache hanya read-only UI/list yang jelas aman; semua aksi tetap RPC/RLS/backend.
 
@@ -34,9 +34,9 @@
 
 ## 💬 FASE 4: OPTIMASI CHAT & REKONSILIASI KONEKSI
 - [x] Hapus double-subscription / query antara AppLayout & Mobile Navigation
-- [ ] Bersihkan redundansi di Halaman Chat & Realtime Hub
-- [ ] Buat fungsi pencegah Hard Reload saat koneksi realtime terputus
-- [ ] Implementasi fungsi Rekonsiliasi Data pintar untuk resource terdampak pasca-offline
+- [ ] Bersihkan redundansi di Halaman Chat & Realtime Hub — global thread index sudah menjadi signal utama, tetapi `MessagesPageV6` masih memiliki subscription index lama yang perlu dihapus setelah verifikasi file penuh.
+- [x] Buat fungsi pencegah Hard Reload saat koneksi realtime terputus — Supabase client dibiarkan melakukan reconnect otomatis; UI menerima status degraded/reconnected tanpa reload halaman.
+- [x] Implementasi fungsi Rekonsiliasi Data pintar untuk resource terdampak pasca-offline — setelah reconnect user channel hanya merekonsiliasi `chat_threads` + unread count, bukan seluruh runtime.
 
 ## 🛡️ FASE 5: VALIDASI SECURITY (BYPASS CACHE)
 - [ ] Bypass cache untuk Status Pembayaran (Wajib Realtime Backend)
@@ -60,6 +60,6 @@
 7. Audit `[x]` berarti pemetaan arsitektur selesai; implementasi optimasinya tetap harus mengikuti Fase 3–5 dan tidak boleh dianggap selesai hanya karena sudah diaudit.
 
 ## 📍 STATUS SAAT INI
-**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications dan Awards, auto-clear cache lifecycle saat logout/ganti akun, realtime-driven cache invalidation, platform/home shared cache, penghapusan double subscription chat mobile, serta selective realtime patch untuk Feed berdasarkan `post.id`.
+**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications dan Awards, auto-clear cache lifecycle saat logout/ganti akun, realtime-driven cache invalidation, platform/home shared cache, penghapusan double subscription chat mobile, selective realtime patch untuk Feed berdasarkan `post.id`, reconnect handling tanpa hard reload, dan scoped chat reconciliation setelah reconnect.
 
-**Belum selesai:** selective sync lintas seluruh fitur, konsolidasi Realtime untuk resource yang belum punya change signal, reconnect reconciliation, pembersihan redundansi Chat, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan ini.
+**Belum selesai:** selective sync lintas seluruh fitur, konsolidasi Realtime untuk resource yang belum punya change signal, pembersihan redundansi subscription lama di `MessagesPageV6`, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan terbaru.
