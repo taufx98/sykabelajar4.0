@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { GraduationCap, Trophy, CalendarCheck, BarChart3, Award, ArrowRight, Sparkles, Users, ShieldCheck, Zap, Eye, School, UserRound, LogIn, UserPlus, LogOut } from 'lucide-react';
+import { GraduationCap, Trophy, CalendarCheck, BarChart3, Award, ArrowRight, Sparkles, Users, ShieldCheck, Zap, Eye, School, UserRound, LogIn, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/store/AppContext';
@@ -27,7 +27,7 @@ function mapPublicCompetition(row: Record<string, unknown>): Competition {
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, authLoading, isGuest, loginAsGuest, logout, toast, certificates } = useApp();
+  const { user, isAuthenticated, authLoading, isGuest, loginAsGuest, toast, certificates } = useApp();
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<PublicLeaderboardRow[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -57,48 +57,38 @@ export function LandingPage() {
   const topUsers = useMemo(() => leaderboard.slice(0, 5), [leaderboard]);
 
   const loggedIn = !authLoading && isAuthenticated;
-  const guest = !authLoading && isGuest;
   const showAuthButtons = !authLoading && !isAuthenticated && !isGuest;
 
   return (
     <div className="min-h-screen">
-      {/* ═══ HEADER ═══ */}
       <header className="sticky top-0 z-30 glass border-b surface-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl gradient-moss flex items-center justify-center shadow-glow">
               <GraduationCap size={20} className="text-white" />
             </div>
-            <span className="font-display font-bold text-lg text-white">sykabelajar<span className="text-accent">.id</span></span>
+            <span className="font-display font-bold text-lg text-white">sykabelajar</span>
           </div>
-
-          {/* Header buttons based on auth state */}
           <div className="flex items-center gap-2">
             {authLoading ? (
-              /* Loading: show skeleton */
               <div className="flex items-center gap-2">
                 <div className="w-20 h-8 bg-white/5 rounded-lg animate-pulse" />
                 <div className="w-24 h-8 bg-white/5 rounded-lg animate-pulse" />
               </div>
             ) : loggedIn && user ? (
-              /* Logged in: show profile card + logout */
               <>
                 <Link to={`/profile/${user.username}`} className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-white/5 transition group">
                   <Avatar name={user.displayName} id={user.id} size={28} src={user.profilePhoto || undefined} />
                   <span className="text-sm text-white font-medium group-hover:text-accent transition hidden sm:inline">{user.displayName}</span>
                 </Link>
-                <Link to="/home">
-                  <Button size="sm" icon={<ArrowRight size={15} />}>Masuk ke Dashboard</Button>
-                </Link>
+                <Link to="/home"><Button size="sm" icon={<ArrowRight size={15} />}>Masuk ke Dashboard</Button></Link>
               </>
             ) : showAuthButtons ? (
-              /* Not logged in: show Masuk + Daftar */
               <>
                 <Link to="/login"><Button variant="ghost" size="sm" icon={<LogIn size={15} />}>Masuk</Button></Link>
                 <Link to="/register"><Button size="sm" icon={<UserPlus size={15} />}>Daftar Gratis</Button></Link>
               </>
             ) : (
-              /* Guest mode: show profile + logout */
               <>
                 <span className="text-sm text-slate-400 px-2">Mode Tamu</span>
                 <Link to="/home"><Button size="sm" icon={<ArrowRight size={15} />}>Lanjutkan</Button></Link>
@@ -109,7 +99,6 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* ═══ HERO SECTION ═══ */}
       <section className="relative overflow-hidden">
         <div className="max-w-6xl mx-auto px-4 pt-16 pb-20 md:pt-24 md:pb-32">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -124,37 +113,23 @@ export function LandingPage() {
               <p className="text-slate-400 text-lg leading-relaxed mb-8 max-w-md">
                 Ikuti uji kompetensi, kerjakan tantangan, bangun rekam prestasi, dan dapatkan sertifikat yang dapat diverifikasi publik.
               </p>
-
-              {/* CTA buttons based on auth state */}
               <div className="flex flex-col sm:flex-row gap-3">
                 {authLoading ? (
-                  /* Loading: show skeleton */
                   <>
                     <div className="w-48 h-12 bg-white/5 rounded-xl animate-pulse" />
                     <div className="w-40 h-12 bg-white/5 rounded-xl animate-pulse" />
                   </>
                 ) : loggedIn ? (
-                  /* Logged in: single CTA */
-                  <Link to="/home">
-                    <Button size="lg" icon={<ArrowRight size={18} />}>Ikuti Lomba Sekarang</Button>
-                  </Link>
+                  <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>Ikuti Lomba Sekarang</Button></Link>
                 ) : showAuthButtons ? (
-                  /* Not logged in: two CTAs */
                   <>
-                    <Link to="/register">
-                      <Button size="lg" icon={<ArrowRight size={18} />}>Mulai Sekarang — Gratis</Button>
-                    </Link>
+                    <Link to="/register"><Button size="lg" icon={<ArrowRight size={18} />}>Mulai Sekarang — Gratis</Button></Link>
                     <Button variant="outline" size="lg" onClick={handleGuest} icon={<Eye size={18} />}>Lihat Sebagai Tamu</Button>
                   </>
                 ) : (
-                  /* Guest mode */
-                  <Link to="/home">
-                    <Button size="lg" icon={<ArrowRight size={18} />}>Mulai Menjelajahi</Button>
-                  </Link>
+                  <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>Mulai Menjelajahi</Button></Link>
                 )}
               </div>
-
-              {/* Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-8">
                 <Stat icon={<School size={18} />} value={statValue(stats?.total_schools)} label="Sekolah Terdaftar" />
                 <Stat icon={<UserRound size={18} />} value={statValue(stats?.total_users)} label="User Terdaftar" />
@@ -165,7 +140,6 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Right side: leaderboard card */}
             <div className="relative animate-scale-in hidden md:block">
               <div className="absolute -inset-4 bg-moss-500/10 blur-3xl rounded-full" />
               <div className="relative card p-5">
@@ -179,10 +153,7 @@ export function LandingPage() {
                     <div key={u.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5">
                       <RankBadge rank={u.rank} size="sm" />
                       <Avatar name={u.display_name} id={u.user_id} size={32} src={u.avatar_url ?? undefined} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white truncate">{u.display_name}</p>
-                        <p className="text-xs text-slate-500 truncate">{u.institution || '—'}</p>
-                      </div>
+                      <div className="flex-1 min-w-0"><p className="text-sm text-white truncate">{u.display_name}</p><p className="text-xs text-slate-500 truncate">{u.institution || '—'}</p></div>
                       <span className="text-sm font-semibold text-accent">{u.xp.toLocaleString('id-ID')}</span>
                     </div>
                   )) : <p className="text-sm text-slate-500 text-center py-8">Belum ada XP tercatat.</p>}
@@ -190,13 +161,8 @@ export function LandingPage() {
               </div>
               <div className="absolute -bottom-6 -left-6 card p-3 animate-float">
                 <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                    <Trophy size={18} className="text-amber-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400">Prestasi</p>
-                    <p className="text-sm font-semibold text-white">Data live</p>
-                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center"><Trophy size={18} className="text-amber-400" /></div>
+                  <div><p className="text-xs text-slate-400">Prestasi</p><p className="text-sm font-semibold text-white">Data live</p></div>
                 </div>
               </div>
             </div>
@@ -204,14 +170,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ LOMBA SECTION ═══ */}
       <section className="max-w-6xl mx-auto px-4 py-16">
-        <div className="flex items-end justify-between mb-8">
-          <div>
-            <h2 className="font-display font-bold text-2xl md:text-3xl text-white mb-2">Uji Kompetensi Unggulan</h2>
-            <p className="text-slate-400">Lomba yang saat ini tersedia dari database.</p>
-          </div>
-        </div>
+        <div className="flex items-end justify-between mb-8"><div><h2 className="font-display font-bold text-2xl md:text-3xl text-white mb-2">Uji Kompetensi Unggulan</h2><p className="text-slate-400">Lomba yang saat ini tersedia dari database.</p></div></div>
         <div className="grid md:grid-cols-2 gap-5">
           {competitions.length ? competitions.slice(0, 6).map((c) => (
             <Link key={c.id} to={`/lomba/${c.slug}`} className="card card-hover p-0 overflow-hidden group">
@@ -224,24 +184,17 @@ export function LandingPage() {
               <div className="p-5">
                 <h3 className="font-display font-semibold text-lg text-white mb-2 group-hover:text-accent transition">{c.title}</h3>
                 <p className="text-sm text-slate-400 line-clamp-2 mb-4">{c.shortDesc}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-accent font-semibold">{c.status === 'open' ? 'Pendaftaran dibuka' : c.status === 'in-progress' ? 'Sedang berlangsung' : 'Informasi lomba'}</span>
-                  <span className="text-xs text-slate-500 flex items-center gap-1">Lihat detail <ArrowRight size={14} /></span>
-                </div>
+                <div className="flex items-center justify-between"><span className="text-sm text-accent font-semibold">{c.status === 'open' ? 'Pendaftaran dibuka' : c.status === 'in-progress' ? 'Sedang berlangsung' : 'Informasi lomba'}</span><span className="text-xs text-slate-500 flex items-center gap-1">Lihat detail <ArrowRight size={14} /></span></div>
               </div>
             </Link>
           )) : (
-            <div className="md:col-span-2 card p-8 text-center">
-              <Trophy size={28} className="mx-auto text-slate-600 mb-3" />
-              <p className="text-sm text-slate-500">{loadingData ? 'Memuat data lomba...' : 'Belum ada lomba publik yang tersedia.'}</p>
-            </div>
+            <div className="md:col-span-2 card p-8 text-center"><Trophy size={28} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-500">{loadingData ? 'Memuat data lomba...' : 'Belum ada lomba publik yang tersedia.'}</p></div>
           )}
         </div>
       </section>
 
-      {/* ═══ FEATURES ═══ */}
       <section className="max-w-6xl mx-auto px-4 py-16">
-        <h2 className="font-display font-bold text-2xl md:text-3xl text-white text-center mb-12">Kenapa sykabelajar.id?</h2>
+        <h2 className="font-display font-bold text-2xl md:text-3xl text-white text-center mb-12">Kenapa sykabelajar?</h2>
         <div className="grid md:grid-cols-3 gap-5">
           {[
             { icon: Trophy, title: 'Uji Kompetensi', desc: 'Discovery lomba dan kompetisi berdasarkan data yang dipublikasikan penyelenggara.' },
@@ -250,70 +203,28 @@ export function LandingPage() {
             { icon: Award, title: 'Sertifikat & Emblem', desc: 'Prestasi berasal dari awards dan certificate yang tersimpan di backend.' },
             { icon: ShieldCheck, title: 'Verifikasi Publik', desc: 'Kode verifikasi sertifikat dapat ditampilkan melalui jalur publik terbatas.' },
             { icon: Zap, title: 'Gamifikasi', desc: 'XP dan Edu Coin dipisahkan sesuai arsitektur ledger RPD.' },
-          ].map((f) => {
-            const Icon = f.icon;
-            return (
-              <div key={f.title} className="card p-6 hover:border-moss-500/20 transition">
-                <div className="w-12 h-12 rounded-xl bg-moss-500/10 flex items-center justify-center mb-4">
-                  <Icon size={22} className="text-accent" />
-                </div>
-                <h3 className="font-display font-semibold text-lg text-white mb-2">{f.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
-              </div>
-            );
-          })}
+          ].map((f) => { const Icon = f.icon; return <div key={f.title} className="card p-6 hover:border-moss-500/20 transition"><div className="w-12 h-12 rounded-xl bg-moss-500/10 flex items-center justify-center mb-4"><Icon size={22} className="text-accent" /></div><h3 className="font-display font-semibold text-lg text-white mb-2">{f.title}</h3><p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p></div>; })}
         </div>
       </section>
 
-      {/* ═══ CTA SECTION ═══ */}
       <section className="max-w-6xl mx-auto px-4 py-16">
         <div className="card p-8 md:p-12 text-center relative overflow-hidden">
           <div className="absolute -inset-20 bg-moss-500/5 blur-3xl" />
           <div className="relative">
             <h2 className="font-display font-bold text-2xl md:text-4xl text-white mb-4">Siap Beruji Kompetensi?</h2>
             <p className="text-slate-400 mb-8 max-w-lg mx-auto">Buat akun dan mulai menggunakan data, lomba, serta rekam prestasi yang tersimpan secara nyata.</p>
-
-            {/* CTA based on auth state */}
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              {loggedIn ? (
-                <Link to="/home">
-                  <Button size="lg" icon={<ArrowRight size={18} />}>Ikuti Lomba Sekarang</Button>
-                </Link>
-              ) : showAuthButtons ? (
-                <>
-                  <Link to="/register">
-                    <Button size="lg" icon={<ArrowRight size={18} />}>Daftar Sekarang</Button>
-                  </Link>
-                  <Button variant="outline" size="lg" onClick={handleGuest} icon={<Eye size={18} />}>Lihat sebagai Tamu</Button>
-                </>
-              ) : (
-                <Link to="/home">
-                  <Button size="lg" icon={<ArrowRight size={18} />}>Mulai Menjelajahi</Button>
-                </Link>
-              )}
+              {loggedIn ? <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>Ikuti Lomba Sekarang</Button></Link> : showAuthButtons ? <><Link to="/register"><Button size="lg" icon={<ArrowRight size={18} />}>Daftar Sekarang</Button></Link><Button variant="outline" size="lg" onClick={handleGuest} icon={<Eye size={18} />}>Lihat sebagai Tamu</Button></> : <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>Mulai Menjelajahi</Button></Link>}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ═══ FOOTER ═══ */}
-      <footer className="border-t surface-border py-8">
-        <div className="max-w-6xl mx-auto px-4 text-center text-sm text-slate-600">
-          sykabelajar.id © 2026 — Platform Uji Kompetensi Nasional Non-Formal
-        </div>
-      </footer>
+      <footer className="border-t surface-border py-8"><div className="max-w-6xl mx-auto px-4 text-center text-sm text-slate-600">sykabelajar © 2026 — Platform Uji Kompetensi Nasional Non-Formal</div></footer>
     </div>
   );
 }
 
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2 min-w-0">
-      <div className="w-9 h-9 rounded-lg bg-moss-500/10 flex items-center justify-center text-accent shrink-0">{icon}</div>
-      <div className="min-w-0">
-        <p className="text-xl font-bold text-white tabular-nums">{value}</p>
-        <p className="text-[10px] text-slate-500 whitespace-nowrap truncate">{label}</p>
-      </div>
-    </div>
-  );
+  return <div className="flex items-center gap-2 min-w-0"><div className="w-9 h-9 rounded-lg bg-moss-500/10 flex items-center justify-center text-accent shrink-0">{icon}</div><div className="min-w-0"><p className="text-xl font-bold text-white tabular-nums">{value}</p><p className="text-[10px] text-slate-500 whitespace-nowrap truncate">{label}</p></div></div>;
 }
