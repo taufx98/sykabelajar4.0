@@ -12,12 +12,16 @@ export interface CacheOptions {
   version?: string | number | null;
 }
 
-export function getPersistentCache<T>(key: string): CacheEnvelope<T> | null {
+export function getPersistentCache<T>(key: string, version?: string | number | null): CacheEnvelope<T> | null {
   try {
     const raw = localStorage.getItem(PREFIX + key);
     if (!raw) return null;
     const envelope = JSON.parse(raw) as CacheEnvelope<T>;
     if (!envelope || typeof envelope.savedAt !== 'number' || typeof envelope.expiresAt !== 'number') {
+      localStorage.removeItem(PREFIX + key);
+      return null;
+    }
+    if (version != null && envelope.version !== version) {
       localStorage.removeItem(PREFIX + key);
       return null;
     }
@@ -55,12 +59,26 @@ export function removePersistentCache(key: string): void {
   }
 }
 
+export function clearPersistentCache(prefix = ''): void {
+  try {
+    const fullPrefix = PREFIX + prefix;
+    const keys: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith(fullPrefix)) keys.push(key);
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
 export function patchPersistentCache<T>(
   key: string,
   updater: (current: T | null) => T | null,
   options: CacheOptions,
 ): CacheEnvelope<T> | null {
-  const current = getPersistentCache<T>(key)?.data ?? null;
+  const current = getPersistentCache<T>(key, options.version)?.data ?? null;
   const next = updater(current);
   if (next === null) {
     removePersistentCache(key);
