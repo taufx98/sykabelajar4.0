@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { emitSykaEvent } from '@/lib/realtimeBus';
-import { invalidateForRealtime } from '@/lib/cacheRegistry';
+import { clearPublicCache, invalidateForRealtime } from '@/lib/cacheRegistry';
 import { applyFeedRealtimeChange } from '@/lib/feedRealtime';
 
 type Cleanup = () => void;
@@ -29,10 +29,12 @@ export function startPublicRealtime(): Cleanup {
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
-      applyFeedRealtimeChange(payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE', row);
-      emitSykaEvent({ type: 'feed-changed', postId: String(row.id ?? ''), eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE' });
-      // Home is a composite snapshot; invalidate only that affected composite.
-      invalidateForRealtime('feed');
+      const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+      applyFeedRealtimeChange(eventType, row);
+      emitSykaEvent({ type: 'feed-changed', postId: String(row.id ?? ''), eventType });
+      // Home is a composite snapshot. Invalidate only that composite; the standalone
+      // feed cache was patched above and remains available for instant UI rendering.
+      clearPublicCache(['home']);
     })
     .subscribe();
 
