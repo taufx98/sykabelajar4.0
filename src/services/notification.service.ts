@@ -1,11 +1,12 @@
 import { supabase } from '@/lib/supabase';
 import { CACHE_TTL, CACHE_VERSION, userCacheKey } from '@/lib/cacheRegistry';
-import { getPersistentCache, removePersistentCache, setPersistentCache } from '@/lib/persistentCache';
+import { getPersistentCacheState, removePersistentCache, setPersistentCache } from '@/lib/persistentCache';
 
 const NOTIFICATION_LIST_LIMIT = 50;
 const UNREAD_CACHE_MS = 30_000;
 const unreadCache = new Map<string, { value: number; expiresAt: number }>();
 const unreadInFlight = new Map<string, Promise<number>>();
+const listInFlight = new Map<string, Promise<Array<Record<string, unknown>>>>();
 
 function listCacheKey(userId: string) {
   return userCacheKey('notifications', userId);
@@ -19,27 +20,48 @@ function invalidateList(userId: string) {
   removePersistentCache(listCacheKey(userId));
 }
 
-/** Fetch the latest notifications for a user, using local cache before the backend. */
-export async function listNotifications(userId: string, force = false) {
-  const cacheKey = listCacheKey(userId);
-  if (!force) {
-    const cached = getPersistentCache<Array<Record<string, unknown>>>(cacheKey, CACHE_VERSION);
-    if (cached?.data) return cached.data;
-  }
+async function fetchNotifications(userId: string): Promise<Array<Record<string, unknown>>> {
+  const existing = listInFlight.get(userId);
+  if (existing) return existing;
 
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('id,type,title,body,data,read_at,created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(NOTIFICATION_LIST_LIMIT);
-  if (error) throw error;
-  const rows = data ?? [];
-  setPersistentCache(cacheKey, rows, { ttlMs: CACHE_TTL.notifications, version: CACHE_VERSION });
-  return rows;
+  const request = (async () => {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('id,type,title,body,data,read_at,created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(NOTIFICATION_LIST_LIMIT);
+    if (error) throw error;
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    setPersistentCache(listCacheKey(userId), rows, { ttlMs: CACHE_TTL.notifications, version: CACHE_VERSION });
+    return rows;
+  })();
+
+  listInFlight.set(userId, request);
+  try {
+    return await request;
+  } finally {
+    if (listInFlight.get(userId) === request) listInFlight.delete(userId);
+  }
 }
 
-/** Get the count of unread notifications (for sidebar badge), with short-lived dedupe/cache. */
+/** Fetch latest notifications cache-first; stale data renders immediately while backend refreshes in background. */
+export async function listNotifications(userId: string, force = false) {
+  const cacheKey = listCacheKey(userId);
+  const cached = getPersistentCacheState<Array<Record<string, unknown>>>(cacheKey, CACHE_VERSION);
+
+  if (!force && cached?.envelope.data) {
+    if (cached.fresh) return cached.envelope.data;
+    void fetchNotifications(userId).catch(() => {
+      // Preserve stale UI when the background refresh fails.
+    });
+    return cached.envelope.data;
+  }
+
+  return fetchNotifications(userId);
+}
+
+/** Get unread count with short-lived in-memory cache and request deduplication. */
 export async function getUnreadNotificationCount(userId: string, force = false): Promise<number> {
   const now = Date.now();
   const cached = unreadCache.get(userId);
