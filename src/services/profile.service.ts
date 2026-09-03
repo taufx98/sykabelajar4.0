@@ -14,7 +14,7 @@ export async function getProfileById(userId: string) {
     .eq('id', userId)
     .maybeSingle();
   if (error) throw error;
-  if (data) setPersistentCache(key, data, { ttlMs: CACHE_TTL.awards, version: CACHE_VERSION });
+  if (data) setPersistentCache(key, data, { ttlMs: CACHE_TTL.publicHome, version: CACHE_VERSION });
   return data;
 }
 
