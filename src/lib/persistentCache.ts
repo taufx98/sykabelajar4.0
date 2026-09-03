@@ -12,6 +12,10 @@ export interface CacheOptions {
   version?: string | number | null;
 }
 
+/**
+ * Read cache regardless of TTL. This is the primitive required for
+ * stale-while-revalidate: stale data remains useful for fast render.
+ */
 export function getPersistentCache<T>(key: string, version?: string | number | null): CacheEnvelope<T> | null {
   try {
     const raw = localStorage.getItem(PREFIX + key);
@@ -25,14 +29,21 @@ export function getPersistentCache<T>(key: string, version?: string | number | n
       localStorage.removeItem(PREFIX + key);
       return null;
     }
-    if (envelope.expiresAt <= Date.now()) {
-      localStorage.removeItem(PREFIX + key);
-      return null;
-    }
     return envelope;
   } catch {
     return null;
   }
+}
+
+export function getPersistentCacheState<T>(key: string, version?: string | number | null): {
+  envelope: CacheEnvelope<T>;
+  fresh: boolean;
+  stale: boolean;
+} | null {
+  const envelope = getPersistentCache<T>(key, version);
+  if (!envelope) return null;
+  const fresh = envelope.expiresAt > Date.now();
+  return { envelope, fresh, stale: !fresh };
 }
 
 export function setPersistentCache<T>(key: string, data: T, options: CacheOptions): CacheEnvelope<T> {
