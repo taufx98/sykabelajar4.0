@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { emitSykaEvent } from '@/lib/realtimeBus';
 import { clearPublicCache, invalidateForRealtime } from '@/lib/cacheRegistry';
 import { applyFeedRealtimeChange } from '@/lib/feedRealtime';
+import { applyCompetitionRealtimeChange, invalidateLeaderboardMemory } from '@/services/platform.service';
 import { reconcileAfterRealtimeReconnect } from '@/services/realtime-reconciliation.service';
 
 type Cleanup = () => void;
@@ -22,8 +23,10 @@ export function startPublicRealtime(): Cleanup {
   const channel = supabase
     .channel('syka-public-sync-v1')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'competitions' }, (payload) => {
-      invalidateForRealtime('competition');
-      emitSykaEvent({ type: 'competition-changed', competition: payload.new as Record<string, unknown> });
+      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+      const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+      applyCompetitionRealtimeChange(eventType, row);
+      emitSykaEvent({ type: 'competition-changed', competition: row });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ad_banners' }, (payload) => {
       invalidateForRealtime('banner');
@@ -70,6 +73,7 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
     .channel(`syka-user-sync-v1-${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, (payload) => {
       invalidateForRealtime('profile', userId);
+      invalidateLeaderboardMemory();
       emitSykaEvent({ type: 'profile-updated', userId, fields: Object.keys((payload.new ?? {}) as Record<string, unknown>) });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload) => {
@@ -91,6 +95,10 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       invalidateForRealtime('profile', userId);
       emitSykaEvent({ type: 'follow-updated', userId: String(row.follower_id ?? ''), status: String(row.status ?? 'none') });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'organizer_members', filter: `user_id=eq.${userId}` }, (payload) => {
+      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+      emitSykaEvent({ type: 'organizer-changed', organizerId: String(row.organizer_id ?? '') || undefined });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
