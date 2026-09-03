@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { emitSykaEvent } from '@/lib/realtimeBus';
 import { invalidateForRealtime } from '@/lib/cacheRegistry';
+import { applyFeedRealtimeChange } from '@/lib/feedRealtime';
 
 type Cleanup = () => void;
 
@@ -25,6 +26,13 @@ export function startPublicRealtime(): Cleanup {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ad_banners' }, (payload) => {
       invalidateForRealtime('banner');
       emitSykaEvent({ type: 'banner-changed', banner: payload.new as Record<string, unknown> });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, (payload) => {
+      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+      applyFeedRealtimeChange(payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE', row);
+      emitSykaEvent({ type: 'feed-changed', postId: String(row.id ?? ''), eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE' });
+      // Home is a composite snapshot; invalidate only that affected composite.
+      invalidateForRealtime('feed');
     })
     .subscribe();
 
