@@ -41,7 +41,7 @@ export interface HomeSnapshot {
   feed: Array<Record<string, unknown>>;
 }
 
-const CACHE_PREFIX = 'syka.public.v3.';
+const CACHE_PREFIX = 'syka.public.v4.';
 const CACHE_TTL = {
   stats: 15 * 60_000,
   leaderboard: 15 * 60_000,
