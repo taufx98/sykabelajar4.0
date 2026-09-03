@@ -45,10 +45,15 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       invalidateForRealtime('profile', userId);
       emitSykaEvent({ type: 'profile-updated', userId, fields: Object.keys((payload.new ?? {}) as Record<string, unknown>) });
     })
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload) => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload) => {
       invalidateForRealtime('notification', userId);
-      const notificationId = String((payload.new as Record<string, unknown>)?.id ?? '');
-      if (notificationId) emitSykaEvent({ type: 'notification-inserted', notificationId, notification: (payload.new ?? {}) as Record<string, unknown> });
+      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+      const notificationId = String(row.id ?? '');
+      if (payload.eventType === 'INSERT' && notificationId) {
+        emitSykaEvent({ type: 'notification-inserted', notificationId, notification: row });
+      } else if (payload.eventType === 'UPDATE' && notificationId) {
+        emitSykaEvent({ type: 'notification-read', notificationId });
+      }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
