@@ -7,6 +7,7 @@ import { loadAwards } from '@/services/runtime.service';
 import { liveAwards } from '@/data/live';
 import { backendRoleToUiRole, getUserRoles, hasAllowedLoginRole, uiRoleToAccountType, type BackendRole } from '@/services/role.service';
 import { getUnreadNotificationCount } from '@/services/notification.service';
+import { clearUserCache } from '@/lib/cacheRegistry';
 
 interface AppState {
   user: User | null;
@@ -127,6 +128,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const hydrateCurrentUser = useCallback(async (userId: string, email = '', roles?: BackendRole[]) => {
+    const previousUserId = authUserRef.current?.id;
+    if (previousUserId && previousUserId !== userId) clearUserCache(previousUserId);
     const [profile, resolvedRoles] = await Promise.all([
       getAuthenticatedProfileById(userId),
       roles ? Promise.resolve(roles) : getUserRoles(userId),
@@ -185,6 +188,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!aliveRef.current) return;
       if (event === 'SIGNED_OUT') {
+        const previousUserId = authUserRef.current?.id;
+        if (previousUserId) clearUserCache(previousUserId);
         clearUserState();
         return;
       }
@@ -225,6 +230,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string, requestedRole: Exclude<Role, 'admin'> = 'pelajar') => {
     try {
+      const previousUserId = authUserRef.current?.id;
       const result = await signIn(email.trim(), password);
       if (!result.user) return { ok: false, error: 'Login gagal: sesi pengguna tidak tersedia.' };
       const roles = await getUserRoles(result.user.id);
@@ -238,6 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: `Role akun adalah ${roleNames}. Pilih jenis akun yang sesuai.` };
       }
       const userEmail = result.user.email ?? email.trim();
+      if (previousUserId && previousUserId !== result.user.id) clearUserCache(previousUserId);
       setAuthUser({ id: result.user.id, email: userEmail || undefined });
       setIsGuest(false);
       localStorage.removeItem(GUEST_KEY);
@@ -268,15 +275,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loginAsGuest = useCallback(() => {
+    const previousUserId = authUserRef.current?.id;
+    if (previousUserId) clearUserCache(previousUserId);
     localStorage.setItem(GUEST_KEY, '1');
     setIsGuest(true);
     clearUserState();
   }, [clearUserState]);
 
   const logout = useCallback(async () => {
+    const previousUserId = authUserRef.current?.id;
     try {
       await signOut();
     } finally {
+      if (previousUserId) clearUserCache(previousUserId);
       localStorage.removeItem(GUEST_KEY);
       setIsGuest(false);
       clearUserState();
@@ -378,8 +389,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addComment = useCallback(async (postId: string, body: string, parentId?: string) => {
     const current = authUserRef.current;
-    if (!current || !body.trim()) return;
-    const { error } = await supabase.from('comments').insert({ post_id: postId, user_id: current.id, parent_id: parentId ?? null, body: body.trim(), moderation_state: 'PUBLISHED' });
+    if (!current) return;
+    const { error } = await supabase.from('comments').insert({ post_id: postId, user_id: current.id, body, parent_id: parentId ?? null });
     if (error) throw error;
   }, []);
 
@@ -390,7 +401,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isGuest,
     notifications,
     unreadNotificationCount,
-    refreshUnreadCount,
+    refreshUnreadCount: () => refreshUnreadCount(),
     awards,
     certificates,
     orders,
@@ -412,23 +423,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshUser,
   }), [user, authUser, authLoading, isGuest, notifications, unreadNotificationCount, refreshUnreadCount, awards, certificates, orders, feed, login, register, loginAsGuest, logout, updateProfile, markNotificationRead, markAllNotificationsRead, addPoints, addNotification, addOrder, togglePostLike, toggleCommentLike, addComment, toast, refreshUser]);
 
-  return (
-    <AppContext.Provider value={value}>
-      {children}
-      <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none">
-        {toasts.map((t) => (
-          <div key={t.id} className={`pointer-events-auto px-4 py-3 rounded-xl shadow-pop text-sm font-medium animate-slide-up flex items-center gap-2 ${t.type === 'success' ? 'bg-moss-600 text-white' : t.type === 'error' ? 'bg-err text-white' : 'surface-elevated text-white'}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
-            {t.message}
-          </div>
-        ))}
-      </div>
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be used within AppProvider');
-  return ctx;
+  const context = useContext(AppContext);
+  if (!context) throw new Error('useApp must be used within AppProvider');
+  return context;
 }
