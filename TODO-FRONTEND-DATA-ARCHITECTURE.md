@@ -58,6 +58,6 @@
 6. Setiap fitur baru wajib dicatat ke fase audit ini sebelum dinyatakan selesai.
 
 ## 📍 STATUS SAAT INI
-**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API, realtime-driven cache invalidation, notification cache-first, platform/home shared cache, dan penghapusan double subscription chat mobile.
+**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications, realtime-driven cache invalidation, notification cache-first, platform/home shared cache, dan penghapusan double subscription chat mobile.
 
-**Belum selesai:** SWR penuh per resource, selective sync lintas seluruh fitur, reconnect reconciliation, audit Orders/Awards/Feed/Organizer/Admin, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan ini.
+**Belum selesai:** auto-clear cache logout/ganti akun, selective sync lintas seluruh fitur, reconnect reconciliation, audit Orders/Awards/Feed/Organizer/Admin, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan ini.
