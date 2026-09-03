@@ -17,7 +17,7 @@
 - [x] Audit halaman: Home / Competition
 - [x] Audit halaman: Leaderboard
 - [x] Audit halaman: Profile
-- [ ] Audit halaman: Awards
+- [x] Audit halaman: Awards — per-user cache + SWR; sertifikat/verification tetap backend-authoritative
 - [x] Audit halaman: Notifications
 - [ ] Audit halaman: Orders
 - [ ] Audit halaman: Feed
@@ -58,6 +58,6 @@
 6. Setiap fitur baru wajib dicatat ke fase audit ini sebelum dinyatakan selesai.
 
 ## 📍 STATUS SAAT INI
-**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications, auto-clear cache lifecycle saat logout/ganti akun, realtime-driven cache invalidation, notification cache-first, platform/home shared cache, dan penghapusan double subscription chat mobile.
+**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications dan Awards, auto-clear cache lifecycle saat logout/ganti akun, realtime-driven cache invalidation, platform/home shared cache, dan penghapusan double subscription chat mobile.
 
-**Belum selesai:** selective sync lintas seluruh fitur, reconnect reconciliation, audit Orders/Awards/Feed/Organizer/Admin, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan ini.
+**Belum selesai:** selective sync lintas seluruh fitur, realtime reconciliation untuk Awards/fitur lain, reconnect reconciliation, audit Orders/Feed/Organizer/Admin, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan ini.
