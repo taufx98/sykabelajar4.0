@@ -39,10 +39,10 @@
 - [x] Implementasi fungsi Rekonsiliasi Data pintar untuk resource terdampak pasca-offline — setelah reconnect user channel hanya merekonsiliasi `chat_threads` + unread count, bukan seluruh runtime.
 
 ## 🛡️ FASE 5: VALIDASI SECURITY (BYPASS CACHE)
-- [ ] Bypass cache untuk Status Pembayaran (Wajib Realtime Backend)
-- [ ] Bypass cache untuk Hak Premium & Fitur Berbayar
-- [ ] Bypass cache untuk Role & Permission
-- [ ] Bypass cache untuk Akses Organisasi & Status Tiket
+- [x] Bypass cache untuk Status Pembayaran (Wajib Realtime Backend) — OrdersPage membaca `orders` langsung dari backend pada setiap load; tidak menggunakan presentation cache untuk status pembayaran/payment proof.
+- [x] Bypass cache untuk Hak Premium & Fitur Berbayar — OrganizerPlanPage mengambil entitlement aktif via `getActiveOrganizerEntitlements()` langsung dari backend serta katalog plan live; hasil cache tidak dipakai sebagai otorisasi.
+- [x] Bypass cache untuk Role & Permission — AppContext melakukan bootstrap/profile + `getUserRoles()` dari backend; RoleRoute hanya menggunakan role yang dihasilkan dari state otoritatif tersebut, sementara aksi sensitif tetap RPC/RLS.
+- [x] Bypass cache untuk Akses Organisasi & Status Tiket — akses organizer di-resolve via `resolveCurrentUserOrganizer()` backend-authoritative; `loadMyThread()` sekarang memanggil `loadMyThreads(true)` sehingga status open/closed ticket tidak diambil dari presentation cache, dan RPC backend tetap menjadi enforcement akhir.
 
 ## 🧪 FASE 6: CI REGRESSION CHECK
 - [x] Konfigurasi script Linting di CI pipeline
@@ -60,6 +60,6 @@
 7. Audit `[x]` berarti pemetaan arsitektur selesai; implementasi optimasinya tetap harus mengikuti Fase 3–5 dan tidak boleh dianggap selesai hanya karena sudah diaudit.
 
 ## 📍 STATUS SAAT INI
-**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications dan Awards, auto-clear cache lifecycle saat logout/ganti akun, realtime-driven cache invalidation, platform/home shared cache, penghapusan double subscription chat mobile, selective realtime patch untuk Feed berdasarkan `post.id`, reconnect handling tanpa hard reload, dan scoped chat reconciliation setelah reconnect.
+**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API + penggunaan SWR pada Notifications dan Awards, auto-clear cache lifecycle saat logout/ganti akun, realtime-driven cache invalidation, platform/home shared cache, penghapusan double subscription chat mobile, selective realtime patch untuk Feed berdasarkan `post.id`, reconnect handling tanpa hard reload, scoped chat reconciliation setelah reconnect, dan bypass-cache verification untuk payment/premium/role/org/ticket.
 
-**Belum selesai:** selective sync lintas seluruh fitur, konsolidasi Realtime untuk resource yang belum punya change signal, pembersihan redundansi subscription lama di `MessagesPageV6`, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan terbaru.
+**Belum selesai:** selective sync lintas seluruh fitur, konsolidasi Realtime untuk resource yang belum punya change signal, pembersihan redundansi subscription lama di `MessagesPageV6`, serta regression verification final untuk batch perubahan terbaru.
