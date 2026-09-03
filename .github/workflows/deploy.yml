@@ -10,12 +10,13 @@ concurrency:
   group: "ci-${{ github.ref }}"
   cancel-in-progress: true
 
-env:
-  TARGET_SUPABASE_URL: https://mvdczyitbkxkldjughor.supabase.co
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TARGET_SUPABASE_URL: https://mvdczyitbkxkldjughor.supabase.co
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,22 +39,17 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
           VITE_CLOUDINARY_PROFILE_PRESET: ${{ secrets.VITE_CLOUDINARY_PROFILE_PRESET }}
           VITE_EDGE_FUNCTION_URL: ${{ secrets.VITE_EDGE_FUNCTION_URL }}
 
       - name: Production smoke test
-        if: ${{ secrets.VITE_SUPABASE_URL == env.TARGET_SUPABASE_URL }}
+        if: ${{ env.VITE_SUPABASE_URL == env.TARGET_SUPABASE_URL }}
         run: node scripts/rpd-smoke.mjs
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Smoke test pending target cutover
-        if: ${{ secrets.VITE_SUPABASE_URL != env.TARGET_SUPABASE_URL }}
+        if: ${{ env.VITE_SUPABASE_URL != env.TARGET_SUPABASE_URL }}
         run: |
           echo "Production smoke test skipped safely."
           echo "GitHub Actions secret VITE_SUPABASE_URL still points to the old/restricted Supabase project."
