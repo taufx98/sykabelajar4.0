@@ -5,6 +5,7 @@ export type CurrentOrganizer = {
   name: string;
   slug?: string;
   status?: string;
+  logo_asset_url?: string | null;
   _memberRole?: string;
 };
 
@@ -17,13 +18,13 @@ export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
   const [ownedResult, membershipResult] = await Promise.all([
     supabase
       .from('organizers')
-      .select('id,name,slug,status')
+      .select('id,name,slug,status,logo_asset_url')
       .eq('owner_user_id', auth.user.id)
       .eq('status', 'ACTIVE')
       .order('created_at', { ascending: true }),
     supabase
       .from('organizer_members')
-      .select('organizer_id,role,member_role,status,is_active,created_at')
+      .select('organizer_id,role,member_role,status, is_active,created_at')
       .eq('user_id', auth.user.id)
       .eq('status', 'ACTIVE')
       .eq('is_active', true)
@@ -41,7 +42,7 @@ export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
 
   const { data: memberOrgs, error: memberOrgError } = await supabase
     .from('organizers')
-    .select('id,name,slug,status')
+    .select('id,name,slug,status,logo_asset_url')
     .in('id', memberIds)
     .eq('status', 'ACTIVE');
   if (memberOrgError) throw memberOrgError;
