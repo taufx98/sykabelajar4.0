@@ -6,7 +6,7 @@
 > **Local cache + Realtime + selective sync + RLS/backend authoritative**.
 
 ## 📦 FASE 1: FONDASI LOCAL CACHE LAYER
-- [x] Implementasi mekanisme Fresh/Stale (Stale-While-Revalidate) — **Fondasi API stale/fresh sedang dipasang; migrasi SWR per-resource belum selesai.**
+- [x] Implementasi mekanisme Fresh/Stale (Stale-While-Revalidate) — **API stale/fresh sudah tersedia; integrasi SWR per-resource masih dilanjutkan.**
 - [x] Tambahkan dukungan TTL (Time-to-Live) pada cache
 - [x] Buat skema Versioning data untuk mitigasi perubahan struktur DB
 - [x] Terapkan Per-User Key untuk isolasi data antar akun
@@ -23,13 +23,12 @@
 - [ ] Audit halaman: Feed
 - [ ] Audit halaman: Organizer
 - [ ] Audit halaman: Admin
-
-*Catatan: Untuk setiap fitur wajib ditentukan (1) tipe cache, (2) realtime event, (3) jadwal selective sync, (4) kapan wajib query backend.*
+*Catatan: Tentukan (1) tipe cache, (2) realtime event, (3) jadwal selective sync, (4) kapan wajib query backend.*
 
 ## 🔄 FASE 3: STANDARDISASI POLA ALUR DATA
-- [x] Refaktor alur: Ambil dari Local Cache -> Render Cepat — **sudah diterapkan pada Platform/Home dan Notifications.**
+- [x] Refaktor alur: Ambil dari Local Cache -> Render Cepat
 - [x] Hubungkan ke Realtime Change Signal
-- [ ] Implementasi fungsi Selective Sync (hanya update data yg berubah) — **baru sebagian; invalidation + scoped refresh masih berlanjut.**
+- [ ] Implementasi fungsi Selective Sync (hanya update data yg berubah)
 - [x] Pastikan Backend / RLS selalu menjadi otoritas final data
 
 ## 💬 FASE 4: OPTIMASI CHAT & REKONSILIASI KONEKSI
@@ -43,8 +42,6 @@
 - [ ] Bypass cache untuk Hak Premium & Fitur Berbayar
 - [ ] Bypass cache untuk Role & Permission
 - [ ] Bypass cache untuk Akses Organisasi & Status Tiket
-
-> **Security audit note:** Supabase Security Advisor saat audit menemukan banyak fungsi `SECURITY DEFINER` yang masih executable oleh `anon`/`authenticated`, termasuk fungsi chat, order, organizer, role, premium/entitlement, dan fungsi admin. Ini adalah pekerjaan security terpisah yang harus dituntaskan; cache tidak boleh menjadi dasar otorisasi.
 
 ## 🧪 FASE 6: CI REGRESSION CHECK
 - [x] Konfigurasi script Linting di CI pipeline
@@ -61,8 +58,6 @@
 6. Setiap fitur baru wajib dicatat ke fase audit ini sebelum dinyatakan selesai.
 
 ## 📍 STATUS SAAT INI
-**Current baseline:** CI terbaru yang sudah diverifikasi hijau adalah commit `37a0a8b1470832297bd12d76a6699cdc874a912e`; pekerjaan lanjutan cache menghasilkan commit setelah baseline tersebut dan harus selalu melewati CI sebelum dianggap final.
+**Implementasi berjalan:** shared cache registry, cache versioning, per-user keys, TTL policy, stale-cache API, realtime-driven cache invalidation, notification cache-first, platform/home shared cache, dan penghapusan double subscription chat mobile.
 
-**Sudah aktif:** shared cache registry, cache versioning, per-user keys, TTL policy, realtime-driven cache invalidation, notification cache-first, platform/home shared cache, dan penghapusan double subscription chat mobile.
-
-**Belum selesai:** SWR penuh per resource, selective sync lintas seluruh fitur, reconnect reconciliation, audit Orders/Awards/Feed/Organizer/Admin, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification untuk batch perubahan terakhir.
+**Belum selesai:** SWR penuh per resource, selective sync lintas seluruh fitur, reconnect reconciliation, audit Orders/Awards/Feed/Organizer/Admin, security bypass verification untuk payment/premium/role/org/ticket, serta regression verification final untuk batch perubahan ini.
