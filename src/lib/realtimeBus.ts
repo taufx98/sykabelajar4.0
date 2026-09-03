@@ -6,6 +6,8 @@ export type SykaRealtimeEvent =
   | { type: 'chat-unread'; threadId: string }
   | { type: 'chat-message'; message: Record<string, unknown> }
   | { type: 'chat-thread-updated'; thread: Record<string, unknown> }
+  | { type: 'chat-reconciled'; userId: string }
+  | { type: 'realtime-status'; scope: 'public' | 'user'; status: 'subscribed' | 'degraded' | 'closed'; reconnected: boolean }
   | { type: 'follow-updated'; userId: string; status: string }
   | { type: 'profile-updated'; userId: string; fields?: string[] }
   | { type: 'notification-inserted'; notificationId: string; notification?: Record<string, unknown> }
