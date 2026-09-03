@@ -109,6 +109,9 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;
       emitSykaEvent({ type: 'chat-thread-updated', thread: row });
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `sender_id=neq.${userId}` }, (payload) => {
+      emitSykaEvent({ type: 'chat-message', message: payload.new as Record<string, unknown> });
     });
 
   if (isAdmin) {
