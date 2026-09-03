@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { BarChart3, Building2, ClipboardList, FileQuestion, Gauge, KeyRound, Megaphone, Trophy, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { subscribeSykaEvents } from '@/lib/realtimeBus';
 import { listCurrentUserOrganizers, resolveCurrentUserOrganizer, setSelectedOrganizerId, type CurrentOrganizer } from '@/services/organizerAuth.service';
 
 const items = [
@@ -22,20 +23,35 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
   const [workspaces, setWorkspaces] = useState<CurrentOrganizer[]>([]);
   const [selected, setSelected] = useState<CurrentOrganizer | null>(null);
 
+  const reloadWorkspaces = useCallback(async () => {
+    try {
+      const [all, current] = await Promise.all([listCurrentUserOrganizers(), resolveCurrentUserOrganizer()]);
+      setWorkspaces(all);
+      setSelected(current);
+    } catch {
+      setWorkspaces([]);
+      setSelected(null);
+    }
+  }, []);
+
   useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const [all, current] = await Promise.all([listCurrentUserOrganizers(), resolveCurrentUserOrganizer()]);
-        if (!alive) return;
-        setWorkspaces(all);
-        setSelected(current);
-      } catch {
-        if (alive) { setWorkspaces([]); setSelected(null); }
-      }
-    })();
-    return () => { alive = false; };
-  }, [location.pathname]);
+    void reloadWorkspaces();
+  }, [location.pathname, reloadWorkspaces]);
+
+  useEffect(() => {
+    let timer: number | undefined;
+    const schedule = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => void reloadWorkspaces(), 250);
+    };
+    const unsubscribe = subscribeSykaEvents((event) => {
+      if (event.type === 'organizer-changed') schedule();
+    });
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [reloadWorkspaces]);
 
   const switchWorkspace = (id: string) => {
     const org = workspaces.find((x) => x.id === id);
