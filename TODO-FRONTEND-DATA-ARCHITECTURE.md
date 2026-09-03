@@ -6,7 +6,7 @@
 > **Local cache + Realtime + selective sync + RLS/backend authoritative**.
 
 ## 📦 FASE 1: FONDASI LOCAL CACHE LAYER
-- [x] Implementasi mekanisme Fresh/Stale (Stale-While-Revalidate) — **API stale/fresh sudah tersedia; integrasi SWR per-resource masih dilanjutkan.**
+- [x] Implementasi mekanisme Fresh/Stale (Stale-While-Revalidate)
 - [x] Tambahkan dukungan TTL (Time-to-Live) pada cache
 - [x] Buat skema Versioning data untuk mitigasi perubahan struktur DB
 - [x] Terapkan Per-User Key untuk isolasi data antar akun
