@@ -22,7 +22,6 @@ export function AdminPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab') as CoreAdminTab | null;
   const [tab, setTab] = useState<CoreAdminTab>(tabs.some(t => t.key === requestedTab) ? requestedTab! : 'dashboard');
-  const [stats, setStats] = useState<Record<string, unknown>>({});
   const [competitions, setCompetitions] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -40,7 +39,7 @@ export function AdminPage() {
   const load = async () => {
     try {
       const data = await loadAdminCore();
-      setStats(data.stats); setCompetitions(data.competitions); setUsers(data.users); setPosts(data.posts); setOrders(data.orders); setProducts(data.products);
+      setCompetitions(data.competitions); setUsers(data.users); setPosts(data.posts); setOrders(data.orders); setProducts(data.products);
     } catch (error: any) { toast.error(error?.message ?? 'Gagal memuat data Admin.'); }
   };
 
