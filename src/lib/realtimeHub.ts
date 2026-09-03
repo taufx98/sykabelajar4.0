@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { emitSykaEvent } from '@/lib/realtimeBus';
 import { clearPublicCache, invalidateForRealtime } from '@/lib/cacheRegistry';
 import { applyFeedRealtimeChange } from '@/lib/feedRealtime';
+import { reconcileAfterRealtimeReconnect } from '@/services/realtime-reconciliation.service';
 
 type Cleanup = () => void;
 
@@ -17,6 +18,7 @@ function removeChannel(channel: ReturnType<typeof supabase.channel>) {
 export function startPublicRealtime(): Cleanup {
   if (publicCleanup) return publicCleanup;
 
+  let wasDegraded = false;
   const channel = supabase
     .channel('syka-public-sync-v1')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'competitions' }, (payload) => {
@@ -32,11 +34,25 @@ export function startPublicRealtime(): Cleanup {
       const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
       applyFeedRealtimeChange(eventType, row);
       emitSykaEvent({ type: 'feed-changed', postId: String(row.id ?? ''), eventType });
-      // Home is a composite snapshot. Invalidate only that composite; the standalone
-      // feed cache was patched above and remains available for instant UI rendering.
       clearPublicCache(['home']);
     })
-    .subscribe();
+    .subscribe((status, error) => {
+      if (status === 'SUBSCRIBED') {
+        emitSykaEvent({ type: 'realtime-status', scope: 'public', status: 'subscribed', reconnected: wasDegraded });
+        wasDegraded = false;
+        return;
+      }
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        wasDegraded = true;
+        console.warn('[SykaBelajar] public realtime degraded:', status, error);
+        emitSykaEvent({ type: 'realtime-status', scope: 'public', status: 'degraded', reconnected: false });
+        return;
+      }
+      if (status === 'CLOSED') {
+        wasDegraded = true;
+        emitSykaEvent({ type: 'realtime-status', scope: 'public', status: 'closed', reconnected: false });
+      }
+    });
 
   publicCleanup = () => {
     removeChannel(channel);
@@ -49,6 +65,7 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
   if (userCleanup && activeUserId === userId && activeIsAdmin === isAdmin) return userCleanup;
   stopUserRealtime();
 
+  let wasDegraded = false;
   const channel = supabase
     .channel(`syka-user-sync-v1-${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, (payload) => {
@@ -86,11 +103,6 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       emitSykaEvent({ type: 'chat-thread-updated', thread: row });
     });
 
-  // Chat messages are intentionally not subscribed globally here: a chat message row
-  // only contains thread_id, so an unfiltered listener would stream every user's
-  // message payload to every connected client. ChatWidget owns the active-thread
-  // subscription and loads the message history through a scoped RPC.
-
   if (isAdmin) {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'payment_proof_status=eq.SUBMITTED' }, (payload) => {
       const order = payload.new as Record<string, unknown>;
@@ -98,7 +110,25 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
     });
   }
 
-  channel.subscribe();
+  channel.subscribe((status, error) => {
+    if (status === 'SUBSCRIBED') {
+      const reconnected = wasDegraded;
+      emitSykaEvent({ type: 'realtime-status', scope: 'user', status: 'subscribed', reconnected });
+      wasDegraded = false;
+      if (reconnected) void reconcileAfterRealtimeReconnect('user', userId);
+      return;
+    }
+    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      wasDegraded = true;
+      console.warn('[SykaBelajar] user realtime degraded:', status, error);
+      emitSykaEvent({ type: 'realtime-status', scope: 'user', status: 'degraded', reconnected: false });
+      return;
+    }
+    if (status === 'CLOSED') {
+      wasDegraded = true;
+      emitSykaEvent({ type: 'realtime-status', scope: 'user', status: 'closed', reconnected: false });
+    }
+  });
   activeUserId = userId;
   activeIsAdmin = isAdmin;
   userCleanup = () => {
