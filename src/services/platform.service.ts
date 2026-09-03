@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { CACHE_VERSION } from '@/lib/cacheRegistry';
-import { getPersistentCache, setPersistentCache } from '@/lib/persistentCache';
+import { getPersistentCache, setPersistentCache, removePersistentCache } from '@/lib/persistentCache';
 
 export interface PlatformStats {
   total_users: number;
@@ -53,12 +53,33 @@ const CACHE_TTL = {
 const NEGATIVE_CACHE_TTL = 10 * 60_000;
 const COMPETITIONS_CACHE_LIMIT = 20;
 
+type RealtimeChange = 'INSERT' | 'UPDATE' | 'DELETE';
+
 function readCache<T>(key: string): T | null {
   return getPersistentCache<T>(`public.${key}`, CACHE_VERSION)?.data ?? null;
 }
 
 function writeCache<T>(key: string, data: T, ttl: number) {
   setPersistentCache(`public.${key}`, data, { ttlMs: ttl, version: CACHE_VERSION });
+}
+
+function withoutCompetition(
+  rows: Array<Record<string, unknown>>,
+  id: string,
+): Array<Record<string, unknown>> {
+  return rows.filter((row) => String(row.id ?? '') !== id);
+}
+
+function patchCompetitionRows(
+  rows: Array<Record<string, unknown>>,
+  eventType: RealtimeChange,
+  row: Record<string, unknown>,
+): Array<Record<string, unknown>> {
+  const id = String(row.id ?? '');
+  if (!id) return rows;
+  if (eventType === 'DELETE') return withoutCompetition(rows, id);
+  const filtered = withoutCompetition(rows, id);
+  return eventType === 'INSERT' ? [...filtered, row].slice(0, COMPETITIONS_CACHE_LIMIT) : [...filtered, row];
 }
 
 const emptyStats = (): PlatformStats => ({
@@ -93,6 +114,50 @@ let leaderboardFailureUntil = 0;
 let coinLeaderboardFailureUntil = 0;
 let competitionsFailureUntil = 0;
 let homeFailureUntil = 0;
+
+export function applyCompetitionRealtimeChange(eventType: RealtimeChange, row: Record<string, unknown>) {
+  const now = Date.now();
+  const current = competitionsMemory?.data ?? readCache<Array<Record<string, unknown>>>('competitions');
+  if (current) {
+    const next = patchCompetitionRows(current, eventType, row);
+    competitionsMemory = { expiresAt: now + CACHE_TTL.competitions, data: next };
+    writeCache('competitions', next, CACHE_TTL.competitions);
+  }
+
+  if (homeMemory) {
+    const next = patchCompetitionRows(homeMemory.data.competitions, eventType, row);
+    homeMemory = { expiresAt: homeMemory.expiresAt, data: { ...homeMemory.data, competitions: next } };
+    writeCache('home', homeMemory.data, CACHE_TTL.home);
+  } else {
+    const home = readCache<HomeSnapshot>('home');
+    if (home) writeCache('home', { ...home, competitions: patchCompetitionRows(home.competitions, eventType, row) }, CACHE_TTL.home);
+  }
+
+  if (eventType === 'INSERT' || eventType === 'DELETE') {
+    statsMemory = null;
+    removePersistentCache('public.stats');
+  }
+
+  competitionsFailureUntil = 0;
+  homeFailureUntil = 0;
+  statsFailureUntil = 0;
+}
+
+export function invalidateLeaderboardMemory() {
+  leaderboardMemory.clear();
+  coinLeaderboardMemory.clear();
+  removePersistentCache('public.leaderboard');
+  removePersistentCache('public.coinLeaderboard');
+  for (const limit of [6, 10, 20, 50, 100]) {
+    removePersistentCache(`public.leaderboard.${limit}`);
+    removePersistentCache(`public.coinLeaderboard.${limit}`);
+  }
+  if (homeMemory) homeMemory = null;
+  removePersistentCache('public.home');
+  leaderboardFailureUntil = 0;
+  coinLeaderboardFailureUntil = 0;
+  homeFailureUntil = 0;
+}
 
 export async function getHomeSnapshot(feedLimit = 15): Promise<HomeSnapshot> {
   const safeFeedLimit = Math.max(1, Math.min(feedLimit + 1, 16));
