@@ -16,7 +16,8 @@ export type SykaRealtimeEvent =
   | { type: 'order-changed'; order: Record<string, unknown> }
   | { type: 'competition-changed'; competition: Record<string, unknown> }
   | { type: 'banner-changed'; banner: Record<string, unknown> }
-  | { type: 'feed-changed'; postId: string; eventType: 'INSERT' | 'UPDATE' | 'DELETE' };
+  | { type: 'feed-changed'; postId: string; eventType: 'INSERT' | 'UPDATE' | 'DELETE' }
+  | { type: 'organizer-changed'; organizerId?: string };
 
 const EVENT = 'syka:realtime';
 
