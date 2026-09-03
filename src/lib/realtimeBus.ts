@@ -13,7 +13,8 @@ export type SykaRealtimeEvent =
   | { type: 'notification-all-read' }
   | { type: 'order-changed'; order: Record<string, unknown> }
   | { type: 'competition-changed'; competition: Record<string, unknown> }
-  | { type: 'banner-changed'; banner: Record<string, unknown> };
+  | { type: 'banner-changed'; banner: Record<string, unknown> }
+  | { type: 'feed-changed'; postId: string; eventType: 'INSERT' | 'UPDATE' | 'DELETE' };
 
 const EVENT = 'syka:realtime';
 
