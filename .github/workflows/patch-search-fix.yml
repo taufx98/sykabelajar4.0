@@ -1,0 +1,68 @@
+name: Patch search performance
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'chore: apply search performance fix'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch Home and Admin search
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          home = Path('src/pages/HomePage.tsx')
+          text = home.read_text()
+
+          text = text.replace("import { getHomeSnapshot, getPublicCompetitions } from '@/services/platform.service';", "import { getHomeSnapshot } from '@/services/platform.service';")
+          text = text.replace("const[searchUsers,setSearchUsers]=useState<Record<string,unknown>[]>([]);", "")
+
+          old = "const loadSearchData=useCallback(async()=>{const q=searchQuery.trim().normalize('NFD').replace(/\\u0300-\\u036f/g,'').toLowerCase();if(!q)return;const norm=(value:string)=>String(value??'').normalize('NFD').replace(/\\u0300-\\u036f/g,'').toLowerCase();const hasSnapshotMatch=searchAllComps.some((c)=>[c.title,c.slug,c.category,c.organizer_name].some((value)=>norm(value).includes(q)));if(hasSnapshotMatch||searchAllComps.length>=20)return;try{const compRes=await getPublicCompetitions(20);const merged=new Map<string,HomeCompetition>();for(const c of [...searchAllComps,...compRes.map(normalizeCompetition)])merged.set(c.id,c);setSearchAllComps(Array.from(merged.values()).slice(0,20))}catch{}},[searchQuery,searchAllComps]);useEffect(()=>{void loadSearchData()},[loadSearchData]);useEffect(()=>{const handler=(e:MouseEvent)=>{if(searchQuery&&!(e.target as HTMLElement).closest('[data-search]'))setSearchQuery('')};document.addEventListener('mousedown',handler);return()=>document.removeEventListener('mousedown',handler)},[searchQuery]);"
+          new = "useEffect(()=>{const handler=(e:MouseEvent)=>{if(searchQuery&&!(e.target as HTMLElement).closest('[data-search]'))setSearchQuery('')};document.addEventListener('mousedown',handler);return()=>document.removeEventListener('mousedown',handler)},[searchQuery]);"
+          if old not in text:
+              raise SystemExit('Home search effect block not found')
+          text = text.replace(old, new)
+          text = text.replace('placeholder=\"Cari lomba, pengguna...\"', 'placeholder=\"Cari lomba atau postingan...\"')
+          home.write_text(text)
+
+          admin = Path('src/pages/AdminPage.tsx')
+          text = admin.read_text()
+          anchor = "const filteredUsers = useMemo(() => users.filter(u => `${u.full_name || ''} ${u.username || ''} ${u.institution || ''}`.toLowerCase().includes(search.toLowerCase())), [users, search]);"
+          insert = anchor + "\n  const userSuggestions = useMemo(() => { const q = search.trim().toLowerCase(); if (!q) return []; return users.filter(u => String(u.username || '').toLowerCase().startsWith(q)).sort((a,b) => String(a.username || '').localeCompare(String(b.username || ''))).slice(0, 8); }, [users, search]);"
+          if anchor not in text:
+              raise SystemExit('Admin filteredUsers anchor not found')
+          text = text.replace(anchor, insert)
+
+          old = "{tab === 'users' && <><div className=\"relative mb-3\"><Search size={15} className=\"absolute left-3 top-1/2 -translate-y-1/2 text-slate-500\"/><input className=\"input pl-9\" value={search} onChange={e=>setSearch(e.target.value)} placeholder=\"Cari nama, username, atau institusi...\"/></div><div className=\"space-y-1.5\">"
+          new = "{tab === 'users' && <><div className=\"relative mb-3\"><Search size={15} className=\"absolute left-3 top-1/2 -translate-y-1/2 text-slate-500\"/><input className=\"input pl-9\" value={search} onChange={e=>setSearch(e.target.value)} placeholder=\"Cari username...\"/>{search.trim() && <div className=\"absolute left-0 right-0 top-full mt-1 z-40 surface-elevated border surface-border rounded-xl shadow-xl overflow-hidden\">{userSuggestions.length ? userSuggestions.map(u => <button key={u.id} type=\"button\" onClick={() => setSearch(String(u.username || ''))} className=\"w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/5 transition\"><Avatar name={u.full_name||u.username||'U'} id={u.id} size={32} src={u.avatar_url||undefined}/><div className=\"min-w-0 flex-1\"><p className=\"text-xs font-semibold text-fg truncate\">@{u.username || '—'}</p><p className=\"text-[10px] text-slate-500 truncate\">{u.full_name || 'Tanpa nama'}{u.institution ? ` · ${u.institution}` : ''}</p></div></button>) : <p className=\"px-3 py-3 text-xs text-slate-500\">Username tidak ditemukan.</p>}</div>}</div><div className=\"space-y-1.5\">"
+          if old not in text:
+              raise SystemExit('Admin user search JSX anchor not found')
+          text = text.replace(old, new)
+          admin.write_text(text)
+          PY
+
+      - name: Validate modified TypeScript
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+          git diff --check
+
+      - name: Commit patched files and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/patch-search-fix.yml
+          git add src/pages/HomePage.tsx src/pages/AdminPage.tsx .github/workflows/patch-search-fix.yml
+          git diff --cached --quiet && exit 0 || true
+          git commit -m 'chore: apply search performance fix'
+          git push
