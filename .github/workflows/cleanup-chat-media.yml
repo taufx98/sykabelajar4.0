@@ -12,6 +12,6 @@ jobs:
       - name: Delete expired Cloudinary chat media
         run: |
           curl --fail-with-body -sS -X POST \
-            'https://jrfogwueytiddnanetth.supabase.co/functions/v1/cleanup-expired-chat-media' \
+            'https://mvdczyitbkxkldjughor.supabase.co/functions/v1/cleanup-expired-chat-media' \
             -H 'Content-Type: application/json' \
             -d '{}'
