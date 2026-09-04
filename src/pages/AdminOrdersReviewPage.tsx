@@ -1,67 +1,21 @@
-import { toast } from "@/lib/toast";
+import { toast } from '@/lib/toast';
 import { useEffect, useState } from 'react';
-import { Check, ExternalLink, X } from 'lucide-react';
+import { Check, ExternalLink, X, Eye, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { supabase } from '@/lib/supabase';
 import { adminReviewManualOrder } from '@/services/commerce.service';
 
+function meta(order: any) { const item = Array.isArray(order.order_items) ? order.order_items[0] : order.order_items; return item?.metadata && typeof item.metadata === 'object' ? item.metadata as Record<string, any> : {}; }
+function planLabel(order: any) { const m = meta(order); return m.plan_code ? `${m.plan_code} · ${m.billing_period === 'YEARLY' ? 'Tahunan' : 'Bulanan'}` : (order.order_items?.[0]?.name ?? 'Order Organizer'); }
+
 export function AdminOrdersReviewPage() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  const load = async () => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('id,user_id,status,total,payment_method,payment_proof_url,payment_proof_public_id,payment_proof_status,created_at')
-      .not('payment_proof_url', 'is', null)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    setOrders(data ?? []);
-  };
-
-  useEffect(() => { void load().catch((e) => toast.error(e.message)); }, []);
-
-  const review = async (id: string, decision: 'APPROVE' | 'REJECT') => {
-    setBusy(id);
-    try {
-      await adminReviewManualOrder(id, decision, decision === 'APPROVE' ? 'Bukti pembayaran disetujui admin' : 'Bukti pembayaran ditolak admin');
-      await load();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  return (
-    <div className="p-5 md:p-7">
-      <div className="mb-6">
-        <p className="text-xs text-accent font-semibold">ADMIN · PAYMENT REVIEW</p>
-        <h1 className="font-display text-2xl font-bold text-fg">Review Bukti Pembayaran</h1>
-        <p className="text-sm text-slate-500 mt-1">Semua perubahan diproses melalui RPC backend Supabase.</p>
-      </div>
-      <div className="space-y-3">
-        {orders.map((order) => (
-          <Card key={order.id} className="p-4">
-            <div className="flex gap-4 items-start">
-              {order.payment_proof_url ? <a href={order.payment_proof_url} target="_blank" rel="noreferrer" className="w-28 h-20 rounded-xl overflow-hidden surface-elevated shrink-0"><img src={order.payment_proof_url} alt="Bukti pembayaran" className="w-full h-full object-cover" /></a> : null}
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap gap-2 items-center"><p className="text-fg font-semibold">Order {String(order.id).slice(0, 8)}</p><Badge>{order.payment_proof_status || order.status}</Badge></div>
-                <p className="text-xs text-slate-500 mt-1">User {String(order.user_id).slice(0, 8)} · {order.payment_method || 'metode belum dicatat'}</p>
-                <p className="text-accent font-bold mt-2">Rp {Number(order.total || 0).toLocaleString('id-ID')}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {order.payment_proof_url && <a href={order.payment_proof_url} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-white/5 text-fg-muted"><ExternalLink size={16} /></a>}
-                <Button size="sm" icon={<Check size={14}/>} loading={busy === order.id} onClick={() => void review(order.id, 'APPROVE')}>Setujui</Button>
-                <Button size="sm" variant="outline" icon={<X size={14}/>} loading={busy === order.id} onClick={() => void review(order.id, 'REJECT')}>Tolak</Button>
-              </div>
-            </div>
-          </Card>
-        ))}
-        {!orders.length && <Card className="p-10 text-center text-slate-500">Belum ada bukti pembayaran yang perlu direview.</Card>}
-      </div>
-    </div>
-  );
+  const [orders,setOrders]=useState<any[]>([]); const [busy,setBusy]=useState<string|null>(null); const [preview,setPreview]=useState<any|null>(null);
+  const load=async()=>{const{data,error}=await supabase.from('orders').select('id,user_id,status,subtotal,discount,total,currency,payment_method,payment_provider,contact_whatsapp,payment_proof_url,payment_proof_public_id,payment_proof_status,admin_review_note,reviewed_at,created_at,order_items(id,name,product_type,product_ref,quantity,unit_price,line_total,metadata)').eq('payment_proof_status','SUBMITTED').order('created_at',{ascending:false});if(error)throw error;setOrders(data??[])};
+  useEffect(()=>{void load().catch((e)=>toast.error(e.message));},[]);
+  const review=async(id:string,decision:'APPROVE'|'REJECT')=>{setBusy(id);try{await adminReviewManualOrder(id,decision,decision==='APPROVE'?'Bukti pembayaran dan nominal disetujui admin':'Bukti pembayaran ditolak admin');await load();toast.success(decision==='APPROVE'?'Pembayaran disetujui dan paket diaktifkan.':'Pembayaran ditolak.');}catch(e:any){toast.error(e.message);}finally{setBusy(null);}};
+  return <div className="p-5 md:p-7"><div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p className="text-xs text-accent font-semibold">ADMIN · PAYMENT REVIEW</p><h1 className="font-display text-2xl font-bold text-fg">Review Pesanan Organizer</h1><p className="text-sm text-slate-500 mt-1">Periksa paket, periode, total setelah discount/promo, dan bukti pembayaran sebelum ACC.</p></div><Button size="sm" variant="outline" onClick={()=>void load()} icon={<RefreshCw size={14}/>}>Refresh</Button></div><div className="space-y-3">{orders.map((order)=>{const m=meta(order);return <Card key={order.id} className="p-4 md:p-5"><div className="grid gap-5 lg:grid-cols-[140px_minmax(0,1fr)_auto]"><div>{order.payment_proof_url?<button type="button" onClick={()=>setPreview(order)} className="group relative block h-28 w-36 overflow-hidden rounded-2xl border border-surface-border bg-black/20"><img src={order.payment_proof_url} alt="Bukti pembayaran" className="h-full w-full object-cover transition group-hover:scale-105"/><span className="absolute inset-x-2 bottom-2 inline-flex items-center justify-center gap-1 rounded-lg bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Eye size={12}/> Preview</span></button>:<div className="flex h-28 w-36 items-center justify-center rounded-2xl border border-dashed border-surface-border text-xs text-fg-muted">Bukti tidak ada</div>}</div><div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><p className="text-fg font-semibold">{planLabel(order)}</p><Badge>{order.payment_proof_status||order.status}</Badge></div><p className="text-xs text-slate-500 mt-1">Order {String(order.id).slice(0,8)} · User {String(order.user_id).slice(0,8)} · {new Date(order.created_at).toLocaleString('id-ID')}</p><div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-sm"><div><p className="text-[10px] uppercase tracking-wider text-fg-muted">Harga dasar</p><p className="font-semibold text-fg">Rp {Number(order.subtotal||0).toLocaleString('id-ID')}</p></div><div><p className="text-[10px] uppercase tracking-wider text-fg-muted">Total diskon</p><p className="font-semibold text-emerald-300">- Rp {Number(order.discount||0).toLocaleString('id-ID')}</p></div><div><p className="text-[10px] uppercase tracking-wider text-fg-muted">Total dibayar</p><p className="font-bold text-accent">Rp {Number(order.total||0).toLocaleString('id-ID')}</p></div></div><div className="mt-3 flex flex-wrap gap-2 text-[11px] text-fg-muted"><span>Provider: {order.payment_provider||order.payment_method||'MANUAL_TRANSFER'}</span>{m.voucher_code&&<span className="font-mono">Voucher: {m.voucher_code}</span>}{order.contact_whatsapp&&<span>WA: {order.contact_whatsapp}</span>}</div></div><div className="flex items-end gap-2 lg:items-center"><Button size="sm" icon={<Check size={14}/>} loading={busy===order.id} onClick={()=>void review(order.id,'APPROVE')}>ACC & Aktifkan</Button><Button size="sm" variant="outline" icon={<X size={14}/>} loading={busy===order.id} onClick={()=>void review(order.id,'REJECT')}>Tolak</Button></div></div></Card>})}{!orders.length&&<Card className="p-10 text-center text-slate-500">Belum ada bukti pembayaran organizer yang menunggu review.</Card>}</div>
+  {preview&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"><div className="w-full max-w-2xl max-h-[92vh] overflow-auto rounded-3xl border border-surface-border bg-surface p-5"><div className="flex items-center justify-between"><div><p className="text-[10px] uppercase tracking-wider text-accent">Preview Bukti Pembayaran</p><h2 className="mt-1 text-xl font-bold text-fg">{planLabel(preview)}</h2></div><button type="button" onClick={()=>setPreview(null)} className="rounded-xl p-2 text-fg-muted hover:bg-surface-elevated"><X size={18}/></button></div><div className="mt-5 rounded-2xl border border-surface-border bg-black/20 p-2"><img src={preview.payment_proof_url} alt="Bukti pembayaran organizer" className="max-h-[65vh] w-full object-contain"/></div></div></div>}
+  </div>;
 }
