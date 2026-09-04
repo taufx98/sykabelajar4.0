@@ -6,8 +6,10 @@ function requirePublicEnv(name: string): string {
   return value.trim();
 }
 
+const supabaseUrl = requirePublicEnv('VITE_SUPABASE_URL');
+
 export const env = {
-  supabaseUrl: requirePublicEnv('VITE_SUPABASE_URL'),
+  supabaseUrl,
   supabasePublishableKey: requirePublicEnv('VITE_SUPABASE_PUBLISHABLE_KEY'),
   cloudinaryCloudName: requirePublicEnv('VITE_CLOUDINARY_CLOUD_NAME'),
   /** Unsigned preset for direct client uploads. */
