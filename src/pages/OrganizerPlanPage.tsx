@@ -16,119 +16,30 @@ type Billing = 'MONTHLY' | 'YEARLY';
 type ViewMode = Billing | 'CUSTOM';
 
 function labelFor(capability?: string | null) {
-  return CAPABILITY_LABELS[capability ?? ''] ?? String(capability ?? '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'Fitur';
+  const fallback = String(capability ?? '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'Fitur';
+  return CAPABILITY_LABELS[capability ?? ''] ?? fallback;
 }
-function money(value: number, currency: string) {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: currency || 'IDR', maximumFractionDigits: 0 }).format(value);
-}
+function money(value: number, currency: string) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: currency || 'IDR', maximumFractionDigits: 0 }).format(value); }
 function entitlementText(item: OrganizerEntitlement | OrganizerPlanBenefit) {
   if (item.limit_value == null) return labelFor(item.capability);
-  const amount = Number(item.limit_value).toLocaleString('id-ID');
-  const label = labelFor(item.capability);
+  const amount = Number(item.limit_value).toLocaleString('id-ID'); const label = labelFor(item.capability);
   if (item.config?.enabled === false) return `${label}: nonaktif`;
   if (['participant_limit', 'question_limit', 'competition_create', 'certificate_serials'].includes(item.capability)) return `${label}: ${amount}`;
   return label;
 }
 
 export function OrganizerPlanPage() {
-  const [plan, setPlan] = useState<string | null>(null);
-  const [items, setItems] = useState<OrganizerEntitlement[]>([]);
-  const [benefits, setBenefits] = useState<OrganizerPlanBenefit[]>([]);
-  const [catalog, setCatalog] = useState<OrganizerPlanCatalogRow[]>([]);
-  const [billing, setBilling] = useState<Billing>('MONTHLY');
-  const [view, setView] = useState<ViewMode>('MONTHLY');
-  const [selectedPlan, setSelectedPlan] = useState('PREMIUM');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [proofUrl, setProofUrl] = useState('');
-  const [customFeatures, setCustomFeatures] = useState<string[]>([]);
-  const [customNotes, setCustomNotes] = useState('');
-  const [customWhatsapp, setCustomWhatsapp] = useState('');
-  const [adminWhatsapp, setAdminWhatsapp] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [customSubmitting, setCustomSubmitting] = useState(false);
-  const [activeSlide, setActiveSlide] = useState(0);
-  const [compact, setCompact] = useState(false);
-  const deckRef = useRef<HTMLDivElement | null>(null);
-
-  const selectedCatalogPlan = useMemo(() => catalog.find((row) => row.plan_code === selectedPlan) ?? null, [catalog, selectedPlan]);
-  const selectedPrice = selectedCatalogPlan ? (billing === 'MONTHLY' ? selectedCatalogPlan.monthly_price : selectedCatalogPlan.yearly_price) : 0;
-  const visibleCount = compact ? 1 : Math.min(3, Math.max(catalog.length, 1));
-  const maxSlide = Math.max(0, catalog.length - visibleCount);
-
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const org = await resolveCurrentUserOrganizer();
-        if (!org) throw new Error('Organisasi tidak ditemukan.');
-        const [entitlementResult, planCatalog, planBenefits, platform] = await Promise.all([
-          getActiveOrganizerEntitlements(org.id),
-          listActiveOrganizerPlans(),
-          listOrganizerPlanBenefits(['PREMIUM', 'PRO']),
-          loadPlatformSettings(),
-        ]);
-        if (!active) return;
-        setPlan(entitlementResult.planCode);
-        setItems(entitlementResult.entitlements);
-        setCatalog(planCatalog);
-        setBenefits(planBenefits);
-        setAdminWhatsapp(platform.whatsapp_number || '');
-        if (planCatalog[0]) setSelectedPlan(planCatalog[0].plan_code);
-      } catch (e: unknown) {
-        if (active) toast.error(e instanceof Error ? e.message : 'Gagal memuat paket.');
-      } finally { if (active) setLoading(false); }
-    })();
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    const node = deckRef.current;
-    if (!node) return;
-    const update = () => setCompact(node.clientWidth < 900);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [catalog.length]);
-
+  const [plan, setPlan] = useState<string | null>(null); const [items, setItems] = useState<OrganizerEntitlement[]>([]); const [benefits, setBenefits] = useState<OrganizerPlanBenefit[]>([]); const [catalog, setCatalog] = useState<OrganizerPlanCatalogRow[]>([]); const [billing, setBilling] = useState<Billing>('MONTHLY'); const [view, setView] = useState<ViewMode>('MONTHLY'); const [selectedPlan, setSelectedPlan] = useState('PREMIUM'); const [whatsapp, setWhatsapp] = useState(''); const [proofUrl, setProofUrl] = useState(''); const [customFeatures, setCustomFeatures] = useState<string[]>([]); const [customNotes, setCustomNotes] = useState(''); const [customWhatsapp, setCustomWhatsapp] = useState(''); const [adminWhatsapp, setAdminWhatsapp] = useState(''); const [loading, setLoading] = useState(true); const [submitting, setSubmitting] = useState(false); const [customSubmitting, setCustomSubmitting] = useState(false); const [activeSlide, setActiveSlide] = useState(0); const [compact, setCompact] = useState(false); const deckRef = useRef<HTMLDivElement | null>(null);
+  const selectedCatalogPlan = useMemo(() => catalog.find((row) => row.plan_code === selectedPlan) ?? null, [catalog, selectedPlan]); const selectedPrice = selectedCatalogPlan ? (billing === 'MONTHLY' ? selectedCatalogPlan.monthly_price : selectedCatalogPlan.yearly_price) : 0; const visibleCount = compact ? 1 : Math.min(3, Math.max(catalog.length, 1)); const maxSlide = Math.max(0, catalog.length - visibleCount);
+  useEffect(() => { let active = true; void (async () => { try { const org = await resolveCurrentUserOrganizer(); if (!org) throw new Error('Organisasi tidak ditemukan.'); const [entitlementResult, planCatalog, planBenefits, platform] = await Promise.all([getActiveOrganizerEntitlements(org.id), listActiveOrganizerPlans(), listOrganizerPlanBenefits(['PREMIUM', 'PRO']), loadPlatformSettings()]); if (!active) return; setPlan(entitlementResult.planCode); setItems(entitlementResult.entitlements); setCatalog(planCatalog); setBenefits(planBenefits); setAdminWhatsapp(platform.whatsapp_number || ''); if (planCatalog[0]) setSelectedPlan(planCatalog[0].plan_code); } catch (e: unknown) { if (active) toast.error(e instanceof Error ? e.message : 'Gagal memuat paket.'); } finally { if (active) setLoading(false); } })(); return () => { active = false; }; }, []);
+  useEffect(() => { const node = deckRef.current; if (!node) return; const update = () => setCompact(node.clientWidth < 900); update(); const observer = new ResizeObserver(update); observer.observe(node); return () => observer.disconnect(); }, [catalog.length]);
   useEffect(() => setActiveSlide((current) => Math.min(current, maxSlide)), [maxSlide]);
-
-  const submitUpgrade = async () => {
-    setSubmitting(true);
-    try {
-      const org = await resolveCurrentUserOrganizer();
-      if (!org) throw new Error('Organisasi tidak ditemukan.');
-      if (!selectedCatalogPlan) throw new Error('Paket belum tersedia.');
-      await createOrganizerPlanOrderV2({ organizerId: org.id, planCode: selectedCatalogPlan.plan_code, billingPeriod: billing, whatsapp, proofUrl });
-      toast.success('Pesanan upgrade berhasil dikirim. Admin akan memverifikasi pembayaran.');
-      setProofUrl('');
-    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Gagal membuat pesanan upgrade.'); }
-    finally { setSubmitting(false); }
-  };
-
-  const submitCustom = async () => {
-    setCustomSubmitting(true);
-    try {
-      const org = await resolveCurrentUserOrganizer();
-      if (!org) throw new Error('Organisasi tidak ditemukan.');
-      await requestCustomOrganizerPlan({ organizerId: org.id, requestedFeatures: customFeatures, notes: customNotes, contactWhatsapp: customWhatsapp });
-      toast.success('Permintaan custom berhasil masuk ke dashboard admin.');
-      setCustomFeatures([]); setCustomNotes('');
-    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Gagal mengirim permintaan custom.'); }
-    finally { setCustomSubmitting(false); }
-  };
-
-  const openWhatsapp = () => {
-    const number = adminWhatsapp.replace(/\D/g, '');
-    if (!number) { toast.error('Kontak WhatsApp admin belum dikonfigurasi.'); return; }
-    const text = encodeURIComponent('Halo Admin SykaBelajar, saya ingin berkonsultasi tentang paket Organizer.');
-    window.open(`https://wa.me/${number}?text=${text}`, '_blank', 'noopener,noreferrer');
-  };
+  const submitUpgrade = async () => { setSubmitting(true); try { const org = await resolveCurrentUserOrganizer(); if (!org) throw new Error('Organisasi tidak ditemukan.'); if (!selectedCatalogPlan) throw new Error('Paket belum tersedia.'); await createOrganizerPlanOrderV2({ organizerId: org.id, planCode: selectedCatalogPlan.plan_code, billingPeriod: billing, whatsapp, proofUrl }); toast.success('Pesanan upgrade berhasil dikirim. Admin akan memverifikasi pembayaran.'); setProofUrl(''); } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Gagal membuat pesanan upgrade.'); } finally { setSubmitting(false); } };
+  const submitCustom = async () => { setCustomSubmitting(true); try { const org = await resolveCurrentUserOrganizer(); if (!org) throw new Error('Organisasi tidak ditemukan.'); await requestCustomOrganizerPlan({ organizerId: org.id, requestedFeatures: customFeatures, notes: customNotes, contactWhatsapp: customWhatsapp }); toast.success('Permintaan custom berhasil masuk ke dashboard admin.'); setCustomFeatures([]); setCustomNotes(''); } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Gagal mengirim permintaan custom.'); } finally { setCustomSubmitting(false); } };
+  const openWhatsapp = () => { const number = adminWhatsapp.replace(/\D/g, ''); if (!number) { toast.error('Kontak WhatsApp admin belum dikonfigurasi.'); return; } const text = encodeURIComponent('Halo Admin SykaBelajar, saya ingin berkonsultasi tentang paket Organizer.'); window.open(`https://wa.me/${number}?text=${text}`, '_blank', 'noopener,noreferrer'); };
   const selectMode = (next: ViewMode) => { setView(next); if (next === 'MONTHLY' || next === 'YEARLY') setBilling(next); };
   const toggleCustom = (value: string) => setCustomFeatures((current) => current.includes(value) ? current.filter((x) => x !== value) : [...current, value]);
-  const shownCatalog = catalog.slice(activeSlide, activeSlide + visibleCount);
-  const cardWidthClass = compact ? 'w-full' : visibleCount === 3 ? 'w-full lg:w-[calc((100%-2rem)/3)]' : 'w-full lg:w-[calc((100%-1rem)/2)]';
+  const shownCatalog = catalog.slice(activeSlide, activeSlide + visibleCount); const cardWidthClass = compact ? 'w-full' : visibleCount === 3 ? 'w-full lg:w-[calc((100%-2rem)/3)]' : 'w-full lg:w-[calc((100%-1rem)/2)]';
 
   return <div className="min-h-screen surface-bg px-4 py-6 text-fg-secondary md:px-8 md:py-9"><div className="mx-auto max-w-7xl">
     <Link to="/organizer" className="mb-6 inline-flex items-center gap-2 text-xs text-fg-muted hover:text-fg"><ArrowLeft size={14} /> Kembali ke Penyelenggara</Link>
