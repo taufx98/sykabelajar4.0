@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { env } from './env';
 
 let _client: SupabaseClient | null = null;
+const blockedRpcNames = new Set<string>();
 
 function clearStaleAuthStorage() {
   if (typeof window === 'undefined') return;
@@ -49,10 +50,31 @@ function initClient(): SupabaseClient {
   return _client;
 }
 
+function blockedRpcError(rpcName: string) {
+  const error = new Error(`Backend RPC "${rpcName}" sebelumnya gagal. Permintaan berikutnya diblokir sampai halaman dimuat ulang.`);
+  (error as Error & { code?: string }).code = 'BACKEND_RPC_BLOCKED';
+  return error;
+}
+
+function guardedRpc(client: SupabaseClient, rpcName: string, ...args: any[]) {
+  if (blockedRpcNames.has(rpcName)) {
+    return Promise.resolve({ data: null, error: blockedRpcError(rpcName) });
+  }
+
+  return Promise.resolve((client as any).rpc(rpcName, ...args)).then((result: any) => {
+    if (result?.error) blockedRpcNames.add(rpcName);
+    return result;
+  }).catch((error: unknown) => {
+    blockedRpcNames.add(rpcName);
+    return { data: null, error };
+  });
+}
+
 // Lazy proxy — always delegates to initialized client.
 export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = initClient();
+    if (prop === 'rpc') return (rpcName: string, ...args: any[]) => guardedRpc(client, rpcName, ...args);
     const value = (client as any)[prop];
     return typeof value === 'function' ? value.bind(client) : value;
   },
