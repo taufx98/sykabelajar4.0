@@ -4,6 +4,7 @@ import { AppProvider, useApp } from '@/store/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { MobileNavigationOverride } from '@/components/layout/MobileNavigationOverride';
 import { ChatUXBridge } from '@/components/chat/ChatUXBridge';
+import { ChatCooldownGate, ChatAdminModerationPanel } from '@/components/chat/ChatModerationGate';
 import { OrganizerShell } from '@/components/layout/OrganizerShell';
 import { LandingPage } from '@/pages/LandingPage';
 import { RegisterPage } from '@/pages/RegisterPage';
@@ -64,5 +65,5 @@ function AppRoutes() { return <Routes>
     <Route path="/admin" element={<RoleRoute role="admin"><AdminControlCenterPage /></RoleRoute>} /><Route path="/admin/core" element={<RoleRoute role="admin"><AdminPage /></RoleRoute>} /><Route path="/admin/roles" element={<RoleRoute role="admin"><AdminRolesPage /></RoleRoute>} /><Route path="/admin/orders/review" element={<RoleRoute role="admin"><AdminOrdersReviewPage /></RoleRoute>} /><Route path="/admin/operations" element={<RoleRoute role="admin"><AdminOperationsPage /></RoleRoute>} /><Route path="/admin/operations/certificates" element={<RoleRoute role="admin"><CertificateLifecyclePage /></RoleRoute>} /><Route path="/admin/awards" element={<RoleRoute role="admin"><AdminAwardsPage /></RoleRoute>} /><Route path="/admin/moderation" element={<RoleRoute role="admin"><AdminModerationPage /></RoleRoute>} /><Route path="/admin/fulfillment" element={<RoleRoute role="admin"><AdminFulfillmentPage /></RoleRoute>} /><Route path="/admin/banners" element={<RoleRoute role="admin"><AdminBannersPage /></RoleRoute>} /><Route path="/admin/chat" element={<RoleRoute role="admin"><AdminChatConsolePage /></RoleRoute>} /><Route path="/admin/organizers" element={<RoleRoute role="admin"><AdminOrganizersPage /></RoleRoute>} /><Route path="/admin/currency" element={<RoleRoute role="admin"><AdminCurrencyPage /></RoleRoute>} /><Route path="/admin/social-notification-settings" element={<RoleRoute role="admin"><AdminSocialNotificationSettingsPage /></RoleRoute>} /><Route path="/admin/plan-usage" element={<RoleRoute role="admin"><AdminPlanUsagePage /></RoleRoute>} /><Route path="/admin/daily-tasks" element={<RoleRoute role="admin"><AdminDailyTaskPage /></RoleRoute>} />
   </Route><Route path="*" element={<Navigate to="/" replace />} />
  </Routes>; }
-function ChatAwareApp() { return <><AppRoutes /><ChatUXBridge /></>; }
+function ChatAwareApp() { return <><AppRoutes /><ChatUXBridge /><ChatCooldownGate /><ChatAdminModerationPanel /></>; }
 export default function App() { return <AppProvider><BrowserRouter><RuntimeGlobals /><ChatAwareApp /><ToastContainer /></BrowserRouter></AppProvider>; }
