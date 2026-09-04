@@ -45,7 +45,7 @@ function ChatLockModal({
 }) {
   return (
     <div
-      className="fixed inset-y-0 left-0 right-0 z-[240] flex items-center justify-center p-4 md:left-[max(250px,calc((100vw-1440px)/2+250px))] xl:left-[max(270px,calc((100vw-1440px)/2+270px))]"
+      className="fixed inset-x-0 top-0 bottom-16 z-[240] flex items-center justify-center p-4 md:inset-y-0 md:bottom-0 md:left-[max(250px,calc((100vw-1440px)/2+250px))] xl:left-[max(270px,calc((100vw-1440px)/2+270px))]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="chat-lock-title"
