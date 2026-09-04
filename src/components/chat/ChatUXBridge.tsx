@@ -6,7 +6,7 @@ import { useApp } from '@/store/AppContext';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
 import { getFollowStatus, requestFollow, removeFollow, type FollowStatus } from '@/services/chat.service';
-import { ChatAdminModerationPanel, ChatCooldownGate } from '@/components/chat/ChatModerationGate';
+import { ChatCooldownGate } from '@/components/chat/ChatModerationGate';
 
 function normalizeFollowStatus(value: unknown): FollowStatus {
   return value === 'approved' || value === 'auto' || value === 'pending' ? value : 'none';
@@ -93,5 +93,5 @@ function ProfileMessagingGate() {
 }
 
 export function ChatUXBridge() {
-  return <><ProfileMessagingGate /><ChatCooldownGate /><ChatAdminModerationPanel /></>;
+  return <><ProfileMessagingGate /><ChatCooldownGate /></>;
 }
