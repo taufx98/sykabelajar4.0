@@ -152,7 +152,7 @@ export function OrganizerPlanPageV2() {
     try {
       if (proofFile && selectedMethodNeedsProof && selectedTotal > 0) uploaded = await uploadPaymentProof(proofFile);
       const org = await resolveCurrentUserOrganizer(); if (!org) throw new Error('Organisasi tidak ditemukan.');
-      const payload = { ...contactFields, ...(selectedRandomEnabled ? { payment_random_code: String(paymentRandomCode) } : {}) };
+      const payload: Record<string, string> = { ...contactFields, ...(selectedRandomEnabled ? { payment_random_code: String(paymentRandomCode) } : {}) };
       const order = await createOrganizerPlanOrderV3({ organizerId: org.id, planCode: paymentPlan.plan_code, billingPeriod: billing, contactName: payload.name, contactEmail: payload.email, whatsapp: payload.whatsapp, contactNote: payload.note, contactFields: payload, paymentMethodId: selectedMethod.id, proofUrl: uploaded?.secure_url, proofPublicId: uploaded?.public_id, proofWidth: uploaded?.width, proofHeight: uploaded?.height, proofVersion: uploaded?.version == null ? undefined : String(uploaded.version), proofResourceType: uploaded?.resource_type, voucherCode: voucherIsActive ? voucherCode.trim().toUpperCase() : undefined });
       setSubmittedOrderId(String(order.id)); toast.success(selectedTotal === 0 ? 'Paket berhasil diaktifkan.' : 'Pesanan dan bukti transfer berhasil dikirim.'); removeProof(); await loadOrders();
     } catch (error: any) { if (uploaded?.public_id) await deleteImage(uploaded.public_id, uploaded.resource_type || 'image').catch(() => undefined); toast.error(error?.message || 'Gagal mengirim pesanan.'); }
