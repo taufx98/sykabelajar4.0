@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { env } from './env';
 
 let _client: SupabaseClient | null = null;
-const blockedRpcNames = new Set<string>();
+const blockedRpcRequests = new Set<string>();
 
 function clearStaleAuthStorage() {
   if (typeof window === 'undefined') return;
@@ -50,22 +50,31 @@ function initClient(): SupabaseClient {
   return _client;
 }
 
+function stableRpcKey(rpcName: string, args: any[]) {
+  try {
+    return `${rpcName}:${JSON.stringify(args)}`;
+  } catch {
+    return `${rpcName}:__unserializable__`;
+  }
+}
+
 function blockedRpcError(rpcName: string) {
-  const error = new Error(`Backend RPC "${rpcName}" sebelumnya gagal. Permintaan berikutnya diblokir sampai halaman dimuat ulang.`);
+  const error = new Error(`Request RPC "${rpcName}" yang sama sebelumnya gagal. Permintaan identik diblokir sampai halaman dimuat ulang atau payload berubah.`);
   (error as Error & { code?: string }).code = 'BACKEND_RPC_BLOCKED';
   return error;
 }
 
 function guardedRpc(client: SupabaseClient, rpcName: string, ...args: any[]) {
-  if (blockedRpcNames.has(rpcName)) {
+  const key = stableRpcKey(rpcName, args);
+  if (blockedRpcRequests.has(key)) {
     return Promise.resolve({ data: null, error: blockedRpcError(rpcName) });
   }
 
   return Promise.resolve((client as any).rpc(rpcName, ...args)).then((result: any) => {
-    if (result?.error) blockedRpcNames.add(rpcName);
+    if (result?.error) blockedRpcRequests.add(key);
     return result;
   }).catch((error: unknown) => {
-    blockedRpcNames.add(rpcName);
+    blockedRpcRequests.add(key);
     return { data: null, error };
   });
 }
