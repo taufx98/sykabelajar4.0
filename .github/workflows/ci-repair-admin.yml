@@ -18,29 +18,23 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
           admin = Path('src/pages/AdminPlanUsagePageV2.tsx')
           s = admin.read_text()
-          old = '})}</div></div></div></Card><Card className="p-5 md:p-6">'
-          new = '})}</div></div></Card><Card className="p-5 md:p-6">'
-          if old not in s:
-              raise SystemExit('Admin JSX target not found')
-          s = s.replace(old, new, 1)
-          old_meta = "function methodMeta(method: OrganizerPaymentMethod) { return { bankName: String(method.details?.bank_name ?? ''), accountNumber: String(method.details?.account_number ?? ''), accountName: String(method.details?.account_name ?? ''), instructions: String(method.details?.instructions ?? method.details?.text ?? '') }; }"
-          new_meta = "function methodMeta(method: OrganizerPaymentMethod) { return { bankName: String(method.details?.bank_name ?? ''), accountNumber: String(method.details?.account_number ?? ''), accountName: String(method.details?.account_name ?? ''), instructions: String(method.details?.instructions ?? method.details?.text ?? ''), randomCodeEnabled: Boolean(method.details?.random_code_enabled) }; }"
-          if old_meta in s:
-              s = s.replace(old_meta, new_meta, 1)
-          elif 'randomCodeEnabled: Boolean(method.details?.random_code_enabled)' not in s:
-              raise SystemExit('Admin methodMeta target not found')
+          old = "function methodMeta(method: OrganizerPaymentMethod) { return { bankName: String(method.details?.bank_name ?? ''), accountNumber: String(method.details?.account_number ?? ''), accountName: String(method.details?.account_name ?? ''), instructions: String(method.details?.instructions ?? method.details?.text ?? '') }; }"
+          new = "function methodMeta(method: OrganizerPaymentMethod) { return { bankName: String(method.details?.bank_name ?? ''), accountNumber: String(method.details?.account_number ?? ''), accountName: String(method.details?.account_name ?? ''), instructions: String(method.details?.instructions ?? method.details?.text ?? ''), randomCodeEnabled: Boolean(method.details?.random_code_enabled) }; }"
+          if old in s:
+              s = s.replace(old, new, 1)
           admin.write_text(s)
 
           user = Path('src/pages/OrganizerPlanPageV2.tsx')
           u = user.read_text()
-          u = re.sub(r"const \[contactFields, setContactFields\] = useState<[^>]+>\([^;]+\);", "const [contactFields, setContactFields] = useState<Record<string, string>>({});", u, count=1)
-          if 'const [contactFields, setContactFields] = useState<Record<string, string>>({});' not in u:
-              raise SystemExit('Organizer contactFields type target not found')
+          old_payload = 'const payload = { ...contactFields, ...(selectedRandomEnabled ? { payment_random_code: String(paymentRandomCode) } : {}) };'
+          new_payload = 'const payload: Record<string, string> = { ...contactFields, ...(selectedRandomEnabled ? { payment_random_code: String(paymentRandomCode) } : {}) };'
+          if old_payload not in u:
+              raise SystemExit('Organizer payment payload target not found')
+          u = u.replace(old_payload, new_payload, 1)
           user.write_text(u)
-          print('PAYMENT_TS_FIX_READY')
+          print('FINAL_PAYMENT_TYPE_FIX_READY')
           PY
       - name: Install dependencies
         run: npm ci --silent
@@ -57,8 +51,8 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add src/pages/AdminPlanUsagePageV2.tsx src/pages/OrganizerPlanPageV2.tsx
-          git commit -m "fix(ci): repair payment page types"
+          git commit -m "fix(ci): finalize payment page types"
           git rm .github/workflows/ci-repair-admin.yml
-          git rm CI_TRIGGER.txt CI_TRIGGER_2.txt || true
-          git commit -m "chore: remove ci repair workflow"
+          git rm CI_TRIGGER.txt CI_TRIGGER_2.txt CI_TRIGGER_3.txt CI_TRIGGER_4.txt CI_TRIGGER_5.txt 2>/dev/null || true
+          git commit -m "chore: remove temporary ci repair workflow"
           git push
