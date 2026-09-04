@@ -20,6 +20,7 @@ export interface CommerceProduct {
 export interface OrganizerPlanCatalogRow {
   plan_code: string;
   name: string;
+  badge: string | null;
   description: string | null;
   monthly_price: number;
   yearly_price: number;
@@ -63,7 +64,7 @@ export async function listActiveProducts(): Promise<CommerceProduct[]> {
 export async function listActiveOrganizerPlans(): Promise<OrganizerPlanCatalogRow[]> {
   const { data, error } = await supabase
     .from('plan_catalog')
-    .select('plan_code,name,description,monthly_price,yearly_price,currency,sort_order,is_active')
+    .select('plan_code,name,badge,description,monthly_price,yearly_price,currency,sort_order,is_active')
     .eq('is_active', true)
     .in('plan_code', ['PREMIUM', 'PRO'])
     .order('sort_order', { ascending: true });
@@ -71,6 +72,7 @@ export async function listActiveOrganizerPlans(): Promise<OrganizerPlanCatalogRo
   return ((data ?? []) as Array<Record<string, unknown>>).map((p) => ({
     plan_code: String(p.plan_code),
     name: String(p.name ?? p.plan_code),
+    badge: p.badge == null ? null : String(p.badge),
     description: p.description == null ? null : String(p.description),
     monthly_price: Number(p.monthly_price ?? 0),
     yearly_price: Number(p.yearly_price ?? 0),
