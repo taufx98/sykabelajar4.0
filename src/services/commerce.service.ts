@@ -24,6 +24,8 @@ export interface OrganizerPlanCatalogRow {
   description: string | null;
   monthly_price: number;
   yearly_price: number;
+  monthly_discount_percent: number;
+  yearly_discount_percent: number;
   currency: string;
   sort_order: number;
   is_active: boolean;
@@ -34,6 +36,18 @@ export interface OrganizerPlanBenefit {
   capability: string;
   limit_value: number | null;
   config: Record<string, unknown>;
+}
+
+export interface OrganizerVoucher {
+  id: string;
+  code: string;
+  discount_percent: number;
+  max_uses: number;
+  used_count: number;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  used_at: string | null;
 }
 
 export async function listActiveProducts(): Promise<CommerceProduct[]> {
@@ -64,9 +78,9 @@ export async function listActiveProducts(): Promise<CommerceProduct[]> {
 export async function listActiveOrganizerPlans(): Promise<OrganizerPlanCatalogRow[]> {
   const { data, error } = await supabase
     .from('plan_catalog')
-    .select('plan_code,name,badge,description,monthly_price,yearly_price,currency,sort_order,is_active')
+    .select('plan_code,name,badge,description,monthly_price,yearly_price,monthly_discount_percent,yearly_discount_percent,currency,sort_order,is_active')
     .eq('is_active', true)
-    .in('plan_code', ['PREMIUM', 'PRO'])
+    .in('plan_code', ['FREE', 'PREMIUM', 'PRO'])
     .order('sort_order', { ascending: true });
   if (error) throw error;
   return ((data ?? []) as Array<Record<string, unknown>>).map((p) => ({
@@ -76,6 +90,8 @@ export async function listActiveOrganizerPlans(): Promise<OrganizerPlanCatalogRo
     description: p.description == null ? null : String(p.description),
     monthly_price: Number(p.monthly_price ?? 0),
     yearly_price: Number(p.yearly_price ?? 0),
+    monthly_discount_percent: Number(p.monthly_discount_percent ?? 0),
+    yearly_discount_percent: Number(p.yearly_discount_percent ?? 0),
     currency: String(p.currency ?? 'IDR'),
     sort_order: Number(p.sort_order ?? 0),
     is_active: Boolean(p.is_active),
@@ -100,6 +116,58 @@ export async function listOrganizerPlanBenefits(planCodes: string[]): Promise<Or
   }));
 }
 
+export async function validateOrganizerVoucher(code: string): Promise<{ isValid: boolean; discountPercent: number; message: string }> {
+  const { data, error } = await supabase.rpc('validate_organizer_voucher', { p_code: code.trim().toUpperCase() });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    isValid: Boolean(row?.is_valid),
+    discountPercent: Number(row?.discount_percent ?? 0),
+    message: String(row?.message ?? ''),
+  };
+}
+
+export async function adminGenerateOrganizerVouchers(input: { count: number; discountPercent: number }): Promise<OrganizerVoucher[]> {
+  if (!Number.isInteger(input.count) || input.count < 1 || input.count > 100) throw new Error('Jumlah voucher harus 1–100.');
+  if (!Number.isFinite(input.discountPercent) || input.discountPercent <= 0 || input.discountPercent > 100) throw new Error('Diskon voucher harus 1–100%.');
+  const { data, error } = await supabase.rpc('admin_generate_organizer_vouchers', {
+    p_count: input.count,
+    p_discount_percent: input.discountPercent,
+  });
+  if (error) throw error;
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id),
+    code: String(row.code),
+    discount_percent: Number(row.discount_percent ?? 0),
+    max_uses: Number(row.max_uses ?? 1),
+    used_count: Number(row.used_count ?? 0),
+    is_active: Boolean(row.is_active),
+    created_by: row.created_by == null ? null : String(row.created_by),
+    created_at: String(row.created_at ?? ''),
+    used_at: row.used_at == null ? null : String(row.used_at),
+  }));
+}
+
+export async function listOrganizerVouchers(): Promise<OrganizerVoucher[]> {
+  const { data, error } = await supabase
+    .from('organizer_vouchers')
+    .select('id,code,discount_percent,max_uses,used_count,is_active,created_by,created_at,used_at')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id),
+    code: String(row.code),
+    discount_percent: Number(row.discount_percent ?? 0),
+    max_uses: Number(row.max_uses ?? 1),
+    used_count: Number(row.used_count ?? 0),
+    is_active: Boolean(row.is_active),
+    created_by: row.created_by == null ? null : String(row.created_by),
+    created_at: String(row.created_at ?? ''),
+    used_at: row.used_at == null ? null : String(row.used_at),
+  }));
+}
+
 export async function createOrganizerPlanOrderV2(input: {
   organizerId: string;
   planCode: string;
@@ -111,6 +179,7 @@ export async function createOrganizerPlanOrderV2(input: {
   proofHeight?: number;
   proofVersion?: string;
   proofResourceType?: string;
+  voucherCode?: string;
 }) {
   if (!input.organizerId) throw new Error('Organisasi wajib dipilih.');
   if (!['PREMIUM', 'PRO'].includes(input.planCode.toUpperCase())) throw new Error('Plan berbayar tidak valid.');
@@ -128,6 +197,7 @@ export async function createOrganizerPlanOrderV2(input: {
     p_proof_height: input.proofHeight ?? null,
     p_proof_version: input.proofVersion ?? null,
     p_proof_resource_type: input.proofResourceType ?? null,
+    p_voucher_code: input.voucherCode?.trim().toUpperCase() || null,
   });
   if (error) throw error;
   return Array.isArray(data) ? data[0] : data;
@@ -136,6 +206,7 @@ export async function createOrganizerPlanOrderV2(input: {
 export async function requestCustomOrganizerPlan(input: {
   organizerId: string;
   requestedFeatures: string[];
+  quantities?: Record<string, number>;
   notes?: string;
   contactWhatsapp?: string;
 }) {
@@ -143,7 +214,14 @@ export async function requestCustomOrganizerPlan(input: {
   if (!input.organizerId) throw new Error('Organisasi wajib dipilih.');
   if (!features.length) throw new Error('Pilih minimal satu fitur custom.');
 
-  const requestedFeatures = { features };
+  const quantities: Record<string, number> = {};
+  for (const [key, value] of Object.entries(input.quantities ?? {})) {
+    if (!features.includes(key)) continue;
+    if (!Number.isInteger(value) || value < 1) throw new Error(`Jumlah untuk ${key} harus bilangan bulat minimal 1.`);
+    quantities[key] = value;
+  }
+
+  const requestedFeatures = { features, quantities };
   const { data, error } = await supabase.rpc('request_custom_organizer_plan', {
     p_organizer_id: input.organizerId,
     p_requested_features: requestedFeatures,
