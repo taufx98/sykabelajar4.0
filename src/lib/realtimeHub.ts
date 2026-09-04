@@ -84,7 +84,7 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       emitSykaEvent({ type: 'organizer-changed', organizerId: String(row.organizer_id ?? '') || undefined });
     });
 
-  const handleThreadChange = (payload: any) => {
+  const handleThreadChange = (payload: { new?: unknown; old?: unknown; eventType: string }) => {
     const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
     const threadId = String(row.id ?? '');
     if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
@@ -93,7 +93,9 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
   };
 
   if (isAdmin) {
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads' }, handleThreadChange);
+    // Admin receives only its own DM/ticket endpoints, never other users' private chats.
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, handleThreadChange);
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, handleThreadChange);
   } else {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, handleThreadChange);
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, handleThreadChange);
@@ -123,12 +125,7 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
 
   activeUserId = userId;
   activeIsAdmin = isAdmin;
-  userCleanup = () => {
-    removeChannel(channel);
-    userCleanup = null;
-    activeUserId = null;
-    activeIsAdmin = false;
-  };
+  userCleanup = () => { removeChannel(channel); userCleanup = null; activeUserId = null; activeIsAdmin = false; };
   return userCleanup;
 }
 
