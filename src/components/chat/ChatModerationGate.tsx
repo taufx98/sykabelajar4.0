@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, LockKeyhole, Search, Shield, ShieldOff, UserRound } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { Ban, CheckCircle2, Clock3, LockKeyhole, Search, Shield, ShieldOff, UserRound } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -16,19 +17,17 @@ const formatRemaining = (ms: number) => {
 };
 
 function ChatLockModal({ title, description, icon, countdown, strike }: { title: string; description: string; icon: ReactNode; countdown?: string; strike?: number }) {
-  return (
-    <div className="fixed inset-0 z-[240] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="chat-lock-title">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border surface-border surface-card-bg p-6 text-center shadow-2xl">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-moss-400/20 bg-moss-400/10 text-moss-300">{icon}</div>
-        <p id="chat-lock-title" className="mt-5 text-lg font-bold text-fg">{title}</p>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-fg-secondary">{description}</p>
-        {countdown && <div className="mx-auto mt-6 rounded-2xl border surface-border surface-elevated px-5 py-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-muted">Bisa chat kembali dalam</p><p className="mt-1 font-mono text-4xl font-bold tracking-tight text-fg">{countdown}</p></div>}
-        {typeof strike === 'number' && strike > 0 && <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-400/15 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-300"><Shield size={13} /> Pelanggaran ke-{strike} · pembatasan bertahap</div>}
-        <p className="mt-5 text-[10px] leading-5 text-fg-muted">Jendela chat sementara dikunci. Kamu tidak dapat memilih percakapan atau membuka chat baru sampai pembatasan berakhir.</p>
-      </div>
+  return <div className="fixed inset-0 z-[240] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="chat-lock-title">
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
+    <div className="relative w-full max-w-md overflow-hidden rounded-3xl border surface-border surface-card-bg p-6 text-center shadow-2xl">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-moss-400/20 bg-moss-400/10 text-moss-300">{icon}</div>
+      <p id="chat-lock-title" className="mt-5 text-lg font-bold text-fg">{title}</p>
+      <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-fg-secondary">{description}</p>
+      {countdown && <div className="mx-auto mt-6 rounded-2xl border surface-border surface-elevated px-5 py-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-muted">Bisa chat kembali dalam</p><p className="mt-1 font-mono text-4xl font-bold tracking-tight text-fg">{countdown}</p></div>}
+      {typeof strike === 'number' && strike > 0 && <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-400/15 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-300"><Shield size={13} /> Pelanggaran ke-{strike} · pembatasan bertahap</div>}
+      <p className="mt-5 text-[10px] leading-5 text-fg-muted">Jendela chat dikunci sementara. Kamu tidak dapat memilih percakapan atau membuka chat baru sampai pembatasan berakhir.</p>
     </div>
-  );
+  </div>;
 }
 
 export function ChatCooldownGate() {
@@ -46,10 +45,7 @@ export function ChatCooldownGate() {
       const [spamResult, accessResult] = await Promise.allSettled([getChatSpamStatus(), getChatAccessStatus()]);
       if (!alive) return;
       if (spamResult.status === 'fulfilled') setSpam(spamResult.value);
-      if (accessResult.status === 'fulfilled') {
-        setAccessBlocked(accessResult.value.blocked);
-        setAccessReason(accessResult.value.reason);
-      }
+      if (accessResult.status === 'fulfilled') { setAccessBlocked(accessResult.value.blocked); setAccessReason(accessResult.value.reason); }
     };
     void refresh();
     const poll = window.setInterval(() => void refresh(), 5000);
@@ -59,9 +55,14 @@ export function ChatCooldownGate() {
 
   const remaining = spam?.blocked_until ? Math.max(0, new Date(spam.blocked_until).getTime() - now) : 0;
   if (!user || location.pathname !== '/pesan') return null;
-  if (accessBlocked) return <ChatLockModal title="Akses chat dinonaktifkan" description={accessReason || 'Akses chat kamu sementara diblokir oleh Admin. Hubungi Admin melalui kanal bantuan lain jika membutuhkan bantuan.'} icon={<Ban size={25} />} />;
+  if (accessBlocked) return <ChatLockModal title="Akses chat dinonaktifkan" description={accessReason || 'Akses chat kamu diblokir oleh Admin. Fitur lain SYKABELAJAR tetap dapat digunakan seperti biasa.'} icon={<Ban size={25} />} />;
   if (remaining > 0) return <ChatLockModal title="Chat dikunci sementara" description="Aktivitas chat terlalu cepat terdeteksi sebagai spam. Demi menjaga kualitas layanan, akses chat dikunci sementara." icon={<LockKeyhole size={25} />} countdown={formatRemaining(remaining)} strike={spam?.strike_count} />;
   return null;
+}
+
+function findAdminChatTabRow() {
+  const historyButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === 'History Chat & Rating');
+  return historyButton?.parentElement ?? null;
 }
 
 export function ChatAdminModerationPanel() {
@@ -74,24 +75,41 @@ export function ChatAdminModerationPanel() {
   const [rows, setRows] = useState<ChatModerationUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [contentHost, setContentHost] = useState<HTMLElement | null>(null);
 
-  const load = useCallback(async () => {
+  const load = async () => {
     if (!isAdmin) return;
     setLoading(true);
     try { setRows(await adminSearchChatUsers(search, 30)); }
     catch (error) { toast(error instanceof Error ? error.message : 'Gagal memuat pengguna.', 'error'); }
     finally { setLoading(false); }
-  }, [isAdmin, search, toast]);
+  };
+
+  useEffect(() => {
+    if (!isAdmin || location.pathname !== '/admin/chat') { setHost(null); setContentHost(null); return; }
+    const sync = () => { const row = findAdminChatTabRow(); setHost(row); setContentHost(row?.parentElement ?? null); };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => { observer.disconnect(); setHost(null); setContentHost(null); };
+  }, [isAdmin, location.pathname]);
 
   useEffect(() => {
     if (!isAdmin || location.pathname !== '/admin/chat' || !open) return;
-    const timer = window.setTimeout(() => void load(), 220);
+    const timer = window.setTimeout(() => void load(), 180);
     return () => window.clearTimeout(timer);
-  }, [isAdmin, location.pathname, open, load]);
+  }, [isAdmin, location.pathname, open, search]);
+
+  useEffect(() => {
+    if (!contentHost) return;
+    const nativeContent = contentHost.lastElementChild as HTMLElement | null;
+    if (nativeContent && nativeContent !== host) nativeContent.style.display = open ? 'none' : '';
+    return () => { if (nativeContent && nativeContent !== host) nativeContent.style.display = ''; };
+  }, [contentHost, host, open]);
 
   const blockedCount = useMemo(() => rows.filter(row => row.chat_blocked).length, [rows]);
-
-  if (!isAdmin || location.pathname !== '/admin/chat') return null;
+  if (!isAdmin || location.pathname !== '/admin/chat' || !host || !contentHost) return null;
 
   const toggle = async (row: ChatModerationUser) => {
     if (busyId) return;
@@ -105,34 +123,26 @@ export function ChatAdminModerationPanel() {
     finally { setBusyId(null); }
   };
 
-  return (
-    <div className="fixed right-5 top-20 z-[180] w-[min(390px,calc(100vw-2rem))]">
-      {!open ? (
-        <button onClick={() => setOpen(true)} className="ml-auto flex items-center gap-2 rounded-2xl border surface-border surface-card-bg px-4 py-3 text-xs font-semibold text-fg shadow-xl backdrop-blur-md transition hover:-translate-y-0.5 hover:border-moss-400/30"><Shield size={15} className="text-moss-300" /> Moderasi Chat <ChevronDown size={15} className="text-fg-muted" /></button>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border surface-border surface-card-bg shadow-2xl backdrop-blur-xl">
-          <div className="flex items-center gap-3 border-b surface-border px-4 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-moss-400/10 text-moss-300"><Shield size={16} /></div>
-            <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Moderasi Chat</p><p className="text-[10px] text-fg-muted">Blokir / buka akses chat pengguna secara global.</p></div>
-            <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-fg-muted hover:bg-white/5 hover:text-fg" aria-label="Tutup"><ChevronUp size={16} /></button>
-          </div>
-          <div className="border-b surface-border p-3">
-            <div className="relative"><Search size={14} className="absolute left-3 top-3 text-fg-muted" /><input value={search} onChange={event => setSearch(event.target.value)} className="input w-full pl-9" placeholder="Cari nama atau username..." /></div>
-            <div className="mt-2 flex items-center justify-between"><span className="text-[10px] text-fg-muted">{rows.length} pengguna · {blockedCount} diblokir</span><button onClick={() => void load()} className="text-[10px] font-medium text-moss-300 hover:text-moss-200">Muat ulang</button></div>
-            <input value={reason} onChange={event => setReason(event.target.value)} className="input mt-2 w-full text-[11px]" placeholder="Alasan blokir (opsional)" />
-          </div>
-          <div className="max-h-[54vh] overflow-y-auto p-2">
-            {loading ? <div className="flex items-center justify-center py-10 text-xs text-fg-muted"><Clock3 size={14} className="mr-2" /> Memuat pengguna…</div> : rows.length === 0 ? <div className="py-10 text-center text-xs text-fg-muted"><UserRound size={17} className="mx-auto mb-2" />Tidak ada pengguna ditemukan.</div> : rows.map(row => (
-              <div key={row.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/[0.03]">
-                <Avatar name={row.full_name || row.username || 'User'} id={row.id} size={34} src={row.avatar_url || undefined} />
-                <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-fg">{row.full_name || 'User'}</p><p className="truncate text-[10px] text-fg-muted">@{row.username || 'user'} {row.chat_blocked ? '· Chat diblokir' : ''}</p></div>
-                <Button size="sm" variant={row.chat_blocked ? 'primary' : 'outline'} disabled={busyId === row.id} icon={row.chat_blocked ? <CheckCircle2 size={13} /> : <ShieldOff size={13} />} onClick={() => void toggle(row)}>{row.chat_blocked ? 'Buka' : 'Blokir'}</Button>
-              </div>
-            ))}
-          </div>
-          <div className="border-t surface-border px-4 py-2.5 text-[9px] leading-4 text-fg-muted">Blokir ini berlaku untuk fitur chat platform, bukan untuk akun atau fitur SYKABELAJAR lainnya.</div>
+  const tabClass = (active: boolean) => `border-b-2 px-4 py-2 text-sm font-medium ${active ? 'border-moss-500 text-fg' : 'border-transparent text-fg-muted'}`;
+  return createPortal(<>
+    <button type="button" onClick={() => setOpen(value => !value)} className={tabClass(open)} aria-pressed={open}>Moderasi Chat</button>
+    {open && createPortal(
+      <div className="flex flex-1 min-h-0 flex-col rounded-2xl border surface-border surface-card-bg overflow-hidden">
+        <div className="flex items-center justify-between border-b surface-border px-4 py-3">
+          <div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-moss-400/10 text-moss-300"><Shield size={16} /></div><div><p className="text-sm font-semibold text-fg">Moderasi Chat</p><p className="text-[10px] text-fg-muted">Kelola siapa yang boleh menggunakan fitur chat.</p></div></div>
+          <span className="rounded-full border border-moss-400/15 bg-moss-400/10 px-3 py-1 text-[10px] font-medium text-moss-300">{blockedCount} diblokir</span>
         </div>
-      )}
-    </div>
-  );
+        <div className="grid shrink-0 gap-2 border-b surface-border p-3 md:grid-cols-[1fr_1fr_auto]">
+          <div className="relative"><Search size={14} className="absolute left-3 top-3 text-fg-muted" /><input value={search} onChange={event => setSearch(event.target.value)} className="input w-full pl-9" placeholder="Cari nama atau username..." /></div>
+          <input value={reason} onChange={event => setReason(event.target.value)} className="input w-full text-[11px]" placeholder="Alasan blokir (opsional)" />
+          <Button variant="outline" onClick={() => void load()} icon={<Shield size={14} />}>Muat ulang</Button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto p-2">
+          {loading ? <div className="flex items-center justify-center py-14 text-xs text-fg-muted"><Clock3 size={14} className="mr-2" /> Memuat pengguna…</div> : rows.length === 0 ? <div className="py-14 text-center text-xs text-fg-muted"><UserRound size={18} className="mx-auto mb-2" />Tidak ada pengguna ditemukan.</div> : rows.map(row => <div key={row.id} className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-white/[0.03]"><Avatar name={row.full_name || row.username || 'User'} id={row.id} size={38} src={row.avatar_url || undefined} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.full_name || 'User'}</p><p className="truncate text-[10px] text-fg-muted">@{row.username || 'user'}</p>{row.chat_blocked && <span className="mt-1 inline-flex text-[9px] font-medium text-red-300"><ShieldOff size={11} className="mr-1" /> Chat diblokir</span>}</div><Button size="sm" variant={row.chat_blocked ? 'primary' : 'outline'} disabled={busyId === row.id} icon={row.chat_blocked ? <CheckCircle2 size={13} /> : <ShieldOff size={13} />} onClick={() => void toggle(row)}>{row.chat_blocked ? 'Buka Akses' : 'Blokir Chat'}</Button></div>)}
+        </div>
+        <div className="border-t surface-border px-4 py-2.5 text-[9px] leading-4 text-fg-muted">Moderasi ini hanya memengaruhi fitur chat. Akun dan fitur SYKABELAJAR lainnya tidak ikut diblokir.</div>
+      </div>,
+      contentHost,
+    )}
+  </>, host);
 }
