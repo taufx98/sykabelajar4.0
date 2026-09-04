@@ -39,6 +39,8 @@ interface AppState {
 
 const AppContext = createContext<AppState | null>(null);
 const GUEST_KEY = 'sykabelajar_guest_mode_v1';
+const IDLE_TIMEOUT_MS = 25 * 60 * 1000;
+const LAST_ACTIVITY_KEY = 'sykabelajar_last_activity_v1';
 
 function preferredRole(roles: BackendRole[]): Role {
   if (roles.includes('admin')) return 'admin';
@@ -185,6 +187,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!aliveRef.current) return;
       if (event === 'SIGNED_OUT') {
+        localStorage.removeItem(LAST_ACTIVITY_KEY);
         clearUserState();
         return;
       }
@@ -214,6 +217,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [clearUserState, hydrateCurrentUser, refreshUnreadCount]);
 
+  useEffect(() => {
+    if (!authUser?.id || isGuest) return;
+
+    let timer: number | undefined;
+    let lastRecordedAt = 0;
+
+    const clearTimer = () => {
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+        timer = undefined;
+      }
+    };
+
+    const readLastActivity = () => {
+      const raw = localStorage.getItem(LAST_ACTIVITY_KEY);
+      const value = raw ? Number(raw) : NaN;
+      return Number.isFinite(value) && value > 0 ? value : null;
+    };
+
+    const logoutForIdle = async () => {
+      clearTimer();
+      localStorage.removeItem(LAST_ACTIVITY_KEY);
+      try {
+        await signOut();
+      } catch (error) {
+        console.error('[SykaBelajar] idle logout failed', error);
+        if (aliveRef.current && authUserRef.current?.id === authUser.id) clearUserState();
+      }
+    };
+
+    const schedule = () => {
+      clearTimer();
+      const last = readLastActivity() ?? Date.now();
+      if (!readLastActivity()) localStorage.setItem(LAST_ACTIVITY_KEY, String(last));
+      const remaining = IDLE_TIMEOUT_MS - (Date.now() - last);
+      if (remaining <= 0) {
+        void logoutForIdle();
+        return;
+      }
+      timer = window.setTimeout(() => {
+        const latest = readLastActivity() ?? last;
+        if (Date.now() - latest >= IDLE_TIMEOUT_MS) void logoutForIdle();
+        else schedule();
+      }, Math.max(1000, remaining + 50));
+    };
+
+    const recordActivity = () => {
+      const now = Date.now();
+      if (now - lastRecordedAt < 15000) return;
+      lastRecordedAt = now;
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(now));
+      schedule();
+    };
+
+    const handleVisibility = () => {
+      if (!document.hidden) schedule();
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === LAST_ACTIVITY_KEY) schedule();
+    };
+
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'scroll', 'wheel', 'touchstart'];
+    events.forEach((event) => window.addEventListener(event, recordActivity, { passive: true }));
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('storage', handleStorage);
+
+    schedule();
+
+    return () => {
+      clearTimer();
+      events.forEach((event) => window.removeEventListener(event, recordActivity));
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [authUser?.id, isGuest, clearUserState]);
+
   const toast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = crypto.randomUUID();
     setToasts((items) => [...items, { id, message, type }]);
@@ -238,6 +318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAuthUser({ id: result.user.id, email: userEmail || undefined });
       setIsGuest(false);
       localStorage.removeItem(GUEST_KEY);
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
       await hydrateCurrentUser(result.user.id, userEmail, roles);
       void refreshUnreadCount(result.user.id);
       return { ok: true };
@@ -266,6 +347,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loginAsGuest = useCallback(() => {
     localStorage.setItem(GUEST_KEY, '1');
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
     setIsGuest(true);
     clearUserState();
   }, [clearUserState]);
@@ -275,6 +357,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await signOut();
     } finally {
       localStorage.removeItem(GUEST_KEY);
+      localStorage.removeItem(LAST_ACTIVITY_KEY);
       setIsGuest(false);
       clearUserState();
     }
