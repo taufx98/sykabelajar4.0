@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, CreditCard, Eye, Gauge, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Tag, UploadCloud, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Gauge, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Tag, UploadCloud, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -26,7 +26,11 @@ function periodOffer(row: OrganizerPlanCatalogRow, billing: Billing): PeriodOffe
 function entitlementText(item: OrganizerEntitlement | OrganizerPlanBenefit) { if (item.limit_value == null) return labelFor(item.capability); const amount = Number(item.limit_value).toLocaleString('id-ID'); const label = labelFor(item.capability); if (item.config?.enabled === false) return `${label}: nonaktif`; if (['participant_limit', 'question_limit', 'competition_create', 'certificate_serials'].includes(item.capability)) return `${label}: ${amount}`; return label; }
 function orderMeta(order: any) { const item = Array.isArray(order.order_items) ? order.order_items[0] : order.order_items; return item?.metadata && typeof item.metadata === 'object' ? item.metadata as Record<string, any> : {}; }
 function fieldValue(fields: Record<string, string>, field: OrganizerPaymentFieldSetting) { return fields[field.field_key] ?? ''; }
-function paymentDetailText(method: OrganizerPaymentMethod) { return typeof method.details?.text === 'string' ? method.details.text : Object.entries(method.details ?? {}).map(([key, value]) => `${key}: ${String(value)}`).join('\n'); }
+function paymentTypeLabel(value: string) { const type=value.toUpperCase(); if(type==='BANK_TRANSFER') return 'Transfer Bank'; if(type==='QRIS') return 'QRIS'; if(type==='VIRTUAL_ACCOUNT') return 'Virtual Account'; if(type==='EWALLET') return 'E-Wallet'; if(type==='MIDTRANS') return 'Pembayaran Otomatis'; if(type==='SNAP') return 'Payment Gateway'; return 'Metode Pembayaran'; }
+function paymentBankName(method: OrganizerPaymentMethod | null) { return String(method?.details?.bank_name ?? '').trim(); }
+function paymentAccountNumber(method: OrganizerPaymentMethod | null) { return String(method?.details?.account_number ?? '').trim(); }
+function paymentAccountName(method: OrganizerPaymentMethod | null) { return String(method?.details?.account_name ?? '').trim(); }
+function paymentDetailText(method: OrganizerPaymentMethod) { return ''; }
 
 export function OrganizerPlanPageV2() {
   const [plan, setPlan] = useState<string | null>(null);
@@ -69,7 +73,10 @@ export function OrganizerPlanPageV2() {
   const voucherDiscount = voucherIsActive && voucherApplied?.benefitType === 'DISCOUNT_PERCENT' ? roundMoney(selectedPricing.discountedPrice * Number(voucherApplied.discountPercent || 0) / 100) : voucherIsActive && voucherApplied?.benefitType === 'FREE_PLAN' ? selectedPricing.discountedPrice : 0;
   const selectedTotal = Math.max(0, selectedPricing.discountedPrice - voucherDiscount);
   const selectedMethod = paymentMethods.find((method) => method.id === selectedPaymentMethodId) ?? null;
-  const selectedMethodNeedsProof = !!selectedMethod && !['MIDTRANS', 'SNAP'].includes(String(selectedMethod.payment_type).toUpperCase());
+  const selectedMethodNeedsProof = !!selectedMethod && !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(selectedMethod.payment_type).toUpperCase());
+  const selectedRandomEnabled = !!selectedMethod && String(selectedMethod.payment_type).toUpperCase() === 'BANK_TRANSFER' && Boolean(selectedMethod.details?.random_code_enabled) && selectedTotal > 0;
+  const paymentRandomCode = selectedRandomEnabled ? Number(contactFields.__payment_random_code || 0) : 0;
+  const paymentTransferTotal = selectedTotal + paymentRandomCode;
   const visibleCount = compact ? 1 : Math.min(3, Math.max(catalog.length, 1));
   const maxSlide = Math.max(0, catalog.length - visibleCount);
   const shownCatalog = catalog.slice(activeSlide, activeSlide + visibleCount);
@@ -113,7 +120,7 @@ export function OrganizerPlanPageV2() {
 
   function openPayment(row: OrganizerPlanCatalogRow) {
     if (row.plan_code === 'FREE') { toast.info('Paket Gratis tidak memerlukan checkout.'); return; }
-    const initial: Record<string, string> = {}; paymentFields.forEach((field) => { initial[field.field_key] = ''; });
+    const initial: Record<string, string> = {}; paymentFields.forEach((field) => { initial[field.field_key] = ''; }); const firstMethod = paymentMethods[0] ?? null; if (firstMethod && String(firstMethod.payment_type).toUpperCase() === 'BANK_TRANSFER' && Boolean(firstMethod.details?.random_code_enabled)) initial.__payment_random_code = String(Math.floor(Math.random() * 900) + 100);
     setPaymentPlan(row); setSelectedPaymentMethodId(paymentMethods[0]?.id ?? ''); setContactFields(initial); setFieldErrors({}); setVoucherCode(''); setVoucherApplied(null); setVoucherMessage(''); setProofFile(null); if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl); setProofPreviewUrl(''); setSubmittedOrderId(null); setPaymentOpen(true);
   }
   function closePayment() { if (sending) return; setPaymentOpen(false); setPaymentPlan(null); setVoucherCode(''); setVoucherApplied(null); setVoucherMessage(''); setProofFile(null); setSubmittedOrderId(null); if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl); setProofPreviewUrl(''); setFieldErrors({}); if (proofInputRef.current) proofInputRef.current.value = ''; }
@@ -145,7 +152,7 @@ export function OrganizerPlanPageV2() {
     try {
       if (proofFile && selectedMethodNeedsProof && selectedTotal > 0) uploaded = await uploadPaymentProof(proofFile);
       const org = await resolveCurrentUserOrganizer(); if (!org) throw new Error('Organisasi tidak ditemukan.');
-      const payload = { ...contactFields };
+      const payload = { ...contactFields, ...(selectedRandomEnabled ? { payment_random_code: String(paymentRandomCode) } : {}) };
       const order = await createOrganizerPlanOrderV3({ organizerId: org.id, planCode: paymentPlan.plan_code, billingPeriod: billing, contactName: payload.name, contactEmail: payload.email, whatsapp: payload.whatsapp, contactNote: payload.note, contactFields: payload, paymentMethodId: selectedMethod.id, proofUrl: uploaded?.secure_url, proofPublicId: uploaded?.public_id, proofWidth: uploaded?.width, proofHeight: uploaded?.height, proofVersion: uploaded?.version == null ? undefined : String(uploaded.version), proofResourceType: uploaded?.resource_type, voucherCode: voucherIsActive ? voucherCode.trim().toUpperCase() : undefined });
       setSubmittedOrderId(String(order.id)); toast.success(selectedTotal === 0 ? 'Paket berhasil diaktifkan.' : 'Pesanan dan bukti transfer berhasil dikirim.'); removeProof(); await loadOrders();
     } catch (error: any) { if (uploaded?.public_id) await deleteImage(uploaded.public_id, uploaded.resource_type || 'image').catch(() => undefined); toast.error(error?.message || 'Gagal mengirim pesanan.'); }
