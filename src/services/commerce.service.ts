@@ -28,6 +28,13 @@ export interface OrganizerPlanCatalogRow {
   is_active: boolean;
 }
 
+export interface OrganizerPlanBenefit {
+  plan_code: string;
+  capability: string;
+  limit_value: number | null;
+  config: Record<string, unknown>;
+}
+
 export async function listActiveProducts(): Promise<CommerceProduct[]> {
   const { data, error } = await supabase
     .from('commerce_products')
@@ -70,6 +77,24 @@ export async function listActiveOrganizerPlans(): Promise<OrganizerPlanCatalogRo
     currency: String(p.currency ?? 'IDR'),
     sort_order: Number(p.sort_order ?? 0),
     is_active: Boolean(p.is_active),
+  }));
+}
+
+export async function listOrganizerPlanBenefits(planCodes: string[]): Promise<OrganizerPlanBenefit[]> {
+  const normalized = [...new Set(planCodes.map((code) => code.trim().toUpperCase()).filter(Boolean))];
+  if (!normalized.length) return [];
+  const { data, error } = await supabase
+    .from('plan_entitlements')
+    .select('plan_code,capability,limit_value,config')
+    .in('plan_code', normalized)
+    .order('plan_code')
+    .order('capability');
+  if (error) throw error;
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    plan_code: String(row.plan_code),
+    capability: String(row.capability),
+    limit_value: row.limit_value == null ? null : Number(row.limit_value),
+    config: row.config && typeof row.config === 'object' ? row.config as Record<string, unknown> : {},
   }));
 }
 
