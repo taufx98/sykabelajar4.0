@@ -3,7 +3,7 @@ import { emitSykaEvent } from '@/lib/realtimeBus';
 import { clearPublicCache, invalidateForRealtime } from '@/lib/cacheRegistry';
 import { applyFeedRealtimeChange } from '@/lib/feedRealtime';
 import { applyCompetitionRealtimeChange, invalidateLeaderboardMemory } from '@/services/platform.service';
-import { applyChatRealtimeMessage, applyChatRealtimeThread, removeChatRealtimeThread } from '@/services/chat.service';
+import { applyChatRealtimeMessage, applyChatRealtimeThread, removeChatRealtimeThread, type ChatThread } from '@/services/chat.service';
 import { reconcileAfterRealtimeReconnect } from '@/services/realtime-reconciliation.service';
 
 type Cleanup = () => void;
@@ -56,6 +56,7 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
   if (userCleanup && activeUserId === userId && activeIsAdmin === isAdmin) return userCleanup;
   stopUserRealtime();
   let wasDegraded = false;
+
   const channel = supabase.channel(`syka-user-sync-v1-${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, (payload) => {
       invalidateForRealtime('profile', userId);
@@ -82,28 +83,39 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'organizer_members', filter: `user_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       emitSykaEvent({ type: 'organizer-changed', organizerId: String(row.organizer_id ?? '') || undefined });
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', ...(isAdmin ? {} : { filter: `user_id=eq.${userId}` }) }, (payload) => {
+    });
+
+  if (isAdmin) {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads' }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       const threadId = String(row.id ?? '');
       if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
-      else if (threadId) applyChatRealtimeThread(row as never);
+      else if (threadId) applyChatRealtimeThread(row as ChatThread);
       emitSykaEvent({ type: 'chat-thread-updated', thread: row });
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', ...(!isAdmin ? { filter: `participant_id=eq.${userId}` } : {}) }, (payload) => {
-      const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
-      if (!isAdmin) {
+    });
+  } else {
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {
+        const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
         const threadId = String(row.id ?? '');
         if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
-        else if (threadId) applyChatRealtimeThread(row as never);
-      }
-      emitSykaEvent({ type: 'chat-thread-updated', thread: row });
-    })
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', ...(isAdmin ? {} : { filter: `sender_id=neq.${userId}` }) }, (payload) => {
-      const message = payload.new as Record<string, unknown>;
-      applyChatRealtimeMessage(message as never, userId);
-      emitSykaEvent({ type: 'chat-message', message });
-    });
+        else if (threadId) applyChatRealtimeThread(row as ChatThread);
+        emitSykaEvent({ type: 'chat-thread-updated', thread: row });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, (payload) => {
+        const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+        const threadId = String(row.id ?? '');
+        if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
+        else if (threadId) applyChatRealtimeThread(row as ChatThread);
+        emitSykaEvent({ type: 'chat-thread-updated', thread: row });
+      });
+  }
+
+  channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', ...(isAdmin ? {} : { filter: `sender_id=neq.${userId}` }) }, (payload) => {
+    const message = payload.new as Record<string, unknown>;
+    applyChatRealtimeMessage(message as never, userId);
+    emitSykaEvent({ type: 'chat-message', message });
+  });
 
   if (isAdmin) {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'payment_proof_status=eq.SUBMITTED' }, (payload) => {
