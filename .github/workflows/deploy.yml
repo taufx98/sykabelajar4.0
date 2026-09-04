@@ -21,6 +21,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify Supabase production target
+        run: |
+          test -n "$VITE_SUPABASE_URL" || { echo "Missing VITE_SUPABASE_URL GitHub Actions secret." >&2; exit 1; }
+          test "$VITE_SUPABASE_URL" = "$TARGET_SUPABASE_URL" || {
+            echo "ERROR: VITE_SUPABASE_URL points to the wrong Supabase project." >&2
+            echo "Expected: $TARGET_SUPABASE_URL" >&2
+            echo "Actual:   $VITE_SUPABASE_URL" >&2
+            exit 1
+          }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -45,14 +55,4 @@ jobs:
           VITE_EDGE_FUNCTION_URL: ${{ secrets.VITE_EDGE_FUNCTION_URL }}
 
       - name: Production smoke test
-        if: ${{ env.VITE_SUPABASE_URL == env.TARGET_SUPABASE_URL }}
         run: node scripts/rpd-smoke.mjs
-
-      - name: Smoke test pending target cutover
-        if: ${{ env.VITE_SUPABASE_URL != env.TARGET_SUPABASE_URL }}
-        run: |
-          echo "Production smoke test skipped safely."
-          echo "GitHub Actions secret VITE_SUPABASE_URL does not point to the active SYKABELAJAR 4.0 project."
-          echo "Expected target: ${TARGET_SUPABASE_URL}"
-          echo "Update CI secrets to the active Supabase project if this is unexpected."
-          echo "No Supabase API request is made by this step."
