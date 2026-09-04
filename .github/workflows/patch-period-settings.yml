@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: ${{ !startsWith(github.event.head_commit.message, 'feat(organizer): add period pricing and special offers') && !startsWith(github.event.head_commit.message, 'chore: remove one-time period settings patch workflow') }}
+    if: github.event.head_commit.message != 'feat(organizer): add period pricing and special offers' && github.event.head_commit.message != 'chore: remove one-time period settings patch workflow'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,15 +18,13 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Patch period pricing and special offers
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
-          # ---------- commerce.service.ts ----------
+          # commerce service: expose plan config to user checkout
           p = Path('src/services/commerce.service.ts')
           s = p.read_text()
           s = s.replace(
@@ -37,14 +35,14 @@ jobs:
               "select('plan_code,name,badge,description,monthly_price,yearly_price,monthly_discount_percent,yearly_discount_percent,currency,sort_order,is_active')",
               "select('plan_code,name,badge,description,monthly_price,yearly_price,monthly_discount_percent,yearly_discount_percent,currency,sort_order,is_active,config')"
           )
-          old_map = "is_active: Boolean(p.is_active) }))"
-          new_map = "is_active: Boolean(p.is_active), config: p.config && typeof p.config === 'object' ? p.config as Record<string, unknown> : {} }))"
-          if old_map not in s:
+          marker = "is_active: Boolean(p.is_active) }))"
+          repl = "is_active: Boolean(p.is_active), config: p.config && typeof p.config === 'object' ? p.config as Record<string, unknown> : {} }))"
+          if marker not in s:
               raise SystemExit('commerce map marker not found')
-          s = s.replace(old_map, new_map, 1)
+          s = s.replace(marker, repl, 1)
           p.write_text(s)
 
-          # ---------- OrganizerPlanPageV2.tsx ----------
+          # user checkout: bind Bulanan/Tahunan tabs to billing and show period offer
           p = Path('src/pages/OrganizerPlanPageV2.tsx')
           s = p.read_text()
           marker = "function pricing(row: OrganizerPlanCatalogRow, billing: Billing) { const basePrice = billing === 'MONTHLY' ? row.monthly_price : row.yearly_price; const discountPercent = billing === 'MONTHLY' ? row.monthly_discount_percent : row.yearly_discount_percent; const planDiscount = roundMoney(basePrice * discountPercent / 100); return { basePrice, discountPercent, planDiscount, discountedPrice: Math.max(0, basePrice - planDiscount) }; }"
@@ -53,49 +51,46 @@ jobs:
               raise SystemExit('organizer pricing marker not found')
           s = s.replace(marker, helper, 1)
           s = s.replace("onClick={() => setView(value)}", "onClick={() => { setView(value); if (value !== 'CUSTOM') setBilling(value); }}", 1)
-          old_card = "const rowPricing = pricing(row, billing); const rowBenefits = benefits.filter((item) => item.plan_code === row.plan_code).slice(0, 7); return <Card"
-          new_card = "const rowPricing = pricing(row, billing); const rowBenefits = benefits.filter((item) => item.plan_code === row.plan_code).slice(0, 7); const rowOffer = periodOffer(row, billing); return <Card"
-          if old_card not in s:
+          marker = "const rowPricing = pricing(row, billing); const rowBenefits = benefits.filter((item) => item.plan_code === row.plan_code).slice(0, 7); return <Card"
+          if marker not in s:
               raise SystemExit('organizer card marker not found')
-          s = s.replace(old_card, new_card, 1)
-          old_price = "<p className=\"mt-1 text-xs text-fg-muted\">{row.plan_code === 'FREE' ? 'selamanya' : `per ${billing === 'MONTHLY' ? 'bulan' : 'tahun'}`}</p></div><div className=\"space-y-2.5 border-t"
-          new_price = "<p className=\"mt-1 text-xs text-fg-muted\">{row.plan_code === 'FREE' ? 'selamanya' : `per ${billing === 'MONTHLY' ? 'bulan' : 'tahun'}`}</p></div>{(rowOffer.badge || rowOffer.title || rowOffer.description || rowOffer.benefits.length > 0) && <div className=\"mb-5 rounded-2xl border border-accent/20 bg-accent/5 p-4\">{rowOffer.badge && <span className=\"inline-flex rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-accent\">{rowOffer.badge}</span>}{rowOffer.title && <p className=\"mt-2 text-sm font-bold text-fg\">{rowOffer.title}</p>}{rowOffer.description && <p className=\"mt-1 text-xs leading-5 text-fg-muted\">{rowOffer.description}</p>}{rowOffer.benefits.length > 0 && <div className=\"mt-3 space-y-1.5\">{rowOffer.benefits.map((item, index) => <div key={`${item}-${index}`} className=\"flex items-start gap-2 text-xs text-fg\"><Check size={13} className=\"mt-0.5 shrink-0 text-accent\"/><span>{item}</span></div>)}</div>}</div>}<div className=\"space-y-2.5 border-t"
-          if old_price not in s:
+          s = s.replace(marker, "const rowPricing = pricing(row, billing); const rowBenefits = benefits.filter((item) => item.plan_code === row.plan_code).slice(0, 7); const rowOffer = periodOffer(row, billing); return <Card", 1)
+          marker = "<p className=\"mt-1 text-xs text-fg-muted\">{row.plan_code === 'FREE' ? 'selamanya' : `per ${billing === 'MONTHLY' ? 'bulan' : 'tahun'}`}</p></div><div className=\"space-y-2.5 border-t"
+          offer = "<p className=\"mt-1 text-xs text-fg-muted\">{row.plan_code === 'FREE' ? 'selamanya' : `per ${billing === 'MONTHLY' ? 'bulan' : 'tahun'}`}</p></div>{(rowOffer.badge || rowOffer.title || rowOffer.description || rowOffer.benefits.length > 0) && <div className=\"mb-5 rounded-2xl border border-accent/20 bg-accent/5 p-4\">{rowOffer.badge && <span className=\"inline-flex rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-accent\">{rowOffer.badge}</span>}{rowOffer.title && <p className=\"mt-2 text-sm font-bold text-fg\">{rowOffer.title}</p>}{rowOffer.description && <p className=\"mt-1 text-xs leading-5 text-fg-muted\">{rowOffer.description}</p>}{rowOffer.benefits.length > 0 && <div className=\"mt-3 space-y-1.5\">{rowOffer.benefits.map((item, index) => <div key={`${item}-${index}`} className=\"flex items-start gap-2 text-xs text-fg\"><Check size={13} className=\"mt-0.5 shrink-0 text-accent\"/><span>{item}</span></div>)}</div>}</div>}<div className=\"space-y-2.5 border-t"
+          if marker not in s:
               raise SystemExit('organizer price marker not found')
-          s = s.replace(old_price, new_price, 1)
+          s = s.replace(marker, offer, 1)
           p.write_text(s)
 
-          # ---------- AdminPlanUsagePageV2.tsx ----------
+          # admin: explicit period-specific special offer settings, persisted in plan_catalog.config
           p = Path('src/pages/AdminPlanUsagePageV2.tsx')
           s = p.read_text()
           marker = "function methodMeta(method: OrganizerPaymentMethod) { return { bankName: String(method.details?.bank_name ?? ''), accountNumber: String(method.details?.account_number ?? ''), accountName: String(method.details?.account_name ?? ''), instructions: String(method.details?.instructions ?? method.details?.text ?? '') }; }"
-          helper = marker + "\ntype Billing = 'MONTHLY' | 'YEARLY';\ntype PeriodOffer = { badge: string; title: string; description: string; benefits: string[] };\nconst EMPTY_PERIOD_OFFER: PeriodOffer = { badge: '', title: '', description: '', benefits: [] };\nfunction readPeriodOffer(plan: Plan, period: Billing): PeriodOffer { const config = plan.config && typeof plan.config === 'object' ? plan.config : {}; const offers = config.period_offers && typeof config.period_offers === 'object' ? config.period_offers as Record<string, unknown> : {}; const raw = offers[period] && typeof offers[period] === 'object' ? offers[period] as Record<string, unknown> : {}; return { badge: typeof raw.badge === 'string' ? raw.badge : '', title: typeof raw.title === 'string' ? raw.title : '', description: typeof raw.description === 'string' ? raw.description : '', benefits: Array.isArray(raw.benefits) ? raw.benefits.map(String).filter(Boolean) : [] }; }"
+          helper = marker + "\ntype Billing = 'MONTHLY' | 'YEARLY';\ntype PeriodOffer = { badge: string; title: string; description: string; benefits: string[] };\nfunction readPeriodOffer(plan: Plan, period: Billing): PeriodOffer { const config = plan.config && typeof plan.config === 'object' ? plan.config : {}; const offers = config.period_offers && typeof config.period_offers === 'object' ? config.period_offers as Record<string, unknown> : {}; const raw = offers[period] && typeof offers[period] === 'object' ? offers[period] as Record<string, unknown> : {}; return { badge: typeof raw.badge === 'string' ? raw.badge : '', title: typeof raw.title === 'string' ? raw.title : '', description: typeof raw.description === 'string' ? raw.description : '', benefits: Array.isArray(raw.benefits) ? raw.benefits.map(String).filter(Boolean) : [] }; }"
           if marker not in s:
               raise SystemExit('admin helper marker not found')
           s = s.replace(marker, helper, 1)
-          old_patch = "const patchPlan = (field: keyof Plan, value: unknown) => setPlans((current) => current.map((item) => item.plan_code === active ? { ...item, [field]: value } : item));"
-          new_patch = old_patch + "\n  const patchPeriodOffer = (period: Billing, patch: Partial<PeriodOffer>) => setPlans((current) => current.map((item) => { if (item.plan_code !== active) return item; const config = item.config && typeof item.config === 'object' ? item.config : {}; const offers = config.period_offers && typeof config.period_offers === 'object' ? config.period_offers as Record<string, unknown> : {}; const currentOffer = readPeriodOffer(item, period); return { ...item, config: { ...config, period_offers: { ...offers, [period]: { ...currentOffer, ...patch } } } }; }));"
-          if old_patch not in s:
+          marker = "const patchPlan = (field: keyof Plan, value: unknown) => setPlans((current) => current.map((item) => item.plan_code === active ? { ...item, [field]: value } : item));"
+          patch = marker + "\n  const patchPeriodOffer = (period: Billing, patch: Partial<PeriodOffer>) => setPlans((current) => current.map((item) => { if (item.plan_code !== active) return item; const config = item.config && typeof item.config === 'object' ? item.config : {}; const offers = config.period_offers && typeof config.period_offers === 'object' ? config.period_offers as Record<string, unknown> : {}; const currentOffer = readPeriodOffer(item, period); return { ...item, config: { ...config, period_offers: { ...offers, [period]: { ...currentOffer, ...patch } } } }; }));"
+          if marker not in s:
               raise SystemExit('admin patch marker not found')
-          s = s.replace(old_patch, new_patch, 1)
-          old_save = "currency: plan.currency || 'IDR', sort_order: Number(plan.sort_order) || 0, is_active: plan.is_active, updated_at: new Date().toISOString()"
-          new_save = "currency: plan.currency || 'IDR', sort_order: Number(plan.sort_order) || 0, is_active: plan.is_active, config: plan.config ?? {}, updated_at: new Date().toISOString()"
-          if old_save not in s:
+          s = s.replace(marker, patch, 1)
+          marker = "currency: plan.currency || 'IDR', sort_order: Number(plan.sort_order) || 0, is_active: plan.is_active, updated_at: new Date().toISOString()"
+          repl = "currency: plan.currency || 'IDR', sort_order: Number(plan.sort_order) || 0, is_active: plan.is_active, config: plan.config ?? {}, updated_at: new Date().toISOString()"
+          if marker not in s:
               raise SystemExit('admin save marker not found')
-          s = s.replace(old_save, new_save, 1)
-          old_grid = "<label className=\"flex items-center gap-3 rounded-xl border border-surface-border bg-surface-elevated/20 p-3 text-sm text-fg sm:col-span-2\"><input type=\"checkbox\" checked={plan.is_active} onChange={(e) => patchPlan('is_active', e.target.checked)}/><span><strong className=\"block\">Tawarkan ke organizer</strong><span className=\"text-xs text-fg-muted\">Paket nonaktif tidak muncul di katalog user.</span></span></label></div></Card>"
-          new_grid = old_grid[:-len('</div></Card>')] + "</label></div><div className=\"mt-5 rounded-2xl border border-accent/20 bg-accent/5 p-5 sm:col-span-2\"><div><p className=\"text-sm font-bold text-fg\">Penawaran khusus per periode</p><p className=\"mt-1 text-xs leading-5 text-fg-muted\">Atur bonus atau penawaran tampilan yang berbeda antara Bulanan dan Tahunan. Benefit akses inti tetap mengikuti bagian Benefit paket.</p></div><div className=\"mt-4 grid gap-4 lg:grid-cols-2\">{(['MONTHLY','YEARLY'] as Billing[]).map((period) => { const offer = readPeriodOffer(plan, period); return <div key={period} className=\"rounded-2xl border border-surface-border bg-surface-elevated/25 p-4\"><div className=\"flex items-center justify-between gap-3\"><h3 className=\"font-bold text-fg\">{period === 'MONTHLY' ? 'Bulanan' : 'Tahunan'}</h3><span className=\"rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-bold text-accent\">{period === 'MONTHLY' ? 'MONTHLY' : 'YEARLY'}</span></div><div className=\"mt-3 space-y-3\"><label className=\"block text-xs font-medium text-fg-muted\">Badge khusus<input className=\"input mt-1 w-full\" value={offer.badge} onChange={(e) => patchPeriodOffer(period, { badge: e.target.value })} placeholder={period === 'YEARLY' ? 'Hemat lebih banyak' : 'Fleksibel'}/></label><label className=\"block text-xs font-medium text-fg-muted\">Judul penawaran<input className=\"input mt-1 w-full\" value={offer.title} onChange={(e) => patchPeriodOffer(period, { title: e.target.value })} placeholder=\"Bonus khusus paket ini\"/></label><label className=\"block text-xs font-medium text-fg-muted\">Deskripsi<textarea className=\"input mt-1 min-h-20 w-full\" value={offer.description} onChange={(e) => patchPeriodOffer(period, { description: e.target.value })} placeholder=\"Teks singkat yang tampil pada kartu paket.\"/></label><label className=\"block text-xs font-medium text-fg-muted\">Penawaran / benefit tambahan<span className=\"mt-1 block text-[10px] text-fg-muted\">Satu baris untuk satu benefit.</span><textarea className=\"input mt-1 min-h-24 w-full\" value={offer.benefits.join('\\n')} onChange={(e) => patchPeriodOffer(period, { benefits: e.target.value.split('\\n').map((item) => item.trim()).filter(Boolean) })} placeholder=\"Bonus 1\\nBonus 2\"/></label></div></div>; })}</div></div></div></Card>"
-          if old_grid not in s:
-              raise SystemExit('admin package grid marker not found')
-          s = s.replace(old_grid, new_grid, 1)
+          s = s.replace(marker, repl, 1)
+          marker = "<label className=\"flex items-center gap-3 rounded-xl border border-surface-border bg-surface-elevated/20 p-3 text-sm text-fg sm:col-span-2\"><input type=\"checkbox\" checked={plan.is_active} onChange={(e) => patchPlan('is_active', e.target.checked)}/><span><strong className=\"block\">Tawarkan ke organizer</strong><span className=\"text-xs text-fg-muted\">Paket nonaktif tidak muncul di katalog user.</span></span></label></div></Card>"
+          insert = "<label className=\"flex items-center gap-3 rounded-xl border border-surface-border bg-surface-elevated/20 p-3 text-sm text-fg sm:col-span-2\"><input type=\"checkbox\" checked={plan.is_active} onChange={(e) => patchPlan('is_active', e.target.checked)}/><span><strong className=\"block\">Tawarkan ke organizer</strong><span className=\"text-xs text-fg-muted\">Paket nonaktif tidak muncul di katalog user.</span></span></label></div><div className=\"mt-5 rounded-2xl border border-accent/20 bg-accent/5 p-5\"><div><p className=\"text-sm font-bold text-fg\">Penawaran khusus per periode</p><p className=\"mt-1 text-xs leading-5 text-fg-muted\">Atur bonus atau penawaran tampilan yang berbeda antara Bulanan dan Tahunan. Benefit akses inti tetap mengikuti Benefit paket.</p></div><div className=\"mt-4 grid gap-4 lg:grid-cols-2\">{(['MONTHLY','YEARLY'] as Billing[]).map((period) => { const offer = readPeriodOffer(plan, period); return <div key={period} className=\"rounded-2xl border border-surface-border bg-surface-elevated/25 p-4\"><div className=\"flex items-center justify-between gap-3\"><h3 className=\"font-bold text-fg\">{period === 'MONTHLY' ? 'Bulanan' : 'Tahunan'}</h3><span className=\"rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-bold text-accent\">{period}</span></div><div className=\"mt-3 space-y-3\"><label className=\"block text-xs font-medium text-fg-muted\">Badge khusus<input className=\"input mt-1 w-full\" value={offer.badge} onChange={(e) => patchPeriodOffer(period, { badge: e.target.value })} placeholder=\"Contoh: Hemat lebih banyak\"/></label><label className=\"block text-xs font-medium text-fg-muted\">Judul penawaran<input className=\"input mt-1 w-full\" value={offer.title} onChange={(e) => patchPeriodOffer(period, { title: e.target.value })} placeholder=\"Bonus khusus periode ini\"/></label><label className=\"block text-xs font-medium text-fg-muted\">Deskripsi<textarea className=\"input mt-1 min-h-20 w-full\" value={offer.description} onChange={(e) => patchPeriodOffer(period, { description: e.target.value })} placeholder=\"Tampil pada kartu paket user.\"/></label><label className=\"block text-xs font-medium text-fg-muted\">Benefit tambahan<span className=\"mt-1 block text-[10px] text-fg-muted\">Satu baris untuk satu benefit.</span><textarea className=\"input mt-1 min-h-24 w-full\" value={offer.benefits.join('\\n')} onChange={(e) => patchPeriodOffer(period, { benefits: e.target.value.split('\\n').map((item) => item.trim()).filter(Boolean) })} placeholder=\"Bonus 1\\nBonus 2\"/></label></div></div>; })}</div></div></div></Card>"
+          if marker not in s:
+              raise SystemExit('admin package marker not found')
+          s = s.replace(marker, insert, 1)
           p.write_text(s)
-
-          print('period settings patch complete')
+          print('patch complete')
           PY
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/services/commerce.service.ts src/pages/OrganizerPlanPageV2.tsx src/pages/AdminPlanUsagePageV2.tsx .github/workflows/patch-period-settings.yml
+          git add src/services/commerce.service.ts src/pages/OrganizerPlanPageV2.tsx src/pages/AdminPlanUsagePageV2.tsx
           git commit -m "feat(organizer): add period pricing and special offers"
           git rm .github/workflows/patch-period-settings.yml
           git commit -m "chore: remove one-time period settings patch workflow"
