@@ -66,6 +66,16 @@ export async function uploadImage(
   return response.json() as Promise<CloudinaryUploadResult>;
 }
 
+/**
+ * Payment proof upload. This intentionally uses the general unsigned preset,
+ * but forces all assets into a dedicated payment-proof folder and never uses
+ * the profile/cover preset or profile path.
+ */
+export async function uploadPaymentProof(file: File): Promise<CloudinaryUploadResult> {
+  if (!file.type.startsWith('image/')) throw new Error('Bukti pembayaran harus berupa gambar.');
+  return uploadImage(file, { folder: 'sykabelajar/payment-proofs' });
+}
+
 // ── Signed upload (profile / cover) ────────────────────────────
 // 1. Call Edge Function → get signature + timestamp + api_key
 // 2. Upload to Cloudinary with signed payload + "sykabelajar_profile" preset
