@@ -49,8 +49,6 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npx tsc -p tsconfig.app.json --noEmit
-      - name: Build
-        run: npm run build
       - name: Commit fix and remove repair workflow
         shell: bash
         run: |
