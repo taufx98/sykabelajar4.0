@@ -22,12 +22,13 @@ export function MedalIcon({ rank, size = 24 }: { rank: number; size?: number }) 
   return <AwardIcon size={size} className="text-fg-muted" />;
 }
 
-export function Badge({ children, color = 'default' }: { children: ReactNode; color?: 'default' | 'moss' | 'warn' | 'err' | 'info' }) {
+export function Badge({ children, color = 'default' }: { children: ReactNode; color?: 'default' | 'moss' | 'warn' | 'err' | 'red' | 'info' }) {
   const colors = {
     default: 'surface-card-bg text-fg-secondary border surface-border',
     moss: 'bg-accent-muted-strong text-accent border border-accent/20',
     warn: 'bg-amber-500/15 text-amber-600 border border-amber-500/20 dark:text-amber-300',
     err: 'bg-red-500/15 text-red-600 border border-red-500/20 dark:text-red-300',
+    red: 'bg-red-500/15 text-red-600 border border-red-500/20 dark:text-red-300',
     info: 'bg-sky-500/15 text-sky-600 border border-sky-500/20 dark:text-sky-300',
   };
   return <span className={`chip ${colors[color]}`}>{children}</span>;
