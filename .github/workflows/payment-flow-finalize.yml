@@ -1,77 +1,8 @@
-name: Finalize payment flow
-on: push
-permissions:
-  contents: write
+name: Disabled legacy payment finalize
+on:
+  workflow_dispatch:
 jobs:
-  finalize:
+  disabled:
     runs-on: ubuntu-latest
-    if: ${{ !startsWith(github.event.head_commit.message, 'feat(payment): finalize payment flow') && !startsWith(github.event.head_commit.message, 'chore: remove payment flow finalizer') }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Patch
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          # Admin: payment setup should only expose type, bank, account, owner and random-code toggle.
-          p=Path('src/pages/AdminPlanUsagePageV2.tsx'); s=p.read_text()
-          s=s.replace("type NewPaymentMethod = { name: string; paymentType: string; bankName: string; accountNumber: string; accountName: string; instructions: string };", "type NewPaymentMethod = { name: string; paymentType: string; bankName: string; accountNumber: string; accountName: string; instructions: string; randomCodeEnabled: boolean };")
-          s=s.replace("const emptyMethod: NewPaymentMethod = { name: '', paymentType: 'BANK_TRANSFER', bankName: '', accountNumber: '', accountName: '', instructions: '' };", "const emptyMethod: NewPaymentMethod = { name: '', paymentType: 'BANK_TRANSFER', bankName: '', accountNumber: '', accountName: '', instructions: '', randomCodeEnabled: false };")
-          if 'function paymentTypeLabel(value: string)' not in s:
-              s=s.replace("function methodMeta(method: OrganizerPaymentMethod) {", "function paymentTypeLabel(value: string) { const type=value.toUpperCase(); if(type==='BANK_TRANSFER') return 'Transfer Bank'; if(type==='QRIS') return 'QRIS'; if(type==='VIRTUAL_ACCOUNT') return 'Virtual Account'; if(type==='EWALLET') return 'E-Wallet'; if(type==='MIDTRANS') return 'Pembayaran Otomatis'; if(type==='SNAP') return 'Payment Gateway'; return 'Metode Pembayaran'; }\nfunction methodMeta(method: OrganizerPaymentMethod) {",1)
-          s=s.replace("function methodMeta(method: OrganizerPaymentMethod) { return { bankName: String(method.details?.bank_name ?? ''), accountNumber: String(method.details?.account_number ?? ''), accountName: String(method.details?.account_name ?? ''), instructions: String(method.details?.instructions ?? method.details?.text ?? '') }; }", "function methodMeta(method: OrganizerPaymentMethod) { return { bankName: String(method.details?.bank_name ?? ''), accountNumber: String(method.details?.account_number ?? ''), accountName: String(method.details?.account_name ?? ''), randomCodeEnabled: Boolean(method.details?.random_code_enabled) }; }")
-          s=re.sub(r'<label className="text-xs font-medium text-fg-muted">Nama metode.*?</label>', '', s, count=1, flags=re.S)
-          s=re.sub(r'<label className="block text-xs font-medium text-fg-muted">Instruksi untuk organizer.*?</label>', '', s, count=1, flags=re.S)
-          s=s.replace("if (!newMethod.name.trim()) { toast('Nama metode wajib diisi.', 'error'); return; } ", "")
-          s=s.replace("if (newMethod.paymentType === 'BANK_TRANSFER' && (!newMethod.bankName.trim() || !newMethod.accountNumber.trim() || !newMethod.accountName.trim())) { toast('Bank, nomor rekening, dan nama pemilik wajib diisi.', 'error'); return; }", "if (newMethod.paymentType === 'BANK_TRANSFER' && (!newMethod.bankName.trim() || !newMethod.accountNumber.trim() || !newMethod.accountName.trim())) { toast('Nama bank, nomor rekening, dan atas nama rekening wajib diisi.', 'error'); return; }")
-          s=s.replace("const details = { bank_name: newMethod.bankName.trim() || null, account_number: newMethod.accountNumber.trim() || null, account_name: newMethod.accountName.trim() || null, instructions: newMethod.instructions.trim() || null };", "const details = { bank_name: newMethod.bankName.trim() || null, account_number: newMethod.accountNumber.trim() || null, account_name: newMethod.accountName.trim() || null, random_code_enabled: newMethod.paymentType.trim().toUpperCase() === 'BANK_TRANSFER' && newMethod.randomCodeEnabled };")
-          s=s.replace("name: newMethod.name.trim(),", "name: paymentTypeLabel(newMethod.paymentType),")
-          s=s.replace("<span className=\"rounded-full bg-surface-elevated px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-fg-muted\">{method.payment_type}</span>", "<span className=\"rounded-full bg-surface-elevated px-2.5 py-1 text-[9px] font-bold tracking-wider text-fg-muted\">{paymentTypeLabel(method.payment_type)}</span>")
-          s=s.replace("{meta.accountName && <p className=\"mt-1 text-xs text-fg-muted\">a.n. {meta.accountName}</p>}{paymentDetail(method) && <p className=\"mt-3 whitespace-pre-wrap rounded-xl border border-surface-border bg-surface-elevated/30 p-3 text-xs leading-5 text-fg-muted\">{paymentDetail(method)}</p>}", "{meta.accountName && <p className=\"mt-1 text-xs text-fg-muted\">a.n. {meta.accountName}</p>}{meta.randomCodeEnabled && <p className=\"mt-3 text-xs font-semibold text-accent\">Random 3 digit: aktif</p>}")
-          # Ensure toggle exists before save button.
-          if 'checked={newMethod.randomCodeEnabled}' not in s:
-              save='<Button fullWidth disabled={busy} onClick={() => void addMethod()} icon={<Plus size={15}/>}>Simpan Metode Pembayaran</Button>'
-              toggle='<label className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent/5 p-3 text-sm text-fg"><input type="checkbox" className="mt-0.5" checked={newMethod.randomCodeEnabled} onChange={(e) => setNewMethod((v) => ({ ...v, randomCodeEnabled: e.target.checked }))}/><span><strong className="block">Random 3 digit</strong><span className="text-xs text-fg-muted">Tambahkan kode unik 3 digit pada nominal Transfer Bank.</span></span></label>'
-              s=s.replace(save,toggle+save,1)
-          # Keep the displayed payment card free from old instruction helper.
-          if 'function paymentDetail(method:' in s:
-              s=re.sub(r'function paymentDetail\(method: OrganizerPaymentMethod\) \{.*?\}\n', '', s, count=1, flags=re.S)
-          p.write_text(s)
-
-          # User checkout: human labels, copyable account, visible proof card, random total.
-          p=Path('src/pages/OrganizerPlanPageV2.tsx'); s=p.read_text()
-          s=s.replace("import { ArrowLeft, ArrowRight, Check, CheckCircle2, CreditCard, Eye, Gauge, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Tag, UploadCloud, X } from 'lucide-react';", "import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Gauge, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Tag, UploadCloud, X } from 'lucide-react';")
-          if 'function paymentTypeLabel(value: string)' not in s:
-              helper="function paymentTypeLabel(value: string) { const type=value.toUpperCase(); if(type==='BANK_TRANSFER') return 'Transfer Bank'; if(type==='QRIS') return 'QRIS'; if(type==='VIRTUAL_ACCOUNT') return 'Virtual Account'; if(type==='EWALLET') return 'E-Wallet'; if(type==='MIDTRANS') return 'Pembayaran Otomatis'; if(type==='SNAP') return 'Payment Gateway'; return 'Metode Pembayaran'; }\nfunction paymentAccountNumber(method: OrganizerPaymentMethod | null) { return String(method?.details?.account_number ?? '').trim(); }\nfunction paymentBankName(method: OrganizerPaymentMethod | null) { return String(method?.details?.bank_name ?? '').trim(); }\nfunction paymentAccountName(method: OrganizerPaymentMethod | null) { return String(method?.details?.account_name ?? '').trim(); }\n"
-              s=s.replace("function paymentDetailText(method: OrganizerPaymentMethod)", helper+"function paymentDetailText(method: OrganizerPaymentMethod)",1)
-          # Replace existing helper with empty to prevent raw JSON key display if referenced.
-          s=re.sub(r'function paymentDetailText\(method: OrganizerPaymentMethod\) \{.*?\}\n', 'function paymentDetailText(method: OrganizerPaymentMethod) { return \'\'; }\n', s, count=1, flags=re.S)
-          marker="  const selectedMethodNeedsProof = !!selectedMethod && !['MIDTRANS', 'SNAP'].includes(String(selectedMethod.payment_type).toUpperCase());"
-          if marker not in s: raise SystemExit('user proof marker missing')
-          s=s.replace(marker, "  const selectedMethodNeedsProof = !!selectedMethod && !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(selectedMethod.payment_type).toUpperCase());\n  const selectedRandomEnabled = !!selectedMethod && String(selectedMethod.payment_type).toUpperCase() === 'BANK_TRANSFER' && Boolean(selectedMethod.details?.random_code_enabled) && selectedTotal > 0;\n  const paymentRandomCode = selectedRandomEnabled ? Number(contactFields.__payment_random_code || 0) : 0;\n  const paymentTransferTotal = selectedTotal + paymentRandomCode;",1)
-          open_marker="const initial: Record<string, string> = {}; paymentFields.forEach((field) => { initial[field.field_key] = ''; });"
-          if open_marker in s and 'initial.__payment_random_code' not in s:
-              s=s.replace(open_marker, open_marker+" const firstMethod = paymentMethods[0] ?? null; if (firstMethod && String(firstMethod.payment_type).toUpperCase() === 'BANK_TRANSFER' && Boolean(firstMethod.details?.random_code_enabled)) initial.__payment_random_code = String(Math.floor(Math.random() * 900) + 100);",1)
-          s=s.replace("const payload = { ...contactFields };", "const payload = { ...contactFields, ...(selectedRandomEnabled ? { payment_random_code: String(paymentRandomCode) } : {}) };",1)
-          # Human-friendly payment method selection.
-          s=s.replace('{method.name}', "{paymentTypeLabel(method.payment_type)}{paymentBankName(method) ? ` · ${paymentBankName(method)}` : ''}")
-          # Inject payment card at the top of the payment modal.
-          if s.count('Upload Bukti Transfer') < 2:
-              modal=re.search(r'(\{paymentOpen\s*&&\s*(?:\(\s*)?<div[^>]*>\s*)',s)
-              if not modal: raise SystemExit('payment modal opening marker missing')
-              insert='''{selectedMethod && <div className="mb-4 rounded-2xl border border-surface-border bg-surface-elevated/30 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-wider text-accent">Metode Pembayaran</p><p className="mt-1 text-sm font-bold text-fg">{paymentTypeLabel(selectedMethod.payment_type)}{paymentBankName(selectedMethod) ? ` · ${paymentBankName(selectedMethod)}` : ''}</p></div></div>{paymentAccountNumber(selectedMethod) && <div className="mt-4 rounded-xl border border-surface-border bg-surface-bg/50 p-3"><div className="flex items-center justify-between gap-3"><span className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">Nomor Rekening</span><button type="button" onClick={() => navigator.clipboard.writeText(paymentAccountNumber(selectedMethod)).then(() => toast.success('Nomor rekening disalin.')).catch(() => toast.error('Nomor rekening tidak dapat disalin.'))} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-accent hover:bg-accent/10"><Copy size={13}/> Salin</button></div><p className="mt-1 text-2xl font-black tracking-wider text-fg">{paymentAccountNumber(selectedMethod)}</p>{paymentAccountName(selectedMethod) && <p className="mt-1 text-xs text-fg-muted">a.n. {paymentAccountName(selectedMethod)}</p>}</div>}{selectedRandomEnabled && <div className="mt-3 rounded-xl border border-accent/20 bg-accent/5 p-3"><p className="text-xs text-fg-muted">Transfer tepat sejumlah</p><p className="mt-1 text-xl font-black text-accent">{money(paymentTransferTotal, paymentPlan?.currency || 'IDR')}</p><p className="mt-1 text-[11px] text-fg-muted">Sudah termasuk kode unik 3 digit.</p></div>}{selectedMethodNeedsProof && selectedTotal > 0 && <div className="mt-4 rounded-2xl border border-accent/20 bg-accent/5 p-4"><div className="flex items-start gap-3"><UploadCloud size={18} className="mt-0.5 shrink-0 text-accent"/><div><p className="text-sm font-bold text-fg">Upload Bukti Transfer</p><p className="mt-1 text-xs leading-5 text-fg-muted">Upload bukti pembayaran setelah transfer sesuai nominal yang tampil di atas.</p></div></div><input type="file" accept="image/*" onChange={(e) => chooseProof(e.target.files?.[0])} className="mt-3 block w-full text-xs text-fg-muted file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-2 file:font-semibold file:text-white"/>{proofPreviewUrl && <div className="mt-3 flex items-start gap-3"><img src={proofPreviewUrl} alt="Preview bukti transfer" className="h-28 w-44 rounded-xl object-cover"/><button type="button" onClick={removeProof} className="rounded-lg p-2 text-red-400 hover:bg-red-500/10"><X size={15}/></button></div>}</div>}</div>}'''
-              s=s[:modal.end()]+insert+s[modal.end():]
-          p.write_text(s)
-          PY
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/pages/AdminPlanUsagePageV2.tsx src/pages/OrganizerPlanPageV2.tsx
-          git commit -m "feat(payment): finalize payment flow"
-          git rm .github/workflows/payment-flow-finalize.yml .github/workflows/fix-payment-flow-v2.yml .github/workflows/repair-payment-ui.yml .github/workflows/patch-payment-ui.yml 2>/dev/null || true
-          git commit -m "chore: remove payment flow finalizer" || true
-          git push
+      - run: echo "Legacy workflow disabled"
