@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Clock3, Save, ShieldAlert } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { supabase } from '@/lib/supabase';
 
 const DEFAULTS = [1, 10, 60, 1440];
 
@@ -39,10 +40,9 @@ export function ChatSpamPolicySettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { supabase } = await import('@/lib/supabase');
       const { data, error } = await supabase.from('platform_settings').select('value').eq('key', 'chat_spam_policy').maybeSingle();
       if (error) throw error;
       setPolicy(parsePolicy(data?.value));
@@ -51,14 +51,13 @@ export function ChatSpamPolicySettings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
-  const save = async () => {
+  const save = useCallback(async () => {
     setSaving(true);
     try {
-      const { supabase } = await import('@/lib/supabase');
       const value = {
         window_seconds: policy.window_seconds,
         message_threshold: policy.message_threshold,
@@ -73,7 +72,7 @@ export function ChatSpamPolicySettings() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [load, policy, toast]);
 
   return (
     <Card className="border-amber-500/15 bg-amber-500/[0.03] p-4">
