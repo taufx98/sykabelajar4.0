@@ -14,7 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      TARGET_SUPABASE_URL: https://mvdczyitbkxkldjughor.supabase.co
+      TARGET_SUPABASE_URL: https://jrfogwueytiddnanetth.supabase.co
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
@@ -52,6 +52,7 @@ jobs:
         if: ${{ env.VITE_SUPABASE_URL != env.TARGET_SUPABASE_URL }}
         run: |
           echo "Production smoke test skipped safely."
-          echo "GitHub Actions secret VITE_SUPABASE_URL still points to the old/restricted Supabase project."
-          echo "Update CI secrets to the target project: ${TARGET_SUPABASE_URL}"
+          echo "GitHub Actions secret VITE_SUPABASE_URL does not point to the active SYKABELAJAR 4.0 project."
+          echo "Expected target: ${TARGET_SUPABASE_URL}"
+          echo "Frontend runtime has a safe production fallback to the active project."
           echo "No Supabase API request is made by this step."
