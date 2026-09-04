@@ -3,6 +3,7 @@ import { emitSykaEvent } from '@/lib/realtimeBus';
 import { clearPublicCache, invalidateForRealtime } from '@/lib/cacheRegistry';
 import { applyFeedRealtimeChange } from '@/lib/feedRealtime';
 import { applyCompetitionRealtimeChange, invalidateLeaderboardMemory } from '@/services/platform.service';
+import { applyChatRealtimeMessage, applyChatRealtimeThread, removeChatRealtimeThread } from '@/services/chat.service';
 import { reconcileAfterRealtimeReconnect } from '@/services/realtime-reconciliation.service';
 
 type Cleanup = () => void;
@@ -103,15 +104,23 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;
+      const threadId = String(row.id ?? '');
+      if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
+      else if (threadId) applyChatRealtimeThread(row as unknown as Parameters<typeof applyChatRealtimeThread>[0]);
       emitSykaEvent({ type: 'chat-thread-updated', thread: row });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;
+      const threadId = String(row.id ?? '');
+      if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
+      else if (threadId) applyChatRealtimeThread(row as unknown as Parameters<typeof applyChatRealtimeThread>[0]);
       emitSykaEvent({ type: 'chat-thread-updated', thread: row });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `sender_id=neq.${userId}` }, (payload) => {
-      emitSykaEvent({ type: 'chat-message', message: payload.new as Record<string, unknown> });
+      const message = payload.new as Record<string, unknown>;
+      applyChatRealtimeMessage(message as unknown as Parameters<typeof applyChatRealtimeMessage>[0], userId);
+      emitSykaEvent({ type: 'chat-message', message });
     });
 
   if (isAdmin) {
