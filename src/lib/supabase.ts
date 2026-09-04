@@ -3,6 +3,41 @@ import { env } from './env';
 
 let _client: SupabaseClient | null = null;
 const blockedRpcRequests = new Set<string>();
+const PERSISTED_BLOCKS_KEY = 'syka.rpc-circuit-breaker.v2';
+const PERSISTED_BLOCK_TTL_MS = 24 * 60 * 60 * 1000;
+
+type PersistedBlock = { failedAt: number };
+type PersistedBlocks = Record<string, PersistedBlock>;
+
+function loadPersistedBlocks(): PersistedBlocks {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PERSISTED_BLOCKS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as PersistedBlocks;
+    const now = Date.now();
+    const valid = Object.fromEntries(Object.entries(parsed).filter(([, value]) => value && now - Number(value.failedAt) < PERSISTED_BLOCK_TTL_MS));
+    if (Object.keys(valid).length !== Object.keys(parsed).length) window.localStorage.setItem(PERSISTED_BLOCKS_KEY, JSON.stringify(valid));
+    return valid;
+  } catch {
+    return {};
+  }
+}
+
+function persistBlockedRequest(key: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const blocks = loadPersistedBlocks();
+    blocks[key] = { failedAt: Date.now() };
+    window.localStorage.setItem(PERSISTED_BLOCKS_KEY, JSON.stringify(blocks));
+  } catch {
+    // Browser storage may be unavailable; in-memory blocking still applies.
+  }
+}
+
+function isPersistentlyBlocked(key: string) {
+  return Boolean(loadPersistedBlocks()[key]);
+}
 
 function clearStaleAuthStorage() {
   if (typeof window === 'undefined') return;
@@ -64,22 +99,27 @@ function blockedRpcError(rpcName: string) {
   return error;
 }
 
+function markBlocked(key: string) {
+  blockedRpcRequests.add(key);
+  persistBlockedRequest(key);
+}
+
 function guardedRpc(client: SupabaseClient, rpcName: string, ...args: any[]) {
   const key = stableRpcKey(rpcName, args);
-  if (blockedRpcRequests.has(key)) {
+  if (blockedRpcRequests.has(key) || isPersistentlyBlocked(key)) {
+    blockedRpcRequests.add(key);
     return Promise.resolve({ data: null, error: blockedRpcError(rpcName) });
   }
 
   return Promise.resolve((client as any).rpc(rpcName, ...args)).then((result: any) => {
-    if (result?.error) blockedRpcRequests.add(key);
+    if (result?.error) markBlocked(key);
     return result;
   }).catch((error: unknown) => {
-    blockedRpcRequests.add(key);
+    markBlocked(key);
     return { data: null, error };
   });
 }
 
-// Lazy proxy — always delegates to initialized client.
 export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = initClient();
