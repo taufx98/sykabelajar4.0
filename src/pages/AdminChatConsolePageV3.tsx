@@ -11,7 +11,16 @@ import { subscribeSykaEvents } from '@/lib/realtimeBus';
 import { claimChatTicket, closeThread, getAdminChatHistory, getOrCreateDmThread, loadChatMessagesPage, loadMyThreads, markThreadRead, sendMessage, type ChatHistoryRow, type ChatMessage, type ChatThread } from '@/services/chat.service';
 import { adminGetBlockedChatUsers, adminSearchChatUsers, adminSetChatUserBlock, type BlockedChatUser, type ChatModerationUser } from '@/services/chatModeration.service';
 
-type SpamRule = { level: number; name: string; message_threshold: number; window_seconds: number; duration_minutes: number; message: string; enabled: boolean };
+type SpamRule = {
+  level: number;
+  name: string;
+  message_threshold: number;
+  window_seconds: number;
+  duration_minutes: number;
+  message: string;
+  enabled: boolean;
+};
+
 type SpamPolicy = { enabled: boolean; levels: SpamRule[] };
 type AdminHistoryRow = ChatHistoryRow & { thread_type?: string; other_user_name?: string; other_username?: string | null };
 
@@ -23,19 +32,21 @@ const DEFAULT_RULES: SpamRule[] = [
   { level: 4, name: 'Pelanggaran 4', message_threshold: 4, window_seconds: 10, duration_minutes: 1440, message: 'Pelanggaran spam berulang. Akses chat dibatasi selama 24 jam.', enabled: true },
 ];
 
-const formatChatTime = (value?: string | null) => {
+const formatTime = (value?: string | null) => {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
+
 const formatDuration = (minutes: number) => minutes % 1440 === 0 ? `${minutes / 1440} hari` : minutes % 60 === 0 ? `${minutes / 60} jam` : `${minutes} menit`;
-const pairName = (thread: ChatThread) => `${thread.user_name || thread.username || 'User'} ↔ ${thread.other_user_name || thread.other_username || 'User'}`;
-const pairUsername = (thread: Pick<ChatThread, 'username' | 'other_username'>) => `@${thread.username || 'user'} ↔ @${thread.other_username || 'user'}`;
+const counterpartName = (thread: ChatThread, viewerId?: string | null) => thread.user_id === viewerId ? (thread.other_user_name || thread.other_username || 'User') : (thread.user_name || thread.username || 'User');
+const counterpartUsername = (thread: ChatThread, viewerId?: string | null) => thread.user_id === viewerId ? thread.other_username : thread.username;
+
 const normalizeRules = (value: unknown): SpamPolicy => {
   const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-  const rawLevels = Array.isArray(raw.levels) ? raw.levels : [];
-  const levels = rawLevels.map((item, index) => {
+  const list = Array.isArray(raw.levels) ? raw.levels : [];
+  const levels = list.map((item, index) => {
     const row = item && typeof item === 'object' ? item as Record<string, unknown> : {};
     return {
       level: index + 1,
@@ -51,14 +62,14 @@ const normalizeRules = (value: unknown): SpamPolicy => {
 };
 
 function Stars({ value }: { value: number | null }) {
-  return <span className="inline-flex items-center gap-0.5">{[1, 2, 3, 4, 5].map((n) => <Star key={n} size={13} className={value != null && n <= value ? 'text-amber-400 fill-amber-400' : 'text-slate-700'} />)}</span>;
+  return <span className="inline-flex items-center gap-0.5">{[1, 2, 3, 4, 5].map((n) => <Star key={n} size={13} className={value != null && n <= value ? 'fill-amber-400 text-amber-400' : 'text-slate-700'} />)}</span>;
 }
 
 function Conversation({ thread, onClosed }: { thread: ChatThread; onClosed: () => void }) {
   const { toast } = useApp();
+  const [viewerId, setViewerId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [viewerId, setViewerId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
   const [claiming, setClaiming] = useState(false);
@@ -67,43 +78,97 @@ function Conversation({ thread, onClosed }: { thread: ChatThread; onClosed: () =
   const isTicket = thread.thread_type === 'ticket';
   const canSend = viewerId === thread.user_id || viewerId === thread.participant_id;
 
-  useEffect(() => { void supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null)); }, []);
-  const scrollBottom = useCallback((behavior: ScrollBehavior = 'auto') => { const el = scrollRef.current; if (!el) return; el.scrollTo({ top: el.scrollHeight, behavior }); setHasNew(false); }, []);
-  const nearBottom = useCallback(() => { const el = scrollRef.current; return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120; }, []);
+  useEffect(() => {
+    let live = true;
+    void supabase.auth.getUser().then(({ data }) => { if (live) setViewerId(data.user?.id ?? null); });
+    return () => { live = false; };
+  }, []);
+
+  const scrollBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    setHasNew(false);
+  }, []);
+
+  const nearBottom = useCallback(() => {
+    const el = scrollRef.current;
+    return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }, []);
 
   useEffect(() => {
     let live = true;
-    setMessages([]); setHasNew(false);
-    void loadChatMessagesPage(thread.id, 100).then((items) => { if (!live) return; setMessages(items); window.requestAnimationFrame(() => scrollBottom()); }).catch((error) => { if (live) toast(error instanceof Error ? error.message : 'Gagal memuat pesan.', 'error'); });
+    setMessages([]);
+    setHasNew(false);
+    void loadChatMessagesPage(thread.id, 100).then((items) => {
+      if (!live) return;
+      setMessages(items);
+      window.requestAnimationFrame(() => { if (live) scrollBottom(); });
+    }).catch((error) => { if (live) toast(error instanceof Error ? error.message : 'Gagal memuat pesan.', 'error'); });
     void markThreadRead(thread.id).catch(() => undefined);
-    const channel = supabase.channel(`admin-conversation-${thread.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${thread.id}` }, (payload) => {
-        const message = payload.new as ChatMessage;
-        if (!live) return;
-        const stick = nearBottom();
-        setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
-        if (stick) window.requestAnimationFrame(() => scrollBottom('smooth')); else setHasNew(true);
-      }).subscribe();
+    const channel = supabase.channel(`admin-conversation-${thread.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${thread.id}` }, (payload) => {
+      const message = payload.new as ChatMessage;
+      if (!live) return;
+      const stick = nearBottom();
+      setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+      if (stick) window.requestAnimationFrame(() => scrollBottom('smooth')); else setHasNew(true);
+    }).subscribe();
     return () => { live = false; void supabase.removeChannel(channel); };
   }, [thread.id, toast, scrollBottom, nearBottom]);
 
   const send = async () => {
     if (!canSend || !input.trim() || sending) return;
     setSending(true);
-    try { const message = await sendMessage(thread.id, input.trim()); setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]); setInput(''); window.requestAnimationFrame(() => scrollBottom('smooth')); }
-    catch (error) { toast(error instanceof Error ? error.message : 'Gagal mengirim pesan.', 'error'); }
-    finally { setSending(false); }
+    try {
+      const message = await sendMessage(thread.id, input.trim());
+      setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+      setInput('');
+      window.requestAnimationFrame(() => scrollBottom('smooth'));
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Gagal mengirim pesan.', 'error');
+    } finally {
+      setSending(false);
+    }
   };
-  const claim = async () => { if (!isTicket || claiming) return; setClaiming(true); try { await claimChatTicket(thread.id); toast('Tiket berhasil diambil.', 'success'); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal mengambil tiket.', 'error'); } finally { setClaiming(false); } };
-  const close = async () => { if (!isTicket || closing) return; setClosing(true); try { await closeThread(thread.id); toast('Tiket ditutup.', 'success'); onClosed(); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal menutup tiket.', 'error'); } finally { setClosing(false); } };
 
-  return <Card className="flex h-full min-h-0 flex-col overflow-hidden p-0">
-    <header className="shrink-0 border-b surface-border px-5 py-4"><div className="flex min-w-0 items-center gap-3"><Avatar name={thread.user_name || 'User'} id={thread.user_id} size={42} src={thread.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate font-semibold text-fg">{pairName(thread)}</p><p className="truncate text-xs text-fg-muted">{pairUsername(thread)} · <Badge color={isTicket ? 'warn' : 'moss'}>{isTicket ? 'Tiket' : 'Chat'}</Badge></p></div>{isTicket && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void claim()} disabled={claiming}>{claiming ? 'Mengambil…' : 'Ambil'}</Button><Button size="sm" variant="outline" onClick={() => void close()} disabled={closing}>{closing ? 'Menutup…' : 'Tutup'}</Button></div>}</div></header>
+  const claim = async () => {
+    if (!isTicket || claiming) return;
+    setClaiming(true);
+    try { await claimChatTicket(thread.id); toast('Tiket berhasil diambil.', 'success'); }
+    catch (error) { toast(error instanceof Error ? error.message : 'Gagal mengambil tiket.', 'error'); }
+    finally { setClaiming(false); }
+  };
+
+  const close = async () => {
+    if (!isTicket || closing) return;
+    setClosing(true);
+    try { await closeThread(thread.id); toast('Tiket ditutup.', 'success'); onClosed(); }
+    catch (error) { toast(error instanceof Error ? error.message : 'Gagal menutup tiket.', 'error'); }
+    finally { setClosing(false); }
+  };
+
+  return <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-0">
+    <header className="shrink-0 border-b surface-border px-5 py-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <Avatar name={counterpartName(thread, viewerId)} id={thread.user_id === viewerId ? thread.participant_id || undefined : thread.user_id} size={42} src={thread.user_id === viewerId ? thread.other_avatar_url || undefined : thread.avatar_url || undefined} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold text-fg">{counterpartName(thread, viewerId)}</p>
+          <p className="truncate text-xs text-fg-muted">@{counterpartUsername(thread, viewerId) || 'user'} · <Badge color={isTicket ? 'warn' : 'moss'}>{isTicket ? 'Tiket' : 'Chat'}</Badge></p>
+        </div>
+        {isTicket && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void claim()} disabled={claiming}>{claiming ? 'Mengambil…' : 'Ambil'}</Button><Button size="sm" variant="outline" onClick={() => void close()} disabled={closing}>{closing ? 'Menutup…' : 'Tutup'}</Button></div>}
+      </div>
+    </header>
     <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-5 py-2 text-[10px] text-amber-300">🔒 {SECURITY}</div>
-    <div className="relative min-h-0 flex-1 overflow-hidden"><div ref={scrollRef} onScroll={() => { if (nearBottom()) setHasNew(false); }} className="absolute inset-0 space-y-3 overflow-y-auto overscroll-contain p-5">
-      {messages.length === 0 ? <p className="py-10 text-center text-xs text-fg-muted">Belum ada pesan.</p> : messages.map((message) => { const mine = message.sender_id === viewerId; return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${mine ? 'rounded-br-sm bg-moss-600 text-white' : 'rounded-bl-sm surface-elevated text-fg'}`}><p className="whitespace-pre-wrap break-words">{message.body}</p><p className="mt-1 text-right text-[9px] opacity-60">{formatChatTime(message.created_at)}</p></div></div>; })}
-    </div>{hasNew && <button onClick={() => scrollBottom('smooth')} className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border surface-border surface-card-bg px-3 py-1.5 text-[11px] font-medium text-accent shadow-lg">Pesan baru ↓</button>}</div>
-    {canSend ? <div className="shrink-0 border-t surface-border p-3"><div className="flex min-w-0 gap-2"><textarea className="input min-h-12 min-w-0 flex-1 resize-none" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={isTicket ? 'Balas tiket…' : 'Tulis pesan…'}/><Button onClick={() => void send()} disabled={!input.trim() || sending}>{sending ? 'Mengirim…' : 'Kirim'}</Button></div></div> : <div className="shrink-0 border-t surface-border px-4 py-3 text-center text-[10px] text-fg-muted">Tidak ada akses kirim pada thread ini.</div>}
+    <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div ref={scrollRef} onScroll={() => { if (nearBottom()) setHasNew(false); }} className="absolute inset-0 space-y-3 overflow-y-auto overscroll-contain p-5">
+        {messages.length === 0 ? <p className="py-10 text-center text-xs text-fg-muted">Belum ada pesan.</p> : messages.map((message) => {
+          const mine = message.sender_id === viewerId;
+          return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${mine ? 'rounded-br-sm bg-moss-600 text-white' : 'rounded-bl-sm surface-elevated text-fg'}`}><p className="whitespace-pre-wrap break-words">{message.body}</p><p className="mt-1 text-right text-[9px] opacity-60">{formatTime(message.created_at)}</p></div></div>;
+        })}
+      </div>
+      {hasNew && <button onClick={() => scrollBottom('smooth')} className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border surface-border surface-card-bg px-3 py-1.5 text-[11px] font-medium text-accent shadow-lg">Pesan baru ↓</button>}
+    </div>
+    {canSend ? <div className="shrink-0 border-t surface-border p-3"><div className="flex min-w-0 gap-2"><textarea className="input min-h-12 min-w-0 flex-1 resize-none" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={isTicket ? 'Balas tiket…' : 'Tulis pesan…'} /><Button onClick={() => void send()} disabled={!input.trim() || sending}>{sending ? 'Mengirim…' : 'Kirim'}</Button></div></div> : <div className="shrink-0 border-t surface-border px-4 py-3 text-center text-[10px] text-fg-muted">Tidak ada akses kirim pada thread ini.</div>}
   </Card>;
 }
 
@@ -111,67 +176,181 @@ function ModerationTab() {
   const { toast } = useApp();
   const [blockedRows, setBlockedRows] = useState<BlockedChatUser[]>([]);
   const [users, setUsers] = useState<ChatModerationUser[]>([]);
-  const [search, setSearch] = useState(''); const [reason, setReason] = useState(''); const [level, setLevel] = useState('1'); const [duration, setDuration] = useState('60'); const [permanent, setPermanent] = useState(false); const [loading, setLoading] = useState(false); const [busy, setBusy] = useState<string | null>(null); const [picked, setPicked] = useState<ChatModerationUser | null>(null);
-  const load = useCallback(async () => { setLoading(true); try { const [blockedList, userList] = await Promise.all([adminGetBlockedChatUsers(search, 100), adminSearchChatUsers(search, 40)]); setBlockedRows(blockedList); setUsers(userList); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal memuat moderasi chat.', 'error'); } finally { setLoading(false); } }, [search, toast]);
+  const [search, setSearch] = useState('');
+  const [reason, setReason] = useState('');
+  const [level, setLevel] = useState('1');
+  const [duration, setDuration] = useState('60');
+  const [permanent, setPermanent] = useState(false);
+  const [picked, setPicked] = useState<ChatModerationUser | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [blocked, found] = await Promise.all([adminGetBlockedChatUsers(search, 100), adminSearchChatUsers(search, 40)]);
+      setBlockedRows(blocked);
+      setUsers(found);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Gagal memuat moderasi chat.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [search, toast]);
+
   useEffect(() => { const timer = window.setTimeout(() => void load(), 220); return () => window.clearTimeout(timer); }, [load]);
   const active = useMemo(() => blockedRows.filter((row) => row.currently_blocked), [blockedRows]);
-  const applyBlock = async () => { if (!picked || busy) return; setBusy(picked.id); try { await adminSetChatUserBlock(picked.id, true, reason, Number(level), permanent ? null : Number(duration), permanent); toast('User berhasil diblokir.', 'success'); setPicked(null); setReason(''); setPermanent(false); await load(); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal menerapkan blokir.', 'error'); } finally { setBusy(null); } };
-  const unblock = async (row: BlockedChatUser) => { if (busy) return; setBusy(row.user_id); try { await adminSetChatUserBlock(row.user_id, false); toast('Akses chat dibuka kembali.', 'success'); await load(); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal membuka blokir.', 'error'); } finally { setBusy(null); } };
+
+  const applyBlock = async () => {
+    if (!picked || busy) return;
+    setBusy(picked.id);
+    try {
+      await adminSetChatUserBlock(picked.id, true, reason, Number(level), permanent ? null : Number(duration), permanent);
+      toast('User berhasil diblokir.', 'success');
+      setPicked(null); setReason(''); setPermanent(false);
+      await load();
+    } catch (error) { toast(error instanceof Error ? error.message : 'Gagal menerapkan blokir.', 'error'); }
+    finally { setBusy(null); }
+  };
+
+  const unblock = async (row: BlockedChatUser) => {
+    if (busy) return;
+    setBusy(row.user_id);
+    try { await adminSetChatUserBlock(row.user_id, false); toast('Akses chat dibuka kembali.', 'success'); await load(); }
+    catch (error) { toast(error instanceof Error ? error.message : 'Gagal membuka blokir.', 'error'); }
+    finally { setBusy(null); }
+  };
+
   return <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
     <Card className="shrink-0 border-red-500/15 bg-red-500/[0.03] p-4"><div className="flex items-center justify-between gap-3"><div><p className="flex items-center gap-2 text-sm font-semibold text-fg"><Shield size={16}/>Moderasi Akses Chat</p><p className="mt-1 text-[11px] text-fg-muted">Blokir manual dan riwayat blokir otomatis spam sistem.</p></div><Badge color="red">{active.length} aktif</Badge></div></Card>
     <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[1.1fr_1fr]">
-      <Card className="flex min-h-0 flex-col overflow-hidden p-0"><div className="shrink-0 border-b surface-border p-4"><div className="relative"><Search size={15} className="absolute left-3 top-3 text-fg-muted"/><input className="input w-full pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari user..."/></div></div><div className="min-h-0 flex-1 overflow-y-auto p-2">{loading ? <p className="py-10 text-center text-xs text-fg-muted">Memuat…</p> : users.length === 0 ? <p className="py-10 text-center text-xs text-fg-muted">Tidak ada user.</p> : users.map((row) => <button key={row.id} onClick={() => setPicked(row)} className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left ${picked?.id === row.id ? 'border-moss-500/40 bg-moss-500/10' : 'border-transparent hover:bg-white/[0.03]'}`}><Avatar name={row.full_name || row.username || 'User'} id={row.id} size={40} src={row.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.full_name || 'User'}</p><p className="truncate text-[10px] text-fg-muted">@{row.username || 'user'}</p></div>{row.chat_blocked && <Badge color="red">Diblokir</Badge>}</button>)}</div></Card>
-      <Card className="flex min-h-0 flex-col overflow-hidden p-4"><p className="text-sm font-semibold text-fg">Blokir Manual</p><p className="mt-1 text-[11px] text-fg-muted">{picked ? `Target: ${picked.full_name || picked.username || 'User'}` : 'Pilih user.'}</p><div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto"><select className="input w-full" value={level} onChange={(event) => setLevel(event.target.value)} disabled={!picked || !!picked.chat_blocked}><option value="1">Tingkat 1</option><option value="2">Tingkat 2</option><option value="3">Tingkat 3</option><option value="4">Tingkat 4</option></select><input className="input w-full" type="number" min={1} max={10080} value={duration} onChange={(event) => setDuration(event.target.value)} disabled={!picked || !!picked.chat_blocked || permanent}/><label className="flex items-center gap-3 rounded-xl border surface-border p-3"><input type="checkbox" checked={permanent} onChange={(event) => setPermanent(event.target.checked)} disabled={!picked || !!picked.chat_blocked}/><span><span className="block text-sm font-medium text-fg">Blokir permanent</span><span className="block text-[10px] text-fg-muted">Buka manual oleh admin.</span></span></label><textarea className="input min-h-24 w-full" value={reason} onChange={(event) => setReason(event.target.value)} disabled={!picked || !!picked.chat_blocked} placeholder="Alasan..."/><Button fullWidth disabled={!picked || !!picked.chat_blocked || busy === picked?.id} onClick={() => void applyBlock()} icon={<ShieldCheck size={15}/>}>{busy === picked?.id ? 'Menerapkan…' : 'Terapkan Blokir'}</Button></div></Card>
+      <Card className="flex min-h-0 flex-col overflow-hidden p-0"><div className="shrink-0 border-b surface-border p-4"><div className="relative"><Search size={15} className="absolute left-3 top-3 text-fg-muted"/><input className="input w-full pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari user..." /></div></div><div className="min-h-0 flex-1 overflow-y-auto p-2">{loading ? <p className="py-10 text-center text-xs text-fg-muted">Memuat…</p> : users.length === 0 ? <p className="py-10 text-center text-xs text-fg-muted">Tidak ada user.</p> : users.map((row) => <button key={row.id} onClick={() => setPicked(row)} className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left ${picked?.id === row.id ? 'border-moss-500/40 bg-moss-500/10' : 'border-transparent hover:bg-white/[0.03]'}`}><Avatar name={row.full_name || row.username || 'User'} id={row.id} size={40} src={row.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.full_name || 'User'}</p><p className="truncate text-[10px] text-fg-muted">@{row.username || 'user'}</p></div>{row.chat_blocked && <Badge color="red">Diblokir</Badge>}</button>)}</div></Card>
+      <Card className="flex min-h-0 flex-col overflow-hidden p-4"><p className="shrink-0 text-sm font-semibold text-fg">Atur Blokir Manual</p><p className="mt-1 shrink-0 text-[11px] text-fg-muted">{picked ? `Target: ${picked.full_name || picked.username || 'User'}` : 'Pilih user di kiri terlebih dahulu.'}</p><div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto"><select className="input w-full" value={level} onChange={(event) => setLevel(event.target.value)} disabled={!picked || !!picked.chat_blocked}><option value="1">Tingkat 1</option><option value="2">Tingkat 2</option><option value="3">Tingkat 3</option><option value="4">Tingkat 4</option></select><input className="input w-full" type="number" min={1} max={10080} value={duration} onChange={(event) => setDuration(event.target.value)} disabled={!picked || !!picked.chat_blocked || permanent}/><label className="flex cursor-pointer items-center gap-3 rounded-xl border surface-border p-3"><input type="checkbox" checked={permanent} onChange={(event) => setPermanent(event.target.checked)} disabled={!picked || !!picked.chat_blocked}/><span><span className="block text-sm font-medium text-fg">Blokir permanent</span><span className="block text-[10px] text-fg-muted">Tidak akan kedaluwarsa sampai Admin membuka akses.</span></span></label><textarea className="input min-h-24 w-full" value={reason} onChange={(event) => setReason(event.target.value)} disabled={!picked || !!picked.chat_blocked} placeholder="Alasan pelanggaran / catatan admin..."/><Button fullWidth disabled={!picked || !!picked.chat_blocked || !!busy} onClick={() => void applyBlock()} icon={<ShieldCheck size={15}/>}>{busy ? 'Menerapkan…' : permanent ? 'Blokir Permanent' : 'Terapkan Blokir'}</Button></div></Card>
     </div>
-    <Card className="shrink-0 overflow-hidden p-0"><div className="border-b surface-border p-4 flex items-center justify-between"><div><p className="text-sm font-semibold text-fg">Riwayat Blokir Chat</p><p className="text-[10px] text-fg-muted">Termasuk blokir otomatis yang sudah kedaluwarsa.</p></div><Badge color="red">{active.length} aktif</Badge></div><div className="max-h-64 overflow-y-auto">{blockedRows.length === 0 ? <p className="py-8 text-center text-xs text-fg-muted">Belum ada riwayat blokir.</p> : blockedRows.map((row) => <div key={`${row.user_id}-${row.blocked_at}`} className="flex items-center gap-3 border-b surface-border p-3 last:border-0"><Avatar name={row.full_name || row.username || 'User'} id={row.user_id} size={40} src={row.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.full_name || 'User'} {row.currently_blocked && <Badge color="red">Aktif</Badge>}</p><p className="truncate text-[10px] text-fg-muted">@{row.username || 'user'} · Tingkat {row.strike_level} · {row.is_permanent ? 'Permanent' : row.blocked_until ? formatChatTime(row.blocked_until) : 'Kedaluwarsa'}</p><p className="mt-1 truncate text-[10px] text-fg-muted">{row.reason || 'Tanpa alasan'} · {formatChatTime(row.blocked_at)}</p></div>{row.currently_blocked && <Button size="sm" variant="outline" disabled={busy === row.user_id} onClick={() => void unblock(row)}>{busy === row.user_id ? 'Membuka…' : 'Buka Akses'}</Button>}</div>)}</div></Card>
+    <Card className="shrink-0 overflow-hidden p-0"><div className="flex items-center justify-between border-b surface-border p-4"><div><p className="text-sm font-semibold text-fg">User Sedang Diblokir</p><p className="text-[10px] text-fg-muted">Status blokir aktif dan waktunya.</p></div><Badge color="red">{active.length}</Badge></div><div className="max-h-56 overflow-y-auto">{active.length === 0 ? <p className="py-8 text-center text-xs text-fg-muted">Tidak ada user yang sedang diblokir.</p> : active.map((row) => <div key={row.user_id} className="flex items-center gap-3 border-b surface-border p-3 last:border-0"><Avatar name={row.full_name || row.username || 'User'} id={row.user_id} size={40} src={row.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.full_name || 'User'}</p><p className="truncate text-[10px] text-fg-muted">@{row.username || 'user'} · Tingkat {row.strike_level} · {row.is_permanent ? 'Permanent' : formatTime(row.blocked_until)}</p><p className="mt-1 truncate text-[10px] text-fg-muted">{row.reason || 'Tanpa alasan'} · dibuat {formatTime(row.blocked_at)}</p></div><Button size="sm" variant="outline" disabled={busy === row.user_id} onClick={() => void unblock(row)}>{busy === row.user_id ? 'Membuka…' : 'Buka Akses'}</Button></div>)}</div></Card>
+    <Card className="shrink-0 overflow-hidden p-0"><div className="border-b surface-border p-4"><p className="text-sm font-semibold text-fg">Riwayat Blokir Sistem</p><p className="text-[10px] text-fg-muted">Termasuk auto-ban spam yang sudah kedaluwarsa.</p></div><div className="max-h-44 overflow-y-auto">{blockedRows.length === 0 ? <p className="py-8 text-center text-xs text-fg-muted">Belum ada riwayat.</p> : blockedRows.map((row) => <div key={`${row.user_id}-${row.blocked_at}`} className="flex items-center gap-3 border-b surface-border p-3 last:border-0"><Avatar name={row.full_name || row.username || 'User'} id={row.user_id} size={36}/><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-fg">{row.full_name || 'User'} <span className="font-normal text-fg-muted">@{row.username || 'user'}</span></p><p className="truncate text-[10px] text-fg-muted">Tingkat {row.strike_level} · {row.is_permanent ? 'Permanent' : `berakhir ${formatTime(row.blocked_until)}`} · dibuat {formatTime(row.blocked_at)}</p></div>{row.currently_blocked ? <Badge color="red">Aktif</Badge> : <Badge color="moss">Selesai</Badge>}</div>)}</div></Card>
   </div>;
 }
 
 function RulesSpamTab() {
   const { toast } = useApp();
-  const [policy, setPolicy] = useState<SpamPolicy>({ enabled: true, levels: DEFAULT_RULES }); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false);
-  const load = useCallback(async () => { setLoading(true); try { const { data, error } = await supabase.from('platform_settings').select('value').eq('key', 'chat_spam_policy').maybeSingle(); if (error) throw error; setPolicy(normalizeRules(data?.value)); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal memuat rules spam.', 'error'); } finally { setLoading(false); } }, [toast]);
+  const [policy, setPolicy] = useState<SpamPolicy>({ enabled: true, levels: DEFAULT_RULES });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('platform_settings').select('value').eq('key', 'chat_spam_policy').maybeSingle();
+      if (error) throw error;
+      setPolicy(normalizeRules(data?.value));
+    } catch (error) { toast(error instanceof Error ? error.message : 'Gagal memuat rules spam.', 'error'); }
+    finally { setLoading(false); }
+  }, [toast]);
+
   useEffect(() => { void load(); }, [load]);
   const updateRule = (index: number, patch: Partial<SpamRule>) => setPolicy((current) => ({ ...current, levels: current.levels.map((rule, i) => i === index ? { ...rule, ...patch } : rule) }));
-  const addRule = () => setPolicy((current) => { const next = current.levels.length + 1; const prev = current.levels[current.levels.length - 1] || DEFAULT_RULES[0]; return { ...current, levels: [...current.levels, { ...prev, level: next, name: `Pelanggaran ${next}` }] }; });
+  const addRule = () => setPolicy((current) => { const previous = current.levels[current.levels.length - 1] || DEFAULT_RULES[0]; const next = current.levels.length + 1; return { ...current, levels: [...current.levels, { ...previous, level: next, name: `Pelanggaran ${next}` }] }; });
   const removeRule = (index: number) => setPolicy((current) => current.levels.length <= 1 ? current : { ...current, levels: current.levels.filter((_, i) => i !== index).map((rule, i) => ({ ...rule, level: i + 1 })) });
-  const save = async () => { setSaving(true); try { const cleaned: SpamPolicy = { enabled: policy.enabled, levels: policy.levels.map((rule, index) => ({ level: index + 1, name: rule.name.trim() || `Pelanggaran ${index + 1}`, message_threshold: Math.min(20, Math.max(2, Math.round(rule.message_threshold) || 4)), window_seconds: Math.min(300, Math.max(1, Math.round(rule.window_seconds) || 10)), duration_minutes: Math.min(10080, Math.max(1, Math.round(rule.duration_minutes) || 1)), message: rule.message.trim() || DEFAULT_RULES[Math.min(index, DEFAULT_RULES.length - 1)].message, enabled: rule.enabled })) }; const { error } = await supabase.from('platform_settings').upsert({ key: 'chat_spam_policy', value: cleaned, updated_at: new Date().toISOString() }, { onConflict: 'key' }); if (error) throw error; setPolicy(cleaned); toast('Rules spam berhasil disimpan.', 'success'); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal menyimpan rules spam.', 'error'); } finally { setSaving(false); } };
-  return <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0"><div className="shrink-0 border-b surface-border p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="flex items-center gap-2 text-sm font-semibold text-fg"><ShieldAlert size={16}/>Rules Spam Sistem</p><p className="mt-1 text-[11px] text-fg-muted">Atur pemicu, durasi, level dan pesan penalti otomatis.</p></div><div className="flex items-center gap-2"><label className="inline-flex items-center gap-2 rounded-xl border surface-border px-3 py-2 text-xs text-fg"><input type="checkbox" checked={policy.enabled} onChange={(event) => setPolicy((current) => ({ ...current, enabled: event.target.checked }))}/>Aktif</label><Button size="sm" onClick={() => void save()} loading={saving} disabled={loading} icon={<Save size={14}/>}>Simpan Rules</Button></div></div></div><div className="min-h-0 flex-1 overflow-auto"><table className="w-full min-w-[1000px] text-left"><thead className="sticky top-0 z-10 surface-card-bg border-b surface-border"><tr className="text-[10px] uppercase tracking-[0.12em] text-fg-muted"><th className="px-4 py-3">Aktif</th><th className="px-4 py-3">Level</th><th className="px-4 py-3">Nama</th><th className="px-4 py-3">Pemicu</th><th className="px-4 py-3">Window</th><th className="px-4 py-3">Durasi</th><th className="px-4 py-3">Pesan User</th><th className="px-4 py-3"></th></tr></thead><tbody>{policy.levels.map((rule, index) => <tr key={`${rule.level}-${index}`} className="border-b surface-border align-top"><td className="px-4 py-3"><input type="checkbox" checked={rule.enabled} onChange={(event) => updateRule(index, { enabled: event.target.checked })}/></td><td className="px-4 py-3 font-bold text-accent">{index + 1}</td><td className="px-4 py-3"><input className="input w-40" value={rule.name} onChange={(event) => updateRule(index, { name: event.target.value })}/></td><td className="px-4 py-3"><input className="input w-24" type="number" min={2} max={20} value={rule.message_threshold} onChange={(event) => updateRule(index, { message_threshold: Number(event.target.value) })}/><span className="mt-1 block text-[10px] text-fg-muted">pesan</span></td><td className="px-4 py-3"><input className="input w-24" type="number" min={1} max={300} value={rule.window_seconds} onChange={(event) => updateRule(index, { window_seconds: Number(event.target.value) })}/><span className="mt-1 block text-[10px] text-fg-muted">detik</span></td><td className="px-4 py-3"><input className="input w-28" type="number" min={1} max={10080} value={rule.duration_minutes} onChange={(event) => updateRule(index, { duration_minutes: Number(event.target.value) })}/><span className="mt-1 block text-[10px] text-fg-muted">{formatDuration(rule.duration_minutes)}</span></td><td className="px-4 py-3"><textarea className="input min-h-20 w-full" value={rule.message} onChange={(event) => updateRule(index, { message: event.target.value })}/></td><td className="px-4 py-3"><button className="rounded-lg p-2 text-fg-muted hover:bg-red-500/10 hover:text-red-400" onClick={() => removeRule(index)} disabled={policy.levels.length <= 1} aria-label="Hapus tingkat"><Trash2 size={15}/></button></td></tr>)}</tbody></table>{loading && <p className="py-10 text-center text-xs text-fg-muted">Memuat rules…</p>}</div><div className="shrink-0 border-t surface-border p-3"><Button variant="outline" size="sm" onClick={addRule} icon={<ShieldCheck size={14}/>}>Tambah Tingkat</Button></div></Card>;
+  const save = async () => {
+    setSaving(true);
+    try {
+      const cleaned: SpamPolicy = { enabled: policy.enabled, levels: policy.levels.map((rule, index) => ({ level: index + 1, name: rule.name.trim() || `Pelanggaran ${index + 1}`, message_threshold: Math.min(20, Math.max(2, Math.round(rule.message_threshold) || 4)), window_seconds: Math.min(300, Math.max(1, Math.round(rule.window_seconds) || 10)), duration_minutes: Math.min(10080, Math.max(1, Math.round(rule.duration_minutes) || 1)), message: rule.message.trim() || 'Aktivitas chat terdeteksi sebagai spam. Akses chat dibatasi sementara.', enabled: rule.enabled })) };
+      const { error } = await supabase.from('platform_settings').upsert({ key: 'chat_spam_policy', value: cleaned, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      if (error) throw error;
+      setPolicy(cleaned); toast('Rules spam berhasil disimpan.', 'success');
+    } catch (error) { toast(error instanceof Error ? error.message : 'Gagal menyimpan rules spam.', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  return <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0"><div className="shrink-0 border-b surface-border p-4 md:p-5"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="flex items-center gap-2 text-sm font-semibold text-fg"><ShieldAlert size={16}/>Rules Spam Sistem</p><p className="mt-1 text-[11px] text-fg-muted">Atur pemicu, durasi, dan pesan untuk setiap tingkat spam.</p></div><div className="flex items-center gap-2"><label className="inline-flex items-center gap-2 rounded-xl border surface-border px-3 py-2 text-xs text-fg"><input type="checkbox" checked={policy.enabled} onChange={(event) => setPolicy((current) => ({ ...current, enabled: event.target.checked }))}/>Aktif</label><Button size="sm" onClick={() => void save()} loading={saving} disabled={loading} icon={<Save size={14}/>}>Simpan Rules</Button></div></div></div><div className="min-h-0 flex-1 overflow-auto"><table className="w-full min-w-[1000px] text-left"><thead className="sticky top-0 z-10 surface-card-bg"><tr className="border-b surface-border text-[10px] uppercase tracking-wide text-fg-muted"><th className="px-4 py-3">Aktif</th><th className="px-4 py-3">Level</th><th className="px-4 py-3">Nama</th><th className="px-4 py-3">Pemicu</th><th className="px-4 py-3">Window</th><th className="px-4 py-3">Durasi</th><th className="min-w-[360px] px-4 py-3">Pesan</th><th className="px-4 py-3"/></tr></thead><tbody>{policy.levels.map((rule, index) => <tr key={`${rule.level}-${index}`} className="border-b surface-border align-top"><td className="px-4 py-3"><input type="checkbox" checked={rule.enabled} onChange={(event) => updateRule(index, { enabled: event.target.checked })}/></td><td className="px-4 py-3"><span className="rounded-lg bg-moss-500/10 px-2 py-1 text-xs font-bold text-accent">{index + 1}</span></td><td className="px-4 py-3"><input className="input w-40" value={rule.name} onChange={(event) => updateRule(index, { name: event.target.value })}/></td><td className="px-4 py-3"><input className="input w-24" type="number" min={2} max={20} value={rule.message_threshold} onChange={(event) => updateRule(index, { message_threshold: Number(event.target.value) })}/></td><td className="px-4 py-3"><input className="input w-24" type="number" min={1} max={300} value={rule.window_seconds} onChange={(event) => updateRule(index, { window_seconds: Number(event.target.value) })}/></td><td className="px-4 py-3"><input className="input w-28" type="number" min={1} max={10080} value={rule.duration_minutes} onChange={(event) => updateRule(index, { duration_minutes: Number(event.target.value) })}/><span className="mt-1 block text-[10px] text-fg-muted">{formatDuration(rule.duration_minutes)}</span></td><td className="px-4 py-3"><textarea className="input min-h-20 w-full resize-y" value={rule.message} onChange={(event) => updateRule(index, { message: event.target.value })}/></td><td className="px-4 py-3"><button className="rounded-lg p-2 text-fg-muted hover:bg-red-500/10 hover:text-red-400 disabled:opacity-30" onClick={() => removeRule(index)} disabled={policy.levels.length <= 1} aria-label="Hapus tingkat"><Trash2 size={15}/></button></td></tr>)}</tbody></table></div><div className="shrink-0 border-t surface-border p-3"><Button variant="outline" size="sm" onClick={addRule} icon={<ShieldCheck size={14}/>}>Tambah Tingkat</Button></div></Card>;
 }
 
 function HistoryPreview({ row, onClose }: { row: AdminHistoryRow; onClose: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   useEffect(() => { let live = true; void loadChatMessagesPage(row.thread_id, 100).then((items) => { if (live) setMessages(items); }).catch(() => undefined); return () => { live = false; }; }, [row.thread_id]);
-  return <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-4"><button className="absolute inset-0" onClick={onClose} aria-label="Tutup"/><div className="relative flex h-[80vh] w-full max-w-3xl flex-col overflow-hidden card"><header className="flex shrink-0 items-center gap-3 border-b surface-border px-5 py-4"><Avatar name={row.user_name || 'User'} id={row.user_id} size={38}/><div className="min-w-0 flex-1"><p className="truncate font-semibold text-fg">{row.user_name || 'User'} ↔ {row.other_user_name || row.other_username || 'User'}</p><p className="truncate text-xs text-fg-muted">@{row.username || 'user'} ↔ @{row.other_username || 'user'}</p></div><Stars value={row.rating}/><button className="rounded-lg p-2 text-fg-muted hover:bg-white/5" onClick={onClose}><X size={18}/></button></header><div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-5 py-2 text-[10px] text-amber-300">🔒 {SECURITY}</div><div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">{messages.map((message) => <div key={message.id} className={`flex ${message.sender_id === row.user_id ? 'justify-start' : 'justify-end'}`}><div className="max-w-[78%] rounded-2xl px-4 py-2.5 text-sm surface-elevated text-fg"><p className="whitespace-pre-wrap break-words">{message.body}</p><p className="mt-1 text-right text-[9px] opacity-60">{formatChatTime(message.created_at)}</p></div></div>)}</div></div></div>;
+  return <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-4"><button className="absolute inset-0" onClick={onClose} aria-label="Tutup"/><div className="relative flex h-[80vh] w-full max-w-3xl flex-col overflow-hidden card"><header className="flex shrink-0 items-center gap-3 border-b surface-border px-5 py-4"><Avatar name={row.user_name || 'User'} id={row.user_id} size={38}/><div className="min-w-0 flex-1"><p className="truncate font-semibold text-fg">{row.user_name || 'User'} · {row.other_user_name || row.other_username || 'User'}</p><p className="text-xs text-fg-muted">{row.thread_type === 'ticket' ? 'Tiket' : 'Chat'} · ditutup {formatTime(row.closed_at)}</p></div><Stars value={row.rating}/><button className="rounded-lg p-2 text-fg-muted hover:bg-white/5" onClick={onClose}><X size={18}/></button></header><div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">{messages.map((message) => <div key={message.id} className={`flex ${message.sender_id === row.user_id ? 'justify-start' : 'justify-end'}`}><div className="max-w-[78%] rounded-2xl surface-elevated px-4 py-2.5 text-sm text-fg"><p className="whitespace-pre-wrap break-words">{message.body}</p><p className="mt-1 text-right text-[9px] opacity-60">{formatTime(message.created_at)}</p></div></div>)}</div></div></div>;
 }
 
 export function AdminChatConsolePageV3() {
   const { toast } = useApp();
   const [tab, setTab] = useState<'chat' | 'ticket' | 'history' | 'moderation' | 'rules'>('chat');
-  const [threads, setThreads] = useState<ChatThread[]>([]); const [selected, setSelected] = useState<ChatThread | null>(null); const [history, setHistory] = useState<AdminHistoryRow[]>([]); const [preview, setPreview] = useState<AdminHistoryRow | null>(null); const [loading, setLoading] = useState(true);
-  const [chatSearch, setChatSearch] = useState(''); const [chatUsers, setChatUsers] = useState<ChatModerationUser[]>([]); const [chatUserLoading, setChatUserLoading] = useState(false); const [startingChat, setStartingChat] = useState<string | null>(null);
-  const [historySearch, setHistorySearch] = useState(''); const [ratingFilter, setRatingFilter] = useState(''); const [handler, setHandler] = useState('');
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [threads, setThreads] = useState<ChatThread[]>([]);
+  const [selected, setSelected] = useState<ChatThread | null>(null);
+  const [history, setHistory] = useState<AdminHistoryRow[]>([]);
+  const [preview, setPreview] = useState<AdminHistoryRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [historySearch, setHistorySearch] = useState('');
+  const [ratingFilter, setRatingFilter] = useState('');
+  const [handler, setHandler] = useState('');
+  const [chatSearch, setChatSearch] = useState('');
+  const [chatUsers, setChatUsers] = useState<ChatModerationUser[]>([]);
+  const [startingChat, setStartingChat] = useState<string | null>(null);
 
-  const refresh = useCallback(async (force = true) => { try { const rows = await loadMyThreads(force); const open = rows.filter((row) => row.status === 'open'); setThreads(open); setSelected((current) => current ? open.find((row) => row.id === current.id) || null : null); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal memuat percakapan.', 'error'); } finally { setLoading(false); } }, [toast]);
-  useEffect(() => { void refresh(true); }, [refresh]);
-  useEffect(() => { let timer: number | undefined; const schedule = () => { if (timer) window.clearTimeout(timer); timer = window.setTimeout(() => void refresh(true), 180); }; const unsubscribe = subscribeSykaEvents((event) => { if (event.type === 'chat-thread-updated' || event.type === 'chat-read' || event.type === 'chat-reconciled' || (event.type === 'realtime-status' && event.scope === 'user' && event.reconnected)) schedule(); }); return () => { if (timer) window.clearTimeout(timer); unsubscribe(); }; }, [refresh]);
-  useEffect(() => { if (tab !== 'history') return; void getAdminChatHistory({ search: historySearch || undefined, rating: ratingFilter ? Number(ratingFilter) : null, handledBy: handler || null, sortDesc: true, limit: 1000 }).then((rows) => setHistory(rows as AdminHistoryRow[])).catch((error) => toast(error instanceof Error ? error.message : 'Gagal memuat riwayat.', 'error')); }, [tab, historySearch, ratingFilter, handler, toast]);
-  useEffect(() => { if (tab !== 'chat') return; const timer = window.setTimeout(async () => { const q = chatSearch.trim(); if (!q) { setChatUsers([]); return; } setChatUserLoading(true); try { setChatUsers(await adminSearchChatUsers(q, 20)); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal mencari user.', 'error'); } finally { setChatUserLoading(false); } }, 220); return () => window.clearTimeout(timer); }, [chatSearch, tab, toast]);
-  const startChat = async (userId: string) => { if (startingChat) return; setStartingChat(userId); try { const thread = await getOrCreateDmThread(userId); await refresh(true); setSelected(thread); setChatSearch(''); setChatUsers([]); toast('Chat dengan user berhasil dibuka.', 'success'); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal membuka chat.', 'error'); } finally { setStartingChat(null); } };
+  useEffect(() => { void supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null)); }, []);
+
+  const refresh = useCallback(async () => {
+    try {
+      const rows = await loadMyThreads(true);
+      const openRows = rows.filter((row) => row.status === 'open');
+      setThreads(openRows);
+      setSelected((current) => current ? openRows.find((row) => row.id === current.id) || null : null);
+    } catch (error) { toast(error instanceof Error ? error.message : 'Gagal memuat percakapan.', 'error'); }
+    finally { setLoading(false); }
+  }, [toast]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    let timer: number | undefined;
+    const schedule = () => { if (timer) window.clearTimeout(timer); timer = window.setTimeout(() => void refresh(), 180); };
+    const unsubscribe = subscribeSykaEvents((event) => { if (event.type === 'chat-thread-updated' || event.type === 'chat-message' || event.type === 'chat-read' || event.type === 'chat-reconciled') schedule(); });
+    return () => { if (timer) window.clearTimeout(timer); unsubscribe(); };
+  }, [refresh]);
+
+  useEffect(() => {
+    if (tab !== 'history') return;
+    void getAdminChatHistory({ search: historySearch || undefined, rating: ratingFilter ? Number(ratingFilter) : null, handledBy: handler || null, sortDesc: true, limit: 1000 }).then((rows) => setHistory(rows as AdminHistoryRow[])).catch((error) => toast(error instanceof Error ? error.message : 'Gagal memuat riwayat.', 'error'));
+  }, [tab, historySearch, ratingFilter, handler, toast]);
+
+  useEffect(() => {
+    if (tab !== 'chat') return;
+    const timer = window.setTimeout(async () => {
+      const query = chatSearch.trim();
+      if (!query) { setChatUsers([]); return; }
+      try { setChatUsers(await adminSearchChatUsers(query, 20)); } catch (error) { toast(error instanceof Error ? error.message : 'Gagal mencari user.', 'error'); }
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [chatSearch, tab, toast]);
+
+  const startChat = async (userId: string) => {
+    if (startingChat) return;
+    setStartingChat(userId);
+    try {
+      const thread = await getOrCreateDmThread(userId);
+      await refresh();
+      setSelected(thread);
+      setChatSearch('');
+      setChatUsers([]);
+      toast('Chat berhasil dibuka.', 'success');
+    } catch (error) { toast(error instanceof Error ? error.message : 'Gagal membuka chat.', 'error'); }
+    finally { setStartingChat(null); }
+  };
 
   const chatList = useMemo(() => threads.filter((row) => row.thread_type === 'dm'), [threads]);
   const ticketList = useMemo(() => threads.filter((row) => row.thread_type === 'ticket'), [threads]);
   const unreadChat = useMemo(() => chatList.reduce((sum, row) => sum + (row.unread_count || 0), 0), [chatList]);
   const unreadTicket = useMemo(() => ticketList.reduce((sum, row) => sum + (row.unread_count || 0), 0), [ticketList]);
   const tabs = [['chat', 'Chat', MessageCircle, unreadChat], ['ticket', 'Tiket', CheckCircle2, unreadTicket], ['history', 'Riwayat', Clock3, 0], ['moderation', 'Moderasi', Shield, 0], ['rules', 'Rules Spam', ShieldAlert, 0]] as const;
+  const list = tab === 'chat' ? chatList : ticketList;
 
-  return <div className="h-dvh max-h-dvh overflow-hidden surface-bg text-fg-secondary"><div className="flex h-full min-h-0 flex-col"><header className="shrink-0 glass border-b surface-border"><div className="flex items-center justify-between px-4 py-3"><div className="flex items-center gap-3"><Link to="/admin" className="text-xs text-fg-muted hover:text-fg">← Admin</Link><div><p className="text-[10px] font-semibold uppercase tracking-wide text-accent">SYKABELAJAR</p><h1 className="font-display text-base font-bold text-white">Chat Admin</h1></div></div><Badge color="moss">ADMIN</Badge></div><div className="flex gap-1 overflow-x-auto px-4 pb-2 no-scrollbar">{tabs.map(([key, label, Icon, unread]) => <button key={key} onClick={() => { setTab(key); setSelected(null); }} className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium ${tab === key ? 'bg-moss-500/15 text-accent' : 'text-fg-muted hover:bg-white/5'}`}><Icon size={15}/>{label}{unread > 0 && <span className="ml-0.5 rounded-full bg-red-500 px-1.5 text-[9px] text-white">{unread > 99 ? '99+' : unread}</span>}</button>)}</div></header>
+  return <div className="h-dvh max-h-dvh overflow-hidden surface-bg text-fg-secondary"><div className="flex h-full min-h-0 flex-col">
+    <header className="shrink-0 glass border-b surface-border"><div className="flex items-center justify-between px-4 py-3"><div className="flex items-center gap-3"><Link to="/admin" className="text-xs text-fg-muted hover:text-fg">← Admin</Link><div><p className="text-[10px] font-semibold uppercase tracking-wide text-accent">SYKABELAJAR</p><h1 className="font-display text-base font-bold text-white">Chat Admin</h1></div></div><Badge color="moss">ADMIN</Badge></div><div className="flex gap-1 overflow-x-auto px-4 pb-2 no-scrollbar">{tabs.map(([key, label, Icon, unread]) => <button key={key} onClick={() => { setTab(key); setSelected(null); }} className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium ${tab === key ? 'bg-moss-500/15 text-accent' : 'text-fg-muted hover:bg-white/5'}`}><Icon size={15}/>{label}{unread > 0 && <span className="ml-0.5 rounded-full bg-red-500 px-1.5 text-[9px] text-white">{unread > 99 ? '99+' : unread}</span>}</button>)}</div></header>
     <main className="min-h-0 flex-1 p-3 md:p-5">
       {tab === 'moderation' && <ModerationTab/>}
       {tab === 'rules' && <RulesSpamTab/>}
-      {tab === 'history' && <div className="flex h-full min-h-0 flex-col overflow-hidden card"><div className="shrink-0 border-b surface-border p-4"><div className="grid gap-2 md:grid-cols-[1fr_140px_180px]"><div className="relative"><Search size={15} className="absolute left-3 top-3 text-fg-muted"/><input className="input w-full pl-9" value={historySearch} onChange={(event) => setHistorySearch(event.target.value)} placeholder="Cari history..."/></div><select className="input" value={ratingFilter} onChange={(event) => setRatingFilter(event.target.value)}><option value="">Semua rating</option><option value="5">5 bintang</option><option value="4">4 bintang</option><option value="3">3 bintang</option><option value="2">2 bintang</option><option value="1">1 bintang</option></select><input className="input" value={handler} onChange={(event) => setHandler(event.target.value)} placeholder="Handled by ID"/></div></div><div className="min-h-0 flex-1 overflow-y-auto">{history.length === 0 ? <p className="py-10 text-center text-xs text-fg-muted">Tidak ada history.</p> : history.map((row) => <button key={row.thread_id} onClick={() => setPreview(row)} className="flex w-full items-center gap-3 border-b surface-border p-4 text-left hover:bg-white/[0.02]"><Avatar name={row.user_name || 'User'} id={row.user_id} size={38}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.user_name || 'User'} ↔ {row.other_user_name || row.other_username || 'User'} <Badge color={row.thread_type === 'ticket' ? 'warn' : 'moss'}>{row.thread_type === 'ticket' ? 'Tiket' : 'Chat'}</Badge></p><p className="truncate text-[10px] text-fg-muted">{row.message_count} pesan · {formatChatTime(row.closed_at)}</p></div><Stars value={row.rating}/></button>)}</div></div>}
-      {(tab === 'chat' || tab === 'ticket') && <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[330px_minmax(0,1fr)]"><Card className="flex min-h-0 flex-col overflow-hidden p-0"><div className="shrink-0 border-b surface-border p-4"><p className="text-sm font-semibold text-fg">{tab === 'chat' ? 'Chat Pribadi Admin' : 'Tiket Aktif'}</p><p className="mt-1 text-[10px] text-fg-muted">{tab === 'chat' ? 'Hanya Admin ↔ User.' : 'User ↔ Admin untuk penanganan laporan.'}</p>{tab === 'chat' && <div className="relative mt-3"><Search size={15} className="absolute left-3 top-3 text-fg-muted"/><input className="input w-full pl-9" value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="Mulai chat dengan user..."/>{chatSearch.trim() && <div className="absolute left-0 right-0 top-12 z-40 max-h-64 overflow-y-auto rounded-2xl border surface-border surface-card-bg shadow-2xl">{chatUserLoading ? <p className="p-4 text-xs text-fg-muted">Mencari…</p> : chatUsers.length === 0 ? <p className="p-4 text-xs text-fg-muted">User tidak ditemukan.</p> : chatUsers.map((row) => <button key={row.id} onClick={() => void startChat(row.id)} className="flex w-full items-center gap-3 border-b surface-border p-3 text-left last:border-0 hover:bg-white/[0.03]"><Avatar name={row.full_name || row.username || 'User'} id={row.id} size={36} src={row.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.full_name || 'User'}</p><p className="truncate text-[10px] text-fg-muted">@{row.username || 'user'}</p></div><span className="text-[10px] font-medium text-accent">{startingChat === row.id ? 'Membuka…' : 'Chat'}</span></button>)}</div>}</div>}</div><div className="min-h-0 flex-1 overflow-y-auto p-2">{loading ? <p className="py-10 text-center text-xs text-fg-muted">Memuat…</p> : (tab === 'chat' ? chatList : ticketList).length === 0 ? <p className="py-10 text-center text-xs text-fg-muted">Tidak ada {tab === 'chat' ? 'chat pribadi' : 'tiket'} aktif.</p> : (tab === 'chat' ? chatList : ticketList).map((row) => <button key={row.id} onClick={() => setSelected(row)} className={`mb-1 w-full rounded-2xl border p-3 text-left ${selected?.id === row.id ? 'border-moss-500/40 bg-moss-500/10' : 'border-transparent hover:bg-white/[0.03]'}`}><div className="flex items-center gap-3"><Avatar name={row.user_name || 'User'} id={row.user_id} size={38} src={row.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{pairName(row)}</p><p className="truncate text-[10px] text-fg-muted">{pairUsername(row)}</p></div>{row.unread_count ? <Badge color="red">{row.unread_count > 99 ? '99+' : row.unread_count}</Badge> : null}</div><p className="mt-2 truncate text-[11px] text-fg-secondary">{row.thread_type === 'ticket' ? (row.subject || 'Laporan') : (row.last_message || 'Belum ada pesan')}</p></button>)}</div></Card><div className="min-h-0 h-full">{selected && selected.thread_type === (tab === 'chat' ? 'dm' : 'ticket') ? <Conversation key={selected.id} thread={selected} onClosed={() => { setSelected(null); void refresh(true); }}/> : <Card className="flex h-full min-h-0 items-center justify-center p-8 text-center"><div className="text-xs text-fg-muted"><UserRound size={28} className="mx-auto mb-3"/><p>Pilih {tab === 'chat' ? 'chat pribadi' : 'tiket'}.</p></div></Card>}</div></div>}
+      {tab === 'history' && <div className="flex h-full min-h-0 flex-col overflow-hidden card"><div className="shrink-0 border-b surface-border p-4"><div className="grid gap-2 md:grid-cols-[1fr_140px_180px]"><div className="relative"><Search size={15} className="absolute left-3 top-3 text-fg-muted"/><input className="input w-full pl-9" value={historySearch} onChange={(event) => setHistorySearch(event.target.value)} placeholder="Cari history..."/></div><select className="input" value={ratingFilter} onChange={(event) => setRatingFilter(event.target.value)}><option value="">Semua rating</option><option value="5">5 bintang</option><option value="4">4 bintang</option><option value="3">3 bintang</option><option value="2">2 bintang</option><option value="1">1 bintang</option></select><input className="input" value={handler} onChange={(event) => setHandler(event.target.value)} placeholder="Handled by ID"/></div></div><div className="min-h-0 flex-1 overflow-y-auto">{history.length === 0 ? <p className="py-10 text-center text-xs text-fg-muted">Tidak ada history.</p> : history.map((row) => <button key={row.thread_id} onClick={() => setPreview(row)} className="flex w-full items-center gap-3 border-b surface-border p-4 text-left hover:bg-white/[0.02]"><Avatar name={row.user_name || 'User'} id={row.user_id} size={38}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.user_name || 'User'} · {row.other_user_name || row.other_username || 'User'} <Badge color={row.thread_type === 'ticket' ? 'warn' : 'moss'}>{row.thread_type === 'ticket' ? 'Tiket' : 'Chat'}</Badge></p><p className="truncate text-[10px] text-fg-muted">{row.message_count} pesan · {formatTime(row.closed_at)}</p></div><Stars value={row.rating}/></button>)}</div></div>}
+      {(tab === 'chat' || tab === 'ticket') && <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[330px_minmax(0,1fr)]"><Card className="flex min-h-0 flex-col overflow-hidden p-0"><div className="shrink-0 border-b surface-border p-4"><p className="text-sm font-semibold text-fg">{tab === 'chat' ? 'Chat Pribadi' : 'Tiket Aktif'}</p><p className="mt-1 text-[10px] text-fg-muted">{tab === 'chat' ? 'Tampilkan user lawan bicara saja.' : 'Percakapan User dengan Admin.'}</p>{tab === 'chat' && <div className="relative mt-3"><Search size={15} className="absolute left-3 top-3 text-fg-muted"/><input className="input w-full pl-9" value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="Mulai chat dengan user..."/>{chatSearch.trim() && <div className="absolute left-0 right-0 top-12 z-40 max-h-64 overflow-y-auto rounded-2xl border surface-border surface-card-bg shadow-2xl">{chatUsers.length === 0 ? <p className="p-4 text-xs text-fg-muted">User tidak ditemukan.</p> : chatUsers.map((row) => <button key={row.id} onClick={() => void startChat(row.id)} className="flex w-full items-center gap-3 border-b surface-border p-3 text-left last:border-0 hover:bg-white/[0.03]"><Avatar name={row.full_name || row.username || 'User'} id={row.id} size={36}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{row.full_name || 'User'}</p><p className="truncate text-[10px] text-fg-muted">@{row.username || 'user'}</p></div><span className="text-[10px] font-medium text-accent">{startingChat === row.id ? 'Membuka…' : 'Chat'}</span></button>)}</div>}</div>}</div><div className="min-h-0 flex-1 overflow-y-auto p-2">{loading ? <p className="py-10 text-center text-xs text-fg-muted">Memuat…</p> : list.length === 0 ? <div className="py-10 text-center text-xs text-fg-muted"><UserRound size={18} className="mx-auto mb-2"/>Tidak ada {tab === 'chat' ? 'chat pribadi' : 'tiket'} aktif.</div> : list.map((row) => <button key={row.id} onClick={() => setSelected(row)} className={`mb-1 w-full rounded-2xl border p-3 text-left ${selected?.id === row.id ? 'border-moss-500/40 bg-moss-500/10' : 'border-transparent hover:bg-white/[0.03]'}`}><div className="flex items-center gap-3"><Avatar name={counterpartName(row, viewerId)} id={row.user_id === viewerId ? row.participant_id || undefined : row.user_id} size={38} src={row.user_id === viewerId ? row.other_avatar_url || undefined : row.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{counterpartName(row, viewerId)}</p><p className="truncate text-[10px] text-fg-muted">@{counterpartUsername(row, viewerId) || 'user'}</p></div>{row.unread_count ? <Badge color="red">{row.unread_count > 99 ? '99+' : row.unread_count}</Badge> : null}</div><p className="mt-2 truncate text-[11px] text-fg-secondary">{row.thread_type === 'ticket' ? (row.subject || 'Laporan') : (row.last_message || 'Belum ada pesan')}</p></button>)}</div></Card><div className="min-h-0 h-full">{selected && selected.thread_type === (tab === 'chat' ? 'dm' : 'ticket') ? <Conversation key={selected.id} thread={selected} onClosed={() => { setSelected(null); void refresh(); }}/> : <Card className="flex h-full min-h-0 items-center justify-center p-8 text-center"><div className="text-xs text-fg-muted"><MessageCircle size={28} className="mx-auto mb-3"/><p>Pilih {tab === 'chat' ? 'chat pribadi' : 'tiket'}.</p></div></Card>}</div></div>}
     </main>
-    {preview && <HistoryPreview row={preview} onClose={() => setPreview(null}/>}
   </div></div>;
 }
