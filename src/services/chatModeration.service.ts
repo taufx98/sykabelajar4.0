@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 export interface ChatAccessStatus {
   blocked: boolean;
   reason: string | null;
+  blocked_by: string | null;
   strike_level: number | null;
   blocked_until: string | null;
   is_permanent: boolean;
@@ -34,6 +35,7 @@ export async function getChatAccessStatus(): Promise<ChatAccessStatus> {
   return {
     blocked: Boolean(row.blocked),
     reason: row.reason == null ? null : String(row.reason),
+    blocked_by: row.blocked_by == null ? null : String(row.blocked_by),
     strike_level: row.strike_level == null ? null : Number(row.strike_level),
     blocked_until: row.blocked_until == null ? null : String(row.blocked_until),
     is_permanent: Boolean(row.is_permanent),
