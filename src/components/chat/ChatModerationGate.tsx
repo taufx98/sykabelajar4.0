@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Ban, Clock3, LockKeyhole, Shield } from 'lucide-react';
+import { Ban, LockKeyhole, Shield } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { getChatSpamStatus, type ChatSpamStatus } from '@/services/chat.service';
 import { getChatAccessStatus, type ChatAccessStatus } from '@/services/chatModeration.service';
@@ -12,21 +12,8 @@ const formatRemaining = (ms: number) => {
   const minutes = totalMinutes % 60;
   const seconds = totalSeconds % 60;
 
-  if (totalMinutes >= 60) return `${totalMinutes >= 60 ? hours * 60 + minutes : hours}Menit : ${minutes}Menit`;
-  return `${minutes}Menit : ${String(seconds).padStart(2, '0')}Detik`;
-};
-
-const formatHumanRemaining = (ms: number) => {
-  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  const seconds = totalSeconds % 60;
-
-  if (totalMinutes >= 60) {
-    return `${hours * 60 + minutes}Menit : ${minutes}Menit`;
-  }
-  if (totalMinutes > 0) return `${minutes}Menit : ${String(seconds).padStart(2, '0')}Detik`;
+  if (totalMinutes >= 60) return `${hours}Jam : ${minutes}Menit`;
+  if (minutes > 0) return `${minutes}Menit : ${String(seconds).padStart(2, '0')}Detik`;
   return `${seconds}Detik`;
 };
 
@@ -34,7 +21,7 @@ function LockTimer({ remaining }: { remaining: number }) {
   return (
     <div className="mx-auto mt-6 rounded-2xl border surface-border surface-elevated px-5 py-4">
       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-muted">Bisa chat kembali dalam</p>
-      <p className="mt-1 text-3xl font-bold tracking-tight text-fg tabular-nums">{formatHumanRemaining(remaining)}</p>
+      <p className="mt-1 text-3xl font-bold tracking-tight text-fg tabular-nums">{formatRemaining(remaining)}</p>
     </div>
   );
 }
@@ -80,7 +67,7 @@ function ChatLockModal({
         <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-400/15 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-300">
           <Shield size={13} />
           {source === 'system'
-            ? `Pelanggaran ke-${strike || 1} · pembatasan otomatis`
+            ? `Pelanggaran ke-${strike || 1} · sistem otomatis`
             : 'Pembatasan oleh Admin'}
         </div>
         <p className="mt-5 text-[10px] leading-5 text-fg-muted">
@@ -135,7 +122,7 @@ export function ChatCooldownGate() {
     const isAutomatic = !access.blocked_by;
     return (
       <ChatLockModal
-        title="Akses chat dinonaktifkan"
+        title={access.is_permanent ? 'Akses chat dinonaktifkan' : 'Chat dikunci sementara'}
         description={
           isAutomatic
             ? 'Aktivitas chat terlalu cepat terdeteksi sebagai spam. Demi menjaga kualitas layanan, akses chat dikunci sementara.'
