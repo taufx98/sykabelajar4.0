@@ -7,22 +7,17 @@ import { applyChatRealtimeMessage, applyChatRealtimeThread, removeChatRealtimeTh
 import { reconcileAfterRealtimeReconnect } from '@/services/realtime-reconciliation.service';
 
 type Cleanup = () => void;
-
 let publicCleanup: Cleanup | null = null;
 let userCleanup: Cleanup | null = null;
 let activeUserId: string | null = null;
 let activeIsAdmin = false;
 
-function removeChannel(channel: ReturnType<typeof supabase.channel>) {
-  void supabase.removeChannel(channel);
-}
+function removeChannel(channel: ReturnType<typeof supabase.channel>) { void supabase.removeChannel(channel); }
 
 export function startPublicRealtime(): Cleanup {
   if (publicCleanup) return publicCleanup;
-
   let wasDegraded = false;
-  const channel = supabase
-    .channel('syka-public-sync-v1')
+  const channel = supabase.channel('syka-public-sync-v1')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'competitions' }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
@@ -44,34 +39,24 @@ export function startPublicRealtime(): Cleanup {
       if (status === 'SUBSCRIBED') {
         emitSykaEvent({ type: 'realtime-status', scope: 'public', status: 'subscribed', reconnected: wasDegraded });
         wasDegraded = false;
-        return;
-      }
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         wasDegraded = true;
         console.warn('[SykaBelajar] public realtime degraded:', status, error);
         emitSykaEvent({ type: 'realtime-status', scope: 'public', status: 'degraded', reconnected: false });
-        return;
-      }
-      if (status === 'CLOSED') {
+      } else if (status === 'CLOSED') {
         wasDegraded = true;
         emitSykaEvent({ type: 'realtime-status', scope: 'public', status: 'closed', reconnected: false });
       }
     });
-
-  publicCleanup = () => {
-    removeChannel(channel);
-    publicCleanup = null;
-  };
+  publicCleanup = () => { removeChannel(channel); publicCleanup = null; };
   return publicCleanup;
 }
 
 export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
   if (userCleanup && activeUserId === userId && activeIsAdmin === isAdmin) return userCleanup;
   stopUserRealtime();
-
   let wasDegraded = false;
-  const channel = supabase
-    .channel(`syka-user-sync-v1-${userId}`)
+  const channel = supabase.channel(`syka-user-sync-v1-${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, (payload) => {
       invalidateForRealtime('profile', userId);
       invalidateLeaderboardMemory();
@@ -81,11 +66,8 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       invalidateForRealtime('notification', userId);
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       const notificationId = String(row.id ?? '');
-      if (payload.eventType === 'INSERT' && notificationId) {
-        emitSykaEvent({ type: 'notification-inserted', notificationId, notification: row });
-      } else if (payload.eventType === 'UPDATE' && notificationId) {
-        emitSykaEvent({ type: 'notification-read', notificationId });
-      }
+      if (payload.eventType === 'INSERT' && notificationId) emitSykaEvent({ type: 'notification-inserted', notificationId, notification: row });
+      else if (payload.eventType === 'UPDATE' && notificationId) emitSykaEvent({ type: 'notification-read', notificationId });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${userId}` }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
@@ -101,32 +83,31 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
       emitSykaEvent({ type: 'organizer-changed', organizerId: String(row.organizer_id ?? '') || undefined });
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, (payload) => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', ...(isAdmin ? {} : { filter: `user_id=eq.${userId}` }) }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
-      if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;
       const threadId = String(row.id ?? '');
       if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
-      else if (threadId) applyChatRealtimeThread(row as unknown as Parameters<typeof applyChatRealtimeThread>[0]);
+      else if (threadId) applyChatRealtimeThread(row as never);
       emitSykaEvent({ type: 'chat-thread-updated', thread: row });
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, (payload) => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', ...(!isAdmin ? { filter: `participant_id=eq.${userId}` } : {}) }, (payload) => {
       const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
-      if (isAdmin && String(row.thread_type ?? '') !== 'ticket') return;
-      const threadId = String(row.id ?? '');
-      if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
-      else if (threadId) applyChatRealtimeThread(row as unknown as Parameters<typeof applyChatRealtimeThread>[0]);
+      if (!isAdmin) {
+        const threadId = String(row.id ?? '');
+        if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
+        else if (threadId) applyChatRealtimeThread(row as never);
+      }
       emitSykaEvent({ type: 'chat-thread-updated', thread: row });
     })
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `sender_id=neq.${userId}` }, (payload) => {
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', ...(isAdmin ? {} : { filter: `sender_id=neq.${userId}` }) }, (payload) => {
       const message = payload.new as Record<string, unknown>;
-      applyChatRealtimeMessage(message as unknown as Parameters<typeof applyChatRealtimeMessage>[0], userId);
+      applyChatRealtimeMessage(message as never, userId);
       emitSykaEvent({ type: 'chat-message', message });
     });
 
   if (isAdmin) {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'payment_proof_status=eq.SUBMITTED' }, (payload) => {
-      const order = payload.new as Record<string, unknown>;
-      emitSykaEvent({ type: 'order-changed', order });
+      emitSykaEvent({ type: 'order-changed', order: payload.new as Record<string, unknown> });
     });
   }
 
@@ -136,19 +117,16 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       emitSykaEvent({ type: 'realtime-status', scope: 'user', status: 'subscribed', reconnected });
       wasDegraded = false;
       if (reconnected) void reconcileAfterRealtimeReconnect('user', userId);
-      return;
-    }
-    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
       wasDegraded = true;
       console.warn('[SykaBelajar] user realtime degraded:', status, error);
       emitSykaEvent({ type: 'realtime-status', scope: 'user', status: 'degraded', reconnected: false });
-      return;
-    }
-    if (status === 'CLOSED') {
+    } else if (status === 'CLOSED') {
       wasDegraded = true;
       emitSykaEvent({ type: 'realtime-status', scope: 'user', status: 'closed', reconnected: false });
     }
   });
+
   activeUserId = userId;
   activeIsAdmin = isAdmin;
   userCleanup = () => {
@@ -160,10 +138,5 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
   return userCleanup;
 }
 
-export function stopUserRealtime() {
-  userCleanup?.();
-}
-
-export function stopPublicRealtime() {
-  publicCleanup?.();
-}
+export function stopUserRealtime() { userCleanup?.(); }
+export function stopPublicRealtime() { publicCleanup?.(); }
