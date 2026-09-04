@@ -41,6 +41,7 @@ const AppContext = createContext<AppState | null>(null);
 const GUEST_KEY = 'sykabelajar_guest_mode_v1';
 const IDLE_TIMEOUT_MS = 25 * 60 * 1000;
 const LAST_ACTIVITY_KEY = 'sykabelajar_last_activity_v1';
+const ACTIVITY_PERSIST_INTERVAL_MS = 5000;
 
 function preferredRole(roles: BackendRole[]): Role {
   if (roles.includes('admin')) return 'admin';
@@ -220,26 +221,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!authUser?.id || isGuest) return;
 
-    let timer: number | undefined;
-    let lastRecordedAt = 0;
+    let idleTimer: number | undefined;
+    let lastActivityAt = Date.now();
+    let lastPersistedAt = 0;
+    let idleLogoutStarted = false;
 
-    const clearTimer = () => {
-      if (timer !== undefined) {
-        window.clearTimeout(timer);
-        timer = undefined;
+    const clearIdleTimer = () => {
+      if (idleTimer !== undefined) {
+        window.clearTimeout(idleTimer);
+        idleTimer = undefined;
       }
     };
 
-    const readLastActivity = () => {
-      const raw = localStorage.getItem(LAST_ACTIVITY_KEY);
-      const value = raw ? Number(raw) : NaN;
-      return Number.isFinite(value) && value > 0 ? value : null;
+    const persistActivity = (timestamp: number, force = false) => {
+      if (!force && timestamp - lastPersistedAt < ACTIVITY_PERSIST_INTERVAL_MS) return;
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(timestamp));
+      lastPersistedAt = timestamp;
     };
 
     const logoutForIdle = async () => {
-      clearTimer();
+      if (idleLogoutStarted) return;
+      idleLogoutStarted = true;
+      clearIdleTimer();
       localStorage.removeItem(LAST_ACTIVITY_KEY);
       try {
+        // Idle timing is entirely local. The Auth sign-out call happens only once after timeout.
         await signOut();
       } catch (error) {
         console.error('[SykaBelajar] idle logout failed', error);
@@ -247,50 +253,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const schedule = () => {
-      clearTimer();
-      const last = readLastActivity() ?? Date.now();
-      if (!readLastActivity()) localStorage.setItem(LAST_ACTIVITY_KEY, String(last));
-      const remaining = IDLE_TIMEOUT_MS - (Date.now() - last);
+    const scheduleIdleLogout = () => {
+      clearIdleTimer();
+      const remaining = IDLE_TIMEOUT_MS - (Date.now() - lastActivityAt);
       if (remaining <= 0) {
         void logoutForIdle();
         return;
       }
-      timer = window.setTimeout(() => {
-        const latest = readLastActivity() ?? last;
-        if (Date.now() - latest >= IDLE_TIMEOUT_MS) void logoutForIdle();
-        else schedule();
-      }, Math.max(1000, remaining + 50));
+      idleTimer = window.setTimeout(() => {
+        const elapsed = Date.now() - lastActivityAt;
+        if (elapsed >= IDLE_TIMEOUT_MS) void logoutForIdle();
+        else scheduleIdleLogout();
+      }, remaining + 50);
     };
 
     const recordActivity = () => {
       const now = Date.now();
-      if (now - lastRecordedAt < 15000) return;
-      lastRecordedAt = now;
-      localStorage.setItem(LAST_ACTIVITY_KEY, String(now));
-      schedule();
+      // Keep the in-memory clock exact. Only persistence is throttled to avoid needless localStorage writes.
+      lastActivityAt = now;
+      persistActivity(now);
+    };
+
+    const restorePersistedActivity = () => {
+      const persisted = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
+      if (Number.isFinite(persisted) && persisted > 0) {
+        lastActivityAt = persisted;
+        lastPersistedAt = persisted;
+      } else {
+        persistActivity(lastActivityAt, true);
+      }
     };
 
     const handleVisibility = () => {
-      if (!document.hidden) schedule();
+      if (document.hidden) {
+        persistActivity(lastActivityAt, true);
+        return;
+      }
+      scheduleIdleLogout();
     };
 
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === LAST_ACTIVITY_KEY) schedule();
-    };
+    const handlePageHide = () => persistActivity(lastActivityAt, true);
 
-    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'scroll', 'wheel', 'touchstart'];
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'wheel', 'touchstart'];
     events.forEach((event) => window.addEventListener(event, recordActivity, { passive: true }));
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('storage', handleStorage);
+    window.addEventListener('pagehide', handlePageHide);
 
-    schedule();
+    restorePersistedActivity();
+    scheduleIdleLogout();
 
     return () => {
-      clearTimer();
+      clearIdleTimer();
       events.forEach((event) => window.removeEventListener(event, recordActivity));
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('pagehide', handlePageHide);
     };
   }, [authUser?.id, isGuest, clearUserState]);
 
