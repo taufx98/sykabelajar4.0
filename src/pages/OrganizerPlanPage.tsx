@@ -1,87 +1,96 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Gauge, ShieldCheck, Sparkles, MessageCircle, CreditCard } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, CreditCard, Gauge, MessageCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/lib/toast';
-import {
-  getActiveOrganizerEntitlements,
-  type OrganizerEntitlement,
-} from '@/services/organizerEntitlement.service';
+import { getActiveOrganizerEntitlements, type OrganizerEntitlement } from '@/services/organizerEntitlement.service';
 import { resolveCurrentUserOrganizer } from '@/services/organizerAuth.service';
-import {
-  listActiveOrganizerPlans,
-  createOrganizerPlanOrderV2,
-  requestCustomOrganizerPlan,
-  type OrganizerPlanCatalogRow,
-} from '@/services/commerce.service';
+import { listActiveOrganizerPlans, createOrganizerPlanOrderV2, requestCustomOrganizerPlan, type OrganizerPlanCatalogRow } from '@/services/commerce.service';
+import { loadPlatformSettings } from '@/services/ad.service';
 
 const CAPABILITY_LABELS: Record<string, string> = {
-  competition_create: 'Batas Buat Lomba',
-  competition_publish: 'Publikasi Lomba',
-  question_bank: 'Bank Soal',
-  question_create: 'Jumlah Soal',
-  essay_ai_assessment: 'AI Assessment Esai',
-  twibbon_canvas: 'Twibbon Canvas',
-  twibbon: 'Twibbon',
-  certificate_serials: 'QR / Serial',
-  qr_serial: 'QR / Serial',
+  competition_create: 'Lomba yang dapat dibuat',
+  participant_limit: 'Kapasitas peserta',
+  question_bank: 'Bank soal',
+  question_limit: 'Jumlah soal',
+  manual_grading: 'Penilaian manual',
   certificate: 'Sertifikat',
-  certificate_create: 'Jumlah Sertifikat',
+  certificate_serials: 'QR / Serial sertifikat',
   analytics: 'Analytics',
-  advanced_reports: 'Laporan Lanjutan',
-  bulk_notification: 'Notifikasi Massal',
-  custom_branding: 'Custom Branding',
-  storage: 'Kapasitas Penyimpanan',
-  participants: 'Kapasitas Peserta',
-  participant_limit: 'Batas Peserta',
-  member_limit: 'Batas Anggota',
+  advanced_reports: 'Laporan lanjutan',
+  bulk_notification: 'Notifikasi massal',
+  custom_branding: 'Custom branding',
+  storage: 'Penyimpanan',
+  essay_ai_assessment: 'AI Assessment esai',
+  twibbon: 'Twibbon',
+  twibbon_canvas: 'Twibbon Canvas',
+  priority_support: 'Prioritas dukungan',
 };
 
 const CUSTOM_OPTIONS = [
-  ['competition_create', 'Buat & kelola lomba'],
-  ['participant_limit', 'Kapasitas peserta khusus'],
+  ['competition_create', 'Jumlah lomba'],
+  ['participant_limit', 'Kapasitas peserta'],
   ['question_bank', 'Bank soal'],
-  ['question_create', 'Jumlah soal khusus'],
+  ['question_limit', 'Jumlah soal'],
   ['certificate', 'Sertifikat'],
+  ['certificate_serials', 'QR / Serial'],
   ['analytics', 'Analytics'],
   ['advanced_reports', 'Laporan lanjutan'],
   ['bulk_notification', 'Notifikasi massal'],
-  ['essay_ai_assessment', 'AI Assessment Esai'],
-  ['custom_branding', 'Custom Branding'],
-  ['twibbon', 'Twibbon'],
-  ['twibbon_canvas', 'Twibbon Canvas'],
-  ['qr_serial', 'QR / Serial'],
-  ['member_limit', 'Batas anggota khusus'],
+  ['essay_ai_assessment', 'AI Assessment esai'],
+  ['custom_branding', 'Custom branding'],
+  ['twibbon', 'Twibbon / Canvas'],
+  ['priority_support', 'Prioritas dukungan'],
 ] as const;
 
+type Billing = 'MONTHLY' | 'YEARLY';
+type ViewMode = 'MONTHLY' | 'YEARLY' | 'CUSTOM';
+
 function labelFor(capability?: string | null) {
-  return CAPABILITY_LABELS[capability ?? ''] ?? (String(capability ?? '').replace(/_/g, ' ').replace(/\b\w/g, (m: string) => m.toUpperCase()) || 'Fitur');
+  return CAPABILITY_LABELS[capability ?? ''] ?? String(capability ?? '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'Fitur';
 }
 
 function money(value: number, currency: string) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: currency || 'IDR', maximumFractionDigits: 0 }).format(value);
 }
 
+function entitlementText(item: OrganizerEntitlement) {
+  if (item.limit_value == null) return labelFor(item.capability);
+  const amount = Number(item.limit_value).toLocaleString('id-ID');
+  const label = labelFor(item.capability);
+  if (item.config?.enabled === false) return `${label}: nonaktif`;
+  if (item.capability === 'participant_limit' || item.capability === 'question_limit' || item.capability === 'competition_create' || item.capability === 'certificate_serials') {
+    return `${label}: ${amount}`;
+  }
+  return label;
+}
+
 export function OrganizerPlanPage() {
   const [plan, setPlan] = useState<string | null>(null);
   const [items, setItems] = useState<OrganizerEntitlement[]>([]);
   const [catalog, setCatalog] = useState<OrganizerPlanCatalogRow[]>([]);
-  const [billing, setBilling] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
-  const [selectedPlan, setSelectedPlan] = useState<string>('PREMIUM');
+  const [billing, setBilling] = useState<Billing>('MONTHLY');
+  const [view, setView] = useState<ViewMode>('MONTHLY');
+  const [selectedPlan, setSelectedPlan] = useState('PREMIUM');
   const [whatsapp, setWhatsapp] = useState('');
   const [proofUrl, setProofUrl] = useState('');
   const [customFeatures, setCustomFeatures] = useState<string[]>([]);
   const [customNotes, setCustomNotes] = useState('');
   const [customWhatsapp, setCustomWhatsapp] = useState('');
+  const [adminWhatsapp, setAdminWhatsapp] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [customSubmitting, setCustomSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [compact, setCompact] = useState(false);
+  const deckRef = useRef<HTMLDivElement | null>(null);
 
   const selectedCatalogPlan = useMemo(() => catalog.find((row) => row.plan_code === selectedPlan) ?? null, [catalog, selectedPlan]);
   const selectedPrice = selectedCatalogPlan ? (billing === 'MONTHLY' ? selectedCatalogPlan.monthly_price : selectedCatalogPlan.yearly_price) : 0;
+  const visibleCount = compact ? 1 : Math.min(3, Math.max(catalog.length, 1));
+  const maxSlide = Math.max(0, catalog.length - visibleCount);
 
   useEffect(() => {
     let active = true;
@@ -89,21 +98,19 @@ export function OrganizerPlanPage() {
       try {
         const org = await resolveCurrentUserOrganizer();
         if (!org) throw new Error('Organisasi tidak ditemukan.');
-        const [entitlementResult, planCatalog] = await Promise.all([
+        const [entitlementResult, planCatalog, platform] = await Promise.all([
           getActiveOrganizerEntitlements(org.id),
           listActiveOrganizerPlans(),
+          loadPlatformSettings(),
         ]);
         if (!active) return;
         setPlan(entitlementResult.planCode);
         setItems(entitlementResult.entitlements);
         setCatalog(planCatalog);
+        setAdminWhatsapp(platform.whatsapp_number || '');
         if (planCatalog[0]) setSelectedPlan(planCatalog[0].plan_code);
       } catch (e: unknown) {
-        if (active) {
-          const message = e instanceof Error ? e.message : 'Gagal memuat plan.';
-          setError(message);
-          toast.error(message);
-        }
+        if (active) toast.error(e instanceof Error ? e.message : 'Gagal memuat paket.');
       } finally {
         if (active) setLoading(false);
       }
@@ -111,19 +118,27 @@ export function OrganizerPlanPage() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    const node = deckRef.current;
+    if (!node) return;
+    const update = () => setCompact(node.clientWidth < 900);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [catalog.length]);
+
+  useEffect(() => {
+    setActiveSlide((current) => Math.min(current, maxSlide));
+  }, [maxSlide]);
+
   const submitUpgrade = async () => {
     setSubmitting(true);
     try {
       const org = await resolveCurrentUserOrganizer();
       if (!org) throw new Error('Organisasi tidak ditemukan.');
-      if (!selectedCatalogPlan) throw new Error('Plan belum tersedia.');
-      await createOrganizerPlanOrderV2({
-        organizerId: org.id,
-        planCode: selectedCatalogPlan.plan_code,
-        billingPeriod: billing,
-        whatsapp,
-        proofUrl,
-      });
+      if (!selectedCatalogPlan) throw new Error('Paket belum tersedia.');
+      await createOrganizerPlanOrderV2({ organizerId: org.id, planCode: selectedCatalogPlan.plan_code, billingPeriod: billing, whatsapp, proofUrl });
       toast.success('Pesanan upgrade berhasil dikirim. Admin akan memverifikasi pembayaran.');
       setProofUrl('');
     } catch (e: unknown) {
@@ -138,15 +153,10 @@ export function OrganizerPlanPage() {
     try {
       const org = await resolveCurrentUserOrganizer();
       if (!org) throw new Error('Organisasi tidak ditemukan.');
-      await requestCustomOrganizerPlan({
-        organizerId: org.id,
-        requestedFeatures: customFeatures,
-        notes: customNotes,
-        contactWhatsapp: customWhatsapp,
-      });
-      toast.success('Permintaan custom berhasil dikirim ke admin.');
-      setCustomNotes('');
+      await requestCustomOrganizerPlan({ organizerId: org.id, requestedFeatures: customFeatures, notes: customNotes, contactWhatsapp: customWhatsapp });
+      toast.success('Permintaan custom berhasil masuk ke dashboard admin.');
       setCustomFeatures([]);
+      setCustomNotes('');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Gagal mengirim permintaan custom.');
     } finally {
@@ -154,86 +164,123 @@ export function OrganizerPlanPage() {
     }
   };
 
-  const toggleCustom = (value: string) => {
-    setCustomFeatures((current) => current.includes(value) ? current.filter((x) => x !== value) : [...current, value]);
+  const openWhatsapp = () => {
+    const number = adminWhatsapp.replace(/\D/g, '');
+    if (!number) {
+      toast.error('Kontak WhatsApp admin belum dikonfigurasi.');
+      return;
+    }
+    const text = encodeURIComponent('Halo Admin SykaBelajar, saya ingin berkonsultasi tentang paket Organizer.');
+    window.open(`https://wa.me/${number}?text=${text}`, '_blank', 'noopener,noreferrer');
   };
 
-  return (
-    <div className="min-h-screen surface-bg text-fg-secondary p-5 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        <Link to="/organizer" className="inline-flex items-center gap-2 text-xs text-fg-muted hover:text-fg mb-5"><ArrowLeft size={14}/> Kembali ke Penyelenggara</Link>
+  const toggleCustom = (value: string) => setCustomFeatures((current) => current.includes(value) ? current.filter((x) => x !== value) : [...current, value]);
 
-        <div className="mb-6">
-          <p className="text-xs text-accent font-semibold">PENYELENGGARA · PLAN</p>
-          <h1 className="font-display text-2xl font-bold text-fg">Plan & Usage</h1>
-          <p className="text-sm text-fg-muted mt-1">Kelola kapasitas dan fitur workspace berdasarkan plan yang aktif.</p>
+  const selectMode = (next: ViewMode) => {
+    setView(next);
+    if (next === 'MONTHLY' || next === 'YEARLY') setBilling(next);
+  };
+
+  const shownCatalog = catalog.slice(activeSlide, activeSlide + visibleCount);
+  const cardWidthClass = compact ? 'w-full' : visibleCount === 3 ? 'w-full lg:w-[calc((100%-2rem)/3)]' : 'w-full lg:w-[calc((100%-1rem)/2)]';
+
+  return (
+    <div className="min-h-screen surface-bg text-fg-secondary px-4 py-6 md:px-8 md:py-9">
+      <div className="mx-auto max-w-7xl">
+        <Link to="/organizer" className="mb-6 inline-flex items-center gap-2 text-xs text-fg-muted hover:text-fg"><ArrowLeft size={14} /> Kembali ke Penyelenggara</Link>
+
+        <div className="mb-7 max-w-3xl">
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-accent">Penyelenggara · Paket</p>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-fg md:text-4xl">Pilih paket yang sesuai dengan skala lombamu.</h1>
+          <p className="mt-2 text-sm leading-6 text-fg-muted md:text-base">Semua paket memakai batas dan fitur dari backend. Pilih periode untuk melihat harga yang berlaku, atau gunakan Custom untuk meminta paket yang lebih spesifik.</p>
         </div>
 
-        {error && <Card className="p-4 border-yellow-500/20 bg-yellow-500/5 text-yellow-200 mb-4">{error}</Card>}
+        <Card className="mb-6 overflow-hidden border-surface-border/80 p-2 shadow-xl">
+          <div className="flex flex-col gap-2 rounded-2xl bg-surface-elevated/35 p-2 sm:flex-row">
+            {([['MONTHLY', 'Bulanan'], ['YEARLY', 'Tahunan'], ['CUSTOM', 'Custom']] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => selectMode(value)} className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${view === value ? 'bg-accent text-white shadow-lg' : 'text-fg-muted hover:bg-surface-elevated hover:text-fg'}`}>{label}</button>
+            ))}
+          </div>
+        </Card>
 
-        {loading ? <Card className="p-8 text-center text-fg-muted">Memuat plan…</Card> : <>
-          <Card className="p-5 mb-5">
-            <div className="flex flex-col md:flex-row md:items-center gap-4">
-              <ShieldCheck className="text-accent" size={26}/>
-              <div className="flex-1"><p className="text-xs text-fg-muted">Plan aktif</p><p className="text-xl font-bold text-fg">{plan ?? 'Belum ada plan aktif'}</p></div>
-              <Badge color={plan ? 'moss' : 'default'}>{plan ? 'AKTIF' : 'TIDAK AKTIF'}</Badge>
+        {loading ? (
+          <Card className="p-12 text-center text-sm text-fg-muted">Memuat paket…</Card>
+        ) : view === 'CUSTOM' ? (
+          <Card className="overflow-hidden border-accent/25 p-5 md:p-7">
+            <div className="grid gap-7 lg:grid-cols-[1.1fr_.9fr]">
+              <div>
+                <div className="mb-5 flex items-start gap-3"><div className="rounded-xl bg-accent/10 p-2.5"><Sparkles className="text-accent" size={20} /></div><div><h2 className="text-2xl font-bold text-fg">Bangun paket Custom</h2><p className="mt-1 text-sm leading-6 text-fg-muted">Kirim kebutuhanmu. Request ini langsung tercatat di dashboard admin untuk ditinjau dan dibuatkan penawaran.</p></div></div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {CUSTOM_OPTIONS.map(([value, label]) => <label key={value} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${customFeatures.includes(value) ? 'border-accent bg-accent/5' : 'border-surface-border hover:bg-surface-elevated/60'}`}><input type="checkbox" checked={customFeatures.includes(value)} onChange={() => toggleCustom(value)} /><span className="text-sm font-medium text-fg">{label}</span></label>)}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-surface-border bg-surface-elevated/35 p-5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Detail request</p>
+                <textarea className="input mt-3 min-h-32 w-full" value={customNotes} onChange={(e) => setCustomNotes(e.target.value)} placeholder="Contoh: 10.000 peserta, 50 lomba, sertifikat QR 5.000, dan kebutuhan branding…" />
+                <input className="input mt-3 w-full" value={customWhatsapp} onChange={(e) => setCustomWhatsapp(e.target.value)} placeholder="Nomor WhatsApp Anda" inputMode="tel" />
+                <Button className="mt-3 w-full" loading={customSubmitting} disabled={!customFeatures.length || !customWhatsapp.trim()} onClick={() => void submitCustom()} icon={<MessageCircle size={16} />}>Kirim Request ke Admin</Button>
+                <button type="button" onClick={openWhatsapp} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-surface-border px-4 py-3 text-sm font-semibold text-fg hover:bg-surface-elevated"><MessageCircle size={16} /> Chat langsung via WhatsApp</button>
+                <p className="mt-3 text-[11px] leading-5 text-fg-muted">WhatsApp adalah jalur cadangan bila respons request di dashboard admin lebih lama dari yang kamu harapkan.</p>
+              </div>
             </div>
           </Card>
-
-          <section className="mb-8">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-4">
-              <div><h2 className="text-lg font-bold text-fg">Upgrade plan</h2><p className="text-sm text-fg-muted">Pilih billing bulanan atau tahunan. Harga berasal dari katalog plan.</p></div>
-              <div className="inline-flex rounded-xl border border-surface-border overflow-hidden self-start">
-                <button type="button" onClick={() => setBilling('MONTHLY')} className={`px-4 py-2 text-sm ${billing === 'MONTHLY' ? 'bg-surface-elevated text-fg' : 'text-fg-muted'}`}>Bulanan</button>
-                <button type="button" onClick={() => setBilling('YEARLY')} className={`px-4 py-2 text-sm ${billing === 'YEARLY' ? 'bg-surface-elevated text-fg' : 'text-fg-muted'}`}>Tahunan</button>
-              </div>
+        ) : (
+          <>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div><h2 className="text-xl font-bold text-fg">Paket Organizer</h2><p className="text-sm text-fg-muted">Harga berubah sesuai periode yang kamu pilih di atas.</p></div>
+              {plan && <div className="hidden rounded-full border border-accent/20 bg-accent/5 px-3 py-1.5 text-xs font-semibold text-accent sm:block">Plan aktif: {plan}</div>}
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-4">
-              {catalog.map((row) => {
-                const price = billing === 'MONTHLY' ? row.monthly_price : row.yearly_price;
-                const active = selectedPlan === row.plan_code;
-                return <button type="button" key={row.plan_code} onClick={() => setSelectedPlan(row.plan_code)} className={`text-left rounded-2xl border p-5 transition ${active ? 'border-accent bg-accent/5' : 'border-surface-border hover:bg-surface-elevated/30'}`}>
-                  <div className="flex items-center justify-between gap-3 mb-2"><div><p className="text-lg font-bold text-fg">{row.name}</p><p className="text-xs text-fg-muted uppercase tracking-wide">{row.plan_code}</p></div>{active && <Badge color="moss">Dipilih</Badge>}</div>
-                  <p className="text-sm text-fg-muted min-h-10">{row.description || 'Plan organizer untuk kebutuhan operasional.'}</p>
-                  <p className="text-xl font-bold text-fg mt-4">{money(price, row.currency)} <span className="text-xs font-normal text-fg-muted">/ {billing === 'MONTHLY' ? 'bulan' : 'tahun'}</span></p>
-                </button>;
-              })}
+            <div ref={deckRef} className="relative">
+              <div className="flex gap-4 overflow-hidden pb-2">
+                {shownCatalog.map((row) => {
+                  const price = billing === 'MONTHLY' ? row.monthly_price : row.yearly_price;
+                  const active = selectedPlan === row.plan_code;
+                  const periodLabel = billing === 'MONTHLY' ? 'bulan' : 'tahun';
+                  return (
+                    <button type="button" key={row.plan_code} onClick={() => setSelectedPlan(row.plan_code)} className={`${cardWidthClass} shrink-0 text-left`}>
+                      <Card className={`relative flex h-full min-h-[450px] flex-col overflow-hidden p-6 transition duration-200 md:p-7 ${active ? 'border-accent shadow-2xl shadow-accent/10' : 'border-surface-border hover:-translate-y-0.5 hover:bg-surface-elevated/50'}`}>
+                        {row.badge && <div className="absolute right-5 top-5 rounded-full bg-accent/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-accent">{row.badge}</div>}
+                        <div className="mb-7 pr-16"><p className="text-xs font-bold uppercase tracking-[0.16em] text-fg-muted">{row.plan_code}</p><h3 className="mt-2 text-2xl font-bold text-fg">{row.name}</h3><p className="mt-2 min-h-12 text-sm leading-5 text-fg-muted">{row.description || 'Paket organizer untuk kebutuhan operasional dan kompetisi.'}</p></div>
+                        <div className="mb-7"><p className="text-4xl font-black tracking-tight text-fg">{money(price, row.currency)}</p><p className="mt-1 text-xs text-fg-muted">per {periodLabel}</p></div>
+                        <div className="mt-auto space-y-2.5 border-t border-surface-border pt-5">
+                          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-fg-muted">Yang kamu dapat</p>
+                          {items.filter((item) => item.plan_code === row.plan_code).slice(0, 7).map((item) => <div key={item.capability} className="flex items-start gap-2 text-sm text-fg"><Check size={15} className="mt-0.5 shrink-0 text-accent" /><span>{entitlementText(item)}</span></div>)}
+                          {!items.some((item) => item.plan_code === row.plan_code) && <p className="text-sm text-fg-muted">Detail benefit mengikuti konfigurasi paket di dashboard admin.</p>}
+                        </div>
+                      </Card>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {compact && catalog.length > 1 && (
+                <div className="mt-3 flex items-center justify-between">
+                  <button type="button" aria-label="Paket sebelumnya" onClick={() => setActiveSlide((current) => Math.max(0, current - 1))} disabled={activeSlide === 0} className="rounded-full border border-surface-border p-3 text-fg disabled:cursor-not-allowed disabled:opacity-30"><ArrowLeft size={17} /></button>
+                  <div className="flex items-center gap-1.5">{catalog.map((item, index) => <span key={item.plan_code} className={`h-1.5 rounded-full transition-all ${index === activeSlide ? 'w-6 bg-accent' : 'w-1.5 bg-fg-muted/30'}`} />)}</div>
+                  <button type="button" aria-label="Paket berikutnya" onClick={() => setActiveSlide((current) => Math.min(maxSlide, current + 1))} disabled={activeSlide >= maxSlide} className="rounded-full border border-surface-border p-3 text-fg disabled:cursor-not-allowed disabled:opacity-30"><ArrowRight size={17} /></button>
+                </div>
+              )}
             </div>
 
-            {selectedCatalogPlan && <Card className="p-5 mt-4">
-              <div className="flex items-center gap-2 mb-4"><CreditCard size={18} className="text-accent"/><h3 className="font-semibold text-fg">Kirim pesanan {selectedCatalogPlan.name}</h3></div>
-              <div className="grid md:grid-cols-2 gap-3">
-                <input className="input" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="Nomor WhatsApp" />
-                <input className="input" value={proofUrl} onChange={(e) => setProofUrl(e.target.value)} placeholder="URL bukti pembayaran" />
-              </div>
-              <div className="flex items-center justify-between gap-3 mt-4 flex-wrap"><p className="text-sm text-fg-muted">Total: <strong className="text-fg">{money(selectedPrice, selectedCatalogPlan.currency)}</strong></p><Button loading={submitting} disabled={!whatsapp.trim() || !proofUrl.trim()} onClick={() => void submitUpgrade()}>Kirim Pesanan</Button></div>
-            </Card>}
-          </section>
+            {selectedCatalogPlan && (
+              <Card className="mt-6 overflow-hidden border-accent/15 p-5 md:p-6">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="min-w-0"><div className="flex items-center gap-2 text-fg"><CreditCard size={17} className="text-accent" /><h3 className="font-bold">Lanjutkan dengan {selectedCatalogPlan.name}</h3></div><p className="mt-1 text-sm text-fg-muted">Total {money(selectedPrice, selectedCatalogPlan.currency)} untuk periode {billing === 'MONTHLY' ? 'bulanan' : 'tahunan'}.</p></div>
+                  <div className="grid w-full gap-3 md:grid-cols-2 lg:max-w-2xl"><input className="input" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="Nomor WhatsApp" inputMode="tel" /><input className="input" value={proofUrl} onChange={(e) => setProofUrl(e.target.value)} placeholder="URL bukti pembayaran" /></div>
+                </div>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-fg-muted">Setelah dikirim, admin memverifikasi bukti pembayaran sebelum mengaktifkan paket.</p><Button loading={submitting} disabled={!whatsapp.trim() || !proofUrl.trim()} onClick={() => void submitUpgrade()}>Kirim Pesanan</Button></div>
+              </Card>
+            )}
+          </>
+        )}
 
-          <section className="mb-8">
-            <Card className="p-5 border-accent/20">
-              <div className="flex items-start gap-3 mb-4"><Sparkles className="text-accent mt-0.5" size={20}/><div><h2 className="text-lg font-bold text-fg">Custom plan</h2><p className="text-sm text-fg-muted mt-1">Butuh kombinasi fitur khusus? Pilih kebutuhanmu. Tidak ada harga yang ditampilkan; admin akan menyiapkan penawaran dan menghubungi kamu.</p></div></div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {CUSTOM_OPTIONS.map(([value, label]) => <label key={value} className={`flex items-center gap-2 rounded-xl border p-3 cursor-pointer ${customFeatures.includes(value) ? 'border-accent bg-accent/5' : 'border-surface-border'}`}><input type="checkbox" checked={customFeatures.includes(value)} onChange={() => toggleCustom(value)} /><span className="text-sm text-fg">{label}</span></label>)}
-              </div>
-              <textarea className="input w-full min-h-28 mt-3" value={customNotes} onChange={(e) => setCustomNotes(e.target.value)} placeholder="Jelaskan kebutuhan custom, jumlah peserta, jumlah soal, atau kebutuhan operasional lain…" />
-              <div className="grid md:grid-cols-[1fr_auto] gap-3 mt-3">
-                <input className="input" value={customWhatsapp} onChange={(e) => setCustomWhatsapp(e.target.value)} placeholder="Nomor WhatsApp untuk dihubungi admin" />
-                <Button loading={customSubmitting} disabled={!customFeatures.length} onClick={() => void submitCustom()} icon={<MessageCircle size={15}/>}>Hubungi Admin</Button>
-              </div>
-              <p className="text-xs text-fg-muted mt-3">Kontak admin dilakukan melalui kanal resmi SykaBelajar. Nomor kontak tidak ditanam langsung di source code.</p>
-            </Card>
-          </section>
-
-          <section>
-            <div className="mb-4"><h2 className="text-lg font-bold text-fg">Fitur aktif</h2><p className="text-sm text-fg-muted">Entitlement ini tetap berasal dari backend dan menjadi sumber otoritatif.</p></div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {items.map((item) => <Card key={item.capability} className="p-4"><div className="flex items-start gap-3"><Gauge size={17} className="text-accent mt-0.5"/><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg">{labelFor(item.capability)}</p><p className="text-xs text-fg-muted mt-1">{item.limit_value == null ? 'Tanpa batas numerik' : `Maksimal ${Number(item.limit_value).toLocaleString('id-ID')}`}</p>{Object.keys(item.config ?? {}).length > 0 && <p className="text-[11px] text-fg-muted mt-2">Pengaturan tambahan aktif</p>}</div><CheckCircle2 size={15} className="text-accent"/></div></Card>)}
-              {!items.length && <Card className="p-8 text-center text-fg-muted sm:col-span-2">Belum ada fitur aktif pada plan ini.</Card>}
-            </div>
-          </section>
-        </>}
+        <section className="mt-8">
+          <Card className="border-surface-border/80 p-5 md:p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center"><div className="rounded-xl bg-accent/10 p-2.5"><ShieldCheck className="text-accent" size={19} /></div><div className="flex-1"><p className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Plan aktif</p><h2 className="mt-1 text-lg font-bold text-fg">{plan ?? 'Belum ada plan aktif'}</h2><p className="mt-1 text-sm text-fg-muted">Fitur dan limit di bawah mengikuti entitlement backend yang sedang berlaku.</p></div><Badge color={plan ? 'moss' : 'default'}>{plan ? 'AKTIF' : 'TIDAK AKTIF'}</Badge></div>
+            {!!items.length && <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{items.slice(0, 9).map((item) => <div key={item.capability} className="flex items-center gap-2 rounded-xl bg-surface-elevated/45 px-3 py-2.5 text-xs text-fg"><Gauge size={14} className="shrink-0 text-accent" /><span>{entitlementText(item)}</span><CheckCircle2 size={14} className="ml-auto shrink-0 text-accent" /></div>)}</div>}
+          </Card>
+        </section>
       </div>
     </div>
   );
