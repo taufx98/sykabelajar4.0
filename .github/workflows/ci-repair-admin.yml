@@ -6,7 +6,6 @@ permissions:
   contents: write
 jobs:
   repair:
-    if: ${{ !startsWith(github.event.head_commit.message, 'fix(ci): repair admin plan JSX') && !startsWith(github.event.head_commit.message, 'chore: remove ci repair workflow') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -45,5 +44,6 @@ jobs:
           git add src/pages/AdminPlanUsagePageV2.tsx
           git commit -m "fix(ci): repair admin plan JSX"
           git rm .github/workflows/ci-repair-admin.yml
+          git rm CI_TRIGGER.txt
           git commit -m "chore: remove ci repair workflow"
           git push
