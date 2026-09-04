@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, LockKeyhole, MessageCircle, Search, Shield, ShieldOff, UserRound } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
@@ -17,7 +17,7 @@ const formatRemaining = (ms: number) => {
     : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
-function ChatLockModal({ title, description, icon, countdown, strike }: { title: string; description: string; icon: React.ReactNode; countdown?: string; strike?: number }) {
+function ChatLockModal({ title, description, icon, countdown, strike }: { title: string; description: string; icon: ReactNode; countdown?: string; strike?: number }) {
   return (
     <div className="fixed inset-0 z-[240] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="chat-lock-title">
       <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-md" />
@@ -86,8 +86,7 @@ export function ChatAdminModerationPanel() {
   };
 
   useEffect(() => {
-    if (!isAdmin || location.pathname !== '/admin/chat') return;
-    if (!open) return;
+    if (!isAdmin || location.pathname !== '/admin/chat' || !open) return;
     const timer = window.setTimeout(() => void load(), 220);
     return () => window.clearTimeout(timer);
   }, [isAdmin, location.pathname, open, search]);
