@@ -1,0 +1,30 @@
+name: One-time CI repair
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  repair:
+    if: ${{ !startsWith(github.event.head_commit.message, 'fix(ci): restore admin plan usage') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore last valid AdminPlanUsagePageV2
+        shell: bash
+        run: |
+          git checkout 33b64fa84462ef067609580ee75e0abe34e662e2 -- src/pages/AdminPlanUsagePageV2.tsx
+          git diff --check
+          npm ci --silent
+          npm run lint
+          npx tsc -p tsconfig.app.json --noEmit
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/pages/AdminPlanUsagePageV2.tsx
+          git commit -m "fix(ci): restore admin plan usage"
+          git rm .github/workflows/repair-admin-plan-usage.yml
+          git commit -m "chore: remove one-time ci repair"
+          git push
