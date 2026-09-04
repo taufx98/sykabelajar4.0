@@ -1,27 +1,14 @@
-const PRODUCTION_SUPABASE_URL = 'https://jrfogwueytiddnanetth.supabase.co';
-const PRODUCTION_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_H3zjdAEE-ItQ08YRj8MieQ_kNMcsAHa';
-
-function requirePublicEnv(name: string, fallback?: string): string {
-  const value = import.meta.env[name]?.trim() || fallback;
-  if (!value) {
+function requirePublicEnv(name: string): string {
+  const value = import.meta.env[name];
+  if (!value || !value.trim()) {
     throw new Error(`[SykaBelajar] Missing required environment variable: ${name}`);
   }
-  return value;
+  return value.trim();
 }
 
-// Production must always point to the active SYKABELAJAR 4.0 Supabase project.
-// This prevents a stale CI/Vercel environment from silently connecting the app
-// to the retired project and bypassing the current chat/spam database logic.
-const configuredSupabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const useProductionBackend = !configuredSupabaseUrl || configuredSupabaseUrl !== PRODUCTION_SUPABASE_URL;
-const supabaseUrl = useProductionBackend ? PRODUCTION_SUPABASE_URL : configuredSupabaseUrl;
-const supabasePublishableKey = useProductionBackend
-  ? PRODUCTION_SUPABASE_PUBLISHABLE_KEY
-  : requirePublicEnv('VITE_SUPABASE_PUBLISHABLE_KEY', PRODUCTION_SUPABASE_PUBLISHABLE_KEY);
-
 export const env = {
-  supabaseUrl,
-  supabasePublishableKey,
+  supabaseUrl: requirePublicEnv('VITE_SUPABASE_URL'),
+  supabasePublishableKey: requirePublicEnv('VITE_SUPABASE_PUBLISHABLE_KEY'),
   cloudinaryCloudName: requirePublicEnv('VITE_CLOUDINARY_CLOUD_NAME'),
   /** Unsigned preset for direct client uploads. */
   cloudinaryUploadPreset: requirePublicEnv('VITE_CLOUDINARY_UPLOAD_PRESET'),
