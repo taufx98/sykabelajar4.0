@@ -116,9 +116,10 @@ export async function requestCustomOrganizerPlan(input: {
   if (!input.organizerId) throw new Error('Organisasi wajib dipilih.');
   if (!features.length) throw new Error('Pilih minimal satu fitur custom.');
 
+  const requestedFeatures = { features };
   const { data, error } = await supabase.rpc('request_custom_organizer_plan', {
     p_organizer_id: input.organizerId,
-    p_requested_features: features,
+    p_requested_features: requestedFeatures,
     p_notes: input.notes?.trim() || null,
     p_contact_whatsapp: input.contactWhatsapp?.trim() || null,
   });
