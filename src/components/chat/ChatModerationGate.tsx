@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, LockKeyhole, MessageCircle, Search, Shield, ShieldOff, UserRound } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, LockKeyhole, Search, Shield, ShieldOff, UserRound } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -75,19 +75,19 @@ export function ChatAdminModerationPanel() {
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true);
     try { setRows(await adminSearchChatUsers(search, 30)); }
     catch (error) { toast(error instanceof Error ? error.message : 'Gagal memuat pengguna.', 'error'); }
     finally { setLoading(false); }
-  };
+  }, [isAdmin, search, toast]);
 
   useEffect(() => {
     if (!isAdmin || location.pathname !== '/admin/chat' || !open) return;
     const timer = window.setTimeout(() => void load(), 220);
     return () => window.clearTimeout(timer);
-  }, [isAdmin, location.pathname, open, search]);
+  }, [isAdmin, location.pathname, open, load]);
 
   const blockedCount = useMemo(() => rows.filter(row => row.chat_blocked).length, [rows]);
 
