@@ -3,6 +3,9 @@ import { supabase } from '@/lib/supabase';
 export interface ChatAccessStatus {
   blocked: boolean;
   reason: string | null;
+  strike_level: number | null;
+  blocked_until: string | null;
+  is_permanent: boolean;
 }
 
 export interface ChatModerationUser {
@@ -18,6 +21,10 @@ export interface BlockedChatUser extends ChatModerationUser {
   blocked_at: string;
   blocked_by: string | null;
   reason: string | null;
+  strike_level: number;
+  blocked_until: string | null;
+  is_permanent: boolean;
+  currently_blocked: boolean;
 }
 
 export async function getChatAccessStatus(): Promise<ChatAccessStatus> {
@@ -27,6 +34,9 @@ export async function getChatAccessStatus(): Promise<ChatAccessStatus> {
   return {
     blocked: Boolean(row.blocked),
     reason: row.reason == null ? null : String(row.reason),
+    strike_level: row.strike_level == null ? null : Number(row.strike_level),
+    blocked_until: row.blocked_until == null ? null : String(row.blocked_until),
+    is_permanent: Boolean(row.is_permanent),
   };
 }
 
@@ -48,11 +58,21 @@ export async function adminGetBlockedChatUsers(search = '', limit = 50): Promise
   return (data ?? []) as BlockedChatUser[];
 }
 
-export async function adminSetChatUserBlock(userId: string, blocked: boolean, reason = ''): Promise<void> {
+export async function adminSetChatUserBlock(
+  userId: string,
+  blocked: boolean,
+  reason = '',
+  strikeLevel = 1,
+  durationMinutes: number | null = null,
+  permanent = false,
+): Promise<void> {
   const { error } = await supabase.rpc('admin_set_chat_user_block', {
     p_user_id: userId,
     p_blocked: blocked,
     p_reason: reason.trim() || null,
+    p_strike_level: strikeLevel,
+    p_duration_minutes: durationMinutes,
+    p_permanent: permanent,
   });
   if (error) throw error;
 }
