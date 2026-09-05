@@ -38,11 +38,11 @@ jobs:
           if render_pos < 0:
               raise SystemExit('render root missing')
           tail = s[render_pos:]
-          marker = 'selectedMethodNeedsProof && selectedTotal > 0 &&'
-          if marker not in tail:
+          old_condition = 'selectedTotal > 0 && selectedMethodNeedsProof &&'
+          if old_condition not in tail:
               raise SystemExit('upload render condition target missing')
-          tail = tail.replace(marker, 'showProofUpload &&', 1)
-          tail = tail.replace('font-mono text-sm tracking-wide text-fg', 'font-mono text-lg font-black tracking-wider text-fg sm:text-xl', 1)
+          tail = tail.replace(old_condition, 'showProofUpload &&', 1)
+          tail = tail.replace('font-mono text-sm font-bold tracking-wide text-fg', 'font-mono text-lg font-black tracking-wider text-fg sm:text-xl', 1)
           tail = tail.replace('text-xs text-fg-muted">a.n. {accountName}', 'text-sm font-semibold text-fg-muted sm:text-base">a.n. {accountName}', 1)
           s = s[:render_pos] + tail
 
@@ -53,5 +53,5 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add src/pages/OrganizerPlanPageV2.tsx
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "fix(payment): tighten organizer checkout UI"
+          git commit -m "fix(payment): make proof upload visible"
           git push
