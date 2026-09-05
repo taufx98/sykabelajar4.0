@@ -34,17 +34,13 @@ jobs:
           s = s.replace('max-w-2xl max-h-[92vh]', 'max-w-xl max-h-[84vh]', 1)
           s = s.replace('bg-black/75 p-4"><div className="flex w-full', 'bg-black/75 p-3 sm:p-4"><div className="flex w-full', 1)
 
-          render_pos = s.find('return <div')
-          if render_pos < 0:
-              raise SystemExit('render root missing')
-          tail = s[render_pos:]
-          old_condition = 'selectedTotal > 0 && selectedMethodNeedsProof &&'
-          if old_condition not in tail:
-              raise SystemExit('upload render condition target missing')
-          tail = tail.replace(old_condition, 'showProofUpload &&', 1)
-          tail = tail.replace('font-mono text-sm font-bold tracking-wide text-fg', 'font-mono text-lg font-black tracking-wider text-fg sm:text-xl', 1)
-          tail = tail.replace('text-xs text-fg-muted">a.n. {accountName}', 'text-sm font-semibold text-fg-muted sm:text-base">a.n. {accountName}', 1)
-          s = s[:render_pos] + tail
+          upload_marker = 'selectedTotal > 0 && selectedMethodNeedsProof'
+          if upload_marker not in s:
+              raise SystemExit('upload condition target missing')
+          s = s.replace(upload_marker, 'showProofUpload', 1)
+
+          s = s.replace('font-mono text-sm font-bold tracking-wide text-fg', 'font-mono text-lg font-black tracking-wider text-fg sm:text-xl', 1)
+          s = s.replace('text-xs text-fg-muted">a.n. {accountName}', 'text-sm font-semibold text-fg-muted sm:text-base">a.n. {accountName}', 1)
 
           p.write_text(s)
           PY
