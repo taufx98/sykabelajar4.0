@@ -26,7 +26,7 @@ export async function submitRegistration(input: SubmitRegistrationInput) {
   if (!socialProofUrl) throw new Error('Link postingan wajib diisi.');
   if (!input.socialUsername.trim()) throw new Error('Username media sosial wajib diisi.');
 
-  const { data, error } = await supabase.rpc('register_for_competition_v4_8', {
+  const { data, error } = await supabase.rpc('register_for_competition', {
     p_competition_id: input.competitionId,
     p_participation_key: input.participationKey ?? null,
     p_competition_level_id: input.competitionLevelId ?? null,
