@@ -22,26 +22,32 @@ jobs:
           from pathlib import Path
           p = Path('src/pages/OrganizerPlanPageV2.tsx')
           s = p.read_text()
+
           old = "  const selectedMethodNeedsProof = !!selectedMethod && !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(selectedMethod.payment_type).toUpperCase());\n"
-          new = old + "  const hasManualPaymentMethod = paymentMethods.some((method) => !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(method.payment_type).toUpperCase()));\n  const showProofUpload = selectedTotal > 0 && (selectedMethodNeedsProof || (!selectedMethod && hasManualPaymentMethod));\n"
-          if old not in s or 'const showProofUpload' in s:
-              raise SystemExit('state patch target mismatch')
-          s = s.replace(old, new, 1)
-          old = 'fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4'><div className="flex w-full max-w-2xl max-h-[92vh] flex-col overflow-auto rounded-3xl border border-surface-border bg-surface p-5 shadow-2xl md:p-6"'
-          new = 'fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4'><div className="flex w-full max-w-xl max-h-[84vh] flex-col overflow-auto rounded-3xl border border-surface-border bg-surface p-4 shadow-2xl sm:p-5"'
           if old not in s:
-              raise SystemExit('modal target mismatch')
-          s = s.replace(old, new, 1)
-          old = "        {selectedMethodNeedsProof && selectedTotal > 0 && <div className=\"order-4 mt-5 overflow-hidden rounded-2xl border border-accent/30 bg-accent/5\"><div className=\"flex flex-col gap-4 p-5 sm:flex-row sm:items-center\"><div className=\"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10\"><UploadCloud size={20} className=\"text-accent\"/></div><div className=\"min-w-0 flex-1\"><p className=\"text-base font-bold text-fg\">Upload Bukti Transfer</p><p className=\"mt-1 text-xs leading-5 text-fg-muted\">Setelah melakukan transfer sesuai metode di atas, unggah foto atau screenshot bukti transfer.</p><p className=\"mt-1 text-[10px] text-fg-muted\">PNG / JPG / WebP · maksimal 5 MB</p><input ref={proofInputRef} className=\"hidden\" type=\"file\" accept=\"image/png,image/jpeg,image/webp\" onChange={(e) => chooseProof(e.target.files?.[0])}/><Button className=\"mt-3\" size=\"sm\" onClick={() => proofInputRef.current?.click()} icon={<UploadCloud size={14}/>}>{proofFile ? 'Ganti Bukti Transfer' : 'Pilih Bukti Transfer'}</Button></div></div>{proofFile && <div className=\"mx-5 mb-5 flex items-center gap-3 rounded-xl border border-surface-border bg-surface-elevated/35 p-3\"><div className=\"min-w-0 flex-1\"><p className=\"truncate text-xs font-semibold text-fg\">{proofFile.name}</p><p className=\"mt-1 text-[10px] text-fg-muted\">Preview lokal · {(proofFile.size / 1024 / 1024).toFixed(2)} MB</p></div><button type=\"button\" onClick={removeProof} className=\"rounded-lg p-2 text-red-400 hover:bg-red-500/10\" aria-label=\"Hapus bukti transfer\"><X size={15}/></button></div>}{proofPreviewUrl && <div className=\"relative mx-5 mb-5 overflow-hidden rounded-2xl border border-surface-border bg-black/20\"><img src={proofPreviewUrl} alt=\"Preview bukti transfer\" className=\"max-h-64 w-full object-contain\"/></div>}</div>}"
-          new = "        {showProofUpload && <div className=\"order-4 mt-4 overflow-hidden rounded-2xl border-2 border-accent/50 bg-accent/10 shadow-lg shadow-accent/5\"><div className=\"flex flex-col gap-4 p-4 sm:p-5 sm:flex-row sm:items-center\"><div className=\"flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/15\"><UploadCloud size={22} className=\"text-accent\"/></div><div className=\"min-w-0 flex-1\"><div className=\"flex flex-wrap items-center gap-2\"><p className=\"text-base font-black text-fg\">Upload Bukti Transfer</p><span className=\"rounded-full bg-accent/15 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-accent\">Wajib</span></div><p className=\"mt-1 text-xs leading-5 text-fg-muted\">Setelah transfer, pilih foto atau screenshot bukti pembayaran di sini.</p><p className=\"mt-1 text-[10px] font-medium text-fg-muted\">PNG / JPG / WebP · maksimal 5 MB</p><input ref={proofInputRef} className=\"hidden\" type=\"file\" accept=\"image/png,image/jpeg,image/webp\" onChange={(e) => chooseProof(e.target.files?.[0])}/><Button className=\"mt-3 w-full sm:w-auto\" size=\"sm\" onClick={() => proofInputRef.current?.click()} icon={<UploadCloud size={14}/>}>{proofFile ? 'Ganti Bukti Transfer' : 'Pilih Bukti Transfer'}</Button></div></div>{proofFile && <div className=\"mx-4 mb-4 flex items-center gap-3 rounded-xl border border-surface-border bg-surface-elevated/35 p-3 sm:mx-5 sm:mb-5\"><div className=\"min-w-0 flex-1\"><p className=\"truncate text-xs font-semibold text-fg\">{proofFile.name}</p><p className=\"mt-1 text-[10px] text-fg-muted\">Preview lokal · {(proofFile.size / 1024 / 1024).toFixed(2)} MB</p></div><button type=\"button\" onClick={removeProof} className=\"rounded-lg p-2 text-red-400 hover:bg-red-500/10\" aria-label=\"Hapus bukti transfer\"><X size={15}/></button></div>}{proofPreviewUrl && <div className=\"relative mx-4 mb-4 overflow-hidden rounded-2xl border border-surface-border bg-black/20 sm:mx-5 sm:mb-5\"><img src={proofPreviewUrl} alt=\"Preview bukti transfer\" className=\"max-h-56 w-full object-contain\"/></div>}</div>}"
-          if old not in s:
-              raise SystemExit('upload block target mismatch')
-          s = s.replace(old, new, 1)
-          old = "<span className=\"font-semibold text-fg\">Total pembayaran</span><span className={`text-3xl font-black ${selectedTotal === 0 ? 'text-emerald-300' : 'text-fg'}`}>{selectedTotal === 0 ? 'GRATIS' : money(selectedTotal, paymentPlan.currency)}</span>"
-          new = "<span className=\"font-semibold text-fg\">Total pembayaran</span><span className={`text-2xl font-black sm:text-3xl ${selectedTotal === 0 ? 'text-emerald-300' : 'text-fg'}`}>{selectedTotal === 0 ? 'GRATIS' : money(selectedTotal, paymentPlan.currency)}</span>"
-          if old not in s:
-              raise SystemExit('total target mismatch')
-          s = s.replace(old, new, 1)
+              raise SystemExit('state target missing')
+          if 'const showProofUpload' not in s:
+              s = s.replace(old, old + "  const hasManualPaymentMethod = paymentMethods.some((method) => !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(method.payment_type).toUpperCase()));\n  const showProofUpload = selectedTotal > 0 && (selectedMethodNeedsProof || (!selectedMethod && hasManualPaymentMethod));\n", 1)
+
+          old_modal = "max-w-2xl max-h-[92vh] flex-col overflow-auto rounded-3xl border border-surface-border bg-surface p-5 shadow-2xl md:p-6"
+          new_modal = "max-w-xl max-h-[84vh] flex-col overflow-auto rounded-3xl border border-surface-border bg-surface p-4 shadow-2xl sm:p-5"
+          if old_modal not in s:
+              raise SystemExit('modal target missing')
+          s = s.replace(old_modal, new_modal, 1)
+          s = s.replace('bg-black/75 p-4"><div className="flex w-full', 'bg-black/75 p-3 sm:p-4"><div className="flex w-full', 1)
+
+          old_condition = '{selectedMethodNeedsProof && selectedTotal > 0 && <div className="order-4'
+          if old_condition not in s:
+              raise SystemExit('upload condition target missing')
+          s = s.replace(old_condition, '{showProofUpload && <div className="order-4', 1)
+
+          old_num = 'font-mono text-sm tracking-wide text-fg'
+          if old_num in s:
+              s = s.replace(old_num, 'font-mono text-lg font-black tracking-wider text-fg sm:text-xl', 1)
+          old_name = 'text-xs text-fg-muted">a.n. {accountName}'
+          if old_name in s:
+              s = s.replace(old_name, 'text-sm font-semibold text-fg-muted sm:text-base">a.n. {accountName}', 1)
+
           p.write_text(s)
           PY
           git diff --check
