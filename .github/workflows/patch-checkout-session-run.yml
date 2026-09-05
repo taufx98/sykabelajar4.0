@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'chore(ci): apply checkout session isolation'
+    if: github.event.head_commit.message == 'chore(ci): fix session patch trigger'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,9 +46,7 @@ jobs:
           s = s.replace(old, new, 1)
 
           old = "    if (!result.isValid) { setVoucherMessage(result.message || 'Voucher tidak dapat digunakan.'); return; }"
-          new = "    if (requestSeq != voucherValidationSeqRef.current or checkoutSession != checkoutSessionRef.current) return;\n    if (!result.isValid) { setVoucherMessage(result.message || 'Voucher tidak dapat digunakan.'); return; }"
-          # JS requires !==, use a separate literal to keep the shell/Python layer simple.
-          new = new.replace('requestSeq != voucherValidationSeqRef.current', 'requestSeq !== voucherValidationSeqRef.current').replace('checkoutSession != checkoutSessionRef.current', 'checkoutSession !== checkoutSessionRef.current')
+          new = "    if (requestSeq !== voucherValidationSeqRef.current || checkoutSession !== checkoutSessionRef.current) return;\n    if (!result.isValid) { setVoucherMessage(result.message || 'Voucher tidak dapat digunakan.'); return; }"
           assert old in s
           s = s.replace(old, new, 1)
 
@@ -59,6 +57,12 @@ jobs:
 
           p.write_text(s)
           PY
+
+      - name: Verify patch
+        run: |
+          grep -q 'checkoutSessionRef' src/pages/OrganizerPlanPageV2.tsx
+          grep -q 'voucherValidationSeqRef' src/pages/OrganizerPlanPageV2.tsx
+          grep -q 'hasManualPaymentMethod' src/pages/OrganizerPlanPageV2.tsx
 
       - name: Commit patched source
         run: |
