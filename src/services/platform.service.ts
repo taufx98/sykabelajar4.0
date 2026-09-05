@@ -172,7 +172,7 @@ export async function getHomeSnapshot(feedLimit = 15): Promise<HomeSnapshot> {
   if (homeInFlight) return homeInFlight;
 
   homeInFlight = (async () => {
-    const { data, error } = await supabase.rpc('get_home_snapshot_v1', { p_feed_limit: safeFeedLimit });
+    const { data, error } = await supabase.rpc('get_home_snapshot', { p_feed_limit: safeFeedLimit });
     if (error) {
       homeFailureUntil = Date.now() + NEGATIVE_CACHE_TTL;
       throw error;
@@ -237,7 +237,7 @@ export async function getPublicLeaderboard(limit = 100): Promise<PublicLeaderboa
   if (leaderboardInFlight) { const rows = await leaderboardInFlight.catch(() => []); return rows.slice(0, safeLimit); }
 
   leaderboardInFlight = (async () => {
-    const { data, error } = await supabase.rpc('get_public_leaderboard_v2', { p_limit: safeLimit });
+    const { data, error } = await supabase.rpc('get_public_leaderboard', { p_limit: safeLimit });
     if (error) { leaderboardFailureUntil = Date.now() + NEGATIVE_CACHE_TTL; throw error; }
     const result = (data ?? []).map((row: Record<string, unknown>) => ({
       user_id: String(row.user_id), username: String(row.username ?? ''), display_name: String(row.display_name ?? row.username ?? 'Pengguna'),
@@ -264,7 +264,7 @@ export async function getPublicCoinLeaderboard(limit = 100): Promise<PublicCoinL
   if (coinLeaderboardInFlight) { const rows = await coinLeaderboardInFlight.catch(() => []); return rows.slice(0, safeLimit); }
 
   coinLeaderboardInFlight = (async () => {
-    const { data, error } = await supabase.rpc('get_public_coin_leaderboard_v2', { p_limit: safeLimit });
+    const { data, error } = await supabase.rpc('get_public_coin_leaderboard', { p_limit: safeLimit });
     if (error) { coinLeaderboardFailureUntil = Date.now() + NEGATIVE_CACHE_TTL; throw error; }
     const result = (data ?? []).map((row: Record<string, unknown>) => ({
       user_id: String(row.user_id), username: String(row.username ?? ''), display_name: String(row.display_name ?? row.username ?? 'Pengguna'),
@@ -289,7 +289,7 @@ export async function getPublicCompetitions(limit = 6): Promise<Array<Record<str
   if (competitionsInFlight) { const rows = await competitionsInFlight.catch(() => []); return rows.slice(0, safeLimit); }
 
   competitionsInFlight = (async () => {
-    const { data, error } = await supabase.rpc('get_public_competitions_v2', { p_limit: COMPETITIONS_CACHE_LIMIT });
+    const { data, error } = await supabase.rpc('get_public_competitions', { p_limit: COMPETITIONS_CACHE_LIMIT });
     if (error) { competitionsFailureUntil = Date.now() + NEGATIVE_CACHE_TTL; throw error; }
     const result = ((data ?? []) as Array<Record<string, unknown>>).slice(0, COMPETITIONS_CACHE_LIMIT);
     competitionsMemory = { expiresAt: Date.now() + CACHE_TTL.competitions, data: result };

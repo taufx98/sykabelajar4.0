@@ -36,9 +36,9 @@ async function rpc(name, body) {
 
 // Keep CI validation representative of the optimized public data path.
 // One bounded snapshot RPC replaces the previous three broad RPC calls.
-const snapshot = await rpc('get_home_snapshot_v1', { p_feed_limit: 1 });
+const snapshot = await rpc('get_home_snapshot', { p_feed_limit: 1 });
 if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
-  throw new Error('get_home_snapshot_v1 bukan object.');
+  throw new Error('get_home_snapshot bukan object.');
 }
 
 const competitions = Array.isArray(snapshot.competitions) ? snapshot.competitions : [];

@@ -17,7 +17,7 @@ async function mapPostRows(rows:Array<Record<string,unknown>>):Promise<SocialPos
 }
 export async function listPublishedPostsPage(limit=15,cursor?:string):Promise<SocialPostPage>{
  const pageSize=Math.max(5,Math.min(30,limit));
- const{data,error}=await supabase.rpc('get_public_feed_v2',{p_limit:pageSize+1,p_before:cursor??null});
+ const{data,error}=await supabase.rpc('get_public_feed',{p_limit:pageSize+1,p_before:cursor??null});
  if(error)throw error;
  const rows=(data??[])as Array<Record<string,unknown>>;
  const hasMore=rows.length>pageSize;
