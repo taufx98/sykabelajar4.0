@@ -9,40 +9,42 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message != 'fix(payment): render proof upload button explicitly'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch organizer proof upload UI
+      - name: Canonicalize Phase 1
+        shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('src/pages/OrganizerPlanPageV2.tsx')
-          s = p.read_text()
+          set -euo pipefail
 
-          old_container = '<div className="order-4 mt-5 overflow-hidden rounded-2xl border-2 border-accent/50 bg-accent/10 shadow-lg shadow-accent/5">'
-          new_container = '<div className="order-4 mt-5 rounded-2xl border-2 border-accent/50 bg-accent/10 shadow-lg shadow-accent/5">'
-          if old_container not in s:
-              raise SystemExit('upload container marker not found')
-          s = s.replace(old_container, new_container, 1)
+          rm -f src/pages/AdminPlanUsagePage.tsx
+          mv src/pages/AdminPlanUsagePageV2.tsx src/pages/AdminPlanUsagePage.tsx
+          rm -f src/pages/OrganizerPlanPage.tsx
+          mv src/pages/OrganizerPlanPageV2.tsx src/pages/OrganizerPlanPage.tsx
+          mv src/pages/ProfilePageV4.tsx src/pages/ProfilePage.tsx
+          rm -f src/pages/ProfilePageV3.tsx
+          mv src/pages/NotificationsPageV2.tsx src/pages/NotificationsPage.tsx
+          mv src/pages/MessagesPageV6.tsx src/pages/MessagesPage.tsx
+          mv src/pages/AdminChatConsolePageV3.tsx src/pages/AdminChatConsolePage.tsx
+          rm -f src/pages/AdminChatConsolePageV2.tsx
+          rm -f src/pages/AdminPage.tsx.tmp src/pages/AdminUsernameMove.tmp
 
-          old = '<Button className="mt-4 w-full sm:w-auto" size="sm" onClick={() => proofInputRef.current?.click()} icon={<UploadCloud size={15}/>}>'
-          new = '<button type="button" data-testid="payment-proof-upload-button" className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 sm:w-auto" onClick={() => proofInputRef.current?.click()}><UploadCloud size={15}/>'
-          if old not in s:
-              raise SystemExit('upload button marker not found')
-          s = s.replace(old, new, 1)
+          find src -type f \( -name '*.ts' -o -name '*.tsx' \) -print0 | xargs -0 perl -pi -e 's/\bProfilePageV4\b/ProfilePage/g; s/\bProfilePageV3\b/ProfilePage/g; s/\bNotificationsPageV2\b/NotificationsPage/g; s/\bMessagesPageV6\b/MessagesPage/g; s/\bAdminChatConsolePageV3\b/AdminChatConsolePage/g; s/\bAdminPlanUsagePageV2\b/AdminPlanUsagePage/g; s/\bOrganizerPlanPageV2\b/OrganizerPlanPage/g; s/\bcreateOrganizerPlanOrderV3\b/createOrganizerPlanOrder/g; s/\bregister_for_competition_v4_8\b/register_for_competition/g; s/\bload_my_threads_v2\b/load_my_threads/g; s/\bcreate_organizer_plan_order_v3\b/create_organizer_plan_order/g'
 
-          old_close = '</Button></div></div>{proofFile &&'
-          new_close = '</button></div></div>{proofFile &&'
-          if old_close not in s:
-              raise SystemExit('upload button closing marker not found')
-          s = s.replace(old_close, new_close, 1)
+          cat > supabase/migrations/20260906_phase_1_canonicalize_public_rpc.sql <<'SQL'
+          -- Phase 1 canonical public RPC names. Production was migrated before this
+          -- repository record was committed; migration history remains append-only.
+          begin;
+          drop function if exists public.create_organizer_plan_order_v2(uuid, text, text, text, text, text, integer, integer, text, text, text);
+          drop function if exists public.get_public_competitions_v2(integer);
+          drop function if exists public.get_public_feed_v2(integer, timestamptz);
+          commit;
+          SQL
 
-          p.write_text(s)
-          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/pages/OrganizerPlanPageV2.tsx
           git rm -f .github/workflows/apply-upload-button-fix.yml
-          git commit -m 'fix(payment): render proof upload button explicitly'
+          git rm -f .github/workflows/phase1-runner.yml || true
+          git add -A
+          git commit -m 'refactor: canonicalize phase 1'
           git push
