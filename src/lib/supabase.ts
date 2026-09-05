@@ -78,12 +78,12 @@ function isRetryableRpcError(error: unknown) {
     || message.includes('network request failed');
 }
 
-async function callRpcWithRecovery(client: SupabaseClient, rpcName: string, args: any) {
+async function callRpcWithRecovery(client: SupabaseClient, rpcName: string, ...args: any[]) {
   clearRpcCircuitBreakerStorage();
 
   let result: any;
   try {
-    result = await (client as any).rpc(rpcName, args);
+    result = await (client as any).rpc(rpcName, ...args);
   } catch (error) {
     result = { data: null, error };
   }
@@ -91,12 +91,14 @@ async function callRpcWithRecovery(client: SupabaseClient, rpcName: string, args
   if (!result?.error) return result;
   if (!isRetryableRpcError(result.error)) return result;
 
-  // A previous frontend circuit-breaker entry can be stale after the backend/RPC
-  // changes. Give the backend one fresh attempt without requiring a page reload.
-  await new Promise((resolve) => window.setTimeout(resolve, RPC_RETRY_DELAY_MS));
+  // A previous frontend circuit-breaker entry can be stale after a backend/RPC
+  // change. Give the backend one fresh attempt without requiring a page reload.
+  if (typeof window !== 'undefined') {
+    await new Promise((resolve) => window.setTimeout(resolve, RPC_RETRY_DELAY_MS));
+  }
 
   try {
-    return await (client as any).rpc(rpcName, args);
+    return await (client as any).rpc(rpcName, ...args);
   } catch (error) {
     return { data: null, error };
   }
@@ -106,7 +108,7 @@ export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = initClient();
     if (prop === 'rpc') {
-      return (rpcName: string, ...args: any[]) => callRpcWithRecovery(client, rpcName, args[0]);
+      return (rpcName: string, ...args: any[]) => callRpcWithRecovery(client, rpcName, ...args);
     }
     const value = (client as any)[prop];
     return typeof value === 'function' ? value.bind(client) : value;
