@@ -1,0 +1,66 @@
+name: Apply checkout state fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch organizer checkout state
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/OrganizerPlanPageV2.tsx')
+          s = p.read_text()
+
+          old = """  const proofInputRef = useRef<HTMLInputElement | null>(null);\n  const checkoutSessionRef = useRef(0);\n  const voucherValidationSeqRef = useRef(0);\n\n  const selectedPricing"""
+          new = """  const proofInputRef = useRef<HTMLInputElement | null>(null);\n  const checkoutSessionRef = useRef(0);\n  const voucherValidationSeqRef = useRef(0);\n\n  function invalidateCheckoutTransientState() {\n    checkoutSessionRef.current += 1;\n    voucherValidationSeqRef.current += 1;\n    setVoucherCode('');\n    setVoucherApplied(null);\n    setVoucherMessage('');\n    setVoucherChecking(false);\n    setProofFile(null);\n    if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl);\n    setProofPreviewUrl('');\n    setSubmittedOrderId(null);\n    setFieldErrors({});\n    if (proofInputRef.current) proofInputRef.current.value = '';\n  }\n\n  const selectedPricing"""
+          assert old in s, 'state helper insertion marker not found'
+          s = s.replace(old, new, 1)
+
+          old = """  function openPayment(row: OrganizerPlanCatalogRow) { if (row.plan_code === 'FREE') { toast.info('Paket Gratis tidak memerlukan checkout.'); return; } checkoutSessionRef.current += 1; voucherValidationSeqRef.current += 1; const initial: Record<string, string> = {}; paymentFields.forEach((field) => { initial[field.field_key] = ''; }); const preferredMethod = paymentMethods.find((method) => !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(method.payment_type).toUpperCase())) ?? paymentMethods[0] ?? null; if (preferredMethod && String(preferredMethod.payment_type).toUpperCase() === 'BANK_TRANSFER' && Boolean(preferredMethod.details?.random_code_enabled)) initial.__payment_random_code = String(Math.floor(Math.random() * 900) + 100); setPaymentPlan(row); setSelectedPaymentMethodId(preferredMethod?.id ?? ''); setBilling('MONTHLY'); setView('MONTHLY'); setContactFields(initial); setFieldErrors({}); setVoucherCode(''); setVoucherApplied(null); setVoucherMessage(''); setProofFile(null); if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl); setProofPreviewUrl(''); setSubmittedOrderId(null); setPaymentOpen(true); }"""
+          new = """  function openPayment(row: OrganizerPlanCatalogRow) { if (row.plan_code === 'FREE') { toast.info('Paket Gratis tidak memerlukan checkout.'); return; } invalidateCheckoutTransientState(); const initial: Record<string, string> = {}; paymentFields.forEach((field) => { initial[field.field_key] = ''; }); const preferredMethod = paymentMethods.find((method) => !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(method.payment_type).toUpperCase())) ?? paymentMethods[0] ?? null; if (preferredMethod && String(preferredMethod.payment_type).toUpperCase() === 'BANK_TRANSFER' && Boolean(preferredMethod.details?.random_code_enabled)) initial.__payment_random_code = String(Math.floor(Math.random() * 900) + 100); setPaymentPlan(row); setSelectedPaymentMethodId(preferredMethod?.id ?? ''); setBilling('MONTHLY'); setView('MONTHLY'); setContactFields(initial); setPaymentOpen(true); }"""
+          assert old in s, 'openPayment pattern not found'
+          s = s.replace(old, new, 1)
+
+          old = """  function closePayment() { if (sending) return; checkoutSessionRef.current += 1; voucherValidationSeqRef.current += 1; setPaymentOpen(false); setPaymentPlan(null); setVoucherCode(''); setVoucherApplied(null); setVoucherMessage(''); setProofFile(null); setSubmittedOrderId(null); if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl); setProofPreviewUrl(''); setFieldErrors({}); if (proofInputRef.current) proofInputRef.current.value = ''; }"""
+          new = """  function closePayment() { if (sending) return; invalidateCheckoutTransientState(); setPaymentOpen(false); setPaymentPlan(null); }"""
+          assert old in s, 'closePayment pattern not found'
+          s = s.replace(old, new, 1)
+
+          old = """  async function checkVoucher() { const code = voucherCode.trim().toUpperCase(); if (!code) { setVoucherApplied(null); setVoucherMessage('Masukkan kode voucher terlebih dahulu.'); return; } if (!paymentPlan) return; const requestSeq = ++voucherValidationSeqRef.current; const checkoutSession = checkoutSessionRef.current; setVoucherChecking(true); setVoucherApplied(null); setVoucherMessage('Memeriksa voucher…'); try { let result = await validateOrganizerVoucher(code, paymentPlan.plan_code, billing); if (!result.isValid && /^Voucher hanya bisa digunakan untuk periode/i.test(result.message || '')) { const alternateBilling: Billing = billing === 'MONTHLY' ? 'YEARLY' : 'MONTHLY'; const alternateResult = await validateOrganizerVoucher(code, paymentPlan.plan_code, alternateBilling); if (alternateResult.isValid) { setBilling(alternateBilling); setView(alternateBilling); result = alternateResult; } } if (requestSeq !== voucherValidationSeqRef.current || checkoutSession !== checkoutSessionRef.current) return; if (!result.isValid) { setVoucherMessage(result.message || 'Voucher tidak dapat digunakan.'); return; } setVoucherApplied(result); setVoucherMessage('Voucher bisa digunakan.'); toast.success('Voucher bisa digunakan.'); } catch (error: any) { setVoucherMessage(error?.message || 'Gagal memeriksa voucher.'); } finally { setVoucherChecking(false); } }"""
+          new = """  async function checkVoucher() { const code = voucherCode.trim().toUpperCase(); if (!code) { setVoucherApplied(null); setVoucherMessage('Masukkan kode voucher terlebih dahulu.'); return; } if (!paymentPlan) return; const requestSeq = ++voucherValidationSeqRef.current; const checkoutSession = checkoutSessionRef.current; const isCurrentRequest = () => requestSeq === voucherValidationSeqRef.current && checkoutSession === checkoutSessionRef.current; setVoucherChecking(true); setVoucherApplied(null); setVoucherMessage('Memeriksa voucher…'); try { let result = await validateOrganizerVoucher(code, paymentPlan.plan_code, billing); if (!isCurrentRequest()) return; if (!result.isValid && /^Voucher hanya bisa digunakan untuk periode/i.test(result.message || '')) { const alternateBilling: Billing = billing === 'MONTHLY' ? 'YEARLY' : 'MONTHLY'; const alternateResult = await validateOrganizerVoucher(code, paymentPlan.plan_code, alternateBilling); if (!isCurrentRequest()) return; if (alternateResult.isValid) { setBilling(alternateBilling); setView(alternateBilling); result = alternateResult; } } if (!isCurrentRequest()) return; if (!result.isValid) { setVoucherMessage(result.message || 'Voucher tidak dapat digunakan.'); return; } setVoucherApplied(result); setVoucherMessage('Voucher bisa digunakan.'); toast.success('Voucher bisa digunakan.'); } catch (error: any) { if (isCurrentRequest()) setVoucherMessage(error?.message || 'Gagal memeriksa voucher.'); } finally { if (isCurrentRequest()) setVoucherChecking(false); } }"""
+          assert old in s, 'checkVoucher pattern not found'
+          s = s.replace(old, new, 1)
+
+          old = """<button type=\"button\" onClick={() => { setBilling('MONTHLY'); setView('MONTHLY'); setVoucherApplied(null); setVoucherMessage(''); }}"""
+          new = """<button type=\"button\" onClick={() => { if (billing === 'MONTHLY') return; invalidateCheckoutTransientState(); setBilling('MONTHLY'); setView('MONTHLY'); }}"""
+          assert old in s, 'monthly selector pattern not found'
+          s = s.replace(old, new, 1)
+
+          old = """<button type=\"button\" onClick={() => { setBilling('YEARLY'); setView('YEARLY'); setVoucherApplied(null); setVoucherMessage(''); }}"""
+          new = """<button type=\"button\" onClick={() => { if (billing === 'YEARLY') return; invalidateCheckoutTransientState(); setBilling('YEARLY'); setView('YEARLY'); }}"""
+          assert old in s, 'yearly selector pattern not found'
+          s = s.replace(old, new, 1)
+
+          old = """onChange={(e) => { voucherValidationSeqRef.current += 1; setVoucherCode(e.target.value.toUpperCase()); setVoucherApplied(null); setVoucherMessage(''); }}"""
+          new = """onChange={(e) => { voucherValidationSeqRef.current += 1; setVoucherCode(e.target.value.toUpperCase()); setVoucherApplied(null); setVoucherMessage(''); setSubmittedOrderId(null); }}"""
+          assert old in s, 'voucher input pattern not found'
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/OrganizerPlanPageV2.tsx
+          git rm -f .github/workflows/apply-checkout-state-fix.yml
+          git commit -m 'fix(payment): fully isolate checkout transient state'
+          git push
