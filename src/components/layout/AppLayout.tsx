@@ -29,9 +29,7 @@ export function AppLayout() {
   const isOrganizer = user?.role === 'penyelenggara';
   const chatPath = isAdmin ? '/admin/chat' : '/pesan';
 
-  useEffect(() => {
-    setLiveUnreadNotifications(unreadNotificationCount);
-  }, [unreadNotificationCount]);
+  useEffect(() => { setLiveUnreadNotifications(unreadNotificationCount); }, [unreadNotificationCount]);
 
   useEffect(() => {
     const stopPublic = startPublicRealtime();
@@ -42,21 +40,15 @@ export function AppLayout() {
     }
 
     const stopUser = startUserRealtime(user.id, isAdmin);
-
     const chatCacheKey = `chat.unread.${user.id}`;
     const orderCacheKey = `admin.orders.unread.${user.id}`;
     const cachedChat = getPersistentCache<number>(chatCacheKey);
-    if (cachedChat) {
-      setUnreadMessages(Math.max(0, Number(cachedChat.data) || 0));
-    }
+    if (cachedChat) setUnreadMessages(Math.max(0, Number(cachedChat.data) || 0));
 
-    // Cache is only for instant paint; reconcile the badge from backend immediately.
     void getUnreadChatCount(true).then((count) => {
       setUnreadMessages(count);
       setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
-    }).catch(() => {
-      if (!cachedChat) setUnreadMessages(0);
-    });
+    }).catch(() => { if (!cachedChat) setUnreadMessages(0); });
 
     if (isAdmin) {
       const cachedOrders = getPersistentCache<number>(orderCacheKey);
@@ -72,9 +64,7 @@ export function AppLayout() {
           setPersistentCache(orderCacheKey, value, { ttlMs: ORDER_CACHE_TTL });
         }).catch(() => setUnreadOrders(0));
       }
-    } else {
-      setUnreadOrders(0);
-    }
+    } else setUnreadOrders(0);
 
     let chatBadgeTimer: number | undefined;
     const scheduleChatBadgeRefresh = () => {
@@ -88,30 +78,10 @@ export function AppLayout() {
     };
 
     const unsubscribe = subscribeSykaEvents((event) => {
-      if (event.type === 'notification-inserted') {
-        setLiveUnreadNotifications((value) => value + 1);
-        return;
-      }
-      if (event.type === 'notification-read') {
-        setLiveUnreadNotifications((value) => Math.max(0, value - 1));
-        return;
-      }
-      if (event.type === 'notification-all-read') {
-        setLiveUnreadNotifications(0);
-        return;
-      }
-      if (
-        event.type === 'chat-message' ||
-        event.type === 'chat-unread' ||
-        event.type === 'chat-read' ||
-        event.type === 'chat-hidden' ||
-        event.type === 'chat-thread-updated' ||
-        event.type === 'chat-reconciled' ||
-        (event.type === 'realtime-status' && event.scope === 'user' && event.reconnected)
-      ) {
-        scheduleChatBadgeRefresh();
-        return;
-      }
+      if (event.type === 'notification-inserted') { setLiveUnreadNotifications((value) => value + 1); return; }
+      if (event.type === 'notification-read') { setLiveUnreadNotifications((value) => Math.max(0, value - 1)); return; }
+      if (event.type === 'notification-all-read') { setLiveUnreadNotifications(0); return; }
+      if (event.type === 'chat-message' || event.type === 'chat-unread' || event.type === 'chat-read' || event.type === 'chat-hidden' || event.type === 'chat-thread-updated' || event.type === 'chat-reconciled' || (event.type === 'realtime-status' && event.scope === 'user' && event.reconnected)) { scheduleChatBadgeRefresh(); return; }
       if (event.type === 'order-changed' && isAdmin) {
         const order = event.order;
         if (String(order.payment_proof_status ?? '') !== 'SUBMITTED') return;
