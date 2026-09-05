@@ -31,6 +31,7 @@ function statusColor(status: string) {
 export function OrganizerSerialsPage() {
   const [org, setOrg] = useState<CurrentOrganizer | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
+  const [serialLimit, setSerialLimit] = useState(0);
   const [serials, setSerials] = useState<OrganizerSerial[]>([]);
   const [certificates, setCertificates] = useState<CertificateOption[]>([]);
   const [selectedSerial, setSelectedSerial] = useState<OrganizerSerial | null>(null);
@@ -46,6 +47,8 @@ export function OrganizerSerialsPage() {
     revoked: serials.filter((s) => s.status === 'REVOKED').length,
   }), [serials]);
 
+  const serialRemaining = Math.max(0, serialLimit - counts.total);
+
   const load = async () => {
     const current = await resolveCurrentUserOrganizer();
     if (!current) throw new Error('Organisasi tidak ditemukan.');
@@ -55,6 +58,7 @@ export function OrganizerSerialsPage() {
       listOrganizerSerials(current.id),
     ]);
     setPlan(entitlements.planCode);
+    setSerialLimit(Number(entitlements.entitlements.find((item) => item.capability === 'certificate_serials')?.limit_value ?? 0));
     setSerials(rows);
 
     const { data: competitions, error: competitionsError } = await supabase
@@ -83,10 +87,19 @@ export function OrganizerSerialsPage() {
 
   const generate = async () => {
     if (!org) return;
+    if (serialLimit <= 0) {
+      toast.error('Paket aktif Anda belum memiliki kuota QR / Serial sertifikat.');
+      return;
+    }
+    if (serialRemaining <= 0) {
+      toast.error(`Kuota QR / Serial ${serialLimit.toLocaleString('id-ID')} sudah habis.`);
+      return;
+    }
+    const requested = Math.min(Math.max(quantity, 1), 100, serialRemaining);
     setBusy(true);
     try {
-      await generateOrganizerSerials(org.id, Math.min(Math.max(quantity, 1), 100));
-      toast.success('Serial berhasil dibuat.');
+      await generateOrganizerSerials(org.id, requested);
+      toast.success(`${requested} serial berhasil dibuat.`);
       await load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Gagal membuat serial.');
@@ -133,9 +146,9 @@ export function OrganizerSerialsPage() {
 
   const stats: Array<[string, string | number, ElementType]> = [
     ['Plan', plan ?? '—', ShieldCheck],
-    ['Total', counts.total, KeyRound],
-    ['Tersedia', counts.available, QrCode],
-    ['Terpakai', counts.assigned, ShieldCheck],
+    ['Kuota Plan', serialLimit, QrCode],
+    ['Terpakai', counts.total, KeyRound],
+    ['Sisa Kuota', serialRemaining, ShieldCheck],
   ];
 
   return (
@@ -151,14 +164,14 @@ export function OrganizerSerialsPage() {
           <p className="text-sm text-fg-muted mt-1">Generate serial resmi, pasangkan ke sertifikat, dan revoke serial yang tidak boleh dipakai lagi.</p>
         </div>
         <div className="grid sm:grid-cols-4 gap-3 mb-5">
-          {stats.map(([label, value, Icon]) => <Card key={label} className="p-4"><div className="flex items-center gap-3"><Icon size={18} className="text-accent"/><div><p className="text-xs text-fg-muted">{label}</p><p className="text-lg font-bold text-fg">{value}</p></div></div></Card>)}
+          {stats.map(([label, value, Icon]) => <Card key={label} className="p-4"><div className="flex items-center gap-3"><Icon size={18} className="text-accent"/><div><p className="text-xs text-fg-muted">{label}</p><p className="text-lg font-bold text-fg">{typeof value === 'number' ? value.toLocaleString('id-ID') : value}</p></div></div></Card>)}
         </div>
         <Card className="p-5 mb-5 no-print">
-          <div className="flex items-start gap-3 mb-4"><QrCode className="text-accent mt-0.5" size={20}/><div><h2 className="font-bold text-fg">Generate serial</h2><p className="text-sm text-fg-muted mt-1">Jumlah yang dibuat akan dihitung terhadap entitlement plan aktif.</p></div></div>
+          <div className="flex items-start gap-3 mb-4"><QrCode className="text-accent mt-0.5" size={20}/><div><h2 className="font-bold text-fg">Generate serial</h2><p className="text-sm text-fg-muted mt-1">Kuota plan aktif: <span className="font-semibold text-fg">{serialLimit.toLocaleString('id-ID')}</span> · terpakai: <span className="font-semibold text-fg">{counts.total.toLocaleString('id-ID')}</span> · sisa: <span className="font-semibold text-fg">{serialRemaining.toLocaleString('id-ID')}</span>.</p></div></div>
           <div className="flex flex-col md:flex-row gap-3">
-            <input className="input md:w-40" type="number" min={1} max={100} value={quantity} onChange={(e) => setQuantity(Number(e.target.value) || 1)} />
-            <Button loading={busy} onClick={() => void generate()} icon={<RefreshCw size={15}/>}>Generate Serial</Button>
-            <div className="text-xs text-fg-muted flex items-center">Tersedia: {counts.available} · Terpakai: {counts.assigned} · Direvoke: {counts.revoked}</div>
+            <input className="input md:w-40" type="number" min={1} max={Math.min(100, Math.max(serialRemaining, 1))} value={quantity} onChange={(e) => setQuantity(Number(e.target.value) || 1)} disabled={serialRemaining <= 0} />
+            <Button loading={busy} disabled={serialRemaining <= 0} onClick={() => void generate()} icon={<RefreshCw size={15}/>}>Generate Serial</Button>
+            <div className="text-xs text-fg-muted flex items-center">Stok dibuat: {counts.available.toLocaleString('id-ID')} · Terpakai di sertifikat: {counts.assigned.toLocaleString('id-ID')} · Direvoke: {counts.revoked.toLocaleString('id-ID')}</div>
           </div>
         </Card>
         {selectedSerial && <Card className="p-5 mb-5 no-print border-accent/20">
@@ -191,7 +204,7 @@ export function OrganizerSerialsPage() {
             </Card>
           ))}
         </div>
-        {!serials.length && <Card className="p-10 text-center text-fg-muted">Belum ada serial. Generate batch pertama dari panel di atas.</Card>}
+        {!serials.length && <Card className="p-10 text-center text-fg-muted">Belum ada serial yang dibuat. Kuota plan aktif Anda adalah <span className="font-semibold text-fg">{serialLimit.toLocaleString('id-ID')}</span> dan sisa kuota saat ini <span className="font-semibold text-fg">{serialRemaining.toLocaleString('id-ID')}</span>.</Card>}
       </div>
       <style>{`@media print { .no-print { display:none !important; } body { background:#fff !important; } .serial-card { break-inside: avoid; } }`}</style>
     </div>
