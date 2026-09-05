@@ -1,0 +1,32 @@
+name: Fix organizer proof upload button
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'fix(payment): make proof upload control explicit'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch upload control
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/pages/OrganizerPlanPageV2.tsx')
+          s = p.read_text()
+          old = '''<Button className="mt-4 w-full sm:w-auto" size="sm" onClick={() => proofInputRef.current?.click()} icon={<UploadCloud size={15}/>}>{proofFile ? 'Ganti Bukti Pembayaran' : 'Pilih Bukti Pembayaran'}</Button>'''
+          new = '''<button type="button" className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white shadow-lg transition hover:opacity-90 active:scale-[0.98] sm:w-auto" onClick={() => proofInputRef.current?.click()}>{<UploadCloud size={15}/>}<span>{proofFile ? 'Ganti Bukti Pembayaran' : 'Pilih Bukti Pembayaran'}</span></button>'''
+          if old not in s:
+              raise SystemExit('UPLOAD_BUTTON_MARKER_NOT_FOUND')
+          p.write_text(s.replace(old, new, 1))
+      - name: Commit and remove helper
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/OrganizerPlanPageV2.tsx
+          git rm .github/workflows/fix-upload-button.yml
+          git commit -m 'fix(payment): make proof upload control explicit'
+          git push
