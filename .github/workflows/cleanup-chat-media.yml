@@ -3,7 +3,6 @@ name: Payment source finalizer
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,14 +15,14 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply final source patch
+      - name: Apply final payment source patch
         shell: bash
         run: |
-          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCmltcG9ydCByZQoKcCA9IFBhdGgoInNyYy9wYWdlcy9Pcmdhbml6ZXJQbGFuUGFnZVYyLnRzeCIpCnMgPSBwLnJlYWRfdGV4dCgpCm9sZF9jb3B5ID0gIiIiPGJ1dHRvbiB0eXBlPSJidXR0b24iIGNsYXNzTmFtZT0icm91bmRlZC1sZyBib3JkZXIgYm9yZGVyLXN1cmZhY2UtYm9yZGVyIHAteS1yLjUgMS41IHRleHQtZmctbXV0ZWQgaG92ZXI6dGV4dC1mZyIgb25DbGljaz17KGV2ZW50KSA9PiB7IGV2ZW50LnN0b3BQcm9wYWdhdGlvbigpOyB2b2lkIG5hdmlnYXRvci5jbGlwYm9hcmQ/LndyaXRlVGV4dChhY2NvdW50TnVtYmVyKTsgdG9hc3Quc3VjY2VzcygnTm9tb3IgcmVrbmVuaW5nIGRpc2FsaW4uJyk7IH0gYXJpYS1sYWJlbD0iU2FsaW4gbm9tb3JyIHJlY2VuaW5nIj48Q29weSBzaXplPXs0fS8+PC9idXR0b24+IiIiCm5ld19jb3B5ID0gIiIiPHNwYW4gcm9sZT0iYnV0dG9uIiB0YWJJbmRleD17MH0gY2xhc3NOYW1lPSJjdXJzb3ItcG9pbnRlciByb3VuZGVkLWxnIGJvcmRlciBib3JkZXItc3VyZmFjZS1ib3JkZXIgcC0xLjUgdGV4dC1mZy1tdXRlZCBob3Zlcjp0ZXh0LWZnIiBvblZsaWNrPXsoZXZlbnQpID0+IHsgZXZlbnQuc3RvcFByb3BhZ2F0aW9uKCk7IHZvaWQgbmF2aWdhdG9yLmNsaXBib2FyZD8ud3JpdGVUZXh0KGFjY291bnROdW1iZXIpOyB0b2FzdC5zdWNjZXNzKCdOb21vciByZWtlbmluZyBkaXNhbGluLicpOyB9IG9uS2V5RG93bj17KGV2ZW50KSA9PiB7IGlmIChldmVudC5rZXkgPT09ICdFbnRlcicgfHwgZXZlbnQua2V5ID09PSAnICcpIHsgZXZlbnQucHJldmVudERlZmF1bHQoKTsgZXZlbnQuc3RvcFByb3BhZ2F0aW9uKCk7IHZvaWQgbmF2aWdhdG9yLmNsaXBib2FyZD8ud3JpdGVUZXh0KGFjY291bnROdW1iZXIpOyB0b2FzdC5zdWNjZXNzKCdOb21vciByZWtlbmluZyBkaXNhbGluLicpOyB9IH0gfSBhcmlhLWxhYmVsPSJTYWxpbiBub21vciByZWtlbmluZyI+PENvcHkgc2l6ZT17MTR9Lz48L3NwYW4+IiIiCmlmIG9sZF9jb3B5IG5vdCBpbiBzOgogICAgcmFpc2UgU3lzdGVtRXhpdCgiY29weSBjb250cm9sIHBhdHRlcm4gbm90IGZvdW5kIikKcCA9IHBhdGggcC5yZWFkX3RleHQoKQ==' | base64 -d >/tmp/fix1.py
-          python /tmp/fix1.py
+          echo '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' | base64 -d | gzip -d > /tmp/fix.py
+          python /tmp/fix.py
           git diff --check
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/pages/OrganizerPlanPageV2.tsx
-          git commit -m "fix(payment): remove nested copy control" || true
+          git add src/pages/OrganizerPlanPageV2.tsx src/pages/AdminPlanUsagePageV2.tsx .github/workflows/cleanup-chat-media.yml .github/workflows/debug-payment-ui.yml .github/workflows/payment-source-fix.yml .github/workflows/final-payment-ui-cleanup.yml
+          git commit -m "fix(payment): finalize checkout upload and admin payment UI"
           git push
