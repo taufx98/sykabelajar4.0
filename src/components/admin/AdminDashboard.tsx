@@ -1,573 +1,339 @@
-import { useEffect, useState, useMemo } from 'react';
-import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer
-} from 'recharts';
+import { useEffect, useMemo, useState } from 'react';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Activity, AlertTriangle, CheckCircle2, Clock3, DollarSign, RefreshCw, Trophy, Users, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import {
-  TrendingUp, Users, Trophy, Coins, DollarSign, BarChart3,
-  PieChart as PieChartIcon, Activity, Eye, EyeOff, Calendar,
-  ChevronDown, Download, Filter
-} from 'lucide-react';
 
-// ── Types ──
 type Period = 'daily' | 'weekly' | 'monthly' | 'yearly';
-type ChartType = 'line' | 'bar' | 'area' | 'pie';
+type Metric = 'users' | 'competitions' | 'revenue' | 'awards';
+type HealthStatus = 'OPEN' | 'BLOCKED' | 'PROBING' | 'RECOVERY_PENDING' | string;
 
-interface DashboardSection {
-  id: string;
-  label: string;
-  icon: any;
-  visible: boolean;
-  chartType: ChartType;
+type HealthRow = {
+  key: string;
+  value: {
+    status?: HealthStatus;
+    backend_version?: number;
+    error_code?: string | null;
+    error_message?: string | null;
+    failed_at?: string | null;
+  } | null;
+};
+
+type Incident = NonNullable<HealthRow['value']> & { rpcName: string };
+
+const RPC_HEALTH_PREFIX = '__rpc_health:';
+const RPC_RUNTIME_KEY = '__rpc_backend_runtime';
+
+const PERIOD_LABELS: Record<Period, string> = {
+  daily: '30 hari',
+  weekly: '12 minggu',
+  monthly: '12 bulan',
+  yearly: '5 tahun',
+};
+
+const METRIC_LABELS: Record<Metric, string> = {
+  users: 'Pengguna baru',
+  competitions: 'Lomba dibuat',
+  revenue: 'Pendapatan',
+  awards: 'Penghargaan',
+};
+
+function startDateForPeriod(period: Period) {
+  const date = new Date();
+  if (period === 'daily') date.setDate(date.getDate() - 30);
+  if (period === 'weekly') date.setDate(date.getDate() - 84);
+  if (period === 'monthly') date.setMonth(date.getMonth() - 12);
+  if (period === 'yearly') date.setFullYear(date.getFullYear() - 5);
+  return date;
 }
 
-interface StatData {
-  label: string;
-  value: number;
-  change: number;
-  color: string;
-  icon: any;
+function bucketKey(date: Date, period: Period) {
+  if (period === 'daily') return date.toISOString().slice(0, 10);
+  if (period === 'weekly') {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().slice(0, 10);
+  }
+  if (period === 'monthly') return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  return String(date.getFullYear());
 }
 
-const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+function bucketLabel(key: string, period: Period) {
+  if (period === 'yearly') return key;
+  if (period === 'monthly') {
+    const [year, month] = key.split('-').map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+  }
+  return new Date(`${key}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+}
 
-// ── Main Component ──
+function buildSeries(items: Array<{ created_at?: string; total?: number }>, period: Period, valueMode: 'count' | 'revenue') {
+  const start = startDateForPeriod(period);
+  const groups = new Map<string, number>();
+  for (const item of items) {
+    if (!item.created_at) continue;
+    const date = new Date(item.created_at);
+    if (Number.isNaN(date.getTime()) || date < start) continue;
+    const key = bucketKey(date, period);
+    groups.set(key, (groups.get(key) ?? 0) + (valueMode === 'revenue' ? Number(item.total ?? 0) : 1));
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => ({ name: bucketLabel(key, period), value }));
+}
+
+function formatNumber(value: number) {
+  return value.toLocaleString('id-ID');
+}
+
+function formatCurrency(value: number) {
+  if (value >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(1)} M`;
+  if (value >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(1)} jt`;
+  if (value >= 1_000) return `Rp ${(value / 1_000).toFixed(1)} rb`;
+  return `Rp ${value.toLocaleString('id-ID')}`;
+}
+
+function statusMeta(status?: string) {
+  if (status === 'BLOCKED') return { label: 'Blocked', icon: AlertTriangle, tone: 'text-red-300 bg-red-500/10 border-red-500/20' };
+  if (status === 'PROBING') return { label: 'Probing', icon: RefreshCw, tone: 'text-amber-300 bg-amber-500/10 border-amber-500/20' };
+  if (status === 'RECOVERY_PENDING') return { label: 'Recovery', icon: Clock3, tone: 'text-amber-300 bg-amber-500/10 border-amber-500/20' };
+  return { label: 'Healthy', icon: CheckCircle2, tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' };
+}
+
 export function AdminDashboard() {
   const [period, setPeriod] = useState<Period>('monthly');
+  const [metric, setMetric] = useState<Metric>('users');
   const [loading, setLoading] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
-
-  // Data states
   const [stats, setStats] = useState<Record<string, number>>({});
-  const [competitions, setCompetitions] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [posts, setPosts] = useState<any[]>([]);
-  const [awards, setAwards] = useState<any[]>([]);
-
-  // Section visibility
-  const [sections, setSections] = useState<DashboardSection[]>([
-    { id: 'overview', label: 'Ringkasan', icon: Activity, visible: true, chartType: 'area' },
-    { id: 'competitions', label: 'Lomba', icon: Trophy, visible: true, chartType: 'bar' },
-    { id: 'users', label: 'Pengguna', icon: Users, visible: true, chartType: 'line' },
-    { id: 'revenue', label: 'Pendapatan', icon: DollarSign, visible: true, chartType: 'area' },
-    { id: 'xp', label: 'XP & Coin', icon: Coins, visible: true, chartType: 'bar' },
-    { id: 'distribution', label: 'Distribusi', icon: PieChartIcon, visible: true, chartType: 'pie' },
-    { id: 'activity', label: 'Aktivitas', icon: BarChart3, visible: true, chartType: 'line' },
-  ]);
-
-  // Load data
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [competitions, setCompetitions] = useState<Array<Record<string, any>>>([]);
+  const [users, setUsers] = useState<Array<Record<string, any>>>([]);
+  const [orders, setOrders] = useState<Array<Record<string, any>>>([]);
+  const [awards, setAwards] = useState<Array<Record<string, any>>>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [runtimeVersion, setRuntimeVersion] = useState<number | null>(null);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [s, c, u, o, p, a] = await Promise.all([
+      const [s, c, u, o, a, health] = await Promise.all([
         supabase.rpc('get_platform_stats'),
-        supabase.from('competitions').select('*').order('created_at', { ascending: false }),
-        supabase.from('profiles').select('id,created_at,account_type,grade,total_xp,edu_coin'),
-        supabase.from('orders').select('id,user_id,status,total,created_at').order('created_at', { ascending: false }),
-        supabase.from('posts').select('id,created_at,status,competition_id'),
-        supabase.from('awards').select('id,created_at,points,competition_id').order('created_at', { ascending: false }).limit(500),
+        supabase.from('competitions').select('id,created_at,status').order('created_at', { ascending: false }),
+        supabase.from('profiles').select('id,created_at,account_type,total_xp,edu_coin').order('created_at', { ascending: false }),
+        supabase.from('orders').select('id,status,total,created_at').order('created_at', { ascending: false }),
+        supabase.from('awards').select('id,created_at,points').order('created_at', { ascending: false }).limit(500),
+        supabase.from('global_settings').select('key,value').or(`key.eq.${RPC_RUNTIME_KEY},key.like.${RPC_HEALTH_PREFIX}%`),
       ]);
-      setStats(s.data?.[0] || {});
-      setCompetitions(c.data || []);
-      setUsers(u.data || []);
-      setOrders(o.data || []);
-      setPosts(p.data || []);
-      setAwards(a.data || []);
-    } catch (e) {
-      console.error('Dashboard load failed', e);
+
+      setStats(s.data?.[0] ?? {});
+      setCompetitions(c.data ?? []);
+      setUsers(u.data ?? []);
+      setOrders(o.data ?? []);
+      setAwards(a.data ?? []);
+
+      const nextIncidents: Incident[] = [];
+      for (const row of (health.data ?? []) as HealthRow[]) {
+        if (row.key === RPC_RUNTIME_KEY) {
+          const version = Number(row.value && typeof row.value === 'object' ? (row.value as any).version : NaN);
+          if (Number.isFinite(version)) setRuntimeVersion(version);
+          continue;
+        }
+        if (!row.key.startsWith(RPC_HEALTH_PREFIX)) continue;
+        const value = row.value ?? {};
+        if (value.status && value.status !== 'OPEN') {
+          nextIncidents.push({ rpcName: row.key.slice(RPC_HEALTH_PREFIX.length), ...value });
+        }
+      }
+      setIncidents(nextIncidents.sort((a, b) => String(b.failed_at ?? '').localeCompare(String(a.failed_at ?? ''))));
+    } catch (error) {
+      console.error('Admin dashboard load failed', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Process data by period ──
-  const processedData = useMemo(() => {
-    const now = new Date();
-    const getDateRange = () => {
-      const d = new Date(now);
-      switch (period) {
-        case 'daily': d.setDate(d.getDate() - 30); break;
-        case 'weekly': d.setDate(d.getDate() - 12 * 7); break;
-        case 'monthly': d.setMonth(d.getMonth() - 12); break;
-        case 'yearly': d.setFullYear(d.getFullYear() - 5); break;
-      }
-      return d;
-    };
-    const startDate = getDateRange();
-
-    // Helper: group by time bucket
-    const groupByTime = (items: any[], dateField = 'created_at') => {
-      const groups: Record<string, number> = {};
-      items.forEach(item => {
-        const d = new Date(item[dateField]);
-        if (d < startDate) return;
-        let key: string;
-        switch (period) {
-          case 'daily': key = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); break;
-          case 'weekly': { const weekStart = new Date(d); weekStart.setDate(d.getDate() - d.getDay()); key = weekStart.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); break; }
-          case 'monthly': key = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }); break;
-          case 'yearly': key = String(d.getFullYear()); break;
+  useEffect(() => {
+    void loadData();
+    const channel = supabase.channel('admin-dashboard-health')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'global_settings' }, (payload) => {
+        const row = (payload.new ?? payload.old) as HealthRow | undefined;
+        if (!row?.key) return;
+        if (row.key === RPC_RUNTIME_KEY) {
+          const version = Number(row.value && typeof row.value === 'object' ? (row.value as any).version : NaN);
+          if (Number.isFinite(version)) setRuntimeVersion(version);
+          return;
         }
-        groups[key] = (groups[key] || 0) + 1;
-      });
-      return Object.entries(groups).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name, 'id'));
-    };
+        if (!row.key.startsWith(RPC_HEALTH_PREFIX)) return;
+        const value = row.value ?? {};
+        const rpcName = row.key.slice(RPC_HEALTH_PREFIX.length);
+        setIncidents((current) => {
+          const remaining = current.filter((incident) => incident.rpcName !== rpcName);
+          if (!value.status || value.status === 'OPEN') return remaining;
+          return [...remaining, { rpcName, ...value }].sort((a, b) => String(b.failed_at ?? '').localeCompare(String(a.failed_at ?? '')));
+        });
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, []);
 
-    // Competitions by period
-    const compByPeriod = groupByTime(competitions);
+  const chartData = useMemo(() => {
+    if (metric === 'users') return buildSeries(users, period, 'count');
+    if (metric === 'competitions') return buildSeries(competitions, period, 'count');
+    if (metric === 'awards') return buildSeries(awards, period, 'count');
+    return buildSeries(orders.filter((order) => order.status !== 'CANCELLED'), period, 'revenue');
+  }, [metric, period, users, competitions, awards, orders]);
 
-    // Users by period
-    const usersByPeriod = groupByTime(users);
-
-    // Users by account type
-    const usersByType = [
-      { name: 'Pelajar', value: users.filter(u => u.account_type === 'student' || !u.account_type).length },
-      { name: 'Guru', value: users.filter(u => u.account_type === 'teacher').length },
-      { name: 'Penyelenggara', value: users.filter(u => u.account_type === 'organizer').length },
-    ].filter(d => d.value > 0);
-
-    // Users by grade
-    const gradeCounts: Record<string, number> = {};
-    users.forEach(u => { if (u.grade) gradeCounts[u.grade] = (gradeCounts[u.grade] || 0) + 1; });
-    const usersByGrade = Object.entries(gradeCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-
-    // Revenue by period
-    const revenueByPeriod = (() => {
-      const groups: Record<string, number> = {};
-      orders.filter(o => o.status !== 'CANCELLED').forEach(order => {
-        const d = new Date(order.created_at);
-        if (d < startDate) return;
-        let key: string;
-        switch (period) {
-          case 'daily': key = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); break;
-          case 'weekly': { const weekStart = new Date(d); weekStart.setDate(d.getDate() - d.getDay()); key = weekStart.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); break; }
-          case 'monthly': key = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }); break;
-          case 'yearly': key = String(d.getFullYear()); break;
-        }
-        groups[key] = (groups[key] || 0) + Number(order.total || 0);
-      });
-      return Object.entries(groups).map(([name, value]) => ({ name, value, formatted: `Rp ${value.toLocaleString('id-ID')}` })).sort((a, b) => a.name.localeCompare(b.name, 'id'));
-    })();
-
-    // XP & Coin distribution
-    const xpDistribution = [
-      { name: '0-100', value: users.filter(u => (u.total_xp || 0) <= 100).length },
-      { name: '101-500', value: users.filter(u => (u.total_xp || 0) > 100 && (u.total_xp || 0) <= 500).length },
-      { name: '501-1000', value: users.filter(u => (u.total_xp || 0) > 500 && (u.total_xp || 0) <= 1000).length },
-      { name: '1000+', value: users.filter(u => (u.total_xp || 0) > 1000).length },
-    ].filter(d => d.value > 0);
-
-    // Awards by period
-    const awardsByPeriod = groupByTime(awards);
-
-    // Cumulative users
-    const cumulativeUsers = (() => {
-      const sorted = [...users].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      let count = 0;
-      const groups: Record<string, number> = {};
-      sorted.forEach(u => {
-        const d = new Date(u.created_at);
-        let key: string;
-        switch (period) {
-          case 'daily': key = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); break;
-          case 'weekly': { const weekStart = new Date(d); weekStart.setDate(d.getDate() - d.getDay()); key = weekStart.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); break; }
-          case 'monthly': key = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }); break;
-          case 'yearly': key = String(d.getFullYear()); break;
-        }
-        count++;
-        groups[key] = count;
-      });
-      return Object.entries(groups).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name, 'id'));
-    })();
-
-    return {
-      compByPeriod, usersByPeriod, usersByType, usersByGrade,
-      revenueByPeriod, xpDistribution, awardsByPeriod, cumulativeUsers
-    };
-  }, [period, competitions, users, orders, awards]);
-
-  // ── Stats cards ──
-  
-
-  const toggleSection = (id: string) => {
-    setSections(prev => prev.map(s => s.id === id ? { ...s, visible: !s.visible } : s));
-  };
-
-  const toggleChartType = (id: string) => {
-    setSections(prev => prev.map(s => {
-      if (s.id !== id) return s;
-      const types: ChartType[] = ['line', 'bar', 'area', 'pie'];
-      const idx = types.indexOf(s.chartType);
-      return { ...s, chartType: types[(idx + 1) % types.length] };
-    }));
-  };
+  const totalRevenue = useMemo(() => orders.reduce((sum, order) => sum + (order.status === 'CANCELLED' ? 0 : Number(order.total ?? 0)), 0), [orders]);
+  const activeCompetitions = useMemo(() => competitions.filter((competition) => ['LIVE', 'REGISTRATION_OPEN'].includes(String(competition.status))).length, [competitions]);
+  const totalXp = useMemo(() => users.reduce((sum, user) => sum + Number(user.total_xp ?? 0), 0), [users]);
+  const recentActivity = useMemo(() => {
+    const rows = [
+      ...users.slice(0, 3).map((item) => ({ type: 'User baru', time: item.created_at, label: 'Pengguna bergabung', icon: Users })),
+      ...competitions.slice(0, 3).map((item) => ({ type: 'Lomba', time: item.created_at, label: `Lomba ${item.status === 'PUBLISHED' ? 'dipublikasikan' : 'dibuat'}`, icon: Trophy })),
+      ...orders.slice(0, 3).map((item) => ({ type: 'Pesanan', time: item.created_at, label: `Order ${item.status}`, icon: DollarSign })),
+    ];
+    return rows.filter((row) => row.time).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 6);
+  }, [users, competitions, orders]);
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-24 rounded-xl surface-elevated animate-pulse" />
-          ))}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((item) => <div key={item} className="h-20 rounded-xl surface-elevated animate-pulse" />)}
         </div>
-        <div className="h-64 rounded-xl surface-elevated animate-pulse" />
+        <div className="h-80 rounded-2xl surface-elevated animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      {/* ═══ CONTROLS BAR ═══ */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Period selector */}
-        <div className="flex surface-elevated rounded-xl p-1">
-          {(['daily', 'weekly', 'monthly', 'yearly'] as Period[]).map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                period === p ? 'bg-moss-500/15 text-accent' : 'text-slate-500 hover:text-fg-secondary'
-              }`}
-            >
-              {p === 'daily' ? 'Harian' : p === 'weekly' ? 'Mingguan' : p === 'monthly' ? 'Bulanan' : 'Tahunan'}
-            </button>
-          ))}
+    <div className="space-y-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Overview</p>
+          <h2 className="text-lg font-semibold tracking-tight text-fg">Ringkasan platform</h2>
         </div>
-
-        {/* Filter toggle */}
-        <Button
-          size="sm"
-          variant="outline"
-          icon={<Filter size={14} />}
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          Filter Tampilan
-        </Button>
+        <div className="text-[11px] text-fg-muted">Backend v{runtimeVersion ?? '—'}</div>
       </div>
 
-      {/* ═══ FILTER PANEL ═══ */}
-      {showFilters && (
-        <Card className="p-4">
-          <p className="text-xs text-fg-muted font-semibold mb-3">Tampilkan/Sembunyikan Section</p>
-          <div className="flex flex-wrap gap-2">
-            {sections.map(s => (
-              <button
-                key={s.id}
-                onClick={() => toggleSection(s.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
-                  s.visible
-                    ? 'border-moss-500/30 bg-moss-500/10 text-accent'
-                    : 'surface-border surface-elevated text-slate-500'
-                }`}
-              >
-                {s.visible ? <Eye size={12} /> : <EyeOff size={12} />}
-                {s.label}
-              </button>
-            ))}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <Kpi label="Total pengguna" value={formatNumber(Number(stats.total_users ?? users.length))} icon={Users} meta={`${users.length.toLocaleString('id-ID')} data terbaca`} />
+        <Kpi label="Lomba aktif" value={formatNumber(activeCompetitions)} icon={Trophy} meta={`${competitions.length.toLocaleString('id-ID')} total lomba`} />
+        <Kpi label="Total XP" value={formatNumber(totalXp)} icon={Activity} meta="Akumulasi pengguna" />
+        <Kpi label="Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} meta={`${orders.filter((order) => order.status === 'PAID').length.toLocaleString('id-ID')} pembayaran`} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-12">
+        <Card className="min-w-0 p-4 lg:col-span-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[11px] font-medium text-fg-muted">Tren</p>
+              <h3 className="text-sm font-semibold text-fg">{METRIC_LABELS[metric]}</h3>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Segmented options={Object.keys(METRIC_LABELS) as Metric[]} value={metric} onChange={setMetric} labels={METRIC_LABELS} />
+              <Segmented options={Object.keys(PERIOD_LABELS) as Period[]} value={period} onChange={setPeriod} labels={PERIOD_LABELS} />
+            </div>
+          </div>
+          <div className="mt-3 h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="adminTrend" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="currentColor" stopOpacity={0.28} />
+                    <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.08} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} stroke="currentColor" opacity={0.5} />
+                <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} stroke="currentColor" opacity={0.5} tickFormatter={(value) => metric === 'revenue' ? formatCurrency(Number(value)) : formatNumber(Number(value))} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(17,24,20,.96)', color: '#fff', fontSize: 12 }} formatter={(value) => [metric === 'revenue' ? formatCurrency(Number(value)) : formatNumber(Number(value)), METRIC_LABELS[metric]]} />
+                <Area type="monotone" dataKey="value" stroke="currentColor" strokeWidth={2.5} fill="url(#adminTrend)" className="text-accent" isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </Card>
-      )}
 
-      {/* ═══ STAT CARDS ═══ */}
-      {sections.find(s => s.id === 'overview')?.visible && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard label="Total User" value={stats.total_users || 0} icon={Users} color="blue" />
-          <StatCard label="Lomba Aktif" value={competitions.filter(c => ['LIVE', 'REGISTRATION_OPEN'].includes(c.status)).length} icon={Trophy} color="green" />
-          <StatCard label="Total XP" value={users.reduce((s, u) => s + (u.total_xp || 0), 0)} icon={Coins} color="amber" format="number" />
-          <StatCard
-            label="Revenue"
-            value={orders.reduce((s, o) => s + (o.status !== 'CANCELLED' ? Number(o.total || 0) : 0), 0)}
-            icon={DollarSign}
-            color="emerald"
-            format="currency"
-          />
+        <div className="space-y-4 lg:col-span-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] text-fg-muted">System status</p>
+                <h3 className="text-sm font-semibold text-fg">Kesehatan layanan</h3>
+              </div>
+              <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-current" /> Live</span>
+            </div>
+            <div className="mt-3 space-y-1.5 text-xs">
+              <HealthRow label="Database" healthy />
+              <HealthRow label="Authentication" healthy />
+              <HealthRow label="Realtime" healthy />
+              <HealthRow label="RPC monitor" healthy={incidents.length === 0} detail={incidents.length ? `${incidents.length} incident aktif` : 'Semua normal'} />
+            </div>
+          </Card>
+
+          <Card className={`p-4 ${incidents.length ? 'border-red-500/20' : ''}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] text-fg-muted">Production incidents</p>
+                <h3 className="text-sm font-semibold text-fg">Error Intelligence</h3>
+              </div>
+              <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${incidents.length ? 'bg-red-500/10 text-red-300' : 'bg-emerald-500/10 text-emerald-300'}`}>{incidents.length} aktif</span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {incidents.slice(0, 3).map((incident) => {
+                const meta = statusMeta(incident.status);
+                const Icon = meta.icon;
+                return (
+                  <button key={incident.rpcName} type="button" onClick={() => setSelectedIncident(incident)} className="w-full rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left transition hover:border-red-500/20 hover:bg-white/[0.04]">
+                    <div className="flex items-start gap-2.5">
+                      <span className={`mt-0.5 rounded-lg border p-1.5 ${meta.tone}`}><Icon size={13} /></span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-fg">{incident.rpcName}</span><span className="mt-0.5 block truncate text-[10px] text-fg-muted">{incident.error_message || incident.error_code || 'Backend error'}</span></span>
+                      <span className="text-[10px] text-fg-muted">›</span>
+                    </div>
+                  </button>
+                );
+              })}
+              {!incidents.length && <div className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-3 text-xs text-emerald-200">Tidak ada incident aktif.</div>}
+            </div>
+          </Card>
         </div>
-      )}
-
-      {/* ═══ CHARTS ═══ */}
-      <div className="grid lg:grid-cols-2 gap-4">
-        {/* Competitions Chart */}
-        {sections.find(s => s.id === 'competitions')?.visible && (
-          <ChartCard
-            title="Lomba per Periode"
-            data={processedData.compByPeriod}
-            chartType={sections.find(s => s.id === 'competitions')!.chartType}
-            color="#10b981"
-            onToggleType={() => toggleChartType('competitions')}
-            valueType="number"
-          />
-        )}
-
-        {/* Users Chart */}
-        {sections.find(s => s.id === 'users')?.visible && (
-          <ChartCard
-            title="Pengguna Baru"
-            data={processedData.usersByPeriod}
-            chartType={sections.find(s => s.id === 'users')!.chartType}
-            color="#3b82f6"
-            onToggleType={() => toggleChartType('users')}
-            valueType="number"
-          />
-        )}
-
-        {/* Revenue Chart */}
-        {sections.find(s => s.id === 'revenue')?.visible && (
-          <ChartCard
-            title="Pendapatan"
-            data={processedData.revenueByPeriod}
-            chartType={sections.find(s => s.id === 'revenue')!.chartType}
-            color="#f59e0b"
-            onToggleType={() => toggleChartType('revenue')}
-            valueType="currency"
-          />
-        )}
-
-        {/* Awards Chart */}
-        {sections.find(s => s.id === 'xp')?.visible && (
-          <ChartCard
-            title="XP & Penghargaan"
-            data={processedData.awardsByPeriod}
-            chartType={sections.find(s => s.id === 'xp')!.chartType}
-            color="#8b5cf6"
-            onToggleType={() => toggleChartType('xp')}
-            valueType="number"
-          />
-        )}
-
-        {/* Distribution Pie Charts */}
-        {sections.find(s => s.id === 'distribution')?.visible && (
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-fg">Distribusi</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Users by Type */}
-              <div>
-                <p className="text-[11px] text-slate-500 mb-2">Berdasarkan Jenis</p>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie
-                      data={processedData.usersByType}
-                      cx="50%" cy="50%"
-                      innerRadius={40} outerRadius={65}
-                      paddingAngle={3}
-                      dataKey="value"
-                      
-                    >
-                      {processedData.usersByType.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: any) => [`${v} user`, ""]} />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10, color: '#94a3b8' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              {/* XP Distribution */}
-              <div>
-                <p className="text-[11px] text-slate-500 mb-2">Distribusi XP</p>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie
-                      data={processedData.xpDistribution}
-                      cx="50%" cy="50%"
-                      innerRadius={40} outerRadius={65}
-                      paddingAngle={3}
-                      dataKey="value"
-                      
-                    >
-                      {processedData.xpDistribution.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: any) => [`${v} user`, ""]} />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10, color: '#94a3b8' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Activity: Cumulative Users */}
-        {sections.find(s => s.id === 'activity')?.visible && (
-          <ChartCard
-            title="Kumulatif Pengguna"
-            data={processedData.cumulativeUsers}
-            chartType="area"
-            color="#06b6d4"
-            onToggleType={() => toggleChartType('activity')}
-            valueType="number"
-            showArea
-          />
-        )}
       </div>
 
-      {/* ═══ DATA TABLES ═══ */}
-      <div className="grid lg:grid-cols-2 gap-4">
-        {/* Users by Grade Table */}
-        {sections.find(s => s.id === 'distribution')?.visible && (
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold text-fg mb-3">User per Jenjang</h3>
-            <div className="space-y-2">
-              {processedData.usersByGrade.map((g, i) => (
-                <div key={g.name} className="flex items-center gap-3">
-                  <span className="text-xs text-fg-muted w-12">{g.name}</span>
-                  <div className="flex-1 surface-elevated rounded-full h-2 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${(g.value / Math.max(...processedData.usersByGrade.map(x => x.value))) * 100}%`,
-                        backgroundColor: COLORS[i % COLORS.length],
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs text-fg font-medium w-8 text-right">{g.value}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div><p className="text-[11px] text-fg-muted">Live feed</p><h3 className="text-sm font-semibold text-fg">Aktivitas terbaru</h3></div>
+          <Button size="sm" variant="outline" onClick={() => void loadData()} icon={<RefreshCw size={13} />}>Refresh</Button>
+        </div>
+        <div className="mt-2 divide-y divide-white/5">
+          {recentActivity.map((item, index) => { const Icon = item.icon; return <div key={`${item.type}-${item.time}-${index}`} className="flex items-center gap-3 py-2.5"><div className="rounded-lg bg-white/[0.04] p-2 text-accent"><Icon size={13} /></div><div className="min-w-0 flex-1"><p className="text-xs font-medium text-fg">{item.label}</p><p className="text-[10px] text-fg-muted">{item.type}</p></div><span className="text-[10px] text-fg-muted">{new Date(item.time).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>; })}
+          {!recentActivity.length && <div className="py-5 text-center text-xs text-fg-muted">Belum ada aktivitas.</div>}
+        </div>
+      </Card>
 
-        {/* Recent Competitions Table */}
-        {sections.find(s => s.id === 'competitions')?.visible && (
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold text-fg mb-3">Lomba Terbaru</h3>
-            <div className="space-y-2">
-              {competitions.slice(0, 5).map(c => (
-                <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg surface-elevated/50">
-                  <div className={`w-2 h-2 rounded-full ${
-                    c.status === 'LIVE' ? 'bg-green-400 animate-pulse' :
-                    c.status === 'REGISTRATION_OPEN' ? 'bg-blue-400' :
-                    'bg-slate-500'
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-fg truncate">{c.title}</p>
-                    <p className="text-[10px] text-slate-500">{c.category}</p>
-                  </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                    c.status === 'LIVE' ? 'bg-green-500/10 text-green-400' :
-                    c.status === 'REGISTRATION_OPEN' ? 'bg-blue-500/10 text-blue-400' :
-                    'bg-slate-500/10 text-fg-muted'
-                  }`}>
-                    {c.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-      </div>
+      {selectedIncident && <IncidentDrawer incident={selectedIncident} onClose={() => setSelectedIncident(null)} />}
     </div>
   );
 }
 
-// ── Stat Card Component ──
-function StatCard({ label, value, icon: Icon, color, format }: {
-  label: string; value: number; icon: any; color: string; format?: string;
-}) {
-  const displayValue = format === 'currency'
-    ? `Rp ${value.toLocaleString('id-ID')}`
-    : value.toLocaleString('id-ID');
-
-  return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-[11px] text-slate-500">{label}</p>
-        <Icon size={16} className={`text-${color}-400`} />
-      </div>
-      <p className="text-xl font-bold text-fg">{displayValue}</p>
-    </Card>
-  );
+function Kpi({ label, value, meta, icon: Icon }: { label: string; value: string; meta: string; icon: typeof Users }) {
+  return <Card className="min-w-0 p-3"><div className="flex items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon size={15} /></span><div className="min-w-0"><p className="truncate text-[10px] font-medium text-fg-muted">{label}</p><p className="truncate text-base font-bold tracking-tight text-fg">{value}</p><p className="truncate text-[9px] text-fg-muted">{meta}</p></div></div></Card>;
 }
 
-// ── Tooltip style ──
-const TOOLTIP_STYLE = { background: '#162032', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' };
-
-
-
-// ── Chart Card Component ──
-function ChartCard({ title, data, chartType, color, onToggleType, valueType, showArea }: {
-  title: string; data: any[]; chartType: ChartType; color: string;
-  onToggleType: () => void; valueType: 'number' | 'currency'; showArea?: boolean;
-}) {
-  const formatValue = (v: number) => {
-    if (valueType === 'currency') return `Rp ${(v / 1000).toFixed(0)}K`;
-    return String(v);
-  };
-
-  const renderChart = () => {
-    if (data.length === 0) {
-      return <p className="text-xs text-slate-500 text-center py-8">Belum ada data</p>;
-    }
-
-    switch (chartType) {
-      case 'line':
-        return (
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#475569' }} tickFormatter={formatValue} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }} formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]} />
-              <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={{ r: 2, fill: color, strokeWidth: 0 }} activeDot={{ r: 4, fill: color, stroke: 'rgba(255,255,255,0.2)', strokeWidth: 2 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        );
-      case 'bar':
-        return (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#475569' }} tickFormatter={formatValue} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={false} formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]} />
-              <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} activeBar={{ fill: color, radius: 4 }} />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-      case 'area':
-      case 'pie':
-      default:
-        return (
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#475569' }} tickFormatter={formatValue} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }} formatter={(v: any) => [valueType === 'currency' ? `Rp ${Number(v).toLocaleString('id-ID')}` : v, ""]} />
-              <Area type="monotone" dataKey="value" stroke={color} fill={color} fillOpacity={0.1} strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-    }
-  };
-
-  return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-fg">{title}</h3>
-        <button
-          onClick={onToggleType}
-          className="text-[10px] text-slate-500 hover:text-fg-secondary flex items-center gap-1 px-2 py-1 rounded surface-elevated transition cursor-pointer"
-        >
-          <BarChart3 size={10} />
-          {chartType}
-        </button>
-      </div>
-      {renderChart()}
-    </Card>
-  );
+function Segmented<T extends string>({ options, value, onChange, labels }: { options: T[]; value: T; onChange: (value: T) => void; labels: Record<T, string> }) {
+  return <div className="flex max-w-full overflow-x-auto rounded-lg bg-white/[0.03] p-0.5 no-scrollbar">{options.map((option) => <button key={option} type="button" onClick={() => onChange(option)} className={`whitespace-nowrap rounded-md px-2 py-1 text-[9px] font-semibold transition ${value === option ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:text-fg'}`}>{labels[option]}</button>)}</div>;
 }
+
+function HealthRow({ label, healthy, detail }: { label: string; healthy: boolean; detail?: string }) {
+  return <div className="flex items-center gap-2 rounded-lg px-2 py-1.5"><span className={`h-1.5 w-1.5 rounded-full ${healthy ? 'bg-emerald-400' : 'bg-red-400'}`} /><span className="text-fg-secondary">{label}</span><span className="ml-auto text-[10px] text-fg-muted">{detail || (healthy ? 'Operational' : 'Attention')}</span></div>;
+}
+
+function IncidentDrawer({ incident, onClose }: { incident: Incident; onClose: () => void }) {
+  const meta = statusMeta(incident.status);
+  const Icon = meta.icon;
+  return <div className="fixed inset-0 z-50 bg-black/40" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto border-l surface-border surface-bg p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Error Intelligence</p><h3 className="mt-1 text-base font-bold text-fg">{incident.rpcName}</h3></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-fg-muted hover:bg-white/5 hover:text-fg"><X size={16} /></button></div><div className={`mt-4 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${meta.tone}`}><Icon size={14} /> {meta.label}</div><div className="mt-4 space-y-3"><Detail label="Error code" value={incident.error_code || '—'} /><Detail label="Backend version" value={String(incident.backend_version ?? '—')} /><Detail label="Terjadi" value={incident.failed_at ? new Date(incident.failed_at).toLocaleString('id-ID') : '—'} /><div><p className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Pesan error</p><pre className="mt-1 whitespace-pre-wrap break-words rounded-xl border border-white/5 bg-black/20 p-3 text-[11px] leading-5 text-red-200">{incident.error_message || 'Tidak ada pesan error.'}</pre></div></div></aside></div>;
+}
+
+function Detail({ label, value }: { label: string; value: string }) { return <div className="flex items-start justify-between gap-4 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5"><span className="text-[10px] text-fg-muted">{label}</span><span className="max-w-[65%] break-words text-right text-[11px] font-medium text-fg">{value}</span></div>; }
