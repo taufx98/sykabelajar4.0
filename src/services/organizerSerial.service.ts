@@ -14,6 +14,9 @@ export interface OrganizerSerial {
   created_at: string;
 }
 
+const GENERATE_RPC_NAME = 'generate_organizer_serials';
+const GENERATE_HEALTH_KEY = `__rpc_health:${GENERATE_RPC_NAME}`;
+
 export async function listOrganizerSerials(organizerId: string, limit = 500) {
   const { data, error } = await supabase
     .from('organizer_serials')
@@ -25,12 +28,50 @@ export async function listOrganizerSerials(organizerId: string, limit = 500) {
   return (data ?? []) as OrganizerSerial[];
 }
 
+async function getGenerateRpcHealth() {
+  const { data, error } = await supabase
+    .from('global_settings')
+    .select('value')
+    .eq('key', GENERATE_HEALTH_KEY)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.value ?? null) as { status?: string; error_code?: string; error_message?: string } | null;
+}
+
+async function reportGenerateRpcFailure(error: unknown) {
+  const rpcError = error as { code?: string; message?: string } | null;
+  const errorCode = typeof rpcError?.code === 'string' ? rpcError.code : 'XX000';
+  const errorMessage = error instanceof Error ? error.message : String(rpcError?.message ?? error ?? 'Unknown RPC error');
+
+  try {
+    await supabase.rpc('report_rpc_failure', {
+      p_rpc_name: GENERATE_RPC_NAME,
+      p_error_code: errorCode,
+      p_error_message: errorMessage,
+    });
+  } catch {
+    // Error reporting must never replace or hide the original RPC error.
+  }
+}
+
 export async function generateOrganizerSerials(organizerId: string, quantity: number) {
-  const { data, error } = await supabase.rpc('generate_organizer_serials', {
+  const health = await getGenerateRpcHealth();
+  if (health?.status === 'BLOCKED') {
+    const detail = health.error_message ? ` Detail: ${health.error_message}` : '';
+    throw new Error(`Pembuatan QR / Serial sedang diblokir sementara karena RPC mengalami error.${detail}`);
+  }
+
+  const { data, error } = await supabase.rpc(GENERATE_RPC_NAME, {
     p_organizer_id: organizerId,
     p_quantity: quantity,
   });
-  if (error) throw error;
+  if (error) {
+    await reportGenerateRpcFailure(error);
+    if (error.code === '42702') {
+      throw new Error('Pembuatan QR / Serial diblokir karena terjadi error pada sistem. Error telah dicatat ke Error Intelligence.');
+    }
+    throw error;
+  }
   return (data ?? []) as Array<Pick<OrganizerSerial, 'id' | 'serial_code' | 'qr_payload' | 'status'>>;
 }
 
