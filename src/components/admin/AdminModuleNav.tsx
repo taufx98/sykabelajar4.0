@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote } from 'lucide-react';
+import { AlertTriangle, LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 type AdminNavItem = { title: string; path: string; icon: typeof LayoutDashboard; badge?: string };
@@ -65,6 +65,7 @@ export function AdminModuleNav() {
   const location = useLocation();
   const [openGroup, setOpenGroup] = useState(() => groupForLocation(location));
   const activeGroup = groupForLocation(location);
+  const errorActive = location.pathname === '/admin/error-intelligence';
 
   useEffect(() => { setOpenGroup(activeGroup); }, [activeGroup]);
 
@@ -73,8 +74,9 @@ export function AdminModuleNav() {
 
   return <nav className="border-b surface-border bg-surface-elevated/15" aria-label="Navigasi modul Admin">
     <div className="mx-auto max-w-7xl px-3 py-2 md:px-6">
-      <div className="grid grid-cols-4 gap-1.5">
-        <Link to="/admin" className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${!openGroup && location.pathname === '/admin' ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`}><LayoutDashboard size={14} /><span className="truncate">Dashboard</span></Link>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5">
+        <Link to="/admin" className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${!openGroup && !errorActive && location.pathname === '/admin' ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`}><LayoutDashboard size={14} /><span className="truncate">Dashboard</span></Link>
+        <Link to="/admin/error-intelligence" className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold transition-all duration-200 ${errorActive ? 'bg-red-500/10 text-red-300 shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`}><AlertTriangle size={14} /><span className="truncate">Error Intelligence</span></Link>
         {GROUPS.map(group => <button key={group.key} type="button" onClick={() => setOpenGroup(value => value === group.key ? null : group.key)} className={`flex min-w-0 items-center justify-center rounded-xl px-2 py-2 text-xs font-semibold transition-all duration-200 ${openGroup === group.key ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`} aria-expanded={openGroup === group.key}><span className="truncate">{group.title}</span></button>)}
       </div>
       <div className={`overflow-hidden transition-all duration-300 ease-out ${selectedGroup ? 'mt-2 max-h-40 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-1'}`}>
