@@ -1,28 +1,17 @@
-name: Payment source finalizer
+name: Cleanup expired chat media
 
 on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
+  schedule:
+    - cron: '17 18 * * *'
+  workflow_dispatch:
 
 jobs:
-  finalize:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply final payment source patch
-        shell: bash
+      - name: Delete expired Cloudinary chat media
         run: |
-          echo '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' | base64 -d | gzip -d > /tmp/fix.py
-          python /tmp/fix.py
-          git diff --check
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/pages/OrganizerPlanPageV2.tsx src/pages/AdminPlanUsagePageV2.tsx .github/workflows/debug-payment-ui.yml .github/workflows/payment-source-fix.yml .github/workflows/final-payment-ui-cleanup.yml
-          git commit -m "fix(payment): finalize checkout upload and admin payment UI"
-          git push
+          curl --fail-with-body -sS -X POST \
+            'https://mvdczyitbkxkldjughor.supabase.co/functions/v1/cleanup-expired-chat-media' \
+            -H 'Content-Type: application/json' \
+            -d '{}'
