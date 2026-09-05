@@ -25,47 +25,6 @@ const MODULES: AdminModule[] = [
   { title: 'Role & Akses', description: 'Atur role detail dan otorisasi admin.', path: '/admin/roles', icon: ShieldCheck },
 ];
 
-function AdminModuleNav() {
-  const navRef = useRef<HTMLDivElement | null>(null);
-  const [canLeft, setCanLeft] = useState(false);
-  const [canRight, setCanRight] = useState(false);
-
-  const updateEdges = () => {
-    const node = navRef.current;
-    if (!node) return;
-    setCanLeft(node.scrollLeft > 4);
-    setCanRight(node.scrollLeft + node.clientWidth < node.scrollWidth - 4);
-  };
-
-  useEffect(() => {
-    updateEdges();
-    const node = navRef.current;
-    if (!node) return;
-    const observer = new ResizeObserver(updateEdges);
-    observer.observe(node);
-    window.addEventListener('resize', updateEdges);
-    return () => { observer.disconnect(); window.removeEventListener('resize', updateEdges); };
-  }, []);
-
-  const scroll = (direction: 'left' | 'right') => {
-    const node = navRef.current;
-    if (!node) return;
-    node.scrollBy({ left: direction === 'right' ? Math.max(220, node.clientWidth * 0.72) : -Math.max(220, node.clientWidth * 0.72), behavior: 'smooth' });
-    window.setTimeout(updateEdges, 250);
-  };
-
-  return <div className="border-y surface-border bg-surface-elevated/20">
-    <div className="mx-auto flex max-w-7xl items-center gap-1 px-3 py-1.5 md:px-6">
-      {canLeft && <button type="button" aria-label="Panel sebelumnya" onClick={() => scroll('left')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border surface-border bg-surface-card-bg text-slate-400 transition hover:text-fg"><ChevronLeft size={16}/></button>}
-      <div ref={navRef} onScroll={updateEdges} className="flex min-w-0 flex-1 gap-1 overflow-x-auto no-scrollbar scroll-smooth">
-        <Link to="/admin" className="flex shrink-0 items-center gap-1.5 rounded-lg bg-moss-500/15 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-moss-500/20"><LayoutDashboard size={14}/>Dashboard</Link>
-        {MODULES.map(({ title, path, icon: Icon, badge }) => <Link key={title} to={path} className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-white/5 hover:text-fg-secondary"><Icon size={14}/><span>{title}</span>{badge && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold text-accent">{badge}</span>}</Link>)}
-      </div>
-      {canRight && <button type="button" aria-label="Panel berikutnya" onClick={() => scroll('right')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border surface-border bg-surface-card-bg text-slate-400 transition hover:text-fg"><ChevronRight size={16}/></button>}
-    </div>
-  </div>;
-}
-
 export function AdminControlCenterPage() {
   const _groups = useMemo(() => MODULES.length, []);
   return <div className="min-h-screen surface-bg text-fg-secondary">

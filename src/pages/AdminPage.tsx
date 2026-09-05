@@ -1,5 +1,5 @@
 import { toast } from '@/lib/toast';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -33,66 +33,8 @@ export function AdminPage() {
   const [productEditor, setProductEditor] = useState<any | null>(null);
   const [competitionEditor, setCompetitionEditor] = useState<any | null>(null);
   const [usernameEditor, setUsernameEditor] = useState<any | null>(null);
-  const [visibleTabKeys, setVisibleTabKeys] = useState<CoreAdminTab[]>(tabs.map(t => t.key));
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const tabNavRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { if (requestedTab && tabs.some(t => t.key === requestedTab)) setTab(requestedTab); }, [requestedTab]);
-
-  useEffect(() => {
-    const nav = tabNavRef.current;
-    if (!nav) return;
-    const measure = () => {
-      const probe = document.createElement('div');
-      probe.className = 'absolute invisible pointer-events-none flex items-center gap-1';
-      probe.style.width = 'max-content';
-      probe.style.left = '-9999px';
-      probe.style.top = '0';
-      document.body.appendChild(probe);
-      const widths = tabs.map(({ key, label, icon: Icon }) => {
-        const button = document.createElement('button');
-        button.className = 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap';
-        const icon = document.createElement('span');
-        icon.style.width = '14px';
-        icon.style.height = '14px';
-        icon.style.display = 'inline-block';
-        button.appendChild(icon);
-        button.appendChild(document.createTextNode(label));
-        probe.appendChild(button);
-        return { key, width: button.offsetWidth };
-      });
-      const gap = 4;
-      const available = nav.clientWidth;
-      const total = widths.reduce((sum, item) => sum + item.width, 0) + Math.max(0, widths.length - 1) * gap;
-      if (total <= available) {
-        setVisibleTabKeys(tabs.map(item => item.key));
-        document.body.removeChild(probe);
-        return;
-      }
-      const overflowButtonWidth = 40;
-      const budget = Math.max(0, available - overflowButtonWidth - gap);
-      const next: CoreAdminTab[] = [];
-      let used = 0;
-      for (const item of widths) {
-        const nextUsed = used + item.width + (next.length ? gap : 0);
-        if (nextUsed > budget) break;
-        next.push(item.key);
-        used = nextUsed;
-      }
-      if (!next.includes(tab) && next.length) next[next.length - 1] = tab;
-      setVisibleTabKeys(Array.from(new Set(next)));
-      document.body.removeChild(probe);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(nav);
-    window.addEventListener('resize', measure);
-    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
-  }, [tab]);
-
-  useEffect(() => {
-    setOverflowOpen(false);
-  }, [tab]);
 
   const load = async () => {
     try {
@@ -162,7 +104,6 @@ export function AdminPage() {
   };
 
   return <div className="min-h-screen surface-bg text-fg-secondary">
-    <div className="sticky top-0 z-30 glass border-b surface-border"><div className="px-4 py-2.5 flex items-center justify-between"><div className="flex items-center gap-3"><Link to="/admin" className="text-xs text-fg-muted hover:text-fg">← Control Center</Link><div><p className="text-[10px] text-accent font-semibold uppercase tracking-wide">SYKABELAJAR</p><h1 className="font-display font-bold text-base text-white">Core Admin</h1></div></div><Badge color="moss">ADMIN</Badge></div><div ref={tabNavRef} className="relative flex items-center gap-1 px-4 pb-2 overflow-visible">{tabs.filter(({ key }) => visibleTabKeys.includes(key)).map(({ key, label, icon: Icon }) => <button key={key} data-admin-tab={key} onClick={() => selectTab(key)} className={`flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${tab === key ? 'bg-moss-500/15 text-accent' : 'text-slate-500 hover:bg-surface-elevated/50 hover:text-fg-secondary'}`}><Icon size={14} />{label}</button>)}{visibleTabKeys.length < tabs.length && <div className="relative shrink-0"><button type="button" aria-label="Panel lainnya" title="Panel lainnya" onClick={() => setOverflowOpen(open => !open)} className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-surface-border bg-surface-card-bg text-xs font-semibold tracking-tight text-slate-400 hover:text-fg transition">&lt;/&gt;</button>{overflowOpen && <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-44 rounded-xl border surface-border bg-surface-elevated/95 p-1.5 shadow-xl backdrop-blur-xl">{tabs.filter(({ key }) => !visibleTabKeys.includes(key)).map(({ key, label, icon: Icon }) => <button key={key} type="button" onClick={() => { selectTab(key); setOverflowOpen(false); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-left transition ${tab === key ? 'bg-moss-500/15 text-accent' : 'text-slate-400 hover:bg-white/5 hover:text-fg-secondary'}`}><Icon size={14} />{label}</button>)}</div>}</div>}</div></div>
     <section className="p-4 md:p-6 max-w-7xl mx-auto"><div className="flex items-center justify-between mb-5"><div><h2 className="font-display text-xl font-bold text-fg">{tabs.find(t => t.key === tab)?.label}</h2><p className="text-[11px] text-slate-500 mt-0.5">Data live Supabase · aksi sensitif tervalidasi server</p></div></div>
       {tab === 'dashboard' && <AdminDashboard />}
       {tab === 'competitions' && <><div className="flex justify-end mb-3"><Button size="sm" icon={<Plus size={14}/>} onClick={() => setCompetitionEditor({ status: 'DRAFT', visibility: 'PUBLIC', category: 'Kompetisi' })}>Tambah Lomba</Button></div><div className="space-y-2">{competitions.map(c => <div key={c.id} className="group flex items-center gap-3 p-4 rounded-xl surface-card-bg border surface-border hover:border-moss-500/20 hover:surface-elevated transition-all cursor-pointer" onClick={() => setCompetitionEditor(c)}><div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center"><Trophy size={18} className="text-accent"/></div><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{c.title}</p><p className="text-[11px] text-slate-500">{c.slug} · {c.visibility}</p></div><select className="input w-40 text-xs" value={c.status} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();void transitionCompetitionAction(c.id,e.target.value)}} disabled={busy}>{competitionStatuses.map(s=><option key={s}>{s}</option>)}</select><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition"><button className="p-2 rounded-lg text-slate-400 hover:text-fg" onClick={e=>{e.stopPropagation();setCompetitionEditor(c)}}><Edit3 size={14}/></button><button className="p-2 rounded-lg text-red-400 hover:bg-red-500/10" onClick={e=>{e.stopPropagation();void removeRow('competition',c.id)}}><Trash2 size={14}/></button></div></div>)}{!competitions.length&&<Card className="p-8 text-center text-sm text-slate-500">Belum ada lomba.</Card>}</div></>}
