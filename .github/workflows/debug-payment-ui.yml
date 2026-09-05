@@ -1,0 +1,16 @@
+name: Debug payment UI source
+on: push
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect checkout render
+        shell: bash
+        run: |
+          echo '=== proof-related lines ==='
+          grep -n -E "selectedMethodNeedsProof|proofInputRef|Upload|chooseProof|proofFile|selectedPaymentMethodId|paymentMethods\.map" src/pages/OrganizerPlanPageV2.tsx || true
+          echo '=== admin payment form lines ==='
+          grep -n -E "randomCodeEnabled|Nama bank|Nomor rekening|Atas nama|Nama metode|Instruksi|Simpan Metode" src/pages/AdminPlanUsagePageV2.tsx || true
