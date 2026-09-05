@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -13,7 +12,6 @@ concurrency:
 
 permissions:
   contents: write
-  actions: write
 
 jobs:
   build:
@@ -28,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: One-shot repair Organizer checkout
+      - name: One-shot Organizer checkout repair
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[repair-checkout]')
         shell: bash
         run: |
@@ -39,8 +37,8 @@ jobs:
           p = Path('src/pages/OrganizerPlanPageV2.tsx')
           s = p.read_text()
 
+          pattern = re.compile(r"  async function checkVoucher\(\) \{.*?\n  \}\n\n  async function sendOrder\(\)", re.S)
           if "const alternateBilling: Billing = billing === 'MONTHLY' ? 'YEARLY' : 'MONTHLY';" not in s:
-              pattern = re.compile(r"  async function checkVoucher\(\) \{.*?\n  \}\n\n  async function sendOrder\(\)", re.S)
               replacement = '''  async function checkVoucher() {
     const code = voucherCode.trim().toUpperCase();
     if (!code) { setVoucherApplied(null); setVoucherMessage('Masukkan kode voucher terlebih dahulu.'); return; }
@@ -67,24 +65,25 @@ jobs:
               s, count = pattern.subn(replacement, s, count=1)
               if count != 1: raise SystemExit('checkVoucher block not found')
 
-          if 'data-testid="checkout-period-selector"' not in s:
-              anchor = '<p className="mt-1 text-xs text-fg-muted">Lengkapi data pemesan, pilih pembayaran, lihat total, lalu gunakan voucher bila ada.</p></div><button'
-              insert = '<p className="mt-1 text-xs text-fg-muted">Lengkapi data pemesan, pilih pembayaran, lihat total, lalu gunakan voucher bila ada.</p><div data-testid="checkout-period-selector" className="mt-3 inline-flex w-full rounded-xl border border-surface-border bg-surface-elevated/35 p-1"><button type="button" onClick={() => { setBilling(\'MONTHLY\'); setView(\'MONTHLY\'); setVoucherApplied(null); setVoucherMessage(\'\'); }} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${billing === \'MONTHLY\' ? \'bg-accent text-white shadow\' : \'text-fg-muted hover:text-fg\'}`}>Bulanan</button><button type="button" onClick={() => { setBilling(\'YEARLY\'); setView(\'YEARLY\'); setVoucherApplied(null); setVoucherMessage(\'\'); }} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${billing === \'YEARLY\' ? \'bg-accent text-white shadow\' : \'text-fg-muted hover:text-fg\'}`}>Tahunan</button></div></div><button'
-              if anchor not in s: raise SystemExit('checkout period anchor not found')
-              s = s.replace(anchor, insert, 1)
-
           s = s.replace('max-w-xl max-h-[84vh]', 'max-w-lg max-h-[78vh]', 1)
           s = s.replace('bg-surface p-5 shadow-2xl md:p-6', 'bg-surface p-4 shadow-2xl md:p-5', 1)
+
+          anchor = '<p className="mt-1 text-xs text-fg-muted">Lengkapi data pemesan, pilih pembayaran, lihat total, lalu gunakan voucher bila ada.</p></div><button'
+          if 'data-testid="checkout-period-selector"' not in s and anchor in s:
+              insert = '<p className="mt-1 text-xs text-fg-muted">Lengkapi data pemesan, pilih pembayaran, lihat total, lalu gunakan voucher bila ada.</p><div data-testid="checkout-period-selector" className="mt-3 inline-flex w-full rounded-xl border border-surface-border bg-surface-elevated/35 p-1"><button type="button" onClick={() => { setBilling(\'MONTHLY\'); setView(\'MONTHLY\'); setVoucherApplied(null); setVoucherMessage(\'\'); }} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${billing === \'MONTHLY\' ? \'bg-accent text-white shadow\' : \'text-fg-muted hover:text-fg\'}`}>Bulanan</button><button type="button" onClick={() => { setBilling(\'YEARLY\'); setView(\'YEARLY\'); setVoucherApplied(null); setVoucherMessage(\'\'); }} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${billing === \'YEARLY\' ? \'bg-accent text-white shadow\' : \'text-fg-muted hover:text-fg\'}`}>Tahunan</button></div></div><button'
+              s = s.replace(anchor, insert, 1)
+
           s = s.replace('text-lg font-black tracking-wider text-fg sm:text-xl', 'text-xl font-black tracking-wider text-fg sm:text-2xl', 1)
           s = s.replace('text-sm font-semibold text-fg-muted sm:text-base', 'text-base font-semibold text-fg sm:text-lg', 1)
 
           old_copy = '<button type="button" className="rounded-lg border border-surface-border p-1.5 text-fg-muted hover:text-fg" onClick={(event) => { event.stopPropagation(); void navigator.clipboard?.writeText(accountNumber); toast.success(\'Nomor rekening disalin.\'); }} aria-label="Salin nomor rekening"><Copy size={14}/></button>'
           new_copy = '<span role="button" tabIndex={0} className="cursor-pointer rounded-lg border border-surface-border p-1.5 text-fg-muted hover:text-fg" onClick={(event) => { event.stopPropagation(); void navigator.clipboard?.writeText(accountNumber); toast.success(\'Nomor rekening disalin.\'); }} onKeyDown={(event) => { if (event.key === \'Enter\' || event.key === \' \') { event.preventDefault(); event.stopPropagation(); void navigator.clipboard?.writeText(accountNumber); toast.success(\'Nomor rekening disalin.\'); } }} aria-label="Salin nomor rekening"><Copy size={14}/></span>'
-          s = s.replace(old_copy, new_copy, 1)
+          if old_copy in s: s = s.replace(old_copy, new_copy, 1)
 
           old_total = '<div className="mt-4 flex items-end justify-between border-t border-surface-border pt-4"><span className="font-semibold text-fg">Total pembayaran</span><span className={`text-3xl font-black ${selectedTotal === 0 ? \'text-emerald-300\' : \'text-fg\'}`}>{selectedTotal === 0 ? \'GRATIS\' : money(selectedTotal, paymentPlan.currency)}</span></div>'
           new_total = '<div className="mt-4 border-t border-surface-border pt-4">{selectedRandomEnabled && <div className="mb-2 flex items-center justify-between text-sm"><span className="text-fg-muted">Kode unik</span><span className="font-black tracking-wider text-emerald-300">{String(paymentRandomCode).padStart(3, \'0\')}</span></div>}<div className="flex items-end justify-between"><span className="font-semibold text-fg">Total pembayaran</span><span className={`text-3xl font-black ${selectedTotal === 0 ? \'text-emerald-300\' : \'text-fg\'}`}>{selectedTotal === 0 ? \'GRATIS\' : money(paymentTransferTotal, paymentPlan.currency)}</span></div></div>'
           if old_total in s: s = s.replace(old_total, new_total, 1)
+
           p.write_text(s)
           PY
 
@@ -137,24 +136,22 @@ jobs:
       - name: Production smoke test
         run: node scripts/rpd-smoke.mjs
 
-      - name: Cleanup repair step from CI workflow
+      - name: Restore CI workflow after one-shot repair
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[repair-checkout]')
         shell: bash
         run: |
-          git fetch origin main
-          git checkout -B main origin/main
           python3 - <<'PY'
           from pathlib import Path
           import re
           p = Path('.github/workflows/deploy.yml')
           s = p.read_text()
-          block = re.compile(r'\n      - name: One-shot repair Organizer checkout.*?\n      - name: Verify Supabase production target', re.S)
+          block = re.compile(r'\n      - name: One-shot Organizer checkout repair.*?\n      - name: Verify Supabase production target', re.S)
           s, count = block.subn('\n      - name: Verify Supabase production target', s, count=1)
-          if count != 1: raise SystemExit('repair step block not found')
+          if count != 1: raise SystemExit('repair step not found during cleanup')
+          s = s.replace('\npermissions:\n  contents: write\n', '\n', 1)
           p.write_text(s)
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/workflows/deploy.yml
-          git diff --cached --quiet || { git commit -m "chore: cleanup one-shot checkout repair"; git push origin HEAD:main; }
-          gh workflow run deploy.yml --ref main
+          git diff --cached --quiet || { git commit -m "chore: cleanup checkout repair"; git push origin HEAD:main; }
