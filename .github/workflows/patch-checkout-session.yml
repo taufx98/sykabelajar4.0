@@ -1,0 +1,86 @@
+name: Patch checkout session isolation
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore(ci): apply checkout session isolation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch checkout state isolation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('src/pages/OrganizerPlanPageV2.tsx')
+          s = p.read_text()
+
+          marker = "  const proofInputRef = useRef<HTMLInputElement | null>(null);"
+          if marker not in s:
+              raise SystemExit('ref marker not found')
+          if 'const checkoutSessionRef = useRef(0);' not in s:
+              s = s.replace(marker, marker + "\n  const checkoutSessionRef = useRef(0);\n  const voucherValidationSeqRef = useRef(0);", 1)
+
+          old = "  const selectedMethod = paymentMethods.find((method) => method.id === selectedPaymentMethodId) ?? null;\n  const selectedMethodNeedsProof = !!selectedMethod && !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(selectedMethod.payment_type).toUpperCase());\n  const showProofUpload = selectedTotal > 0 && selectedMethodNeedsProof;"
+          new = "  const selectedMethod = paymentMethods.find((method) => method.id === selectedPaymentMethodId) ?? null;\n  const selectedMethodType = String(selectedMethod?.payment_type ?? '').trim().toUpperCase();\n  const selectedMethodNeedsProof = !!selectedMethod && !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(selectedMethodType);\n  const hasManualPaymentMethod = paymentMethods.some((method) => !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(method.payment_type ?? '').trim().toUpperCase()));\n  const showProofUpload = selectedTotal > 0 && (selectedMethodNeedsProof || (!selectedMethod && hasManualPaymentMethod));"
+          if old not in s:
+              raise SystemExit('proof condition not found')
+          s = s.replace(old, new, 1)
+
+          old_open = "  function openPayment(row: OrganizerPlanCatalogRow) { if (row.plan_code === 'FREE') { toast.info('Paket Gratis tidak memerlukan checkout.'); return; } const initial: Record<string, string> = {};"
+          new_open = "  function openPayment(row: OrganizerPlanCatalogRow) { if (row.plan_code === 'FREE') { toast.info('Paket Gratis tidak memerlukan checkout.'); return; } checkoutSessionRef.current += 1; voucherValidationSeqRef.current += 1; const initial: Record<string, string> = {};"
+          if old_open not in s:
+              raise SystemExit('openPayment target not found')
+          s = s.replace(old_open, new_open, 1)
+
+          old_close = "  function closePayment() { if (sending) return; setPaymentOpen(false); setPaymentPlan(null);"
+          new_close = "  function closePayment() { if (sending) return; checkoutSessionRef.current += 1; voucherValidationSeqRef.current += 1; setPaymentOpen(false); setPaymentPlan(null);"
+          if old_close not in s:
+              raise SystemExit('closePayment target not found')
+          s = s.replace(old_close, new_close, 1)
+
+          old_check = "  async function checkVoucher() { const code = voucherCode.trim().toUpperCase(); if (!code) { setVoucherApplied(null); setVoucherMessage('Masukkan kode voucher terlebih dahulu.'); return; } if (!paymentPlan) return; setVoucherChecking(true); setVoucherApplied(null); setVoucherMessage('Memeriksa voucher…'); try { let result = await validateOrganizerVoucher(code, paymentPlan.plan_code, billing);"
+          new_check = "  async function checkVoucher() { const code = voucherCode.trim().toUpperCase(); if (!code) { voucherValidationSeqRef.current += 1; setVoucherApplied(null); setVoucherMessage('Masukkan kode voucher terlebih dahulu.'); return; } if (!paymentPlan) return; const requestSeq = ++voucherValidationSeqRef.current; const checkoutSession = checkoutSessionRef.current; setVoucherChecking(true); setVoucherApplied(null); setVoucherMessage('Memeriksa voucher…'); try { let result = await validateOrganizerVoucher(code, paymentPlan.plan_code, billing);"
+          if old_check not in s:
+              raise SystemExit('checkVoucher target not found')
+          s = s.replace(old_check, new_check, 1)
+
+          old_after = "    if (!result.isValid) { setVoucherMessage(result.message || 'Voucher tidak dapat digunakan.'); return; }"
+          new_after = "    if (requestSeq !== voucherValidationSeqRef.current || checkoutSession !== checkoutSessionRef.current) return;\n    if (!result.isValid) { setVoucherMessage(result.message || 'Voucher tidak dapat digunakan.'); return; }"
+          if old_after not in s:
+              raise SystemExit('voucher result target not found')
+          s = s.replace(old_after, new_after, 1)
+
+          old_change = "onChange={(e) => { setVoucherCode(e.target.value.toUpperCase()); setVoucherApplied(null); setVoucherMessage(''); }}"
+          new_change = "onChange={(e) => { voucherValidationSeqRef.current += 1; setVoucherCode(e.target.value.toUpperCase()); setVoucherApplied(null); setVoucherMessage(''); }}"
+          if old_change not in s:
+              raise SystemExit('voucher input target not found')
+          s = s.replace(old_change, new_change, 1)
+
+          p.write_text(s)
+          wf = Path('.github/workflows/patch-checkout-session.yml')
+          PY
+
+      - name: Verify source patch
+        run: |
+          grep -q "checkoutSessionRef" src/pages/OrganizerPlanPageV2.tsx
+          grep -q "voucherValidationSeqRef" src/pages/OrganizerPlanPageV2.tsx
+          grep -q "hasManualPaymentMethod" src/pages/OrganizerPlanPageV2.tsx
+
+      - name: Commit source patch and remove helper
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/OrganizerPlanPageV2.tsx
+          git rm -f .github/workflows/patch-checkout-session.yml
+          git commit -m 'fix(payment): isolate organizer checkout sessions'
+          git push
