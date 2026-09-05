@@ -43,14 +43,30 @@ export function AdminPage() {
     const nav = tabNavRef.current;
     if (!nav) return;
     const measure = () => {
-      const buttons = Array.from(nav.querySelectorAll<HTMLElement>('[data-admin-tab]'));
-      if (!buttons.length) return;
+      const probe = document.createElement('div');
+      probe.className = 'absolute invisible pointer-events-none flex items-center gap-1';
+      probe.style.width = 'max-content';
+      probe.style.left = '-9999px';
+      probe.style.top = '0';
+      document.body.appendChild(probe);
+      const widths = tabs.map(({ key, label, icon: Icon }) => {
+        const button = document.createElement('button');
+        button.className = 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap';
+        const icon = document.createElement('span');
+        icon.style.width = '14px';
+        icon.style.height = '14px';
+        icon.style.display = 'inline-block';
+        button.appendChild(icon);
+        button.appendChild(document.createTextNode(label));
+        probe.appendChild(button);
+        return { key, width: button.offsetWidth };
+      });
       const gap = 4;
       const available = nav.clientWidth;
-      const widths = buttons.map(button => ({ key: button.dataset.adminTab as CoreAdminTab, width: button.offsetWidth }));
       const total = widths.reduce((sum, item) => sum + item.width, 0) + Math.max(0, widths.length - 1) * gap;
       if (total <= available) {
         setVisibleTabKeys(tabs.map(item => item.key));
+        document.body.removeChild(probe);
         return;
       }
       const overflowButtonWidth = 40;
@@ -65,6 +81,7 @@ export function AdminPage() {
       }
       if (!next.includes(tab) && next.length) next[next.length - 1] = tab;
       setVisibleTabKeys(Array.from(new Set(next)));
+      document.body.removeChild(probe);
     };
     measure();
     const observer = new ResizeObserver(measure);
