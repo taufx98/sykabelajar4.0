@@ -1,0 +1,38 @@
+name: Apply Admin Nav Measure Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-admin-nav-measure-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix responsive measurement
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src/pages/AdminPage.tsx';
+          let s = fs.readFileSync(path, 'utf8');
+          const start = s.indexOf('  useEffect(() => {\n    const nav = tabNavRef.current;');
+          const end = s.indexOf('  }, [tab]);', start);
+          if (start < 0 || end < 0) throw new Error('Responsive tab effect not found');
+          const effectEnd = end + '  }, [tab]);'.length;
+          const replacement = `  useEffect(() => {\n    const nav = tabNavRef.current;\n    if (!nav) return;\n    const measure = () => {\n      const probe = document.createElement('div');\n      probe.className = 'absolute invisible pointer-events-none flex items-center gap-1';\n      probe.style.width = 'max-content';\n      probe.style.left = '-9999px';\n      probe.style.top = '0';\n      document.body.appendChild(probe);\n      const widths = tabs.map(({ key, label, icon: Icon }) => {\n        const button = document.createElement('button');\n        button.className = 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap';\n        const icon = document.createElement('span');\n        icon.style.width = '14px';\n        icon.style.height = '14px';\n        icon.style.display = 'inline-block';\n        button.appendChild(icon);\n        button.appendChild(document.createTextNode(label));\n        probe.appendChild(button);\n        return { key, width: button.offsetWidth };\n      });\n      const gap = 4;\n      const available = nav.clientWidth;\n      const total = widths.reduce((sum, item) => sum + item.width, 0) + Math.max(0, widths.length - 1) * gap;\n      if (total <= available) {\n        setVisibleTabKeys(tabs.map(item => item.key));\n        document.body.removeChild(probe);\n        return;\n      }\n      const overflowButtonWidth = 40;\n      const budget = Math.max(0, available - overflowButtonWidth - gap);\n      const next: CoreAdminTab[] = [];\n      let used = 0;\n      for (const item of widths) {\n        const nextUsed = used + item.width + (next.length ? gap : 0);\n        if (nextUsed > budget) break;\n        next.push(item.key);\n        used = nextUsed;\n      }\n      if (!next.includes(tab) && next.length) next[next.length - 1] = tab;\n      setVisibleTabKeys(Array.from(new Set(next)));\n      document.body.removeChild(probe);\n    };\n    measure();\n    const observer = new ResizeObserver(measure);\n    observer.observe(nav);\n    window.addEventListener('resize', measure);\n    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };\n  }, [tab]);`;
+          s = s.slice(0, start) + replacement + s.slice(effectEnd);
+          fs.writeFileSync(path, s);
+          NODE
+      - name: Commit patch and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/AdminPage.tsx
+          git rm .github/workflows/apply-admin-nav-measure-fix.yml
+          git commit -m "fix(admin): restore hidden tabs after resize"
+          git push
