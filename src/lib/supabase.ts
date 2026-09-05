@@ -2,41 +2,18 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { env } from './env';
 
 let _client: SupabaseClient | null = null;
-const blockedRpcRequests = new Set<string>();
-const PERSISTED_BLOCKS_KEY = 'syka.rpc-circuit-breaker.v2';
-const PERSISTED_BLOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
-type PersistedBlock = { failedAt: number };
-type PersistedBlocks = Record<string, PersistedBlock>;
+const RPC_RETRY_DELAY_MS = 250;
 
-function loadPersistedBlocks(): PersistedBlocks {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(PERSISTED_BLOCKS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as PersistedBlocks;
-    const now = Date.now();
-    const valid = Object.fromEntries(Object.entries(parsed).filter(([, value]) => value && now - Number(value.failedAt) < PERSISTED_BLOCK_TTL_MS));
-    if (Object.keys(valid).length !== Object.keys(parsed).length) window.localStorage.setItem(PERSISTED_BLOCKS_KEY, JSON.stringify(valid));
-    return valid;
-  } catch {
-    return {};
-  }
-}
+type RpcErrorWithCode = Error & { code?: string; details?: string; hint?: string };
 
-function persistBlockedRequest(key: string) {
+function clearRpcCircuitBreakerStorage() {
   if (typeof window === 'undefined') return;
   try {
-    const blocks = loadPersistedBlocks();
-    blocks[key] = { failedAt: Date.now() };
-    window.localStorage.setItem(PERSISTED_BLOCKS_KEY, JSON.stringify(blocks));
+    window.localStorage.removeItem('syka.rpc-circuit-breaker.v2');
   } catch {
-    // Browser storage may be unavailable; in-memory blocking still applies.
+    // Browser storage may be unavailable.
   }
-}
-
-function isPersistentlyBlocked(key: string) {
-  return Boolean(loadPersistedBlocks()[key]);
 }
 
 function clearStaleAuthStorage() {
@@ -85,45 +62,52 @@ function initClient(): SupabaseClient {
   return _client;
 }
 
-function stableRpcKey(rpcName: string, args: any[]) {
+function normalizeRpcError(error: unknown): RpcErrorWithCode {
+  if (error instanceof Error) return error as RpcErrorWithCode;
+  return new Error(typeof error === 'string' ? error : 'Request RPC gagal.') as RpcErrorWithCode;
+}
+
+function isRetryableRpcError(error: unknown) {
+  const normalized = normalizeRpcError(error);
+  const code = String(normalized.code ?? '');
+  const message = normalized.message.toLowerCase();
+
+  return code === 'BACKEND_RPC_BLOCKED'
+    || message.includes('permintaan identik diblokir')
+    || message.includes('failed to fetch')
+    || message.includes('network request failed');
+}
+
+async function callRpcWithRecovery(client: SupabaseClient, rpcName: string, args: any) {
+  clearRpcCircuitBreakerStorage();
+
+  let result: any;
   try {
-    return `${rpcName}:${JSON.stringify(args)}`;
-  } catch {
-    return `${rpcName}:__unserializable__`;
-  }
-}
-
-function blockedRpcError(rpcName: string) {
-  const error = new Error(`Request RPC "${rpcName}" yang sama sebelumnya gagal. Permintaan identik diblokir sampai halaman dimuat ulang atau payload berubah.`);
-  (error as Error & { code?: string }).code = 'BACKEND_RPC_BLOCKED';
-  return error;
-}
-
-function markBlocked(key: string) {
-  blockedRpcRequests.add(key);
-  persistBlockedRequest(key);
-}
-
-function guardedRpc(client: SupabaseClient, rpcName: string, ...args: any[]) {
-  const key = stableRpcKey(rpcName, args);
-  if (blockedRpcRequests.has(key) || isPersistentlyBlocked(key)) {
-    blockedRpcRequests.add(key);
-    return Promise.resolve({ data: null, error: blockedRpcError(rpcName) });
+    result = await (client as any).rpc(rpcName, args);
+  } catch (error) {
+    result = { data: null, error };
   }
 
-  return Promise.resolve((client as any).rpc(rpcName, ...args)).then((result: any) => {
-    if (result?.error) markBlocked(key);
-    return result;
-  }).catch((error: unknown) => {
-    markBlocked(key);
+  if (!result?.error) return result;
+  if (!isRetryableRpcError(result.error)) return result;
+
+  // A previous frontend circuit-breaker entry can be stale after the backend/RPC
+  // changes. Give the backend one fresh attempt without requiring a page reload.
+  await new Promise((resolve) => window.setTimeout(resolve, RPC_RETRY_DELAY_MS));
+
+  try {
+    return await (client as any).rpc(rpcName, args);
+  } catch (error) {
     return { data: null, error };
-  });
+  }
 }
 
 export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = initClient();
-    if (prop === 'rpc') return (rpcName: string, ...args: any[]) => guardedRpc(client, rpcName, ...args);
+    if (prop === 'rpc') {
+      return (rpcName: string, ...args: any[]) => callRpcWithRecovery(client, rpcName, args[0]);
+    }
     const value = (client as any)[prop];
     return typeof value === 'function' ? value.bind(client) : value;
   },
