@@ -1,0 +1,45 @@
+name: Apply admin navigation shell
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch AppLayout once
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/layout/AppLayout.tsx')
+          s = p.read_text()
+          anchor = "import { ThemeToggle } from '@/components/ui/ThemeToggle';"
+          import_line = "import { AdminModuleNav, shouldShowAdminModuleNav } from '@/components/admin/AdminModuleNav';"
+          if import_line not in s:
+              s = s.replace(anchor, anchor + "\n" + import_line, 1)
+          old = '<main className="flex-1 min-w-0 pt-14 md:pt-0 pb-16 md:pb-0 surface-bg"><Outlet/></main>'
+          new = '<main className="flex-1 min-w-0 pt-14 md:pt-0 pb-16 md:pb-0 surface-bg">{isAdmin && shouldShowAdminModuleNav(location.pathname) && <AdminModuleNav />}<Outlet/></main>'
+          if old not in s:
+              raise SystemExit('Expected AppLayout main marker not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/layout/AppLayout.tsx
+          git diff --cached --check
+          git diff --cached --quiet && exit 0 || git commit -m "fix(admin): mount shared navigation in app shell"
+          git push
+      - name: Remove helper workflow
+        run: |
+          git rm .github/workflows/apply-admin-nav-shell.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(admin): remove nav shell helper"
+          git push
