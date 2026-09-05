@@ -19,6 +19,8 @@ Temporary `.tmp` artifacts and superseded page copies were removed where depende
 
 The production public RPC surface was consolidated so active application callers use stable names rather than version suffixes. The remaining `get_home_snapshot_v1` was also promoted to `get_home_snapshot`.
 
+Production verification confirmed no remaining public RPC names with `_v1`, `_v2`, `_v3`, `_v4_*`, or `_v6` suffixes in the audited set.
+
 Database changes were applied to production first and verified afterward. Migration history remains append-only; historical migration filenames are not rewritten.
 
 ## Preserved infrastructure
