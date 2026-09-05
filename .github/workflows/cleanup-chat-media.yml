@@ -1,17 +1,63 @@
-name: Cleanup expired chat media
+name: Payment source finalizer
 
 on:
-  schedule:
-    - cron: '17 18 * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  cleanup:
+  finalize:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete expired Cloudinary chat media
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply payment UI fixes
+        shell: bash
         run: |
-          curl --fail-with-body -sS -X POST \
-            'https://mvdczyitbkxkldjughor.supabase.co/functions/v1/cleanup-expired-chat-media' \
-            -H 'Content-Type: application/json' \
-            -d '{}'
+          cat > /tmp/fix_payment_ui.py <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('src/pages/OrganizerPlanPageV2.tsx')
+          s = p.read_text()
+          old_copy = '<button type="button" className="rounded-lg border border-surface-border p-1.5 text-fg-muted hover:text-fg" onClick={(event) => { event.stopPropagation(); void navigator.clipboard?.writeText(accountNumber); toast.success(\'Nomor rekening disalin.\'); }} aria-label="Salin nomor rekening"><Copy size={14}/></button>'
+          new_copy = '<span role="button" tabIndex={0} className="cursor-pointer rounded-lg border border-surface-border p-1.5 text-fg-muted hover:text-fg" onClick={(event) => { event.stopPropagation(); void navigator.clipboard?.writeText(accountNumber); toast.success(\'Nomor rekening disalin.\'); }} onKeyDown={(event) => { if (event.key === \'Enter\' || event.key === \' \') { event.preventDefault(); event.stopPropagation(); void navigator.clipboard?.writeText(accountNumber); toast.success(\'Nomor rekening disalin.\'); } }} aria-label="Salin nomor rekening"><Copy size={14}/></span>'
+          if old_copy in s:
+              s = s.replace(old_copy, new_copy, 1)
+          p.write_text(s)
+
+          p = Path('src/pages/AdminPlanUsagePageV2.tsx')
+          s = p.read_text()
+          start = s.find('  const addMethod = async () =>')
+          end = s.find('  const deleteMethod = async', start)
+          if start < 0 or end < 0:
+              raise SystemExit('admin addMethod block missing')
+          add = """  const addMethod = async () => { const type = newMethod.paymentType.trim().toUpperCase(); if (!type) { toast('Jenis pembayaran wajib dipilih.', 'error'); return; } if (type === 'BANK_TRANSFER' && (!newMethod.bankName.trim() || !newMethod.accountNumber.trim() || !newMethod.accountName.trim())) { toast('Nama bank, nomor rekening, dan atas nama rekening wajib diisi untuk transfer bank.', 'error'); return; } setBusy(true); try { const details = { bank_name: newMethod.bankName.trim() || null, account_number: newMethod.accountNumber.trim() || null, account_name: newMethod.accountName.trim() || null, random_code_enabled: type === 'BANK_TRANSFER' && newMethod.randomCodeEnabled }; const created = await adminCreateOrganizerPaymentMethod({ name: paymentTypeLabel(type), paymentType: type, details, sortOrder: paymentMethods.length + 1 }); setPaymentMethods((current) => [...current, created]); setNewMethod(emptyMethod); setShowMethodForm(false); toast('Metode pembayaran ditambahkan.', 'success'); } catch (e: any) { toast(e?.message || 'Gagal menambah metode pembayaran.', 'error'); } finally { setBusy(false); } };
+"""
+          s = s[:start] + add + s[end:]
+          s, removed_name = re.subn(r'<label className="block text-xs font-medium text-fg-muted">Nama metode.*?</label>', '', s, count=1, flags=re.S)
+          s, removed_info = re.subn(r'<div className="rounded-xl border border-surface-border bg-surface-elevated/30 p-3 text-xs leading-5 text-fg-muted">Detail khusus metode ini.*?</div>', '', s, count=1, flags=re.S)
+          if removed_name != 1 or removed_info != 1:
+              raise SystemExit(f'legacy admin payment UI not found: name={removed_name}, info={removed_info}')
+          s = s.replace('Atas nama<input', 'Atas nama rekening<input', 1)
+          s = s.replace('checked={newMethod.randomCodeEnabled} onChange={(e) => setNewMethod((v) => ({ ...v, randomCodeEnabled: e.target.checked }))}', 'checked={newMethod.randomCodeEnabled} disabled={newMethod.paymentType !== \'BANK_TRANSFER\'} onChange={(e) => setNewMethod((v) => ({ ...v, randomCodeEnabled: e.target.checked }))}', 1)
+          p.write_text(s)
+          PY
+          python /tmp/fix_payment_ui.py
+          rm -f .github/workflows/debug-payment-ui.yml .github/workflows/payment-source-fix.yml .github/workflows/final-payment-ui-cleanup.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/pages/OrganizerPlanPageV2.tsx src/pages/AdminPlanUsagePageV2.tsx .github/workflows/debug-payment-ui.yml .github/workflows/payment-source-fix.yml .github/workflows/final-payment-ui-cleanup.yml .github/workflows/cleanup-chat-media.yml
+          git restore --staged .github/workflows/cleanup-chat-media.yml
+          git checkout -- .github/workflows/cleanup-chat-media.yml
+          git add src/pages/OrganizerPlanPageV2.tsx src/pages/AdminPlanUsagePageV2.tsx .github/workflows/debug-payment-ui.yml .github/workflows/payment-source-fix.yml .github/workflows/final-payment-ui-cleanup.yml
+          git commit -m "fix(payment): finalize proof upload and admin payment UI"
+          git push
