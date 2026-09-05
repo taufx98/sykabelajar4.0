@@ -1,0 +1,64 @@
+name: Apply Admin Nav Overflow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-admin-nav-overflow.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch Admin navigation
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src/pages/AdminPage.tsx';
+          let s = fs.readFileSync(path, 'utf8');
+
+          s = s.replace(
+            "import { useEffect, useMemo, useState } from 'react';",
+            "import { useEffect, useMemo, useRef, useState } from 'react';"
+          );
+
+          s = s.replace(
+            "import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3 } from 'lucide-react';",
+            "import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3 } from 'lucide-react';"
+          );
+
+          s = s.replace(
+            "  const [usernameEditor, setUsernameEditor] = useState<any | null>(null);\n",
+            "  const [usernameEditor, setUsernameEditor] = useState<any | null>(null);\n  const [visibleTabKeys, setVisibleTabKeys] = useState<CoreAdminTab[]>(tabs.map(t => t.key));\n  const [overflowOpen, setOverflowOpen] = useState(false);\n  const tabNavRef = useRef<HTMLDivElement | null>(null);\n"
+          );
+
+          s = s.replace(
+            "  useEffect(() => { if (requestedTab && tabs.some(t => t.key === requestedTab)) setTab(requestedTab); }, [requestedTab]);\n",
+            "  useEffect(() => { if (requestedTab && tabs.some(t => t.key === requestedTab)) setTab(requestedTab); }, [requestedTab]);\n\n  useEffect(() => {\n    const nav = tabNavRef.current;\n    if (!nav) return;\n    const measure = () => {\n      const buttons = Array.from(nav.querySelectorAll<HTMLElement>('[data-admin-tab]'));\n      if (!buttons.length) return;\n      const gap = 4;\n      const available = nav.clientWidth;\n      const widths = buttons.map(button => ({ key: button.dataset.adminTab as CoreAdminTab, width: button.offsetWidth }));\n      const total = widths.reduce((sum, item) => sum + item.width, 0) + Math.max(0, widths.length - 1) * gap;\n      if (total <= available) {\n        setVisibleTabKeys(tabs.map(item => item.key));\n        return;\n      }\n      const overflowButtonWidth = 40;\n      const budget = Math.max(0, available - overflowButtonWidth - gap);\n      const next: CoreAdminTab[] = [];\n      let used = 0;\n      for (const item of widths) {\n        const nextUsed = used + item.width + (next.length ? gap : 0);\n        if (nextUsed > budget) break;\n        next.push(item.key);\n        used = nextUsed;\n      }\n      if (!next.includes(tab) && next.length) next[next.length - 1] = tab;\n      setVisibleTabKeys(Array.from(new Set(next)));\n    };\n    measure();\n    const observer = new ResizeObserver(measure);\n    observer.observe(nav);\n    window.addEventListener('resize', measure);\n    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };\n  }, [tab]);\n\n  useEffect(() => {\n    setOverflowOpen(false);\n  }, [tab]);\n"
+          );
+
+          const oldNav = '<div className="flex gap-1 px-4 pb-2 overflow-x-auto no-scrollbar">{tabs.map(({ key, label, icon: Icon }) => <button key={key} onClick={() => selectTab(key)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition ${tab === key ? \'bg-moss-500/15 text-accent\' : \'text-slate-500 hover:bg-surface-elevated/50 hover:text-fg-secondary\'}`}><Icon size={15} />{label}</button>)}</div>';
+          const newNav = '<div ref={tabNavRef} className="relative flex items-center gap-1 px-4 pb-2 overflow-visible">{tabs.filter(({ key }) => visibleTabKeys.includes(key)).map(({ key, label, icon: Icon }) => <button key={key} data-admin-tab={key} onClick={() => selectTab(key)} className={`flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${tab === key ? \'bg-moss-500/15 text-accent\' : \'text-slate-500 hover:bg-surface-elevated/50 hover:text-fg-secondary\'}`}><Icon size={14} />{label}</button>)}{visibleTabKeys.length < tabs.length && <div className="relative shrink-0"><button type="button" aria-label="Panel lainnya" title="Panel lainnya" onClick={() => setOverflowOpen(open => !open)} className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-surface-border bg-surface-card-bg text-xs font-semibold tracking-tight text-slate-400 hover:text-fg transition">&lt;/&gt;</button>{overflowOpen && <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-44 rounded-xl border surface-border bg-surface-elevated/95 p-1.5 shadow-xl backdrop-blur-xl">{tabs.filter(({ key }) => !visibleTabKeys.includes(key)).map(({ key, label, icon: Icon }) => <button key={key} type="button" onClick={() => { selectTab(key); setOverflowOpen(false); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-left transition ${tab === key ? \'bg-moss-500/15 text-accent\' : \'text-slate-400 hover:bg-white/5 hover:text-fg-secondary\'}`}><Icon size={14} />{label}</button>)}</div>}</div>}</div>';
+          if (!s.includes(oldNav)) throw new Error('Expected admin navigation block not found');
+          s = s.replace(oldNav, newNav);
+
+          s = s.replace(
+            '<div className="sticky top-0 z-30 glass border-b surface-border"><div className="px-4 py-3 flex items-center justify-between">',
+            '<div className="sticky top-0 z-30 glass border-b surface-border"><div className="px-4 py-2.5 flex items-center justify-between">'
+          );
+
+          fs.writeFileSync(path, s);
+          NODE
+
+      - name: Commit and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/AdminPage.tsx .github/workflows/apply-admin-nav-overflow.yml
+          git commit -m "feat(admin): add top navigation overflow" || exit 0
+          git push
