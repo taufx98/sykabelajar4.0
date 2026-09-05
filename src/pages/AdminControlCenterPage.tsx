@@ -1,7 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Building2, MessageCircle, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, CreditCard, Banknote } from 'lucide-react';
-import { Card } from '@/components/ui/Card';
+import { ChevronLeft, ChevronRight, LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Building2, MessageCircle, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, CreditCard, Banknote } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 
@@ -26,10 +25,56 @@ const MODULES: AdminModule[] = [
   { title: 'Role & Akses', description: 'Atur role detail dan otorisasi admin.', path: '/admin/roles', icon: ShieldCheck },
 ];
 
+function AdminModuleNav() {
+  const navRef = useRef<HTMLDivElement | null>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const updateEdges = () => {
+    const node = navRef.current;
+    if (!node) return;
+    setCanLeft(node.scrollLeft > 4);
+    setCanRight(node.scrollLeft + node.clientWidth < node.scrollWidth - 4);
+  };
+
+  useEffect(() => {
+    updateEdges();
+    const node = navRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(node);
+    window.addEventListener('resize', updateEdges);
+    return () => { observer.disconnect(); window.removeEventListener('resize', updateEdges); };
+  }, []);
+
+  const scroll = (direction: 'left' | 'right') => {
+    const node = navRef.current;
+    if (!node) return;
+    node.scrollBy({ left: direction === 'right' ? Math.max(220, node.clientWidth * 0.72) : -Math.max(220, node.clientWidth * 0.72), behavior: 'smooth' });
+    window.setTimeout(updateEdges, 250);
+  };
+
+  return <div className="border-y surface-border bg-surface-elevated/20">
+    <div className="mx-auto flex max-w-7xl items-center gap-1 px-3 py-1.5 md:px-6">
+      {canLeft && <button type="button" aria-label="Panel sebelumnya" onClick={() => scroll('left')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border surface-border bg-surface-card-bg text-slate-400 transition hover:text-fg"><ChevronLeft size={16}/></button>}
+      <div ref={navRef} onScroll={updateEdges} className="flex min-w-0 flex-1 gap-1 overflow-x-auto no-scrollbar scroll-smooth">
+        <Link to="/admin" className="flex shrink-0 items-center gap-1.5 rounded-lg bg-moss-500/15 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-moss-500/20"><LayoutDashboard size={14}/>Dashboard</Link>
+        {MODULES.map(({ title, path, icon: Icon, badge }) => <Link key={title} to={path} className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-white/5 hover:text-fg-secondary"><Icon size={14}/><span>{title}</span>{badge && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold text-accent">{badge}</span>}</Link>)}
+      </div>
+      {canRight && <button type="button" aria-label="Panel berikutnya" onClick={() => scroll('right')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border surface-border bg-surface-card-bg text-slate-400 transition hover:text-fg"><ChevronRight size={16}/></button>}
+    </div>
+  </div>;
+}
+
 export function AdminControlCenterPage() {
-  const groups = useMemo(() => ({ operasi: MODULES.slice(0, 7), platform: MODULES.slice(7, 12), akses: MODULES.slice(12) }), []);
+  const _groups = useMemo(() => MODULES.length, []);
   return <div className="min-h-screen surface-bg text-fg-secondary">
-    <header className="sticky top-0 z-30 glass border-b surface-border"><div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between"><div className="flex items-center gap-3 min-w-0"><Link to="/home" className="text-xs text-fg-muted hover:text-fg shrink-0">← Kembali</Link><div className="min-w-0"><p className="text-[10px] text-accent font-semibold uppercase tracking-[0.16em]">SYKABELAJAR</p><h1 className="font-display text-xl font-bold text-fg truncate">Panel Admin</h1></div></div><Badge color="moss">ADMIN</Badge></div></header>
-    <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6"><section><p className="text-xs text-accent font-semibold uppercase tracking-wide">Control Center</p><h2 className="font-display text-2xl md:text-3xl font-bold text-fg mt-1">Pusat Kendali Platform</h2><p className="text-sm text-fg-muted mt-2 max-w-3xl">Semua modul administrasi berada dalam satu pusat kendali dengan alur yang konsisten dan tetap menggunakan design system SykaBelajar.</p></section><section><AdminDashboard /></section>{(['operasi','platform','akses'] as const).map(group=><section key={group}><div className="flex items-center gap-2 mb-3"><h3 className="text-sm font-semibold text-fg">{group==='operasi'?'Operasional Utama':group==='platform'?'Platform & Konten':'Akses, Paket & Keamanan'}</h3><span className="h-px flex-1 bg-white/5"/></div><div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">{groups[group].map(({title,description,path,icon:Icon,badge})=><Link key={title} to={path} className="group"><Card hover className="h-full p-4 md:p-5 transition-colors"><div className="flex items-start gap-3"><div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center shrink-0 group-hover:bg-moss-500/15"><Icon size={19} className="text-accent"/></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h4 className="text-sm font-semibold text-fg group-hover:text-accent truncate">{title}</h4>{badge&&<Badge color="info">{badge}</Badge>}</div><p className="text-[11px] leading-relaxed text-fg-muted mt-1.5">{description}</p></div><span className="text-fg-muted group-hover:text-accent text-lg">→</span></div></Card></Link>)}</div></section>)}<section className="rounded-xl border border-amber-500/15 bg-amber-500/5 p-4"><p className="text-xs font-semibold text-amber-300">Aturan Admin</p><p className="text-[11px] text-fg-muted mt-1">Aksi sensitif divalidasi backend/RLS. UI hanya mengirim aksi, sementara Supabase menentukan hasil akhirnya.</p></section></main>
+    <header className="sticky top-0 z-30 glass border-b surface-border"><div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between"><div className="flex items-center gap-3 min-w-0"><Link to="/home" className="text-xs text-fg-muted hover:text-fg shrink-0">← Kembali</Link><div className="min-w-0"><p className="text-[10px] text-accent font-semibold uppercase tracking-[0.16em]">SYKABELAJAR</p><h1 className="font-display text-lg font-bold text-fg truncate">Panel Admin</h1></div></div><Badge color="moss">ADMIN</Badge></div><AdminModuleNav /></header>
+    <main className="max-w-7xl mx-auto px-4 py-4 md:px-6 md:py-5">
+      <section className="mb-4"><p className="text-[11px] text-accent font-semibold uppercase tracking-[0.16em]">Control Center</p><h2 className="font-display text-xl md:text-2xl font-bold text-fg mt-1">Pusat Kendali Platform</h2><p className="text-xs md:text-sm text-fg-muted mt-1.5 max-w-3xl">Semua modul administrasi berada dalam satu pusat kendali dengan alur yang konsisten.</p></section>
+      <section><AdminDashboard /></section>
+      <div className="mt-4 rounded-xl border border-amber-500/15 bg-amber-500/5 px-4 py-3"><div className="flex items-center gap-2"><ShieldCheck size={14} className="text-amber-300"/><p className="text-xs font-semibold text-amber-300">Aturan Admin</p></div><p className="text-[11px] text-fg-muted mt-1">Aksi sensitif divalidasi backend/RLS. UI hanya mengirim aksi, sementara Supabase menentukan hasil akhirnya.</p></div>
+      {_groups < 0 && null}
+    </main>
   </div>;
 }
