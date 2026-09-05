@@ -15,7 +15,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Patch checkout UI
+      - name: Patch proof upload and account size
         shell: bash
         run: |
           python - <<'PY'
@@ -23,24 +23,17 @@ jobs:
           p = Path('src/pages/OrganizerPlanPageV2.tsx')
           s = p.read_text()
 
-          state = "  const selectedMethodNeedsProof = !!selectedMethod && !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(selectedMethod.payment_type).toUpperCase());\n"
-          if state not in s:
-              raise SystemExit('selectedMethodNeedsProof target missing')
           if 'const showProofUpload' not in s:
-              s = s.replace(state, state + "  const hasManualPaymentMethod = paymentMethods.some((method) => !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(method.payment_type).toUpperCase()));\n  const showProofUpload = selectedTotal > 0 && (selectedMethodNeedsProof || (!selectedMethod && hasManualPaymentMethod));\n", 1)
+              raise SystemExit('showProofUpload state is missing')
 
-          if 'max-w-2xl max-h-[92vh]' not in s:
-              raise SystemExit('modal sizing target missing')
-          s = s.replace('max-w-2xl max-h-[92vh]', 'max-w-xl max-h-[84vh]', 1)
-          s = s.replace('bg-black/75 p-4"><div className="flex w-full', 'bg-black/75 p-3 sm:p-4"><div className="flex w-full', 1)
+          marker = '{selectedTotal > 0 && selectedMethodNeedsProof && <div'
+          if marker not in s:
+              raise SystemExit('proof upload JSX condition missing')
+          s = s.replace(marker, '{showProofUpload && <div', 1)
 
-          upload_marker = 'selectedTotal > 0 && selectedMethodNeedsProof'
-          if upload_marker not in s:
-              raise SystemExit('upload condition target missing')
-          s = s.replace(upload_marker, 'showProofUpload', 1)
-
-          s = s.replace('font-mono text-sm font-bold tracking-wide text-fg', 'font-mono text-lg font-black tracking-wider text-fg sm:text-xl', 1)
-          s = s.replace('text-xs text-fg-muted">a.n. {accountName}', 'text-sm font-semibold text-fg-muted sm:text-base">a.n. {accountName}', 1)
+          old_num = 'font-mono text-sm font-bold tracking-wide text-fg'
+          if old_num in s:
+              s = s.replace(old_num, 'font-mono text-lg font-black tracking-wider text-fg sm:text-xl', 1)
 
           p.write_text(s)
           PY
@@ -49,5 +42,5 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add src/pages/OrganizerPlanPageV2.tsx
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "fix(payment): make proof upload visible"
+          git commit -m "fix(payment): show proof upload and enlarge account details"
           git push
