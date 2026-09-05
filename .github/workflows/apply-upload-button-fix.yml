@@ -13,15 +13,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch organizer proof upload button
+      - name: Patch organizer proof upload UI
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('src/pages/OrganizerPlanPageV2.tsx')
           s = p.read_text()
 
+          old_container = '<div className="order-4 mt-5 overflow-hidden rounded-2xl border-2 border-accent/50 bg-accent/10 shadow-lg shadow-accent/5">'
+          new_container = '<div className="order-4 mt-5 rounded-2xl border-2 border-accent/50 bg-accent/10 shadow-lg shadow-accent/5">'
+          if old_container not in s:
+              raise SystemExit('upload container marker not found')
+          s = s.replace(old_container, new_container, 1)
+
           old = '<Button className="mt-4 w-full sm:w-auto" size="sm" onClick={() => proofInputRef.current?.click()} icon={<UploadCloud size={15}/>}>'
-          new = '<button type="button" data-testid="payment-proof-upload-button" className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 sm:w-auto" onClick={() => proofInputRef.current?.click()}><UploadCloud size={15}/>}'
+          new = '<button type="button" data-testid="payment-proof-upload-button" className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 sm:w-auto" onClick={() => proofInputRef.current?.click()}><UploadCloud size={15}/>'
           if old not in s:
               raise SystemExit('upload button marker not found')
           s = s.replace(old, new, 1)
