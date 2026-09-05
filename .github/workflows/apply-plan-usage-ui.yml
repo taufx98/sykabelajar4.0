@@ -1,0 +1,55 @@
+name: Apply Plan Usage UI Polish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-plan-usage-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compact Plan & Usage workspace
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src/pages/AdminPlanUsagePage.tsx';
+          let s = fs.readFileSync(path, 'utf8');
+          const replacements = [
+            ['return <div className="min-h-screen surface-bg px-4 py-6 text-fg-secondary md:px-7 md:py-9">', 'return <div className="min-h-screen surface-bg px-3 py-4 text-fg-secondary md:px-5 md:py-5">'],
+            ['<div className="mx-auto max-w-7xl space-y-6">', '<div className="mx-auto max-w-7xl space-y-4">'],
+            ['<header className="rounded-3xl border border-surface-border bg-surface-elevated/25 p-6 shadow-sm md:p-8">', '<header className="rounded-2xl border border-surface-border bg-surface-elevated/25 p-4 shadow-sm md:p-5">'],
+            ['<div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">', '<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">'],
+            ['<h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-fg md:text-4xl">', '<h1 className="mt-1.5 font-display text-2xl font-bold tracking-tight text-fg md:text-3xl">'],
+            ['<p className="mt-3 text-sm leading-6 text-fg-muted">', '<p className="mt-2 text-xs leading-5 text-fg-muted md:text-sm">'],
+            ['<div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm font-semibold text-emerald-300">', '<div className="inline-flex w-fit items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs font-semibold text-emerald-300">'],
+            ['<section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">', '<section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">'],
+            ['<Card key={label} className="p-5">', '<Card key={label} className="p-3">'],
+            ['<span className="text-2xl font-bold text-fg">{value}</span>', '<span className="text-xl font-bold text-fg">{value}</span>'],
+            ['<p className="mt-4 text-xs font-medium text-fg-muted">{label}</p>', '<p className="mt-2 text-[11px] font-medium text-fg-muted">{label}</p>'],
+            ['<section><div className="mb-3 flex items-end justify-between gap-3">', '<section><div className="mb-2 flex items-end justify-between gap-3">'],
+            ['<h2 className="mt-1 text-xl font-bold text-fg">Paket Organizer</h2>', '<h2 className="mt-1 text-lg font-bold text-fg">Paket Organizer</h2>'],
+            ['<div className="grid gap-3 md:grid-cols-3">', '<div className="grid gap-2 md:grid-cols-3">'],
+            ['className={`group rounded-2xl border p-5 text-left transition', 'className={`group rounded-xl border p-3.5 text-left transition'],
+            ['<p className="mt-4 text-base font-bold text-fg">', '<p className="mt-3 text-sm font-bold text-fg">'],
+            ['<div className="mt-4 flex items-center gap-1 text-xs font-semibold', '<div className="mt-3 flex items-center gap-1 text-[11px] font-semibold'],
+            ['<div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">', '<div className="grid gap-3 xl:grid-cols-[1.1fr_.9fr]">'],
+            ['<Card className="p-6 md:p-7">', '<Card className="p-4 md:p-5">'],
+            ['<div className="mt-5 grid gap-4 sm:grid-cols-2">', '<div className="mt-4 grid gap-3 sm:grid-cols-2">'],
+          ];
+          for (const [from, to] of replacements) s = s.replaceAll(from, to);
+          fs.writeFileSync(path, s);
+          NODE
+      - name: Commit patch and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/AdminPlanUsagePage.tsx
+          git rm .github/workflows/apply-plan-usage-ui.yml
+          git commit -m "style(admin): compact Plan Usage workspace"
+          git push
