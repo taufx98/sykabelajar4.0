@@ -36,3 +36,52 @@ export async function getRegistrationsForCompetition(competitionId: string) {
   if (error) throw error;
   return data ?? [];
 }
+
+export type CanonicalParticipant = {
+  id: string;
+  competition_id: string;
+  registration_id: string | null;
+  user_id: string | null;
+  collective_participant_id: string | null;
+  participant_type: 'INDIVIDUAL' | 'COLLECTIVE';
+  participant_code: string | null;
+  full_name: string;
+  class_name: string | null;
+  grade: string | null;
+  school_id: string | null;
+  photo_url: string | null;
+};
+
+export async function getMyCanonicalParticipant(competitionId: string) {
+  const { data, error } = await supabase.rpc('get_my_canonical_participant', { p_competition_id: competitionId });
+  if (error) throw error;
+  return data as CanonicalParticipant | null;
+}
+
+export type CompetitionAttempt = {
+  id: string;
+  competition_id: string;
+  participant_id: string | null;
+  canonical_participant_id: string | null;
+  collective_participant_id: string | null;
+  registration_id: string | null;
+  attempt_number: number;
+  status: string;
+  started_at: string | null;
+  expires_at: string | null;
+  submitted_at: string | null;
+  finalized_at: string | null;
+  score: number;
+};
+
+export async function startCompetitionAttempt(competitionId: string) {
+  const { data, error } = await supabase.rpc('start_competition_attempt', { p_competition_id: competitionId });
+  if (error) throw error;
+  return data as CompetitionAttempt;
+}
+
+export async function getMyCanonicalCompetitionResult(competitionId: string) {
+  const { data, error } = await supabase.rpc('get_my_canonical_competition_result', { p_competition_id: competitionId });
+  if (error) throw error;
+  return data;
+}
