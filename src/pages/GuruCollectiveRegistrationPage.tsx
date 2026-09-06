@@ -1,0 +1,130 @@
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Check, CreditCard, FileUp, KeyRound, School, ShoppingCart, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useApp } from '@/store/AppContext';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { toast } from '@/lib/toast';
+import { uploadImage } from '@/services/cloudinary.service';
+import { listOrganizerPaymentMethods, type OrganizerPaymentMethod } from '@/services/commerce.service';
+import { listTeacherRosters, listRosterStudents, getCollectiveRegistrationOptions, quoteCollectiveRegistration, createCollectiveRegistrationOrder, getCollectiveRegistration, provisionCollectiveRegistration, type RosterStudent, type TeacherRoster, type CollectiveRegistrationOptions, type CollectiveRegistrationQuote } from '@/services/collectiveParticipant.service';
+
+const steps = ['Lomba & identitas', 'Pilih siswa', 'Kategori & sertifikat', 'Review & pembayaran', 'Selesai'];
+
+export function GuruCollectiveRegistrationPage() {
+  const { user } = useApp();
+  const [step, setStep] = useState(1);
+  const [rosters, setRosters] = useState<TeacherRoster[]>([]);
+  const [students, setStudents] = useState<RosterStudent[]>([]);
+  const [options, setOptions] = useState<CollectiveRegistrationOptions | null>(null);
+  const [competitionId, setCompetitionId] = useState('');
+  const [rosterId, setRosterId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [competitionLevelId, setCompetitionLevelId] = useState<string | null>(null);
+  const [certificatePolicy, setCertificatePolicy] = useState('EVENT_DEFAULT');
+  const [schoolName, setSchoolName] = useState(user?.school ?? '');
+  const [contactName, setContactName] = useState(user?.displayName ?? '');
+  const [contactWhatsapp, setContactWhatsapp] = useState('');
+  const [paymentMethods, setPaymentMethods] = useState<OrganizerPaymentMethod[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proof, setProof] = useState<{ url: string; publicId: string; width?: number; height?: number; version?: string; resourceType?: string } | null>(null);
+  const [quote, setQuote] = useState<CollectiveRegistrationQuote | null>(null);
+  const [registrationId, setRegistrationId] = useState('');
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [credentials, setCredentials] = useState<Array<{ participant_code: string; temporary_password: string; full_name: string }>>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { void listTeacherRosters().then(setRosters).catch((e) => toast.error(e?.message || 'Gagal memuat roster.')); void listOrganizerPaymentMethods().then(setPaymentMethods).catch((e) => toast.error(e?.message || 'Gagal memuat metode pembayaran.')); }, []);
+  useEffect(() => { if (!rosterId) { setStudents([]); return; } void listRosterStudents(rosterId).then(setStudents).catch((e) => toast.error(e?.message || 'Gagal memuat siswa.')); }, [rosterId]);
+  useEffect(() => { if (!competitionId) { setOptions(null); setQuote(null); return; } setBusy(true); void getCollectiveRegistrationOptions(competitionId).then((data) => { setOptions(data); setCompetitionLevelId(data.levels[0]?.id ?? null); setCertificatePolicy(data.certificate_policies[0] ?? 'EVENT_DEFAULT'); return null; }).catch((e) => toast.error(e?.message || 'Gagal memuat konfigurasi lomba.')).finally(() => setBusy(false)); }, [competitionId]);
+  const selectedStudents = useMemo(() => students.filter((s) => selectedStudentIds.includes(s.id)), [students, selectedStudentIds]);
+  const total = Number(quote?.total ?? 0);
+  const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
+  const toggleStudent = (id: string) => setSelectedStudentIds((v) => v.includes(id) ? v.filter((x) => x !== id) : [...v, id]);
+
+  const buildQuote = async () => {
+    if (!competitionId || !selectedStudentIds.length) return toast.error('Pilih lomba dan minimal satu siswa.');
+    setBusy(true);
+    try { setQuote(await quoteCollectiveRegistration(competitionId, selectedStudentIds, certificatePolicy)); } catch (e: any) { toast.error(e?.message || 'Gagal menghitung total.'); throw e; } finally { setBusy(false); }
+  };
+
+  const uploadProof = async (file: File) => {
+    setBusy(true);
+    try { const r = await uploadImage(file, { folder: 'sykabelajar/collective-registration/proofs' }); setProof({ url: r.secure_url, publicId: r.public_id, width: r.width, height: r.height, version: r.version, resourceType: r.resource_type }); toast.success('Bukti pembayaran berhasil diupload.'); } catch (e: any) { toast.error(e?.message || 'Upload bukti pembayaran gagal.'); } finally { setBusy(false); }
+  };
+
+  const submitOrder = async () => {
+    if (!quote) return toast.error('Total belum dihitung.');
+    if (total > 0 && !paymentMethodId) return toast.error('Pilih metode pembayaran.');
+    if (total > 0 && !proof) return toast.error('Upload bukti pembayaran terlebih dahulu.');
+    setBusy(true);
+    try {
+      const data = await createCollectiveRegistrationOrder({
+        competitionId,
+        studentIds: selectedStudentIds,
+        competitionLevelId,
+        certificatePolicy,
+        schoolName,
+        contactName,
+        contactWhatsapp,
+        paymentMethodId: paymentMethodId || null,
+        proofUrl: proof?.url,
+        proofPublicId: proof?.publicId,
+        proofWidth: proof?.width,
+        proofHeight: proof?.height,
+        proofVersion: proof?.version,
+        proofResourceType: proof?.resourceType,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setRegistrationId(String(data.registration_id || ''));
+      setResult(data);
+      if (String(data.order_status) === 'PAID') {
+        const rows = await provisionCollectiveRegistration(String(data.registration_id));
+        setCredentials(rows.map((r) => ({ participant_code: r.participant_code, temporary_password: r.temporary_password, full_name: r.full_name })));
+      }
+      setStep(5);
+    } catch (e: any) { toast.error(e?.message || 'Pendaftaran kolektif gagal dibuat.'); } finally { setBusy(false); }
+  };
+
+  const refreshPayment = async () => {
+    if (!registrationId) return;
+    setBusy(true);
+    try {
+      const current = await getCollectiveRegistration(registrationId);
+      setResult(current);
+      if (String(current.order_status) === 'PAID' || String(current.status) === 'PAID' || String(current.status) === 'PROVISIONED') {
+        const rows = await provisionCollectiveRegistration(registrationId);
+        setCredentials(rows.map((r) => ({ participant_code: r.participant_code, temporary_password: r.temporary_password, full_name: r.full_name })));
+        toast.success('Pembayaran sudah dikonfirmasi dan akses peserta siap.');
+      } else toast.error('Pesanan masih menunggu verifikasi pembayaran.');
+    } catch (e: any) { toast.error(e?.message || 'Gagal memperbarui status pembayaran.'); } finally { setBusy(false); }
+  };
+
+  const next = async () => {
+    if (step === 1) {
+      if (!competitionId) return toast.error('Pilih lomba.');
+      if (!rosterId) return toast.error('Pilih roster.');
+      if (!schoolName.trim()) return toast.error('Nama sekolah/institusi wajib diisi.');
+    }
+    if (step === 2 && !selectedStudentIds.length) return toast.error('Pilih minimal satu siswa.');
+    if (step === 3) { await buildQuote(); }
+    if (step === 4) return void submitOrder();
+    setStep((v) => Math.min(5, v + 1));
+  };
+
+  return <div className="min-h-screen surface-bg p-5 md:p-8"><div className="max-w-5xl mx-auto space-y-5">
+    <Link to="/guru" className="inline-flex items-center gap-2 text-xs text-fg-muted hover:text-fg"><ArrowLeft size={14}/> Kembali ke Guru</Link>
+    <div><p className="text-xs text-accent font-semibold tracking-wider">COLLECTIVE REGISTRATION</p><h1 className="text-2xl md:text-3xl font-bold text-fg mt-1">Daftarkan siswa ke lomba</h1><p className="text-sm text-fg-muted mt-1">Satu checkout untuk banyak siswa, dengan harga dan validasi dihitung oleh server.</p></div>
+    <div className="grid grid-cols-5 gap-2">{steps.map((label, i) => <div key={label} className="space-y-2"><div className={`h-2 rounded-full ${i + 1 <= step ? 'bg-moss-500' : 'surface-elevated'}`}/><p className={`text-[10px] ${i + 1 <= step ? 'text-fg' : 'text-fg-muted'}`}>{i + 1}. {label}</p></div>)}</div>
+    <Card className="p-5 md:p-7">
+      {step === 1 && <div className="space-y-5"><div className="flex items-center gap-2"><School size={18} className="text-accent"/><h2 className="font-semibold text-fg">Lomba & identitas sekolah</h2></div><div className="grid md:grid-cols-2 gap-4"><label className="text-xs text-fg-muted">Lomba<select value={competitionId} onChange={(e) => setCompetitionId(e.target.value)} className="input mt-1"><option value="">Pilih lomba kolektif</option>{(options?.competition ? [options.competition] : []).map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}{!options && <>{/* populated through select fallback below */}</>}</select></label><label className="text-xs text-fg-muted">Roster siswa<select value={rosterId} onChange={(e) => { setRosterId(e.target.value); setSelectedStudentIds([]); }} className="input mt-1"><option value="">Pilih roster</option>{rosters.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label><label className="text-xs text-fg-muted">Nama sekolah / institusi<input value={schoolName} onChange={(e) => setSchoolName(e.target.value)} className="input mt-1" placeholder="Nama sekolah"/></label><label className="text-xs text-fg-muted">Nama guru<input value={contactName} onChange={(e) => setContactName(e.target.value)} className="input mt-1" placeholder="Nama penanggung jawab"/></label><label className="text-xs text-fg-muted md:col-span-2">WhatsApp penanggung jawab<input value={contactWhatsapp} onChange={(e) => setContactWhatsapp(e.target.value)} className="input mt-1" placeholder="08xxxxxxxxxx"/></label></div><div className="rounded-xl border border-border p-4 text-xs text-fg-muted">Lomba hanya yang berstatus kolektif dan sedang membuka pendaftaran yang dapat digunakan.</div></div>}
+      {step === 2 && <div className="space-y-5"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Users size={18} className="text-accent"/><h2 className="font-semibold text-fg">Pilih siswa</h2></div><Badge color="moss">{selectedStudentIds.length} dipilih</Badge></div>{!students.length ? <div className="rounded-xl border border-border p-8 text-center text-sm text-fg-muted">Roster ini belum memiliki siswa aktif.</div> : <div className="grid md:grid-cols-2 gap-3">{students.map((s) => <label key={s.id} className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer ${selectedStudentIds.includes(s.id) ? 'border-moss-500 bg-moss-500/5' : 'border-border'}`}><input type="checkbox" checked={selectedStudentIds.includes(s.id)} onChange={() => toggleStudent(s.id)}/><div className="flex-1 min-w-0"><p className="font-medium text-fg truncate">{s.full_name}</p><p className="text-xs text-fg-muted">{s.class_name || 'Kelas —'} · {s.grade || 'Jenjang —'}</p></div></label>)}</div>}</div>}
+      {step === 3 && <div className="space-y-5"><div className="flex items-center gap-2"><Users size={18} className="text-accent"/><h2 className="font-semibold text-fg">Kategori & kebijakan sertifikat</h2></div><label className="block text-xs text-fg-muted">Kategori peserta<select value={competitionLevelId ?? ''} onChange={(e) => setCompetitionLevelId(e.target.value || null)} className="input mt-1"><option value="">Tidak memilih kategori khusus</option>{(options?.levels ?? []).map((l) => <option key={l.id} value={l.id}>{l.label || l.code}</option>)}</select></label><div><p className="text-xs text-fg-muted mb-2">Kebijakan sertifikat</p><div className="grid sm:grid-cols-2 gap-2">{(options?.certificate_policies ?? ['EVENT_DEFAULT']).map((p) => <label key={p} className={`rounded-xl border p-3 cursor-pointer ${certificatePolicy === p ? 'border-moss-500 bg-moss-500/5' : 'border-border'}`}><input type="radio" name="certificatePolicy" value={p} checked={certificatePolicy === p} onChange={() => setCertificatePolicy(p)}/><span className="ml-2 text-sm text-fg">{p.replaceAll('_', ' ')}</span></label>)}</div></div><div className="rounded-xl border border-border p-4"><p className="text-sm font-semibold text-fg">Harga dari server</p><p className="text-xs text-fg-muted mt-1">Harga satuan hanya dibaca dari konfigurasi lomba; frontend tidak dapat mengubah total.</p>{quote && <div className="mt-3 text-sm"><b>Rp {quote.unit_price.toLocaleString('id-ID')}</b> × {quote.student_count} siswa = <b>Rp {quote.total.toLocaleString('id-ID')}</b></div>}</div></div>}
+      {step === 4 && <div className="space-y-5"><div className="flex items-center gap-2"><CreditCard size={18} className="text-accent"/><h2 className="font-semibold text-fg">Review & pembayaran</h2></div><div className="grid md:grid-cols-2 gap-5"><Card className="p-4 surface-elevated"><p className="text-xs text-fg-muted">Ringkasan</p><p className="font-semibold text-fg mt-2">{options?.competition.title}</p><div className="mt-3 space-y-2 text-sm"><div className="flex justify-between"><span className="text-fg-muted">Sekolah</span><span>{schoolName}</span></div><div className="flex justify-between"><span className="text-fg-muted">Siswa</span><span>{selectedStudents.length}</span></div><div className="flex justify-between"><span className="text-fg-muted">Kategori</span><span>{options?.levels.find((l) => l.id === competitionLevelId)?.label || '—'}</span></div><div className="flex justify-between border-t border-border pt-2"><span className="font-semibold">Total</span><span className="font-bold text-accent">Rp {total.toLocaleString('id-ID')}</span></div></div></Card><Card className="p-4"><p className="text-xs text-fg-muted">Metode pembayaran</p>{total === 0 ? <div className="mt-3 rounded-xl border border-moss-500/20 bg-moss-500/5 p-3 text-sm text-fg">Gratis — tidak perlu pembayaran.</div> : <div className="mt-3 space-y-3"><select value={paymentMethodId} onChange={(e) => setPaymentMethodId(e.target.value)} className="input"><option value="">Pilih metode</option>{paymentMethods.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.payment_type}</option>)}</select>{selectedMethod && <div className="rounded-xl surface-elevated p-3 text-xs text-fg-muted">{selectedMethod.details && typeof selectedMethod.details === 'object' && <div className="space-y-1">{Object.entries(selectedMethod.details).filter(([k]) => ['bank_name','account_name','account_number','instructions'].includes(k)).map(([k,v]) => <p key={k}><span className="capitalize">{k.replaceAll('_',' ')}</span>: <b className="text-fg">{String(v ?? '—')}</b></p>)}{selectedMethod.image_url && <img src={selectedMethod.image_url} alt="Metode pembayaran" className="mt-3 max-h-48 rounded-xl object-contain"/>}</div>}</div>}<label className="block text-xs text-fg-muted">Bukti pembayaran<input type="file" accept="image/*" className="input mt-1" onChange={(e) => { const f = e.target.files?.[0]; setProofFile(f ?? null); if (f) void uploadProof(f); }}/></label>{proofFile && <div className="rounded-lg border border-border p-2 text-xs text-fg-muted flex items-center gap-2"><FileUp size={14}/>{proofFile.name}{proof && <Check size={14} className="text-accent ml-auto"/>}</div>}</div>}</Card></div></div>}
+      {step === 5 && <div className="space-y-5"><div className="rounded-2xl border border-moss-500/20 bg-moss-500/5 p-5"><div className="flex items-center gap-3"><div className="w-11 h-11 rounded-full bg-moss-500/15 flex items-center justify-center text-accent"><Check size={22}/></div><div><p className="text-xs text-accent font-semibold tracking-wider">REGISTRASI DIBUAT</p><h2 className="text-xl font-bold text-fg">{String(result?.order_status) === 'PAID' || String(result?.status) === 'PROVISIONED' ? 'Peserta siap diakses' : 'Menunggu verifikasi pembayaran'}</h2></div></div><div className="mt-4 grid sm:grid-cols-3 gap-3 text-sm"><div><p className="text-xs text-fg-muted">Order</p><p className="font-mono mt-1 break-all">{String(result?.order_id || '—')}</p></div><div><p className="text-xs text-fg-muted">Jumlah peserta</p><p className="font-semibold mt-1">{String(result?.student_count || selectedStudentIds.length)}</p></div><div><p className="text-xs text-fg-muted">Total</p><p className="font-semibold mt-1">Rp {Number(result?.amount ?? total).toLocaleString('id-ID')}</p></div></div></div>{credentials.length > 0 && <Card className="p-4"><div className="flex items-center gap-2 text-accent"><KeyRound size={16}/><p className="font-semibold text-fg">Credential peserta</p></div><p className="text-xs text-fg-muted mt-1">Password hanya ditampilkan sekali setelah provisioning. Simpan sekarang.</p><div className="mt-4 grid md:grid-cols-2 gap-3">{credentials.map((c) => <div key={c.participant_code} className="rounded-xl border border-border p-3"><p className="font-medium text-fg">{c.full_name}</p><p className="text-xs mt-2">Kode: <span className="font-mono text-fg">{c.participant_code}</span></p><p className="text-xs mt-1">Password: <span className="font-mono text-fg">{c.temporary_password}</span></p></div>)}</div></Card>}{registrationId && credentials.length === 0 && <Card className="p-4"><p className="text-sm text-fg">Pembayaran belum terkonfirmasi.</p><p className="text-xs text-fg-muted mt-1">Klik refresh status setelah pembayaran diverifikasi admin.</p><Button className="mt-4" onClick={() => void refreshPayment()} loading={busy} icon={<ShoppingCart size={14}/>}>Refresh status pembayaran</Button></Card>}</div>}
+      {step < 5 && <div className="flex justify-between mt-7 pt-5 border-t border-border"><Button variant="outline" disabled={step === 1 || busy} onClick={() => setStep((v) => v - 1)}>Sebelumnya</Button><Button loading={busy} onClick={() => void next()} icon={step === 4 ? <ShoppingCart size={15}/> : <ArrowLeft size={15}/>}>{step === 4 ? (total > 0 ? 'Buat Pesanan' : 'Daftarkan Gratis') : 'Lanjut'}</Button></div>}
+    </Card>
+  </div></div>;
+}
