@@ -1,15 +1,17 @@
 import { supabase } from '@/lib/supabase';
 
+const attemptSelect = 'id,competition_id,participant_id,collective_participant_id,status,submitted_at,attempt_number,collective_participants:collective_participant_id(full_name,participant_code)';
+
 export async function listGradableAttempts(competitionIds: string[]) {
   if (!competitionIds.length) return [];
-  const { data, error } = await supabase.from('attempts').select('id,competition_id,participant_id,status,submitted_at,attempt_number').in('competition_id', competitionIds).in('status', ['SUBMITTED','GRADING']).order('submitted_at', { ascending: false });
+  const { data, error } = await supabase.from('attempts').select(attemptSelect).in('competition_id', competitionIds).in('status', ['SUBMITTED','GRADING']).order('submitted_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
 
 export async function getAttemptForGrading(attemptId: string) {
   const [{ data: attempt, error: attemptError }, { data: items, error: itemsError }, { data: answers, error: answersError }] = await Promise.all([
-    supabase.from('attempts').select('id,competition_id,participant_id,status,submitted_at,attempt_number').eq('id', attemptId).single(),
+    supabase.from('attempts').select(attemptSelect).eq('id', attemptId).single(),
     supabase.from('grading_items').select('id,question_id,score,feedback,grader_id').eq('attempt_id', attemptId).order('created_at'),
     supabase.from('answers').select('question_id,answer_json').eq('attempt_id', attemptId),
   ]);
@@ -18,7 +20,7 @@ export async function getAttemptForGrading(attemptId: string) {
   if (answersError) throw answersError;
   const questionIds = [...new Set((items ?? []).map((x: any) => x.question_id))];
   const { data: questions, error: questionsError } = questionIds.length
-    ? await supabase.from('questions').select('id,prompt,type,points,display_order').in('id', questionIds).order('display_order')
+    ? await supabase.from('questions').select('id,prompt,type,points,display_order,config').in('id', questionIds).order('display_order')
     : { data: [], error: null };
   if (questionsError) throw questionsError;
   const answerMap = new Map((answers ?? []).map((x: any) => [String(x.question_id), x.answer_json]));
