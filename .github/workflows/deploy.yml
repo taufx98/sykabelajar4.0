@@ -64,8 +64,9 @@ jobs:
 
       - name: Browser E2E access-control test
         run: |
-          npx --yes @playwright/test@1.63.0 install --with-deps chromium
-          npx --yes @playwright/test@1.63.0 test
+          npm install --no-save --no-package-lock --ignore-scripts @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+          npx playwright test
 
       - name: Production smoke test
         run: node scripts/rpd-smoke.mjs
