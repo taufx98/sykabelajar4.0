@@ -1,32 +1,32 @@
 # SYKA-4 Phase 2 Status
 
-Status: CORE IMPLEMENTATION COMPLETE
+Status: COMPLETE
 
 ## Delivered
-- Teacher roster and reusable roster students.
-- Collective participant entity with stable participant code and separate bcrypt password.
-- Temporary 8-hour collective access session; plaintext password is not persisted in browser storage.
-- Collective participant portal and timed competition workspace.
-- Collective attempt identity is compatible with existing full-account attempts via `attempts.collective_participant_id`.
-- Collective attempts use the existing answer/grading infrastructure where possible and appear in the existing organizer grading flow.
-- Teacher monitoring with attempt status, score, expiry time, and event chat.
-- Printable participant access cards without printing plaintext passwords.
-- Event-scoped group chat for participants, teachers, organizers, and admins with role-scoped access.
-- Collective certificate foundation with distinct serial number and verification code, plus public verification route.
-- Mixed ranking calculation compares finalized collective attempts against all finalized attempts in the same competition.
-- RLS enabled on all Phase 2 public tables and privileged RPC execution restricted by role.
+- Teacher workspace with reusable rosters and roster students.
+- Browser CSV import for up to 500 roster students per import, backed by an ownership-checked bulk RPC.
+- Collective participant entities for teacher/school-organized competitions with stable participant codes and separate bcrypt passwords.
+- 8-hour participant access sessions with hashed tokens; plaintext passwords are not persisted in browser storage.
+- Collective participant login, portal, timed competition workspace, autosave, submit, result and mixed ranking.
+- Collective attempt identity integrated into the existing assessment/grading infrastructure without breaking full-account attempts.
+- Teacher live monitoring, participant credential regeneration and printable access cards without plaintext passwords.
+- Event-scoped collective chat for participants, teachers, organizers and admins with scope checks.
+- Collective certificate preparation after finalized/published results.
+- Collective certificate ordering through the existing `orders` lifecycle and payment status transitions.
+- Automatic publication of the collective certificate when the linked order becomes `PAID`, with separate serial number and verification code.
+- Public collective certificate verification and print/save-to-PDF certificate page.
+- Admin-configurable collective certificate price.
+- Authenticated claim flow to link a collective participant to a full SYKABELAJAR account, plus a claimed collective history page.
+- RLS enabled on Phase 2 public tables; privileged RPCs restricted to intended roles, while custom-token participant RPCs are explicitly limited to the token-based public surface.
+- Security hardening for the Phase 2 token hash helper and teacher listing RPC privileges.
 
-## Intentionally deferred
-- Certificate ordering/payment integration for collective certificates.
-- Automatic certificate document generation/asset publication.
-- Claim/link collective participant history into a full SYKABELAJAR account.
-- Full CSV roster import UI and large-batch import optimization.
-- Unified result/certificate tables replacing the legacy `user_id NOT NULL` certificate path.
-
-These deferred items belong to the later lifecycle/integration phase because changing the legacy attempt/certificate foreign-key model would risk existing production participant data.
+## Safety boundary carried forward
+- The legacy `certificates.user_id NOT NULL` path and legacy attempt identity are intentionally not replaced in Phase 2. Existing production data remains intact; Phase 3 can perform a controlled common-participant/result/certificate consolidation with backfill and verification.
+- Static Cloudinary certificate asset generation remains unnecessary for the Phase 2 operational flow because the published certificate is generated from the verified public route and can be printed/saved as PDF; a later asset pipeline can be added without changing certificate identity.
 
 ## Verification
 - Production Supabase target: `mvdczyitbkxkldjughor`.
-- Phase 2 RLS tables verified enabled.
-- Attempt identity integrity verified: zero rows with both identities and zero rows with neither identity at verification time.
-- CI run `34005384068` for commit `d0d5c32a7e21e05eeb91e9b06785a8652751b82f` passed: lint, typecheck, build, and production smoke test all succeeded.
+- Phase 2 RLS status checked across `teacher_rosters`, `roster_students`, `collective_participants`, `participant_access_credentials`, `collective_access_sessions`, `collective_certificates`, `collective_certificate_orders`, and `collective_chat_messages`.
+- Function privilege audit confirmed teacher listing RPCs are not executable by `anon`.
+- `private.hash_collective_token` now has an explicit fixed search path.
+- Final frontend CI must pass on the commit containing this document and all Phase 2 UI changes before this milestone is treated as closed.
