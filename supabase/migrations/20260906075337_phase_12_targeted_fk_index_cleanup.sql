@@ -1,0 +1,3 @@
+create index if not exists idx_collective_chat_realtime_participant on private.collective_chat_realtime_sessions (collective_participant_id);
+drop index if exists public.idx_collective_chat_sender_recent;
+drop index if exists public.referral_events_referred_user_global_uidx;
