@@ -1,6 +1,6 @@
 # SYKA-4 Phase 2 Status
 
-Status: COMPLETE
+Status: COMPLETE — REVALIDATED 2026-09-06
 
 ## Delivered
 - Teacher workspace with reusable rosters and roster students.
@@ -24,9 +24,16 @@ Status: COMPLETE
 - The legacy `certificates.user_id NOT NULL` path and legacy attempt identity are intentionally not replaced in Phase 2. Existing production data remains intact; Phase 3 can perform a controlled common-participant/result/certificate consolidation with backfill and verification.
 - Static Cloudinary certificate asset generation remains unnecessary for the Phase 2 operational flow because the published certificate is generated from the verified public route and can be printed/saved as PDF; a later asset pipeline can be added without changing certificate identity.
 
-## Verification
+## Revalidation 2026-09-06
 - Production Supabase target: `mvdczyitbkxkldjughor`.
-- Phase 2 RLS status checked across `teacher_rosters`, `roster_students`, `collective_participants`, `participant_access_credentials`, `collective_access_sessions`, `collective_certificates`, `collective_certificate_orders`, and `collective_chat_messages`.
-- Function privilege audit confirmed teacher listing RPCs are not executable by `anon`.
-- `private.hash_collective_token` now has an explicit fixed search path.
-- Final frontend CI must pass on the commit containing this document and all Phase 2 UI changes before this milestone is treated as closed.
+- The Phase 2 public tables remain RLS-enabled in production: `teacher_rosters`, `roster_students`, `collective_participants`, `participant_access_credentials`, `collective_access_sessions`, `collective_certificates`, `collective_certificate_orders`, and `collective_chat_messages`.
+- Teacher/owner operations such as roster import, participant creation, registration, certificate preparation/order and teacher listings are not executable by `anon`.
+- Token-based participant operations remain intentionally available to `anon` only where the Phase 2 public token surface requires them.
+- `private.hash_collective_token(text)` has the fixed configuration `search_path=pg_catalog, extensions, private`.
+- The canonical Phase 2 route set remains active in `src/App.tsx`, including `/guru`, `/guru/daftar`, `/guru/kartu`, `/guru/monitoring`, `/peserta-kolektif/login`, `/peserta-kolektif`, `/peserta-kolektif/kerja`, `/claim-peserta-kolektif`, `/profile/collective-history`, and `/sertifikat-kolektif/:code`.
+- `src/services/collectiveParticipant.service.ts` remains wired to the production Phase 2 RPC/table contract for roster, collective participant, assessment, chat, claim and certificate flows.
+- CI run #1055 for the Phase 2 revalidation commit completed successfully: production target check, canonical source report, lint, typecheck, build, browser access-control E2E, and production smoke all passed.
+
+## Exit decision
+
+Phase 2 is revalidated and closed on the current production baseline. No Phase 2 runtime rewrite or destructive migration was introduced by this revalidation. Subsequent work should proceed to Phase 3 using the same prove-before-remove and append-only migration safety boundaries.
