@@ -1,13 +1,13 @@
 # SYKABELAJAR 4.0 — Final QA + Freeze
 
 Date: 2026-09-06
-Status: FINAL FREEZE
+Status: HOLD — NOT FROZEN
 
 ## Final baseline
 
-All planned phases in the SYKABELAJAR 4.0 modernization sequence are complete through Phase 15.
+Phases 00–14 have been implemented and re-verified. Phase 15 remains intentionally open because one production Auth security control is still reported as disabled by the Supabase Security Advisor.
 
-The final functional code baseline was verified by GitHub Actions on the Phase 14 final commit before this documentation-only freeze record was added.
+The latest CI run on commit `7a2a028677a361d0897399287a9462fc6f683221` completed successfully. It includes lint, TypeScript typecheck, Vite production build, browser E2E, and production smoke testing.
 
 ## Cross-phase production integrity checks
 
@@ -36,39 +36,34 @@ Both individual and collective participation are represented through the canonic
 - Sensitive mutations are authenticated/server-authoritative.
 - Admin RPCs are admin-gated and not anonymously executable.
 - Collective participant sessions and credentials are not directly exposed through the Data API.
-- Public certificate verification remains intentionally readable through narrow verification APIs.
+- Public certificate verification and token-scoped collective participant APIs remain intentionally anonymous where required by the product flow.
 - Organizer ownership, participant uniqueness, daily reward uniqueness, referral uniqueness, and anti-farming controls are backed by database constraints and server checks.
+- Intentional SECURITY DEFINER RPCs retain their required authenticated or token-gated execution because they enforce authorization/scope inside the function; these are not blindly revoked merely to silence a generic advisor warning.
 
-## Performance posture
+## Remaining Phase 15 blocker
 
-- Public competition listing is bounded and uses an explicit response projection.
-- High-traffic competition/question/attempt/registration reads have targeted indexes.
-- Redundant indexes were removed only where equivalence was established.
-- Existing cursor pagination, realtime reconciliation, persistent cache, lazy Cloudinary media, and bounded home snapshot remain intact.
+Supabase Security Advisor currently reports `auth_leaked_password_protection` as `WARN`: leaked-password protection is disabled.
 
-## Smart Platform posture
+Supabase's current Management API exposes `password_hibp_enabled` on the Auth service configuration, but changing it requires a Management API access token with Auth configuration write permissions. The available Supabase connector in this session does not expose that Management API configuration operation or token.
 
-- Participant learning insights and recommendations are generated server-side from canonical history.
-- Recommendation responses are bounded and authenticated.
-- No external AI API dependency was introduced.
+No database migration can truthfully change this hosted Auth setting, so Phase 15 must remain HOLD until the hosted Auth setting is enabled and the advisor warning disappears.
 
 ## Functional CI baseline
 
-The latest functional code baseline passed:
+Verified on the latest completed CI run:
 
 - Supabase production target verification
 - dependency setup/cache
 - lint
 - TypeScript typecheck
 - Vite production build
-- production smoke test
-
-No functional source-code changes were made after that verified baseline; this final freeze commit is documentation-only.
+- browser E2E: **7/7 passed**
+- production smoke: **3 public routes passed**
 
 ## Freeze rule
 
-Future work must treat this document and the completed Phase 1–14 status records as the current architecture baseline. Do not reopen completed phases or replace canonical participant/payment/certificate structures without new regression evidence and an explicit phase-scoped change.
+Do not label this repository `FINAL FREEZE` until the Phase 15 Auth security blocker is independently verified as cleared and a final CI pass is green against the resulting commit.
 
 ## Release status
 
-**SYKABELAJAR 4.0 modernization roadmap: COMPLETE / FROZEN.**
+**SYKABELAJAR 4.0 modernization roadmap: NOT YET FROZEN.**
