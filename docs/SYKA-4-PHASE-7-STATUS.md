@@ -26,6 +26,7 @@ Deliver the complete collective participant lifecycle using the canonical partic
 ## Security hardening
 
 - `collective_access_sessions` direct Data API table privileges revoked from `anon` and `authenticated`.
+- `participant_access_credentials` direct SELECT revoked from `anon` and `authenticated`; password hashes are no longer directly queryable through the client Data API.
 - Collective lifecycle remains available only through controlled RPC functions.
 - Token lookups use SHA-256 hashes rather than storing plaintext access tokens.
 - Session validation requires non-revoked and non-expired sessions.
@@ -45,7 +46,7 @@ Deliver the complete collective participant lifecycle using the canonical partic
 
 - Collective participant, credential, access-session, and chat tables remain RLS enabled.
 - Token-based participant RPCs remain intentionally available to `anon` because collective participants do not use Supabase Auth.
-- Sensitive session table access is no longer directly exposed through the Data API.
+- Sensitive credential and session tables are no longer directly exposed through the Data API.
 - Production currently has zero collective participant rows, so hardening introduced no data rewrite risk.
 
 ## Legacy safety
@@ -60,6 +61,7 @@ No destructive replacement of legacy participant, attempt, registration, or cert
 - Claim flow preserves collective history.
 - Event chat remains scoped to the participant's competition.
 - Server session revocation is enforced on logout.
+- Credential hashes are not directly exposed to clients.
 - Frontend CI passes on the final Phase 7 commit.
 
 ## Next phase
