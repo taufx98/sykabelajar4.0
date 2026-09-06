@@ -10,6 +10,7 @@ import {
   getCollectiveChatMessages,
   getCollectiveParticipantCertificate,
   getCollectiveParticipantResult,
+  revokeCollectiveAccessSession,
   sendCollectiveParticipantChatMessage,
   type CollectiveCertificate,
   type CollectiveChatMessage,
@@ -35,7 +36,15 @@ export function CollectiveParticipantPortalPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  const clearSessionAndRedirect = useCallback(() => {
+  const clearSessionAndRedirect = useCallback(async () => {
+    const token = collectiveAccessToken();
+    if (token) {
+      try {
+        await revokeCollectiveAccessSession(token);
+      } catch {
+        // Local cleanup still prevents further browser use of the token.
+      }
+    }
     sessionStorage.removeItem('syka_collective_access_token');
     sessionStorage.removeItem('syka_collective_participant');
     navigate('/peserta-kolektif/login', { replace: true });
@@ -54,7 +63,7 @@ export function CollectiveParticipantPortalPage() {
 
   useEffect(() => {
     if (!participant || !collectiveAccessToken() || !competitionId) {
-      clearSessionAndRedirect();
+      void clearSessionAndRedirect();
       return;
     }
 
@@ -74,7 +83,7 @@ export function CollectiveParticipantPortalPage() {
         if (!active) return;
         const message = error instanceof Error ? error.message : 'Sesi peserta tidak valid.';
         toast.error(message);
-        clearSessionAndRedirect();
+        void clearSessionAndRedirect();
       } finally {
         if (active) setLoading(false);
       }
@@ -90,7 +99,7 @@ export function CollectiveParticipantPortalPage() {
 
   if (!participant) return null;
 
-  const logout = () => clearSessionAndRedirect();
+  const logout = () => void clearSessionAndRedirect();
   const competitionTitle = String(result?.competition_title || participant.competition_title || 'Kompetisi');
   const send = async () => {
     const body = chatBody.trim();
