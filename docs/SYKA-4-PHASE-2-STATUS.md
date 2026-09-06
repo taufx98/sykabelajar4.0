@@ -29,4 +29,4 @@ These deferred items belong to the later lifecycle/integration phase because cha
 - Production Supabase target: `mvdczyitbkxkldjughor`.
 - Phase 2 RLS tables verified enabled.
 - Attempt identity integrity verified: zero rows with both identities and zero rows with neither identity at verification time.
-- Latest frontend CI run on `ddb498dafa54d661ed5201611f5f79844f8a2daf`: lint, typecheck, build, and production smoke test passed.
+- CI run `34005384068` for commit `d0d5c32a7e21e05eeb91e9b06785a8652751b82f` passed: lint, typecheck, build, and production smoke test all succeeded.
