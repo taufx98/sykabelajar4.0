@@ -21,7 +21,6 @@ export async function subscribeCollectiveChat(input: {
 }) {
   const participantMode = Boolean(input.accessToken);
   const client = participantMode ? getParticipantClient() : supabase;
-
   try {
     if (participantMode) {
       const { data: session } = await client.auth.getSession();
@@ -30,33 +29,19 @@ export async function subscribeCollectiveChat(input: {
         if (error) throw error;
         participantReady = true;
       }
-      const { error } = await client.rpc('collective_realtime_bind' as never, {
+      const { error } = await client.rpc('bind_collective_chat_realtime' as never, {
         p_access_token: input.accessToken,
       } as never);
       if (error) throw error;
     }
-
-    const channel = client
-      .channel(`collective-chat:${input.competitionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'collective_chat_messages',
-          filter: `competition_id=eq.${input.competitionId}`,
-        },
-        () => input.onInsert(),
-      )
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          input.onError?.(new Error('Realtime chat sementara tidak terhubung.'));
-        }
-      });
-
-    return () => {
-      void client.removeChannel(channel as RealtimeChannel);
-    };
+    const channel = client.channel(`collective-chat:${input.competitionId}`).on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'collective_chat_messages', filter: `competition_id=eq.${input.competitionId}` },
+      () => input.onInsert(),
+    ).subscribe((status) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') input.onError?.(new Error('Realtime chat sementara tidak terhubung.'));
+    });
+    return () => { void client.removeChannel(channel as RealtimeChannel); };
   } catch (error) {
     input.onError?.(error instanceof Error ? error : new Error('Gagal menghubungkan realtime chat.'));
     return () => undefined;
