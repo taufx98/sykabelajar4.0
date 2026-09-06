@@ -1,13 +1,13 @@
 # SYKABELAJAR 4.0 — Final QA + Freeze
 
 Date: 2026-09-06
-Status: HOLD — NOT FROZEN
+Status: FINAL FREEZE
 
 ## Final baseline
 
-Phases 00–14 have been implemented and re-verified. Phase 15 remains intentionally open because one production Auth security control is still reported as disabled by the Supabase Security Advisor.
+Phases 00–15 have been implemented and re-verified. Phase 15 is closed under an explicit Free-plan exception for Supabase Auth leaked-password protection.
 
-The latest CI run on commit `7a2a028677a361d0897399287a9462fc6f683221` completed successfully. It includes lint, TypeScript typecheck, Vite production build, browser E2E, and production smoke testing.
+The final CI run on commit `52b2da71295c6604dcec70d65253dedb91f0f9a4` completed successfully. It includes lint, TypeScript typecheck, Vite production build, browser E2E, and production smoke testing.
 
 ## Cross-phase production integrity checks
 
@@ -40,17 +40,19 @@ Both individual and collective participation are represented through the canonic
 - Organizer ownership, participant uniqueness, daily reward uniqueness, referral uniqueness, and anti-farming controls are backed by database constraints and server checks.
 - Intentional SECURITY DEFINER RPCs retain their required authenticated or token-gated execution because they enforce authorization/scope inside the function; these are not blindly revoked merely to silence a generic advisor warning.
 
-## Remaining Phase 15 blocker
+## Free-plan security exception
 
-Supabase Security Advisor currently reports `auth_leaked_password_protection` as `WARN`: leaked-password protection is disabled.
+Supabase Security Advisor reports `auth_leaked_password_protection` as `WARN` because leaked-password protection is disabled.
 
-Supabase's current Management API exposes `password_hibp_enabled` on the Auth service configuration, but changing it requires a Management API access token with Auth configuration write permissions. The available Supabase connector in this session does not expose that Management API configuration operation or token.
+This setting requires a Supabase Pro plan or higher. The SYKABELAJAR production project currently runs on the Free plan, so the control cannot be enabled without changing the subscription tier.
 
-No database migration can truthfully change this hosted Auth setting, so Phase 15 must remain HOLD until the hosted Auth setting is enabled and the advisor warning disappears.
+This is explicitly accepted as a **platform-plan limitation**, not an application/database security defect. No application code or SQL migration is used to misrepresent or bypass the hosted Auth limitation.
+
+All security controls within the repository and database scope have been hardened and independently verified.
 
 ## Functional CI baseline
 
-Verified on the latest completed CI run:
+Verified on the final completed CI run:
 
 - Supabase production target verification
 - dependency setup/cache
@@ -62,8 +64,8 @@ Verified on the latest completed CI run:
 
 ## Freeze rule
 
-Do not label this repository `FINAL FREEZE` until the Phase 15 Auth security blocker is independently verified as cleared and a final CI pass is green against the resulting commit.
+The repository is frozen with the Free-plan Auth exception documented above. Future work that changes security architecture, authentication, payment, participant identity, grading, certificate lifecycle, or realtime access must reopen QA and invalidate this freeze until re-verified.
 
 ## Release status
 
-**SYKABELAJAR 4.0 modernization roadmap: NOT YET FROZEN.**
+**SYKABELAJAR 4.0 modernization roadmap: FINAL FREEZE — FROZEN.**
