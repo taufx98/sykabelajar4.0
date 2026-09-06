@@ -1,12 +1,14 @@
 import { supabase } from '@/lib/supabase';
 
-export async function listPublicCompetitions() {
+export async function listPublicCompetitions(limit = 30) {
+  const boundedLimit = Math.min(50, Math.max(1, Math.floor(limit)));
   const { data, error } = await supabase
     .from('competitions')
-    .select('*')
+    .select('id,organizer_id,slug,title,short_description,description,category,status,registration_starts_at,registration_ends_at,starts_at,ends_at,announcement_at,poster_url,poster_public_id,poster_asset_meta,juknis_url,visibility,config,created_at,updated_at,poster_width,poster_height,poster_version,poster_resource_type,kisi_kisi_published,kisi_kisi_content,category_codes,excluded_category_codes,target_grades,excluded_grades,twibbon_mode,twibbon_frame_url,twibbon_frame_public_id,twibbon_external_url,participant_mode')
     .in('status', ['PUBLISHED', 'REGISTRATION_OPEN', 'LIVE', 'REGISTRATION_CLOSED', 'SUBMISSION_CLOSED', 'GRADING', 'RESULT_PUBLISHED', 'ARCHIVED'])
     .eq('visibility', 'PUBLIC')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(boundedLimit);
   if (error) throw error;
   return data ?? [];
 }
