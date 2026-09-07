@@ -29,7 +29,7 @@ export function AppLayout() {
   const isAdmin = user?.role === 'admin';
   const isOrganizer = user?.role === 'penyelenggara';
   const isTeacher = user?.role === 'guru';
-  const chatPath = isAdmin ? '/admin/chat' : '/pesan';
+  const chatPath = '/pesan';
 
   useEffect(() => { setLiveUnreadNotifications(unreadNotificationCount); }, [unreadNotificationCount]);
 
