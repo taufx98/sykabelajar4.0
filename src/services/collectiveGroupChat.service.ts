@@ -1,6 +1,5 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
-import { supabase } from '@/lib/supabase';
 import type { ChatGroup, ChatGroupMember, ChatGroupMessage } from '@/services/chat.service';
 
 let participantClient: SupabaseClient | null = null;
@@ -12,6 +11,20 @@ function getParticipantClient() {
     auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false },
   });
   return participantClient;
+}
+
+async function ensureParticipantClient() {
+  const client = getParticipantClient();
+  if (!participantReady) {
+    const { data, error } = await client.auth.getSession();
+    if (error) throw error;
+    if (!data.session) {
+      const { error: signInError } = await client.auth.signInAnonymously();
+      if (signInError) throw signInError;
+    }
+    participantReady = true;
+  }
+  return client;
 }
 
 function tokenRequired(token: string | null | undefined) {
@@ -27,6 +40,7 @@ function normalizeError(error: unknown) {
     ACCESS_DENIED: 'Kamu tidak memiliki akses ke group ini.',
     GROUP_INVITE_INVALID: 'Link undangan group tidak valid atau sudah tidak aktif.',
     GROUP_EVENT_NOT_ELIGIBLE: 'Group event ini hanya dapat diikuti peserta dari lomba yang sesuai.',
+    GROUP_NOT_FOUND: 'Group tidak ditemukan.',
     CHAT_RATE_LIMIT: 'Pesan terlalu sering. Coba lagi sebentar lagi.',
     CHAT_DUPLICATE: 'Pesan yang sama baru saja dikirim.',
     CHAT_BODY_INVALID: 'Pesan harus berisi 1–2000 karakter.',
@@ -36,13 +50,15 @@ function normalizeError(error: unknown) {
 }
 
 export async function listCollectiveChatGroups(accessToken: string) {
-  const { data, error } = await supabase.rpc('list_collective_chat_groups', { p_access_token: tokenRequired(accessToken) });
+  const client = await ensureParticipantClient();
+  const { data, error } = await client.rpc('list_collective_chat_groups', { p_access_token: tokenRequired(accessToken) });
   if (error) throw normalizeError(error);
   return (data ?? []) as ChatGroup[];
 }
 
 export async function loadCollectiveChatGroupMessages(accessToken: string, groupId: string, limit = 50, before?: string | null) {
-  const { data, error } = await supabase.rpc('get_collective_chat_group_messages', {
+  const client = await ensureParticipantClient();
+  const { data, error } = await client.rpc('get_collective_chat_group_messages', {
     p_access_token: tokenRequired(accessToken),
     p_group_id: groupId,
     p_limit: Math.min(Math.max(limit, 1), 100),
@@ -53,20 +69,21 @@ export async function loadCollectiveChatGroupMessages(accessToken: string, group
 }
 
 export async function sendCollectiveChatGroupMessage(accessToken: string, groupId: string, body: string) {
+  const client = await ensureParticipantClient();
   const text = body.trim();
   if (!text) throw new Error('CHAT_BODY_INVALID');
-  const { data, error } = await supabase.rpc('send_collective_chat_group_message', {
+  const { data, error } = await client.rpc('send_collective_chat_group_message', {
     p_access_token: tokenRequired(accessToken),
     p_group_id: groupId,
     p_body: text,
   });
   if (error) throw normalizeError(error);
-  const row = data as ChatGroupMessage;
-  return row;
+  return data as ChatGroupMessage;
 }
 
 export async function listCollectiveChatGroupMembers(accessToken: string, groupId: string) {
-  const { data, error } = await supabase.rpc('list_collective_chat_group_members', {
+  const client = await ensureParticipantClient();
+  const { data, error } = await client.rpc('list_collective_chat_group_members', {
     p_access_token: tokenRequired(accessToken),
     p_group_id: groupId,
   });
@@ -75,7 +92,8 @@ export async function listCollectiveChatGroupMembers(accessToken: string, groupI
 }
 
 export async function markCollectiveChatGroupRead(accessToken: string, groupId: string) {
-  const { data, error } = await supabase.rpc('mark_collective_chat_group_read', {
+  const client = await ensureParticipantClient();
+  const { data, error } = await client.rpc('mark_collective_chat_group_read', {
     p_access_token: tokenRequired(accessToken),
     p_group_id: groupId,
   });
@@ -84,7 +102,8 @@ export async function markCollectiveChatGroupRead(accessToken: string, groupId: 
 }
 
 export async function joinCollectiveChatGroup(accessToken: string, inviteToken: string) {
-  const { data, error } = await supabase.rpc('join_collective_chat_group', {
+  const client = await ensureParticipantClient();
+  const { data, error } = await client.rpc('join_collective_chat_group', {
     p_access_token: tokenRequired(accessToken),
     p_invite_token: tokenRequired(inviteToken),
   });
@@ -98,16 +117,8 @@ export async function subscribeCollectiveGroupChat(input: {
   onInsert: (message: ChatGroupMessage) => void;
   onError?: (error: Error) => void;
 }) {
-  const client = getParticipantClient();
   try {
-    if (!participantReady) {
-      const { data } = await client.auth.getSession();
-      if (!data.session) {
-        const { error } = await client.auth.signInAnonymously();
-        if (error) throw error;
-      }
-      participantReady = true;
-    }
+    const client = await ensureParticipantClient();
     const { error: bindError } = await client.rpc('bind_collective_chat_realtime' as never, { p_access_token: tokenRequired(input.accessToken) } as never);
     if (bindError) throw bindError;
     const channel = client.channel(`collective-group-chat:${input.groupId}`).on(
