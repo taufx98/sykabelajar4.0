@@ -20,6 +20,15 @@ test.describe('public entry points', () => {
     await expect(page.getByRole('button', { name: 'Guru' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Penyelenggara' })).toBeVisible();
     await expect(page.getByRole('link', { name: /Masuk sebagai Peserta Kolektif/ })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Guru' }).click();
+    await expect(page.getByRole('link', { name: /Masuk sebagai Peserta Kolektif/ })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Penyelenggara' }).click();
+    await expect(page.getByRole('link', { name: /Masuk sebagai Peserta Kolektif/ })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Pelajar' }).click();
+    await expect(page.getByRole('link', { name: /Masuk sebagai Peserta Kolektif/ })).toBeVisible();
   });
 
   test('collective participant portal login renders', async ({ page }) => {
