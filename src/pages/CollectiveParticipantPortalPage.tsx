@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Award, BookOpen, CheckCircle2, KeyRound, LogOut, MessageCircle, PlayCircle, Send, ShieldCheck, Trophy, UserRound } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Award, BookOpen, CheckCircle2, KeyRound, LogOut, MessageCircle, PlayCircle, ShieldCheck, Trophy, UserRound } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { toast } from '@/lib/toast';
-import { subscribeCollectiveChat } from '@/services/collectiveChatRealtime.service';
-import { collectiveAccessToken, collectivePortalToken, getCollectiveChatMessages, getCollectiveParticipantCertificate, getCollectiveParticipantResult, listCollectivePortalCompetitions, openCollectiveCompetitionSession, revokeCollectiveAccessSession, revokeCollectivePortalSession, sendCollectiveParticipantChatMessage, type CollectiveCertificate, type CollectiveChatMessage, type CollectivePortalCompetition, type CollectiveResult } from '@/services/collectiveParticipant.service';
+import { collectiveAccessToken, collectivePortalToken, getCollectiveParticipantCertificate, getCollectiveParticipantResult, listCollectivePortalCompetitions, openCollectiveCompetitionSession, revokeCollectiveAccessSession, revokeCollectivePortalSession, type CollectiveCertificate, type CollectivePortalCompetition, type CollectiveResult } from '@/services/collectiveParticipant.service';
 
-function readParticipant(): Record<string, unknown> | null { try { return JSON.parse(sessionStorage.getItem('syka_collective_participant') || 'null') as Record<string, unknown> | null; } catch { return null; } }
+function readParticipant(): Record<string, unknown> | null {
+  try {
+    return JSON.parse(sessionStorage.getItem('syka_collective_participant') || 'null') as Record<string, unknown> | null;
+  } catch {
+    return null;
+  }
+}
 
 export function CollectiveParticipantPortalPage() {
   const navigate = useNavigate();
@@ -18,63 +23,97 @@ export function CollectiveParticipantPortalPage() {
   const [selected, setSelected] = useState<CollectivePortalCompetition | null>(null);
   const [result, setResult] = useState<CollectiveResult | null>(null);
   const [certificate, setCertificate] = useState<CollectiveCertificate | null>(null);
-  const [chat, setChat] = useState<CollectiveChatMessage[]>([]);
-  const [chatBody, setChatBody] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(true);
   const [opening, setOpening] = useState(false);
-  const [sending, setSending] = useState(false);
 
   const logout = useCallback(async () => {
-    try { const token = collectiveAccessToken(); if (token) await revokeCollectiveAccessSession(token); if (portalToken) await revokeCollectivePortalSession(portalToken); } catch {}
-    sessionStorage.removeItem('syka_collective_access_token'); sessionStorage.removeItem('syka_collective_participant'); sessionStorage.removeItem('syka_collective_portal_token'); sessionStorage.removeItem('syka_collective_pending_code');
+    try {
+      const token = collectiveAccessToken();
+      if (token) await revokeCollectiveAccessSession(token);
+      if (portalToken) await revokeCollectivePortalSession(portalToken);
+    } catch {
+      // Session cleanup below remains authoritative for this browser.
+    }
+    sessionStorage.removeItem('syka_collective_access_token');
+    sessionStorage.removeItem('syka_collective_participant');
+    sessionStorage.removeItem('syka_collective_portal_token');
+    sessionStorage.removeItem('syka_collective_pending_code');
     navigate('/peserta-kolektif/login', { replace: true });
   }, [navigate, portalToken]);
 
   const loadEvents = useCallback(async () => {
-    if (!portalToken) { navigate('/peserta-kolektif/login', { replace: true }); return; }
+    if (!portalToken) {
+      navigate('/peserta-kolektif/login', { replace: true });
+      return;
+    }
     try {
-      const rows = await listCollectivePortalCompetitions(portalToken); setEvents(rows); setLoading(false);
+      const rows = await listCollectivePortalCompetitions(portalToken);
+      setEvents(rows);
       const pending = sessionStorage.getItem('syka_collective_pending_code') || '';
-      if (pending) { const hit = rows.find((row) => row.participant_code.toUpperCase() === pending.toUpperCase()); if (hit) { setSelected(hit); setCode(hit.participant_code); } sessionStorage.removeItem('syka_collective_pending_code'); }
+      if (pending) {
+        const hit = rows.find((row) => row.participant_code.toUpperCase() === pending.toUpperCase());
+        if (hit) {
+          setSelected(hit);
+          setCode(hit.participant_code);
+        }
+        sessionStorage.removeItem('syka_collective_pending_code');
+      }
       if (!rows.length) toast.error('Belum ada lomba yang terhubung ke portal ini.');
-    } catch (error: unknown) { toast.error(error instanceof Error ? error.message : 'Sesi portal tidak valid.'); await logout(); }
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Sesi portal tidak valid.');
+      await logout();
+    } finally {
+      setLoading(false);
+    }
   }, [logout, navigate, portalToken]);
 
-  const loadEventData = useCallback(async (competitionId: string) => {
+  const loadEventData = useCallback(async () => {
     if (!collectiveAccessToken()) return;
     try {
-      const [res, cert, messages] = await Promise.all([getCollectiveParticipantResult(), getCollectiveParticipantCertificate().catch(() => null), getCollectiveChatMessages(competitionId)]);
-      setResult(res); setCertificate(cert); setChat(messages);
-    } catch (error: unknown) { toast.error(error instanceof Error ? error.message : 'Gagal memuat data lomba.'); }
+      const [res, cert] = await Promise.all([
+        getCollectiveParticipantResult(),
+        getCollectiveParticipantCertificate().catch(() => null),
+      ]);
+      setResult(res);
+      setCertificate(cert);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Gagal memuat data lomba.');
+    }
   }, []);
 
-  useEffect(() => { if (!portalToken) { navigate('/peserta-kolektif/login', { replace: true }); return; } void loadEvents(); }, [loadEvents, navigate, portalToken]);
-
   useEffect(() => {
-    const competitionId = String(participant?.competition_id || ''); const accessToken = collectiveAccessToken();
-    if (!competitionId || !accessToken) return;
-    let active = true; let unsubscribe: (() => void) | undefined;
-    void subscribeCollectiveChat({ competitionId, accessToken, onInsert: () => { if (active) void getCollectiveChatMessages(competitionId).then(setChat).catch(() => undefined); } }).then((cleanup) => { unsubscribe = cleanup; });
-    return () => { active = false; unsubscribe?.(); };
-  }, [participant]);
+    if (!portalToken) {
+      navigate('/peserta-kolektif/login', { replace: true });
+      return;
+    }
+    void loadEvents();
+  }, [loadEvents, navigate, portalToken]);
 
   const openEvent = async () => {
-    if (!selected) return toast.error('Pilih lomba terlebih dahulu.'); if (!code.trim()) return toast.error('Kode peserta untuk lomba ini wajib diisi.');
+    if (!selected) return toast.error('Pilih lomba terlebih dahulu.');
+    if (!code.trim()) return toast.error('Kode peserta untuk lomba ini wajib diisi.');
     setOpening(true);
     try {
-      const old = collectiveAccessToken(); if (old) await revokeCollectiveAccessSession(old);
+      const old = collectiveAccessToken();
+      if (old) await revokeCollectiveAccessSession(old);
       const next = await openCollectiveCompetitionSession(selected.competition_id, code, portalToken);
-      if (next?.ok !== true) { toast.error(next?.reason === 'INVALID_PARTICIPANT_CODE' ? 'Kode peserta tidak sesuai dengan lomba yang dipilih.' : String(next?.reason || 'Gagal membuka lomba.')); return; }
-      sessionStorage.setItem('syka_collective_access_token', String(next.access_token || '')); sessionStorage.setItem('syka_collective_participant', JSON.stringify(next));
-      setParticipant(next); setResult(null); setCertificate(null); setChat([]); await loadEventData(String(next.competition_id || selected.competition_id)); setCode('');
-    } catch (error: unknown) { toast.error(error instanceof Error ? error.message : 'Gagal membuka lomba.'); } finally { setOpening(false); }
-  };
-
-  const send = async () => {
-    const body = chatBody.trim(); if (!body) return; setSending(true);
-    try { await sendCollectiveParticipantChatMessage(body); setChatBody(''); const id = String(participant?.competition_id || ''); if (id) await getCollectiveChatMessages(id).then(setChat); }
-    catch (error: unknown) { toast.error(error instanceof Error ? error.message : 'Pesan gagal dikirim.'); } finally { setSending(false); }
+      if (next?.ok !== true) {
+        toast.error(next?.reason === 'INVALID_PARTICIPANT_CODE' ? 'Kode peserta tidak sesuai dengan lomba yang dipilih.' : String(next?.reason || 'Gagal membuka lomba.'));
+        return;
+      }
+      sessionStorage.setItem('syka_collective_access_token', String(next.access_token || ''));
+      sessionStorage.setItem('syka_collective_participant', JSON.stringify(next));
+      setParticipant(next);
+      setResult(null);
+      setCertificate(null);
+      await loadEventData();
+      setCode('');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Gagal membuka lomba.');
+    } finally {
+      setOpening(false);
+    }
   };
 
   if (!portalToken) return null;
@@ -89,7 +128,7 @@ export function CollectiveParticipantPortalPage() {
     {participant ? <><Card className="p-5"><div className="flex flex-col md:flex-row md:items-center gap-4"><div className="w-16 h-16 rounded-2xl overflow-hidden bg-accent/10 flex items-center justify-center text-accent">{participant.photo_url ? <img src={String(participant.photo_url)} alt="" className="w-full h-full object-cover" /> : <UserRound size={28} />}</div><div className="flex-1"><p className="text-lg font-semibold text-fg">{String(participant.full_name || 'Peserta')}</p><p className="text-sm text-fg-muted">{String(participant.class_name || 'Kelas —')} · {String(participant.grade || 'Jenjang —')}</p><p className="text-xs text-fg-muted mt-1">Event aktif: {String(participant.competition_title || selectedTitle || 'Kompetisi')}</p></div><Badge color="moss">AKSES KOMPETISI AKTIF</Badge></div></Card>
     <Card className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-accent font-semibold">CHECKPOINT LOMBA</p><h2 className="text-lg font-semibold text-fg mt-1">{String(participant.competition_title || selectedTitle || 'Kompetisi')}</h2><p className="text-sm text-fg-muted mt-1">{result?.published ? 'Hasil sudah dipublikasikan.' : result?.has_result ? `Status attempt: ${result.status || 'diproses'}.` : 'Belum ada attempt. Ikuti lomba saat sesi dibuka.'}</p></div>{result?.published ? <Badge color="moss">HASIL TERBIT</Badge> : null}</div>{canWork ? <Button className="mt-4" onClick={() => navigate('/peserta-kolektif/kerja')} icon={<PlayCircle size={15} />}>Kerjakan Lomba</Button> : null}{result?.published ? <div className="grid sm:grid-cols-2 gap-3 mt-4"><div className="rounded-xl border border-border p-4"><span className="text-xs text-fg-muted">Skor</span><p className="text-2xl font-bold text-fg mt-1">{Number(result.score ?? 0)}</p></div><div className="rounded-xl border border-border p-4"><span className="text-xs text-fg-muted">Peringkat</span><p className="text-2xl font-bold text-fg mt-1">#{Number(result.rank ?? 0)}</p></div></div> : null}</Card>
     <div className="grid md:grid-cols-2 gap-4"><Card className="p-5"><div className="flex items-center gap-2"><Trophy size={18} className="text-accent" /><p className="font-semibold text-fg">Peringkat</p></div><p className="text-sm text-fg-muted mt-2">{result?.published ? `Peringkat kamu #${Number(result.rank ?? 0)}.` : 'Peringkat tampil setelah hasil dipublikasikan.'}</p></Card><Card className="p-5"><div className="flex items-center gap-2"><Award size={18} className="text-accent" /><p className="font-semibold text-fg">Piagam</p></div>{certificate?.has_certificate ? <div className="mt-2"><p className="text-sm text-fg">{certificate.status}</p><p className="font-mono text-xs text-fg-muted mt-1">{certificate.serial_number}</p>{certificate.verification_code ? <a className="text-xs text-accent hover:underline" href={`/verify/${certificate.verification_code}`}>Verifikasi sertifikat</a> : null}</div> : <p className="text-sm text-fg-muted mt-2">Piagam tersedia setelah proses penerbitan selesai.</p>}</Card></div>
-    <Card className="p-5"><div className="flex items-center gap-2"><MessageCircle size={18} className="text-accent" /><p className="font-semibold text-fg">Chat Group Event</p></div><div className="mt-4 space-y-2 max-h-72 overflow-auto rounded-xl border border-border p-3">{chat.length ? chat.slice().reverse().map((message) => <div key={message.id} className="rounded-lg bg-white/[.03] p-3"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><p className="text-xs font-semibold text-fg">{message.sender_name}</p>{message.sender_kind === 'PARTICIPANT' ? <Badge color="moss">PESERTA</Badge> : <Badge color="moss">{message.sender_kind}</Badge>}</div><span className="text-[10px] text-fg-muted">{new Date(message.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span></div><p className="text-sm text-fg-secondary mt-1 whitespace-pre-wrap">{message.body}</p></div>) : <p className="text-sm text-fg-muted">Belum ada pesan.</p>}</div><div className="flex gap-2 mt-3"><input value={chatBody} onChange={(event) => setChatBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void send(); }} maxLength={2000} placeholder="Tulis pesan ke grup event…" className="flex-1 rounded-xl border border-border bg-transparent px-3 py-2 text-sm"/><Button onClick={() => void send()} loading={sending} icon={<Send size={15} />}>Kirim</Button></div></Card>
+    <Card className="p-5"><div className="flex items-center gap-2"><MessageCircle size={18} className="text-accent" /><p className="font-semibold text-fg">Pesan</p></div><p className="text-sm text-fg-muted mt-2">Semua Group Chat tersedia di halaman Pesan. Peserta kolektif hanya dapat menggunakan group yang memang menjadi aksesnya.</p><Link to="/pesan"><Button className="mt-4" icon={<MessageCircle size={15} />}>Buka Pesan</Button></Link></Card>
     </> : null}
   </div></div>;
 }
