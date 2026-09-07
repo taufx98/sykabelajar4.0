@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { AlertTriangle, LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote, MessageCircle } from 'lucide-react';
+import { AlertTriangle, LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 type AdminNavItem = { title: string; path: string; icon: typeof LayoutDashboard; badge?: string };
@@ -13,12 +12,6 @@ const GROUPS: AdminNavGroup[] = [
     { title: 'Pesanan', path: '/admin/core?tab=orders', icon: ShoppingBag },
     { title: 'Shop', path: '/admin/core?tab=shop', icon: Store },
     { title: 'Postingan', path: '/admin/core?tab=posts', icon: FileText },
-  ] },
-  { key: 'communication', title: 'Chat & Komunikasi', items: [
-    { title: 'Chat Pribadi & Grup', path: '/pesan', icon: MessageCircle },
-    { title: 'Kontrol Chat Admin', path: '/admin/chat', icon: ShieldCheck },
-    { title: 'Organisasi', path: '/admin/organizers', icon: Users },
-    { title: 'Plan & Usage', path: '/admin/plan-usage', icon: Settings },
   ] },
   { key: 'platform', title: 'Platform & Konten', items: [
     { title: 'XP & Coin', path: '/admin/currency', icon: Coins },
