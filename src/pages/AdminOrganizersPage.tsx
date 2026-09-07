@@ -1,12 +1,12 @@
 import { toast } from '@/lib/toast';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Building2, Users, Check, X, Key, Plus, Trash2, Shield, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Building2, Users, Check, X, Key, Plus, Trash2, Shield, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { UserPicker, type PickedUser } from '@/components/ui/UserPicker';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface Organizer {
   id: string;
@@ -30,6 +30,7 @@ export function AdminOrganizersPage() {
   const [busy, setBusy] = useState(false);
   const [newAccessCode, setNewAccessCode] = useState('');
   const [pendingUsers, setPendingUsers] = useState<Record<string, PickedUser[]>>({});
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -66,10 +67,10 @@ export function AdminOrganizersPage() {
     try {
       const { error } = await supabase.from('organizers').update({ status: newStatus }).eq('id', org.id);
       if (error) throw error;
-      toast.success(`Status diubah ke ${newStatus}`);
+      toast.success(newStatus === 'ACTIVE' ? 'Organisasi diaktifkan.' : 'Organisasi disuspend.');
       await load();
     } catch (e: any) {
-      toast.error(e?.message ?? 'Gagal update status');
+      toast.error(e?.message ?? 'Gagal memperbarui status organisasi.');
     } finally { setBusy(false); }
   };
 
@@ -78,10 +79,10 @@ export function AdminOrganizersPage() {
     try {
       const { error } = await supabase.from('organizers').update({ access_code: code }).eq('id', orgId);
       if (error) throw error;
-      toast.success('Access code berhasil diatur');
+      toast.success('Kode akses berhasil diperbarui.');
       await load();
     } catch (e: any) {
-      toast.error(e?.message ?? 'Gagal set access code');
+      toast.error(e?.message ?? 'Gagal memperbarui kode akses.');
     } finally { setBusy(false); }
   };
 
@@ -100,47 +101,66 @@ export function AdminOrganizersPage() {
         }
         added++;
       }
-      if (skipped > 0) toast.warning(`${added} ditambahkan, ${skipped} sudah ada (duplikat).`);
-      else if (added > 0) toast.success(`${added} anggota berhasil ditambahkan!`);
+      if (skipped > 0) toast.warning(`${added} anggota ditambahkan, ${skipped} sudah terdaftar.`);
+      else if (added > 0) toast.success(`${added} anggota berhasil ditambahkan.`);
       setPendingUsers(prev => ({ ...prev, [orgId]: [] }));
       await load();
     } catch (e: any) {
-      toast.error(e?.message ?? 'Gagal menambah anggota');
+      toast.error(e?.message ?? 'Gagal menambah anggota.');
     } finally { setBusy(false); }
   };
 
   const removeMember = async (memberId: string) => {
-    if (!confirm('Hapus member ini?')) return;
     setBusy(true);
     try {
       const { error } = await supabase.from('organizer_members').delete().eq('id', memberId);
       if (error) throw error;
-      toast.success('Member dihapus');
+      toast.success('Anggota berhasil dihapus.');
+      setRemoveTarget(null);
       await load();
     } catch (e: any) {
-      toast.error(e?.message ?? 'Gagal menghapus member');
+      toast.error(e?.message ?? 'Gagal menghapus anggota.');
     } finally { setBusy(false); }
   };
 
+  const removeMemberName = removeTarget ? organizers.flatMap((org) => org._members || []).find((member: any) => member.id === removeTarget)?.user_id : null;
   const statusColor = (s: string) => s === 'ACTIVE' ? 'moss' : s === 'SUSPENDED' ? 'err' : 'default';
+  const statusLabel = (s: string) => s === 'ACTIVE' ? 'Aktif' : s === 'SUSPENDED' ? 'Ditangguhkan' : 'Menunggu';
   const getExcludedIds = (org: Organizer): string[] => [org.owner_user_id, ...(org._members || []).map((m: any) => m.user_id)];
 
   return (
-    <div className="min-h-screen surface-bg p-5 md:p-8">
-      <div className="max-w-5xl mx-auto">
-        <Link to="/admin" className="inline-flex items-center gap-2 text-xs text-fg-muted hover:text-fg mb-5"><ArrowLeft size={14} /> Kembali ke Admin</Link>
-        <div className="flex items-center justify-between mb-6"><div><p className="text-xs text-accent font-semibold uppercase">Admin</p><h1 className="text-2xl font-bold text-fg">Kelola Organisasi</h1><p className="text-sm text-fg-muted mt-1">Konfirmasi, settings, dan manajemen member</p></div><Badge color="moss"><Building2 size={14} /> {organizers.length} Organisasi</Badge></div>
-        <div className="relative mb-4"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" /><input className="input pl-10" placeholder="Cari nama atau slug organisasi..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+    <div className="min-h-screen surface-bg p-4 md:p-7">
+      <div className="mx-auto max-w-5xl space-y-5">
+        <section className="flex flex-col gap-4 border-b surface-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Organisasi</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-fg md:text-3xl">Kelola organisasi</h1>
+            <p className="mt-1.5 text-sm leading-6 text-fg-muted">Kelola status organisasi, kode akses, dan anggota dalam satu tempat.</p>
+          </div>
+          <Badge color="moss"><Building2 size={14} /> {organizers.length} organisasi</Badge>
+        </section>
+
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
+          <input className="input pl-10" placeholder="Cari nama atau slug organisasi..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+
         {loading ? <Card className="p-8 text-center text-fg-muted">Memuat organisasi...</Card> : filtered.length === 0 ? <Card className="p-8 text-center text-fg-muted">Tidak ada organisasi ditemukan.</Card> : <div className="space-y-3">{filtered.map(org => <Card key={org.id}>
-          <div className="flex items-center gap-3 p-4 cursor-pointer hover:bg-accent-muted/5 transition" onClick={() => setExpandedId(expandedId === org.id ? null : org.id)}><div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center shrink-0"><Building2 size={18} className="text-accent" /></div><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{org.name}</p><p className="text-[11px] text-fg-muted">/{org.slug} · {org._members?.length || 0} members · {org._competitionCount || 0} lomba</p></div><Badge color={statusColor(org.status) as any}>{org.status}</Badge><Badge>{org.access_code ? `🔑 ${org.access_code}` : '🔑 —'}</Badge>{expandedId === org.id ? <ChevronUp size={16} className="text-fg-muted" /> : <ChevronDown size={16} className="text-fg-muted" />}</div>
-          {expandedId === org.id && <div className="border-t surface-border p-4 space-y-4 animate-slide-down relative">
-            <div className="flex flex-wrap gap-2"><Button size="sm" variant={org.status === 'ACTIVE' ? 'primary' : 'outline'} onClick={() => void toggleStatus(org, 'ACTIVE')} disabled={busy} icon={<Check size={14} />}>Aktifkan</Button><Button size="sm" variant={org.status === 'SUSPENDED' ? 'danger' : 'outline'} onClick={() => void toggleStatus(org, 'SUSPENDED')} disabled={busy} icon={<X size={14} />}>Suspend</Button></div>
-            <div><p className="text-xs font-semibold text-fg mb-2 flex items-center gap-1.5"><Key size={12} /> Access Code (Password)</p><div className="flex gap-2"><input className="input flex-1" placeholder={org.access_code || 'Belum diatur'} value={newAccessCode} onChange={e => setNewAccessCode(e.target.value)} /><Button size="sm" onClick={() => { void setAccessCode(org.id, newAccessCode); setNewAccessCode(''); }} disabled={busy || !newAccessCode.trim()}>Set</Button><Button size="sm" variant="outline" onClick={() => void setAccessCode(org.id, '0')} disabled={busy}>Reset ke 0</Button></div></div>
-            <div><p className="text-xs font-semibold text-fg mb-2 flex items-center gap-1.5"><Users size={12} /> Members</p><div className="space-y-1.5 mb-3"><div className="flex items-center gap-2 p-2 rounded-lg surface-elevated"><Shield size={12} className="text-amber-400" /><span className="text-xs text-fg flex-1">Owner: {org._ownerProfile ? `${org._ownerProfile.full_name || org._ownerProfile.username} | @${org._ownerProfile.username}` : org.owner_user_id.slice(0, 8) + '...'}</span><Badge color="moss">owner</Badge></div>{(org._members || []).map((m: any) => { const mp = org._memberProfiles?.[m.user_id]; const displayName = mp ? `${mp.full_name || mp.username}` : m.user_id.slice(0, 8) + '...'; const displayUsername = mp?.username || ''; return <div key={m.id} className="flex items-center gap-2 p-2 rounded-lg surface-elevated">{mp ? <div className="w-6 h-6 rounded-full bg-gradient-to-br from-moss-400 to-moss-600 flex items-center justify-center text-[9px] font-bold text-white shrink-0">{String(displayName).slice(0, 1).toUpperCase()}</div> : <Users size={12} className="text-fg-muted" />}<span className="text-xs text-fg flex-1 truncate">{displayName}{displayUsername && <span className="text-fg-muted ml-1">@{displayUsername}</span>}</span><Badge>{m.role}</Badge><button className="text-red-400 hover:text-red-300 p-1" onClick={() => void removeMember(m.id)} disabled={busy}><Trash2 size={12} /></button></div>; })}</div><UserPicker excludedUserIds={getExcludedIds(org)} selected={pendingUsers[org.id] || []} onSelectionChange={users => setPendingUsers(prev => ({ ...prev, [org.id]: users }))} onAdd={() => void addMembers(org.id)} disabled={busy} placeholder="Cari nama atau username untuk ditambahkan..." /></div>
-            <div className="text-[11px] text-fg-muted flex gap-4"><span>ID: {org.id.slice(0, 8)}...</span><span>Dibuat: {new Date(org.created_at).toLocaleDateString('id-ID')}</span></div>
+          <button type="button" className="flex w-full items-center gap-3 p-4 text-left hover:bg-accent-muted/5 transition" onClick={() => setExpandedId(expandedId === org.id ? null : org.id)} aria-expanded={expandedId === org.id}>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-muted"><Building2 size={18} className="text-accent" /></div>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{org.name}</p><p className="text-[11px] text-fg-muted">/{org.slug} · {org._members?.length || 0} anggota · {org._competitionCount || 0} lomba</p></div>
+            <Badge color={statusColor(org.status) as any}>{statusLabel(org.status)}</Badge>
+            <Badge>{org.access_code ? `🔑 ${org.access_code}` : '🔑 Belum diatur'}</Badge>
+            {expandedId === org.id ? <ChevronUp size={16} className="text-fg-muted" /> : <ChevronDown size={16} className="text-fg-muted" />}
+          </button>
+          {expandedId === org.id && <div className="relative space-y-4 border-t surface-border p-4 animate-slide-down">
+            <div className="flex flex-wrap gap-2"><Button size="sm" variant={org.status === 'ACTIVE' ? 'primary' : 'outline'} onClick={() => void toggleStatus(org, 'ACTIVE')} disabled={busy} icon={<Check size={14} />}>Aktifkan</Button><Button size="sm" variant={org.status === 'SUSPENDED' ? 'danger' : 'outline'} onClick={() => void toggleStatus(org, 'SUSPENDED')} disabled={busy} icon={<X size={14} />}>Tangguhkan</Button></div>
+            <div><p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg"><Key size={12} /> Kode akses organisasi</p><div className="flex gap-2"><input className="input flex-1" placeholder={org.access_code || 'Belum diatur'} value={newAccessCode} onChange={e => setNewAccessCode(e.target.value)} /><Button size="sm" onClick={() => { void setAccessCode(org.id, newAccessCode); setNewAccessCode(''); }} disabled={busy || !newAccessCode.trim()}>Simpan</Button><Button size="sm" variant="outline" onClick={() => void setAccessCode(org.id, '0')} disabled={busy}>Reset</Button></div></div>
+            <div><p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg"><Users size={12} /> Anggota</p><div className="mb-3 space-y-1.5"><div className="flex items-center gap-2 rounded-lg surface-elevated p-2"><Shield size={12} className="text-amber-400" /><span className="flex-1 text-xs text-fg">Pemilik: {org._ownerProfile ? `${org._ownerProfile.full_name || org._ownerProfile.username} · @${org._ownerProfile.username}` : 'Tidak tersedia'}</span><Badge color="moss">Pemilik</Badge></div>{(org._members || []).map((m: any) => { const mp = org._memberProfiles?.[m.user_id]; const displayName = mp ? `${mp.full_name || mp.username}` : 'Anggota'; const displayUsername = mp?.username || ''; return <div key={m.id} className="flex items-center gap-2 rounded-lg surface-elevated p-2">{mp ? <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-white">{String(displayName).slice(0, 1).toUpperCase()}</div> : <Users size={12} className="text-fg-muted" />}<span className="flex-1 truncate text-xs text-fg">{displayName}{displayUsername && <span className="ml-1 text-fg-muted">@{displayUsername}</span>}</span><Badge>{m.role === 'editor' ? 'Editor' : 'Anggota'}</Badge><button type="button" aria-label={`Hapus ${displayName}`} className="p-1 text-red-400 hover:text-red-300" onClick={() => setRemoveTarget(m.id)} disabled={busy}><Trash2 size={12} /></button></div>; })}</div><UserPicker excludedUserIds={getExcludedIds(org)} selected={pendingUsers[org.id] || []} onSelectionChange={users => setPendingUsers(prev => ({ ...prev, [org.id]: users }))} onAdd={() => void addMembers(org.id)} disabled={busy} placeholder="Cari nama atau username untuk ditambahkan..." /></div>
           </div>}
         </Card>)}</div>}
       </div>
+      <ConfirmModal open={!!removeTarget} title="Hapus anggota?" description={removeMemberName ? 'Anggota ini akan dihapus dari organisasi dan tidak lagi memiliki akses ke organisasi tersebut.' : 'Anggota ini akan dihapus dari organisasi.'} confirmLabel="Hapus anggota" cancelLabel="Batal" tone="danger" busy={busy} onCancel={() => setRemoveTarget(null)} onConfirm={() => { if (removeTarget) void removeMember(removeTarget); }} />
     </div>
   );
 }

@@ -35,10 +35,10 @@ const GROUPS: AdminNavGroup[] = [
   ] },
 ];
 
-const SIDEBAR_ADMIN_PATHS = ['/admin/chat', '/admin/organizers', '/admin/plan-usage'];
+const MODULE_NAV_HIDDEN_PATHS = ['/admin/chat', '/admin/organizers', '/admin/plan-usage'];
 
 export function shouldShowAdminModuleNav(pathname: string) {
-  return pathname.startsWith('/admin') && !SIDEBAR_ADMIN_PATHS.includes(pathname);
+  return pathname.startsWith('/admin') && !MODULE_NAV_HIDDEN_PATHS.includes(pathname);
 }
 
 function matchesItem(location: ReturnType<typeof useLocation>, path: string) {
@@ -53,8 +53,6 @@ function groupForLocation(location: ReturnType<typeof useLocation>) {
 }
 
 export function AdminShellHeader() {
-  const location = useLocation();
-  if (SIDEBAR_ADMIN_PATHS.includes(location.pathname)) return null;
   return <header className="sticky top-0 z-30 glass border-b surface-border">
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between">
       <div className="flex items-center gap-3 min-w-0">
