@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { AdminUsernameModal } from '@/components/admin/AdminUsernameModal';
+import { CompetitionDeleteModal, type CompetitionDeleteBlockers } from '@/components/admin/CompetitionDeleteModal';
 import { banUser, deleteCompetition, deletePost, deleteProduct, forceDeleteCompetition, getCompetitionDeleteBlockers, loadAdminCore, saveCompetition, savePost, saveProduct, transitionCompetition } from '@/services/adminCore.service';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 
@@ -17,6 +18,15 @@ const tabs: { key: CoreAdminTab; label: string; icon: typeof Trophy }[] = [
 ];
 const roleLabel: Record<string, string> = { student: 'Pelajar', teacher: 'Guru', organizer_member: 'Penyelenggara', admin: 'Admin' };
 const competitionStatuses = ['DRAFT', 'PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'LIVE', 'SUBMISSION_CLOSED', 'GRADING', 'RESULT_PUBLISHED', 'ARCHIVED', 'CANCELLED'];
+
+type CompetitionDeleteState = {
+  id: string;
+  title: string;
+  blockers: CompetitionDeleteBlockers | null;
+  loading: boolean;
+  deleting: boolean;
+  error: string | null;
+};
 
 export function AdminPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,6 +43,7 @@ export function AdminPage() {
   const [productEditor, setProductEditor] = useState<any | null>(null);
   const [competitionEditor, setCompetitionEditor] = useState<any | null>(null);
   const [usernameEditor, setUsernameEditor] = useState<any | null>(null);
+  const [competitionDelete, setCompetitionDelete] = useState<CompetitionDeleteState | null>(null);
 
   useEffect(() => { if (requestedTab && tabs.some(t => t.key === requestedTab)) setTab(requestedTab); }, [requestedTab]);
 
@@ -82,43 +93,44 @@ export function AdminPage() {
     if (!productEditor?.name || !productEditor?.code || !productEditor?.slug) return toast.warning('Nama, kode, dan slug produk wajib diisi.');
     await run(async () => { const saved = await saveProduct(productEditor); if (saved) setProducts(rows => productEditor.id ? rows.map(row => row.id === productEditor.id ? { ...row, ...saved } : row) : [saved, ...rows]); setProductEditor(null); }, productEditor.id ? 'Produk berhasil diperbarui.' : 'Produk berhasil dibuat.', 'Gagal menyimpan produk.');
   };
+
+  const openCompetitionDelete = async (id: string) => {
+    const competition = competitions.find(row => row.id === id);
+    if (!competition) return;
+    setCompetitionDelete({ id, title: String(competition.title || 'Lomba'), blockers: null, loading: true, deleting: false, error: null });
+    try {
+      const blockers = await getCompetitionDeleteBlockers(id);
+      setCompetitionDelete(current => current?.id === id ? { ...current, blockers, loading: false } : current);
+    } catch (error: any) {
+      setCompetitionDelete(current => current?.id === id ? { ...current, loading: false, error: error?.message ?? 'Gagal memeriksa data yang terkait dengan lomba.' } : current);
+    }
+  };
+
+  const confirmCompetitionDelete = async () => {
+    if (!competitionDelete || competitionDelete.loading || competitionDelete.deleting || competitionDelete.error) return;
+    const { id, blockers } = competitionDelete;
+    setCompetitionDelete(current => current ? { ...current, deleting: true, error: null } : current);
+    try {
+      const hasBlockers = blockers ? Object.values(blockers).some(value => Number(value) > 0) : false;
+      if (hasBlockers) await forceDeleteCompetition(id);
+      else await deleteCompetition(id);
+      setCompetitionDelete(null);
+      setCompetitions(rows => rows.filter(row => row.id !== id));
+      toast.success('Lomba berhasil dihapus.');
+      await load();
+    } catch (error: any) {
+      await load();
+      setCompetitionDelete(current => current ? { ...current, deleting: false, error: error?.message ?? 'Lomba tidak dapat dihapus. Data tetap dipertahankan.' } : current);
+    }
+  };
+
   const removeRow = async (kind: 'competition' | 'post' | 'product', id: string) => {
     if (kind === 'competition') {
-      const competition = competitions.find(row => row.id === id);
-      if (!competition) return;
-      setBusy(true);
-      try {
-        const blockers = await getCompetitionDeleteBlockers(id);
-        const reasonLines = [
-          ['Registrasi peserta', blockers.registrations],
-          ['Registrasi kolektif', blockers.collective_registrations],
-          ['Percobaan pengerjaan', blockers.attempts],
-          ['Sertifikat kolektif', blockers.collective_certificates],
-        ].filter(([, count]) => Number(count) > 0).map(([label, count]) => `- ${label}: ${count}`);
-
-        if (reasonLines.length > 0) {
-          const proceed = confirm(`Lomba "${competition.title}" belum bisa dihapus karena masih memiliki data terkait:\n\n${reasonLines.join('\n')}\n\nJika memilih YA, sistem akan menutup/mengarsipkan lomba lalu menghapus data lomba beserta data terkait tersebut. Tindakan ini permanen dan tidak dapat dibatalkan.\n\nLanjutkan hapus paksa?`);
-          if (!proceed) return;
-          await forceDeleteCompetition(id);
-        } else {
-          const proceed = confirm(`Hapus lomba "${competition.title}"?`);
-          if (!proceed) return;
-          await deleteCompetition(id);
-        }
-
-        setCompetitions(rows => rows.filter(row => row.id !== id));
-        toast.success('Lomba berhasil dihapus.');
-        await load();
-      } catch (error: any) {
-        await load();
-        toast.error(error?.message ?? 'Lomba tidak dapat dihapus. Data tetap dipertahankan.');
-      } finally {
-        setBusy(false);
-      }
+      await openCompetitionDelete(id);
       return;
     }
 
-    if (!confirm('Hapus data ini?')) return;
+    if (!window.confirm('Hapus data ini?')) return;
     setBusy(true);
     try {
       if (kind === 'post') await deletePost(id);
@@ -134,14 +146,13 @@ export function AdminPage() {
       setBusy(false);
     }
   };
+
   const transitionCompetitionAction = async (id: string, status: string) => {
-    const previous = competitions.find(row => row.id === id)?.status;
     setCompetitions(rows => rows.map(row => row.id === id ? { ...row, status } : row));
     await run(async () => { const saved = await transitionCompetition(id, status); if (saved) setCompetitions(rows => rows.map(row => row.id === id ? { ...row, ...saved } : row)); }, 'Status lomba diperbarui.', 'Gagal mengubah status lomba.');
-    if (previous) setCompetitions(rows => rows.map(row => row.id === id && row.status === status ? row : row));
   };
   const banUserAction = async (id: string) => {
-    if (!confirm('Ban user ini?')) return;
+    if (!window.confirm('Ban user ini?')) return;
     const previous = users.find(row => row.id === id)?.status;
     setUsers(rows => rows.map(row => row.id === id ? { ...row, status: 'BANNED' } : row));
     try { await run(() => banUser(id), 'Pengguna berhasil dibanned.', 'Gagal membanned pengguna.'); } catch { setUsers(rows => rows.map(row => row.id === id ? { ...row, status: previous } : row)); }
@@ -161,6 +172,7 @@ export function AdminPage() {
     {competitionEditor&&<Editor title={competitionEditor.id?'Edit Lomba':'Tambah Lomba'} onClose={()=>setCompetitionEditor(null)} onSave={()=>void saveCompetitionAction()} busy={busy}><Field label="Judul" value={competitionEditor.title||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,title:v}))}/><Field label="Slug" value={competitionEditor.slug||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,slug:v}))}/><Field label="Kategori" value={competitionEditor.category||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,category:v}))}/></Editor>}
     {postEditor&&<Editor title={postEditor.id?'Edit Postingan':'Tambah Postingan'} onClose={()=>setPostEditor(null)} onSave={()=>void savePostAction()} busy={busy}><Field label="Judul" value={postEditor.title||''} onChange={v=>setPostEditor((x:any)=>({...x,title:v}))}/><Field label="Isi" value={postEditor.body||''} onChange={v=>setPostEditor((x:any)=>({...x,body:v}))} textarea/></Editor>}
     {productEditor&&<Editor title={productEditor.id?'Edit Produk':'Tambah Produk'} onClose={()=>setProductEditor(null)} onSave={()=>void saveProductAction()} busy={busy}><Field label="Nama" value={productEditor.name||''} onChange={v=>setProductEditor((x:any)=>({...x,name:v}))}/><Field label="Kode Produk" value={productEditor.code||''} onChange={v=>setProductEditor((x:any)=>({...x,code:v}))}/><Field label="Slug" value={productEditor.slug||''} onChange={v=>setProductEditor((x:any)=>({...x,slug:v}))}/></Editor>}
+    {competitionDelete&&<CompetitionDeleteModal title={competitionDelete.title} blockers={competitionDelete.blockers} loading={competitionDelete.loading} deleting={competitionDelete.deleting} error={competitionDelete.error} onClose={()=>{if(!competitionDelete.deleting)setCompetitionDelete(null);}} onConfirm={()=>void confirmCompetitionDelete()}/>} 
   </div>;
 }
 
