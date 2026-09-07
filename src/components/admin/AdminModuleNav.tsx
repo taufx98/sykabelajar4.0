@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { AlertTriangle, LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote } from 'lucide-react';
+import { AlertTriangle, LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 type AdminNavItem = { title: string; path: string; icon: typeof LayoutDashboard; badge?: string };
@@ -13,6 +13,12 @@ const GROUPS: AdminNavGroup[] = [
     { title: 'Pesanan', path: '/admin/core?tab=orders', icon: ShoppingBag },
     { title: 'Shop', path: '/admin/core?tab=shop', icon: Store },
     { title: 'Postingan', path: '/admin/core?tab=posts', icon: FileText },
+  ] },
+  { key: 'communication', title: 'Chat & Komunikasi', items: [
+    { title: 'Chat Pribadi & Grup', path: '/pesan', icon: MessageCircle },
+    { title: 'Kontrol Chat Admin', path: '/admin/chat', icon: ShieldCheck },
+    { title: 'Organisasi', path: '/admin/organizers', icon: Users },
+    { title: 'Plan & Usage', path: '/admin/plan-usage', icon: Settings },
   ] },
   { key: 'platform', title: 'Platform & Konten', items: [
     { title: 'XP & Coin', path: '/admin/currency', icon: Coins },
@@ -47,6 +53,8 @@ function groupForLocation(location: ReturnType<typeof useLocation>) {
 }
 
 export function AdminShellHeader() {
+  const location = useLocation();
+  if (SIDEBAR_ADMIN_PATHS.includes(location.pathname)) return null;
   return <header className="sticky top-0 z-30 glass border-b surface-border">
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between">
       <div className="flex items-center gap-3 min-w-0">
