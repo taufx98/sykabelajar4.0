@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { GraduationCap, Mail, Lock, ArrowRight, UserRound, School, Building2, Eye, EyeOff } from 'lucide-react';
+import { GraduationCap, Mail, Lock, ArrowRight, UserRound, School, Building2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
 import { resetPassword } from '@/services/auth.service';
@@ -34,7 +34,6 @@ export function LoginPage() {
       const result = await login(email, password, requestedRole);
       if (!result.ok) { toast(result.error || 'Login gagal', 'error'); return; }
       toast('Selamat datang kembali!', 'success');
-      // Navigate to saved redirect URL or default /home
       navigate(redirectTo, { replace: true });
     } finally {
       setLoading(false);
@@ -72,6 +71,11 @@ export function LoginPage() {
                 {ROLE_OPTIONS.map(({ value, label, icon: Icon }) => <button key={value} type="button" onClick={() => setRequestedRole(value)} className={`rounded-xl border p-3 flex flex-col items-center gap-2 transition ${requestedRole === value ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-400 hover:surface-border'}`}><Icon size={18} /><span className="text-xs font-medium">{label}</span></button>)}
               </div>
             </div>
+            <Link to="/peserta-kolektif/login" className="mb-5 flex items-center gap-3 rounded-xl border surface-border px-3 py-3 hover:border-moss-500/40 hover:bg-moss-500/5 transition">
+              <span className="w-9 h-9 rounded-lg bg-moss-500/10 flex items-center justify-center text-accent"><ShieldCheck size={17} /></span>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-fg">Masuk sebagai Peserta Kolektif</span><span className="block text-xs text-slate-500 mt-0.5">Gunakan password portal dari Guru.</span></span>
+              <ArrowRight size={16} className="text-slate-500" />
+            </Link>
             <div className="space-y-4">
               <div><label className="label">Email</label><div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type="email" className="input pl-9" placeholder="nama@email.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></div></div>
               <div><label className="label">Password</label><div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type={showPassword ? "text" : "password"} className="input pl-9 pr-10" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void handleLogin()} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
