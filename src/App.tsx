@@ -27,6 +27,7 @@ const ReferralPage = lazy(() => import('@/pages/ReferralPage').then((module) => 
 const SocialFeedPage = lazy(() => import('@/pages/SocialFeedPage').then((module) => ({ default: module.SocialFeedPage })));
 const TwibbonPage = lazy(() => import('@/pages/TwibbonPage').then((module) => ({ default: module.TwibbonPage })));
 const MessagesPage = lazy(() => import('@/pages/MessagesPage').then((module) => ({ default: module.MessagesPage })));
+const CollectiveMessagesPage = lazy(() => import('@/pages/CollectiveMessagesPage').then((module) => ({ default: module.CollectiveMessagesPage })));
 const AdminChatConsolePage = lazy(() => import('@/pages/AdminChatConsolePage').then((module) => ({ default: module.AdminChatConsolePage })));
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((module) => ({ default: module.AdminPage })));
 const AdminControlCenterPage = lazy(() => import('@/pages/AdminControlCenterPage').then((module) => ({ default: module.AdminControlCenterPage })));
@@ -70,8 +71,9 @@ const CollectiveParticipantLoginPage = lazy(() => import('@/pages/CollectivePart
 function AuthGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading, isGuest } = useApp();
   const location = useLocation();
+  const collectiveChatSession = location.pathname === '/pesan' && typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token'));
   if (authLoading) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-fg-muted">Memuat sesi...</p></div>;
-  if (isAuthenticated || isGuest) return <>{children}</>;
+  if (isAuthenticated || isGuest || collectiveChatSession) return <>{children}</>;
   return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
 }
 
@@ -130,6 +132,13 @@ function RouteLoading() {
   );
 }
 
+function MessagesEntryPage() {
+  const { user, authLoading } = useApp();
+  const collectiveChatSession = typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token')) && !user;
+  if (authLoading) return <RouteLoading />;
+  return collectiveChatSession ? <CollectiveMessagesPage /> : <MessagesPage />;
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<RouteLoading />}>
@@ -157,7 +166,7 @@ function AppRoutes() {
           <Route path="/profile/edit" element={<EditProfilePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/pesan" element={<MessagesPage />} />
+          <Route path="/pesan" element={<MessagesEntryPage />} />
           <Route path="/claim-peserta-kolektif" element={<CollectiveParticipantClaimPage />} />
           <Route path="/profile/collective-history" element={<CollectiveHistoryPage />} />
           <Route path="/guru" element={<RoleRoute role="teacher"><GuruCollectivePage /></RoleRoute>} />
