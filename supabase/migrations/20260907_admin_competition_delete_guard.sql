@@ -1,0 +1,80 @@
+create or replace function public.admin_get_competition_delete_blockers(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_result jsonb;
+begin
+  if not private.current_user_is_admin() then
+    raise exception 'ACCESS_DENIED';
+  end if;
+
+  if not exists (select 1 from public.competitions where id = p_competition_id) then
+    raise exception 'COMPETITION_NOT_FOUND';
+  end if;
+
+  select jsonb_build_object(
+    'registrations', (select count(*) from public.registrations where competition_id = p_competition_id),
+    'collective_registrations', (select count(*) from public.collective_registrations where competition_id = p_competition_id),
+    'attempts', (select count(*) from public.attempts where competition_id = p_competition_id),
+    'collective_certificates', (select count(*) from public.collective_certificates where competition_id = p_competition_id)
+  ) into v_result;
+
+  return v_result;
+end;
+$$;
+
+revoke all on function public.admin_get_competition_delete_blockers(uuid) from public, anon;
+grant execute on function public.admin_get_competition_delete_blockers(uuid) to authenticated;
+
+create or replace function public.admin_force_delete_competition(p_competition_id uuid, p_reason text default 'Admin panel - forced delete')
+returns public.competitions
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_before public.competitions;
+begin
+  if not private.current_user_is_admin() then
+    raise exception 'ACCESS_DENIED';
+  end if;
+
+  select * into v_before
+  from public.competitions
+  where id = p_competition_id
+  for update;
+
+  if not found then
+    raise exception 'COMPETITION_NOT_FOUND';
+  end if;
+
+  update public.competitions
+  set status = 'ARCHIVED', updated_at = now()
+  where id = p_competition_id;
+
+  delete from public.attempts where competition_id = p_competition_id;
+  delete from public.collective_registrations where competition_id = p_competition_id;
+  delete from public.registrations where competition_id = p_competition_id;
+  delete from public.collective_certificates where competition_id = p_competition_id;
+  delete from public.chat_groups where competition_id = p_competition_id;
+  delete from public.competitions where id = p_competition_id;
+
+  perform private.write_audit(
+    'admin.competition_force_delete',
+    'competition',
+    p_competition_id::text,
+    p_reason,
+    to_jsonb(v_before),
+    null,
+    jsonb_build_object('forced', true)
+  );
+
+  return v_before;
+end;
+$$;
+
+revoke all on function public.admin_force_delete_competition(uuid,text) from public, anon;
+grant execute on function public.admin_force_delete_competition(uuid,text) to authenticated;
