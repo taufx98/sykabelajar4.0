@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
 import { getFollowStatus, requestFollow, removeFollow, type FollowStatus } from '@/services/chat.service';
 import { ChatCooldownGate } from '@/components/chat/ChatModerationGate';
+import { AdminCommunicationLinks } from '@/components/admin/AdminCommunicationLinks';
 
 function normalizeFollowStatus(value: unknown): FollowStatus {
   return value === 'approved' || value === 'auto' || value === 'pending' ? value : 'none';
@@ -86,12 +87,19 @@ function ProfileMessagingGate() {
         <Button size="sm" variant="outline" onClick={() => void unfollow()} disabled={busy} icon={<UserMinus size={14} />}>Unfollow</Button>
         <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="primary" icon={<MessageCircle size={14} />}>Kirim Pesan</Button></Link>
       </> : status === 'pending' ? <Button size="sm" variant="outline" disabled icon={<Clock3 size={14} />}>Diminta</Button>
-        : <Button size="sm" variant="primary" onClick={() => void follow()} disabled={busy} icon={<UserPlus size={14} />}>Ikuti</Button>}
+        : <Button size="sm" variant="primary" onClick={follow} disabled={busy} icon={<UserPlus size={14} />}>Ikuti</Button>}
     </div>,
     host,
   );
 }
 
 export function ChatUXBridge() {
-  return <><ProfileMessagingGate /><ChatCooldownGate /></>;
+  const { user } = useApp();
+  const location = useLocation();
+  const showAdminChatSwitcher = user?.role === 'admin' && (location.pathname === '/pesan' || location.pathname === '/admin/chat');
+  return <>
+    {showAdminChatSwitcher && <div className="fixed top-[4.25rem] md:top-2 right-3 md:right-6 z-40 max-w-[calc(100vw-1.5rem)]"><AdminCommunicationLinks /></div>}
+    <ProfileMessagingGate />
+    <ChatCooldownGate />
+  </>;
 }
