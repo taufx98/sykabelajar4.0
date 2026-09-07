@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
 import { getFollowStatus, requestFollow, removeFollow, type FollowStatus } from '@/services/chat.service';
 import { ChatCooldownGate } from '@/components/chat/ChatModerationGate';
-import { AdminCommunicationLinks } from '@/components/admin/AdminCommunicationLinks';
 
 function normalizeFollowStatus(value: unknown): FollowStatus {
   return value === 'approved' || value === 'auto' || value === 'pending' ? value : 'none';
@@ -94,11 +93,7 @@ function ProfileMessagingGate() {
 }
 
 export function ChatUXBridge() {
-  const { user } = useApp();
-  const location = useLocation();
-  const showAdminChatSwitcher = user?.role === 'admin' && location.pathname === '/pesan';
   return <>
-    {showAdminChatSwitcher && <div className="sticky top-2 z-20 mx-3 flex justify-end md:mx-6"><AdminCommunicationLinks /></div>}
     <ProfileMessagingGate />
     <ChatCooldownGate />
   </>;
