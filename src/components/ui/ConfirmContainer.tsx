@@ -5,7 +5,12 @@ import { resolveConfirm, subscribeConfirm, type ConfirmRequest } from '@/lib/con
 export function ConfirmContainer() {
   const [request, setRequest] = useState<(ConfirmRequest & { resolve: (value: boolean) => void }) | null>(null);
 
-  useEffect(() => subscribeConfirm(setRequest), []);
+  useEffect(() => {
+    const unsubscribe = subscribeConfirm(setRequest);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   if (!request) return null;
 
