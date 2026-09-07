@@ -46,6 +46,13 @@ export type AdminProductInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type CompetitionDeleteBlockers = {
+  registrations: number;
+  collective_registrations: number;
+  attempts: number;
+  collective_certificates: number;
+};
+
 function assertId(id: string) {
   if (!id) throw new Error('ID data tidak valid.');
 }
@@ -96,9 +103,26 @@ export async function saveCompetition(input: AdminCompetitionInput) {
   return data;
 }
 
+export async function getCompetitionDeleteBlockers(id: string) {
+  assertId(id);
+  const { data, error } = await supabase.rpc('admin_get_competition_delete_blockers', { p_competition_id: id });
+  if (error) throw error;
+  return (data ?? { registrations: 0, collective_registrations: 0, attempts: 0, collective_certificates: 0 }) as CompetitionDeleteBlockers;
+}
+
 export async function deleteCompetition(id: string) {
   assertId(id);
   const { data, error } = await supabase.rpc('admin_delete_competition', { p_competition_id: id });
+  if (error) throw error;
+  return data;
+}
+
+export async function forceDeleteCompetition(id: string) {
+  assertId(id);
+  const { data, error } = await supabase.rpc('admin_force_delete_competition', {
+    p_competition_id: id,
+    p_reason: 'Admin panel - forced delete',
+  });
   if (error) throw error;
   return data;
 }
