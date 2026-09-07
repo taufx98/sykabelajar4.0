@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ShieldCheck, Search, Save } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ShieldCheck, Search, Save } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
@@ -42,7 +41,7 @@ export function AdminRolesPage() {
       if (!current) return;
       await Promise.all(ROLE_OPTIONS.map(async (candidate) => {
         const active = candidate === role;
-        if (active || current.roles.includes(candidate)) await adminSetUserRole(userId, candidate, active, `Admin role update: ${role}`);
+        if (active || current.roles.includes(candidate)) await adminSetUserRole(userId, candidate, active, `Admin mengubah role menjadi ${role}`);
       }));
       await load();
     } catch (err: any) {
@@ -51,13 +50,15 @@ export function AdminRolesPage() {
     } finally { setSaving(null); }
   };
 
-  return <div className="min-h-screen p-4 space-y-4">
-    <div className="flex items-center gap-3"><Link to="/admin"><button className="w-9 h-9 rounded-xl surface-elevated flex items-center justify-center text-fg-secondary"><ArrowLeft size={18} /></button></Link><div><h1 className="font-display font-bold text-xl text-fg">Manajemen Role</h1><p className="text-xs text-slate-500">Hanya admin backend yang dapat mengubah role pengguna.</p></div><Badge color="moss">Admin</Badge></div>
-    <Card className="p-4"><div className="flex items-center gap-2 mb-4"><ShieldCheck size={18} className="text-accent" /><p className="text-sm text-fg-secondary">Perubahan disimpan langsung ke <code>user_roles</code> melalui RPC backend.</p></div><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input className="input pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama, username, sekolah..." /></div></Card>
-    {error && <Card className="p-4 border-red-500/30"><p className="text-sm text-red-300">{error}</p></Card>}
-    <div className="space-y-2">
-      {loading ? <Card className="p-8 text-center text-sm text-slate-500">Memuat pengguna…</Card> : filtered.map((u) => { const activeRole = u.roles.includes('admin') ? 'admin' : u.roles.includes('organizer_member') ? 'organizer_member' : u.roles.includes('teacher') ? 'teacher' : 'student'; return <Card key={u.id} className="p-3"><div className="flex flex-col md:flex-row md:items-center gap-3"><Avatar name={u.full_name ?? u.username ?? 'U'} id={u.id} size={40} src={u.avatar_url ?? undefined} /><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg truncate">{u.full_name || u.username || 'Pengguna'}</p><p className="text-xs text-slate-500 truncate">@{u.username || '—'} · {u.institution || '—'}</p></div><select className="input md:w-48" value={activeRole} onChange={(e) => { void saveRole(u.id, e.target.value as BackendRole); }} disabled={saving === u.id}>{ROLE_OPTIONS.map((role) => <option key={role} value={role}>{ROLE_LABEL[role]}</option>)}</select>{saving === u.id && <span className="text-xs text-slate-500 flex items-center gap-1"><Save size={13} /> Menyimpan…</span>}</div></Card>; })}
-      {!loading && !filtered.length && <Card className="p-8 text-center text-sm text-slate-500">Pengguna tidak ditemukan.</Card>}
+  return <div className="min-h-screen surface-bg p-4 md:p-7">
+    <div className="mx-auto max-w-5xl space-y-5">
+      <section className="flex flex-col gap-3 border-b surface-border pb-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Akses pengguna</p><h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-fg md:text-3xl">Manajemen role</h1><p className="mt-1.5 text-sm leading-6 text-fg-muted">Atur jenis akun yang dimiliki setiap pengguna.</p></div><Badge color="moss">Role & akses</Badge></section>
+      <Card className="p-4"><div className="mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-accent" /><p className="text-sm text-fg-secondary">Perubahan role disimpan ke sistem akses akun secara langsung.</p></div><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input className="input pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama, username, sekolah..." /></div></Card>
+      {error && <Card className="border-red-500/30 p-4"><p className="text-sm text-red-300">{error}</p></Card>}
+      <div className="space-y-2">
+        {loading ? <Card className="p-8 text-center text-sm text-slate-500">Memuat pengguna…</Card> : filtered.map((u) => { const activeRole = u.roles.includes('admin') ? 'admin' : u.roles.includes('organizer_member') ? 'organizer_member' : u.roles.includes('teacher') ? 'teacher' : 'student'; return <Card key={u.id} className="p-3"><div className="flex flex-col gap-3 md:flex-row md:items-center"><Avatar name={u.full_name ?? u.username ?? 'U'} id={u.id} size={40} src={u.avatar_url ?? undefined} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{u.full_name || u.username || 'Pengguna'}</p><p className="truncate text-xs text-slate-500">@{u.username || '—'} · {u.institution || '—'}</p></div><select className="input md:w-48" value={activeRole} onChange={(e) => { void saveRole(u.id, e.target.value as BackendRole); }} disabled={saving === u.id}>{ROLE_OPTIONS.map((role) => <option key={role} value={role}>{ROLE_LABEL[role]}</option>)}</select>{saving === u.id && <span className="flex items-center gap-1 text-xs text-slate-500"><Save size={13} /> Menyimpan…</span>}</div></Card>; })}
+        {!loading && !filtered.length && <Card className="p-8 text-center text-sm text-slate-500">Pengguna tidak ditemukan.</Card>}
+      </div>
     </div>
   </div>;
 }
