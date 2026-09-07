@@ -96,9 +96,9 @@ function ProfileMessagingGate() {
 export function ChatUXBridge() {
   const { user } = useApp();
   const location = useLocation();
-  const showAdminChatSwitcher = user?.role === 'admin' && (location.pathname === '/pesan' || location.pathname === '/admin/chat');
+  const showAdminChatSwitcher = user?.role === 'admin' && location.pathname === '/pesan';
   return <>
-    {showAdminChatSwitcher && <div className="fixed top-[4.25rem] md:top-2 right-3 md:right-6 z-40 max-w-[calc(100vw-1.5rem)]"><AdminCommunicationLinks /></div>}
+    {showAdminChatSwitcher && <div className="sticky top-2 z-20 mx-3 flex justify-end md:mx-6"><AdminCommunicationLinks /></div>}
     <ProfileMessagingGate />
     <ChatCooldownGate />
   </>;
