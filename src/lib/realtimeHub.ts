@@ -3,7 +3,7 @@ import { emitSykaEvent } from '@/lib/realtimeBus';
 import { clearPublicCache, invalidateForRealtime } from '@/lib/cacheRegistry';
 import { applyFeedRealtimeChange } from '@/lib/feedRealtime';
 import { applyCompetitionRealtimeChange, invalidateLeaderboardMemory } from '@/services/platform.service';
-import { applyChatRealtimeThread, removeChatRealtimeThread } from '@/services/chat.service';
+import { applyChatRealtimeMessage, applyChatRealtimeThread, removeChatRealtimeThread } from '@/services/chat.service';
 import { reconcileAfterRealtimeReconnect } from '@/services/realtime-reconciliation.service';
 
 type Cleanup = () => void;
@@ -92,6 +92,16 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
     emitSykaEvent({ type: 'chat-thread-updated', thread: row });
   };
 
+  const handleChatMessageInsert = (payload: { new?: unknown }) => {
+    const row = (payload.new ?? {}) as Record<string, unknown>;
+    const threadId = String(row.thread_id ?? '');
+    const messageId = String(row.id ?? '');
+    if (!threadId || !messageId) return;
+    const message = row as never;
+    applyChatRealtimeMessage(message, userId);
+    emitSykaEvent({ type: 'chat-message', message: row });
+  };
+
   if (isAdmin) {
     // Admin receives only its own DM/ticket endpoints, never other users' private chats.
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, handleThreadChange);
@@ -100,6 +110,8 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, handleThreadChange);
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, handleThreadChange);
   }
+
+  channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, handleChatMessageInsert);
 
   if (isAdmin) {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'payment_proof_status=eq.SUBMITTED' }, (payload) => {
