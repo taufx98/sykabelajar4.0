@@ -183,12 +183,35 @@ declare v_uid uuid:=auth.uid();v_hash text:=encode(digest(trim(coalesce(p_invite
 begin
  if v_uid is null then raise exception 'UNAUTHORIZED'; end if;
  select * into v_group from public.chat_groups where invite_token_hash=v_hash and join_mode='link'; if not found then raise exception 'GROUP_INVITE_INVALID'; end if;
+ if v_group.group_type='event' and not (exists(select 1 from public.registrations r where r.user_id=v_uid and r.competition_id=v_group.competition_id and r.status in ('APPROVED','ACTIVE')) or exists(select 1 from public.organizer_members om join public.competitions c on c.id= v_group.competition_id where om.organizer_id=c.organizer_id and om.user_id=v_uid and om.is_active=true and om.status='ACTIVE') or exists(select 1 from public.user_roles ur where ur.user_id=v_uid and ur.role='admin' and ur.is_active=true)) then raise exception 'GROUP_EVENT_NOT_ELIGIBLE'; end if;
  insert into public.chat_group_members(group_id,user_id,role,status) values(v_group.id,v_uid,'MEMBER','ACTIVE') on conflict do update set status='ACTIVE'; return jsonb_build_object('ok',true,'group_id',v_group.id,'name',v_group.name);
 end;$$;
 
 create policy chat_group_messages_select on public.chat_group_messages for select to authenticated using(private.chat_group_user_is_member(group_id,auth.uid()));
 create policy chat_group_messages_insert on public.chat_group_messages for insert to authenticated with check(sender_user_id=auth.uid() and sender_collective_participant_id is null and private.chat_group_user_is_member(group_id,auth.uid()));
 
-do $$ begin
- if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='chat_group_messages') then alter publication supabase_realtime add table public.chat_group_messages; end if;
-end $$;
+do $$ begin if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='chat_group_messages') then alter publication supabase_realtime add table public.chat_group_messages; end if; end $$;
+
+-- Function privileges: never leave new RPCs executable by PUBLIC by default.
+revoke all on function public.create_chat_group(text,text,text,uuid,text) from public,anon,authenticated;
+revoke all on function public.list_my_chat_groups() from public,anon,authenticated;
+revoke all on function public.get_chat_group_members(uuid) from public,anon,authenticated;
+revoke all on function public.get_chat_group_messages(uuid,integer,timestamptz) from public,anon,authenticated;
+revoke all on function public.send_chat_group_message(uuid,text) from public,anon,authenticated;
+revoke all on function public.add_chat_group_member(uuid,uuid,uuid) from public,anon,authenticated;
+revoke all on function public.remove_chat_group_member(uuid,uuid) from public,anon,authenticated;
+revoke all on function public.rename_chat_group(uuid,text) from public,anon,authenticated;
+revoke all on function public.mark_chat_group_read(uuid) from public,anon,authenticated;
+revoke all on function public.create_chat_group_invite(uuid) from public,anon,authenticated;
+revoke all on function public.join_chat_group(text) from public,anon,authenticated;
+grant execute on function public.create_chat_group(text,text,text,uuid,text) to authenticated;
+grant execute on function public.list_my_chat_groups() to authenticated;
+grant execute on function public.get_chat_group_members(uuid) to authenticated;
+grant execute on function public.get_chat_group_messages(uuid,integer,timestamptz) to authenticated;
+grant execute on function public.send_chat_group_message(uuid,text) to authenticated;
+grant execute on function public.add_chat_group_member(uuid,uuid,uuid) to authenticated;
+grant execute on function public.remove_chat_group_member(uuid,uuid) to authenticated;
+grant execute on function public.rename_chat_group(uuid,text) to authenticated;
+grant execute on function public.mark_chat_group_read(uuid) to authenticated;
+grant execute on function public.create_chat_group_invite(uuid) to authenticated;
+grant execute on function public.join_chat_group(text) to authenticated;
