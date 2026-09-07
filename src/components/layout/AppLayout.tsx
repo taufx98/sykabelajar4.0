@@ -116,7 +116,7 @@ export function AppLayout() {
   const profilePath = user?.username ? `/profile/@${user.username}` : '/home';
   const guestNav: NavItem[] = [['/home', 'Beranda', Home, undefined], ['/leaderboard', 'Peringkat', BarChart3, undefined], ['/awards', 'Piagam', Award, undefined]];
   const userNav: NavItem[] = [['/home', 'Beranda', Home, undefined], ['/daily-tasks', 'Daily Tasks', CalendarCheck, undefined], ['/leaderboard', 'Peringkat', BarChart3, undefined], ['/awards', 'Piagam', Award, undefined], ['/notifications', 'Notifikasi', Bell, liveUnreadNotifications > 0 ? liveUnreadNotifications : undefined], ['/orders', 'Pesanan', ShoppingBag, unreadOrders > 0 ? unreadOrders : undefined]];
-  if (isTeacher) userNav.push(['/guru', 'Guru', School, undefined], ['/guru/daftar', 'Daftar Kolektif', UsersIcon, undefined], ['/guru/kartu', 'Kartu Akses', UsersIcon, undefined], ['/guru/monitoring', 'Monitoring', BarChart3, undefined]);
+  if (isTeacher) userNav.push(['/guru', 'Guru', School, undefined], ['/guru/daftar', 'Daftar Kolektif', UserPlus, undefined], ['/guru/kartu', 'Kartu Akses', ShieldCheck, undefined], ['/guru/monitoring', 'Monitoring', BarChart3, undefined]);
   if (isOrganizer) userNav.push(['/organizer', 'Penyelenggara', Building2, undefined], ['/organizer/ads', 'Pasang Iklan', Megaphone, undefined]);
   userNav.push([chatPath, 'Pesan', MessageCircle, unreadMessages > 0 ? unreadMessages : undefined]);
   if (isAdmin) userNav.push(['/admin', 'Admin', ShieldCheck, undefined], ['/admin/plan-usage', 'Plan & Usage', SlidersHorizontal, undefined], ['/admin/organizers', 'Organisasi', Building2, undefined]);
