@@ -7,6 +7,7 @@ import { loadAwards } from '@/services/runtime.service';
 import { liveAwards } from '@/data/live';
 import { backendRoleToUiRole, getUserRoles, hasAllowedLoginRole, uiRoleToAccountType, type BackendRole } from '@/services/role.service';
 import { getUnreadNotificationCount } from '@/services/notification.service';
+import { toast as globalToast } from '@/lib/toast';
 
 interface AppState {
   user: User | null;
@@ -311,13 +312,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [authUser?.id, isGuest, clearUserState]);
 
   const toast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    // The circuit breaker still returns the error to the frontend, but its internal duplicate-request
-    // message must remain silent. Only the original backend failure is shown to the user.
+    // Compatibility bridge: legacy callers keep using useApp().toast,
+    // but every message is rendered by the single global SYKABELAJAR ToastContainer.
     if (message.includes('Permintaan identik diblokir sampai halaman dimuat ulang atau payload berubah.')) return;
-
-    const id = crypto.randomUUID();
-    setToasts((items) => [...items, { id, message, type }]);
-    window.setTimeout(() => setToasts((items) => items.filter((x) => x.id !== id)), 3500);
+    globalToast[type](message);
   }, []);
 
   const login = useCallback(async (email: string, password: string, requestedRole: Exclude<Role, 'admin'> = 'pelajar') => {
