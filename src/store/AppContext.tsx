@@ -96,7 +96,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [certificates] = useState<Certificate[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [feed] = useState<FeedPost[]>([]);
-  const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'error' | 'info' }[]>([]);
 
   const authUserRef = useRef(authUser);
   authUserRef.current = authUser;
@@ -246,7 +245,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearIdleTimer();
       localStorage.removeItem(LAST_ACTIVITY_KEY);
       try {
-        // Idle timing is entirely local. The Auth sign-out call happens only once after timeout.
         await signOut();
       } catch (error) {
         console.error('[SykaBelajar] idle logout failed', error);
@@ -270,7 +268,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const recordActivity = () => {
       const now = Date.now();
-      // Keep the in-memory clock exact. Only persistence is throttled to avoid needless localStorage writes.
       lastActivityAt = now;
       persistActivity(now);
     };
@@ -513,14 +510,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none">
-        {toasts.map((t) => (
-          <div key={t.id} className={`pointer-events-auto px-4 py-3 rounded-xl shadow-pop text-sm font-medium animate-slide-up flex items-center gap-2 ${t.type === 'success' ? 'bg-moss-600 text-white' : t.type === 'error' ? 'bg-err text-white' : 'surface-elevated text-white'}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
-            {t.message}
-          </div>
-        ))}
-      </div>
     </AppContext.Provider>
   );
 }
