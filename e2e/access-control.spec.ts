@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const protectedRoutes = [
   '/home',
+  '/pesan',
   '/guru',
   '/organizer',
   '/admin',
