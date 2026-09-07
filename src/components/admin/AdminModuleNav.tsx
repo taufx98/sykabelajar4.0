@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertTriangle, LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { useApp } from '@/store/AppContext';
 
 type AdminNavItem = { title: string; path: string; icon: typeof LayoutDashboard; badge?: string };
 type AdminNavGroup = { key: string; title: string; items: AdminNavItem[] };
@@ -35,10 +36,8 @@ const GROUPS: AdminNavGroup[] = [
   ] },
 ];
 
-const SIDEBAR_ADMIN_PATHS = ['/admin/chat', '/admin/organizers', '/admin/plan-usage'];
-
 export function shouldShowAdminModuleNav(pathname: string) {
-  return pathname.startsWith('/admin') && !SIDEBAR_ADMIN_PATHS.includes(pathname);
+  return pathname.startsWith('/admin');
 }
 
 function matchesItem(location: ReturnType<typeof useLocation>, path: string) {
@@ -52,22 +51,53 @@ function groupForLocation(location: ReturnType<typeof useLocation>) {
   return GROUPS.find(group => group.items.some(item => matchesItem(location, item.path)))?.key ?? null;
 }
 
-export function AdminShellHeader() {
+function pageTitle(pathname: string) {
+  if (pathname.startsWith('/admin')) return 'Panel Admin';
+  if (pathname.startsWith('/organizer')) return 'Panel Penyelenggara';
+  if (pathname.startsWith('/guru')) return 'Ruang Guru';
+  if (pathname.startsWith('/peserta-kolektif')) return 'Portal Peserta';
+  if (pathname.startsWith('/pesan')) return 'Pesan';
+  if (pathname.startsWith('/notifications')) return 'Notifikasi';
+  if (pathname.startsWith('/orders')) return 'Pesanan';
+  if (pathname.startsWith('/daily-tasks')) return 'Daily Tasks';
+  if (pathname.startsWith('/leaderboard')) return 'Peringkat';
+  if (pathname.startsWith('/awards')) return 'Piagam';
+  if (pathname.startsWith('/profile')) return 'Profil';
+  if (pathname.startsWith('/lomba')) return 'Kompetisi';
+  if (pathname.startsWith('/feed')) return 'Feed';
+  if (pathname.startsWith('/referrals')) return 'Referral';
+  if (pathname.startsWith('/claim-peserta-kolektif')) return 'Klaim Peserta Kolektif';
+  return 'SYKABELAJAR';
+}
+
+function pageBadge(role: string | undefined, pathname: string) {
+  if (role === 'admin' || pathname.startsWith('/admin')) return 'ADMIN';
+  if (role === 'penyelenggara' || pathname.startsWith('/organizer')) return 'PENYELENGGARA';
+  if (role === 'guru' || pathname.startsWith('/guru')) return 'GURU';
+  if (pathname.startsWith('/peserta-kolektif')) return 'PESERTA';
+  return 'PELAJAR';
+}
+
+export function UnifiedPageHeader() {
   const location = useLocation();
-  if (SIDEBAR_ADMIN_PATHS.includes(location.pathname)) return null;
+  const { user } = useApp();
+  const pathname = location.pathname;
+
   return <header className="sticky top-0 z-30 glass border-b surface-border">
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between">
       <div className="flex items-center gap-3 min-w-0">
         <Link to="/home" className="text-xs text-fg-muted hover:text-fg shrink-0">← Kembali</Link>
         <div className="min-w-0">
           <p className="text-[10px] text-accent font-semibold uppercase tracking-[0.16em]">SYKABELAJAR</p>
-          <h1 className="font-display text-lg font-bold text-fg truncate">Panel Admin</h1>
+          <h1 className="font-display text-lg font-bold text-fg truncate">{pageTitle(pathname)}</h1>
         </div>
       </div>
-      <Badge color="moss">ADMIN</Badge>
+      <Badge color="moss">{pageBadge(user?.role, pathname)}</Badge>
     </div>
   </header>;
 }
+
+export const AdminShellHeader = UnifiedPageHeader;
 
 export function AdminModuleNav() {
   const location = useLocation();
@@ -82,7 +112,7 @@ export function AdminModuleNav() {
 
   return <nav className="border-b surface-border bg-surface-elevated/15" aria-label="Navigasi modul Admin">
     <div className="mx-auto max-w-7xl px-3 py-2 md:px-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-1.5">
         <Link to="/admin" className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${!openGroup && !errorActive && location.pathname === '/admin' ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`}><LayoutDashboard size={14} /><span className="truncate">Dashboard</span></Link>
         <Link to="/admin/error-intelligence" className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold transition-all duration-200 ${errorActive ? 'bg-red-500/10 text-red-300 shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`}><AlertTriangle size={14} /><span className="truncate">Error Intelligence</span></Link>
         {GROUPS.map(group => <button key={group.key} type="button" onClick={() => setOpenGroup(value => value === group.key ? null : group.key)} className={`flex min-w-0 items-center justify-center rounded-xl px-2 py-2 text-xs font-semibold transition-all duration-200 ${openGroup === group.key ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`} aria-expanded={openGroup === group.key}><span className="truncate">{group.title}</span></button>)}
