@@ -64,9 +64,6 @@ type ConditionPatch = Partial<Pick<BadgeCondition, 'field' | 'operator' | 'value
 type Owner = {
   id: string;
   user_id: string;
-  avatar_url?: string | null;
-  full_name?: string | null;
-  username?: string | null;
   profiles?: {
     id?: string;
     full_name?: string | null;
@@ -717,12 +714,12 @@ export function AdminBadgesPage() {
                   <div className="mt-3 grid gap-2 md:grid-cols-2">
                     {owners.length ? owners.map((owner) => {
                       const profile = owner.profiles;
-                      const name = owner.full_name || owner.username || profile?.full_name || profile?.username || 'Peserta';
-                      const username = owner.username || profile?.username || 'user';
-                      const avatar = owner.avatar_url || profile?.avatar_url || null;
+                      const name = profile?.full_name || profile?.username || 'Peserta';
+                      const username = profile?.username || 'user';
+                      const avatar = profile?.avatar_url ?? undefined;
                       return (
                         <div key={owner.id} className="flex items-center gap-3 rounded-xl border surface-border p-3">
-                          <Avatar src={avatar} name={name} size="sm" />
+                          <Avatar id={owner.user_id} src={avatar} name={name} size={32} />
                           <div className="min-w-0">
                             <p className="truncate text-xs font-semibold">{name}</p>
                             <p className="truncate text-[10px] text-fg-muted">@{username}</p>
