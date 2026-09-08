@@ -119,20 +119,19 @@ begin
         end case;
 
         if actual_num is not null then
-          case operator_name
-            when '>=' then passed := passed and actual_num >= nullif(expected,'')::numeric;
-            when '>' then passed := passed and actual_num > nullif(expected,'')::numeric;
-            when '=' then passed := passed and actual_num = nullif(expected,'')::numeric;
-            when '<=' then passed := passed and actual_num <= nullif(expected,'')::numeric;
-            when '<' then passed := passed and actual_num < nullif(expected,'')::numeric;
-            else passed := false;
-          end case;
+          if operator_name = '>=' then passed := passed and actual_num >= nullif(expected,'')::numeric;
+          elsif operator_name = '>' then passed := passed and actual_num > nullif(expected,'')::numeric;
+          elsif operator_name = '=' then passed := passed and actual_num = nullif(expected,'')::numeric;
+          elsif operator_name = '<=' then passed := passed and actual_num <= nullif(expected,'')::numeric;
+          elsif operator_name = '<' then passed := passed and actual_num < nullif(expected,'')::numeric;
+          elsif operator_name = '!=' then passed := passed and actual_num <> nullif(expected,'')::numeric;
+          else passed := false;
+          end if;
         elsif actual_text is not null then
-          case operator_name
-            when '=' then passed := passed and actual_text = expected;
-            when '!=' then passed := passed and actual_text <> expected;
-            else passed := false;
-          end case;
+          if operator_name = '=' then passed := passed and actual_text = expected;
+          elsif operator_name = '!=' then passed := passed and actual_text <> expected;
+          else passed := false;
+          end if;
         end if;
 
         exit when not passed;

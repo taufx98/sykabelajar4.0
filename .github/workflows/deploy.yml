@@ -73,3 +73,5 @@ jobs:
 
       - name: Production smoke test
         run: node scripts/rpd-smoke.mjs
+
+      # CI trigger marker: keep pull_request validation active on branch updates.

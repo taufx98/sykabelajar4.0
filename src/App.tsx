@@ -33,6 +33,7 @@ const AdminPage = lazy(() => import('@/pages/AdminPage').then((module) => ({ def
 const AdminControlCenterPage = lazy(() => import('@/pages/AdminControlCenterPage').then((module) => ({ default: module.AdminControlCenterPage })));
 const AdminErrorIntelligencePage = lazy(() => import('@/pages/AdminErrorIntelligencePage').then((module) => ({ default: module.AdminErrorIntelligencePage })));
 const AdminRolesPage = lazy(() => import('@/pages/AdminRolesPage').then((module) => ({ default: module.AdminRolesPage })));
+const AdminBadgesPage = lazy(() => import('@/pages/AdminBadgesPage').then((module) => ({ default: module.AdminBadgesPage })));
 const AdminOrdersReviewPage = lazy(() => import('@/pages/AdminOrdersReviewPage').then((module) => ({ default: module.AdminOrdersReviewPage })));
 const AdminOperationsPage = lazy(() => import('@/pages/AdminOperationsPage').then((module) => ({ default: module.AdminOperationsPage })));
 const AdminFulfillmentPage = lazy(() => import('@/pages/AdminFulfillmentPage').then((module) => ({ default: module.AdminFulfillmentPage })));
@@ -187,6 +188,7 @@ function AppRoutes() {
           <Route path="/admin/core" element={<RoleRoute role="admin"><AdminPage /></RoleRoute>} />
           <Route path="/admin/error-intelligence" element={<RoleRoute role="admin"><AdminErrorIntelligencePage /></RoleRoute>} />
           <Route path="/admin/roles" element={<RoleRoute role="admin"><AdminRolesPage /></RoleRoute>} />
+          <Route path="/admin/badges" element={<RoleRoute role="admin"><AdminBadgesPage /></RoleRoute>} />
           <Route path="/admin/orders/review" element={<RoleRoute role="admin"><AdminOrdersReviewPage /></RoleRoute>} />
           <Route path="/admin/operations" element={<RoleRoute role="admin"><AdminOperationsPage /></RoleRoute>} />
           <Route path="/admin/operations/certificates" element={<RoleRoute role="admin"><CertificateLifecyclePage /></RoleRoute>} />

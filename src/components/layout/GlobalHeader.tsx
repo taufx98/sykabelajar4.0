@@ -1,30 +1,19 @@
 import type { LucideIcon } from 'lucide-react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Medal } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
 import { AdminCommunicationLinks } from '@/components/admin/AdminCommunicationLinks';
 
-export type GlobalHeaderNavItem = {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-};
-
-type GlobalHeaderProps = {
-  navItems: GlobalHeaderNavItem[];
-  badgeLabel?: string;
-};
-
-type HeaderMeta = {
-  section: string;
-  subtitle: string;
-};
+export type GlobalHeaderNavItem = { to: string; label: string; icon: LucideIcon };
+type GlobalHeaderProps = { navItems: GlobalHeaderNavItem[]; badgeLabel?: string };
+type HeaderMeta = { section: string; subtitle: string };
 
 const META: Record<string, HeaderMeta> = {
   'Daily Tasks': { section: 'Belajar', subtitle: 'Tugas dan aktivitas harian' },
   'Peringkat': { section: 'Pencapaian', subtitle: 'Lihat posisi dan perkembanganmu' },
   'Piagam': { section: 'Pencapaian', subtitle: 'Koleksi piagam dan penghargaan' },
+  'Badge': { section: 'Pencapaian', subtitle: 'Koleksi badge dan pencapaian peserta' },
   'Notifikasi': { section: 'Aktivitas', subtitle: 'Pemberitahuan terbaru untukmu' },
   'Pesanan': { section: 'Transaksi', subtitle: 'Riwayat dan status pesanan' },
   'Guru': { section: 'Guru', subtitle: 'Ruang kerja dan aktivitas guru' },
@@ -72,8 +61,9 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
 
   const activeItem = resolveActiveItem(navItems, location.pathname);
   const isAdminChat = location.pathname === '/admin/chat';
-  const label = isAdminChat ? 'Kontrol Admin' : activeItem?.label ?? 'SYKABELAJAR';
-  const Icon = activeItem?.icon;
+  const isAdminBadges = location.pathname === '/admin/badges';
+  const label = isAdminChat ? 'Kontrol Admin' : isAdminBadges ? 'Badge' : activeItem?.label ?? 'SYKABELAJAR';
+  const Icon = isAdminBadges ? Medal : activeItem?.icon;
   const meta = META[label] ?? fallbackMeta(label);
   const showAdminCommunication = user?.role === 'admin' && (location.pathname === '/pesan' || isAdminChat);
 
@@ -81,21 +71,11 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
     <header className="sticky top-0 z-30 glass border-b surface-border">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Link to="/home" className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg shrink-0">
-            <ArrowLeft size={13} />
-            <span className="hidden sm:inline">Kembali</span>
-          </Link>
+          <Link to="/home" className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg shrink-0"><ArrowLeft size={13} /><span className="hidden sm:inline">Kembali</span></Link>
           {Icon && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon size={16} /></span>}
-          <div className="min-w-0">
-            <p className="text-[10px] text-accent font-semibold uppercase tracking-[0.16em] truncate">{meta.section}</p>
-            <h1 className="font-display text-lg font-bold text-fg truncate">{label}</h1>
-            <p className="hidden md:block text-[10px] text-fg-muted truncate">{meta.subtitle}</p>
-          </div>
+          <div className="min-w-0"><p className="text-[10px] text-accent font-semibold uppercase tracking-[0.16em] truncate">{meta.section}</p><h1 className="font-display text-lg font-bold text-fg truncate">{label}</h1><p className="hidden md:block text-[10px] text-fg-muted truncate">{meta.subtitle}</p></div>
         </div>
-        <div className="flex items-center gap-2.5 shrink-0">
-          {showAdminCommunication && <AdminCommunicationLinks />}
-          {badgeLabel && <Badge color="moss">{badgeLabel}</Badge>}
-        </div>
+        <div className="flex items-center gap-2.5 shrink-0">{showAdminCommunication && <AdminCommunicationLinks />}{badgeLabel && <Badge color="moss">{badgeLabel}</Badge>}</div>
       </div>
     </header>
   );
