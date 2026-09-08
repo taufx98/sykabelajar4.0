@@ -69,27 +69,17 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
 
   return (
     <div className="surface-bg">
-      <section className="border-b surface-border bg-surface-elevated/15">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 flex flex-col gap-2.5 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <Building2 size={17} className="text-accent shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wider text-accent font-semibold">Organisasi aktif</p>
-              <p className="text-sm font-semibold text-fg truncate">{selected?.name ?? 'Memuat organisasi…'}</p>
-            </div>
+      <section className="border-b surface-border bg-surface-elevated/10">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-2 flex min-h-10 items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.14em] text-fg-muted">Organisasi</span>
+            <span className="text-fg-muted">·</span>
+            <p className="text-xs font-semibold text-fg truncate">{selected?.name ?? 'Memuat organisasi…'}</p>
           </div>
-          {workspaces.length > 1 && (
-            <select aria-label="Pilih organisasi" value={selected?.id ?? ''} onChange={(e) => switchWorkspace(e.target.value)} className="input text-xs min-w-[190px] max-w-[280px]">
-              {workspaces.map((org) => <option key={org.id} value={org.id}>{org.name} · {org._memberRole}</option>)}
-            </select>
-          )}
+          {workspaces.length > 1 && <select aria-label="Pilih organisasi" value={selected?.id ?? ''} onChange={(e) => switchWorkspace(e.target.value)} className="input h-8 text-xs min-w-[170px] max-w-[260px]">{workspaces.map((org) => <option key={org.id} value={org.id}>{org.name} · {org._memberRole}</option>)}</select>}
         </div>
-        <nav className="max-w-[1400px] mx-auto flex gap-1 overflow-x-auto no-scrollbar px-4 md:px-6 pb-2" aria-label="Navigasi Penyelenggara">
-          {items.map(([to, label, Icon]) => (
-            <Link key={to} to={to} className={`inline-flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition ${isActive(to) ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg hover:bg-surface-elevated/50'}`}>
-              <Icon size={14} />{label}
-            </Link>
-          ))}
+        <nav className="max-w-[1400px] mx-auto flex gap-1 overflow-x-auto no-scrollbar px-4 md:px-6 pb-1.5" aria-label="Navigasi Penyelenggara">
+          {items.map(([to, label, Icon]) => <Link key={to} to={to} className={`inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition ${isActive(to) ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg hover:bg-surface-elevated/50'}`}><Icon size={13} />{label}</Link>)}
         </nav>
       </section>
       <main className="max-w-[1400px] mx-auto w-full">{children}</main>
