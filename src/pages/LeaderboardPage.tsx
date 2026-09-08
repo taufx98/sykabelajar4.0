@@ -83,30 +83,33 @@ export function LeaderboardPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display font-bold text-lg text-fg">Papan Peringkat</h2>
-          <span className="flex items-center gap-1.5 text-xs text-accent"><span className="w-2 h-2 rounded-full bg-accent animate-pulse" />Live</span>
-        </div>
-        <div className="flex gap-1 surface-elevated rounded-lg p-1 mb-3">
-          {([['xp', 'XP Global'], ['coin', 'Edu Coin']] as const).map(([key, label]) => (
-            <button key={key} onClick={() => { setMode(key); setPage(1); }} className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${mode === key ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg-secondary'}`}>{label}</button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 border-b surface-border pb-1">
-          {GRADES.map((g) => (
-            <button key={g.key} onClick={() => { setGrade(g.key); setSubGrade(null); setPage(1); }} className={`px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-all relative ${grade === g.key && !subGrade ? 'text-accent' : 'text-fg-muted hover:text-fg-secondary'}`}>
-              {g.label}
-              {grade === g.key && !subGrade && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-accent rounded-full" />}
-            </button>
-          ))}
-          {grade !== 'all' && <label className="relative ml-auto shrink-0">
-            <select value={subGrade ?? ''} onChange={(e) => { setSubGrade(e.target.value || null); setPage(1); }} className="input appearance-none pr-9 py-2 text-xs min-w-[128px]">
-              <option value="">Semua {activeGradeConfig?.label ?? grade.toUpperCase()}</option>
-              {(activeGradeConfig?.children ?? []).map((lvl) => <option key={lvl} value={lvl}>Kelas {lvl}</option>)}
-            </select>
-            <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none text-fg-muted" />
-          </label>}
+      <div className="p-4 pb-0">
+        <div className="surface-card-bg surface-border border rounded-2xl p-2.5 md:p-3">
+          <div className="flex items-center justify-between gap-3 mb-2.5 px-1">
+            <span className="text-xs font-medium text-fg-muted">Mode peringkat</span>
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-accent"><span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />Live</span>
+          </div>
+          <div className="flex gap-1 surface-elevated rounded-lg p-1 mb-2.5">
+            {([['xp', 'XP Global'], ['coin', 'Edu Coin']] as const).map(([key, label]) => (
+              <button key={key} onClick={() => { setMode(key); setPage(1); }} className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${mode === key ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg-secondary'}`}>{label}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-0.5 shrink-0">
+              {GRADES.map((g) => (
+                <button key={g.key} onClick={() => { setGrade(g.key); setSubGrade(null); setPage(1); }} className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition ${grade === g.key && !subGrade ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:bg-white/5 hover:text-fg-secondary'}`}>
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            {grade !== 'all' && <label className="relative shrink-0">
+              <select value={subGrade ?? ''} onChange={(e) => { setSubGrade(e.target.value || null); setPage(1); }} className="input appearance-none pr-9 py-2 text-xs min-w-[128px]">
+                <option value="">Semua {activeGradeConfig?.label ?? grade.toUpperCase()}</option>
+                {(activeGradeConfig?.children ?? []).map((lvl) => <option key={lvl} value={lvl}>Kelas {lvl}</option>)}
+              </select>
+              <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none text-fg-muted" />
+            </label>}
+          </div>
         </div>
       </div>
 
@@ -124,7 +127,6 @@ export function LeaderboardPage() {
         </>}
 
         {!loading && !error && podiumDesktop.length >= 3 && <div className="border-t surface-border" />}
-
         {!loading && !error && <div className="space-y-2">{paged.map((entry) => <RankRow key={entry.user_id} entry={entry} currentUserId={user?.id} mode={mode} />)}</div>}
         {!loading && !error && !allRows.length && <Card className="p-8 text-center text-sm text-fg-muted">Belum ada data peringkat.</Card>}
 
