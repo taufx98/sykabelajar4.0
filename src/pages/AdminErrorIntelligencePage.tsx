@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleDot,
+  Clipboard,
   Clock3,
   Cloud,
   Filter,
@@ -20,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { startRpcHealthRealtime, stopRpcHealthRealtime, supabase } from '@/lib/supabase';
+import { env } from '@/lib/env';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -77,7 +79,7 @@ type UnifiedEvent = {
   error_code?: string | null;
   error_message: string;
   path?: string | null;
-  occurred_at: string;
+  occurred_at?: string;
   resolved_at?: string | null;
   rpcName?: string;
   key?: string;
@@ -98,9 +100,21 @@ type UnifiedEvent = {
 };
 
 type PendingAction = 'new' | 'investigating' | 'resolved' | 'ignored' | 'reopen';
+type DiagnosticResult = {
+  checked_at: string;
+  status: 'fixed' | 'error';
+  title: 'Fixed' | 'Error';
+  summary: string;
+  method: string;
+  target: string;
+  duration_ms: number;
+  details: Record<string, unknown>;
+  admin_diagnostic_mode: true;
+};
 
 const RPC_HEALTH_PREFIX = '__rpc_health:';
 const RPC_RUNTIME_KEY = '__rpc_backend_runtime';
+const SENSITIVE_JSON_KEY = /token|authorization|password|secret|api[_-]?key|cookie|set-cookie/i;
 
 function sourceMeta(source: string) {
   if (source === 'cloudinary') return { label: 'Cloudinary', icon: Cloud };
@@ -159,6 +173,222 @@ function tabLabel(tab: TabKey) {
 
 function isActiveRpc(item: Incident) { return item.status !== 'OPEN'; }
 
+function cleanForExport(value: unknown, depth = 0): unknown {
+  if (depth > 8) return '[MAX_DEPTH]';
+  if (Array.isArray(value)) return value.map((item) => cleanForExport(item, depth + 1));
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, SENSITIVE_JSON_KEY.test(key) ? '[REDACTED]' : cleanForExport(item, depth + 1)]));
+}
+
+function contextString(context: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!context) return null;
+  for (const key of keys) {
+    const value = context[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function isHttpHealthy(status: number) {
+  return status >= 200 && status < 400;
+}
+
+async function probeRealtime(item: UnifiedEvent): Promise<DiagnosticResult> {
+  const started = performance.now();
+  const channelName = contextString(item.context, ['channel', 'channel_name']) || item.key || `syka-admin-diagnostic-${Date.now()}`;
+  const table = contextString(item.context, ['table', 'table_name']) || 'global_settings';
+  const channel = supabase
+    .channel(channelName)
+    .on('postgres_changes', { event: '*', schema: 'public', table }, () => undefined);
+
+  const result = await new Promise<{ status: string; error?: string }>((resolve) => {
+    let settled = false;
+    const finish = (payload: { status: string; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(payload);
+    };
+    const timer = window.setTimeout(() => finish({ status: 'TIMED_OUT', error: 'Channel tidak berhasil subscribe dalam batas waktu diagnostic.' }), 6000);
+    channel.subscribe((status, error) => {
+      if (status === 'SUBSCRIBED') {
+        window.clearTimeout(timer);
+        finish({ status });
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        window.clearTimeout(timer);
+        finish({ status, error: error instanceof Error ? error.message : String(error ?? '') });
+      }
+    });
+  });
+  await supabase.removeChannel(channel);
+  const duration = Math.round(performance.now() - started);
+  const fixed = result.status === 'SUBSCRIBED';
+  return {
+    checked_at: new Date().toISOString(),
+    status: fixed ? 'fixed' : 'error',
+    title: fixed ? 'Fixed' : 'Error',
+    summary: fixed ? 'Channel Realtime berhasil terhubung kembali.' : 'Channel Realtime masih gagal terhubung.',
+    method: 'realtime_channel_subscribe',
+    target: channelName,
+    duration_ms: duration,
+    details: { channel: channelName, table, subscribe_status: result.status, subscribe_error: result.error || null },
+    admin_diagnostic_mode: true,
+  };
+}
+
+async function probeCloudinary(): Promise<DiagnosticResult> {
+  const started = performance.now();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error('Sesi admin tidak tersedia untuk diagnostic Cloudinary.');
+  const publicId = `sykabelajar-admin-diagnostic-${Date.now()}`;
+  const response = await fetch(`${env.edgeFunctionUrl}/get-cloudinary-signature`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ public_id: publicId }),
+  });
+  const bodyText = await response.text();
+  const duration = Math.round(performance.now() - started);
+  let body: Record<string, unknown> = {};
+  try { body = JSON.parse(bodyText) as Record<string, unknown>; } catch {}
+  const fixed = response.ok && Boolean(body.signature) && Boolean(body.api_key) && Boolean(body.cloud_name);
+  return {
+    checked_at: new Date().toISOString(),
+    status: fixed ? 'fixed' : 'error',
+    title: fixed ? 'Fixed' : 'Error',
+    summary: fixed ? 'Signature Cloudinary berhasil dibuat; konfigurasi backend dapat digunakan.' : `Signature Cloudinary masih gagal (${response.status}).`,
+    method: 'cloudinary_signature_probe',
+    target: 'get-cloudinary-signature',
+    duration_ms: duration,
+    details: { http_status: response.status, response_ok: response.ok, public_id: publicId, response_keys: Object.keys(body), response_message: typeof body.error === 'string' ? body.error : null },
+    admin_diagnostic_mode: true,
+  };
+}
+
+async function probeEdgeFunction(item: UnifiedEvent): Promise<DiagnosticResult> {
+  const started = performance.now();
+  const functionName = contextString(item.context, ['functionName', 'function_name', 'function']) || item.error_code || null;
+  if (!functionName) throw new Error('Nama Edge Function tidak tersedia pada context incident.');
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  const response = await fetch(`${env.edgeFunctionUrl}/${encodeURIComponent(functionName)}`, { method: 'HEAD', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const duration = Math.round(performance.now() - started);
+  const fixed = isHttpHealthy(response.status) || response.status === 405;
+  return {
+    checked_at: new Date().toISOString(),
+    status: fixed ? 'fixed' : 'error',
+    title: fixed ? 'Fixed' : 'Error',
+    summary: fixed ? 'Endpoint Edge Function dapat dijangkau dari mode diagnostic admin.' : `Endpoint Edge Function masih mengembalikan HTTP ${response.status}.`,
+    method: 'edge_function_reachability_probe',
+    target: functionName,
+    duration_ms: duration,
+    details: { http_status: response.status, response_ok: response.ok, method: 'HEAD' },
+    admin_diagnostic_mode: true,
+  };
+}
+
+async function probeRpc(item: UnifiedEvent): Promise<DiagnosticResult> {
+  const started = performance.now();
+  const rpcName = item.rpcName || contextString(item.context, ['rpcName', 'rpc_name']);
+  if (!rpcName) throw new Error('Nama RPC tidak tersedia pada incident.');
+  const { data, error } = await supabase
+    .from('global_settings')
+    .select('key,value,updated_at')
+    .eq('key', `${RPC_HEALTH_PREFIX}${rpcName}`)
+    .maybeSingle();
+  const duration = Math.round(performance.now() - started);
+  const state = (data?.value && typeof data.value === 'object' ? data.value as HealthValue : null);
+  const blocked = error || state?.status === 'BLOCKED';
+  const fixed = !blocked && (!state || state.status === 'OPEN');
+  return {
+    checked_at: new Date().toISOString(),
+    status: fixed ? 'fixed' : 'error',
+    title: fixed ? 'Fixed' : 'Error',
+    summary: fixed ? 'Health state RPC menunjukkan backend sudah tidak memblokir request.' : 'Health state RPC masih menunjukkan masalah atau tidak dapat dibaca.',
+    method: 'rpc_health_state_probe',
+    target: rpcName,
+    duration_ms: duration,
+    details: { rpc_name: rpcName, health_key_found: Boolean(data), health_status: state?.status ?? null, backend_version: state?.backend_version ?? null, read_error: error?.message ?? null },
+    admin_diagnostic_mode: true,
+  };
+}
+
+async function probeHttp(item: UnifiedEvent): Promise<DiagnosticResult> {
+  const started = performance.now();
+  const target = item.path || (typeof window !== 'undefined' ? window.location.pathname : '/');
+  const url = typeof window !== 'undefined' ? new URL(target, window.location.origin).toString() : target;
+  const response = await fetch(url, { method: 'GET', cache: 'no-store', credentials: 'include' });
+  const duration = Math.round(performance.now() - started);
+  const fixed = isHttpHealthy(response.status);
+  return {
+    checked_at: new Date().toISOString(),
+    status: fixed ? 'fixed' : 'error',
+    title: fixed ? 'Fixed' : 'Error',
+    summary: fixed ? 'Target dapat dijangkau kembali dari browser admin.' : `Target masih mengembalikan HTTP ${response.status}.`,
+    method: 'http_reachability_probe',
+    target: url,
+    duration_ms: duration,
+    details: { http_status: response.status, response_ok: response.ok },
+    admin_diagnostic_mode: true,
+  };
+}
+
+async function runDiagnosticCheck(item: UnifiedEvent): Promise<DiagnosticResult> {
+  if (item.source === 'realtime') return probeRealtime(item);
+  if (item.source === 'cloudinary') return probeCloudinary();
+  if (item.source === 'edge_function') return probeEdgeFunction(item);
+  if (item.source === 'rpc') return probeRpc(item);
+  return probeHttp(item);
+}
+
+function buildTechnicalPayload(item: UnifiedEvent, diagnostic?: DiagnosticResult | null) {
+  return {
+    schema_version: 'sykabelajar.error-intelligence.v1',
+    generated_at: new Date().toISOString(),
+    incident: {
+      id: item.id,
+      lifecycle_status: item.status ?? (item.isRpc ? 'new' : null),
+      source: item.source,
+      severity: item.severity,
+      error_code: item.error_code ?? null,
+      error_message: item.error_message,
+      fingerprint: item.fingerprint ?? null,
+      occurrence_count: item.occurrence_count,
+      first_seen_at: item.first_seen_at,
+      last_seen_at: item.last_seen_at,
+      occurred_at: item.occurred_at ?? item.first_seen_at,
+      resolved_at: item.resolved_at ?? null,
+      acknowledged_at: item.acknowledged_at ?? null,
+      acknowledged_by: item.acknowledged_by ?? null,
+      resolved_by: item.resolved_by ?? null,
+      resolution_note: item.resolution_note ?? null,
+      reopened_from_id: item.reopened_from_id ?? null,
+    },
+    location: {
+      path: item.path ?? null,
+      url: typeof window !== 'undefined' ? window.location.href : null,
+      referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+    },
+    target: {
+      rpc_name: item.rpcName ?? contextString(item.context, ['rpcName', 'rpc_name']),
+      channel: contextString(item.context, ['channel', 'channel_name']),
+      function_name: contextString(item.context, ['functionName', 'function_name', 'function']),
+      provider: contextString(item.context, ['provider']),
+    },
+    runtime: {
+      backend_version: item.backend_version ?? null,
+      online: typeof navigator !== 'undefined' ? navigator.onLine : null,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+      language: typeof navigator !== 'undefined' ? navigator.language : null,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      viewport: typeof window !== 'undefined' ? { width: window.innerWidth, height: window.innerHeight, device_pixel_ratio: window.devicePixelRatio } : null,
+    },
+    diagnostic: diagnostic ?? null,
+    context: cleanForExport(item.context ?? {}),
+    admin_diagnostic_mode: true,
+    note: 'Diagnostic admin melewati guard aplikasi sisi pengguna untuk pengujian target, tetapi tidak melewati autentikasi atau RLS backend.',
+  };
+}
+
 export function AdminErrorIntelligencePage() {
   const [rows, setRows] = useState<HealthRow[]>([]);
   const [systemErrors, setSystemErrors] = useState<SystemErrorRow[]>([]);
@@ -175,6 +405,11 @@ export function AdminErrorIntelligencePage() {
   const [actionNote, setActionNote] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
+  const [diagnosticBusy, setDiagnosticBusy] = useState(false);
+  const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
+  const [technicalOpen, setTechnicalOpen] = useState(true);
+  const [copied, setCopied] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = async (background = false) => {
@@ -236,7 +471,7 @@ export function AdminErrorIntelligencePage() {
       last_seen_at: item.failed_at ?? item.updated_at ?? new Date(0).toISOString(),
       isRpc: true,
     }));
-    const external = systemErrors.map((item) => ({
+    const external: UnifiedEvent[] = systemErrors.map((item) => ({
       id: item.id,
       source: item.source,
       severity: item.severity,
@@ -283,30 +518,36 @@ export function AdminErrorIntelligencePage() {
       const text = `${item.source} ${item.rpcName ?? ''} ${item.error_code ?? ''} ${item.error_message} ${item.path ?? ''}`.toLowerCase();
       const matchesQuery = text.includes(query.trim().toLowerCase());
       const age = now - new Date(item.last_seen_at).getTime();
-      const matchesPeriod = periodFilter === 'all' || (periodFilter === '24h' && age <= 86400000) || (periodFilter === '7d' && age <= 604800000) || (periodFilter === '30d' && age <= 2592000000);
+      const matchesPeriod = periodFilter === 'all' || (periodFilter === '24h' && age <= 24 * 60 * 60 * 1000) || (periodFilter === '7d' && age <= 7 * 24 * 60 * 60 * 1000) || (periodFilter === '30d' && age <= 30 * 24 * 60 * 60 * 1000);
       return matchesTab && matchesSource && matchesSeverity && matchesQuery && matchesPeriod;
     });
   }, [unifiedEvents, tab, sourceFilter, severityFilter, periodFilter, query]);
 
-  const criticalActiveCount = unifiedEvents.filter((item) => item.severity === 'critical' && (item.isRpc ? isActiveRpc(rpcIncidents.find((incident) => incident.id === item.id) ?? ({ status: 'OPEN' } as Incident)) : item.status !== 'resolved' && item.status !== 'ignored')).length;
+  const criticalActiveCount = unifiedEvents.filter((item) => {
+    if (item.isRpc) return isActiveRpc(rpcIncidents.find((incident) => incident.id === item.id) ?? { status: 'OPEN' } as Incident);
+    return item.severity === 'critical' && item.status !== 'resolved' && item.status !== 'ignored';
+  }).length;
 
-  const requestAction = (action: PendingAction) => {
-    setActionError(null);
+  const selectIncident = (item: UnifiedEvent) => {
+    setSelected(item);
+    setPendingAction(null);
     setActionNote('');
-    setPendingAction(action);
+    setActionError(null);
+    setDiagnosticResult(null);
+    setDiagnosticError(null);
+    setCopied(false);
+    setTechnicalOpen(true);
   };
 
-  const executeAction = async () => {
-    if (!selected || selected.isRpc || !pendingAction) return;
+  const executeStatusUpdate = async (status: LifecycleStatus) => {
+    if (!selected || selected.isRpc) return;
     setActionBusy(true);
     setActionError(null);
-    if (pendingAction === 'reopen') {
-      const { error } = await supabase.rpc('reopen_system_error_incident', { p_id: selected.id, p_note: actionNote.trim() || null });
-      if (error) { setActionError(error.message || 'Incident baru gagal dibuat.'); setActionBusy(false); return; }
-      setTab('reopened');
-    } else {
-      const { error } = await supabase.rpc('admin_update_system_error_status', { p_id: selected.id, p_status: pendingAction, p_resolution_note: actionNote.trim() || null });
-      if (error) { setActionError(error.message || 'Perubahan status gagal disimpan.'); setActionBusy(false); return; }
+    const { error } = await supabase.rpc('admin_update_system_error_status', { p_id: selected.id, p_status: status, p_resolution_note: actionNote.trim() || null });
+    if (error) {
+      setActionError(error.message || 'Perubahan status gagal disimpan.');
+      setActionBusy(false);
+      return;
     }
     setActionBusy(false);
     setPendingAction(null);
@@ -315,7 +556,79 @@ export function AdminErrorIntelligencePage() {
     await load(true);
   };
 
-  const actionTitle = pendingAction === 'resolved' ? 'Selesaikan incident' : pendingAction === 'ignored' ? 'Abaikan incident' : pendingAction === 'investigating' ? 'Mulai penanganan' : pendingAction === 'reopen' ? 'Buka lagi sebagai incident baru' : 'Kembalikan ke perlu ditangani';
+  const executeReopen = async () => {
+    if (!selected || selected.isRpc) return;
+    setActionBusy(true);
+    setActionError(null);
+    const { error } = await supabase.rpc('reopen_system_error_incident', { p_id: selected.id, p_note: actionNote.trim() || null });
+    if (error) {
+      setActionError(error.message || 'Insiden baru gagal dibuat.');
+      setActionBusy(false);
+      return;
+    }
+    setActionBusy(false);
+    setPendingAction(null);
+    setActionNote('');
+    setSelected(null);
+    setTab('reopened');
+    await load(true);
+  };
+
+  const startFix = () => {
+    if (!selected || selected.isRpc) return;
+    void executeStatusUpdate('investigating');
+  };
+
+  const runCheck = async () => {
+    if (!selected) return;
+    setDiagnosticBusy(true);
+    setDiagnosticError(null);
+    try {
+      const result = await runDiagnosticCheck(selected);
+      setDiagnosticResult(result);
+      if (result.status === 'error') {
+        await supabase.rpc('report_system_error', {
+          p_source: selected.source,
+          p_error_code: selected.error_code ?? null,
+          p_error_message: result.summary,
+          p_severity: selected.severity === 'critical' ? 'critical' : 'error',
+          p_context: { ...((selected.context ?? {}) as Record<string, unknown>), admin_diagnostic: true, diagnostic: result.details },
+          p_path: selected.path ?? null,
+          p_fingerprint: selected.fingerprint ?? `${selected.source}|${selected.error_code ?? ''}|${selected.error_message}`.slice(0, 128),
+        });
+      }
+      await load(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setDiagnosticError(message || 'Pengecekan gagal dijalankan.');
+      setDiagnosticResult(null);
+    } finally {
+      setDiagnosticBusy(false);
+    }
+  };
+
+  const copyTechnicalJson = async () => {
+    if (!selected) return;
+    const payload = buildTechnicalPayload(selected, diagnosticResult);
+    const json = JSON.stringify(payload, null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = json;
+      textarea.setAttribute('readonly', 'true');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
+
+  const actionLabel = pendingAction === 'resolved' ? 'Selesaikan incident' : pendingAction === 'ignored' ? 'Abaikan incident' : pendingAction === 'investigating' ? 'Mulai penanganan' : pendingAction === 'new' ? 'Kembalikan ke baru' : 'Konfirmasi';
   const tabs: TabKey[] = ['new', 'investigating', 'reopened', 'resolved', 'ignored', 'all'];
   const tabCounts: Record<TabKey, number> = { new: counts.newCount, investigating: counts.investigatingCount, reopened: counts.reopenedCount, resolved: counts.resolvedCount, ignored: counts.ignoredCount, all: unifiedEvents.length };
 
@@ -340,17 +653,67 @@ export function AdminErrorIntelligencePage() {
 
       <Card className="overflow-hidden">
         <div className="flex overflow-x-auto border-b surface-border px-2 pt-2 scrollbar-thin">
-          {tabs.map((value) => { const active = tab === value; return <button key={value} type="button" onClick={() => setTab(value)} className={`group inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-semibold transition md:px-4 ${active ? 'border-accent text-fg' : 'border-transparent text-fg-muted hover:text-fg'}`}>{tabLabel(value)}<span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? 'bg-accent-muted-strong text-accent' : 'bg-white/[0.04] text-fg-muted'}`}>{tabCounts[value]}</span></button>; })}
+          {tabs.map((value) => <button key={value} type="button" onClick={() => setTab(value)} className={`group inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-semibold transition md:px-4 ${tab === value ? 'border-accent text-fg' : 'border-transparent text-fg-muted hover:text-fg'}`}>{tabLabel(value)}<span className={`rounded-full px-1.5 py-0.5 text-[10px] ${tab === value ? 'bg-accent-muted-strong text-accent' : 'bg-white/[0.04] text-fg-muted'}`}>{tabCounts[value]}</span></button>)}
         </div>
 
-        <div className="p-4"><div className="flex flex-col gap-3 xl:flex-row xl:items-center"><div className="relative min-w-0 flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" /><input className="input w-full pl-9" placeholder="Cari sumber, kode, pesan, atau halaman..." value={query} onChange={(event) => setQuery(event.target.value)} /></div><div className="flex flex-wrap items-center gap-2"><Filter size={15} className="text-fg-muted" /><select className="input min-w-[9rem]" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}><option value="all">Semua prioritas</option><option value="critical">Kritis</option><option value="warning">Peringatan</option><option value="info">Info</option></select><select className="input min-w-[9rem]" value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value)}><option value="all">Semua waktu</option><option value="24h">24 jam</option><option value="7d">7 hari</option><option value="30d">30 hari</option></select></div></div><div className="mt-3 flex flex-wrap gap-1.5">{(['all', 'cloudinary', 'realtime', 'frontend', 'edge_function', 'rpc'] as const).map((value) => <button key={value} type="button" onClick={() => setSourceFilter(value)} className={`rounded-xl border px-3 py-1.5 text-[11px] font-semibold transition ${sourceFilter === value ? 'border-accent/20 bg-accent-muted-strong text-accent' : 'border-surface-border text-fg-muted hover:text-fg'}`}>{value === 'all' ? 'Semua sumber' : sourceMeta(value).label}</button>)}</div></div>
+        <div className="p-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <div className="relative min-w-0 flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" /><input className="input w-full pl-9" placeholder="Cari sumber, kode, pesan, atau halaman..." value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+            <div className="flex flex-wrap items-center gap-2"><Filter size={15} className="text-fg-muted" /><select className="input min-w-[9rem]" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}><option value="all">Semua prioritas</option><option value="critical">Kritis</option><option value="warning">Peringatan</option><option value="info">Info</option></select><select className="input min-w-[9rem]" value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value)}><option value="all">Semua waktu</option><option value="24h">24 jam</option><option value="7d">7 hari</option><option value="30d">30 hari</option></select></div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">{(['all', 'cloudinary', 'realtime', 'frontend', 'edge_function', 'rpc'] as const).map((value) => <button key={value} type="button" onClick={() => setSourceFilter(value)} className={`rounded-xl border px-3 py-1.5 text-[11px] font-semibold transition ${sourceFilter === value ? 'border-accent/20 bg-accent-muted-strong text-accent' : 'border-surface-border text-fg-muted hover:text-fg'}`}>{value === 'all' ? 'Semua sumber' : sourceMeta(value).label}</button>)}</div>
+        </div>
+
         <div className="flex items-center justify-between border-y surface-border bg-black/5 px-4 py-3"><div><p className="text-sm font-semibold text-fg">{tabLabel(tab)}</p><p className="mt-0.5 text-xs text-fg-muted">Satu incident dapat berisi banyak kejadian error yang sama.</p></div><div className="hidden items-center gap-2 text-[11px] text-fg-muted sm:flex"><Clock3 size={13} /> Diperbarui {formatRelative(unifiedEvents[0]?.last_seen_at)}</div></div>
-        {!filtered.length ? <EmptyState tab={tab} /> : <div className="divide-y surface-border">{filtered.map((item) => { const reopened = Boolean(item.reopened_from_id); const lifecycle = item.isRpc ? (isActiveRpc(rpcIncidents.find((incident) => incident.id === item.id) ?? ({ status: 'OPEN' } as Incident)) ? lifecycleMeta('new') : lifecycleMeta('resolved')) : lifecycleMeta(item.status, reopened); const severity = severityMeta(item.severity); const meta = sourceMeta(item.source); const Icon = meta.icon; const LifeIcon = lifecycle.icon; return <button key={item.id} type="button" onClick={() => setSelected(item)} className="group w-full px-4 py-4 text-left transition hover:bg-white/[0.025] focus:outline-none focus-visible:bg-white/[0.04]"><div className="flex gap-3"><span className={`mt-1 h-9 w-1 shrink-0 rounded-full ${lifecycle.dot}`} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold ${lifecycle.tone}`}><LifeIcon size={11} />{lifecycle.label}</span><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold ${severity.tone}`}>{severity.label}</span><span className="inline-flex items-center gap-1 rounded-full border border-surface-border px-2 py-1 text-[10px] font-semibold text-fg-muted"><Icon size={11} />{meta.label}</span>{item.error_code && <span className="rounded-full border border-surface-border px-2 py-1 font-mono text-[10px] text-fg-muted">{item.error_code}</span>}</div><div className="mt-2 flex items-start gap-3"><div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-semibold leading-5 text-fg">{item.error_message || 'Tidak ada pesan error.'}</p>{item.path && <p className="mt-1 truncate text-xs text-fg-muted">{item.path}</p>}</div><ChevronRight size={17} className="mt-1 shrink-0 text-fg-muted transition group-hover:translate-x-0.5 group-hover:text-fg" /></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-fg-muted"><span className="inline-flex items-center gap-1"><History size={12} /> {item.occurrence_count.toLocaleString('id-ID')} kejadian</span><span>Terakhir {formatDate(item.last_seen_at)}</span><span>Pertama {formatDate(item.first_seen_at)}</span>{item.resolved_at && <span className="text-emerald-300">Selesai {formatDate(item.resolved_at)}</span>}</div></div></div></button>; })}</div>}
+        {!filtered.length ? <EmptyState tab={tab} /> : <div className="divide-y surface-border">{filtered.map((item) => { const reopened = Boolean(item.reopened_from_id); const lifecycle = item.isRpc ? (isActiveRpc(rpcIncidents.find((incident) => incident.id === item.id) ?? ({ status: 'OPEN' } as Incident)) ? lifecycleMeta('new') : lifecycleMeta('resolved')) : lifecycleMeta(item.status, reopened); const severity = severityMeta(item.severity); const meta = sourceMeta(item.source); const Icon = meta.icon; const LifeIcon = lifecycle.icon; return <button key={item.id} type="button" onClick={() => selectIncident(item)} className="group w-full px-4 py-4 text-left transition hover:bg-white/[0.025] focus:outline-none focus-visible:bg-white/[0.04]"><div className="flex gap-3"><span className={`mt-1 h-9 w-1 shrink-0 rounded-full ${lifecycle.dot}`} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold ${lifecycle.tone}`}><LifeIcon size={11} />{lifecycle.label}</span><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold ${severity.tone}`}>{severity.label}</span><span className="inline-flex items-center gap-1 rounded-full border border-surface-border px-2 py-1 text-[10px] font-semibold text-fg-muted"><Icon size={11} />{meta.label}</span>{item.error_code && <span className="rounded-full border border-surface-border px-2 py-1 font-mono text-[10px] text-fg-muted">{item.error_code}</span>}{reopened && <span className="rounded-full border border-sky-500/20 bg-sky-500/5 px-2 py-1 text-[10px] font-semibold text-sky-200">Kambuh</span>}</div><div className="mt-2 flex items-start gap-3"><div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-semibold leading-5 text-fg">{item.error_message || 'Tidak ada pesan error.'}</p>{item.path && <p className="mt-1 truncate text-xs text-fg-muted">{item.path}</p>}</div><ChevronRight size={17} className="mt-1 shrink-0 text-fg-muted transition group-hover:translate-x-0.5 group-hover:text-fg" /></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-fg-muted"><span className="inline-flex items-center gap-1"><History size={12} /> {item.occurrence_count.toLocaleString('id-ID')} kejadian</span><span>Terakhir {formatDate(item.last_seen_at)}</span><span>Pertama {formatDate(item.first_seen_at)}</span>{item.resolved_at && <span className="text-emerald-300">Selesai {formatDate(item.resolved_at)}</span>}</div></div></div></button>; })}</div>}
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]"><Card className="p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-fg">Ringkasan prioritas</p><p className="mt-0.5 text-xs text-fg-muted">Gunakan antrean di atas sebagai sumber utama tindakan.</p></div><span className="rounded-full border border-red-500/20 bg-red-500/5 px-2 py-1 text-[10px] font-semibold text-red-200">{criticalActiveCount} kritis</span></div><div className="mt-4 grid grid-cols-3 gap-3"><MiniMetric label="Perlu ditangani" value={counts.newCount} /><MiniMetric label="Sedang dikerjakan" value={counts.investigatingCount} /><MiniMetric label="Kambuh" value={counts.reopenedCount} /></div></Card><Card className="p-4"><p className="text-sm font-semibold text-fg">Cara kerja</p><div className="mt-3 space-y-3 text-xs leading-5 text-fg-muted"><Step n="1" text="Error masuk sebagai incident baru." /><Step n="2" text="Kejadian berulang dihitung, bukan menambah baris baru." /><Step n="3" text="Admin menangani lalu tandai selesai." /><Step n="4" text="Jika muncul lagi, dibuat incident kambuh yang terpisah." /></div></Card></div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]"><Card className="p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-fg">Ringkasan prioritas</p><p className="mt-0.5 text-xs text-fg-muted">Gunakan antrean di atas sebagai sumber utama tindakan.</p></div><span className="rounded-full border border-red-500/20 bg-red-500/5 px-2 py-1 text-[10px] font-semibold text-red-200">{criticalActiveCount} kritis</span></div><div className="mt-4 grid grid-cols-3 gap-3"><MiniMetric label="Perlu ditangani" value={counts.newCount} /><MiniMetric label="Sedang dikerjakan" value={counts.investigatingCount} /><MiniMetric label="Kambuh" value={counts.reopenedCount} /></div></Card><Card className="p-4"><p className="text-sm font-semibold text-fg">Cara kerja</p><div className="mt-3 space-y-3 text-xs leading-5 text-fg-muted"><Step n="1" text="Error masuk sebagai incident baru." /><Step n="2" text="Kejadian berulang dihitung, bukan menambah baris baru." /><Step n="3" text="Admin klik Perbaiki untuk mulai menangani tanpa input tambahan." /><Step n="4" text="Retry/Cek status menjalankan diagnostic admin terhadap target." /><Step n="5" text="Jika muncul lagi setelah selesai, dibuat incident kambuh." /></div></Card></div>
 
-      {selected && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 sm:p-5" onClick={() => setSelected(null)}><div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-surface-border bg-surface-elevated shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-4 border-b surface-border p-5 md:p-6"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2">{(() => { const m = lifecycleMeta(selected.status, Boolean(selected.reopened_from_id)); const MIcon = m.icon; return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${m.tone}`}><MIcon size={12} />{selected.isRpc ? 'Perlu ditangani' : m.label}</span>; })()}<span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${severityMeta(selected.severity).tone}`}>{severityMeta(selected.severity).label}</span><span className="rounded-full border border-surface-border px-2.5 py-1 text-[10px] font-semibold text-fg-muted">{sourceMeta(selected.source).label}</span></div><h3 className="mt-3 break-words text-lg font-bold text-fg md:text-xl">{selected.rpcName ?? selected.error_message ?? 'Incident error'}</h3>{selected.error_code && <p className="mt-1 font-mono text-xs text-fg-muted">{selected.error_code}</p>}</div><button type="button" aria-label="Tutup detail incident" onClick={() => setSelected(null)} className="shrink-0 rounded-xl border border-surface-border p-2 text-fg-muted transition hover:bg-white/[0.04] hover:text-fg"><X size={18} /></button></div><div className="max-h-[calc(92vh-92px)] overflow-y-auto p-5 md:p-6"><div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]"><div className="space-y-4"><section className="rounded-2xl border border-surface-border bg-black/10 p-4"><p className="text-xs font-semibold text-fg-muted">Pesan error</p><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-surface-border bg-black/10 p-3 text-xs leading-5 text-fg-secondary">{selected.error_message || '—'}</pre></section><section className="grid grid-cols-2 gap-3 sm:grid-cols-4"><InfoTile label="Kejadian" value={selected.occurrence_count.toLocaleString('id-ID')} /><InfoTile label="Pertama terlihat" value={formatDate(selected.first_seen_at)} /><InfoTile label="Terakhir terlihat" value={formatDate(selected.last_seen_at)} /><InfoTile label="Halaman" value={selected.path ?? 'Tidak tersedia'} /></section><section className="rounded-2xl border border-surface-border bg-black/5 p-4"><div className="flex items-center gap-2"><History size={15} className="text-accent" /><p className="text-sm font-semibold text-fg">Riwayat incident</p></div><div className="mt-4"> <TimelineItem title="Pertama terlihat" value={formatDate(selected.first_seen_at)} active />{selected.acknowledged_at && <TimelineItem title="Mulai ditangani" value={formatDate(selected.acknowledged_at)} />}{selected.resolved_at && <TimelineItem title="Ditandai selesai" value={formatDate(selected.resolved_at)} />}{selected.reopened_from_id && <TimelineItem title="Dibuka kembali sebagai incident baru" value="Terhubung dengan incident sebelumnya" last />}{!selected.acknowledged_at && !selected.resolved_at && !selected.reopened_from_id && <p className="text-xs text-fg-muted">Belum ada perubahan lifecycle yang tercatat.</p>}</div></section>{selected.resolution_note && <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 p-4"><p className="text-xs font-semibold text-emerald-200">Catatan penyelesaian</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fg-secondary">{selected.resolution_note}</p></section>}{selected.reopened_from_id && <section className="rounded-2xl border border-sky-500/15 bg-sky-500/5 p-4"><p className="text-xs font-semibold text-sky-200">Incident ini merupakan kejadian kambuh</p><p className="mt-1 text-xs leading-5 text-fg-muted">Incident sebelumnya tetap disimpan sebagai riwayat. ID internal tidak ditampilkan di antarmuka.</p></section>}{selected.context && <details className="group rounded-2xl border border-surface-border bg-black/5"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-semibold text-fg [&::-webkit-details-marker]:hidden"><span>Detail teknis</span><ChevronRight size={16} className="transition group-open:rotate-90" /></summary><div className="border-t surface-border p-4"><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-fg-secondary">{JSON.stringify(selected.context, null, 2)}</pre></div></details>}</div><aside className="space-y-3"><section className="rounded-2xl border border-surface-border bg-black/10 p-4"><p className="text-xs font-semibold text-fg-muted">Tindakan</p><div className="mt-3 space-y-2">{selected.isRpc ? <div className="rounded-xl border border-surface-border bg-white/[0.02] p-3 text-xs leading-5 text-fg-muted">Status pemeriksaan RPC dikelola otomatis oleh sistem.</div> : <>{selected.status === 'new' && <Button className="w-full justify-center" onClick={() => requestAction('investigating')} icon={<Activity size={14} />}>Mulai menangani</Button>}{selected.status === 'new' && <Button variant="ghost" className="w-full justify-center" onClick={() => requestAction('ignored')} icon={<Ban size={14} />}>Abaikan</Button>}{selected.status === 'investigating' && <Button className="w-full justify-center" onClick={() => requestAction('resolved')} icon={<CheckCircle2 size={14} />}>Tandai selesai</Button>}{selected.status === 'investigating' && <Button variant="ghost" className="w-full justify-center" onClick={() => requestAction('new')} icon={<RotateCcw size={14} />}>Kembalikan ke baru</Button>}{selected.status === 'investigating' && <Button variant="ghost" className="w-full justify-center" onClick={() => requestAction('ignored')} icon={<Ban size={14} />}>Abaikan</Button>}{selected.status === 'resolved' && <Button className="w-full justify-center" onClick={() => requestAction('reopen')} icon={<RotateCcw size={14} />}>Buka lagi sebagai incident baru</Button>}{selected.status === 'ignored' && <Button variant="ghost" className="w-full justify-center" onClick={() => requestAction('new')} icon={<CircleDot size={14} />}>Kembalikan ke perlu ditangani</Button>}</>}</div></section><section className="rounded-2xl border border-surface-border bg-black/10 p-4"><p className="text-xs font-semibold text-fg-muted">Ringkasan</p><div className="mt-3 space-y-3"><InfoLine label="Sumber" value={sourceMeta(selected.source).label} /><InfoLine label="Prioritas" value={severityMeta(selected.severity).label} /><InfoLine label="Kejadian" value={`${selected.occurrence_count.toLocaleString('id-ID')} kali`} /><InfoLine label="Terakhir" value={formatRelative(selected.last_seen_at)} />{selected.resolved_at && <InfoLine label="Selesai" value={formatDate(selected.resolved_at)} />}</div></section></aside></div>{pendingAction && !selected.isRpc && <section className="mt-4 rounded-2xl border border-accent/20 bg-accent/5 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-fg">{actionTitle}</p><p className="mt-1 text-xs leading-5 text-fg-muted">Tambahkan catatan agar tim tahu apa yang dilakukan pada incident ini.</p></div><button type="button" onClick={() => setPendingAction(null)} className="rounded-lg p-1.5 text-fg-muted hover:text-fg"><X size={15}/></button></div><textarea className="input mt-3 min-h-24 w-full resize-y" placeholder="Catatan penanganan (opsional)..." value={actionNote} onChange={(event) => setActionNote(event.target.value)} />{actionError && <p className="mt-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-200">{actionError}</p>}<div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="ghost" onClick={() => setPendingAction(null)} disabled={actionBusy}>Batal</Button><Button onClick={() => void executeAction()} disabled={actionBusy}>{actionBusy ? 'Menyimpan...' : 'Konfirmasi'}</Button></div></section>}</div></div></div>}
+      {selected && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 sm:p-5" onClick={() => setSelected(null)}>
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl border border-surface-border bg-surface-elevated shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 border-b surface-border p-5 md:p-6">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${lifecycleMeta(selected.status, Boolean(selected.reopened_from_id)).tone}`}>{(() => { const M = lifecycleMeta(selected.status, Boolean(selected.reopened_from_id)).icon; return <M size={12}/>; })()}{selected.isRpc ? 'Perlu ditangani' : lifecycleMeta(selected.status, Boolean(selected.reopened_from_id)).label}</span><span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${severityMeta(selected.severity).tone}`}>{severityMeta(selected.severity).label}</span><span className="rounded-full border border-surface-border px-2.5 py-1 text-[10px] font-semibold text-fg-muted">{sourceMeta(selected.source).label}</span></div>
+                <h3 className="mt-3 break-words text-lg font-bold text-fg md:text-xl">{selected.rpcName ?? selected.error_message ?? 'Incident error'}</h3>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-muted"><span>ID: {selected.id.slice(0, 12)}…</span><span>{formatDate(selected.last_seen_at)}</span></div>
+              </div>
+              <button type="button" aria-label="Tutup detail incident" onClick={() => setSelected(null)} className="shrink-0 rounded-xl border border-surface-border p-2 text-fg-muted transition hover:bg-white/[0.04] hover:text-fg"><X size={18} /></button>
+            </div>
+
+            <div className="max-h-[calc(92vh-108px)] overflow-y-auto p-5 md:p-6">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]">
+                <div className="space-y-4">
+                  <section className="rounded-2xl border border-surface-border bg-black/10 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold text-fg-muted">Pesan error</p><button type="button" className="rounded-lg border border-surface-border p-1.5 text-fg-muted hover:text-fg" title="Salin pesan" onClick={() => void navigator.clipboard.writeText(selected.error_message)}><Clipboard size={14}/></button></div><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-surface-border bg-black/10 p-3 text-xs leading-5 text-fg-secondary">{selected.error_message || '—'}</pre></section>
+
+                  <section className="grid grid-cols-2 gap-3 sm:grid-cols-4"><InfoTile label="Kejadian" value={selected.occurrence_count.toLocaleString('id-ID')} /><InfoTile label="Pertama terlihat" value={formatDate(selected.first_seen_at)} /><InfoTile label="Terakhir terlihat" value={formatDate(selected.last_seen_at)} /><InfoTile label="Halaman" value={selected.path ?? 'Tidak tersedia'} /></section>
+
+                  <section className="rounded-2xl border border-surface-border bg-black/5 p-4"><div className="flex items-center gap-2"><History size={15} className="text-accent" /><p className="text-sm font-semibold text-fg">Riwayat incident</p></div><div className="mt-4 space-y-0"><TimelineItem title="Pertama terlihat" value={formatDate(selected.first_seen_at)} active />{selected.acknowledged_at && <TimelineItem title="Mulai ditangani" value={formatDate(selected.acknowledged_at)} />}{selected.resolved_at && <TimelineItem title="Ditandai selesai" value={formatDate(selected.resolved_at)} />}{selected.reopened_from_id && <TimelineItem title="Dibuka kembali sebagai incident baru" value="Terhubung dengan incident sebelumnya" last />}{!selected.acknowledged_at && !selected.resolved_at && !selected.reopened_from_id && <p className="text-xs text-fg-muted">Belum ada perubahan lifecycle yang tercatat.</p>}</div></section>
+
+                  {diagnosticResult && <section className={`rounded-2xl border p-4 ${diagnosticResult.status === 'fixed' ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5'}`}><div className="flex items-start justify-between gap-3"><div className="flex items-start gap-3"><span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${diagnosticResult.status === 'fixed' ? 'bg-emerald-400/15 text-emerald-300' : 'bg-red-400/15 text-red-300'}`}>{diagnosticResult.status === 'fixed' ? <CheckCircle2 size={17}/> : <AlertTriangle size={17}/>}</span><div><p className={`text-sm font-semibold ${diagnosticResult.status === 'fixed' ? 'text-emerald-200' : 'text-red-200'}`}>Status : {diagnosticResult.title}</p><p className="mt-1 text-xs leading-5 text-fg-muted">{diagnosticResult.summary}</p></div></div><span className="text-[10px] text-fg-muted">{formatDate(diagnosticResult.checked_at)}</span></div><div className="mt-3 grid gap-2 sm:grid-cols-3 text-[11px]"><div className="rounded-xl border border-surface-border bg-black/10 px-3 py-2"><span className="text-fg-muted">Target</span><p className="mt-1 font-medium text-fg truncate" title={diagnosticResult.target}>{diagnosticResult.target}</p></div><div className="rounded-xl border border-surface-border bg-black/10 px-3 py-2"><span className="text-fg-muted">Metode</span><p className="mt-1 font-medium text-fg">{diagnosticResult.method}</p></div><div className="rounded-xl border border-surface-border bg-black/10 px-3 py-2"><span className="text-fg-muted">Durasi</span><p className="mt-1 font-medium text-fg">{diagnosticResult.duration_ms} ms</p></div></div>{diagnosticResult.status === 'error' && <button type="button" onClick={() => void runCheck()} disabled={diagnosticBusy} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-red-500/20 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/5 disabled:opacity-50"><RefreshCw size={13} className={diagnosticBusy ? 'animate-spin' : ''}/>Coba lagi</button>}</section>}
+                  {diagnosticError && <p className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-200">{diagnosticError}</p>}
+
+                  {selected.resolution_note && <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 p-4"><p className="text-xs font-semibold text-emerald-200">Catatan penyelesaian</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fg-secondary">{selected.resolution_note}</p></section>}
+                  {selected.reopened_from_id && <section className="rounded-2xl border border-sky-500/15 bg-sky-500/5 p-4"><p className="text-xs font-semibold text-sky-200">Incident ini merupakan kejadian kambuh</p><p className="mt-1 text-xs leading-5 text-fg-muted">Incident sebelumnya tetap disimpan sebagai riwayat. ID internal tidak ditampilkan di antarmuka.</p></section>}
+
+                  <section className="rounded-2xl border border-surface-border bg-black/5 overflow-hidden"><button type="button" onClick={() => setTechnicalOpen((open) => !open)} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-white/[0.02]"><div><p className="text-sm font-semibold text-fg">Detail teknis</p><p className="mt-1 text-xs text-fg-muted">JSON lengkap untuk analisis dan dapat langsung ditempel ke AI.</p></div><div className="flex items-center gap-2"><button type="button" onClick={(event) => { event.stopPropagation(); void copyTechnicalJson(); }} className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/15"><Clipboard size={14}/>{copied ? 'Copied!' : 'Copy JSON'}</button><ChevronRight size={17} className={`text-fg-muted transition ${technicalOpen ? 'rotate-90' : ''}`} /></div></button>{technicalOpen && <div className="border-t surface-border p-3 md:p-4"><pre className="max-h-[28rem] overflow-auto rounded-xl border border-surface-border bg-[#07111f] p-4 font-mono text-[11px] leading-5 text-sky-100">{JSON.stringify(buildTechnicalPayload(selected, diagnosticResult), null, 2)}</pre><p className="mt-2 text-[10px] text-fg-muted">Credential fields sensitif otomatis disamarkan agar aman dipakai untuk analisis.</p></div>}</section>
+                </div>
+
+                <aside className="space-y-3">
+                  <section className="rounded-2xl border border-surface-border bg-black/10 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-fg">Tindakan</p><p className="mt-1 text-xs text-fg-muted">Perbaiki atau jalankan pengecekan ulang langsung.</p></div></div><div className="mt-3 space-y-2">{selected.isRpc ? <div className="rounded-xl border border-surface-border bg-white/[0.02] p-3 text-xs leading-5 text-fg-muted">Status RPC dipantau otomatis; gunakan <strong className="text-fg">Retry / Cek status</strong> untuk diagnostic admin.</div> : <>{(selected.status === 'new' || selected.status === undefined) && <Button className="w-full justify-center" onClick={startFix} disabled={actionBusy} icon={<Activity size={14} />}>{actionBusy ? 'Memulai...' : 'Perbaiki'}</Button>}{selected.status === 'investigating' && <Button className="w-full justify-center" onClick={() => void executeStatusUpdate('resolved')} disabled={actionBusy} icon={<CheckCircle2 size={14} />}>{actionBusy ? 'Menyimpan...' : 'Tandai selesai'}</Button>}{(selected.status === 'investigating' || selected.status === 'new') && <Button variant="ghost" className="w-full justify-center" onClick={() => void executeStatusUpdate('ignored')} disabled={actionBusy} icon={<Ban size={14} />}>Abaikan</Button>}{selected.status === 'resolved' && <Button className="w-full justify-center" onClick={() => { setActionNote(''); setActionError(null); setPendingAction('reopen'); }} icon={<RotateCcw size={14} />}>Buka lagi sebagai incident baru</Button>}{selected.status === 'ignored' && <Button variant="ghost" className="w-full justify-center" onClick={() => void executeStatusUpdate('new')} disabled={actionBusy} icon={<CircleDot size={14} />}>Kembalikan ke perlu ditangani</Button>}{selected.status === 'investigating' && <Button variant="ghost" className="w-full justify-center" onClick={() => void executeStatusUpdate('new')} disabled={actionBusy} icon={<RotateCcw size={14} />}>Kembalikan ke baru</Button>}</>}</div>{actionError && <p className="mt-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-200">{actionError}</p>}</section>
+
+                  <section className="rounded-2xl border border-accent/20 bg-accent/5 p-4"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><RefreshCw size={17} className={diagnosticBusy ? 'animate-spin' : ''}/></span><div className="min-w-0"><p className="text-sm font-semibold text-fg">Retry / Cek status</p><p className="mt-1 text-xs leading-5 text-fg-muted">Tes target langsung dari browser admin tanpa melewati guard yang membatasi percobaan pengguna.</p></div></div><Button className="mt-3 w-full justify-center" onClick={() => void runCheck()} disabled={diagnosticBusy} icon={<RefreshCw size={14} className={diagnosticBusy ? 'animate-spin' : ''} />}>{diagnosticBusy ? 'Mengecek target...' : 'Retry / Cek status'}</Button><p className="mt-2 text-[10px] leading-4 text-fg-muted">Diagnostic tidak menjalankan operasi mutasi pengguna; endpoint sensitif tetap mengikuti autentikasi dan RLS.</p></section>
+
+                  <section className="rounded-2xl border border-surface-border bg-black/10 p-4"><p className="text-xs font-semibold text-fg-muted">Ringkasan</p><div className="mt-3 space-y-3"><InfoLine label="Sumber" value={sourceMeta(selected.source).label} /><InfoLine label="Prioritas" value={severityMeta(selected.severity).label} /><InfoLine label="Kejadian" value={`${selected.occurrence_count.toLocaleString('id-ID')} kali`} /><InfoLine label="Terakhir" value={formatRelative(selected.last_seen_at)} />{selected.resolved_at && <InfoLine label="Selesai" value={formatDate(selected.resolved_at)} />}</div></section>
+                </aside>
+              </div>
+
+              {pendingAction && !selected.isRpc && <section className="mt-4 rounded-2xl border border-accent/20 bg-accent/5 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-fg">{actionLabel}</p><p className="mt-1 text-xs leading-5 text-fg-muted">Catatan hanya digunakan untuk tindakan lifecycle seperti selesai atau abaikan.</p></div><button type="button" onClick={() => setPendingAction(null)} className="rounded-lg p-1.5 text-fg-muted hover:text-fg"><X size={15}/></button></div><textarea className="input mt-3 min-h-24 w-full resize-y" placeholder="Catatan penanganan (opsional)..." value={actionNote} onChange={(event) => setActionNote(event.target.value)} /><div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="ghost" onClick={() => setPendingAction(null)} disabled={actionBusy}>Batal</Button><Button onClick={() => pendingAction === 'reopen' ? void executeReopen() : void executeStatusUpdate(pendingAction as LifecycleStatus)} disabled={actionBusy}>{actionBusy ? 'Menyimpan...' : 'Konfirmasi'}</Button></div></section>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
