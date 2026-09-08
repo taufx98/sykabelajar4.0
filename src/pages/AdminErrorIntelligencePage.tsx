@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, RefreshCw, Search, ShieldAlert, X, AlertTriangle, Cloud, Radio, Monitor } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { startRpcHealthRealtime, stopRpcHealthRealtime, supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -88,10 +88,11 @@ export function AdminErrorIntelligencePage() {
   };
 
   useEffect(() => {
+    void startRpcHealthRealtime();
     void load();
     const healthChannel = supabase.channel('admin-error-intelligence-health').on('postgres_changes', { event: '*', schema: 'public', table: 'global_settings' }, () => void load()).subscribe();
     const errorChannel = supabase.channel('admin-error-intelligence-events').on('postgres_changes', { event: '*', schema: 'public', table: 'system_error_events' }, () => void load()).subscribe();
-    return () => { void supabase.removeChannel(healthChannel); void supabase.removeChannel(errorChannel); };
+    return () => { stopRpcHealthRealtime(); void supabase.removeChannel(healthChannel); void supabase.removeChannel(errorChannel); };
   }, []);
 
   const rpcIncidents = useMemo<Incident[]>(() => rows
