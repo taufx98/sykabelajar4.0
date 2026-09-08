@@ -68,30 +68,30 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
   };
 
   return (
-    <div className="min-h-screen surface-bg">
-      <header className="sticky top-0 z-30 surface-card-bg/95 backdrop-blur border-b surface-border">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6">
-          <div className="h-14 flex items-center gap-3">
-            <Building2 size={18} className="text-accent shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-wider text-accent font-semibold">Organizer Control Center</p>
+    <div className="surface-bg">
+      <section className="border-b surface-border bg-surface-elevated/15">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <Building2 size={17} className="text-accent shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-accent font-semibold">Organisasi aktif</p>
               <p className="text-sm font-semibold text-fg truncate">{selected?.name ?? 'Memuat organisasi…'}</p>
             </div>
-            {workspaces.length > 1 && (
-              <select aria-label="Pilih organisasi" value={selected?.id ?? ''} onChange={(e) => switchWorkspace(e.target.value)} className="input text-xs min-w-[190px] max-w-[280px]">
-                {workspaces.map((org) => <option key={org.id} value={org.id}>{org.name} · {org._memberRole}</option>)}
-              </select>
-            )}
           </div>
-          <nav className="flex gap-1 overflow-x-auto no-scrollbar pb-2">
-            {items.map(([to, label, Icon]) => (
-              <Link key={to} to={to} className={`inline-flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition ${isActive(to) ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg hover:bg-surface-elevated/50'}`}>
-                <Icon size={14} />{label}
-              </Link>
-            ))}
-          </nav>
+          {workspaces.length > 1 && (
+            <select aria-label="Pilih organisasi" value={selected?.id ?? ''} onChange={(e) => switchWorkspace(e.target.value)} className="input text-xs min-w-[190px] max-w-[280px]">
+              {workspaces.map((org) => <option key={org.id} value={org.id}>{org.name} · {org._memberRole}</option>)}
+            </select>
+          )}
         </div>
-      </header>
+        <nav className="max-w-[1400px] mx-auto flex gap-1 overflow-x-auto no-scrollbar px-4 md:px-6 pb-2" aria-label="Navigasi Penyelenggara">
+          {items.map(([to, label, Icon]) => (
+            <Link key={to} to={to} className={`inline-flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition ${isActive(to) ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg hover:bg-surface-elevated/50'}`}>
+              <Icon size={14} />{label}
+            </Link>
+          ))}
+        </nav>
+      </section>
       <main className="max-w-[1400px] mx-auto w-full">{children}</main>
     </div>
   );
