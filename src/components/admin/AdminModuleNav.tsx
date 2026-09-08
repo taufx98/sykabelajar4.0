@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote, AlertTriangle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 
 type AdminNavItem = { title: string; path: string; icon: typeof LayoutDashboard; badge?: string };
 type AdminNavGroup = { key: string; title: string; items: AdminNavItem[] };
+type HeaderMeta = { section: string; title: string; subtitle: string; icon: typeof LayoutDashboard };
 
 const GROUPS: AdminNavGroup[] = [
   { key: 'operational', title: 'Operasional Utama', items: [
@@ -29,7 +30,7 @@ const GROUPS: AdminNavGroup[] = [
   ] },
 ];
 
-const MODULE_NAV_HIDDEN_PATHS = ['/admin/chat', '/admin/organizers', '/admin/plan-usage'];
+const MODULE_NAV_HIDDEN_PATHS = ['/admin/chat', '/admin/organizers', '/admin/plan-usage', '/admin/error-intelligence'];
 
 export function shouldShowAdminModuleNav(pathname: string) {
   return pathname.startsWith('/admin') && !MODULE_NAV_HIDDEN_PATHS.includes(pathname);
@@ -42,20 +43,33 @@ function matchesItem(location: ReturnType<typeof useLocation>, path: string) {
   return new URLSearchParams(location.search).get('tab') === new URLSearchParams(query).get('tab');
 }
 
-function groupForLocation(location: ReturnType<typeof useLocation>) {
-  return GROUPS.find(group => group.items.some(item => matchesItem(location, item.path)))?.key ?? null;
+function resolveHeader(location: ReturnType<typeof useLocation>): HeaderMeta {
+  if (location.pathname === '/admin/error-intelligence') return { section: 'Monitoring', title: 'Error Intelligence', subtitle: 'Pemantauan sistem dan incident', icon: AlertTriangle };
+  if (location.pathname === '/admin/plan-usage') return { section: 'Admin', title: 'Plan & Usage', subtitle: 'Penggunaan paket dan kapasitas', icon: Settings };
+  if (location.pathname === '/admin/organizers') return { section: 'Admin', title: 'Organisasi', subtitle: 'Manajemen penyelenggara', icon: ShieldCheck };
+  if (location.pathname === '/admin/chat') return { section: 'Komunikasi', title: 'Chat Admin', subtitle: 'Percakapan dan tiket pengguna', icon: ShieldCheck };
+  if (location.pathname === '/admin/core') {
+    const tab = new URLSearchParams(location.search).get('tab');
+    const match = GROUPS.flatMap(group => group.items).find(item => item.path === `/admin/core?tab=${tab}`);
+    return { section: 'Admin', title: match?.title ?? 'Panel Admin', subtitle: match ? `Kelola ${match.title.toLowerCase()}` : 'Pusat pengelolaan SYKABELAJAR', icon: match?.icon ?? LayoutDashboard };
+  }
+  return { section: 'Admin', title: 'Panel Admin', subtitle: 'Pusat pengelolaan SYKABELAJAR', icon: LayoutDashboard };
 }
 
 export function AdminShellHeader() {
   const location = useLocation();
   if (location.pathname === '/admin/chat') return null;
+  const meta = resolveHeader(location);
+  const Icon = meta.icon;
   return <header className="sticky top-0 z-30 glass border-b surface-border">
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between">
+    <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3 min-w-0">
         <Link to="/home" className="text-xs text-fg-muted hover:text-fg shrink-0">← Kembali</Link>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon size={16} /></span>
         <div className="min-w-0">
-          <p className="text-[10px] text-accent font-semibold uppercase tracking-[0.16em]">SYKABELAJAR</p>
-          <h1 className="font-display text-lg font-bold text-fg truncate">Panel Admin</h1>
+          <p className="text-[10px] text-accent font-semibold uppercase tracking-[0.16em]">{meta.section}</p>
+          <h1 className="font-display text-lg font-bold text-fg truncate">{meta.title}</h1>
+          <p className="hidden md:block text-[10px] text-fg-muted truncate">{meta.subtitle}</p>
         </div>
       </div>
       <Badge color="moss">ADMIN</Badge>
@@ -84,4 +98,8 @@ export function AdminModuleNav() {
       </div>
     </div>
   </nav>;
+}
+
+function groupForLocation(location: ReturnType<typeof useLocation>) {
+  return GROUPS.find(group => group.items.some(item => matchesItem(location, item.path)))?.key ?? null;
 }
