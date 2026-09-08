@@ -1,5 +1,6 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { reportRealtimeError, reportRpcError } from '@/lib/errorIntelligence';
 import type { ChatGroup, ChatGroupMember, ChatGroupMessage } from '@/services/chat.service';
 
 let participantClient: SupabaseClient | null = null;
@@ -52,7 +53,7 @@ function normalizeError(error: unknown) {
 export async function listCollectiveChatGroups(accessToken: string) {
   const client = await ensureParticipantClient();
   const { data, error } = await client.rpc('list_collective_chat_groups', { p_access_token: tokenRequired(accessToken) });
-  if (error) throw normalizeError(error);
+  if (error) { reportRpcError(error, 'list_collective_chat_groups'); throw normalizeError(error); }
   return (data ?? []) as ChatGroup[];
 }
 
@@ -64,7 +65,7 @@ export async function loadCollectiveChatGroupMessages(accessToken: string, group
     p_limit: Math.min(Math.max(limit, 1), 100),
     p_before: before ?? null,
   });
-  if (error) throw normalizeError(error);
+  if (error) { reportRpcError(error, 'get_collective_chat_group_messages', { groupId }); throw normalizeError(error); }
   return [...((data ?? []) as ChatGroupMessage[])].reverse();
 }
 
@@ -77,7 +78,7 @@ export async function sendCollectiveChatGroupMessage(accessToken: string, groupI
     p_group_id: groupId,
     p_body: text,
   });
-  if (error) throw normalizeError(error);
+  if (error) { reportRpcError(error, 'send_collective_chat_group_message', { groupId }); throw normalizeError(error); }
   return data as ChatGroupMessage;
 }
 
@@ -87,7 +88,7 @@ export async function listCollectiveChatGroupMembers(accessToken: string, groupI
     p_access_token: tokenRequired(accessToken),
     p_group_id: groupId,
   });
-  if (error) throw normalizeError(error);
+  if (error) { reportRpcError(error, 'list_collective_chat_group_members', { groupId }); throw normalizeError(error); }
   return (data ?? []) as ChatGroupMember[];
 }
 
@@ -97,7 +98,7 @@ export async function markCollectiveChatGroupRead(accessToken: string, groupId: 
     p_access_token: tokenRequired(accessToken),
     p_group_id: groupId,
   });
-  if (error) throw normalizeError(error);
+  if (error) { reportRpcError(error, 'mark_collective_chat_group_read', { groupId }); throw normalizeError(error); }
   return Boolean(data);
 }
 
@@ -107,7 +108,7 @@ export async function joinCollectiveChatGroup(accessToken: string, inviteToken: 
     p_access_token: tokenRequired(accessToken),
     p_invite_token: tokenRequired(inviteToken),
   });
-  if (error) throw normalizeError(error);
+  if (error) { reportRpcError(error, 'join_collective_chat_group'); throw normalizeError(error); }
   return data as { ok: boolean; group_id: string; name: string };
 }
 
@@ -120,17 +121,25 @@ export async function subscribeCollectiveGroupChat(input: {
   try {
     const client = await ensureParticipantClient();
     const { error: bindError } = await client.rpc('bind_collective_chat_realtime' as never, { p_access_token: tokenRequired(input.accessToken) } as never);
-    if (bindError) throw bindError;
+    if (bindError) {
+      reportRpcError(bindError, 'bind_collective_chat_realtime', { groupId: input.groupId });
+      throw bindError;
+    }
     const channel = client.channel(`collective-group-chat:${input.groupId}`).on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'chat_group_messages', filter: `group_id=eq.${input.groupId}` },
       (payload) => input.onInsert(payload.new as ChatGroupMessage),
     ).subscribe((status) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') input.onError?.(new Error('Realtime chat group sementara tidak terhubung.'));
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        const error = new Error(`Realtime chat group gagal (${status}).`);
+        reportRealtimeError(error, { channel: `collective-group-chat:${input.groupId}`, table: 'chat_group_messages', status });
+        input.onError?.(error);
+      }
     });
     return () => { void client.removeChannel(channel as RealtimeChannel); };
   } catch (error) {
     const normalized = error instanceof Error ? error : new Error('Gagal menghubungkan realtime chat group.');
+    reportRealtimeError(normalized, { channel: `collective-group-chat:${input.groupId}`, table: 'chat_group_messages' });
     input.onError?.(normalized);
     return () => undefined;
   }
