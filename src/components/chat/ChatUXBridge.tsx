@@ -98,7 +98,7 @@ export function ChatUXBridge() {
   const location = useLocation();
   const showAdminChatSwitcher = user?.role === 'admin' && (location.pathname === '/pesan' || location.pathname === '/admin/chat');
   return <>
-    {showAdminChatSwitcher && <div className="fixed top-[4.25rem] md:top-2 right-3 md:right-6 z-40 max-w-[calc(100vw-1.5rem)]"><AdminCommunicationLinks /></div>}
+    {showAdminChatSwitcher && <div className="relative z-20 flex w-full justify-end px-4 py-2 md:px-6 md:py-3"><AdminCommunicationLinks /></div>}
     <ProfileMessagingGate />
     <ChatCooldownGate />
   </>;
