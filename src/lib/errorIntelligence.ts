@@ -26,6 +26,10 @@ function toCode(error: unknown) {
   return value.code ? String(value.code) : value.status ? String(value.status) : null;
 }
 
+function cleanText(value: unknown, max = 500) {
+  return String(value ?? '').slice(0, max);
+}
+
 function cleanContext(context: Record<string, unknown> = {}) {
   const blocked = /token|authorization|password|secret|api[_-]?key/i;
   return Object.fromEntries(Object.entries(context).filter(([key]) => !blocked.test(key)));
@@ -57,6 +61,34 @@ export function reportSystemError({ source, error, severity = 'error', context =
   }).catch(() => {
     // Error telemetry must never trigger another user-visible failure.
   });
+}
+
+export function reportCloudinaryError(error: unknown, context: Record<string, unknown> = {}) {
+  const message = toMessage(error);
+  const code = toCode(error);
+  reportSystemError({
+    source: 'cloudinary',
+    error,
+    severity: code === '401' || message.includes('(401)') ? 'error' : 'warning',
+    context: { ...context, provider: 'cloudinary' },
+  });
+}
+
+export function reportEdgeFunctionError(error: unknown, functionName: string, context: Record<string, unknown> = {}) {
+  reportSystemError({
+    source: 'edge_function',
+    error,
+    severity: 'error',
+    context: { ...context, functionName: cleanText(functionName) },
+  });
+}
+
+export function reportRealtimeError(error: unknown, context: Record<string, unknown> = {}) {
+  reportSystemError({ source: 'realtime', error, severity: 'error', context: { ...context, channel: cleanText(context.channel) } });
+}
+
+export function reportRpcError(error: unknown, rpcName: string, context: Record<string, unknown> = {}) {
+  reportSystemError({ source: 'rpc', error, severity: 'error', context: { ...context, rpcName: cleanText(rpcName) } });
 }
 
 export function initializeErrorIntelligence() {
