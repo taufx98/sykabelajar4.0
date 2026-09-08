@@ -5,10 +5,21 @@ import { reportSystemError } from './errorIntelligence';
 let _client: SupabaseClient | null = null;
 let rpcHealthReady: Promise<void> | null = null;
 let rpcHealthChannel: ReturnType<SupabaseClient['channel']> | null = null;
+let rpcHealthReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let rpcHealthFallbackTimer: ReturnType<typeof setInterval> | null = null;
+let rpcHealthReconnectAttempt = 0;
+let rpcHealthConsecutiveFailures = 0;
+let rpcHealthLastErrorAt = 0;
 
 const RPC_HEALTH_PREFIX = '__rpc_health:';
 const RPC_RUNTIME_KEY = '__rpc_backend_runtime';
 const ERROR_REPORT_RPC = 'report_system_error';
+const RPC_HEALTH_CHANNEL = 'syka-global-rpc-health';
+const RPC_HEALTH_RECONNECT_BASE_MS = 2000;
+const RPC_HEALTH_RECONNECT_MAX_MS = 30000;
+const RPC_HEALTH_FALLBACK_INTERVAL_MS = 60000;
+const RPC_HEALTH_ERROR_REPORT_COOLDOWN_MS = 30000;
+const RPC_HEALTH_WARNING_AFTER_FAILURES = 2;
 
 type RpcHealthStatus = 'OPEN' | 'BLOCKED' | 'PROBING' | 'RECOVERY_PENDING';
 type RpcHealthState = { status: RpcHealthStatus; backend_version: number; error_code?: string | null; error_message?: string | null; failed_at?: string | null };
@@ -72,7 +83,7 @@ function isGlobalServerError(error: unknown) {
 
 function blockedRpcError(rpcName: string, state?: RpcHealthState) {
   const suffix = state?.error_code || state?.error_message ? ` Error terakhir: ${state.error_code ?? 'SERVER_ERROR'}${state.error_message ? ` — ${state.error_message}` : ''}` : '';
-  const error = new Error(`Fitur "${rpcName}" sementara ditahan karena backend mengalami error. Request tidak dikirim ulang agar tidak membebani backend.${suffix}`) as RpcErrorWithCode;
+  const error = new Error(`Fitur \"${rpcName}\" sementara ditahan karena backend mengalami error. Request tidak dikirim ulang agar tidak membebani backend.${suffix}`) as RpcErrorWithCode;
   error.code = 'BACKEND_RPC_BLOCKED';
   return error;
 }
@@ -94,19 +105,88 @@ function applyHealthRow(key: string, value: unknown) {
   if (rpcHealthCache[rpcName].status === 'OPEN') { probeOwners.delete(rpcName); probeClaimsInFlight.delete(rpcName); }
 }
 
-async function initializeRpcHealthInternal() {
+async function refreshRpcHealthSnapshot() {
+  try {
+    const client = initClient();
+    const { data, error } = await client.from('global_settings').select('key,value').or(`key.eq.${RPC_RUNTIME_KEY},key.like.${RPC_HEALTH_PREFIX}%`);
+    if (!error) for (const row of data ?? []) applyHealthRow(row.key, row.value);
+  } catch {
+    // Realtime and the periodic snapshot are both best-effort observability paths.
+  }
+}
+
+function scheduleRpcHealthReconnect() {
+  if (rpcHealthReconnectTimer) return;
+  const delay = Math.min(RPC_HEALTH_RECONNECT_MAX_MS, RPC_HEALTH_RECONNECT_BASE_MS * 2 ** rpcHealthReconnectAttempt);
+  rpcHealthReconnectAttempt = Math.min(rpcHealthReconnectAttempt + 1, 5);
+  rpcHealthReconnectTimer = setTimeout(() => {
+    rpcHealthReconnectTimer = null;
+    subscribeRpcHealthChannel();
+  }, delay);
+}
+
+function handleRpcHealthChannelFailure(status: string) {
+  rpcHealthConsecutiveFailures += 1;
+  scheduleRpcHealthReconnect();
+  if (rpcHealthConsecutiveFailures < RPC_HEALTH_WARNING_AFTER_FAILURES) return;
+
+  const now = Date.now();
+  if (now - rpcHealthLastErrorAt < RPC_HEALTH_ERROR_REPORT_COOLDOWN_MS) return;
+  rpcHealthLastErrorAt = now;
+  reportSystemError({
+    source: 'realtime',
+    error: new Error(`RPC health realtime subscription ${status}`),
+    severity: 'warning',
+    context: { channel: RPC_HEALTH_CHANNEL, status, consecutive_failures: rpcHealthConsecutiveFailures },
+  });
+}
+
+function subscribeRpcHealthChannel() {
   const client = initClient();
-  clearLegacyCircuitBreakerStorage();
-  const { data, error } = await client.from('global_settings').select('key,value').or(`key.eq.${RPC_RUNTIME_KEY},key.like.${RPC_HEALTH_PREFIX}%`);
-  if (!error) for (const row of data ?? []) applyHealthRow(row.key, row.value);
-  if (!rpcHealthChannel) {
-    rpcHealthChannel = client.channel('syka-global-rpc-health').on('postgres_changes', { event: '*', schema: 'public', table: 'global_settings' }, (payload) => {
+  if (rpcHealthChannel) return;
+
+  rpcHealthChannel = client
+    .channel(RPC_HEALTH_CHANNEL)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'global_settings' }, (payload) => {
       const row = (payload.new ?? payload.old) as { key?: string; value?: unknown } | undefined;
       if (row?.key) applyHealthRow(row.key, row.value);
-    }).subscribe((status) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reportSystemError({ source: 'realtime', error: new Error(`RPC health realtime subscription ${status}`), severity: 'warning', context: { channel: 'syka-global-rpc-health', status } });
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        rpcHealthReconnectAttempt = 0;
+        rpcHealthConsecutiveFailures = 0;
+        return;
+      }
+
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        const channel = rpcHealthChannel;
+        rpcHealthChannel = null;
+        if (channel) void client.removeChannel(channel);
+        handleRpcHealthChannelFailure(status);
+        return;
+      }
+
+      if (status === 'CLOSED') {
+        const channel = rpcHealthChannel;
+        rpcHealthChannel = null;
+        if (channel) void client.removeChannel(channel);
+        scheduleRpcHealthReconnect();
+      }
     });
-  }
+}
+
+function startRpcHealthFallback() {
+  if (rpcHealthFallbackTimer) return;
+  rpcHealthFallbackTimer = setInterval(() => {
+    void refreshRpcHealthSnapshot();
+  }, RPC_HEALTH_FALLBACK_INTERVAL_MS);
+}
+
+async function initializeRpcHealthInternal() {
+  clearLegacyCircuitBreakerStorage();
+  await refreshRpcHealthSnapshot();
+  subscribeRpcHealthChannel();
+  startRpcHealthFallback();
 }
 
 export function initializeRpcHealth() {
