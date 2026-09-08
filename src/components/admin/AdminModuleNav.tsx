@@ -75,7 +75,7 @@ export function AdminModuleNav() {
 
   return <nav className="border-b surface-border bg-surface-elevated/15" aria-label="Navigasi modul Admin">
     <div className="mx-auto max-w-7xl px-3 py-2 md:px-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
         <Link to="/admin" className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${!openGroup && location.pathname === '/admin' ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`}><LayoutDashboard size={14} /><span className="truncate">Dashboard</span></Link>
         {GROUPS.map(group => <button key={group.key} type="button" onClick={() => setOpenGroup(value => value === group.key ? null : group.key)} className={`flex min-w-0 items-center justify-center rounded-xl px-2 py-2 text-xs font-semibold transition-all duration-200 ${openGroup === group.key ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`} aria-expanded={openGroup === group.key}><span className="truncate">{group.title}</span></button>)}
       </div>
