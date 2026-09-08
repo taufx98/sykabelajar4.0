@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote, Medal } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
