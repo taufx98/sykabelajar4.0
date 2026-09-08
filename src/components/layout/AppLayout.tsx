@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Home, CalendarCheck, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Megaphone, MessageCircle, SlidersHorizontal, School } from 'lucide-react';
+import { Home, CalendarCheck, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Megaphone, MessageCircle, SlidersHorizontal, School, AlertTriangle } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -120,7 +120,7 @@ export function AppLayout() {
   if (isTeacher) userNav.push(['/guru', 'Guru', School, undefined], ['/guru/daftar', 'Daftar Kolektif', UserPlus, undefined], ['/guru/kartu', 'Kartu Akses', ShieldCheck, undefined], ['/guru/monitoring', 'Monitoring', BarChart3, undefined]);
   if (isOrganizer) userNav.push(['/organizer', 'Penyelenggara', Building2, undefined], ['/organizer/ads', 'Pasang Iklan', Megaphone, undefined]);
   userNav.push([chatPath, 'Pesan', MessageCircle, unreadMessages > 0 ? unreadMessages : undefined]);
-  if (isAdmin) userNav.push(['/admin', 'Admin', ShieldCheck, undefined], ['/admin/plan-usage', 'Plan & Usage', SlidersHorizontal, undefined], ['/admin/organizers', 'Organisasi', Building2, undefined]);
+  if (isAdmin) userNav.push(['/admin', 'Admin', ShieldCheck, undefined], ['/admin/error-intelligence', 'Error Intelligence', AlertTriangle, undefined], ['/admin/plan-usage', 'Plan & Usage', SlidersHorizontal, undefined], ['/admin/organizers', 'Organisasi', Building2, undefined]);
   userNav.push([profilePath, 'Profil', UserIcon, undefined]);
   const collectiveNav: NavItem[] = [['/peserta-kolektif', 'Portal Peserta', School, undefined], ['/pesan', 'Pesan', MessageCircle, undefined]];
   const nav: NavItem[] = isGuest ? guestNav : collectiveMode ? collectiveNav : userNav;
