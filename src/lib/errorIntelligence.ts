@@ -56,22 +56,38 @@ function cleanContext(context: Record<string, unknown> = {}) {
   return sanitizeValue(context) as Record<string, unknown>;
 }
 
+function safeUrl(value?: string | null) {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return cleanText(value, 2000);
+  }
+}
+
 function browserCapture() {
   if (typeof window === 'undefined') return null;
   try {
     return {
       captured_at: new Date().toISOString(),
-      url: window.location.href,
+      url: safeUrl(window.location.href),
       path: window.location.pathname,
       query_present: Boolean(window.location.search),
       hash_present: Boolean(window.location.hash),
-      referrer: document.referrer || null,
+      referrer: safeUrl(document.referrer),
       online: navigator.onLine,
       user_agent: navigator.userAgent,
       language: navigator.language,
       languages: Array.from(navigator.languages ?? []),
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      viewport: { width: window.innerWidth, height: window.innerHeight, device_pixel_ratio: window.devicePixelRatio },
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        device_pixel_ratio: window.devicePixelRatio,
+      },
       platform: navigator.platform || null,
     };
   } catch {
@@ -145,8 +161,16 @@ export function reportSystemError({ source, error, severity = 'error', context =
     ai_handoff: {
       objective: 'Identify the root cause of this incident and provide the smallest safe fix.',
       evidence_available: ['error_details', 'context', 'browser_capture', 'target_metadata'],
-      constraints: ['Do not expose or request secrets.', 'Do not bypass authentication or RLS.', 'Prefer verifying the failing target before changing production behavior.'],
-      success_criteria: ['The original failure no longer reproduces.', 'The same target passes an admin diagnostic check.', 'No unrelated user workflow is degraded.'],
+      constraints: [
+        'Do not expose or request secrets.',
+        'Do not bypass authentication or RLS.',
+        'Prefer verifying the failing target before changing production behavior.',
+      ],
+      success_criteria: [
+        'The original failure no longer reproduces.',
+        'The same target passes an admin diagnostic check.',
+        'No unrelated user workflow is degraded.',
+      ],
     },
   });
 
