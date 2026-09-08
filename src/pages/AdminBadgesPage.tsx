@@ -32,6 +32,8 @@ const FIELDS: Array<{ value: BadgeConditionField; label: string; numeric: boolea
 
 const OPERATORS: BadgeConditionOperator[] = ['>=', '>', '=', '<=', '<', '!='];
 
+type StatCard = { label: string; value: number; Icon: typeof Award };
+
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'badge-baru';
 }
@@ -105,6 +107,13 @@ export function AdminBadgesPage() {
     draft: badges.filter((b) => b.status === 'DRAFT').length,
     owners: [...counts.values()].reduce((sum, value) => sum + value, 0),
   }), [badges, counts]);
+
+  const statCards: StatCard[] = [
+    { label: 'Total Badge', value: stats.total, Icon: Award },
+    { label: 'Aktif', value: stats.active, Icon: Sparkles },
+    { label: 'Draft', value: stats.draft, Icon: Edit3 },
+    { label: 'Badge Diperoleh', value: stats.owners, Icon: Users },
+  ];
 
   const openNew = () => setEditor(emptyBadge());
   const openEdit = (badge: Badge) => setEditor({ ...badge, rule_config: { conditions: [...(badge.rule_config?.conditions ?? [])] } });
@@ -226,7 +235,7 @@ export function AdminBadgesPage() {
       </section>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[['Total Badge', stats.total, Award], ['Aktif', stats.active, Sparkles], ['Draft', stats.draft, Edit3], ['Badge Diperoleh', stats.owners, Users]].map(([label, value, Icon]) => <Card key={String(label)} className="p-4"><div className="flex items-center justify-between"><p className="text-xs text-fg-muted">{label}</p><Icon size={15} className="text-accent" /></div><p className="mt-2 text-2xl font-bold">{value}</p></Card>)}
+        {statCards.map(({ label, value, Icon }) => <Card key={label} className="p-4"><div className="flex items-center justify-between"><p className="text-xs text-fg-muted">{label}</p><Icon size={15} className="text-accent" /></div><p className="mt-2 text-2xl font-bold">{value}</p></Card>)}
       </div>
 
       <Card className="p-4">
