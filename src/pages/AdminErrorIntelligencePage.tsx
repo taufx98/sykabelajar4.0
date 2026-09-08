@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { startRpcHealthRealtime, stopRpcHealthRealtime, supabase } from '@/lib/supabase';
 import { env } from '@/lib/env';
+import { buildAiDebuggingContext } from '@/lib/aiDebuggingContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -195,7 +196,8 @@ function isHttpHealthy(status: number) {
 
 async function probeRealtime(item: UnifiedEvent): Promise<DiagnosticResult> {
   const started = performance.now();
-  const channelName = contextString(item.context, ['channel', 'channel_name']) || item.key || `syka-admin-diagnostic-${Date.now()}`;
+  const originalChannelName = contextString(item.context, ['channel', 'channel_name']) || item.key || `syka-global-rpc-health`;
+  const channelName = `syka-admin-diagnostic-${originalChannelName.replace(/[^a-zA-Z0-9:_-]/g, '_')}-${Date.now()}`;
   const table = contextString(item.context, ['table', 'table_name']) || 'global_settings';
   const channel = supabase
     .channel(channelName)
@@ -228,9 +230,9 @@ async function probeRealtime(item: UnifiedEvent): Promise<DiagnosticResult> {
     title: fixed ? 'Fixed' : 'Error',
     summary: fixed ? 'Channel Realtime berhasil terhubung kembali.' : 'Channel Realtime masih gagal terhubung.',
     method: 'realtime_channel_subscribe',
-    target: channelName,
+    target: originalChannelName,
     duration_ms: duration,
-    details: { channel: channelName, table, subscribe_status: result.status, subscribe_error: result.error || null },
+    details: { channel: originalChannelName, diagnostic_channel: channelName, table, subscribe_status: result.status, subscribe_error: result.error || null },
     admin_diagnostic_mode: true,
   };
 }
@@ -385,7 +387,7 @@ function buildTechnicalPayload(item: UnifiedEvent, diagnostic?: DiagnosticResult
     diagnostic: diagnostic ?? null,
     context: cleanForExport(item.context ?? {}),
     admin_diagnostic_mode: true,
-    note: 'Diagnostic admin melewati guard aplikasi sisi pengguna untuk pengujian target, tetapi tidak melewati autentikasi atau RLS backend.',
+    note: 'Diagnostic admin menguji target secara terisolasi tanpa melewati autentikasi atau RLS backend.',
   };
 }
 
@@ -410,6 +412,7 @@ export function AdminErrorIntelligencePage() {
   const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
   const [technicalOpen, setTechnicalOpen] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [aiCopied, setAiCopied] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = async (background = false) => {
@@ -536,6 +539,7 @@ export function AdminErrorIntelligencePage() {
     setDiagnosticResult(null);
     setDiagnosticError(null);
     setCopied(false);
+    setAiCopied(false);
     setTechnicalOpen(true);
   };
 
@@ -628,6 +632,27 @@ export function AdminErrorIntelligencePage() {
     window.setTimeout(() => setCopied(false), 1600);
   };
 
+  const copyAiDebuggingContext = async () => {
+    if (!selected) return;
+    const payload = buildAiDebuggingContext(selected, diagnosticResult);
+    const json = JSON.stringify(payload, null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = json;
+      textarea.setAttribute('readonly', 'true');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    setAiCopied(true);
+    window.setTimeout(() => setAiCopied(false), 1600);
+  };
+
   const actionLabel = pendingAction === 'resolved' ? 'Selesaikan incident' : pendingAction === 'ignored' ? 'Abaikan incident' : pendingAction === 'investigating' ? 'Mulai penanganan' : pendingAction === 'new' ? 'Kembalikan ke baru' : 'Konfirmasi';
   const tabs: TabKey[] = ['new', 'investigating', 'reopened', 'resolved', 'ignored', 'all'];
   const tabCounts: Record<TabKey, number> = { new: counts.newCount, investigating: counts.investigatingCount, reopened: counts.reopenedCount, resolved: counts.resolvedCount, ignored: counts.ignoredCount, all: unifiedEvents.length };
@@ -697,13 +722,15 @@ export function AdminErrorIntelligencePage() {
                   {selected.resolution_note && <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 p-4"><p className="text-xs font-semibold text-emerald-200">Catatan penyelesaian</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fg-secondary">{selected.resolution_note}</p></section>}
                   {selected.reopened_from_id && <section className="rounded-2xl border border-sky-500/15 bg-sky-500/5 p-4"><p className="text-xs font-semibold text-sky-200">Incident ini merupakan kejadian kambuh</p><p className="mt-1 text-xs leading-5 text-fg-muted">Incident sebelumnya tetap disimpan sebagai riwayat. ID internal tidak ditampilkan di antarmuka.</p></section>}
 
-                  <section className="rounded-2xl border border-surface-border bg-black/5 overflow-hidden"><button type="button" onClick={() => setTechnicalOpen((open) => !open)} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-white/[0.02]"><div><p className="text-sm font-semibold text-fg">Detail teknis</p><p className="mt-1 text-xs text-fg-muted">JSON lengkap untuk analisis dan dapat langsung ditempel ke AI.</p></div><div className="flex items-center gap-2"><button type="button" onClick={(event) => { event.stopPropagation(); void copyTechnicalJson(); }} className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/15"><Clipboard size={14}/>{copied ? 'Copied!' : 'Copy JSON'}</button><ChevronRight size={17} className={`text-fg-muted transition ${technicalOpen ? 'rotate-90' : ''}`} /></div></button>{technicalOpen && <div className="border-t surface-border p-3 md:p-4"><pre className="max-h-[28rem] overflow-auto rounded-xl border border-surface-border bg-[#07111f] p-4 font-mono text-[11px] leading-5 text-sky-100">{JSON.stringify(buildTechnicalPayload(selected, diagnosticResult), null, 2)}</pre><p className="mt-2 text-[10px] text-fg-muted">Credential fields sensitif otomatis disamarkan agar aman dipakai untuk analisis.</p></div>}</section>
+                  <section className="rounded-2xl border border-surface-border bg-black/5 overflow-hidden"><button type="button" onClick={() => setTechnicalOpen((open) => !open)} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-white/[0.02]"><div><p className="text-sm font-semibold text-fg">Detail teknis</p><p className="mt-1 text-xs text-fg-muted">Full Incident Record untuk audit, riwayat, monitoring, dan observability.</p></div><div className="flex items-center gap-2"><button type="button" onClick={(event) => { event.stopPropagation(); void copyTechnicalJson(); }} className="inline-flex items-center gap-2 rounded-xl border border-surface-border px-3 py-2 text-xs font-semibold text-fg-muted hover:bg-white/[0.04] hover:text-fg"><Clipboard size={14}/>{copied ? 'Copied!' : 'Copy Full JSON'}</button><ChevronRight size={17} className={`text-fg-muted transition ${technicalOpen ? 'rotate-90' : ''}`} /></div></button>{technicalOpen && <div className="border-t surface-border p-3 md:p-4"><pre className="max-h-[28rem] overflow-auto rounded-xl border border-surface-border bg-[#07111f] p-4 font-mono text-[11px] leading-5 text-sky-100">{JSON.stringify(buildTechnicalPayload(selected, diagnosticResult), null, 2)}</pre><p className="mt-2 text-[10px] text-fg-muted">Credential fields sensitif otomatis disamarkan.</p></div>}</section>
+
+                  <section className="rounded-2xl border border-accent/20 bg-accent/5 overflow-hidden"><div className="flex items-center justify-between gap-3 p-4"><div><p className="text-sm font-semibold text-fg">AI Debugging Context</p><p className="mt-1 text-xs leading-5 text-fg-muted">Payload terpisah untuk AI/coding agent: fokus pada fakta diagnostik, evidence terverifikasi, target investigasi, dan success criteria.</p></div><button type="button" onClick={() => void copyAiDebuggingContext()} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/15"><Clipboard size={14}/>{aiCopied ? 'Copied!' : 'Copy AI JSON'}</button></div><div className="border-t border-accent/10 p-3 md:p-4"><pre className="max-h-[30rem] overflow-auto rounded-xl border border-surface-border bg-[#07111f] p-4 font-mono text-[11px] leading-5 text-sky-100">{JSON.stringify(buildAiDebuggingContext(selected, diagnosticResult), null, 2)}</pre><p className="mt-2 text-[10px] leading-4 text-fg-muted">Metadata lifecycle, fingerprint, user agent, viewport, dan identitas admin tidak dikirim ke AI kecuali dibutuhkan secara diagnostik.</p></div></section>
                 </div>
 
                 <aside className="space-y-3">
                   <section className="rounded-2xl border border-surface-border bg-black/10 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-fg">Tindakan</p><p className="mt-1 text-xs text-fg-muted">Perbaiki atau jalankan pengecekan ulang langsung.</p></div></div><div className="mt-3 space-y-2">{selected.isRpc ? <div className="rounded-xl border border-surface-border bg-white/[0.02] p-3 text-xs leading-5 text-fg-muted">Status RPC dipantau otomatis; gunakan <strong className="text-fg">Retry / Cek status</strong> untuk diagnostic admin.</div> : <>{(selected.status === 'new' || selected.status === undefined) && <Button className="w-full justify-center" onClick={startFix} disabled={actionBusy} icon={<Activity size={14} />}>{actionBusy ? 'Memulai...' : 'Perbaiki'}</Button>}{selected.status === 'investigating' && <Button className="w-full justify-center" onClick={() => void executeStatusUpdate('resolved')} disabled={actionBusy} icon={<CheckCircle2 size={14} />}>{actionBusy ? 'Menyimpan...' : 'Tandai selesai'}</Button>}{(selected.status === 'investigating' || selected.status === 'new') && <Button variant="ghost" className="w-full justify-center" onClick={() => void executeStatusUpdate('ignored')} disabled={actionBusy} icon={<Ban size={14} />}>Abaikan</Button>}{selected.status === 'resolved' && <Button className="w-full justify-center" onClick={() => { setActionNote(''); setActionError(null); setPendingAction('reopen'); }} icon={<RotateCcw size={14} />}>Buka lagi sebagai incident baru</Button>}{selected.status === 'ignored' && <Button variant="ghost" className="w-full justify-center" onClick={() => void executeStatusUpdate('new')} disabled={actionBusy} icon={<CircleDot size={14} />}>Kembalikan ke perlu ditangani</Button>}{selected.status === 'investigating' && <Button variant="ghost" className="w-full justify-center" onClick={() => void executeStatusUpdate('new')} disabled={actionBusy} icon={<RotateCcw size={14} />}>Kembalikan ke baru</Button>}</>}</div>{actionError && <p className="mt-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-200">{actionError}</p>}</section>
 
-                  <section className="rounded-2xl border border-accent/20 bg-accent/5 p-4"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><RefreshCw size={17} className={diagnosticBusy ? 'animate-spin' : ''}/></span><div className="min-w-0"><p className="text-sm font-semibold text-fg">Retry / Cek status</p><p className="mt-1 text-xs leading-5 text-fg-muted">Tes target langsung dari browser admin tanpa melewati guard yang membatasi percobaan pengguna.</p></div></div><Button className="mt-3 w-full justify-center" onClick={() => void runCheck()} disabled={diagnosticBusy} icon={<RefreshCw size={14} className={diagnosticBusy ? 'animate-spin' : ''} />}>{diagnosticBusy ? 'Mengecek target...' : 'Retry / Cek status'}</Button><p className="mt-2 text-[10px] leading-4 text-fg-muted">Diagnostic tidak menjalankan operasi mutasi pengguna; endpoint sensitif tetap mengikuti autentikasi dan RLS.</p></section>
+                  <section className="rounded-2xl border border-accent/20 bg-accent/5 p-4"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><RefreshCw size={17} className={diagnosticBusy ? 'animate-spin' : ''}/></span><div className="min-w-0"><p className="text-sm font-semibold text-fg">Retry / Cek status</p><p className="mt-1 text-xs leading-5 text-fg-muted">Tes target langsung dari browser admin dengan diagnostic terisolasi. Endpoint sensitif tetap mengikuti autentikasi dan RLS.</p></div></div><Button className="mt-3 w-full justify-center" onClick={() => void runCheck()} disabled={diagnosticBusy} icon={<RefreshCw size={14} className={diagnosticBusy ? 'animate-spin' : ''} />}>{diagnosticBusy ? 'Mengecek target...' : 'Retry / Cek status'}</Button><p className="mt-2 text-[10px] leading-4 text-fg-muted">Diagnostic tidak menjalankan operasi mutasi pengguna.</p></section>
 
                   <section className="rounded-2xl border border-surface-border bg-black/10 p-4"><p className="text-xs font-semibold text-fg-muted">Ringkasan</p><div className="mt-3 space-y-3"><InfoLine label="Sumber" value={sourceMeta(selected.source).label} /><InfoLine label="Prioritas" value={severityMeta(selected.severity).label} /><InfoLine label="Kejadian" value={`${selected.occurrence_count.toLocaleString('id-ID')} kali`} /><InfoLine label="Terakhir" value={formatRelative(selected.last_seen_at)} />{selected.resolved_at && <InfoLine label="Selesai" value={formatDate(selected.resolved_at)} />}</div></section>
                 </aside>
