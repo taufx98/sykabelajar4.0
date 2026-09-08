@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, FileText, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote, Medal } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 type AdminNavItem = { title: string; path: string; icon: typeof LayoutDashboard; badge?: string };
@@ -17,6 +16,7 @@ const GROUPS: AdminNavGroup[] = [
     { title: 'XP & Coin', path: '/admin/currency', icon: Coins },
     { title: 'Banner Iklan', path: '/admin/banners', icon: Megaphone },
     { title: 'Penghargaan', path: '/admin/awards', icon: Award },
+    { title: 'Badge', path: '/admin/badges', icon: Medal },
     { title: 'Tugas Harian', path: '/admin/daily-tasks', icon: ClipboardList },
   ] },
   { key: 'access', title: 'Akses, Paket & Keamanan', items: [
