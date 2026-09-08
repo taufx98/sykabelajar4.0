@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Activity, AlertTriangle, CheckCircle2, Clock3, DollarSign, RefreshCw, Trophy, Users, X } from 'lucide-react';
+import { Activity, DollarSign, RefreshCw, Trophy, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -96,13 +96,6 @@ function formatCurrency(value: number) {
   return `Rp ${value.toLocaleString('id-ID')}`;
 }
 
-function statusMeta(status?: string) {
-  if (status === 'BLOCKED') return { label: 'Blocked', icon: AlertTriangle, tone: 'text-red-300 bg-red-500/10 border-red-500/20' };
-  if (status === 'PROBING') return { label: 'Probing', icon: RefreshCw, tone: 'text-amber-300 bg-amber-500/10 border-amber-500/20' };
-  if (status === 'RECOVERY_PENDING') return { label: 'Recovery', icon: Clock3, tone: 'text-amber-300 bg-amber-500/10 border-amber-500/20' };
-  return { label: 'Healthy', icon: CheckCircle2, tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' };
-}
-
 export function AdminDashboard() {
   const [period, setPeriod] = useState<Period>('monthly');
   const [metric, setMetric] = useState<Metric>('users');
@@ -114,7 +107,6 @@ export function AdminDashboard() {
   const [awards, setAwards] = useState<Array<Record<string, any>>>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [runtimeVersion, setRuntimeVersion] = useState<number | null>(null);
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -257,49 +249,21 @@ export function AdminDashboard() {
           </div>
         </Card>
 
-        <div className="space-y-4 lg:col-span-4">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] text-fg-muted">System status</p>
-                <h3 className="text-sm font-semibold text-fg">Kesehatan layanan</h3>
-              </div>
-              <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-current" /> Live</span>
+        <Card className="p-4 lg:col-span-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] text-fg-muted">System status</p>
+              <h3 className="text-sm font-semibold text-fg">Kesehatan layanan</h3>
             </div>
-            <div className="mt-3 space-y-1.5 text-xs">
-              <HealthRow label="Database" healthy />
-              <HealthRow label="Authentication" healthy />
-              <HealthRow label="Realtime" healthy />
-              <HealthRow label="RPC monitor" healthy={incidents.length === 0} detail={incidents.length ? `${incidents.length} incident aktif` : 'Semua normal'} />
-            </div>
-          </Card>
-
-          <Card className={`p-4 ${incidents.length ? 'border-red-500/20' : ''}`}>
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-[11px] text-fg-muted">Production incidents</p>
-                <h3 className="text-sm font-semibold text-fg">Error Intelligence</h3>
-              </div>
-              <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${incidents.length ? 'bg-red-500/10 text-red-300' : 'bg-emerald-500/10 text-emerald-300'}`}>{incidents.length} aktif</span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {incidents.slice(0, 3).map((incident) => {
-                const meta = statusMeta(incident.status);
-                const Icon = meta.icon;
-                return (
-                  <button key={incident.rpcName} type="button" onClick={() => setSelectedIncident(incident)} className="w-full rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left transition hover:border-red-500/20 hover:bg-white/[0.04]">
-                    <div className="flex items-start gap-2.5">
-                      <span className={`mt-0.5 rounded-lg border p-1.5 ${meta.tone}`}><Icon size={13} /></span>
-                      <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-fg">{incident.rpcName}</span><span className="mt-0.5 block truncate text-[10px] text-fg-muted">{incident.error_message || incident.error_code || 'Backend error'}</span></span>
-                      <span className="text-[10px] text-fg-muted">›</span>
-                    </div>
-                  </button>
-                );
-              })}
-              {!incidents.length && <div className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-3 text-xs text-emerald-200">Tidak ada incident aktif.</div>}
-            </div>
-          </Card>
-        </div>
+            <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-current" /> Live</span>
+          </div>
+          <div className="mt-3 space-y-1.5 text-xs">
+            <HealthRow label="Database" healthy />
+            <HealthRow label="Authentication" healthy />
+            <HealthRow label="Realtime" healthy />
+            <HealthRow label="RPC monitor" healthy={incidents.length === 0} detail={incidents.length ? `${incidents.length} incident aktif` : 'Semua normal'} />
+          </div>
+        </Card>
       </div>
 
       <Card className="p-4">
@@ -312,8 +276,6 @@ export function AdminDashboard() {
           {!recentActivity.length && <div className="py-5 text-center text-xs text-fg-muted">Belum ada aktivitas.</div>}
         </div>
       </Card>
-
-      {selectedIncident && <IncidentDrawer incident={selectedIncident} onClose={() => setSelectedIncident(null)} />}
     </div>
   );
 }
@@ -329,11 +291,3 @@ function Segmented<T extends string>({ options, value, onChange, labels }: { opt
 function HealthRow({ label, healthy, detail }: { label: string; healthy: boolean; detail?: string }) {
   return <div className="flex items-center gap-2 rounded-lg px-2 py-1.5"><span className={`h-1.5 w-1.5 rounded-full ${healthy ? 'bg-emerald-400' : 'bg-red-400'}`} /><span className="text-fg-secondary">{label}</span><span className="ml-auto text-[10px] text-fg-muted">{detail || (healthy ? 'Operational' : 'Attention')}</span></div>;
 }
-
-function IncidentDrawer({ incident, onClose }: { incident: Incident; onClose: () => void }) {
-  const meta = statusMeta(incident.status);
-  const Icon = meta.icon;
-  return <div className="fixed inset-0 z-50 bg-black/40" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto border-l surface-border surface-bg p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Error Intelligence</p><h3 className="mt-1 text-base font-bold text-fg">{incident.rpcName}</h3></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-fg-muted hover:bg-white/5 hover:text-fg"><X size={16} /></button></div><div className={`mt-4 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${meta.tone}`}><Icon size={14} /> {meta.label}</div><div className="mt-4 space-y-3"><Detail label="Error code" value={incident.error_code || '—'} /><Detail label="Backend version" value={String(incident.backend_version ?? '—')} /><Detail label="Terjadi" value={incident.failed_at ? new Date(incident.failed_at).toLocaleString('id-ID') : '—'} /><div><p className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Pesan error</p><pre className="mt-1 whitespace-pre-wrap break-words rounded-xl border border-white/5 bg-black/20 p-3 text-[11px] leading-5 text-red-200">{incident.error_message || 'Tidak ada pesan error.'}</pre></div></div></aside></div>;
-}
-
-function Detail({ label, value }: { label: string; value: string }) { return <div className="flex items-start justify-between gap-4 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5"><span className="text-[10px] text-fg-muted">{label}</span><span className="max-w-[65%] break-words text-right text-[11px] font-medium text-fg">{value}</span></div>; }
