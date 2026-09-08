@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
 import { AdminCommunicationLinks } from '@/components/admin/AdminCommunicationLinks';
 
-type GlobalHeaderNavItem = { to: string; label: string; icon: LucideIcon };
+export type GlobalHeaderNavItem = { to: string; label: string; icon: LucideIcon };
 type GlobalHeaderProps = { navItems: GlobalHeaderNavItem[]; badgeLabel?: string };
 type HeaderMeta = { section: string; subtitle: string };
 
