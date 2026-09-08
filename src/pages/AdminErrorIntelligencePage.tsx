@@ -100,8 +100,20 @@ export function AdminErrorIntelligencePage() {
     .sort((a, b) => String(b.failed_at ?? b.updated_at ?? '').localeCompare(String(a.failed_at ?? a.updated_at ?? ''))), [rows]);
 
   const unifiedEvents = useMemo<UnifiedEvent[]>(() => {
-    const rpcEvents = rpcIncidents.map((item) => ({ ...item, error_message: item.error_message || 'RPC incident aktif.', occurred_at: item.failed_at ?? item.updated_at ?? new Date(0).toISOString(), resolved_at: item.recovered_at ?? (item.status === 'OPEN' ? item.recovered_at : null) }));
-    const external = systemErrors.map((item) => ({ id: item.id, source: item.source, severity: item.severity, error_code: item.error_code, error_message: item.error_message, path: item.path, occurred_at: item.occurred_at, resolved_at: item.resolved_at, context: item.context }));
+    const rpcEvents: UnifiedEvent[] = rpcIncidents.map((item) => ({
+      id: item.id,
+      source: 'rpc',
+      severity: item.status === 'BLOCKED' ? 'critical' : item.status === 'PROBING' || item.status === 'RECOVERY_PENDING' ? 'warning' : 'info',
+      error_code: item.error_code,
+      error_message: item.error_message || 'RPC incident aktif.',
+      occurred_at: item.failed_at ?? item.updated_at ?? new Date(0).toISOString(),
+      resolved_at: item.recovered_at ?? (item.status === 'OPEN' ? null : null),
+      rpcName: item.rpcName,
+      key: item.key,
+      status: item.status,
+      backend_version: item.backend_version,
+    }));
+    const external: UnifiedEvent[] = systemErrors.map((item) => ({ id: item.id, source: item.source, severity: item.severity, error_code: item.error_code, error_message: item.error_message, path: item.path, occurred_at: item.occurred_at, resolved_at: item.resolved_at, context: item.context }));
     return [...external, ...rpcEvents].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
   }, [rpcIncidents, systemErrors]);
 
@@ -111,8 +123,8 @@ export function AdminErrorIntelligencePage() {
   }), [unifiedEvents, query, sourceFilter]);
 
   const activeCount = systemErrors.filter((item) => !item.resolved_at).length + rpcIncidents.filter((item) => item.status !== 'OPEN').length;
-  const criticalCount = systemErrors.filter((item) => item.severity === 'critical' && !item.resolved_at).length;
-  const sourceCount = new Set(systemErrors.map((item) => item.source)).size + (rpcIncidents.length ? 1 : 0);
+  const criticalCount = systemErrors.filter((item) => item.severity === 'critical' && !item.resolved_at).length + rpcIncidents.filter((item) => item.status === 'BLOCKED').length;
+  const sourceCount = new Set([...systemErrors.map((item) => item.source), ...(rpcIncidents.length ? ['rpc'] : [])]).size;
 
   if (loading) return <div className="space-y-4"><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[1,2,3,4].map((item) => <div key={item} className="h-24 rounded-2xl surface-elevated animate-pulse" />)}</div><div className="h-72 rounded-2xl surface-elevated animate-pulse" /></div>;
 
