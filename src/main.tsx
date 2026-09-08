@@ -2,12 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { startCacheAuthLifecycle } from './lib/cacheAuthLifecycle';
-import { initializeRpcHealth } from './lib/supabase';
 import { initializeErrorIntelligence } from './lib/errorIntelligence';
 import './index.css';
 
 startCacheAuthLifecycle();
-void initializeRpcHealth();
 initializeErrorIntelligence();
 
 const container = document.getElementById('page-root') ?? document.getElementById('root');
