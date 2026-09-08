@@ -50,17 +50,21 @@ export function reportSystemError({ source, error, severity = 'error', context =
     }
   }
 
-  void supabase.rpc('report_system_error', {
-    p_source: source,
-    p_error_code: code,
-    p_error_message: message,
-    p_severity: severity,
-    p_context: cleanContext(context),
-    p_path: typeof window !== 'undefined' ? window.location.pathname : null,
-    p_fingerprint: key.slice(0, 128),
-  }).catch(() => {
-    // Error telemetry must never trigger another user-visible failure.
-  });
+  void (async () => {
+    try {
+      await supabase.rpc('report_system_error', {
+        p_source: source,
+        p_error_code: code,
+        p_error_message: message,
+        p_severity: severity,
+        p_context: cleanContext(context),
+        p_path: typeof window !== 'undefined' ? window.location.pathname : null,
+        p_fingerprint: key.slice(0, 128),
+      });
+    } catch {
+      // Error telemetry must never trigger another user-visible failure.
+    }
+  })();
 }
 
 export function reportCloudinaryError(error: unknown, context: Record<string, unknown> = {}) {
