@@ -7,6 +7,7 @@ let rpcHealthReady: Promise<void> | null = null;
 let rpcHealthChannel: ReturnType<SupabaseClient['channel']> | null = null;
 let rpcHealthReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let rpcHealthFallbackTimer: ReturnType<typeof setInterval> | null = null;
+let rpcHealthRealtimeActive = false;
 let rpcHealthReconnectAttempt = 0;
 let rpcHealthConsecutiveFailures = 0;
 let rpcHealthLastErrorAt = 0;
@@ -81,9 +82,15 @@ function isGlobalServerError(error: unknown) {
   return status >= 500 || /^(08|42|53|54|57|58|XX)/.test(code);
 }
 
+function isPermanentRealtimeFailure(error?: unknown) {
+  const normalized = normalizeRpcError(error);
+  const text = `${normalized.message} ${normalized.code ?? ''} ${normalized.status ?? ''} ${normalized.details ?? ''} ${normalized.hint ?? ''}`.toLowerCase();
+  return /\b(401|403)\b|unauthorized|forbidden|not authorized|invalid (jwt|token|key)|jwt.*(expired|invalid)|access denied/.test(text);
+}
+
 function blockedRpcError(rpcName: string, state?: RpcHealthState) {
   const suffix = state?.error_code || state?.error_message ? ` Error terakhir: ${state.error_code ?? 'SERVER_ERROR'}${state.error_message ? ` — ${state.error_message}` : ''}` : '';
-  const error = new Error(`Fitur \"${rpcName}\" sementara ditahan karena backend mengalami error. Request tidak dikirim ulang agar tidak membebani backend.${suffix}`) as RpcErrorWithCode;
+  const error = new Error(`Fitur "${rpcName}" sementara ditahan karena backend mengalami error. Request tidak dikirim ulang agar tidak membebani backend.${suffix}`) as RpcErrorWithCode;
   error.code = 'BACKEND_RPC_BLOCKED';
   return error;
 }
@@ -115,17 +122,31 @@ async function refreshRpcHealthSnapshot() {
   }
 }
 
+function clearRpcHealthReconnectTimer() {
+  if (rpcHealthReconnectTimer) {
+    clearTimeout(rpcHealthReconnectTimer);
+    rpcHealthReconnectTimer = null;
+  }
+}
+
 function scheduleRpcHealthReconnect() {
-  if (rpcHealthReconnectTimer) return;
-  const delay = Math.min(RPC_HEALTH_RECONNECT_MAX_MS, RPC_HEALTH_RECONNECT_BASE_MS * 2 ** rpcHealthReconnectAttempt);
+  if (!rpcHealthRealtimeActive || rpcHealthReconnectTimer) return;
+  const exponentialDelay = Math.min(RPC_HEALTH_RECONNECT_MAX_MS, RPC_HEALTH_RECONNECT_BASE_MS * 2 ** rpcHealthReconnectAttempt);
+  const jitter = Math.floor(Math.random() * RPC_HEALTH_RECONNECT_BASE_MS);
+  const delay = Math.min(RPC_HEALTH_RECONNECT_MAX_MS, exponentialDelay + jitter);
   rpcHealthReconnectAttempt = Math.min(rpcHealthReconnectAttempt + 1, 5);
   rpcHealthReconnectTimer = setTimeout(() => {
     rpcHealthReconnectTimer = null;
-    subscribeRpcHealthChannel();
+    if (rpcHealthRealtimeActive) subscribeRpcHealthChannel();
   }, delay);
 }
 
-function handleRpcHealthChannelFailure(status: string) {
+function handleRpcHealthChannelFailure(status: string, error?: unknown) {
+  if (isPermanentRealtimeFailure(error)) {
+    rpcHealthConsecutiveFailures = 0;
+    return;
+  }
+
   rpcHealthConsecutiveFailures += 1;
   scheduleRpcHealthReconnect();
   if (rpcHealthConsecutiveFailures < RPC_HEALTH_WARNING_AFTER_FAILURES) return;
@@ -142,6 +163,7 @@ function handleRpcHealthChannelFailure(status: string) {
 }
 
 function subscribeRpcHealthChannel() {
+  if (!rpcHealthRealtimeActive) return;
   const client = initClient();
   if (rpcHealthChannel) return;
 
@@ -151,7 +173,7 @@ function subscribeRpcHealthChannel() {
       const row = (payload.new ?? payload.old) as { key?: string; value?: unknown } | undefined;
       if (row?.key) applyHealthRow(row.key, row.value);
     })
-    .subscribe((status) => {
+    .subscribe((status, error) => {
       if (status === 'SUBSCRIBED') {
         rpcHealthReconnectAttempt = 0;
         rpcHealthConsecutiveFailures = 0;
@@ -162,7 +184,7 @@ function subscribeRpcHealthChannel() {
         const channel = rpcHealthChannel;
         rpcHealthChannel = null;
         if (channel) void client.removeChannel(channel);
-        handleRpcHealthChannelFailure(status);
+        handleRpcHealthChannelFailure(status, error);
         return;
       }
 
@@ -170,28 +192,55 @@ function subscribeRpcHealthChannel() {
         const channel = rpcHealthChannel;
         rpcHealthChannel = null;
         if (channel) void client.removeChannel(channel);
-        scheduleRpcHealthReconnect();
+        if (!isPermanentRealtimeFailure(error)) scheduleRpcHealthReconnect();
       }
     });
 }
 
 function startRpcHealthFallback() {
-  if (rpcHealthFallbackTimer) return;
+  if (!rpcHealthRealtimeActive || rpcHealthFallbackTimer) return;
   rpcHealthFallbackTimer = setInterval(() => {
-    void refreshRpcHealthSnapshot();
+    if (rpcHealthRealtimeActive) void refreshRpcHealthSnapshot();
   }, RPC_HEALTH_FALLBACK_INTERVAL_MS);
+}
+
+function stopRpcHealthFallback() {
+  if (rpcHealthFallbackTimer) {
+    clearInterval(rpcHealthFallbackTimer);
+    rpcHealthFallbackTimer = null;
+  }
 }
 
 async function initializeRpcHealthInternal() {
   clearLegacyCircuitBreakerStorage();
   await refreshRpcHealthSnapshot();
-  subscribeRpcHealthChannel();
-  startRpcHealthFallback();
 }
 
 export function initializeRpcHealth() {
   if (!rpcHealthReady) rpcHealthReady = initializeRpcHealthInternal().catch(() => {});
   return rpcHealthReady;
+}
+
+export function startRpcHealthRealtime() {
+  if (rpcHealthRealtimeActive) return initializeRpcHealth();
+  rpcHealthRealtimeActive = true;
+  void initializeRpcHealth().then(() => {
+    if (!rpcHealthRealtimeActive) return;
+    subscribeRpcHealthChannel();
+    startRpcHealthFallback();
+  });
+  return rpcHealthReady;
+}
+
+export function stopRpcHealthRealtime() {
+  rpcHealthRealtimeActive = false;
+  clearRpcHealthReconnectTimer();
+  stopRpcHealthFallback();
+  const channel = rpcHealthChannel;
+  rpcHealthChannel = null;
+  if (channel) void initClient().removeChannel(channel);
+  rpcHealthReconnectAttempt = 0;
+  rpcHealthConsecutiveFailures = 0;
 }
 
 async function reportRpcFailure(client: SupabaseClient, rpcName: string, error: unknown) {
