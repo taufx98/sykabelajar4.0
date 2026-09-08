@@ -8,6 +8,7 @@ let rpcHealthChannel: ReturnType<SupabaseClient['channel']> | null = null;
 
 const RPC_HEALTH_PREFIX = '__rpc_health:';
 const RPC_RUNTIME_KEY = '__rpc_backend_runtime';
+const ERROR_REPORT_RPC = 'report_system_error';
 
 type RpcHealthStatus = 'OPEN' | 'BLOCKED' | 'PROBING' | 'RECOVERY_PENDING';
 type RpcHealthState = { status: RpcHealthStatus; backend_version: number; error_code?: string | null; error_message?: string | null; failed_at?: string | null };
@@ -117,7 +118,7 @@ async function reportRpcFailure(client: SupabaseClient, rpcName: string, error: 
   if (failureReportsInFlight.has(rpcName)) return;
   failureReportsInFlight.add(rpcName);
   const normalized = normalizeRpcError(error);
-  reportSystemError({ source: 'rpc', error: normalized, severity: isGlobalServerError(normalized) ? 'critical' : 'error', context: { rpc_name: rpcName } });
+  if (rpcName !== ERROR_REPORT_RPC) reportSystemError({ source: 'rpc', error: normalized, severity: isGlobalServerError(normalized) ? 'critical' : 'error', context: { rpc_name: rpcName } });
   try {
     const existing = rpcHealthCache[rpcName];
     if (existing?.status === 'BLOCKED' && existing.backend_version === runtimeVersion) return;
@@ -162,7 +163,7 @@ async function callRpcWithSmartCircuitBreaker(client: SupabaseClient, rpcName: s
     if (probing) { await markRpcHealthy(client, rpcName); applyHealthRow(`${RPC_HEALTH_PREFIX}${rpcName}`, { status: 'OPEN', backend_version: runtimeVersion }); }
     return result;
   }
-  reportSystemError({ source: 'rpc', error: result.error, severity: isGlobalServerError(result.error) ? 'critical' : 'error', context: { rpc_name: rpcName } });
+  if (rpcName !== ERROR_REPORT_RPC) reportSystemError({ source: 'rpc', error: result.error, severity: isGlobalServerError(result.error) ? 'critical' : 'error', context: { rpc_name: rpcName } });
   if (isGlobalServerError(result.error)) {
     const normalized = normalizeRpcError(result.error);
     rpcHealthCache[rpcName] = { status: 'BLOCKED', backend_version: runtimeVersion, error_code: normalized.code ?? null, error_message: normalized.message ?? null, failed_at: new Date().toISOString() };
