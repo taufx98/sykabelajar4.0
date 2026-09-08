@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { env } from '@/lib/env';
-
-// ── Types ──────────────────────────────────────────────────────
+import { reportSystemError } from '@/lib/errorIntelligence';
 
 export interface CloudinaryUploadResult {
   public_id: string;
@@ -14,227 +13,136 @@ export interface CloudinaryUploadResult {
 
 export interface UploadImageOptions {
   folder?: string;
-  /** When provided, Cloudinary will replace the existing asset at this public_id */
   publicId?: string;
 }
-
-// ── Internal helpers ───────────────────────────────────────────
 
 function assertFile(file: File, maxBytes = 10 * 1024 * 1024) {
   if (!file) throw new Error('File wajib dipilih.');
   if (file.size > maxBytes) throw new Error(`Ukuran file maksimal ${Math.round(maxBytes / 1024 / 1024)}MB.`);
 }
 
-// ── Unsigned upload (general / canvas / posts) ─────────────────
-// Uses the public "sykabelajar_preset" — no server round-trip needed.
-// Overwrite=FALSE, Unique Filename=FALSE on the preset side.
-
-/**
- * Direct client-side upload to Cloudinary using the unsigned preset.
- * Use for general files, canvas, posts, documents — NOT for profile/cover.
- */
-export async function uploadImage(
-  file: File,
-  folderOrOptions?: string | UploadImageOptions,
-): Promise<CloudinaryUploadResult> {
-  if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar');
-  assertFile(file, 5 * 1024 * 1024);
-
-  const opts: UploadImageOptions =
-    typeof folderOrOptions === 'string' ? { folder: folderOrOptions } : (folderOrOptions ?? {});
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', env.cloudinaryUploadPreset); // unsigned preset
-
-  if (opts.publicId) {
-    formData.append('public_id', opts.publicId);
-  } else if (opts.folder) {
-    formData.append('folder', opts.folder);
-  }
-
-  const cloudName = env.cloudinaryCloudName;
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`Cloudinary upload gagal (${response.status}): ${errBody}`);
-  }
-  return response.json() as Promise<CloudinaryUploadResult>;
+async function readFailure(response: Response) {
+  const body = await response.text().catch(() => '');
+  return new Error(`Cloudinary upload gagal (${response.status}): ${body}`);
 }
 
-/**
- * Payment proof upload. This intentionally uses the general unsigned preset,
- * but forces all assets into a dedicated payment-proof folder and never uses
- * the profile/cover preset or profile path.
- */
+export async function uploadImage(file: File, folderOrOptions?: string | UploadImageOptions): Promise<CloudinaryUploadResult> {
+  if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar');
+  assertFile(file, 5 * 1024 * 1024);
+  const opts = typeof folderOrOptions === 'string' ? { folder: folderOrOptions } : (folderOrOptions ?? {});
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', env.cloudinaryUploadPreset);
+  if (opts.publicId) formData.append('public_id', opts.publicId);
+  else if (opts.folder) formData.append('folder', opts.folder);
+  try {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${env.cloudinaryCloudName}/image/upload`, { method: 'POST', body: formData });
+    if (!response.ok) throw await readFailure(response);
+    return response.json() as Promise<CloudinaryUploadResult>;
+  } catch (error) {
+    reportSystemError({ source: 'cloudinary', error, severity: 'error', context: { operation: 'unsigned_image_upload', file_type: file.type, file_size: file.size } });
+    throw error;
+  }
+}
+
 export async function uploadPaymentProof(file: File): Promise<CloudinaryUploadResult> {
   if (!file.type.startsWith('image/')) throw new Error('Bukti pembayaran harus berupa gambar.');
   return uploadImage(file, { folder: 'sykabelajar/payment-proofs' });
 }
 
-// ── Signed upload (profile / cover) ────────────────────────────
-// 1. Call Edge Function → get signature + timestamp + api_key
-// 2. Upload to Cloudinary with signed payload + "sykabelajar_profile" preset
-// The preset has overwrite=TRUE, so re-uploading replaces the old asset in-place.
-
-/**
- * Upload a profile or cover image via Cloudinary's signed upload.
- *
- * Flow:
- *   1. Fetches a one-time signature from the Supabase Edge Function.
- *   2. Uploads the file to Cloudinary with the "sykabelajar_profile" preset
- *      (overwrite=TRUE, so the old asset is replaced).
- *   3. Returns the Cloudinary response.
- */
-export async function uploadProfileImageSigned(
-  file: File,
-  publicId: string,
-): Promise<CloudinaryUploadResult> {
+export async function uploadProfileImageSigned(file: File, publicId: string): Promise<CloudinaryUploadResult> {
   if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar');
   assertFile(file, 5 * 1024 * 1024);
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new Error('Anda harus login untuk mengunggah foto profil.');
 
-  // ── Step 1: Get signature from Edge Function ─────────────────
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token;
+    const signatureResponse = await fetch(`${env.edgeFunctionUrl}/get-cloudinary-signature`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ public_id: publicId }),
+    });
+    if (!signatureResponse.ok) {
+      const errText = await signatureResponse.text().catch(() => '');
+      const error = new Error(`Gagal mendapatkan signature upload (${signatureResponse.status}): ${errText}`);
+      reportSystemError({ source: 'edge_function', error, severity: signatureResponse.status >= 500 ? 'critical' : 'error', context: { function: 'get-cloudinary-signature', status: signatureResponse.status } });
+      throw error;
+    }
 
-  if (!token) {
-    throw new Error('Anda harus login untuk mengunggah foto profil.');
+    const signed = await signatureResponse.json();
+    if (!signed?.api_key || !signed?.cloud_name || !signed?.signature || !signed?.timestamp) {
+      const error = new Error('Respons signature Cloudinary tidak lengkap.');
+      reportSystemError({ source: 'edge_function', error, severity: 'critical', context: { function: 'get-cloudinary-signature', invalid_response: true } });
+      throw error;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('api_key', signed.api_key);
+    formData.append('timestamp', String(signed.timestamp));
+    formData.append('signature', signed.signature);
+    formData.append('upload_preset', signed.upload_preset);
+    formData.append('public_id', signed.public_id);
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloud_name}/image/upload`, { method: 'POST', body: formData });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      const error = new Error(`Cloudinary signed upload gagal (${response.status}): ${body}`);
+      reportSystemError({ source: 'cloudinary', error, severity: response.status >= 500 ? 'critical' : 'error', context: { operation: 'signed_profile_upload', status: response.status, public_id: publicId, cloud_name: signed.cloud_name } });
+      throw error;
+    }
+    return response.json() as Promise<CloudinaryUploadResult>;
+  } catch (error) {
+    reportSystemError({ source: 'cloudinary', error, severity: 'error', context: { operation: 'signed_profile_upload', public_id: publicId } });
+    throw error;
   }
-
-  const signatureResponse = await fetch(`${env.edgeFunctionUrl}/get-cloudinary-signature`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ public_id: publicId }),
-  });
-
-  if (!signatureResponse.ok) {
-    const errText = await signatureResponse.text().catch(() => '');
-    throw new Error(`Gagal mendapatkan signature upload (${signatureResponse.status}): ${errText}`);
-  }
-
-  const signed = await signatureResponse.json();
-
-  // ── Step 2: Upload to Cloudinary with the signed payload ─────
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('api_key', signed.api_key);
-  formData.append('timestamp', String(signed.timestamp));
-  formData.append('signature', signed.signature);
-  formData.append('upload_preset', signed.upload_preset);
-  formData.append('public_id', signed.public_id);
-
-  const cloudName = signed.cloud_name;
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`Cloudinary signed upload gagal (${response.status}): ${errBody}`);
-  }
-
-  return response.json() as Promise<CloudinaryUploadResult>;
 }
-
-// ── Raw file upload (unsigned, general documents) ──────────────
 
 export async function uploadRawFile(file: File, folder?: string): Promise<CloudinaryUploadResult> {
   assertFile(file, 10 * 1024 * 1024);
-  const cloudName = env.cloudinaryCloudName;
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', env.cloudinaryUploadPreset);
   if (folder) formData.append('folder', folder);
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-  if (!response.ok) throw new Error(`Cloudinary file upload gagal (${response.status})`);
-  return response.json() as Promise<CloudinaryUploadResult>;
+  try {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${env.cloudinaryCloudName}/raw/upload`, { method: 'POST', body: formData });
+    if (!response.ok) throw await readFailure(response);
+    return response.json() as Promise<CloudinaryUploadResult>;
+  } catch (error) {
+    reportSystemError({ source: 'cloudinary', error, severity: 'error', context: { operation: 'raw_upload', file_size: file.size } });
+    throw error;
+  }
 }
 
-// ── High-level helpers ─────────────────────────────────────────
-
-/**
- * Upload a profile or cover image for a user.
- * Uses the signed upload path (Edge Function → Cloudinary with overwrite preset).
- * Falls back to creating the public_id from username if no existing ID is provided.
- */
-export async function uploadProfileImage(
-  file: File,
-  kind: 'profile' | 'cover',
-  username: string,
-  existingPublicId?: string | null,
-): Promise<CloudinaryUploadResult> {
-  const publicId = existingPublicId || `sykabelajar/${username}/${kind}`;
-  return uploadProfileImageSigned(file, publicId);
+export async function uploadProfileImage(file: File, kind: 'profile' | 'cover', username: string, existingPublicId?: string | null): Promise<CloudinaryUploadResult> {
+  return uploadProfileImageSigned(file, existingPublicId || `sykabelajar/${username}/${kind}`);
 }
 
-/**
- * Build an optimized Cloudinary delivery URL.
- * Cloudinary image delivery URLs receive f_auto,q_auto and an optional width.
- * Non-Cloudinary or non-image URLs are returned unchanged.
- */
-export function optimizedCloudinaryUrl(
-  url?: string | null,
-  options: { width?: number; version?: string | number | null } = {},
-): string | undefined {
+export function optimizedCloudinaryUrl(url?: string | null, options: { width?: number; version?: string | number | null } = {}): string | undefined {
   if (!url) return undefined;
   const value = String(url);
   let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    return value;
-  }
+  try { parsed = new URL(value); } catch { return value; }
   if (!parsed.hostname.toLowerCase().endsWith('.cloudinary.com')) return value;
-
   const marker = '/image/upload/';
   const index = parsed.pathname.indexOf(marker);
   if (index < 0) return value;
-
-  const width = Number.isFinite(options.width) && Number(options.width) > 0
-    ? Math.round(Number(options.width))
-    : undefined;
+  const width = Number.isFinite(options.width) && Number(options.width) > 0 ? Math.round(Number(options.width)) : undefined;
   const transforms = ['f_auto', 'q_auto', ...(width ? [`w_${width}`] : [])];
-  const before = parsed.pathname.slice(0, index + marker.length);
-  const after = parsed.pathname.slice(index + marker.length);
-  parsed.pathname = `${before}${transforms.join(',')}/${after}`;
-
-  if (options.version != null && String(options.version)) {
-    parsed.searchParams.set('v', String(options.version));
-  }
+  parsed.pathname = `${parsed.pathname.slice(0, index + marker.length)}${transforms.join(',')}/${parsed.pathname.slice(index + marker.length)}`;
+  if (options.version != null && String(options.version)) parsed.searchParams.set('v', String(options.version));
   return parsed.toString();
 }
 
-/**
- * Append a cache-busting version query to a Cloudinary URL while applying delivery optimization.
- */
-export function versionedCloudinaryUrl(
-  url?: string | null,
-  version?: string | number | null,
-): string | undefined {
+export function versionedCloudinaryUrl(url?: string | null, version?: string | number | null): string | undefined {
   return optimizedCloudinaryUrl(url, { version });
 }
 
-/**
- * Delete an image from Cloudinary via Edge Function.
- */
 export async function deleteImage(publicId: string, resourceType = 'image'): Promise<boolean> {
   if (!publicId) return false;
-  const { error } = await supabase.functions.invoke('cloudinary-delete-profile', {
-    body: { public_id: publicId, resource_type: resourceType },
-  });
+  const { error } = await supabase.functions.invoke('cloudinary-delete-profile', { body: { public_id: publicId, resource_type: resourceType } });
   if (error) {
-    console.warn('[SykaBelajar] Cloudinary delete skipped', error.message);
+    reportSystemError({ source: 'edge_function', error, severity: 'error', context: { function: 'cloudinary-delete-profile' } });
     return false;
   }
   return true;
