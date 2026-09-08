@@ -308,6 +308,15 @@ export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = initClient();
     if (prop === 'rpc') return (rpcName: string, ...args: any[]) => callRpcWithSmartCircuitBreaker(client, rpcName, ...args);
+    if (prop === 'channel') {
+      return (topic: string, ...args: any[]) => {
+        const useIsolatedDiagnosticTopic = topic === RPC_HEALTH_CHANNEL && rpcHealthChannel !== null;
+        const actualTopic = useIsolatedDiagnosticTopic
+          ? `syka-admin-diagnostic-realtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          : topic;
+        return (client as any).channel(actualTopic, ...args);
+      };
+    }
     const value = (client as any)[prop];
     return typeof value === 'function' ? value.bind(client) : value;
   },
