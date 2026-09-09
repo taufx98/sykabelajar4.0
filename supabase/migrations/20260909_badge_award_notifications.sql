@@ -66,4 +66,4 @@ after insert on public.user_badges
 for each row
 execute function public.notify_badge_awarded();
 
-grant execute on function public.notify_badge_awarded() to authenticated;
+revoke all on function public.notify_badge_awarded() from public, anon, authenticated;
