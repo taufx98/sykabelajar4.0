@@ -20,10 +20,10 @@ export default defineConfig({
     cssCodeSplit: false,
     rollupOptions: {
       output: {
-        entryFileNames: 'app.js',
+        entryFileNames: 'assets/app-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: (assetInfo) => {
-          if (assetInfo.name?.endsWith('.css')) return 'styles.min.css';
+          if (assetInfo.name?.endsWith('.css')) return 'assets/styles-[hash].css';
           return 'assets/[name]-[hash][extname]';
         },
       },
