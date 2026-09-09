@@ -36,6 +36,7 @@ type SavedState = {
   showFollowing: boolean;
   showBadges: boolean;
   showBadgeCollection: boolean;
+  acceptMessages: 'public' | 'followers' | 'private';
   mobileNav: string[];
   selectedBadges: string[];
 };
@@ -81,6 +82,7 @@ export function ProfileInterfaceSettingsPage() {
   const [showFollowing, setShowFollowing] = useState(true);
   const [showBadges, setShowBadges] = useState(true);
   const [showBadgeCollection, setShowBadgeCollection] = useState(true);
+  const [acceptMessages, setAcceptMessages] = useState<'public' | 'followers' | 'private'>('public');
   const [mobileNav, setMobileNav] = useState<string[]>(DEFAULT_MOBILE_NAV);
   const [badges, setBadges] = useState<ProfileBadge[]>([]);
   const [selectedBadges, setSelectedBadges] = useState<string[]>([]);
@@ -95,6 +97,7 @@ export function ProfileInterfaceSettingsPage() {
     showFollowing: true,
     showBadges: true,
     showBadgeCollection: true,
+    acceptMessages: 'public',
     mobileNav: [...DEFAULT_MOBILE_NAV],
     selectedBadges: [],
   });
@@ -107,7 +110,7 @@ export function ProfileInterfaceSettingsPage() {
       try {
         const [settings, profile, profileBadges, blocks] = await Promise.all([
           supabase.from('profile_ui_settings').select('show_social_popup,show_following_popup,show_badges,show_badge_collection,mobile_nav').eq('user_id', user.id).maybeSingle(),
-          supabase.from('profiles').select('badge_showcase').eq('id', user.id).maybeSingle(),
+          supabase.from('profiles').select('badge_showcase,accept_messages').eq('id', user.id).maybeSingle(),
           getProfileBadges(user.id).catch(() => [] as ProfileBadge[]),
           supabase.from('chat_blocks').select('blocked_id,created_at').eq('blocker_id', user.id).order('created_at', { ascending: false }),
         ]);
@@ -117,6 +120,7 @@ export function ProfileInterfaceSettingsPage() {
         const nextShowFollowing = settings.data?.show_following_popup !== false;
         const nextShowBadges = settings.data?.show_badges !== false;
         const nextShowBadgeCollection = settings.data?.show_badge_collection !== false;
+        const nextAcceptMessages = profile.data?.accept_messages === 'followers' || profile.data?.accept_messages === 'private' ? profile.data.accept_messages : 'public';
         const nextMobileNav = Array.isArray(settings.data?.mobile_nav)
           ? settings.data.mobile_nav.map(String).filter((key: string) => MOBILE_ITEMS.some(([id]) => id === key)).slice(0, 5)
           : [...DEFAULT_MOBILE_NAV];
@@ -128,6 +132,7 @@ export function ProfileInterfaceSettingsPage() {
         setShowFollowing(nextShowFollowing);
         setShowBadges(nextShowBadges);
         setShowBadgeCollection(nextShowBadgeCollection);
+        setAcceptMessages(nextAcceptMessages);
         setMobileNav(nextMobileNav.length ? nextMobileNav : [...DEFAULT_MOBILE_NAV]);
         setSelectedBadges(nextSelectedBadges);
         setSavedState({
@@ -135,6 +140,7 @@ export function ProfileInterfaceSettingsPage() {
           showFollowing: nextShowFollowing,
           showBadges: nextShowBadges,
           showBadgeCollection: nextShowBadgeCollection,
+          acceptMessages: nextAcceptMessages,
           mobileNav: nextMobileNav.length ? [...nextMobileNav] : [...DEFAULT_MOBILE_NAV],
           selectedBadges: [...nextSelectedBadges],
         });
@@ -180,6 +186,7 @@ export function ProfileInterfaceSettingsPage() {
       await updateProfileRecord(user.id, {
         badge_showcase: currentShowcase,
         badge_showcase_manual: true,
+        accept_messages: acceptMessages,
       });
 
       setSelectedBadges(currentShowcase);
@@ -189,6 +196,7 @@ export function ProfileInterfaceSettingsPage() {
         showFollowing,
         showBadges,
         showBadgeCollection,
+        acceptMessages,
         mobileNav: [...nextMobileNav],
         selectedBadges: [...currentShowcase],
       });
@@ -206,6 +214,7 @@ export function ProfileInterfaceSettingsPage() {
     setShowFollowing(savedState.showFollowing);
     setShowBadges(savedState.showBadges);
     setShowBadgeCollection(savedState.showBadgeCollection);
+    setAcceptMessages(savedState.acceptMessages);
     setMobileNav([...savedState.mobileNav]);
     setSelectedBadges([...savedState.selectedBadges]);
   };
@@ -286,7 +295,7 @@ export function ProfileInterfaceSettingsPage() {
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Profil</p>
             <h1 className="font-display text-2xl font-bold text-fg">Tampilan & Privasi</h1>
-            <p className="mt-1 text-sm text-fg-muted">Atur badge, privasi profil, navigasi mobile, dan kontrol akun.</p>
+            <p className="mt-1 text-sm text-fg-muted">Atur badge, privasi profil, pesan, navigasi mobile, dan kontrol akun.</p>
           </div>
 
           <SectionCard id="appearance" title="Badge Showcase" description="Pilih maksimal 3 badge untuk ditampilkan pada identitas profil.">
@@ -301,10 +310,21 @@ export function ProfileInterfaceSettingsPage() {
             </div>
           </SectionCard>
 
-          <SectionCard id="social" title="Profil sosial" description="Kontrol akses ke informasi koneksi sosial.">
+          <SectionCard id="social" title="Profil sosial" description="Kontrol akses ke informasi koneksi sosial dan pesan.">
             <div className="divide-y surface-border">
               <SettingRow title="Tampilkan popup sosial" description="Izinkan orang membuka daftar Penggemar dan koneksi sosial dari profil Anda." checked={showSocial} onChange={setShowSocial} disabled={saving}/>
               <SettingRow title="Tampilkan “Mengikuti”" description="Matikan untuk menyembunyikan akses daftar akun yang Anda ikuti dari profil publik." checked={showFollowing} onChange={setShowFollowing} disabled={saving}/>
+            </div>
+            <div className="mt-4 border-t surface-border pt-4">
+              <label className="block">
+                <span className="text-sm font-semibold text-fg">Siapa yang bisa mengirim pesan</span>
+                <span className="mt-1 block text-xs leading-relaxed text-fg-muted">Aturan ini juga diterapkan oleh backend chat saat pengguna mencoba membuka percakapan langsung.</span>
+                <select className="input mt-3 w-full max-w-md" value={acceptMessages} onChange={(e) => setAcceptMessages(e.target.value as 'public' | 'followers' | 'private')} disabled={saving}>
+                  <option value="public">Semua orang (Publik)</option>
+                  <option value="followers">Hanya Pengikut yang Disetujui</option>
+                  <option value="private">Tidak Ada (Privat)</option>
+                </select>
+              </label>
             </div>
           </SectionCard>
 
