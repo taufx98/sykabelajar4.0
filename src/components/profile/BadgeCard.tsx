@@ -34,7 +34,7 @@ const rarityTextClass: Record<string, string> = {
 
 export function BadgeIcon({ badge, size = 60 }: { badge: Pick<ProfileBadge, 'name' | 'icon_url' | 'icon_emoji' | 'id'>; size?: number }) {
   if (badge.icon_url) {
-    return <img src={optimizedCloudinaryUrl(badge.icon_url, { width: size * 2, height: size * 2 })} alt={badge.name} width={size} height={size} className="object-contain" loading="lazy" />;
+    return <img src={optimizedCloudinaryUrl(badge.icon_url, { width: size * 2 })} alt={badge.name} width={size} height={size} className="object-contain" loading="lazy" />;
   }
   if (badge.icon_emoji) return <span className="leading-none" style={{ fontSize: Math.max(28, Math.round(size * 0.55)) }} aria-label={badge.name}>{badge.icon_emoji}</span>;
   return <div className="flex items-center justify-center rounded-2xl bg-accent/10 text-accent" style={{ width: size, height: size }}><Award size={Math.round(size * 0.48)} /></div>;
@@ -48,13 +48,8 @@ export function BadgeCard({ badge, compact = false }: { badge: ProfileBadge; com
       </div>
       <div className={compact ? 'min-w-0 flex-1' : 'mt-2.5 w-full'}>
         <p className="font-semibold text-sm text-fg truncate">{badge.name}</p>
-        <div className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${rarityTextClass[badge.rarity] ?? rarityTextClass.Common}`}>
-          {badge.rarity}
-        </div>
-        {!compact && <>
-          <p className="mt-1.5 text-[11px] text-fg-muted">{new Date(badge.awarded_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-          <p className="mt-2 text-xs leading-relaxed text-fg-muted line-clamp-3">{badge.description}</p>
-        </>}
+        <div className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${rarityTextClass[badge.rarity] ?? rarityTextClass.Common}`}>{badge.rarity}</div>
+        {!compact && <><p className="mt-1.5 text-[11px] text-fg-muted">{new Date(badge.awarded_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p><p className="mt-2 text-xs leading-relaxed text-fg-muted line-clamp-3">{badge.description}</p></>}
       </div>
     </div>
   </article>;
