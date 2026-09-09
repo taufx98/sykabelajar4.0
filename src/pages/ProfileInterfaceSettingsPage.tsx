@@ -26,7 +26,7 @@ const SETTINGS_NAV = [
   { key: 'account', icon: UserRound, label: 'Akun', kind: 'link', to: '/profile/edit' },
   { key: 'security', icon: ShieldCheck, label: 'Keamanan', kind: 'anchor', to: '#security' },
   { key: 'notifications', icon: Bell, label: 'Notifikasi', kind: 'link', to: '/notifications' },
-  { key: 'appearance', icon: Grid2X2, label: 'Tampilan & Privasi', kind: 'anchor', to: '#appearance', active: true },
+  { key: 'appearance', icon: Grid2X2, label: 'Tampilan & Privasi', kind: 'anchor', to: '#appearance' },
   { key: 'social', icon: UsersRound, label: 'Sosial', kind: 'anchor', to: '#social' },
   { key: 'blocked', icon: XCircle, label: 'Pengguna Diblokir', kind: 'anchor', to: '#blocked' },
 ] as const;
@@ -65,13 +65,14 @@ function SettingRow({ title, description, checked, onChange, disabled = false }:
 }
 
 function SectionCard({ id, title, description, children }: { id?: string; title: string; description?: string; children: ReactNode }) {
-  return <Card id={id} className="scroll-mt-24 p-5 md:p-6">
+  const card = <Card className="scroll-mt-24 p-5 md:p-6">
     <div className="mb-2">
       <h2 className="font-semibold text-fg">{title}</h2>
       {description && <p className="mt-1 text-xs text-fg-muted">{description}</p>}
     </div>
     {children}
   </Card>;
+  return id ? <div id={id}>{card}</div> : card;
 }
 
 export function ProfileInterfaceSettingsPage() {
@@ -116,8 +117,12 @@ export function ProfileInterfaceSettingsPage() {
         const nextShowFollowing = settings.data?.show_following_popup !== false;
         const nextShowBadges = settings.data?.show_badges !== false;
         const nextShowBadgeCollection = settings.data?.show_badge_collection !== false;
-        const nextMobileNav = Array.isArray(settings.data?.mobile_nav) ? settings.data.mobile_nav.map(String).filter((key: string) => MOBILE_ITEMS.some(([id]) => id === key)).slice(0, 5) : [...DEFAULT_MOBILE_NAV];
-        const nextSelectedBadges = Array.isArray(profile.data?.badge_showcase) ? profile.data.badge_showcase.slice(0, 3).map((value: unknown) => String(value)) : [];
+        const nextMobileNav = Array.isArray(settings.data?.mobile_nav)
+          ? settings.data.mobile_nav.map(String).filter((key: string) => MOBILE_ITEMS.some(([id]) => id === key)).slice(0, 5)
+          : [...DEFAULT_MOBILE_NAV];
+        const nextSelectedBadges = Array.isArray(profile.data?.badge_showcase)
+          ? profile.data.badge_showcase.slice(0, 3).map((value: unknown) => String(value))
+          : [];
 
         setShowSocial(nextShowSocial);
         setShowFollowing(nextShowFollowing);
@@ -172,7 +177,7 @@ export function ProfileInterfaceSettingsPage() {
       }, { onConflict: 'user_id' });
       if (error) throw error;
 
-      const updatedProfile = await updateProfileRecord(user.id, {
+      await updateProfileRecord(user.id, {
         badge_showcase: currentShowcase,
         badge_showcase_manual: true,
       });
@@ -187,7 +192,7 @@ export function ProfileInterfaceSettingsPage() {
         mobileNav: [...nextMobileNav],
         selectedBadges: [...currentShowcase],
       });
-      if (updatedProfile) void refreshUser();
+      void refreshUser();
       toast('Pengaturan tampilan disimpan.', 'success');
     } catch (e: any) {
       toast(e?.message ?? 'Gagal menyimpan pengaturan.', 'error');
@@ -267,7 +272,8 @@ export function ProfileInterfaceSettingsPage() {
             <p className="mt-1 text-xs text-fg-muted">Kelola akun, keamanan, tampilan, dan privasi.</p>
           </div>
           <nav className="space-y-1" aria-label="Pengaturan profil">
-            {SETTINGS_NAV.map(({ key, icon: Icon, label, kind, to, active }) => {
+            {SETTINGS_NAV.map(({ key, icon: Icon, label, kind, to }) => {
+              const active = key === 'appearance';
               const className = `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${active ? 'bg-accent/10 text-accent font-semibold' : 'text-fg-muted hover:bg-fg/[0.04] hover:text-fg'}`;
               return kind === 'link'
                 ? <Link key={key} to={to} className={className}><Icon size={16}/><span>{label}</span></Link>
