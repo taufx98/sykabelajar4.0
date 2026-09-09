@@ -18,7 +18,7 @@ type Tab = 'tentang' | 'prestasi' | 'lomba' | 'statistik' | 'badge' | 'kategori'
 type Social = 'following' | 'followers';
 const normalizeUsername = (value?: string) => decodeURIComponent(value ?? '').replace(/^@+/, '').trim().toLowerCase();
 
-const PROFILE_FIELDS = 'id,username,full_name,verification_type,role,grade,subjects,bio,city,country,institution,birth_date,avatar_url,cover_url,is_public,badge_showcase,total_xp,edu_coin';
+const PROFILE_FIELDS = 'id,username,full_name,verification_type,grade,subjects,bio,institution,birth_date,avatar_url,cover_url,is_public,badge_showcase,total_xp,edu_coin';
 
 function ProfilePortrait({ name, id, src }: { name: string; id: string; src?: string | null }) {
   const common = 'h-28 w-28 sm:h-32 sm:w-32 md:h-36 md:w-36 rounded-full object-cover shadow-xl ring-4 ring-white dark:ring-slate-950';
