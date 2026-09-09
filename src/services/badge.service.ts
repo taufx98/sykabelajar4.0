@@ -44,6 +44,19 @@ export type UserBadge = {
   metadata: Record<string, unknown>;
 };
 
+export type ProfileBadge = {
+  id: string;
+  name: string;
+  description: string;
+  icon_url: string | null;
+  icon_emoji: string | null;
+  category: string;
+  rarity: BadgeRarity;
+  awarded_at: string;
+  reason: string;
+  award_source: string;
+};
+
 const normaliseRule = (value: unknown): BadgeRuleConfig => {
   if (!value || typeof value !== 'object') return { conditions: [] };
   const conditions = Array.isArray((value as { conditions?: unknown }).conditions)
@@ -128,6 +141,22 @@ export async function getBadgeCounts(badgeIds: string[]) {
   const counts = new Map<string, number>();
   for (const row of data ?? []) counts.set(String(row.badge_id), (counts.get(String(row.badge_id)) ?? 0) + 1);
   return counts;
+}
+
+export async function getProfileBadges(userId: string): Promise<ProfileBadge[]> {
+  const { data, error } = await supabase.rpc('get_public_profile_badges', { p_profile_id: userId });
+  if (error) throw error;
+  return (data ?? []) as ProfileBadge[];
+}
+
+export async function getProfileBadgeVisibility(userId: string) {
+  const { data, error } = await supabase.rpc('get_public_profile_badge_visibility', { p_profile_id: userId });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    showBadges: row?.show_badges !== false,
+    showBadgeCollection: row?.show_badge_collection !== false,
+  };
 }
 
 export async function evaluateAutomaticBadges() {
