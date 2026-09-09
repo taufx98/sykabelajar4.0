@@ -18,7 +18,7 @@ type Tab = 'tentang' | 'prestasi' | 'lomba' | 'statistik' | 'badge' | 'kategori'
 type Social = 'following' | 'followers';
 const normalizeUsername = (value?: string) => decodeURIComponent(value ?? '').replace(/^@+/, '').trim().toLowerCase();
 
-const PROFILE_FIELDS = 'id,username,full_name,verification_type,role,grade,subjects,bio,city,country,institution,birth_date,avatar_url,cover_url,is_public,badge_showcase,total_xp,edu_coin,competitions_joined';
+const PROFILE_FIELDS = 'id,username,full_name,verification_type,role,grade,subjects,bio,city,country,institution,birth_date,avatar_url,cover_url,is_public,badge_showcase,total_xp,edu_coin';
 
 function ProfilePortrait({ name, id, src }: { name: string; id: string; src?: string | null }) {
   const common = 'h-28 w-28 sm:h-32 sm:w-32 md:h-36 md:w-36 rounded-full object-cover shadow-xl ring-4 ring-white dark:ring-slate-950';
@@ -98,7 +98,7 @@ export function ProfilePage() {
           setAwards(a.error ? [] : (a.data || []));
           setFollowers(Number(sr?.follower_count || 0));
           setFollowing(Number(sr?.following_count || 0));
-          setCompetitionCount(registrations.error ? Number(p.data.competitions_joined || 0) : (registrations.count ?? 0));
+          setCompetitionCount(registrations.error ? 0 : (registrations.count ?? 0));
           setShowSocial(ui?.show_social_popup !== false);
           setShowFollowing(ui?.show_following_popup !== false);
           setBadges(b);
