@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Award, Calendar, Filter, MapPin, MessageCircle, School, Settings2, Trophy, UserMinus, Users, X } from 'lucide-react';
+import { Award, Calendar, Filter, MessageCircle, School, Settings2, Trophy, UserMinus, Users, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { VerifiedMark } from '@/components/ui/VerifiedMark';
@@ -18,7 +18,7 @@ type Tab = 'tentang' | 'prestasi' | 'lomba' | 'statistik' | 'badge' | 'kategori'
 type Social = 'following' | 'followers';
 const normalizeUsername = (value?: string) => decodeURIComponent(value ?? '').replace(/^@+/, '').trim().toLowerCase();
 
-const PROFILE_FIELDS = 'id,username,full_name,verification_type,role,grade,subjects,bio,city,country,institution,birth_date,avatar_url,cover_url,is_public,badge_showcase,total_xp,edu_coin,competitions_joined';
+const PROFILE_FIELDS = 'id,username,full_name,verification_type,grade,subjects,bio,institution,birth_date,avatar_url,cover_url,is_public,badge_showcase,total_xp,edu_coin';
 
 function ProfilePortrait({ name, id, src }: { name: string; id: string; src?: string | null }) {
   const common = 'h-28 w-28 sm:h-32 sm:w-32 md:h-36 md:w-36 rounded-full object-cover shadow-xl ring-4 ring-white dark:ring-slate-950';
@@ -98,7 +98,7 @@ export function ProfilePage() {
           setAwards(a.error ? [] : (a.data || []));
           setFollowers(Number(sr?.follower_count || 0));
           setFollowing(Number(sr?.following_count || 0));
-          setCompetitionCount(registrations.error ? Number(p.data.competitions_joined || 0) : (registrations.count ?? 0));
+          setCompetitionCount(registrations.error ? 0 : (registrations.count ?? 0));
           setShowSocial(ui?.show_social_popup !== false);
           setShowFollowing(ui?.show_following_popup !== false);
           setBadges(b);
@@ -168,9 +168,9 @@ export function ProfilePage() {
             <div className="min-w-0 flex-1 pt-1 text-center md:pt-0 md:text-left">
               <div className="flex flex-wrap items-center justify-center gap-1.5 md:justify-start"><h1 className="font-display text-2xl font-bold tracking-tight text-fg md:text-3xl">{profile.full_name || profile.username}</h1><VerifiedMark type={profile.verification_type}/></div>
               <p className="mt-0.5 text-sm text-fg-muted">@{profile.username}</p>
-              <p className="mt-1 text-sm text-fg-muted">{profile.role || grade || 'Pelajar'}{profile.subjects ? ` | ${profile.subjects}` : ''}</p>
+              <p className="mt-1 text-sm text-fg-muted">{grade || 'Pelajar'}{profile.subjects ? ` | ${profile.subjects}` : ''}</p>
               {profile.bio && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg">{profile.bio}</p>}
-              <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-fg-muted md:justify-start">{profile.city && <span className="flex items-center gap-1"><MapPin size={13}/>{profile.city}{profile.country ? `, ${profile.country}` : ''}</span>}{profile.institution && <span className="flex items-center gap-1"><School size={13}/>{profile.institution}</span>}{profile.birth_date && <span className="flex items-center gap-1"><Calendar size={13}/>Lahir {new Date(profile.birth_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}</div>
+              <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-fg-muted md:justify-start">{profile.institution && <span className="flex items-center gap-1"><School size={13}/>{profile.institution}</span>}{profile.birth_date && <span className="flex items-center gap-1"><Calendar size={13}/>Lahir {new Date(profile.birth_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}</div>
             </div>
             <div className="flex shrink-0 justify-center gap-2 md:justify-end">
               {own ? <><Link to="/profile/edit"><Button size="sm" variant="outline">Edit Profil</Button></Link><Link to="/profile/interface-settings"><Button size="sm" variant="outline" icon={<Settings2 size={14}/>}>Tampilan & Privasi</Button></Link></> : user && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button>{(follow === 'approved' || follow === 'auto') && <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="outline" icon={<MessageCircle size={14}/>}>Kirim Pesan</Button></Link>}</>}
@@ -189,7 +189,7 @@ export function ProfilePage() {
     <div className="px-3 sm:px-5 md:px-8">
       <div className="mx-auto mt-4 max-w-6xl overflow-x-auto border-b surface-border"><div className="flex min-w-max justify-start md:justify-center">{tabs.map(([value, label]) => <button key={value} type="button" onClick={() => setTab(value)} className={`border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition ${tab === value ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'}`}>{label}</button>)}</div></div>
       <Card className="mx-auto mt-4 max-w-6xl p-4 sm:p-5 md:p-6">
-        {tab === 'tentang' && <div className="grid gap-3 md:grid-cols-2"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Bio</p><p className="mt-1 text-sm leading-relaxed text-fg">{profile.bio || 'Belum ada bio.'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Pendidikan</p><p className="mt-1 text-sm text-fg">{profile.institution || 'Belum diisi'}</p><p className="mt-1 text-xs text-fg-muted">{grade || 'Jenjang belum diisi'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Lokasi</p><p className="mt-1 text-sm text-fg">{[profile.city, profile.country].filter(Boolean).join(', ') || 'Belum diisi'}</p></div></div>}
+        {tab === 'tentang' && <div className="grid gap-3 md:grid-cols-2"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Bio</p><p className="mt-1 text-sm leading-relaxed text-fg">{profile.bio || 'Belum ada bio.'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Pendidikan</p><p className="mt-1 text-sm text-fg">{profile.institution || 'Belum diisi'}</p><p className="mt-1 text-xs text-fg-muted">{grade || 'Jenjang belum diisi'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Lokasi</p><p className="mt-1 text-sm text-fg">{profile.institution || 'Belum diisi'}</p></div></div>}
         {tab === 'prestasi' && <div className="space-y-2">{awards.slice(0, 10).map((a) => <div key={a.id} className="flex items-center gap-3 rounded-xl p-2"><Award size={18} className="text-accent"/><div><p className="font-semibold text-fg">{a.title}</p><p className="text-xs text-fg-muted">{a.subtitle || a.rank_code || 'Penghargaan'}</p></div></div>)}{!awards.length && <p className="text-sm text-fg-muted">Belum ada prestasi.</p>}</div>}
         {tab === 'lomba' && <div className="rounded-2xl surface-elevated p-5"><p className="text-sm font-semibold text-fg">Riwayat Lomba</p><p className="mt-1 text-sm text-fg-muted">{competitionCount} lomba tercatat untuk profil ini.</p></div>}
         {tab === 'statistik' && <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">XP</p><b className="text-lg text-fg">{Number(profile.total_xp || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">EduCoin</p><b className="text-lg text-fg">{Number(profile.edu_coin || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Prestasi</p><b className="text-lg text-fg">{awards.length}</b></div></div>}
