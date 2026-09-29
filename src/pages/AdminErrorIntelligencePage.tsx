@@ -292,28 +292,141 @@ async function probeRpc(item: UnifiedEvent): Promise<DiagnosticResult> {
   const started = performance.now();
   const rpcName = item.rpcName || contextString(item.context, ['rpcName', 'rpc_name']);
   if (!rpcName) throw new Error('Nama RPC tidak tersedia pada incident.');
+
+  // Mutating RPCs must never be executed by the browser diagnostic.
+  // For the known voucher-delete incident, use a dedicated read-only backend probe.
+  if (rpcName === 'admin_delete_organizer_voucher') {
+    const voucherId =
+      contextString(item.context, ['voucher_id', 'voucherId', 'p_id']) ||
+      item.error_message.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)?.[0] ||
+      null;
+
+    if (!voucherId) {
+      const duration = Math.round(performance.now() - started);
+      return {
+        checked_at: new Date().toISOString(),
+        status: 'error',
+        title: 'Not fixed',
+        summary: 'Diagnostic tidak dapat memverifikasi pemulihan karena ID voucher tidak tersedia pada incident.',
+        method: 'rpc_read_only_dependency_probe',
+        target: rpcName,
+        duration_ms: duration,
+        details: {
+          rpc_name: rpcName,
+          voucher_id: null,
+          verified_fixed: false,
+          verification_scope: 'read_only_schema_and_dependency_probe',
+          reason: 'voucher_id_missing',
+        },
+        admin_diagnostic_mode: true,
+      };
+    }
+
+    const { data, error } = await supabase.rpc('admin_diagnose_organizer_voucher_delete', {
+      p_id: voucherId,
+    });
+    const duration = Math.round(performance.now() - started);
+
+    if (error) {
+      return {
+        checked_at: new Date().toISOString(),
+        status: 'error',
+        title: 'Not fixed',
+        summary: 'Diagnostic backend tidak dapat memverifikasi pemulihan: ' + error.message,
+        method: 'rpc_read_only_dependency_probe',
+        target: rpcName,
+        duration_ms: duration,
+        details: {
+          rpc_name: rpcName,
+          voucher_id: voucherId,
+          verified_fixed: false,
+          probe_error: error.message,
+          verification_scope: 'read_only_schema_and_dependency_probe',
+        },
+        admin_diagnostic_mode: true,
+      };
+    }
+
+    const details = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+    const fixed = details.verified_fixed === true;
+
+    return {
+      checked_at: new Date().toISOString(),
+      status: fixed ? 'fixed' : 'error',
+      title: fixed ? 'Fixed' : 'Not fixed',
+      summary: fixed
+        ? 'Perbaikan RPC terverifikasi tanpa menjalankan operasi DELETE: dependency FK tetap dijaga dan fallback soft-delete tersedia.'
+        : 'Root cause RPC belum terverifikasi pulih dari diagnostic read-only.',
+      method: 'rpc_read_only_dependency_probe',
+      target: rpcName,
+      duration_ms: duration,
+      details: {
+        rpc_name: rpcName,
+        voucher_id: voucherId,
+        ...details,
+      },
+      admin_diagnostic_mode: true,
+    };
+  }
+
   const { data, error } = await supabase
     .from('global_settings')
     .select('key,value,updated_at')
     .eq('key', `${RPC_HEALTH_PREFIX}${rpcName}`)
     .maybeSingle();
+
   const duration = Math.round(performance.now() - started);
   const state = (data?.value && typeof data.value === 'object' ? data.value as HealthValue : null);
-  const blocked = error || state?.status === 'BLOCKED';
-  const fixed = !blocked && (!state || state.status === 'OPEN');
+  const healthKeyFound = Boolean(data);
+  const healthUpdatedAt = data?.updated_at ?? null;
+  const lastIncidentAt = item.last_seen_at ?? item.occurred_at ?? null;
+  const recoveryEvidenceAt = state?.recovered_at ?? healthUpdatedAt;
+  const recoveryIsFresh =
+    Boolean(recoveryEvidenceAt) &&
+    Boolean(lastIncidentAt) &&
+    new Date(String(recoveryEvidenceAt)).getTime() > new Date(String(lastIncidentAt)).getTime();
+
+  // Missing/stale health state is NOT proof of recovery.
+  const fixed =
+    healthKeyFound &&
+    state?.status === 'OPEN' &&
+    recoveryIsFresh &&
+    !error;
+
+  const summary = fixed
+    ? 'Health state RPC menunjukkan pemulihan setelah incident terakhir dan telah diverifikasi dari evidence terbaru.'
+    : error
+      ? 'Health state RPC tidak dapat dibaca: ' + error.message
+      : !healthKeyFound
+        ? 'Status belum terverifikasi: health state untuk RPC ini tidak ditemukan.'
+        : !recoveryIsFresh
+          ? 'Status belum terverifikasi: health state belum memiliki evidence pemulihan yang lebih baru dari incident terakhir.'
+          : `Status RPC masih ${String(state?.status ?? 'UNKNOWN')}.`;
+
   return {
     checked_at: new Date().toISOString(),
     status: fixed ? 'fixed' : 'error',
-    title: fixed ? 'Fixed' : 'Error',
-    summary: fixed ? 'Health state RPC menunjukkan backend sudah tidak memblokir request.' : 'Health state RPC masih menunjukkan masalah atau tidak dapat dibaca.',
+    title: fixed ? 'Fixed' : 'Not fixed',
+    summary,
     method: 'rpc_health_state_probe',
     target: rpcName,
     duration_ms: duration,
-    details: { rpc_name: rpcName, health_key_found: Boolean(data), health_status: state?.status ?? null, backend_version: state?.backend_version ?? null, read_error: error?.message ?? null },
+    details: {
+      rpc_name: rpcName,
+      health_key_found: healthKeyFound,
+      health_status: state?.status ?? null,
+      backend_version: state?.backend_version ?? null,
+      health_updated_at: healthUpdatedAt,
+      recovered_at: state?.recovered_at ?? null,
+      last_incident_seen_at: lastIncidentAt,
+      recovery_evidence_at: recoveryEvidenceAt,
+      recovery_evidence_is_fresh: recoveryIsFresh,
+      read_error: error?.message ?? null,
+      verified_fixed: fixed,
+    },
     admin_diagnostic_mode: true,
   };
 }
-
 async function probeHttp(item: UnifiedEvent): Promise<DiagnosticResult> {
   const started = performance.now();
   const target = item.path || (typeof window !== 'undefined' ? window.location.pathname : '/');
@@ -590,17 +703,23 @@ export function AdminErrorIntelligencePage() {
     try {
       const result = await runDiagnosticCheck(selected);
       setDiagnosticResult(result);
-      if (result.status === 'error') {
-        await supabase.rpc('report_system_error', {
-          p_source: selected.source,
-          p_error_code: selected.error_code ?? null,
-          p_error_message: result.summary,
-          p_severity: selected.severity === 'critical' ? 'critical' : 'error',
-          p_context: { ...((selected.context ?? {}) as Record<string, unknown>), admin_diagnostic: true, diagnostic: result.details },
-          p_path: selected.path ?? null,
-          p_fingerprint: selected.fingerprint ?? `${selected.source}|${selected.error_code ?? ''}|${selected.error_message}`.slice(0, 128),
+
+      // A diagnostic result must update the existing incident lifecycle, not create a duplicate incident.
+      if (!selected.isRpc) {
+        const nextLifecycle = result.status === 'fixed' ? 'resolved' : 'investigating';
+        const resolutionNote = result.status === 'fixed'
+          ? `Admin diagnostic terverifikasi: ${result.summary}`
+          : `Admin diagnostic belum memverifikasi pemulihan: ${result.summary}`;
+
+        const { error: lifecycleError } = await supabase.rpc('admin_update_system_error_status', {
+          p_id: selected.id,
+          p_status: nextLifecycle,
+          p_resolution_note: resolutionNote,
         });
+
+        if (lifecycleError) throw lifecycleError;
       }
+
       await load(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -610,7 +729,6 @@ export function AdminErrorIntelligencePage() {
       setDiagnosticBusy(false);
     }
   };
-
   const copyTechnicalJson = async () => {
     if (!selected) return;
     const payload = buildTechnicalPayload(selected, diagnosticResult);
