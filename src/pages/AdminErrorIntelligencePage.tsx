@@ -104,7 +104,7 @@ type PendingAction = 'new' | 'investigating' | 'resolved' | 'ignored' | 'reopen'
 type DiagnosticResult = {
   checked_at: string;
   status: 'fixed' | 'error';
-  title: 'Fixed' | 'Error';
+  title: 'Fixed' | 'Not fixed';
   summary: string;
   method: string;
   target: string;
@@ -227,7 +227,7 @@ async function probeRealtime(item: UnifiedEvent): Promise<DiagnosticResult> {
   return {
     checked_at: new Date().toISOString(),
     status: fixed ? 'fixed' : 'error',
-    title: fixed ? 'Fixed' : 'Error',
+    title: fixed ? 'Fixed' : 'Not fixed',
     summary: fixed ? 'Channel Realtime berhasil terhubung kembali.' : 'Channel Realtime masih gagal terhubung.',
     method: 'realtime_channel_subscribe',
     target: originalChannelName,
@@ -256,7 +256,7 @@ async function probeCloudinary(): Promise<DiagnosticResult> {
   return {
     checked_at: new Date().toISOString(),
     status: fixed ? 'fixed' : 'error',
-    title: fixed ? 'Fixed' : 'Error',
+    title: fixed ? 'Fixed' : 'Not fixed',
     summary: fixed ? 'Signature Cloudinary berhasil dibuat; konfigurasi backend dapat digunakan.' : `Signature Cloudinary masih gagal (${response.status}).`,
     method: 'cloudinary_signature_probe',
     target: 'get-cloudinary-signature',
@@ -278,7 +278,7 @@ async function probeEdgeFunction(item: UnifiedEvent): Promise<DiagnosticResult> 
   return {
     checked_at: new Date().toISOString(),
     status: fixed ? 'fixed' : 'error',
-    title: fixed ? 'Fixed' : 'Error',
+    title: fixed ? 'Fixed' : 'Not fixed',
     summary: fixed ? 'Endpoint Edge Function dapat dijangkau dari mode diagnostic admin.' : `Endpoint Edge Function masih mengembalikan HTTP ${response.status}.`,
     method: 'edge_function_reachability_probe',
     target: functionName,
@@ -437,7 +437,7 @@ async function probeHttp(item: UnifiedEvent): Promise<DiagnosticResult> {
   return {
     checked_at: new Date().toISOString(),
     status: fixed ? 'fixed' : 'error',
-    title: fixed ? 'Fixed' : 'Error',
+    title: fixed ? 'Fixed' : 'Not fixed',
     summary: fixed ? 'Target dapat dijangkau kembali dari browser admin.' : `Target masih mengembalikan HTTP ${response.status}.`,
     method: 'http_reachability_probe',
     target: url,
