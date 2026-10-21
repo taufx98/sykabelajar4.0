@@ -22,6 +22,7 @@ export function OrganizerCompetitionConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [participantMode, setParticipantMode] = useState('INDIVIDUAL');
+  const [examDurationMinutes, setExamDurationMinutes] = useState(60);
   const [form, setForm] = useState<CompetitionConfigInput>({
     level: { code: 'general', label: 'Umum', allowed_grades: grades, points: 0 },
     registration_rule: { allowed_grades: grades, require_twibbon: false, require_social_proof: false, express_enabled: false, express_cost: 0, max_participants: null, approval_mode: 'MANUAL' },
@@ -43,6 +44,7 @@ export function OrganizerCompetitionConfigPage() {
       if (!active) return;
       setCompetition(data);
       setParticipantMode(String(data.participant_mode || 'INDIVIDUAL'));
+      setExamDurationMinutes(Math.max(1, Math.min(360, Math.floor(Number(data.config?.duration_minutes ?? 60) || 60))));
       setForm((current) => ({
         ...current,
         level: existing.level ? {
@@ -76,7 +78,12 @@ export function OrganizerCompetitionConfigPage() {
         level: { ...form.level, allowed_grades: form.level.allowed_grades },
         registration_rule: { ...form.registration_rule, allowed_grades: form.registration_rule.allowed_grades },
       });
-      const { error } = await supabase.from('competitions').update({ participant_mode: participantMode }).eq('id', id);
+      const duration = Math.max(1, Math.min(360, Math.floor(Number(examDurationMinutes) || 60)));
+      const existingConfig = competition.config && typeof competition.config === 'object' && !Array.isArray(competition.config) ? competition.config : {};
+      const { error } = await supabase.from('competitions').update({
+        participant_mode: participantMode,
+        config: { ...existingConfig, duration_minutes: duration, exam_engine: 'SECURE_SEQUENTIAL_V1' },
+      }).eq('id', id);
       if (error) throw error;
       toast.success('Konfigurasi lomba berhasil disimpan.');
       navigate('/organizer');
@@ -91,11 +98,20 @@ export function OrganizerCompetitionConfigPage() {
   return <div className="min-h-screen surface-bg p-5 md:p-8">
     <div className="max-w-5xl mx-auto">
       <Link to="/organizer" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-fg mb-5"><ArrowLeft size={16}/> Kembali ke Organizer</Link>
-      <div className="flex items-start justify-between gap-4 mb-6"><div><p className="text-xs text-accent uppercase tracking-wider">Competition Builder</p><h1 className="font-display text-2xl md:text-3xl font-bold text-fg">{competition.title}</h1><p className="text-sm text-slate-500 mt-1">Konfigurasi live ke Supabase</p></div><Badge color="moss">{competition.status}</Badge></div>
+      <div className="flex items-start justify-between gap-4 mb-6"><div><p className="text-xs text-accent uppercase tracking-wider">Competition Builder</p><h1 className="font-display text-2xl md:text-3xl font-bold text-fg">{competition.title}</h1><p className="text-sm text-slate-500 mt-1">Konfigurasi live ke Supabase</p></div><div className="flex items-center gap-2"><Badge color="moss">{competition.status}</Badge><Link to={`/organizer/competition/${id}/exam-monitor`}><Button type="button" variant="outline">Monitor ujian</Button></Link></div></div>
       <form onSubmit={submit} className="space-y-5">
         <Card className="p-5"><div className="flex items-center gap-2 mb-2 text-fg font-semibold"><UserRound size={18} className="text-accent"/> Mode Peserta</div><p className="text-xs text-fg-muted mb-4">Tentukan apakah lomba ini menerima akun peserta individual atau peserta kolektif.</p><div className="grid gap-3">{participantModes.map((mode)=><button key={mode.value} type="button" onClick={()=>setParticipantMode(mode.value)} className={`w-full text-left rounded-xl border p-4 transition ${participantMode===mode.value?'border-accent bg-accent/5':'border-border hover:border-accent/40'}`}><div className="flex items-center gap-3"><div className={`w-4 h-4 rounded-full border-2 ${participantMode===mode.value?'border-accent bg-accent':'border-fg-muted'}`} /><div><p className="font-semibold text-fg">{mode.label}</p><p className="text-xs text-fg-muted mt-1">{mode.description}</p></div></div></button>)}</div></Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Trophy size={18} className="text-accent"/> Level & Eligibility</div><div className="grid md:grid-cols-2 gap-4"><Input label="Kode level" value={form.level.code} onChange={(v)=>updateLevel('code',v)}/><Input label="Label level" value={form.level.label} onChange={(v)=>updateLevel('label',v)}/><Input label="Points dasar" type="number" value={String(form.level.points)} onChange={(v)=>updateLevel('points',Number(v||0))}/></div><div className="mt-4"><label className="label">Jenjang yang diizinkan</label><div className="flex flex-wrap gap-2">{grades.map(g=><button type="button" key={g} onClick={()=>updateLevel('allowed_grades',toggleGrade(form.level.allowed_grades,g))} className={`px-3 py-2 rounded-lg border text-sm ${form.level.allowed_grades.includes(g)?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-slate-500'}`}>{g.toUpperCase()}</button>)}</div></div></Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><CalendarDays size={18} className="text-accent"/> Timeline</div><div className="grid md:grid-cols-2 gap-4"><Input label="Pendaftaran mulai" type="datetime-local" value={(form.level.registration_starts_at||'').slice(0,16)} onChange={(v)=>updateLevel('registration_starts_at',v)}/><Input label="Pendaftaran berakhir" type="datetime-local" value={(form.level.registration_ends_at||'').slice(0,16)} onChange={(v)=>updateLevel('registration_ends_at',v)}/><Input label="Kompetisi mulai" type="datetime-local" value={(form.level.starts_at||'').slice(0,16)} onChange={(v)=>updateLevel('starts_at',v)}/><Input label="Kompetisi berakhir" type="datetime-local" value={(form.level.ends_at||'').slice(0,16)} onChange={(v)=>updateLevel('ends_at',v)}/><Input label="Pengumuman" type="datetime-local" value={(form.level.announcement_at||'').slice(0,16)} onChange={(v)=>updateLevel('announcement_at',v)}/></div></Card>
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-2 text-fg font-semibold"><CalendarDays size={18} className="text-accent"/> Engine Ujian Berurutan</div>
+          <p className="text-xs text-fg-muted mb-4">Waktu ujian ditetapkan server. Jatah dasar setiap soal dihitung otomatis dari total durasi dan jumlah soal terbit. Peserta hanya menerima satu soal aktif dan tidak dapat kembali.</p>
+          <div className="max-w-sm">
+            <label className="label" htmlFor="exam-duration-minutes">Durasi utama ujian (menit)</label>
+            <input id="exam-duration-minutes" className="input" type="number" min={1} max={360} step={1} value={examDurationMinutes} onChange={e => setExamDurationMinutes(Math.max(1, Math.min(360, Math.floor(Number(e.target.value) || 1))))}/>
+            <p className="text-xs text-fg-muted mt-2">Batas total 1–360 menit. Overtime memakai pool tambahan maksimal 30 detik per attempt; semua timeout dan skip tercatat di panel monitor.</p>
+          </div>
+        </Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Users size={18} className="text-accent"/> Registration Rules</div><div className="grid md:grid-cols-2 gap-4"><Input label="Maksimal peserta" type="number" value={form.registration_rule.max_participants == null ? '' : String(form.registration_rule.max_participants)} onChange={(v)=>updateRule('max_participants',v === '' ? null : Number(v))}/><Input label="Biaya Express" type="number" value={String(form.registration_rule.express_cost)} onChange={(v)=>updateRule('express_cost',Number(v||0))}/></div><div className="mt-4 flex flex-wrap gap-2">{grades.map(g=><button type="button" key={g} onClick={()=>updateRule('allowed_grades',toggleGrade(form.registration_rule.allowed_grades,g))} className={`px-3 py-2 rounded-lg border text-sm ${form.registration_rule.allowed_grades.includes(g)?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-slate-500'}`}>{g.toUpperCase()}</button>)}</div><div className="grid md:grid-cols-2 gap-3 mt-4"><Toggle label="Twibbon wajib" checked={form.registration_rule.require_twibbon} onChange={(v)=>updateRule('require_twibbon',v)}/><Toggle label="Social proof wajib" checked={form.registration_rule.require_social_proof} onChange={(v)=>updateRule('require_social_proof',v)}/><Toggle label="Express registration" checked={form.registration_rule.express_enabled} onChange={(v)=>updateRule('express_enabled',v)}/><div><label className="label">Mode approval</label><select className="input" value={form.registration_rule.approval_mode} onChange={e=>updateRule('approval_mode',e.target.value)}><option value="MANUAL">Manual</option><option value="AUTO">Otomatis</option></select></div></div></Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Award size={18} className="text-accent"/> Rewards</div><div className="space-y-3">{form.rewards.map((r,i)=><div key={r.rank_code} className="grid md:grid-cols-4 gap-3 p-3 rounded-xl bg-white/[.03] border surface-border"><Input label={r.rank_code} value={r.title} onChange={(v)=>updateReward(i,'title',v)}/><Input label="Points" type="number" value={String(r.points)} onChange={(v)=>updateReward(i,'points',Number(v||0))}/><Input label="Emblem" value={r.emblem_name||''} onChange={(v)=>updateReward(i,'emblem_name',v)}/><Toggle label="Sertifikat" checked={r.certificate_enabled} onChange={(v)=>updateReward(i,'certificate_enabled',v)}/></div>)}</div></Card>
         <div className="flex justify-end"><Button type="submit" loading={saving} icon={<Save size={17}/>}>Simpan konfigurasi</Button></div>
