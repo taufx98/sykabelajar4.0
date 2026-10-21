@@ -2691,6 +2691,19 @@ revoke all on function public.get_my_canonical_competition_result(uuid) from pub
 grant execute on function public.get_my_canonical_competition_result(uuid) to authenticated;
 
 
+
+create or replace function private.exam_is_enabled(p_competition_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, private, pg_catalog
+as $
+  select exists(select 1 from public.competition_exam_configs ec where ec.competition_id=p_competition_id);
+$;
+revoke all on function private.exam_is_enabled(uuid) from public, anon, authenticated;
+grant execute on function private.exam_is_enabled(uuid) to authenticated;
+
 -- Block direct table reads that can reveal the active question bank/config or finalized score
 -- for opted-in sequential exams. Organizers/admins retain their scoped operational visibility.
 drop policy if exists attempts_admin_or_owner_read on public.attempts;
@@ -2705,10 +2718,7 @@ using (
   )
   or (
     attempts.participant_id=(select auth.uid())
-    and not exists(
-      select 1 from public.competition_exam_configs ec
-      where ec.competition_id=attempts.competition_id
-    )
+    and not private.exam_is_enabled(attempts.competition_id)
   )
 );
 
@@ -2729,10 +2739,7 @@ using (
   )
   or (
     questions.status='PUBLISHED'
-    and not exists(
-      select 1 from public.competition_exam_configs ec
-      where ec.competition_id=questions.competition_id
-    )
+    and not private.exam_is_enabled(questions.competition_id)
     and exists (
       select 1
       from public.competitions c
