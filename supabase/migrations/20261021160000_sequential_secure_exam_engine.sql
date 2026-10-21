@@ -331,11 +331,12 @@ security definer
 set search_path = public, private, pg_catalog
 as $$
 declare
+  v_a public.attempts%rowtype;
   v_s public.exam_attempt_sessions%rowtype;
   v_q public.exam_attempt_questions%rowtype;
+  v_skip_q public.exam_attempt_questions%rowtype;
   v_has_answer boolean;
   v_now timestamptz;
-  v_deadline timestamptz;
   v_elapsed integer;
   v_carry integer;
   v_debt integer;
@@ -344,8 +345,54 @@ begin
   -- Catch up missed transitions using their server deadlines, not the browser clock.
   for v_step in 1..1000 loop
     v_now := clock_timestamp();
+    select * into v_a from public.attempts where id=p_attempt_id for update;
+    if not found then raise exception 'ATTEMPT_NOT_FOUND'; end if;
     select * into v_s from public.exam_attempt_sessions where attempt_id=p_attempt_id for update;
     if not found or v_s.state='COMPLETED' then return; end if;
+
+    if v_a.status in ('SUBMITTED','GRADING','FINALIZED','EXPIRED') then
+      update public.exam_attempt_sessions set state='COMPLETED',current_question_id=null,
+        current_question_deadline=null,decision_deadline=null,overtime_deadline=null,
+        updated_at=v_now,lock_version=lock_version+1 where attempt_id=p_attempt_id;
+      return;
+    end if;
+
+    -- Hard server-side cap: a suspended tab cannot get fresh time by waking up late.
+    if v_a.expires_at is not null and v_now >= v_a.expires_at then
+      select * into v_q from public.exam_attempt_questions
+        where attempt_id=p_attempt_id and question_index=v_s.current_question_index for update;
+      if found then
+        select private.exam_has_answer(p_attempt_id,v_q.question_id) into v_has_answer;
+        if v_has_answer then
+          update public.exam_attempt_questions
+            set state=case when v_s.state='OVERTIME' then 'OVERTIME_ANSWERED' else 'ANSWERED' end,
+                closed_at=v_a.expires_at
+            where attempt_id=p_attempt_id and question_index=v_s.current_question_index;
+          perform private.exam_log(p_attempt_id,v_q.question_id,v_q.question_index,'QUESTION_SAVED_AT_GLOBAL_DEADLINE',
+            jsonb_build_object('previous_state',v_s.state));
+        else
+          update public.exam_attempt_questions set state='SKIPPED',closed_at=v_a.expires_at
+            where attempt_id=p_attempt_id and question_index=v_s.current_question_index;
+          perform private.exam_log(p_attempt_id,v_q.question_id,v_q.question_index,'QUESTION_SKIPPED',
+            jsonb_build_object('reason','GLOBAL_ATTEMPT_DEADLINE'));
+        end if;
+      end if;
+      for v_skip_q in
+        select * from public.exam_attempt_questions
+        where attempt_id=p_attempt_id and state='QUEUED'
+        order by question_index for update
+      loop
+        update public.exam_attempt_questions set state='SKIPPED',closed_at=v_a.expires_at
+          where attempt_id=p_attempt_id and question_index=v_skip_q.question_index;
+        perform private.exam_log(p_attempt_id,v_skip_q.question_id,v_skip_q.question_index,'QUESTION_SKIPPED',
+          jsonb_build_object('reason','GLOBAL_ATTEMPT_DEADLINE'));
+      end loop;
+      perform private.exam_log(p_attempt_id,null,null,'ATTEMPT_GLOBAL_DEADLINE_REACHED',
+        jsonb_build_object('deadline',v_a.expires_at));
+      perform private.exam_finalize_attempt(p_attempt_id);
+      return;
+    end if;
+
     select * into v_q from public.exam_attempt_questions
       where attempt_id=p_attempt_id and question_index=v_s.current_question_index for update;
     if not found then perform private.exam_finalize_attempt(p_attempt_id); return; end if;
@@ -482,7 +529,7 @@ begin
 
   -- Keep the normal exam budget separate from the bounded maximum allowed by configured timeouts.
   update public.attempts
-    set expires_at=coalesce(started_at,v_now)
+    set expires_at=v_now
       + make_interval(secs=>v_cfg.duration_seconds + v_count*(v_cfg.decision_window_seconds+v_cfg.overtime_grace_seconds)),
         updated_at=v_now
     where id=p_attempt_id;
@@ -1049,11 +1096,13 @@ begin
       coalesce(cp.full_name,p.full_name,p.username,'Peserta') participant_name,
       cp.participant_code,
       coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state in ('ANSWERED','OVERTIME_ANSWERED')),0) answered_count,
-      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state='TIMEOUT'),0) timeout_count,
+      coalesce((select count(*) from public.exam_attempt_events ev where ev.attempt_id=a.id and ev.event_type='QUESTION_TIMEOUT'),0) timeout_count,
       coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state='SKIPPED'),0) skipped_count,
       coalesce((select jsonb_agg(jsonb_build_object('question_index',eq.question_index,'state',eq.state,
         'allocated_seconds',eq.allocated_seconds,'elapsed_seconds',eq.elapsed_seconds,
         'borrowed_seconds',eq.borrowed_seconds,'grace_seconds_used',eq.grace_seconds_used,
+        'timed_out_before',exists(select 1 from public.exam_attempt_events ev where ev.attempt_id=eq.attempt_id and ev.question_index=eq.question_index and ev.event_type='QUESTION_TIMEOUT'),
+        'events',coalesce((select jsonb_agg(jsonb_build_object('type',ev.event_type,'at',ev.created_at,'metadata',ev.metadata) order by ev.created_at) from public.exam_attempt_events ev where ev.attempt_id=eq.attempt_id and ev.question_index=eq.question_index),'[]'::jsonb),
         'opened_at',eq.opened_at,'closed_at',eq.closed_at) order by eq.question_index)
         from public.exam_attempt_questions eq where eq.attempt_id=a.id),'[]'::jsonb) questions
     from public.attempts a
