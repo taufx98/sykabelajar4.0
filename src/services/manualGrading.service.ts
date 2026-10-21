@@ -1,17 +1,17 @@
 import { supabase } from '@/lib/supabase';
 
-const attemptSelect = 'id,competition_id,participant_id,collective_participant_id,status,submitted_at,attempt_number,collective_participants:collective_participant_id(full_name,participant_code)';
+const attemptSelect = 'id,competition_id,participant_id,collective_participant_id,status,submitted_at,attempt_number,is_preview,preview_owner_id,collective_participants:collective_participant_id(full_name,participant_code)';
 
 export async function listGradableAttempts(competitionIds: string[]) {
   if (!competitionIds.length) return [];
-  const { data, error } = await supabase.from('attempts').select(attemptSelect).in('competition_id', competitionIds).in('status', ['SUBMITTED','GRADING']).order('submitted_at', { ascending: false });
+  const { data, error } = await supabase.from('attempts').select(attemptSelect).in('competition_id', competitionIds).in('status', ['SUBMITTED','GRADING']).eq('is_preview', false).order('submitted_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
 
 export async function getAttemptForGrading(attemptId: string) {
   const [{ data: attempt, error: attemptError }, { data: items, error: itemsError }, { data: answers, error: answersError }] = await Promise.all([
-    supabase.from('attempts').select(attemptSelect).eq('id', attemptId).single(),
+    supabase.from('attempts').select(attemptSelect).eq('id', attemptId).eq('is_preview', false).single(),
     supabase.from('grading_items').select('id,question_id,score,feedback,grader_id').eq('attempt_id', attemptId).order('created_at'),
     supabase.from('answers').select('question_id,answer_json').eq('attempt_id', attemptId),
   ]);
