@@ -64,6 +64,21 @@ revoke all on table public.exam_attempt_runtime, public.exam_attempt_questions, 
 -- Do not allow a participant to bypass the server state machine using PostgREST.
 drop policy if exists answer_self_insert on public.answers;
 drop policy if exists answer_self_update on public.answers;
+drop policy if exists answers_organizer_read on public.answers;
+create policy answers_organizer_read on public.answers
+for select to authenticated
+using (
+  exists (
+    select 1
+    from public.attempts a
+    join public.competitions c on c.id = a.competition_id
+    where a.id = answers.attempt_id
+      and (
+        private.current_user_is_admin()
+        or (c.organizer_id is not null and private.current_user_is_organizer_for(c.organizer_id))
+      )
+  )
+);
 
 -- A participant may only inspect their own in-progress attempt row. The score is
 -- never exposed through direct table reads after submission; organizer/admin reads stay intact.
@@ -1244,7 +1259,7 @@ begin
     select * into v_next from public.exam_attempt_questions
     where attempt_id=p_attempt_id and position=v_runtime.current_position+1 for update;
     if not found then raise exception 'NO_NEXT_QUESTION_TO_BORROW_FROM'; end if;
-    v_next_available := v_next.base_seconds + v_runtime.time_bank_seconds - v_next.borrowed_from_previous_seconds;
+    v_next_available := v_next.base_seconds + v_next.time_credit_seconds - v_next.borrowed_from_previous_seconds;
     if v_next_available<60 then raise exception 'NEXT_QUESTION_MINIMUM_TIME'; end if;
     update public.exam_attempt_questions
     set borrowed_from_previous_seconds=borrowed_from_previous_seconds+30
