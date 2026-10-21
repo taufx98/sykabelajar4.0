@@ -63,6 +63,8 @@ export function SequentialExamRunner({
   const [error, setError] = useState('');
   const saveTimer = useRef<number | null>(null);
   const deadlineRefreshInFlight = useRef(false);
+  const lastDeadlineRefreshAt = useRef(0);
+  const resetAnswerQuestion = useRef<string | null>(null);
   const currentQuestionId = exam?.question?.id ?? null;
 
   const applyExam = useCallback((next: SequentialExamState) => {
@@ -98,14 +100,11 @@ export function SequentialExamRunner({
   }, [competitionId, mode, applyExam]);
 
   useEffect(() => {
-    if (!exam?.question) {
-      setAnswer('');
-      setAnswerSaved(true);
-      return;
-    }
-    setAnswer(exam.saved_answer ?? '');
+    if (currentQuestionId === resetAnswerQuestion.current) return;
+    resetAnswerQuestion.current = currentQuestionId;
+    setAnswer(exam?.saved_answer ?? '');
     setAnswerSaved(true);
-  }, [currentQuestionId]); // reset only when server advances to a different question
+  }, [currentQuestionId, exam?.saved_answer]); // reset only when server advances to a different question
 
   const activeDeadline = deadlineFor(exam);
   const countdown = useCallback(() => {
@@ -121,13 +120,16 @@ export function SequentialExamRunner({
         return;
       }
       setSecondsLeft(seconds);
-      if (seconds === 0 && exam?.attempt_id && exam.state !== 'COMPLETED' && !deadlineRefreshInFlight.current) {
+      const now = Date.now();
+      if (seconds === 0 && activeDeadline && exam?.attempt_id && exam.state !== 'COMPLETED'
+        && !deadlineRefreshInFlight.current && now - lastDeadlineRefreshAt.current >= 2000) {
         deadlineRefreshInFlight.current = true;
+        lastDeadlineRefreshAt.current = now;
         void getSequentialExamState(exam.attempt_id, mode)
           .then(applyExam)
           .catch((e) => setError(e instanceof Error ? e.message : 'Koneksi server terputus. Ujian akan disinkronkan saat koneksi kembali.'))
           .finally(() => { deadlineRefreshInFlight.current = false; });
-      } else if (seconds > 0) {
+      } else if (seconds !== null && seconds > 0) {
         deadlineRefreshInFlight.current = false;
       }
     };
