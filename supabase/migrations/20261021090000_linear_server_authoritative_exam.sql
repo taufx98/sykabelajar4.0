@@ -632,6 +632,7 @@ declare
   v_question public.exam_attempt_questions%rowtype;
   v_iteration integer;
   v_transition_at timestamptz;
+  v_effective_now timestamptz;
 begin
   for v_iteration in 1..200 loop
     select * into v_runtime from public.exam_attempt_runtime where attempt_id = p_attempt_id for update;
@@ -642,9 +643,10 @@ begin
     where attempt_id = p_attempt_id and position = v_runtime.current_position
     for update;
     if not found then raise exception 'EXAM_CURRENT_QUESTION_NOT_FOUND'; end if;
+    v_effective_now := greatest(p_server_now, clock_timestamp());
 
     if v_runtime.phase = 'ACTIVE' then
-      if v_question.question_deadline is null or p_server_now < v_question.question_deadline then return; end if;
+      if v_question.question_deadline is null or v_effective_now < v_question.question_deadline then return; end if;
       v_transition_at := v_question.question_deadline;
       update public.exam_attempt_questions
       set state = 'TIMEOUT',
@@ -658,7 +660,7 @@ begin
       perform private.log_linear_exam_event(p_attempt_id, v_question.position, v_question.question_id, 'TIMEOUT_DECISION_OPENED', 'SYSTEM', jsonb_build_object('decision_seconds', v_runtime.decision_window_seconds), v_transition_at);
       continue;
     elsif v_runtime.phase = 'DECISION' then
-      if v_question.decision_deadline is null or p_server_now < v_question.decision_deadline then return; end if;
+      if v_question.decision_deadline is null or v_effective_now < v_question.decision_deadline then return; end if;
       v_transition_at := v_question.decision_deadline;
       update public.exam_attempt_questions
       set grace_deadline = least(v_transition_at + make_interval(secs => v_runtime.grace_seconds), v_runtime.global_deadline)
@@ -670,7 +672,7 @@ begin
       perform private.log_linear_exam_event(p_attempt_id, v_question.position, v_question.question_id, 'QUESTION_GRACE_STARTED', 'SYSTEM', jsonb_build_object('grace_seconds', v_runtime.grace_seconds, 'kind', 'FREE'), v_transition_at);
       continue;
     elsif v_runtime.phase = 'GRACE' then
-      if v_question.grace_deadline is null or p_server_now < v_question.grace_deadline then return; end if;
+      if v_question.grace_deadline is null or v_effective_now < v_question.grace_deadline then return; end if;
       v_transition_at := v_question.grace_deadline;
       -- Remove any unsubmitted draft: an unanswered timeout must never be graded.
       delete from public.answers
@@ -806,6 +808,7 @@ begin
   from public.exam_attempt_questions
   where attempt_id = p_attempt_id and position = v_runtime.current_position
   for update;
+  v_now := clock_timestamp();
   if v_question.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if v_runtime.phase = 'ACTIVE' and (v_question.question_deadline is null or v_now >= v_question.question_deadline) then raise exception 'QUESTION_TIMEOUT'; end if;
   if v_runtime.phase = 'GRACE' and (v_question.grace_deadline is null or v_now >= v_question.grace_deadline) then raise exception 'QUESTION_TIMEOUT'; end if;
@@ -937,6 +940,7 @@ begin
   from public.exam_attempt_questions
   where attempt_id = p_attempt_id and position = v_runtime.current_position
   for update;
+  v_now := clock_timestamp();
 
   if v_question.decision_deadline is null or v_now >= v_question.decision_deadline then
     perform private.resolve_linear_exam_timeouts(p_attempt_id, v_now);
@@ -1005,6 +1009,7 @@ begin
   select * into v_runtime from public.exam_attempt_runtime where attempt_id = p_attempt_id for update;
   if v_runtime.phase not in ('ACTIVE','GRACE') then return private.build_linear_exam_state(p_attempt_id); end if;
   select * into v_question from public.exam_attempt_questions where attempt_id=p_attempt_id and position=v_runtime.current_position for update;
+  v_now := clock_timestamp();
 
   if (v_runtime.phase = 'ACTIVE' and (v_question.question_deadline is null or v_now >= v_question.question_deadline))
     or (v_runtime.phase = 'GRACE' and (v_question.grace_deadline is null or v_now >= v_question.grace_deadline)) then
@@ -1107,6 +1112,7 @@ begin
   if v_runtime.phase='COMPLETED' or v_attempt.status<>'IN_PROGRESS' then raise exception 'EXAM_NOT_ACTIVE'; end if;
   if v_runtime.phase not in ('ACTIVE','GRACE') then raise exception 'QUESTION_NOT_ANSWERABLE'; end if;
   select * into v_question from public.exam_attempt_questions where attempt_id=p_attempt_id and position=v_runtime.current_position for update;
+  v_now := clock_timestamp();
   if v_question.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if (v_runtime.phase='ACTIVE' and (v_question.question_deadline is null or v_now>=v_question.question_deadline))
      or (v_runtime.phase='GRACE' and (v_question.grace_deadline is null or v_now>=v_question.grace_deadline)) then
@@ -1159,6 +1165,7 @@ begin
   if v_runtime.phase='COMPLETED' or v_attempt.status<>'IN_PROGRESS' then return private.build_linear_exam_state(p_attempt_id); end if;
   if v_runtime.phase not in ('ACTIVE','GRACE') then return private.build_linear_exam_state(p_attempt_id); end if;
   select * into v_question from public.exam_attempt_questions where attempt_id=p_attempt_id and position=v_runtime.current_position for update;
+  v_now := clock_timestamp();
   if v_question.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if (v_runtime.phase='ACTIVE' and (v_question.question_deadline is null or v_now>=v_question.question_deadline))
      or (v_runtime.phase='GRACE' and (v_question.grace_deadline is null or v_now>=v_question.grace_deadline)) then
@@ -1221,6 +1228,7 @@ begin
   select * into v_runtime from public.exam_attempt_runtime where attempt_id=p_attempt_id for update;
   if v_runtime.phase<>'DECISION' then return private.build_linear_exam_state(p_attempt_id); end if;
   select * into v_question from public.exam_attempt_questions where attempt_id=p_attempt_id and position=v_runtime.current_position for update;
+  v_now := clock_timestamp();
   if v_question.decision_deadline is null or v_now>=v_question.decision_deadline then
     perform private.resolve_linear_exam_timeouts(p_attempt_id,v_now);
     return private.build_linear_exam_state(p_attempt_id);
