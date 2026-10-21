@@ -87,6 +87,10 @@ function collectiveArgs(accessToken: string) {
 export async function startLinearExamAttempt(competitionId: string) {
   return rpcState('start_linear_exam_attempt', { p_competition_id: competitionId });
 }
+
+export async function startOrganizerExamPreviewAttempt(competitionId: string) {
+  return rpcState('start_organizer_exam_preview', { p_competition_id: competitionId });
+}
 export async function getLinearExamState(attemptId: string) {
   return rpcState('get_linear_exam_state', { p_attempt_id: attemptId });
 }
