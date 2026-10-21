@@ -201,9 +201,9 @@ begin
         into v_correct
       from jsonb_array_elements(v_q.options_snapshot) as e(opt)
       where coalesce((opt->>'is_correct')::boolean, false);
-      select coalesce(array_agg(val order by val), '{}')
+      select coalesce(array_agg(selected.value order by selected.value), '{}')
         into v_selected
-      from jsonb_array_elements_text(coalesce(v_answer->'values','[]'::jsonb)) as val;
+      from jsonb_array_elements_text(coalesce(v_answer->'values','[]'::jsonb)) as selected(value);
       if coalesce(v_correct,'{}') = coalesce(v_selected,'{}') then
         v_score := v_score + coalesce(v_q.points_snapshot,0);
       end if;
@@ -362,7 +362,7 @@ begin
       end if;
       update public.exam_attempt_questions set state='TIMEOUT',closed_at=v_s.current_question_deadline,
         elapsed_seconds=v_s.current_allocated_seconds where attempt_id=p_attempt_id and question_index=v_s.current_question_index;
-      update public.exam_attempt_sessions set state='TIMEOUT_DECISION',
+      update public.exam_attempt_sessions set state='TIMEOUT_DECISION', time_bank_seconds=0,
         decision_deadline=v_s.current_question_deadline + make_interval(secs=>(v_s.config_snapshot->>'decision_window_seconds')::integer),
         updated_at=v_now,lock_version=lock_version+1 where attempt_id=p_attempt_id;
       perform private.exam_log(p_attempt_id,v_q.question_id,v_q.question_index,'QUESTION_TIMEOUT','{}'::jsonb);
@@ -555,7 +555,7 @@ begin
         from jsonb_array_elements(v_q.options_snapshot) with ordinality as options(opt,ord)
       ),'[]'::jsonb)
     );
-    v_next_alloc := v_s.base_seconds + v_s.time_bank_seconds - v_s.pending_next_debt_seconds;
+    v_next_alloc := v_s.base_seconds - v_s.pending_next_debt_seconds;
     v_can_borrow := v_s.state='TIMEOUT_DECISION'
       and v_s.current_question_index < v_s.question_count
       and v_s.config_snapshot->>'borrow_seconds' is not null
@@ -581,9 +581,10 @@ begin
     'server_now',v_now,
     'question',v_question,
     'saved_answer',case
-      when v_answer is null then null
-      when jsonb_typeof(v_answer)='object' then coalesce(v_answer->>'option_id',v_answer->>'value')
-      else v_answer #>> '{}'
+      when v_answer is null then null::jsonb
+      when jsonb_typeof(v_answer->'option_ids')='array' then v_answer->'option_ids'
+      when jsonb_typeof(v_answer)='object' then to_jsonb(coalesce(v_answer->>'option_id',v_answer->>'value'))
+      else v_answer
     end
   );
 end;
@@ -1014,6 +1015,7 @@ begin
 
   if v_duration not between 60 and 21600 then raise exception 'INVALID_DURATION_SECONDS'; end if;
   if v_question_count is not null and v_question_count not between 1 and 1000 then raise exception 'INVALID_QUESTION_COUNT'; end if;
+  if v_question_count is not null and v_question_count>(select count(*) from public.questions where competition_id=p_competition_id and status='PUBLISHED') then raise exception 'QUESTION_COUNT_EXCEEDS_PUBLISHED'; end if;
   if v_attempt_limit not between 1 and 10 then raise exception 'INVALID_ATTEMPT_LIMIT'; end if;
   if v_decision not between 0 and 120 then raise exception 'INVALID_DECISION_WINDOW'; end if;
   if v_borrow not between 1 and 120 then raise exception 'INVALID_BORROW_SECONDS'; end if;
@@ -1282,7 +1284,7 @@ grant execute on function public.get_my_canonical_competition_result(uuid) to au
     return private.exam_state_payload(v_existing.id);
   end if;
 
-  select count(*) into v_count from public.attempts where competition_id=p_competition_id and participant_id=v_uid;
+  select count(*) into v_count from public.attempts a join public.exam_attempt_sessions s on s.attempt_id=a.id where a.competition_id=p_competition_id and a.participant_id=v_uid;
   if v_count >= v_cfg.attempt_limit then
     select * into v_existing from public.attempts where competition_id=p_competition_id and participant_id=v_uid order by attempt_number desc limit 1;
     if found and exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then
@@ -1756,7 +1758,7 @@ grant execute on function public.get_my_canonical_competition_result(uuid) to au
     return private.exam_state_payload(v_existing.id);
   end if;
 
-  select count(*) into v_count from public.attempts where competition_id=p_competition_id and collective_participant_id=v_cp;
+  select count(*) into v_count from public.attempts a join public.exam_attempt_sessions s on s.attempt_id=a.id where a.competition_id=p_competition_id and a.collective_participant_id=v_cp;
   if v_count >= v_cfg.attempt_limit then
     select * into v_existing from public.attempts where competition_id=p_competition_id and collective_participant_id=v_cp order by attempt_number desc limit 1;
     if found and exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then
@@ -2676,3 +2678,57 @@ end;
 $$;
 revoke all on function public.get_my_canonical_competition_result(uuid) from public, anon;
 grant execute on function public.get_my_canonical_competition_result(uuid) to authenticated;
+
+
+-- Block direct table reads that can reveal the active question bank/config or finalized score
+-- for opted-in sequential exams. Organizers/admins retain their scoped operational visibility.
+drop policy if exists attempts_admin_or_owner_read on public.attempts;
+create policy attempts_admin_or_owner_read on public.attempts
+for select to authenticated
+using (
+  private.current_user_is_admin()
+  or exists (
+    select 1 from public.competitions c
+    where c.id=attempts.competition_id and c.organizer_id is not null
+      and private.current_user_is_organizer_for(c.organizer_id)
+  )
+  or (
+    attempts.participant_id=(select auth.uid())
+    and not exists(
+      select 1 from public.competition_exam_configs ec
+      where ec.competition_id=attempts.competition_id
+    )
+  )
+);
+
+drop policy if exists questions_select on public.questions;
+create policy questions_select on public.questions
+for select to authenticated
+using (
+  private.current_user_is_admin()
+  or exists (
+    select 1 from public.question_banks qb
+    where qb.id=questions.question_bank_id and qb.organizer_id is not null
+      and private.current_user_is_organizer_for(qb.organizer_id)
+  )
+  or exists (
+    select 1 from public.competitions c
+    where c.id=questions.competition_id and c.organizer_id is not null
+      and private.current_user_is_organizer_for(c.organizer_id)
+  )
+  or (
+    questions.status='PUBLISHED'
+    and not exists(
+      select 1 from public.competition_exam_configs ec
+      where ec.competition_id=questions.competition_id
+    )
+    and exists (
+      select 1
+      from public.competitions c
+      join public.registrations r on r.competition_id=c.id
+      where c.id=questions.competition_id and c.status='LIVE'
+        and r.user_id=(select auth.uid())
+        and r.status in ('APPROVED','ACTIVE')
+    )
+  )
+);
