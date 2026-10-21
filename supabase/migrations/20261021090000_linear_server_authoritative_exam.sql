@@ -414,7 +414,6 @@ declare
   v_score numeric := 0;
   v_matched boolean;
   v_manual boolean := false;
-  v_season uuid;
 begin
   select * into v_attempt from public.attempts where id = p_attempt_id for update;
   if not found then raise exception 'ATTEMPT_NOT_FOUND'; end if;
@@ -497,26 +496,6 @@ begin
   update public.exam_attempt_runtime
   set phase = 'COMPLETED', grace_kind = null, updated_at = clock_timestamp()
   where attempt_id = p_attempt_id;
-
-  -- Preserve the legacy XP side-effect for auto-graded individual attempts.
-  if not v_manual and v_attempt.participant_id is not null and v_score > 0 then
-    select id into v_season
-    from public.academic_seasons
-    where is_active = true
-    order by start_at desc
-    limit 1;
-
-    if v_season is not null then
-      insert into public.xp_ledger(user_id, season_id, event_type, event_id, amount, reason)
-      select v_attempt.participant_id, v_season, 'COMPETITION_SCORE', v_attempt.id::text, v_score, 'Nilai kompetisi'
-      where not exists (
-        select 1 from public.xp_ledger x
-        where x.user_id = v_attempt.participant_id
-          and x.event_type = 'COMPETITION_SCORE'
-          and x.event_id = v_attempt.id::text
-      );
-    end if;
-  end if;
 
   perform private.log_linear_exam_event(
     p_attempt_id, null, null, 'ATTEMPT_COMPLETED', 'SYSTEM',
