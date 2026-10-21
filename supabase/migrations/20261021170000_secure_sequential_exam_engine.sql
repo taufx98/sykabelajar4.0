@@ -118,7 +118,8 @@ begin
      and private.secure_exam_competition_locked(v_new_competition_id) then
     raise exception 'EXAM_QUESTIONS_LOCKED_AFTER_FIRST_ATTEMPT';
   end if;
-  return case when tg_op = 'DELETE' then old else new end;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
 end;
 $function$;
 
@@ -152,7 +153,8 @@ begin
       end if;
     end if;
   end if;
-  return case when tg_op = 'DELETE' then old else new end;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
 end;
 $function$;
 
