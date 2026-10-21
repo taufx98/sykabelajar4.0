@@ -47,6 +47,7 @@ export function CompetitionWorkPage() {
   return <LinearExamRoom
     mode="INDIVIDUAL"
     title={competition.title}
+    subtitle={competition.short_description || competition.category || undefined}
     initialState={initialState}
     finishHref={`/lomba/${competition.slug}`}
   />;
