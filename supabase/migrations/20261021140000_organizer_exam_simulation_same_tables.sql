@@ -38,7 +38,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 begin
   if auth.uid() is not null
      and not private.current_user_is_admin()
@@ -55,7 +55,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 revoke all on function private.guard_attempt_preview_identity() from public, anon, authenticated;
 
