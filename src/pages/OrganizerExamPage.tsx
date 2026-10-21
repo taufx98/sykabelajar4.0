@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Activity, ArrowLeft, Clock3, RefreshCw, Save, ShieldCheck, Shuffle, Users } from 'lucide-react';
+import { Activity, Clock3, RefreshCw, Save, ShieldCheck, Shuffle, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -80,7 +80,7 @@ export function OrganizerExamPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const update = <K extends keyof EditableConfig>(key: K, value: EditableConfig[K]) => setForm((current) => ({ ...current, [key]: value }));
+  const update = <K extends keyof EditableConfig,>(key: K, value: EditableConfig[K]) => setForm((current) => ({ ...current, [key]: value }));
 
   async function save() {
     if (!id || !config || config.frozen) return;
@@ -203,7 +203,7 @@ function shortState(state: string) {
   if (state === 'ACTIVE') return 'LIVE';
   return state;
 }
-function Metric({icon,label,value}:{icon:React.ReactNode;label:string;value:string|number}) {
+function Metric({icon,label,value}:{icon:ReactNode;label:string;value:string|number}) {
   return <Card className="p-4"><div className="text-accent">{icon}</div><p className="text-xl font-bold text-fg mt-2">{value}</p><p className="text-[11px] text-fg-muted mt-1">{label}</p></Card>;
 }
 function Field({label,value,onChange,type='text',min,max,disabled}:{label:string;value:string;onChange:(v:string)=>void;type?:string;min?:number;max?:number;disabled?:boolean}) {
