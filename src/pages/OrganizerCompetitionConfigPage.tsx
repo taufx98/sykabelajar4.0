@@ -25,6 +25,7 @@ export function OrganizerCompetitionConfigPage() {
   const [participantMode, setParticipantMode] = useState('INDIVIDUAL');
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [publishedQuestionCount, setPublishedQuestionCount] = useState(0);
+  const [questionCountLoading, setQuestionCountLoading] = useState(true);
   const [questionBanks, setQuestionBanks] = useState<Array<{ id: string; name: string; status: string }>>([]);
   const [questionBankId, setQuestionBankId] = useState('');
   const [randomizeQuestions, setRandomizeQuestions] = useState(false);
@@ -89,27 +90,40 @@ export function OrganizerCompetitionConfigPage() {
 
   useEffect(() => {
     let active = true;
-    if (!id) return () => { active = false; };
+    if (!id) {
+      setQuestionCountLoading(false);
+      return () => { active = false; };
+    }
+    setQuestionCountLoading(true);
     void (async () => {
-      const { count: directCount, error: directError } = await supabase
-        .from('questions')
-        .select('id', { count: 'exact', head: true })
-        .eq('competition_id', id)
-        .eq('status', 'PUBLISHED');
-      if (directError) { if (active) setPublishedQuestionCount(0); return; }
-
-      let bankCount = 0;
-      if (questionBankId) {
-        const { count, error } = await supabase
+      try {
+        const { count: directCount, error: directError } = await supabase
           .from('questions')
           .select('id', { count: 'exact', head: true })
-          .eq('question_bank_id', questionBankId)
-          .is('competition_id', null)
+          .eq('competition_id', id)
           .eq('status', 'PUBLISHED');
-        if (error) { if (active) setPublishedQuestionCount(directCount ?? 0); return; }
-        bankCount = count ?? 0;
+        if (directError) throw directError;
+
+        let bankCount = 0;
+        if (questionBankId) {
+          const { count, error } = await supabase
+            .from('questions')
+            .select('id', { count: 'exact', head: true })
+            .eq('question_bank_id', questionBankId)
+            .is('competition_id', null)
+            .eq('status', 'PUBLISHED');
+          if (error) throw error;
+          bankCount = count ?? 0;
+        }
+        if (active) setPublishedQuestionCount((directCount ?? 0) + bankCount);
+      } catch (error) {
+        if (active) {
+          setPublishedQuestionCount(0);
+          toast.error(error instanceof Error ? error.message : 'Gagal memeriksa jumlah soal.');
+        }
+      } finally {
+        if (active) setQuestionCountLoading(false);
       }
-      if (active) setPublishedQuestionCount((directCount ?? 0) + bankCount);
     })();
     return () => { active = false; };
   }, [id, questionBankId]);
@@ -121,6 +135,10 @@ export function OrganizerCompetitionConfigPage() {
 
   async function saveConfiguration(action: 'save' | 'preview' | 'release') {
     if (!id || workingAction) return;
+    if (questionCountLoading && action !== 'save') {
+      toast.error('Sedang memeriksa jumlah soal. Coba lagi sesaat.');
+      return;
+    }
     if (action === 'release' && !window.confirm('Terbitkan lomba ini sekarang? Setelah diterbitkan, peserta dapat melihatnya sesuai jadwal dan aturan pendaftaran.')) return;
     const duration = Number(durationMinutes);
     if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
@@ -248,8 +266,8 @@ export function OrganizerCompetitionConfigPage() {
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
           <Button type="submit" variant="outline" loading={workingAction === 'save'} disabled={saving} icon={<Save size={17}/>}>Simpan Konfigurasi</Button>
           {competition.status === 'DRAFT' && <>
-            <Button type="button" variant="outline" loading={workingAction === 'preview'} disabled={saving} icon={<FlaskConical size={17}/>} onClick={() => void saveConfiguration('preview')}>Simulasi</Button>
-            <Button type="button" loading={workingAction === 'release'} disabled={saving} icon={<Rocket size={17}/>} onClick={() => void saveConfiguration('release')}>Release · Terbitkan Lomba</Button>
+            <Button type="button" variant="outline" loading={workingAction === 'preview'} disabled={saving || questionCountLoading} icon={<FlaskConical size={17}/>} onClick={() => void saveConfiguration('preview')}>Simulasi</Button>
+            <Button type="button" loading={workingAction === 'release'} disabled={saving || questionCountLoading} icon={<Rocket size={17}/>} onClick={() => void saveConfiguration('release')}>Release · Terbitkan Lomba</Button>
           </>}
         </div>
       </form>
