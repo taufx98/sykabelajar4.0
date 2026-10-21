@@ -836,11 +836,11 @@ grant execute on function public.get_secure_exam_state(uuid,uuid,text) to anon, 
 revoke all on function public.secure_exam_save_current_answer(uuid,uuid,uuid,jsonb,text) from public, anon, authenticated;
 grant execute on function public.secure_exam_save_current_answer(uuid,uuid,uuid,jsonb,text) to anon, authenticated;
 revoke all on function public.secure_exam_answer_and_advance(uuid,uuid,uuid,jsonb,text) from public, anon, authenticated;
-grant execute on function public.secure_exam_answer_and_advance(uuid,uuid,jsonb,text) to anon, authenticated;
+grant execute on function public.secure_exam_answer_and_advance(uuid,uuid,uuid,jsonb,text) to anon, authenticated;
 revoke all on function public.secure_exam_skip_current(uuid,uuid,uuid,text) from public, anon, authenticated;
-grant execute on function public.secure_exam_skip_current(uuid,uuid,text) to anon, authenticated;
+grant execute on function public.secure_exam_skip_current(uuid,uuid,uuid,text) to anon, authenticated;
 revoke all on function public.secure_exam_resolve_timeout(uuid,uuid,uuid,text,text) from public, anon, authenticated;
-grant execute on function public.secure_exam_resolve_timeout(uuid,uuid,text,text) to anon, authenticated;
+grant execute on function public.secure_exam_resolve_timeout(uuid,uuid,uuid,text,text) to anon, authenticated;
 revoke all on function public.get_secure_exam_monitor(uuid) from public, anon, authenticated;
 grant execute on function public.get_secure_exam_monitor(uuid) to authenticated;
 
