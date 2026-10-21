@@ -1,6 +1,6 @@
 import { toast } from "@/lib/toast";
 import { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award, UserRound, Activity } from 'lucide-react';
+import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award, UserRound, Activity, Clock3, Shuffle } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -22,6 +22,10 @@ export function OrganizerCompetitionConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [participantMode, setParticipantMode] = useState('INDIVIDUAL');
+  const [durationMinutes, setDurationMinutes] = useState('60');
+  const [publishedQuestionCount, setPublishedQuestionCount] = useState(0);
+  const [randomizeQuestions, setRandomizeQuestions] = useState(false);
+  const [randomizeOptions, setRandomizeOptions] = useState(false);
   const [form, setForm] = useState<CompetitionConfigInput>({
     level: { code: 'general', label: 'Umum', allowed_grades: grades, points: 0 },
     registration_rule: { allowed_grades: grades, require_twibbon: false, require_social_proof: false, express_enabled: false, express_cost: 0, max_participants: null, approval_mode: 'MANUAL' },
@@ -40,9 +44,21 @@ export function OrganizerCompetitionConfigPage() {
       const { data, error } = await supabase.from('competitions').select('*').eq('id', id).maybeSingle();
       if (error || !data) { if (active) setLoading(false); return; }
       const existing = await getCompetitionConfig(id);
+      const { count: questionCount } = await supabase
+        .from('questions')
+        .select('id', { count: 'exact', head: true })
+        .eq('competition_id', id)
+        .eq('status', 'PUBLISHED');
       if (!active) return;
+      const savedExamConfig = data.config && typeof data.config === 'object'
+        ? data.config as Record<string, unknown>
+        : {};
       setCompetition(data);
       setParticipantMode(String(data.participant_mode || 'INDIVIDUAL'));
+      setDurationMinutes(String(Math.max(1, Math.min(1440, Number(savedExamConfig.duration_minutes ?? 60) || 60))));
+      setRandomizeQuestions(String(savedExamConfig.linear_exam_randomize_questions ?? 'false').toLowerCase() === 'true');
+      setRandomizeOptions(String(savedExamConfig.linear_exam_randomize_options ?? 'false').toLowerCase() === 'true');
+      setPublishedQuestionCount(questionCount ?? 0);
       setForm((current) => ({
         ...current,
         level: existing.level ? {
@@ -69,6 +85,15 @@ export function OrganizerCompetitionConfigPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!id) return;
+    const duration = Number(durationMinutes);
+    if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
+      toast.error('Durasi ujian harus 1 sampai 1.440 menit.');
+      return;
+    }
+    if (duration * 60 < publishedQuestionCount) {
+      toast.error(`Durasi terlalu singkat: ${publishedQuestionCount} soal membutuhkan minimal ${Math.ceil(publishedQuestionCount / 60)} menit.`);
+      return;
+    }
     setSaving(true);
     try {
       await saveCompetitionConfig(id, {
@@ -76,7 +101,20 @@ export function OrganizerCompetitionConfigPage() {
         level: { ...form.level, allowed_grades: form.level.allowed_grades },
         registration_rule: { ...form.registration_rule, allowed_grades: form.registration_rule.allowed_grades },
       });
-      const { error } = await supabase.from('competitions').update({ participant_mode: participantMode }).eq('id', id);
+      const currentConfig = competition?.config && typeof competition.config === 'object'
+        ? competition.config as Record<string, unknown>
+        : {};
+      const { error } = await supabase.from('competitions').update({
+        participant_mode: participantMode,
+        config: {
+          ...currentConfig,
+          duration_minutes: duration,
+          linear_exam_decision_seconds: 30,
+          linear_exam_grace_seconds: 30,
+          linear_exam_randomize_questions: randomizeQuestions,
+          linear_exam_randomize_options: randomizeOptions,
+        },
+      }).eq('id', id);
       if (error) throw error;
       toast.success('Konfigurasi lomba berhasil disimpan.');
       navigate('/organizer');
@@ -93,6 +131,25 @@ export function OrganizerCompetitionConfigPage() {
       <Link to="/organizer" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-fg mb-5"><ArrowLeft size={16}/> Kembali ke Organizer</Link>
       <div className="flex items-start justify-between gap-4 mb-6"><div><p className="text-xs text-accent uppercase tracking-wider">Competition Builder</p><h1 className="font-display text-2xl md:text-3xl font-bold text-fg">{competition.title}</h1><p className="text-sm text-slate-500 mt-1">Konfigurasi live ke Supabase</p></div><div className="flex flex-wrap items-center gap-2"><Badge color="moss">{competition.status}</Badge><Link to={`/organizer/competition/${competition.id}/exam-monitor`}><Button type="button" variant="outline" icon={<Activity size={15}/>}>Pantau Ujian</Button></Link></div></div>
       <form onSubmit={submit} className="space-y-5">
+        <Card className="p-5">
+          <div className="mb-2 flex items-center gap-2 text-fg font-semibold"><Clock3 size={18} className="text-accent"/> Durasi & Pengacakan Ujian</div>
+          <p className="mb-4 text-xs text-fg-muted">Waktu total dibagi ke soal yang dipublikasikan. Sisa waktu ketika peserta menjawab lebih cepat otomatis menjadi tambahan waktu untuk soal berikutnya. Timer diputuskan server, bukan jam browser.</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="linear-exam-duration">Durasi total (menit)</label>
+              <input id="linear-exam-duration" className="input" type="number" min="1" max="1440" step="1" inputMode="numeric" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} />
+              <p className="mt-1 text-xs text-fg-muted">{publishedQuestionCount} soal berstatus dipublikasikan. Minimal {Math.max(1, Math.ceil(publishedQuestionCount / 60))} menit untuk pembagian sekurangnya 1 detik per soal.</p>
+            </div>
+            <div className="space-y-3">
+              <Toggle label="Acak urutan soal untuk tiap attempt" checked={randomizeQuestions} onChange={setRandomizeQuestions}/>
+              <Toggle label="Acak urutan opsi jawaban" checked={randomizeOptions} onChange={setRandomizeOptions}/>
+            </div>
+          </div>
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-accent/20 bg-accent/5 p-3 text-xs text-fg-secondary">
+            <Shuffle size={16} className="mt-0.5 shrink-0 text-accent"/>
+            <span>Setiap attempt menyimpan snapshot soal dan kunci penilaian di backend. Peserta hanya menerima soal aktif. Waktu memilih perpanjangan dan waktu tambahan masing-masing 30 detik.</span>
+          </div>
+        </Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-2 text-fg font-semibold"><UserRound size={18} className="text-accent"/> Mode Peserta</div><p className="text-xs text-fg-muted mb-4">Tentukan apakah lomba ini menerima akun peserta individual atau peserta kolektif.</p><div className="grid gap-3">{participantModes.map((mode)=><button key={mode.value} type="button" onClick={()=>setParticipantMode(mode.value)} className={`w-full text-left rounded-xl border p-4 transition ${participantMode===mode.value?'border-accent bg-accent/5':'border-border hover:border-accent/40'}`}><div className="flex items-center gap-3"><div className={`w-4 h-4 rounded-full border-2 ${participantMode===mode.value?'border-accent bg-accent':'border-fg-muted'}`} /><div><p className="font-semibold text-fg">{mode.label}</p><p className="text-xs text-fg-muted mt-1">{mode.description}</p></div></div></button>)}</div></Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Trophy size={18} className="text-accent"/> Level & Eligibility</div><div className="grid md:grid-cols-2 gap-4"><Input label="Kode level" value={form.level.code} onChange={(v)=>updateLevel('code',v)}/><Input label="Label level" value={form.level.label} onChange={(v)=>updateLevel('label',v)}/><Input label="Points dasar" type="number" value={String(form.level.points)} onChange={(v)=>updateLevel('points',Number(v||0))}/></div><div className="mt-4"><label className="label">Jenjang yang diizinkan</label><div className="flex flex-wrap gap-2">{grades.map(g=><button type="button" key={g} onClick={()=>updateLevel('allowed_grades',toggleGrade(form.level.allowed_grades,g))} className={`px-3 py-2 rounded-lg border text-sm ${form.level.allowed_grades.includes(g)?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-slate-500'}`}>{g.toUpperCase()}</button>)}</div></div></Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><CalendarDays size={18} className="text-accent"/> Timeline</div><div className="grid md:grid-cols-2 gap-4"><Input label="Pendaftaran mulai" type="datetime-local" value={(form.level.registration_starts_at||'').slice(0,16)} onChange={(v)=>updateLevel('registration_starts_at',v)}/><Input label="Pendaftaran berakhir" type="datetime-local" value={(form.level.registration_ends_at||'').slice(0,16)} onChange={(v)=>updateLevel('registration_ends_at',v)}/><Input label="Kompetisi mulai" type="datetime-local" value={(form.level.starts_at||'').slice(0,16)} onChange={(v)=>updateLevel('starts_at',v)}/><Input label="Kompetisi berakhir" type="datetime-local" value={(form.level.ends_at||'').slice(0,16)} onChange={(v)=>updateLevel('ends_at',v)}/><Input label="Pengumuman" type="datetime-local" value={(form.level.announcement_at||'').slice(0,16)} onChange={(v)=>updateLevel('announcement_at',v)}/></div></Card>
