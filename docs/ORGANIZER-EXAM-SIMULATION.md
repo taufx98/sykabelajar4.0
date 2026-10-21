@@ -27,7 +27,7 @@ Tidak ada tabel khusus simulasi. Migration menambahkan `attempts.is_preview` dan
 - `src/services/linearExam.service.ts`
 - `src/services/manualGrading.service.ts`
 - `supabase/migrations/20261021140005_organizer_exam_simulation_same_tables.sql`
-- `supabase/migrations/20261021150000_competition_question_bank_exam_source.sql`
+- `supabase/migrations/20261021142059_competition_question_bank_exam_source.sql`
 
 ## Verifikasi
 Build/CI tetap wajib berjalan setelah PR dibuat. Setelah migration diterapkan dan frontend dideploy, uji lomba Draft: simulasi, refresh, timeout, laporan, ulangi simulasi, pastikan status masih Draft; lalu uji Release terpisah dan pastikan status menjadi PUBLISHED. Periksa tidak ada XP, reward, antrean grading, atau hasil resmi yang berasal dari simulasi.
