@@ -1,6 +1,6 @@
 import { toast } from "@/lib/toast";
 import { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award, UserRound, Activity, Clock3, Shuffle, FlaskConical, Rocket } from 'lucide-react';
+import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award, UserRound, Activity, Clock3, Shuffle, FlaskConical, Rocket, BookOpen } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -25,6 +25,8 @@ export function OrganizerCompetitionConfigPage() {
   const [participantMode, setParticipantMode] = useState('INDIVIDUAL');
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [publishedQuestionCount, setPublishedQuestionCount] = useState(0);
+  const [questionBanks, setQuestionBanks] = useState<Array<{ id: string; name: string; status: string }>>([]);
+  const [questionBankId, setQuestionBankId] = useState('');
   const [randomizeQuestions, setRandomizeQuestions] = useState(false);
   const [randomizeOptions, setRandomizeOptions] = useState(false);
   const [form, setForm] = useState<CompetitionConfigInput>({
@@ -44,12 +46,14 @@ export function OrganizerCompetitionConfigPage() {
       if (!id) return;
       const { data, error } = await supabase.from('competitions').select('*').eq('id', id).maybeSingle();
       if (error || !data) { if (active) setLoading(false); return; }
-      const existing = await getCompetitionConfig(id);
-      const { count: questionCount } = await supabase
-        .from('questions')
-        .select('id', { count: 'exact', head: true })
-        .eq('competition_id', id)
-        .eq('status', 'PUBLISHED');
+      const [existing, { data: bankRows, error: bankError }] = await Promise.all([
+        getCompetitionConfig(id),
+        supabase.from('question_banks')
+          .select('id,name,status')
+          .eq('organizer_id', data.organizer_id)
+          .order('created_at', { ascending: false }),
+      ]);
+      if (bankError) throw bankError;
       if (!active) return;
       const savedExamConfig = data.config && typeof data.config === 'object'
         ? data.config as Record<string, unknown>
@@ -59,7 +63,12 @@ export function OrganizerCompetitionConfigPage() {
       setDurationMinutes(String(Math.max(1, Math.min(1440, Number(savedExamConfig.duration_minutes ?? 60) || 60))));
       setRandomizeQuestions(String(savedExamConfig.linear_exam_randomize_questions ?? 'false').toLowerCase() === 'true');
       setRandomizeOptions(String(savedExamConfig.linear_exam_randomize_options ?? 'false').toLowerCase() === 'true');
-      setPublishedQuestionCount(questionCount ?? 0);
+      const availableBanks = (bankRows ?? []).map((bank: any) => ({
+        id: String(bank.id), name: String(bank.name), status: String(bank.status ?? 'DRAFT'),
+      }));
+      setQuestionBanks(availableBanks);
+      const configuredBank = String(data.question_bank_id ?? '');
+      setQuestionBankId(configuredBank || (availableBanks.length === 1 ? availableBanks[0].id : ''));
       setForm((current) => ({
         ...current,
         level: existing.level ? {
@@ -77,6 +86,33 @@ export function OrganizerCompetitionConfigPage() {
     })();
     return () => { active = false; };
   }, [id]);
+
+  useEffect(() => {
+    let active = true;
+    if (!id) return () => { active = false; };
+    void (async () => {
+      const { count: directCount, error: directError } = await supabase
+        .from('questions')
+        .select('id', { count: 'exact', head: true })
+        .eq('competition_id', id)
+        .eq('status', 'PUBLISHED');
+      if (directError) { if (active) setPublishedQuestionCount(0); return; }
+
+      let bankCount = 0;
+      if (questionBankId) {
+        const { count, error } = await supabase
+          .from('questions')
+          .select('id', { count: 'exact', head: true })
+          .eq('question_bank_id', questionBankId)
+          .is('competition_id', null)
+          .eq('status', 'PUBLISHED');
+        if (error) { if (active) setPublishedQuestionCount(directCount ?? 0); return; }
+        bankCount = count ?? 0;
+      }
+      if (active) setPublishedQuestionCount((directCount ?? 0) + bankCount);
+    })();
+    return () => { active = false; };
+  }, [id, questionBankId]);
 
   const updateLevel = (key: string, value: any) => setForm((x) => ({ ...x, level: { ...x.level, [key]: value } }));
   const updateRule = (key: string, value: any) => setForm((x) => ({ ...x, registration_rule: { ...x.registration_rule, [key]: value } }));
@@ -111,6 +147,7 @@ export function OrganizerCompetitionConfigPage() {
         : {};
       const { error } = await supabase.from('competitions').update({
         participant_mode: participantMode,
+        question_bank_id: questionBankId || null,
         config: {
           ...currentConfig,
           duration_minutes: duration,
@@ -191,6 +228,17 @@ export function OrganizerCompetitionConfigPage() {
             <Shuffle size={16} className="mt-0.5 shrink-0 text-accent"/>
             <span>Setiap attempt menyimpan snapshot soal dan kunci penilaian di backend. Peserta hanya menerima soal aktif. Waktu memilih perpanjangan dan waktu tambahan masing-masing 30 detik.</span>
           </div>
+        </Card>
+        <Card className="p-5">
+          <div className="mb-2 flex items-center gap-2 text-fg font-semibold"><BookOpen size={18} className="text-accent"/> Sumber Soal</div>
+          <p className="mb-4 text-xs text-fg-muted">Pilih bank soal penyelenggara yang akan digunakan lomba ini. Soal berstatus PUBLISHED yang masih berada di bank akan dipakai sebagai snapshot ujian; soal asli tetap tersimpan di bank.</p>
+          <label className="label" htmlFor="competition-question-bank">Bank soal</label>
+          <select id="competition-question-bank" className="input mt-1" value={questionBankId} onChange={(event) => setQuestionBankId(event.target.value)} disabled={saving}>
+            <option value="">Hanya soal yang terhubung langsung ke lomba</option>
+            {questionBanks.map((bank) => <option key={bank.id} value={bank.id}>{bank.name}{bank.status === 'DRAFT' ? ' · Draft bank' : ''}</option>)}
+          </select>
+          <p className="mt-2 text-xs text-fg-muted">{publishedQuestionCount} soal berstatus dipublikasikan dari sumber yang dipilih.</p>
+          {!questionBanks.length && <p className="mt-2 text-xs text-amber-300">Belum ada bank soal untuk organisasi ini. Buat bank soal terlebih dahulu, atau hubungkan soal langsung ke lomba.</p>}
         </Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-2 text-fg font-semibold"><UserRound size={18} className="text-accent"/> Mode Peserta</div><p className="text-xs text-fg-muted mb-4">Tentukan apakah lomba ini menerima akun peserta individual atau peserta kolektif.</p><div className="grid gap-3">{participantModes.map((mode)=><button key={mode.value} type="button" onClick={()=>setParticipantMode(mode.value)} className={`w-full text-left rounded-xl border p-4 transition ${participantMode===mode.value?'border-accent bg-accent/5':'border-border hover:border-accent/40'}`}><div className="flex items-center gap-3"><div className={`w-4 h-4 rounded-full border-2 ${participantMode===mode.value?'border-accent bg-accent':'border-fg-muted'}`} /><div><p className="font-semibold text-fg">{mode.label}</p><p className="text-xs text-fg-muted mt-1">{mode.description}</p></div></div></button>)}</div></Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Trophy size={18} className="text-accent"/> Level & Eligibility</div><div className="grid md:grid-cols-2 gap-4"><Input label="Kode level" value={form.level.code} onChange={(v)=>updateLevel('code',v)}/><Input label="Label level" value={form.level.label} onChange={(v)=>updateLevel('label',v)}/><Input label="Points dasar" type="number" value={String(form.level.points)} onChange={(v)=>updateLevel('points',Number(v||0))}/></div><div className="mt-4"><label className="label">Jenjang yang diizinkan</label><div className="flex flex-wrap gap-2">{grades.map(g=><button type="button" key={g} onClick={()=>updateLevel('allowed_grades',toggleGrade(form.level.allowed_grades,g))} className={`px-3 py-2 rounded-lg border text-sm ${form.level.allowed_grades.includes(g)?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-slate-500'}`}>{g.toUpperCase()}</button>)}</div></div></Card>
