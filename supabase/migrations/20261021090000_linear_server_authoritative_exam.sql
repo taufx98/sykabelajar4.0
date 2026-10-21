@@ -266,6 +266,11 @@ begin
     'decision_deadline', v_question.decision_deadline,
     'grace_deadline', v_question.grace_deadline,
     'grace_kind', v_runtime.grace_kind,
+    'can_borrow', case when v_runtime.current_position < v_runtime.question_count then exists (
+      select 1 from public.exam_attempt_questions next_q
+      where next_q.attempt_id = p_attempt_id and next_q.position = v_runtime.current_position + 1
+        and next_q.base_seconds + next_q.time_credit_seconds - next_q.borrowed_from_previous_seconds >= 60
+    ) else false end,
     'time_bank_seconds', v_runtime.time_bank_seconds,
     'global_deadline', v_runtime.global_deadline,
     'answer', coalesce(v_answer, '{}'::jsonb),
@@ -791,7 +796,7 @@ begin
 end;
 $$;
 
-create or replace function public.save_linear_exam_draft(p_attempt_id uuid, p_answer_json jsonb)
+create or replace function public.save_linear_exam_draft(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -815,6 +820,7 @@ begin
   from public.exam_attempt_questions
   where attempt_id = p_attempt_id and position = v_runtime.current_position
   for update;
+  if v_question.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if v_runtime.phase = 'ACTIVE' and (v_question.question_deadline is null or v_now >= v_question.question_deadline) then raise exception 'QUESTION_TIMEOUT'; end if;
   if v_runtime.phase = 'GRACE' and (v_question.grace_deadline is null or v_now >= v_question.grace_deadline) then raise exception 'QUESTION_TIMEOUT'; end if;
   if jsonb_typeof(coalesce(p_answer_json, '{}'::jsonb)) <> 'object' or pg_column_size(coalesce(p_answer_json, '{}'::jsonb)) > 50000 then raise exception 'INVALID_ANSWER_PAYLOAD'; end if;
@@ -839,6 +845,7 @@ $$;
 
 create or replace function public.answer_linear_exam_question(
   p_attempt_id uuid,
+  p_question_id uuid,
   p_answer_json jsonb,
   p_skip boolean default false
 )
@@ -1090,6 +1097,7 @@ $$;
 create or replace function public.save_collective_linear_exam_draft(
   p_attempt_id uuid,
   p_access_token text,
+  p_question_id uuid,
   p_answer_json jsonb
 )
 returns jsonb
@@ -1110,6 +1118,7 @@ begin
   if v_runtime.phase='COMPLETED' or v_attempt.status<>'IN_PROGRESS' then raise exception 'EXAM_NOT_ACTIVE'; end if;
   if v_runtime.phase not in ('ACTIVE','GRACE') then raise exception 'QUESTION_NOT_ANSWERABLE'; end if;
   select * into v_question from public.exam_attempt_questions where attempt_id=p_attempt_id and position=v_runtime.current_position for update;
+  if v_question.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if (v_runtime.phase='ACTIVE' and (v_question.question_deadline is null or v_now>=v_question.question_deadline))
      or (v_runtime.phase='GRACE' and (v_question.grace_deadline is null or v_now>=v_question.grace_deadline)) then
     raise exception 'QUESTION_TIMEOUT';
@@ -1136,6 +1145,7 @@ $$;
 create or replace function public.answer_collective_linear_exam_question(
   p_attempt_id uuid,
   p_access_token text,
+  p_question_id uuid,
   p_answer_json jsonb,
   p_skip boolean default false
 )
@@ -1160,6 +1170,7 @@ begin
   if v_runtime.phase='COMPLETED' or v_attempt.status<>'IN_PROGRESS' then return private.build_linear_exam_state(p_attempt_id); end if;
   if v_runtime.phase not in ('ACTIVE','GRACE') then return private.build_linear_exam_state(p_attempt_id); end if;
   select * into v_question from public.exam_attempt_questions where attempt_id=p_attempt_id and position=v_runtime.current_position for update;
+  if v_question.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if (v_runtime.phase='ACTIVE' and (v_question.question_deadline is null or v_now>=v_question.question_deadline))
      or (v_runtime.phase='GRACE' and (v_question.grace_deadline is null or v_now>=v_question.grace_deadline)) then
     perform private.resolve_linear_exam_timeouts(p_attempt_id,v_now);
@@ -1421,15 +1432,15 @@ revoke all on function private.assert_collective_linear_exam_access(uuid,text) f
 
 revoke all on function public.start_linear_exam_attempt(uuid) from public, anon, authenticated;
 revoke all on function public.get_linear_exam_state(uuid) from public, anon, authenticated;
-revoke all on function public.save_linear_exam_draft(uuid,jsonb) from public, anon, authenticated;
-revoke all on function public.answer_linear_exam_question(uuid,jsonb,boolean) from public, anon, authenticated;
+revoke all on function public.save_linear_exam_draft(uuid,uuid,jsonb) from public, anon, authenticated;
+revoke all on function public.answer_linear_exam_question(uuid,uuid,jsonb,boolean) from public, anon, authenticated;
 revoke all on function public.choose_linear_exam_timeout(uuid,text) from public, anon, authenticated;
 revoke all on function public.skip_linear_exam_question(uuid) from public, anon, authenticated;
 revoke all on function public.resolve_linear_exam_timeout(uuid) from public, anon, authenticated;
 revoke all on function public.start_collective_linear_exam_attempt(uuid,text) from public, anon, authenticated;
 revoke all on function public.get_collective_linear_exam_state(uuid,text) from public, anon, authenticated;
-revoke all on function public.save_collective_linear_exam_draft(uuid,text,jsonb) from public, anon, authenticated;
-revoke all on function public.answer_collective_linear_exam_question(uuid,text,jsonb,boolean) from public, anon, authenticated;
+revoke all on function public.save_collective_linear_exam_draft(uuid,text,uuid,jsonb) from public, anon, authenticated;
+revoke all on function public.answer_collective_linear_exam_question(uuid,text,uuid,jsonb,boolean) from public, anon, authenticated;
 revoke all on function public.choose_collective_linear_exam_timeout(uuid,text,text) from public, anon, authenticated;
 revoke all on function public.resolve_collective_linear_exam_timeout(uuid,text) from public, anon, authenticated;
 revoke all on function public.skip_collective_linear_exam_question(uuid,text) from public, anon, authenticated;
@@ -1437,16 +1448,16 @@ revoke all on function public.get_linear_exam_activity(uuid) from public, anon, 
 
 grant execute on function public.start_linear_exam_attempt(uuid) to authenticated;
 grant execute on function public.get_linear_exam_state(uuid) to authenticated;
-grant execute on function public.save_linear_exam_draft(uuid,jsonb) to authenticated;
-grant execute on function public.answer_linear_exam_question(uuid,jsonb,boolean) to authenticated;
+grant execute on function public.save_linear_exam_draft(uuid,uuid,jsonb) to authenticated;
+grant execute on function public.answer_linear_exam_question(uuid,uuid,jsonb,boolean) to authenticated;
 grant execute on function public.choose_linear_exam_timeout(uuid,text) to authenticated;
 grant execute on function public.skip_linear_exam_question(uuid) to authenticated;
 grant execute on function public.resolve_linear_exam_timeout(uuid) to authenticated;
 
 grant execute on function public.start_collective_linear_exam_attempt(uuid,text) to anon, authenticated;
 grant execute on function public.get_collective_linear_exam_state(uuid,text) to anon, authenticated;
-grant execute on function public.save_collective_linear_exam_draft(uuid,text,jsonb) to anon, authenticated;
-grant execute on function public.answer_collective_linear_exam_question(uuid,text,jsonb,boolean) to anon, authenticated;
+grant execute on function public.save_collective_linear_exam_draft(uuid,text,uuid,jsonb) to anon, authenticated;
+grant execute on function public.answer_collective_linear_exam_question(uuid,text,uuid,jsonb,boolean) to anon, authenticated;
 grant execute on function public.choose_collective_linear_exam_timeout(uuid,text,text) to anon, authenticated;
 grant execute on function public.resolve_collective_linear_exam_timeout(uuid,text) to anon, authenticated;
 grant execute on function public.skip_collective_linear_exam_question(uuid,text) to anon, authenticated;
