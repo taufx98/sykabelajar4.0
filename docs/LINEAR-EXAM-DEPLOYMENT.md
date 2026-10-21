@@ -11,7 +11,7 @@ Tujuan: memasang UI dan backend ujian satu-soal-per-request tanpa memutus UI uji
 
 ## Urutan deployment wajib
 
-1. **Phase 1 — backend additive.** Buka `supabase/migrations/20261021090000_linear_server_authoritative_exam.sql` pada branch PR #47 dan jalankan seluruh SQL-nya pada SQL Editor project Supabase production yang benar. Phase ini membuat snapshot soal, timer server, RPC baru, audit event, dan proteksi perubahan soal; jalur lama belum dicabut.
+1. **Phase 1 — backend additive.** Buka `supabase/migrations/20261021121831_linear_server_authoritative_exam_phase1.sql` pada branch PR #47 dan jalankan seluruh SQL-nya pada SQL Editor project Supabase production yang benar. Phase ini membuat snapshot soal, timer server, RPC baru, audit event, dan proteksi perubahan soal; jalur lama belum dicabut.
 2. **Deploy frontend baru.** Setelah phase 1 berhasil, merge/deploy PR #47 sehingga halaman individual dan kolektif memakai RPC linear yang baru. Jangan mulai ujian live untuk peserta sebelum CI hijau dan build baru aktif.
 3. **Verifikasi smoke test.** Gunakan lomba uji dengan akun uji: mulai attempt, jawab dan lanjut, biarkan timer habis, cek pilihan 30 detik, cek auto-skip, lalu buka tombol **Pantau Ujian** dari konfigurasi lomba. Pastikan peserta tidak menerima nilai/skor pada layar selesai.
 4. **Phase 2 — lockdown.** Setelah frontend baru terbukti aktif, jalankan seluruh SQL dari `supabase/manual/linear_exam_security_lockdown.sql` lewat SQL Editor. Ini menutup RPC lama, melarang baca semua soal melalui table API, membatasi baca skor attempt peserta, serta membuang jalur tulis jawaban langsung.
