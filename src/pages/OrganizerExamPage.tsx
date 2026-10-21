@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Activity, Clock3, RefreshCw, Save, ShieldCheck, Shuffle, Users } from 'lucide-react';
+import { Activity, ArrowLeft, Clock3, RefreshCw, Save, ShieldCheck, Shuffle, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
