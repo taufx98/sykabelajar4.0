@@ -128,7 +128,7 @@ export function CollectiveParticipantWorkPage() {
     saveTimer.current = window.setTimeout(async () => {
       setSaving(true);
       try {
-        const next = await saveSecureExamAnswer(exam.attempt_id, competitionId, draft, accessToken);
+        const next = await saveSecureExamAnswer(exam.attempt_id, competitionId, exam.question.id, draft, accessToken);
         acceptState(next, false);
       } catch (e: any) {
         toast.error(e?.message || 'Jawaban belum tersimpan. Coba lagi sebelum berpindah soal.');
@@ -165,16 +165,16 @@ export function CollectiveParticipantWorkPage() {
   const submitCurrent = async () => {
     if (!exam || busy || answerLock.current) return;
     answerLock.current = true;
-    await runAction(() => answerAndAdvanceSecureExam(exam.attempt_id, competitionId, draft, accessToken),
+    await runAction(() => answerAndAdvanceSecureExam(exam.attempt_id, competitionId, exam.question!.id, draft, accessToken),
       exam.position >= exam.total_questions ? 'Jawaban dikirim ke server.' : 'Jawaban diterima. Beralih ke soal selanjutnya.');
   };
   const skipCurrent = () => {
     if (!exam) return;
-    void runAction(() => skipSecureExamQuestion(exam.attempt_id, competitionId, accessToken), 'Soal dilewati dan dicatat.');
+    void runAction(() => skipSecureExamQuestion(exam.attempt_id, competitionId, exam.question!.id, accessToken), 'Soal dilewati dan dicatat.');
   };
   const resolveTimeout = (action: 'borrow' | 'grace' | 'skip') => {
     if (!exam) return;
-    void runAction(() => resolveSecureExamTimeout(exam.attempt_id, competitionId, action, accessToken),
+    void runAction(() => resolveSecureExamTimeout(exam.attempt_id, competitionId, exam.question!.id, action, accessToken),
       action === 'borrow' ? '30 detik dipinjam dari soal berikutnya.' : action === 'grace' ? 'Waktu tambahan digunakan.' : 'Soal dilewati.');
   };
   const uploadAnswerFile = async (file: File) => {
@@ -184,7 +184,7 @@ export function CollectiveParticipantWorkPage() {
       const result = await uploadRawFile(file, 'sykabelajar/answers/' + exam.attempt_id);
       const answer = { type: 'file', url: result.secure_url, public_id: result.public_id, resource_type: result.resource_type ?? 'raw', file_name: file.name };
       setDraft(answer);
-      acceptState(await saveSecureExamAnswer(exam.attempt_id, competitionId, answer, accessToken), false);
+      acceptState(await saveSecureExamAnswer(exam.attempt_id, competitionId, exam.question!.id, answer, accessToken), false);
       toast.success('Berkas jawaban tersimpan.');
     } catch (e: any) {
       toast.error(e?.message || 'Berkas jawaban gagal disimpan.');
@@ -257,7 +257,7 @@ export function CollectiveParticipantWorkPage() {
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 mt-7 pt-5 border-t border-border">
           <p className="text-xs text-fg-muted">{saving?'Menyimpan ke server…':'Soal terdahulu terkunci. Jawaban yang melewati batas waktu tidak dapat diubah.'}</p>
-          <div className="flex gap-2 justify-end"><Button variant="ghost" disabled={busy||!canEdit} onClick={skipCurrent} icon={<SkipForward size={16}/>}>Lewati</Button><Button loading={busy} disabled={!canEdit||busy} onClick={() => void submitCurrent()} icon={<ArrowRight size={16}/>}>Jawab & lanjut</Button></div>
+          <div className="flex gap-2 justify-end"><Button variant="ghost" disabled={busy||saving||!canEdit} onClick={skipCurrent} icon={<SkipForward size={16}/>}>Lewati</Button><Button loading={busy} disabled={!canEdit||busy||saving} onClick={() => void submitCurrent()} icon={<ArrowRight size={16}/>}>Jawab & lanjut</Button></div>
         </div>
       </Card> : <Card className="p-7 text-center"><Loader2 className="animate-spin mx-auto mb-3" size={24}/><p className="text-sm">Menyinkronkan status ujian dengan server…</p></Card>}
 
