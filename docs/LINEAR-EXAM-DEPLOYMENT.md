@@ -6,7 +6,8 @@ Tujuan: memasang UI dan backend ujian satu-soal-per-request tanpa memutus UI uji
 
 - Migration phase 1 dan skrip lockdown phase 2 telah diuji sebagai satu transaksi SQL lalu di-`ROLLBACK`.
 - Migration Phase 1 sudah diterapkan ke production Supabase project `mvdczyitbkxkldjughor` dan tercatat sebagai `20261021121831 / linear_server_authoritative_exam_phase1`.
-- Migration kompatibilitas grading juga sudah diterapkan sebagai `20261021122452 / linear_exam_preserve_grading_compat`; ini mempertahankan Premium AI essay grading, accepted answers lama, dan XP otomatis.
+- Migration kompatibilitas grading sudah diterapkan sebagai `20261021122452 / linear_exam_preserve_grading_compat`; ini mempertahankan Premium AI essay grading, accepted answers lama, dan XP otomatis.
+- Migration hotfix penyelesaian attempt `20261021124911 / fix_linear_exam_completion_status_enum` telah memperbaiki cast enum status yang ditemukan oleh uji integrasi.
 - Verifikasi production memastikan tiga tabel engine ada, RPC baru memiliki izin eksekusi, jalur legacy tetap punya izin, dan saat dicek tidak ada attempt `IN_PROGRESS`.
 - Lockdown Phase 2 **belum diterapkan**. Uji CI untuk commit terakhir sebelum rename migration lulus; commit rename ini menjalankan CI ulang.
 - Skrip phase 2 sengaja berada di `supabase/manual/`, bukan `supabase/migrations/`, agar tidak ikut dijalankan otomatis bersamaan dengan migration additive.
