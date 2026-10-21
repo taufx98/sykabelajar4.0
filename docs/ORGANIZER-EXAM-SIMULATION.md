@@ -1,10 +1,11 @@
 # Mode Simulasi Penyelenggara — SYKABELAJAR 4.0
 
 ## Alur produk
-Buat soal → pilih **Simulasi** atau **Release** → jika Release lolos validasi server, status lomba menjadi `PUBLISHED`. Simulasi opsional dan tidak mengubah status lomba.
+Buat soal di bank → buka konfigurasi lomba → pilih **Sumber Soal** → pilih **Simulasi** untuk tes atau **Release** untuk menerbitkan lomba. Jika hanya ada satu bank milik penyelenggara, bank itu dipilih otomatis. Jika Release lolos validasi server, status lomba menjadi `PUBLISHED`. Simulasi opsional dan tidak mengubah status lomba.
 
 ## Ketentuan UX
 - Simulasi menggunakan komponen `LinearExamRoom` yang sama persis dengan peserta.
+- Lomba dapat menggunakan soal yang ditautkan langsung melalui `questions.competition_id` atau soal `PUBLISHED` yang masih berada pada bank yang dipilih melalui `competitions.question_bank_id`. Pertanyaan bank tidak dipindah; attempt menyimpan snapshot per sesi.
 - Timer, autosave, one-question flow, penguncian jawaban, timeout, grace window, dan transisi soal tetap dikendalikan oleh RPC linear backend yang sama.
 - Sesudah sesi selesai, penyelenggara diarahkan ke laporan khusus simulasi untuk memeriksa jawaban, kunci, dan nilai otomatis sementara.
 
@@ -26,6 +27,7 @@ Tidak ada tabel khusus simulasi. Migration menambahkan `attempts.is_preview` dan
 - `src/services/linearExam.service.ts`
 - `src/services/manualGrading.service.ts`
 - `supabase/migrations/20261021140005_organizer_exam_simulation_same_tables.sql`
+- `supabase/migrations/20261021150000_competition_question_bank_exam_source.sql`
 
 ## Verifikasi
 Build/CI tetap wajib berjalan setelah PR dibuat. Setelah migration diterapkan dan frontend dideploy, uji lomba Draft: simulasi, refresh, timeout, laporan, ulangi simulasi, pastikan status masih Draft; lalu uji Release terpisah dan pastikan status menjadi PUBLISHED. Periksa tidak ada XP, reward, antrean grading, atau hasil resmi yang berasal dari simulasi.
