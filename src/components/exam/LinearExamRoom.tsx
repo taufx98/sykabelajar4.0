@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, Clock3, FileText, Info, Loader2, ShieldCheck, Trophy } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, Clock3, FileText, Info, Loader2, ShieldCheck, SkipForward, Trophy } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -184,11 +184,11 @@ export function LinearExamRoom({ mode, title, subtitle, participantName, accessT
     }
   };
 
-  const finishQuestion = async () => {
+  const finishQuestion = async (skip = false) => {
     const current = stateRef.current;
     const currentQuestion = current.question;
     if (!currentQuestion || busyRef.current || current.phase === 'COMPLETED') return;
-    if (clock <= 0) {
+    if (clock <= 0 || totalClock <= 0) {
       await resolveTimeout();
       return;
     }
@@ -197,12 +197,13 @@ export function LinearExamRoom({ mode, title, subtitle, participantName, accessT
     setBusy(true);
     try {
       const next = mode === 'COLLECTIVE'
-        ? await answerCollectiveLinearExamQuestion(current.attempt_id, accessToken, currentQuestion.id, answer)
-        : await answerLinearExamQuestion(current.attempt_id, currentQuestion.id, answer);
+        ? await answerCollectiveLinearExamQuestion(current.attempt_id, accessToken, currentQuestion.id, skip ? {} : answer, skip)
+        : await answerLinearExamQuestion(current.attempt_id, currentQuestion.id, skip ? {} : answer, skip);
+      setAnswer({});
       setServerState(next);
       setSaveState('idle');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Jawaban gagal dikunci.';
+      const message = error instanceof Error ? error.message : skip ? 'Soal gagal dilewati.' : 'Jawaban gagal dikunci.';
       toast(message, 'error');
       if (message.includes('EXAM_QUESTION_CHANGED') || message.includes('QUESTION_TIMEOUT')) await requestState();
     } finally {
@@ -255,7 +256,7 @@ export function LinearExamRoom({ mode, title, subtitle, participantName, accessT
   }
 
   return <div className="fixed inset-0 z-[90] flex h-[100dvh] min-h-screen w-full flex-col overflow-hidden surface-bg text-fg">
-    <header className="z-10 flex shrink-0 flex-col gap-3 border-b border-border bg-card px-4 py-3 sm:min-h-[84px] sm:flex-row sm:items-center sm:justify-between sm:gap-5 sm:px-6 md:px-8">
+    <header className="relative z-10 flex shrink-0 flex-col gap-3 border-b border-border bg-card px-4 py-3 sm:min-h-[84px] sm:flex-row sm:items-center sm:justify-between sm:gap-5 sm:px-6 md:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-500">
           <Trophy size={28} strokeWidth={2.1} />
@@ -266,7 +267,7 @@ export function LinearExamRoom({ mode, title, subtitle, participantName, accessT
         </div>
       </div>
 
-      <div className="order-first flex items-center justify-center sm:order-none sm:flex-1">
+      <div className="order-first flex items-center justify-center sm:absolute sm:left-1/2 sm:top-1/2 sm:order-none sm:-translate-x-1/2 sm:-translate-y-1/2">
         <div className="inline-flex items-center gap-2.5 rounded-full border border-border bg-surface-elevated/30 px-4 py-2 text-xs font-semibold text-fg sm:text-sm">
           <ClipboardList size={19} className="text-accent" />
           <span>Soal {state.position} dari {state.total_questions}</span>
@@ -362,11 +363,14 @@ export function LinearExamRoom({ mode, title, subtitle, participantName, accessT
         <ShieldCheck size={17} className="shrink-0 text-accent" />
         <span>{saveState === 'saving' ? 'Menyimpan jawaban…' : saveState === 'saved' ? 'Draft jawaban tersimpan' : 'Jawaban dikunci satu per satu; soal sebelumnya tidak bisa dibuka lagi.'}</span>
       </div>
-      <Button className="w-full sm:w-auto sm:min-w-[260px]" onClick={() => void finishQuestion()} loading={busy} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0 || !question} icon={<ArrowRight size={17} />}>
-        {state.position === state.total_questions
-          ? (hasAnswer(answer) ? 'Kunci jawaban & selesaikan' : 'Lewati & selesaikan')
-          : (hasAnswer(answer) ? 'Kunci jawaban & selanjutnya' : 'Lewati soal & selanjutnya')}
-      </Button>
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <Button variant="outline" className="w-full sm:w-auto sm:min-w-[150px]" onClick={() => void finishQuestion(true)} loading={busy} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0 || !question} icon={<SkipForward size={16} />}>
+          {state.position === state.total_questions ? 'Lewati & selesaikan' : 'Lewati soal'}
+        </Button>
+        <Button className="w-full sm:w-auto sm:min-w-[250px]" onClick={() => void finishQuestion(false)} loading={busy} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0 || !question || !hasAnswer(answer)} icon={<ArrowRight size={17} />}>
+          {state.position === state.total_questions ? 'Kunci jawaban & selesaikan' : 'Kunci jawaban & selanjutnya'}
+        </Button>
+      </div>
     </footer>
   </div>;
 }
