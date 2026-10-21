@@ -24,6 +24,7 @@ type RoomMode = 'INDIVIDUAL' | 'COLLECTIVE' | 'PREVIEW';
 type Props = {
   mode: RoomMode;
   title: string;
+  subtitle?: string;
   participantName?: string;
   accessToken?: string;
   initialState: LinearExamState;
@@ -33,6 +34,14 @@ type Props = {
 function formatTime(total: number) {
   const value = Math.max(0, total);
   return `${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
+}
+function formatTotalTime(total: number) {
+  const value = Math.max(0, total);
+  if (value < 3600) return formatTime(value);
+  const hours = Math.floor(value / 3600).toString().padStart(2, '0');
+  const minutes = Math.floor((value % 3600) / 60).toString().padStart(2, '0');
+  const seconds = (value % 60).toString().padStart(2, '0');
+  return hours + ':' + minutes + ':' + seconds;
 }
 function phaseDeadline(state: LinearExamState) {
   return state.phase === 'ACTIVE' ? state.question_deadline ?? null : null;
@@ -59,7 +68,7 @@ function hasAnswer(answer: LinearExamAnswer) {
   );
 }
 
-export function LinearExamRoom({ mode, title, participantName, accessToken = '', initialState, finishHref }: Props) {
+export function LinearExamRoom({ mode, title, subtitle, participantName, accessToken = '', initialState, finishHref }: Props) {
   const { toast } = useApp();
   const [state, setState] = useState<LinearExamState>(initialState);
   const [answer, setAnswer] = useState<LinearExamAnswer>(initialState.answer ?? {});
@@ -227,7 +236,7 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
   const normalizedType = question?.type.toLowerCase().replaceAll('-', '_') ?? '';
   const multipleChoice = ['multiple_choice', 'single_choice', 'true_false'].includes(normalizedType);
   const multipleSelect = ['multiple_checkbox', 'multiple_select'].includes(normalizedType);
-  const themeTitle = mode === 'PREVIEW' ? 'Simulasi penyelenggara' : participantName ? 'Peserta: ' + participantName : 'Ruang ujian resmi';
+  const themeTitle = subtitle?.trim() || (mode === 'PREVIEW' ? 'Simulasi penyelenggara' : participantName ? 'Peserta: ' + participantName : 'Ruang ujian resmi');
 
   if (state.phase === 'COMPLETED') {
     return <div className="fixed inset-0 z-[90] flex min-h-screen w-full items-center justify-center overflow-y-auto surface-bg px-4 py-8 text-fg">
@@ -268,7 +277,7 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
         <div className="flex items-center gap-3">
           <Clock3 size={27} className={totalClock <= 60 ? 'text-red-500' : 'text-accent'} strokeWidth={1.9} />
           <div>
-            <p className={'font-mono text-xl font-bold leading-tight tabular-nums sm:text-2xl ' + (totalClock <= 60 ? 'text-red-500' : 'text-fg')} aria-live="off">{formatTime(totalClock)}</p>
+            <p className={'font-mono text-xl font-bold leading-tight tabular-nums sm:text-2xl ' + (totalClock <= 60 ? 'text-red-500' : 'text-fg')} aria-live="off">{formatTotalTime(totalClock)}</p>
             <p className="mt-0.5 text-[11px] text-fg-muted sm:text-xs">Waktu tersisa</p>
           </div>
         </div>
