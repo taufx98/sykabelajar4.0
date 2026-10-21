@@ -26,6 +26,7 @@ create table if not exists public.exam_attempt_questions (
   base_seconds integer not null check (base_seconds >= 1),
   allocated_seconds integer not null default 0 check (allocated_seconds >= 0),
   borrowed_from_previous_seconds integer not null default 0 check (borrowed_from_previous_seconds >= 0),
+  time_credit_seconds integer not null default 0 check (time_credit_seconds >= 0),
   state text not null default 'LOCKED' check (state in ('LOCKED','ACTIVE','TIMEOUT','ANSWERED','SKIPPED')),
   opened_at timestamptz,
   question_deadline timestamptz,
@@ -336,7 +337,11 @@ begin
   for update;
   if not found then raise exception 'EXAM_NEXT_QUESTION_NOT_FOUND'; end if;
 
-  v_allocation := greatest(1, v_next.base_seconds + greatest(0, coalesce(p_time_bank_seconds, 0)) - v_next.borrowed_from_previous_seconds);
+  update public.exam_attempt_questions
+  set time_credit_seconds = time_credit_seconds + greatest(0, coalesce(p_time_bank_seconds, 0))
+  where attempt_id = p_attempt_id and position = v_next_position
+  returning * into v_next;
+  v_allocation := greatest(1, v_next.base_seconds + v_next.time_credit_seconds - v_next.borrowed_from_previous_seconds);
   update public.exam_attempt_questions
   set state = 'ACTIVE',
       allocated_seconds = v_allocation,
@@ -416,7 +421,7 @@ begin
       continue;
     end if;
 
-    v_value := nullif(btrim(coalesce(v_answer->>'value','')), '');
+    v_value := nullif(btrim(coalesce(v_answer->>'value',v_answer->>'text',v_answer->>'url','')), '');
     v_matched := false;
 
     if v_type in ('multiple_choice','single_choice','true_false') then
@@ -816,6 +821,8 @@ begin
   if not (
     nullif(btrim(coalesce(p_answer_json->>'value','')), '') is not null
     or (jsonb_typeof(p_answer_json->'values') = 'array' and jsonb_array_length(p_answer_json->'values') > 0)
+    or nullif(btrim(coalesce(p_answer_json->>'url','')), '') is not null
+    or nullif(btrim(coalesce(p_answer_json->>'text','')), '') is not null
   ) then
     delete from public.answers where attempt_id = p_attempt_id and question_id = v_question.question_id;
   else
@@ -947,7 +954,7 @@ begin
     for update;
     if not found then raise exception 'NO_NEXT_QUESTION_TO_BORROW_FROM'; end if;
 
-    v_next_available := v_next.base_seconds + v_runtime.time_bank_seconds - v_next.borrowed_from_previous_seconds;
+    v_next_available := v_next.base_seconds + v_next.time_credit_seconds - v_next.borrowed_from_previous_seconds;
     if v_next_available < 60 then raise exception 'NEXT_QUESTION_MINIMUM_TIME'; end if;
 
     update public.exam_attempt_questions
@@ -1111,6 +1118,8 @@ begin
   if not (
     nullif(btrim(coalesce(p_answer_json->>'value','')), '') is not null
     or (jsonb_typeof(p_answer_json->'values')='array' and jsonb_array_length(p_answer_json->'values')>0)
+    or nullif(btrim(coalesce(p_answer_json->>'url','')), '') is not null
+    or nullif(btrim(coalesce(p_answer_json->>'text','')), '') is not null
   ) then
     delete from public.answers where attempt_id=p_attempt_id and question_id=v_question.question_id;
   else
@@ -1410,21 +1419,21 @@ revoke all on function private.resolve_linear_exam_timeouts(uuid,timestamptz) fr
 revoke all on function private.assert_individual_linear_exam_access(uuid) from public, anon, authenticated;
 revoke all on function private.assert_collective_linear_exam_access(uuid,text) from public, anon, authenticated;
 
-revoke all on function public.start_linear_exam_attempt(uuid) from public, anon;
-revoke all on function public.get_linear_exam_state(uuid) from public, anon;
-revoke all on function public.save_linear_exam_draft(uuid,jsonb) from public, anon;
-revoke all on function public.answer_linear_exam_question(uuid,jsonb,boolean) from public, anon;
-revoke all on function public.choose_linear_exam_timeout(uuid,text) from public, anon;
-revoke all on function public.skip_linear_exam_question(uuid) from public, anon;
-revoke all on function public.resolve_linear_exam_timeout(uuid) from public, anon;
-revoke all on function public.start_collective_linear_exam_attempt(uuid,text) from public;
-revoke all on function public.get_collective_linear_exam_state(uuid,text) from public;
-revoke all on function public.save_collective_linear_exam_draft(uuid,text,jsonb) from public;
-revoke all on function public.answer_collective_linear_exam_question(uuid,text,jsonb,boolean) from public;
-revoke all on function public.choose_collective_linear_exam_timeout(uuid,text,text) from public;
-revoke all on function public.resolve_collective_linear_exam_timeout(uuid,text) from public;
-revoke all on function public.skip_collective_linear_exam_question(uuid,text) from public;
-revoke all on function public.get_linear_exam_activity(uuid) from public, anon;
+revoke all on function public.start_linear_exam_attempt(uuid) from public, anon, authenticated;
+revoke all on function public.get_linear_exam_state(uuid) from public, anon, authenticated;
+revoke all on function public.save_linear_exam_draft(uuid,jsonb) from public, anon, authenticated;
+revoke all on function public.answer_linear_exam_question(uuid,jsonb,boolean) from public, anon, authenticated;
+revoke all on function public.choose_linear_exam_timeout(uuid,text) from public, anon, authenticated;
+revoke all on function public.skip_linear_exam_question(uuid) from public, anon, authenticated;
+revoke all on function public.resolve_linear_exam_timeout(uuid) from public, anon, authenticated;
+revoke all on function public.start_collective_linear_exam_attempt(uuid,text) from public, anon, authenticated;
+revoke all on function public.get_collective_linear_exam_state(uuid,text) from public, anon, authenticated;
+revoke all on function public.save_collective_linear_exam_draft(uuid,text,jsonb) from public, anon, authenticated;
+revoke all on function public.answer_collective_linear_exam_question(uuid,text,jsonb,boolean) from public, anon, authenticated;
+revoke all on function public.choose_collective_linear_exam_timeout(uuid,text,text) from public, anon, authenticated;
+revoke all on function public.resolve_collective_linear_exam_timeout(uuid,text) from public, anon, authenticated;
+revoke all on function public.skip_collective_linear_exam_question(uuid,text) from public, anon, authenticated;
+revoke all on function public.get_linear_exam_activity(uuid) from public, anon, authenticated;
 
 grant execute on function public.start_linear_exam_attempt(uuid) to authenticated;
 grant execute on function public.get_linear_exam_state(uuid) to authenticated;
