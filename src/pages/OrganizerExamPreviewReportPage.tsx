@@ -6,11 +6,29 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { supabase } from '@/lib/supabase';
 
-function answerText(answer: any): string {
+function answerText(answer: any, question: any, evaluation: any): string {
+  if (typeof evaluation?.answer_text === 'string' && evaluation.answer_text.trim()) return evaluation.answer_text;
   if (!answer || typeof answer !== 'object') return 'Tidak dijawab';
-  if (Array.isArray(answer.values) && answer.values.length) return answer.values.map(String).join(', ');
-  const value = answer.value ?? answer.text ?? answer.url;
-  return typeof value === 'string' && value.trim() ? value : 'Tidak dijawab';
+  const options = Array.isArray(question?.options) ? question.options : [];
+  const labelFor = (value: unknown) => {
+    const raw = String(value ?? '');
+    const option = options.find((item: any) => String(item.id) === raw);
+    if (option) return String(option.label ?? 'Pilihan');
+    return /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(raw) ? 'Pilihan tidak ditemukan' : raw;
+  };
+  if (Array.isArray(answer.values) && answer.values.length) return answer.values.map(labelFor).join(' · ');
+  const value = answer.value ?? answer.text ?? answer.file_name ?? answer.url;
+  return typeof value === 'string' && value.trim() ? labelFor(value) : 'Tidak dijawab';
+}
+
+function resultPresentation(item: any) {
+  const status = String(item?.evaluation?.result_status ?? '');
+  if (status === 'CORRECT') return { label: 'Benar', card: 'border-emerald-500/40 bg-emerald-500/5', badge: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' };
+  if (status === 'INCORRECT') return { label: 'Salah', card: 'border-red-500/40 bg-red-500/5', badge: 'text-red-600 dark:text-red-400 bg-red-500/10' };
+  if (status === 'SKIPPED') return { label: 'Dilewati', card: 'border-border bg-transparent', badge: 'text-fg-muted bg-fg/5' };
+  if (status === 'TIMEOUT') return { label: 'Waktu habis', card: 'border-border bg-transparent', badge: 'text-fg-muted bg-fg/5' };
+  if (status === 'MANUAL_REVIEW') return { label: 'Perlu penilaian', card: 'border-border bg-transparent', badge: 'text-amber-600 dark:text-amber-300 bg-amber-500/10' };
+  return { label: 'Tidak dijawab', card: 'border-border bg-transparent', badge: 'text-fg-muted bg-fg/5' };
 }
 
 function keyText(question: any, key: any): string {
@@ -19,7 +37,7 @@ function keyText(question: any, key: any): string {
   if (ids.length) {
     return ids.map((id: string) => {
       const option = options.find((item: any) => String(item.id) === id);
-      return option ? String(option.label) : id;
+      return option ? String(option.label) : 'Pilihan tidak ditemukan';
     }).join(' · ');
   }
   if (Array.isArray(key?.accepted_answers) && key.accepted_answers.length) return key.accepted_answers.join(' · ');
@@ -75,15 +93,28 @@ export function OrganizerExamPreviewReportPage() {
       <div className="space-y-3">
         {questions.map((item: any) => {
           const q = item.question ?? {};
-          return <Card key={String(item.position)} className="p-4 md:p-5">
+          const presentation = resultPresentation(item);
+          const evaluationStatus = String(item?.evaluation?.result_status ?? '');
+          const showManualReview = evaluationStatus === 'MANUAL_REVIEW' || Boolean(item.manual_review_required);
+          return <Card key={String(item.position)} className={`p-4 md:p-5 border ${presentation.card}`}>
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-sm font-bold text-accent">{item.position}</div>
               <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2"><Badge>{item.state === 'ANSWERED' ? 'Dijawab' : item.state === 'TIMEOUT' ? 'Timeout' : item.state === 'SKIPPED' ? 'Dilewati' : 'Tidak dijawab'}</Badge><span className="text-xs text-fg-muted">{item.points} poin</span>{item.manual_review_required && <Badge color="warn">Perlu penilaian manual</Badge>}</div>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${presentation.badge}`}>{presentation.label}</span>
+                  <span className="text-xs text-fg-muted">{item.points} poin</span>
+                  {showManualReview && <Badge color="warn">Perlu penilaian manual</Badge>}
+                </div>
                 <p className="whitespace-pre-wrap break-words font-semibold">{q.prompt || 'Soal'}</p>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-lg border border-border p-3"><p className="text-xs text-fg-muted">Jawaban simulasi</p><p className="mt-1 whitespace-pre-wrap break-words text-sm">{answerText(item.answer)}</p></div>
-                  <div className="rounded-lg border border-border p-3"><p className="text-xs text-fg-muted">Kunci / acuan penilaian</p><p className="mt-1 whitespace-pre-wrap break-words text-sm">{keyText(q, item.answer_key)}</p></div>
+                  <div className={`rounded-lg border p-3 ${evaluationStatus === 'CORRECT' ? 'border-emerald-500/35 bg-emerald-500/5' : evaluationStatus === 'INCORRECT' ? 'border-red-500/35 bg-red-500/5' : 'border-border'}`}>
+                    <p className="text-xs text-fg-muted">Jawaban simulasi</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm">{answerText(item.answer, q, item.evaluation)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-fg-muted">Kunci jawaban / acuan</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm">{keyText(q, item.answer_key)}</p>
+                  </div>
                 </div>
               </div>
             </div>
