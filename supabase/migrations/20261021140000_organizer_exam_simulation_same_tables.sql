@@ -31,6 +31,39 @@ create index if not exists attempts_preview_owner_competition_idx
   on public.attempts (preview_owner_id, competition_id, created_at desc)
   where is_preview = true;
 
+-- Prevent organizer table-update privileges from turning official attempts into
+-- previews or changing the owner / participant identity of an existing preview.
+create or replace function private.guard_attempt_preview_identity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+begin
+  if auth.uid() is not null
+     and not private.current_user_is_admin()
+     and (
+       new.is_preview is distinct from old.is_preview
+       or new.preview_owner_id is distinct from old.preview_owner_id
+       or new.competition_id is distinct from old.competition_id
+       or new.participant_id is distinct from old.participant_id
+       or new.registration_id is distinct from old.registration_id
+       or new.collective_participant_id is distinct from old.collective_participant_id
+       or new.canonical_participant_id is distinct from old.canonical_participant_id
+     ) then
+    raise exception 'ATTEMPT_PREVIEW_IDENTITY_SERVER_MANAGED';
+  end if;
+  return new;
+end;
+$;
+
+revoke all on function private.guard_attempt_preview_identity() from public, anon, authenticated;
+
+drop trigger if exists guard_attempt_preview_identity on public.attempts;
+create trigger guard_attempt_preview_identity
+before update on public.attempts
+for each row execute function private.guard_attempt_preview_identity();
+
 -- The existing linear exam access helper permits the verified owner of a preview
 -- attempt while keeping ordinary attempts bound to their participant account.
 create or replace function private.assert_individual_linear_exam_access(p_attempt_id uuid)
