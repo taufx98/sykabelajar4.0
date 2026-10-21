@@ -71,35 +71,39 @@ export async function getSecureExamState(attemptId: string, competitionId: strin
   });
 }
 export async function saveSecureExamAnswer(
-  attemptId: string, competitionId: string, answer: Record<string, unknown>, accessToken?: string | null,
+  attemptId: string, competitionId: string, questionId: string, answer: Record<string, unknown>, accessToken?: string | null,
 ) {
   return rpcData<SecureExamState>('secure_exam_save_current_answer', {
     p_attempt_id: attemptId,
     ...accessArgs(competitionId, accessToken),
+    p_question_id: questionId,
     p_answer_json: answer,
   });
 }
 export async function answerAndAdvanceSecureExam(
-  attemptId: string, competitionId: string, answer: Record<string, unknown>, accessToken?: string | null,
+  attemptId: string, competitionId: string, questionId: string, answer: Record<string, unknown>, accessToken?: string | null,
 ) {
   return rpcData<SecureExamState>('secure_exam_answer_and_advance', {
     p_attempt_id: attemptId,
     ...accessArgs(competitionId, accessToken),
+    p_question_id: questionId,
     p_answer_json: answer,
   });
 }
-export async function skipSecureExamQuestion(attemptId: string, competitionId: string, accessToken?: string | null) {
+export async function skipSecureExamQuestion(attemptId: string, competitionId: string, questionId: string, accessToken?: string | null) {
   return rpcData<SecureExamState>('secure_exam_skip_current', {
     p_attempt_id: attemptId,
     ...accessArgs(competitionId, accessToken),
+    p_question_id: questionId,
   });
 }
 export async function resolveSecureExamTimeout(
-  attemptId: string, competitionId: string, action: 'borrow' | 'grace' | 'skip', accessToken?: string | null,
+  attemptId: string, competitionId: string, questionId: string, action: 'borrow' | 'grace' | 'skip', accessToken?: string | null,
 ) {
   return rpcData<SecureExamState>('secure_exam_resolve_timeout', {
     p_attempt_id: attemptId,
     ...accessArgs(competitionId, accessToken),
+    p_question_id: questionId,
     p_action: action,
   });
 }
