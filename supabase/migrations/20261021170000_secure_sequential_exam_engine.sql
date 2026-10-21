@@ -511,6 +511,74 @@ begin
 end;
 $function$;
 
+
+create or replace function public.secure_exam_save_current_answer(
+  p_attempt_id uuid,
+  p_session_key uuid,
+  p_answer_json jsonb,
+  p_access_token text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $function$
+declare
+  v_state private.secure_exam_states%rowtype;
+  v_item private.secure_exam_items%rowtype;
+  v_answer jsonb := coalesce(p_answer_json,'{}'::jsonb);
+  v_selected text;
+  v_now timestamptz := clock_timestamp();
+begin
+  if not private.secure_exam_access_ok(p_attempt_id,p_session_key,p_access_token) then
+    raise exception 'EXAM_ACCESS_DENIED';
+  end if;
+
+  perform 1 from public.attempts where id=p_attempt_id and status='IN_PROGRESS' for update;
+  if not found then raise exception 'EXAM_ATTEMPT_NOT_ACTIVE'; end if;
+  select * into v_state from private.secure_exam_states where attempt_id=p_attempt_id for update;
+  if not found or v_state.phase='FINISHED' then raise exception 'EXAM_ALREADY_FINISHED'; end if;
+
+  if v_now >= v_state.exam_deadline
+     or (v_state.phase='ACTIVE' and v_state.current_deadline is not null and v_now >= v_state.current_deadline)
+     or (v_state.phase='OVERTIME' and v_state.overtime_deadline is not null and v_now >= v_state.overtime_deadline) then
+    return public.get_secure_exam_state(p_attempt_id,p_session_key,p_access_token);
+  end if;
+
+  if v_state.phase not in ('ACTIVE','OVERTIME') then
+    raise exception 'EXAM_TIMEOUT_DECISION_REQUIRED';
+  end if;
+
+  select * into v_item from private.secure_exam_items
+  where attempt_id=p_attempt_id and position=v_state.current_position for update;
+  if not found then raise exception 'EXAM_CURRENT_QUESTION_NOT_FOUND'; end if;
+
+  if v_item.question_type in ('multiple_choice','true_false') then
+    v_selected := coalesce(v_answer->>'value',v_answer->>'option_id','');
+    if v_selected <> '' and not exists (
+      select 1 from jsonb_array_elements(v_item.options_public) o where o->>'id'=v_selected
+    ) then raise exception 'EXAM_INVALID_OPTION'; end if;
+  elsif v_item.question_type='multiple_checkbox' then
+    if exists (
+      select 1 from jsonb_array_elements_text(coalesce(v_answer->'values','[]'::jsonb)) chosen(value)
+      where not exists (select 1 from jsonb_array_elements(v_item.options_public) o where o->>'id'=chosen.value)
+    ) then raise exception 'EXAM_INVALID_OPTION'; end if;
+  elsif length(coalesce(v_answer->>'value','')) > 50000 then
+    raise exception 'EXAM_ANSWER_TOO_LONG';
+  end if;
+
+  update private.secure_exam_items
+    set answer_json=v_answer
+    where attempt_id=p_attempt_id and position=v_state.current_position;
+
+  insert into public.answers(attempt_id,question_id,answer_json,saved_at,updated_at)
+  values (p_attempt_id,v_item.question_id,v_answer,v_now,v_now)
+  on conflict (attempt_id,question_id) do update
+    set answer_json=excluded.answer_json,saved_at=excluded.saved_at,updated_at=excluded.updated_at;
+
+  return public.get_secure_exam_state(p_attempt_id,p_session_key,p_access_token);
+end;
+$function$;
+
 create or replace function public.secure_exam_answer_and_advance(
   p_attempt_id uuid,
   p_session_key uuid,
@@ -529,6 +597,7 @@ declare
   v_selected text;
   v_now timestamptz := clock_timestamp();
   v_unused integer := 0;
+  v_spent integer := 0;
 begin
   if not private.secure_exam_access_ok(p_attempt_id,p_session_key,p_access_token) then raise exception 'EXAM_ACCESS_DENIED'; end if;
   select * into v_attempt from public.attempts where id=p_attempt_id for update;
@@ -565,11 +634,12 @@ begin
   end if;
 
   v_unused := case when v_state.phase='ACTIVE' then greatest(0,floor(extract(epoch from (v_state.current_deadline-v_now)))::integer) else 0 end;
+  v_spent := case when v_item.opened_at is null then 0 else greatest(0,floor(extract(epoch from (v_now-v_item.opened_at)))::integer) end;
   update private.secure_exam_items
   set answer_json=v_answer,
       item_status=case when v_state.phase='OVERTIME' then 'OVERTIME_ANSWERED' else 'ANSWERED' end,
       closed_at=v_now,
-      spent_seconds=case when opened_at is null then 0 else greatest(0,floor(extract(epoch from (v_now-opened_at)))::integer) end,
+      spent_seconds=v_spent,
       borrowed_seconds=case when v_state.borrow_seconds_due>0 then 30 else 0 end
   where attempt_id=p_attempt_id and position=v_state.current_position;
 
@@ -585,7 +655,7 @@ begin
 
   perform private.secure_exam_record_event(p_attempt_id,v_state.current_position,
     case when v_state.phase='OVERTIME' then 'OVERTIME_ANSWERED' else 'QUESTION_ANSWERED' end,
-    jsonb_build_object('spent_seconds',v_item.spent_seconds,'unused_seconds',v_unused));
+    jsonb_build_object('spent_seconds',v_spent,'unused_seconds',v_unused));
   perform private.secure_exam_open_next(p_attempt_id);
   return public.get_secure_exam_state(p_attempt_id,p_session_key,p_access_token);
 end;
@@ -704,36 +774,39 @@ begin
   ) into v_allowed;
   if not v_allowed then raise exception 'ORGANIZER_ACCESS_DENIED'; end if;
 
-  select coalesce(jsonb_agg(
-    jsonb_build_object(
-      'attempt_id',a.id,
-      'participant_name',coalesce(p.full_name,p.username,cp.full_name,'Peserta'),
-      'participant_type',case when a.collective_participant_id is not null then 'COLLECTIVE' else 'INDIVIDUAL' end,
-      'attempt_status',a.status::text,
-      'phase',s.phase,
-      'current_position',s.current_position,
-      'total_questions',s.total_questions,
-      'answered_count',(select count(*)::integer from private.secure_exam_items i where i.attempt_id=a.id and i.item_status in ('ANSWERED','OVERTIME_ANSWERED')),
-      'skipped_count',(select count(*)::integer from private.secure_exam_items i where i.attempt_id=a.id and (i.item_status='SKIPPED' or (i.item_status='ACTIVE' and i.deadline_at<=clock_timestamp()))),
-      'timeout_count',(select count(*)::integer from private.secure_exam_items i where i.attempt_id=a.id and (i.item_status in ('TIMEOUT','TIMEOUT_DECISION','OVERTIME','OVERTIME_ANSWERED') or (i.item_status='ACTIVE' and i.deadline_at<=clock_timestamp()))),
-      'questions',(select coalesce(jsonb_agg(jsonb_build_object(
-        'position',i.position,
-        'status',case when i.item_status='ACTIVE' and i.deadline_at<=clock_timestamp() then 'TIMEOUT_PENDING' else i.item_status end,
-        'opened_at',i.opened_at,
-        'closed_at',i.closed_at,
-        'allocated_seconds',i.allocated_seconds,
-        'spent_seconds',case when i.closed_at is null and i.opened_at is not null then greatest(0,floor(extract(epoch from (clock_timestamp()-i.opened_at)))::integer) else i.spent_seconds end,
-        'borrowed_seconds',i.borrowed_seconds
-      ) order by i.position), '[]'::jsonb) from private.secure_exam_items i where i.attempt_id=a.id)
-    ) order by a.created_at desc
-  ),'[]'::jsonb) into v_result
-  from public.attempts a
-  join private.secure_exam_states s on s.attempt_id=a.id
-  left join public.profiles p on p.id=a.participant_id
-  left join public.collective_participants cp on cp.id=a.collective_participant_id
-  where a.competition_id=p_competition_id
-  order by a.created_at desc
-  limit 200;
+  select coalesce(jsonb_agg(recent.payload order by recent.created_at desc),'[]'::jsonb)
+    into v_result
+  from (
+    select a.created_at,
+      jsonb_build_object(
+        'attempt_id',a.id,
+        'participant_name',coalesce(p.full_name,p.username,cp.full_name,'Peserta'),
+        'participant_type',case when a.collective_participant_id is not null then 'COLLECTIVE' else 'INDIVIDUAL' end,
+        'attempt_status',a.status::text,
+        'phase',s.phase,
+        'current_position',s.current_position,
+        'total_questions',s.total_questions,
+        'answered_count',(select count(*)::integer from private.secure_exam_items i where i.attempt_id=a.id and i.item_status in ('ANSWERED','OVERTIME_ANSWERED')),
+        'skipped_count',(select count(*)::integer from private.secure_exam_items i where i.attempt_id=a.id and (i.item_status='SKIPPED' or (i.item_status='ACTIVE' and i.deadline_at<=clock_timestamp()))),
+        'timeout_count',(select count(*)::integer from private.secure_exam_items i where i.attempt_id=a.id and (i.item_status in ('TIMEOUT','TIMEOUT_DECISION','OVERTIME','OVERTIME_ANSWERED') or (i.item_status='ACTIVE' and i.deadline_at<=clock_timestamp()))),
+        'questions',(select coalesce(jsonb_agg(jsonb_build_object(
+          'position',i.position,
+          'status',case when i.item_status='ACTIVE' and i.deadline_at<=clock_timestamp() then 'TIMEOUT_PENDING' else i.item_status end,
+          'opened_at',i.opened_at,
+          'closed_at',i.closed_at,
+          'allocated_seconds',i.allocated_seconds,
+          'spent_seconds',case when i.closed_at is null and i.opened_at is not null then greatest(0,floor(extract(epoch from (clock_timestamp()-i.opened_at)))::integer) else i.spent_seconds end,
+          'borrowed_seconds',i.borrowed_seconds
+        ) order by i.position), '[]'::jsonb) from private.secure_exam_items i where i.attempt_id=a.id)
+      ) as payload
+    from public.attempts a
+    join private.secure_exam_states s on s.attempt_id=a.id
+    left join public.profiles p on p.id=a.participant_id
+    left join public.collective_participants cp on cp.id=a.collective_participant_id
+    where a.competition_id=p_competition_id
+    order by a.created_at desc
+    limit 200
+  ) recent;
 
   return jsonb_build_object('competition_id',p_competition_id,'server_now',clock_timestamp(),'attempts',v_result);
 end;
@@ -749,6 +822,8 @@ revoke all on function public.start_secure_exam_attempt(uuid,uuid,text) from pub
 grant execute on function public.start_secure_exam_attempt(uuid,uuid,text) to anon, authenticated;
 revoke all on function public.get_secure_exam_state(uuid,uuid,text) from public, anon, authenticated;
 grant execute on function public.get_secure_exam_state(uuid,uuid,text) to anon, authenticated;
+revoke all on function public.secure_exam_save_current_answer(uuid,uuid,jsonb,text) from public, anon, authenticated;
+grant execute on function public.secure_exam_save_current_answer(uuid,uuid,jsonb,text) to anon, authenticated;
 revoke all on function public.secure_exam_answer_and_advance(uuid,uuid,jsonb,text) from public, anon, authenticated;
 grant execute on function public.secure_exam_answer_and_advance(uuid,uuid,jsonb,text) to anon, authenticated;
 revoke all on function public.secure_exam_skip_current(uuid,uuid,text) from public, anon, authenticated;
