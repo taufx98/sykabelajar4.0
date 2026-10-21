@@ -8,6 +8,7 @@ Tujuan: memasang UI dan backend ujian satu-soal-per-request tanpa memutus UI uji
 - Migration Phase 1 sudah diterapkan ke production Supabase project `mvdczyitbkxkldjughor` dan tercatat sebagai `20261021121831 / linear_server_authoritative_exam_phase1`.
 - Migration kompatibilitas grading sudah diterapkan sebagai `20261021122452 / linear_exam_preserve_grading_compat`; ini mempertahankan Premium AI essay grading, accepted answers lama, dan XP otomatis.
 - Migration hotfix penyelesaian attempt `20261021124911 / fix_linear_exam_completion_status_enum` telah memperbaiki cast enum status yang ditemukan oleh uji integrasi.
+- Security lockdown sudah diterapkan sebagai `20261021125110 / linear_exam_security_lockdown`; RPC legacy langsung dicabut, baca tabel soal oleh peserta dibatasi, tulis jawaban langsung ditutup, dan akses langsung ke attempt yang sudah selesai disembunyikan.
 - Verifikasi production memastikan tiga tabel engine ada, RPC baru memiliki izin eksekusi, jalur legacy tetap punya izin, dan saat dicek tidak ada attempt `IN_PROGRESS`.
 - Lockdown Phase 2 **belum diterapkan**. Uji CI untuk commit terakhir sebelum rename migration lulus; commit rename ini menjalankan CI ulang.
 - Skrip phase 2 sengaja berada di `supabase/manual/`, bukan `supabase/migrations/`, agar tidak ikut dijalankan otomatis bersamaan dengan migration additive.
@@ -20,7 +21,7 @@ Tujuan: memasang UI dan backend ujian satu-soal-per-request tanpa memutus UI uji
 4. **Verifikasi smoke test.** Gunakan lomba uji dengan akun uji: mulai attempt, jawab dan lanjut, biarkan timer habis, cek pilihan 30 detik, cek auto-skip, lalu buka tombol **Pantau Ujian** dari konfigurasi lomba. Pastikan peserta tidak menerima nilai/skor pada layar selesai.
 5. **Phase 2 — lockdown.** Setelah frontend baru terbukti aktif, jalankan seluruh SQL dari `supabase/manual/linear_exam_security_lockdown.sql` lewat SQL Editor. Ini menutup RPC lama, melarang baca semua soal melalui table API, membatasi baca skor attempt peserta, serta membuang jalur tulis jawaban langsung.
 
-**Jangan menjalankan phase 2 sebelum frontend baru aktif.** Jika dilakukan terlalu cepat, UI lama kehilangan RPC yang digunakannya. Skrip phase 2 bukan migration otomatis dan sengaja dipisah agar urutan ini dapat dikendalikan.
+**Phase 2 sudah diterapkan setelah halaman individu/kolektif memakai RPC linear dan CI lulus.** Nama migration yang tercatat di production kini disimpan di `supabase/migrations/20261021125110_linear_exam_security_lockdown.sql` agar ledger dan repo tetap sinkron.
 
 ## Perilaku keamanan
 
@@ -28,3 +29,4 @@ Tujuan: memasang UI dan backend ujian satu-soal-per-request tanpa memutus UI uji
 - Draft belum dihitung sebagai jawaban. Hanya soal berstatus `ANSWERED` yang masuk penilaian; draft soal yang timeout dihapus.
 - Hasil tidak dikembalikan kepada peserta sampai status lomba menjadi `RESULT_PUBLISHED` atau `ARCHIVED`. Panel OG tidak menampilkan isi jawaban atau skor.
 - Legacy attempt yang sudah memiliki jawaban tetapi belum punya snapshot linear ditolak otomatis dengan `LEGACY_ATTEMPT_REQUIRES_REVIEW`; periksa manual, jangan reset atau migrasikan otomatis.
+- Uji integrasi rollback-only di database production lulus setelah lockdown: timeout/borrow/grace/autoskip, penghapusan draft, grading server, penahanan skor, dan penolakan RPC legacy.
