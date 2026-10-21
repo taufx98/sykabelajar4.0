@@ -84,9 +84,9 @@ begin
   where id = p_competition_id;
 
   if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
-  if not (
-    private.current_user_is_admin()
-    or (v_comp.organizer_id is not null and private.current_user_is_organizer_for(v_comp.organizer_id))
+  if not private.current_user_is_admin() and (
+    v_comp.organizer_id is null
+    or coalesce(private.current_user_organizer_role(v_comp.organizer_id), '') not in ('owner','editor')
   ) then
     raise exception 'NOT_AUTHORIZED';
   end if;
