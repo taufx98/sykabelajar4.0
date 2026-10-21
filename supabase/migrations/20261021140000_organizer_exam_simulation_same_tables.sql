@@ -64,6 +64,69 @@ create trigger guard_attempt_preview_identity
 before update on public.attempts
 for each row execute function private.guard_attempt_preview_identity();
 
+-- Editing source questions during a preview is safe: the attempt uses snapshots.
+-- Only official active attempts lock source questions/options.
+create or replace function private.prevent_question_mutation_during_exam()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_question_id uuid;
+begin
+  if tg_op = 'DELETE' then v_question_id := old.id;
+  else v_question_id := new.id;
+  end if;
+
+  if exists (
+    select 1
+    from public.exam_attempt_questions eq
+    join public.attempts a on a.id = eq.attempt_id
+    where eq.question_id = v_question_id
+      and a.is_preview = false
+      and a.status in ('IN_PROGRESS','SUBMITTED','GRADING')
+  ) then
+    raise exception 'QUESTION_LOCKED_BY_ACTIVE_EXAM';
+  end if;
+
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$;
+
+create or replace function private.prevent_option_mutation_during_exam()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_question_id uuid;
+begin
+  if tg_op = 'DELETE' then v_question_id := old.question_id;
+  else v_question_id := new.question_id;
+  end if;
+
+  if exists (
+    select 1
+    from public.exam_attempt_questions eq
+    join public.attempts a on a.id = eq.attempt_id
+    where eq.question_id = v_question_id
+      and a.is_preview = false
+      and a.status in ('IN_PROGRESS','SUBMITTED','GRADING')
+  ) then
+    raise exception 'QUESTION_LOCKED_BY_ACTIVE_EXAM';
+  end if;
+
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$;
+
+revoke all on function private.prevent_question_mutation_during_exam() from public, anon, authenticated;
+revoke all on function private.prevent_option_mutation_during_exam() from public, anon, authenticated;
+
 -- Direct table reads must not reveal another organizer's preview attempt/answers.
 drop policy if exists attempts_admin_or_owner_read on public.attempts;
 create policy attempts_admin_or_owner_read on public.attempts
