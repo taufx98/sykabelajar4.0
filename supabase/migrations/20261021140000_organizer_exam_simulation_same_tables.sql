@@ -71,7 +71,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_question_id uuid;
 begin
@@ -93,14 +93,14 @@ begin
   if tg_op = 'DELETE' then return old; end if;
   return new;
 end;
-$;
+$$;
 
 create or replace function private.prevent_option_mutation_during_exam()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_question_id uuid;
 begin
@@ -122,7 +122,7 @@ begin
   if tg_op = 'DELETE' then return old; end if;
   return new;
 end;
-$;
+$$;
 
 revoke all on function private.prevent_question_mutation_during_exam() from public, anon, authenticated;
 revoke all on function private.prevent_option_mutation_during_exam() from public, anon, authenticated;
