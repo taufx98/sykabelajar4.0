@@ -124,11 +124,12 @@ export function CompetitionWorkPage() {
 
   useEffect(() => {
     if (!activeState?.question || !['ACTIVE', 'OVERTIME'].includes(activeState.phase) || activeState.phase === 'FINISHED') return;
+    const questionId = activeState.question.id;
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(async () => {
       setSaving(true);
       try {
-        const next = await saveSecureExamAnswer(activeState.attempt_id, competitionId, activeState.question.id, draft);
+        const next = await saveSecureExamAnswer(activeState.attempt_id, competitionId, questionId, draft);
         acceptState(next, false);
       } catch (e: any) {
         toast(e?.message || 'Jawaban belum tersimpan. Tetap di halaman ini dan coba lagi.', 'error');
