@@ -65,6 +65,112 @@ alter table private.secure_exam_items enable row level security;
 alter table private.secure_exam_events enable row level security;
 revoke all on table private.secure_exam_states, private.secure_exam_items, private.secure_exam_events from public, anon, authenticated;
 
+
+create or replace function private.secure_exam_competition_locked(p_competition_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, private, pg_catalog
+as $function$
+  select exists (
+    select 1
+    from public.attempts a
+    join private.secure_exam_states s on s.attempt_id=a.id
+    where a.competition_id=p_competition_id
+  );
+$function$;
+
+create or replace function private.guard_secure_exam_config_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $function$
+begin
+  if coalesce(new.config->>'duration_minutes','60') is distinct from coalesce(old.config->>'duration_minutes','60')
+     and private.secure_exam_competition_locked(old.id) then
+    raise exception 'EXAM_CONFIGURATION_LOCKED_AFTER_FIRST_ATTEMPT';
+  end if;
+  return new;
+end;
+$function$;
+
+create or replace function private.guard_secure_exam_question_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $function$
+declare
+  v_old_competition_id uuid;
+  v_new_competition_id uuid;
+  v_question_id uuid;
+  v_competition_id uuid;
+begin
+  if tg_op <> 'INSERT' then v_old_competition_id := old.competition_id; end if;
+  if tg_op <> 'DELETE' then v_new_competition_id := new.competition_id; end if;
+
+  if v_old_competition_id is not null and private.secure_exam_competition_locked(v_old_competition_id) then
+    raise exception 'EXAM_QUESTIONS_LOCKED_AFTER_FIRST_ATTEMPT';
+  end if;
+  if v_new_competition_id is not null and v_new_competition_id is distinct from v_old_competition_id
+     and private.secure_exam_competition_locked(v_new_competition_id) then
+    raise exception 'EXAM_QUESTIONS_LOCKED_AFTER_FIRST_ATTEMPT';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$function$;
+
+create or replace function private.guard_secure_exam_option_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $function$
+declare
+  v_question_id uuid;
+  v_competition_id uuid;
+begin
+  if tg_op <> 'INSERT' then
+    select q.competition_id into v_competition_id from public.questions q where q.id=old.question_id;
+    if private.secure_exam_competition_locked(v_competition_id) then
+      raise exception 'EXAM_QUESTIONS_LOCKED_AFTER_FIRST_ATTEMPT';
+    end if;
+  end if;
+
+  if tg_op <> 'DELETE' then
+    if tg_op = 'UPDATE' and new.question_id is distinct from old.question_id then
+      select q.competition_id into v_competition_id from public.questions q where q.id=new.question_id;
+      if private.secure_exam_competition_locked(v_competition_id) then
+        raise exception 'EXAM_QUESTIONS_LOCKED_AFTER_FIRST_ATTEMPT';
+      end if;
+    elsif tg_op = 'INSERT' then
+      select q.competition_id into v_competition_id from public.questions q where q.id=new.question_id;
+      if private.secure_exam_competition_locked(v_competition_id) then
+        raise exception 'EXAM_QUESTIONS_LOCKED_AFTER_FIRST_ATTEMPT';
+      end if;
+    end if;
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$function$;
+
+drop trigger if exists guard_secure_exam_config_change on public.competitions;
+create trigger guard_secure_exam_config_change
+before update of config on public.competitions
+for each row execute function private.guard_secure_exam_config_change();
+
+drop trigger if exists guard_secure_exam_question_change on public.questions;
+create trigger guard_secure_exam_question_change
+before insert or update or delete on public.questions
+for each row execute function private.guard_secure_exam_question_change();
+
+drop trigger if exists guard_secure_exam_option_change on public.question_options;
+create trigger guard_secure_exam_option_change
+before insert or update or delete on public.question_options
+for each row execute function private.guard_secure_exam_option_change();
+
 create or replace function private.secure_exam_record_event(
   p_attempt_id uuid,
   p_position integer,
@@ -142,7 +248,7 @@ begin
   loop
     update private.secure_exam_items
       set item_status = 'SKIPPED',
-          answer_json = coalesce(answer_json, '{"skipped":true}'::jsonb),
+          answer_json = '{"skipped":true}'::jsonb,
           closed_at = coalesce(closed_at, v_now),
           spent_seconds = case when opened_at is null then 0 else greatest(0, floor(extract(epoch from (v_now - opened_at)))::int) end
       where attempt_id = p_attempt_id and position = v_item.position;
@@ -823,6 +929,10 @@ begin
 end;
 $function$;
 
+revoke all on function private.secure_exam_competition_locked(uuid) from public, anon, authenticated;
+revoke all on function private.guard_secure_exam_config_change() from public, anon, authenticated;
+revoke all on function private.guard_secure_exam_question_change() from public, anon, authenticated;
+revoke all on function private.guard_secure_exam_option_change() from public, anon, authenticated;
 revoke all on function private.secure_exam_record_event(uuid,integer,text,jsonb) from public, anon, authenticated;
 revoke all on function private.secure_exam_access_ok(uuid,uuid,text) from public, anon, authenticated;
 revoke all on function private.secure_exam_finalize(uuid) from public, anon, authenticated;
