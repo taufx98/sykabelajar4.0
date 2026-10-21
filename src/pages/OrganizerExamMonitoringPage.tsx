@@ -62,12 +62,12 @@ export function OrganizerExamMonitoringPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (manual = false) => {
+  const load = useCallback(async (manual = false, offset = 0, append = false) => {
     if (!id) { setError('ID lomba tidak valid.'); setLoading(false); return; }
     if (manual) setRefreshing(true); else setLoading(true);
     try {
-      const next = await getLinearExamActivity(id);
-      setData(next);
+      const next = await getLinearExamActivity(id, offset, 100);
+      setData((current) => append && current ? { ...next, participants: [...current.participants, ...next.participants] } : next);
       setError('');
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : 'Gagal memuat aktivitas ujian.');
@@ -100,15 +100,16 @@ export function OrganizerExamMonitoringPage() {
 
       {data && <>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <Card className="p-4"><div className="flex items-center gap-3"><Users className="text-accent"/><div><p className="text-xs text-fg-muted">Sesi terpantau</p><p className="text-2xl font-bold text-fg">{participants.length}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><Activity className="text-accent"/><div><p className="text-xs text-fg-muted">Masih berlangsung</p><p className="text-2xl font-bold text-fg">{active}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><CheckCircle2 className="text-emerald-500"/><div><p className="text-xs text-fg-muted">Soal dijawab</p><p className="text-2xl font-bold text-fg">{totalAnswered}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><AlertTriangle className="text-amber-500"/><div><p className="text-xs text-fg-muted">Timeout / skip</p><p className="text-2xl font-bold text-fg">{totalTimeouts} / {totalSkipped}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><Users className="text-accent"/><div><p className="text-xs text-fg-muted">Total sesi ujian</p><p className="text-2xl font-bold text-fg">{(data?.total_count ?? participants.length).toLocaleString('id-ID')}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><Activity className="text-accent"/><div><p className="text-xs text-fg-muted">Berlangsung di halaman ini</p><p className="text-2xl font-bold text-fg">{active}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><CheckCircle2 className="text-emerald-500"/><div><p className="text-xs text-fg-muted">Dijawab di halaman ini</p><p className="text-2xl font-bold text-fg">{totalAnswered}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><AlertTriangle className="text-amber-500"/><div><p className="text-xs text-fg-muted">Timeout / skip di halaman ini</p><p className="text-2xl font-bold text-fg">{totalTimeouts} / {totalSkipped}</p></div></div></Card>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted"><Clock3 size={14}/> Data terakhir diperbarui {formatDate(data.generated_at)}. Gunakan tombol Perbarui data untuk menyegarkan tampilan; refresh sekaligus meminta backend memproses deadline yang sudah lewat.</div>
         {participants.length === 0
           ? <Card className="p-10 text-center"><Activity className="mx-auto text-fg-muted" size={30}/><h2 className="mt-3 font-semibold text-fg">Belum ada sesi ujian</h2><p className="mt-1 text-sm text-fg-muted">Peserta akan muncul setelah memulai ujian dengan engine baru.</p></Card>
           : <div className="grid gap-4 xl:grid-cols-2">{participants.map((participant) => <ParticipantCard key={participant.attempt_id} participant={participant}/>)}</div>}
+        {data.has_more && <div className="flex justify-center"><Button variant="outline" loading={refreshing} disabled={loading || refreshing} onClick={() => void load(true, participants.length, true)}>Muat peserta berikutnya</Button></div>}
       </>}
 
       {loading && !data && <Card className="p-10 text-center"><Loader2 className="mx-auto animate-spin text-accent" size={28}/><p className="mt-3 text-sm text-fg-muted">Memuat data aktivitas…</p></Card>}
