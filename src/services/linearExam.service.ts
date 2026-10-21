@@ -97,8 +97,8 @@ export async function getLinearExamState(attemptId: string) {
 export async function saveLinearExamDraft(attemptId: string, questionId: string, answer: LinearExamAnswer) {
   return rpcState('save_linear_exam_draft', { p_attempt_id: attemptId, p_question_id: questionId, p_answer_json: answer });
 }
-export async function answerLinearExamQuestion(attemptId: string, questionId: string, answer: LinearExamAnswer) {
-  return rpcState('answer_linear_exam_question', { p_attempt_id: attemptId, p_question_id: questionId, p_answer_json: answer, p_skip: false });
+export async function answerLinearExamQuestion(attemptId: string, questionId: string, answer: LinearExamAnswer, skip = false) {
+  return rpcState('answer_linear_exam_question', { p_attempt_id: attemptId, p_question_id: questionId, p_answer_json: skip ? {} : answer, p_skip: skip });
 }
 export async function chooseLinearExamTimeout(attemptId: string, decision: 'BORROW' | 'CONTINUE') {
   return rpcState('choose_linear_exam_timeout', { p_attempt_id: attemptId, p_decision: decision });
@@ -116,8 +116,8 @@ export async function getCollectiveLinearExamState(attemptId: string, accessToke
 export async function saveCollectiveLinearExamDraft(attemptId: string, accessToken: string, questionId: string, answer: LinearExamAnswer) {
   return rpcState('save_collective_linear_exam_draft', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_question_id: questionId, p_answer_json: answer });
 }
-export async function answerCollectiveLinearExamQuestion(attemptId: string, accessToken: string, questionId: string, answer: LinearExamAnswer) {
-  return rpcState('answer_collective_linear_exam_question', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_question_id: questionId, p_answer_json: answer, p_skip: false });
+export async function answerCollectiveLinearExamQuestion(attemptId: string, accessToken: string, questionId: string, answer: LinearExamAnswer, skip = false) {
+  return rpcState('answer_collective_linear_exam_question', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_question_id: questionId, p_answer_json: skip ? {} : answer, p_skip: skip });
 }
 export async function chooseCollectiveLinearExamTimeout(attemptId: string, accessToken: string, decision: 'BORROW' | 'CONTINUE') {
   return rpcState('choose_collective_linear_exam_timeout', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_decision: decision });
