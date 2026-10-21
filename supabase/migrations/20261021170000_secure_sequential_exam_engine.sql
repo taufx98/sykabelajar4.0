@@ -515,6 +515,7 @@ $function$;
 create or replace function public.secure_exam_save_current_answer(
   p_attempt_id uuid,
   p_session_key uuid,
+  p_question_id uuid,
   p_answer_json jsonb,
   p_access_token text default null
 ) returns jsonb
@@ -551,6 +552,7 @@ begin
   select * into v_item from private.secure_exam_items
   where attempt_id=p_attempt_id and position=v_state.current_position for update;
   if not found then raise exception 'EXAM_CURRENT_QUESTION_NOT_FOUND'; end if;
+  if v_item.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
 
   if v_item.question_type in ('multiple_choice','true_false') then
     v_selected := coalesce(v_answer->>'value',v_answer->>'option_id','');
@@ -582,6 +584,7 @@ $function$;
 create or replace function public.secure_exam_answer_and_advance(
   p_attempt_id uuid,
   p_session_key uuid,
+  p_question_id uuid,
   p_answer_json jsonb,
   p_access_token text default null
 ) returns jsonb
@@ -618,6 +621,7 @@ begin
   select * into v_item from private.secure_exam_items
   where attempt_id=p_attempt_id and position=v_state.current_position for update;
   if not found then raise exception 'EXAM_CURRENT_QUESTION_NOT_FOUND'; end if;
+  if v_item.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
 
   if v_item.question_type in ('multiple_choice','true_false') then
     v_selected := coalesce(v_answer->>'value',v_answer->>'option_id','');
@@ -664,17 +668,20 @@ $function$;
 create or replace function public.secure_exam_skip_current(
   p_attempt_id uuid,
   p_session_key uuid,
+  p_question_id uuid,
   p_access_token text default null
 ) returns jsonb
 language plpgsql
 security definer
 set search_path = public, private, pg_catalog
 as $function$
-declare v_state private.secure_exam_states%rowtype;
+declare v_state private.secure_exam_states%rowtype; v_item private.secure_exam_items%rowtype;
 begin
   if not private.secure_exam_access_ok(p_attempt_id,p_session_key,p_access_token) then raise exception 'EXAM_ACCESS_DENIED'; end if;
   select * into v_state from private.secure_exam_states where attempt_id=p_attempt_id for update;
   if v_state.phase='FINISHED' then return public.get_secure_exam_state(p_attempt_id,p_session_key,p_access_token); end if;
+  select * into v_item from private.secure_exam_items where attempt_id=p_attempt_id and position=v_state.current_position for update;
+  if not found or v_item.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if clock_timestamp() >= v_state.exam_deadline then
     perform private.secure_exam_finalize(p_attempt_id);
   else
@@ -687,6 +694,7 @@ $function$;
 create or replace function public.secure_exam_resolve_timeout(
   p_attempt_id uuid,
   p_session_key uuid,
+  p_question_id uuid,
   p_action text,
   p_access_token text default null
 ) returns jsonb
@@ -697,6 +705,7 @@ as $function$
 declare
   v_state private.secure_exam_states%rowtype;
   v_next_exists boolean;
+  v_item private.secure_exam_items%rowtype;
   v_remaining integer;
   v_grant integer;
   v_now timestamptz := clock_timestamp();
@@ -704,6 +713,8 @@ begin
   if not private.secure_exam_access_ok(p_attempt_id,p_session_key,p_access_token) then raise exception 'EXAM_ACCESS_DENIED'; end if;
   select * into v_state from private.secure_exam_states where attempt_id=p_attempt_id for update;
   if v_state.phase='FINISHED' then return public.get_secure_exam_state(p_attempt_id,p_session_key,p_access_token); end if;
+  select * into v_item from private.secure_exam_items where attempt_id=p_attempt_id and position=v_state.current_position for update;
+  if not found or v_item.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if v_now >= v_state.exam_deadline then
     perform private.secure_exam_finalize(p_attempt_id);
     return public.get_secure_exam_state(p_attempt_id,p_session_key,p_access_token);
@@ -822,13 +833,13 @@ revoke all on function public.start_secure_exam_attempt(uuid,uuid,text) from pub
 grant execute on function public.start_secure_exam_attempt(uuid,uuid,text) to anon, authenticated;
 revoke all on function public.get_secure_exam_state(uuid,uuid,text) from public, anon, authenticated;
 grant execute on function public.get_secure_exam_state(uuid,uuid,text) to anon, authenticated;
-revoke all on function public.secure_exam_save_current_answer(uuid,uuid,jsonb,text) from public, anon, authenticated;
-grant execute on function public.secure_exam_save_current_answer(uuid,uuid,jsonb,text) to anon, authenticated;
-revoke all on function public.secure_exam_answer_and_advance(uuid,uuid,jsonb,text) from public, anon, authenticated;
+revoke all on function public.secure_exam_save_current_answer(uuid,uuid,uuid,jsonb,text) from public, anon, authenticated;
+grant execute on function public.secure_exam_save_current_answer(uuid,uuid,uuid,jsonb,text) to anon, authenticated;
+revoke all on function public.secure_exam_answer_and_advance(uuid,uuid,uuid,jsonb,text) from public, anon, authenticated;
 grant execute on function public.secure_exam_answer_and_advance(uuid,uuid,jsonb,text) to anon, authenticated;
-revoke all on function public.secure_exam_skip_current(uuid,uuid,text) from public, anon, authenticated;
+revoke all on function public.secure_exam_skip_current(uuid,uuid,uuid,text) from public, anon, authenticated;
 grant execute on function public.secure_exam_skip_current(uuid,uuid,text) to anon, authenticated;
-revoke all on function public.secure_exam_resolve_timeout(uuid,uuid,text,text) from public, anon, authenticated;
+revoke all on function public.secure_exam_resolve_timeout(uuid,uuid,uuid,text,text) from public, anon, authenticated;
 grant execute on function public.secure_exam_resolve_timeout(uuid,uuid,text,text) to anon, authenticated;
 revoke all on function public.get_secure_exam_monitor(uuid) from public, anon, authenticated;
 grant execute on function public.get_secure_exam_monitor(uuid) to authenticated;
