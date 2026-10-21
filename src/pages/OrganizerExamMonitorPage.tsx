@@ -86,7 +86,7 @@ export function OrganizerExamMonitorPage() {
           <div className="flex flex-col lg:flex-row lg:items-start gap-4">
             <div className="lg:w-64 shrink-0">
               <div className="flex items-center gap-2"><ShieldCheck size={17} className="text-accent"/><h2 className="font-semibold text-fg">{attempt.participant_name}</h2></div>
-              <div className="flex flex-wrap gap-2 mt-2"><Badge>{attempt.participant_type === 'COLLECTIVE' ? 'Kolektif' : 'Individual'}</Badge><Badge color={statusTone(attempt.phase)}>{statusLabel(attempt.phase)}</Badge></div>
+              <div className="flex flex-wrap gap-2 mt-2"><Badge>{attempt.participant_type === 'COLLECTIVE' ? 'Kolektif' : 'Individual'}</Badge><Badge color={statusTone(attempt.phase)}>{statusLabel(attempt.phase)}</Badge><Badge color={statusTone(attempt.attempt_status)}>{statusLabel(attempt.attempt_status)}</Badge></div>
               <p className="text-xs text-fg-muted mt-3">Soal {Math.min(attempt.current_position, attempt.total_questions)} / {attempt.total_questions}</p>
               <div className="flex flex-wrap gap-3 mt-2 text-xs text-fg-muted">
                 <span>{attempt.answered_count} dijawab</span>
