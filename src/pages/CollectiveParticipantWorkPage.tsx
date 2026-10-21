@@ -124,11 +124,12 @@ export function CollectiveParticipantWorkPage() {
 
   useEffect(() => {
     if (!exam?.question || !['ACTIVE', 'OVERTIME'].includes(exam.phase)) return;
+    const questionId = exam.question.id;
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(async () => {
       setSaving(true);
       try {
-        const next = await saveSecureExamAnswer(exam.attempt_id, competitionId, exam.question.id, draft, accessToken);
+        const next = await saveSecureExamAnswer(exam.attempt_id, competitionId, questionId, draft, accessToken);
         acceptState(next, false);
       } catch (e: any) {
         toast.error(e?.message || 'Jawaban belum tersimpan. Coba lagi sebelum berpindah soal.');
