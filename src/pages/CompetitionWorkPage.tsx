@@ -128,7 +128,7 @@ export function CompetitionWorkPage() {
     saveTimer.current = window.setTimeout(async () => {
       setSaving(true);
       try {
-        const next = await saveSecureExamAnswer(activeState.attempt_id, competitionId, draft);
+        const next = await saveSecureExamAnswer(activeState.attempt_id, competitionId, activeState.question.id, draft);
         acceptState(next, false);
       } catch (e: any) {
         toast(e?.message || 'Jawaban belum tersimpan. Tetap di halaman ini dan coba lagi.', 'error');
@@ -167,20 +167,20 @@ export function CompetitionWorkPage() {
     if (!exam || busy || answerLock.current) return;
     answerLock.current = true;
     await runAction(
-      () => answerAndAdvanceSecureExam(exam.attempt_id, competitionId, draft),
+      () => answerAndAdvanceSecureExam(exam.attempt_id, competitionId, exam.question!.id, draft),
       exam.position >= exam.total_questions ? 'Jawaban diterima server.' : 'Jawaban tersimpan. Beralih ke soal berikutnya.',
     );
   };
 
   const skipCurrent = async () => {
     if (!exam || busy) return;
-    await runAction(() => skipSecureExamQuestion(exam.attempt_id, competitionId), 'Soal ditandai dilewati.');
+    await runAction(() => skipSecureExamQuestion(exam.attempt_id, competitionId, exam.question!.id), 'Soal ditandai dilewati.');
   };
 
   const timeoutAction = (action: 'borrow' | 'grace' | 'skip') => {
     if (!exam) return;
     void runAction(
-      () => resolveSecureExamTimeout(exam.attempt_id, competitionId, action),
+      () => resolveSecureExamTimeout(exam.attempt_id, competitionId, exam.question!.id, action),
       action === 'borrow' ? '30 detik diambil dari alokasi soal berikutnya.' : action === 'grace' ? 'Waktu tambahan 30 detik digunakan.' : 'Soal dilewati.',
     );
   };
@@ -192,7 +192,7 @@ export function CompetitionWorkPage() {
       const result = await uploadRawFile(file, 'sykabelajar/answers/' + exam.attempt_id);
       const answer = { type: 'file', url: result.secure_url, public_id: result.public_id, resource_type: result.resource_type ?? 'raw', file_name: file.name };
       setDraft(answer);
-      const next = await saveSecureExamAnswer(exam.attempt_id, competitionId, answer);
+      const next = await saveSecureExamAnswer(exam.attempt_id, competitionId, exam.question!.id, answer);
       acceptState(next);
       toast('Berkas jawaban tersimpan.', 'success');
     } catch (e: any) {
@@ -318,8 +318,8 @@ export function CompetitionWorkPage() {
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 mt-7 pt-5 border-t border-border">
             <p className="text-xs text-fg-muted">{saving ? 'Menyimpan jawaban ke server…' : 'Jawaban disimpan per soal. Soal sebelumnya terkunci dan tidak dapat dibuka kembali.'}</p>
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" disabled={busy || !canEdit} onClick={() => void skipCurrent()} icon={<SkipForward size={16}/>}>Lewati</Button>
-              <Button loading={busy} disabled={!canEdit || busy} onClick={() => void submitCurrent()} icon={<ArrowRight size={16}/>}>Jawab & lanjut</Button>
+              <Button variant="ghost" disabled={busy || saving || !canEdit} onClick={() => void skipCurrent()} icon={<SkipForward size={16}/>}>Lewati</Button>
+              <Button loading={busy} disabled={!canEdit || busy || saving} onClick={() => void submitCurrent()} icon={<ArrowRight size={16}/>}>Jawab & lanjut</Button>
             </div>
           </div>
         </Card>
