@@ -1444,7 +1444,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   p public.participants%rowtype;
   a public.attempts%rowtype;
@@ -1512,7 +1512,7 @@ begin
     'published',true
   );
 end;
-$;
+$$;
 
 revoke all on function public.get_canonical_competition_result(uuid) from public, anon, authenticated;
 grant execute on function public.get_canonical_competition_result(uuid) to authenticated;
