@@ -1233,7 +1233,8 @@ begin
     raise exception 'NOT_AUTHORIZED';
   end if;
   select * into c from public.competitions where id=p.competition_id;
-  if c.status not in ('RESULT_PUBLISHED','ARCHIVED') then
+  if exists(select 1 from public.competition_exam_configs ec where ec.competition_id=p.competition_id)
+    and c.status not in ('RESULT_PUBLISHED','ARCHIVED') then
     return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,
       'participant_type',p.participant_type,'name',p.full_name,'attempt',null,'rank',null,'published',false);
   end if;
@@ -1280,7 +1281,12 @@ grant execute on function public.get_my_canonical_competition_result(uuid) to au
     where competition_id=p_competition_id and participant_id=v_uid and status='IN_PROGRESS'
     order by attempt_number desc limit 1;
   if found then
-    if not exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then perform private.exam_initialize_attempt(v_existing.id); end if;
+    if not exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then
+      select count(*) into v_count from public.attempts a join public.exam_attempt_sessions s on s.attempt_id=a.id
+      where a.competition_id=p_competition_id and a.participant_id=v_uid;
+      if v_count >= v_cfg.attempt_limit then raise exception 'ATTEMPT_LIMIT_REACHED'; end if;
+      perform private.exam_initialize_attempt(v_existing.id);
+    end if;
     return private.exam_state_payload(v_existing.id);
   end if;
 
@@ -1754,7 +1760,12 @@ grant execute on function public.get_my_canonical_competition_result(uuid) to au
     where competition_id=p_competition_id and collective_participant_id=v_cp and status='IN_PROGRESS'
     order by attempt_number desc limit 1;
   if found then
-    if not exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then perform private.exam_initialize_attempt(v_existing.id); end if;
+    if not exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then
+      select count(*) into v_count from public.attempts a join public.exam_attempt_sessions s on s.attempt_id=a.id
+      where a.competition_id=p_competition_id and a.collective_participant_id=v_cp;
+      if v_count >= v_cfg.attempt_limit then raise exception 'ATTEMPT_LIMIT_REACHED'; end if;
+      perform private.exam_initialize_attempt(v_existing.id);
+    end if;
     return private.exam_state_payload(v_existing.id);
   end if;
 
