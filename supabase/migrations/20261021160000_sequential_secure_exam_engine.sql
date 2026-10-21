@@ -5,6 +5,7 @@ create table if not exists public.competition_exam_configs (
   competition_id uuid primary key references public.competitions(id) on delete cascade,
   duration_seconds integer not null default 1800 check (duration_seconds between 60 and 21600),
   question_count integer null check (question_count is null or question_count between 1 and 1000),
+  attempt_limit integer not null default 1 check (attempt_limit between 1 and 10),
   randomize_questions boolean not null default false,
   randomize_options boolean not null default false,
   decision_window_seconds integer not null default 30 check (decision_window_seconds between 0 and 120),
@@ -125,7 +126,11 @@ as $$
       and a.question_id = p_question_id
       and a.answer_json is not null
       and a.answer_json <> '{}'::jsonb
-      and nullif(btrim(coalesce(a.answer_json->>'value','')), '') is not null
+      and (
+        nullif(btrim(coalesce(a.answer_json->>'value','')), '') is not null
+        or (jsonb_typeof(a.answer_json->'values')='array' and jsonb_array_length(a.answer_json->'values') > 0)
+        or (jsonb_typeof(a.answer_json->'option_ids')='array' and jsonb_array_length(a.answer_json->'option_ids') > 0)
+      )
   );
 $$;
 revoke all on function private.exam_has_answer(uuid,uuid) from public, anon, authenticated;
@@ -789,15 +794,508 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public, private, pg_catalog
-as $$
-declare v_a public.attempts%rowtype; v_uid uuid:=auth.uid();
+as $
+declare
+  v_a public.attempts%rowtype;
+  v_existing public.attempts%rowtype;
+  v_uid uuid:=auth.uid();
+  v_c public.competitions%rowtype;
+  v_cfg public.competition_exam_configs%rowtype;
+  v_count integer;
 begin
   if v_uid is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  select * into v_c from public.competitions where id=p_competition_id;
+  if not found or v_c.status<>'LIVE' then raise exception 'COMPETITION_NOT_LIVE'; end if;
+  if not exists(select 1 from public.registrations r where r.competition_id=p_competition_id and r.user_id=v_uid and r.status in ('APPROVED','ACTIVE')) then
+    raise exception 'REGISTRATION_NOT_APPROVED';
+  end if;
+  insert into public.competition_exam_configs(competition_id,duration_seconds,created_by,updated_by)
+  values(p_competition_id,
+    greatest(60,case when coalesce(v_c.config->>'duration_minutes','') ~ '^[0-9]+
+revoke all on function public.start_sequential_exam(uuid) from public, anon;
+grant execute on function public.start_sequential_exam(uuid) to authenticated;
+
+create or replace function public.start_collective_sequential_exam(p_access_token text,p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $
+declare
+  v_a public.attempts%rowtype;
+  v_existing public.attempts%rowtype;
+  v_cp uuid:=private.collective_session_participant(p_access_token);
+  v_c public.competitions%rowtype;
+  v_cfg public.competition_exam_configs%rowtype;
+  v_count integer;
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  select * into v_c from public.competitions where id=p_competition_id;
+  if not found or v_c.status<>'LIVE' then raise exception 'COMPETITION_NOT_LIVE'; end if;
+  if not exists(select 1 from public.collective_participants cp where cp.id=v_cp and cp.competition_id=p_competition_id and cp.status='ACTIVE') then
+    raise exception 'PARTICIPANT_NOT_REGISTERED';
+  end if;
+  insert into public.competition_exam_configs(competition_id,duration_seconds)
+  values(p_competition_id,
+    greatest(60,case when coalesce(v_c.config->>'duration_minutes','') ~ '^[0-9]+
+revoke all on function public.start_collective_sequential_exam(text,uuid) from public;
+grant execute on function public.start_collective_sequential_exam(text,uuid) to anon, authenticated;
+
+create or replace function public.get_sequential_exam_state(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  if not exists(select 1 from public.attempts where id=p_attempt_id and participant_id=auth.uid()) then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if not exists(select 1 from public.exam_attempt_sessions where attempt_id=p_attempt_id) then raise exception 'SEQUENTIAL_EXAM_NOT_INITIALIZED'; end if;
+  return private.exam_state_payload(p_attempt_id);
+end;
+$$;
+revoke all on function public.get_sequential_exam_state(uuid) from public, anon;
+grant execute on function public.get_sequential_exam_state(uuid) to authenticated;
+
+create or replace function public.get_collective_sequential_exam_state(p_access_token text,p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  if not exists(select 1 from public.attempts where id=p_attempt_id and collective_participant_id=v_cp) then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if not exists(select 1 from public.exam_attempt_sessions where attempt_id=p_attempt_id) then raise exception 'SEQUENTIAL_EXAM_NOT_INITIALIZED'; end if;
+  return private.exam_state_payload(p_attempt_id);
+end;
+$$;
+revoke all on function public.get_collective_sequential_exam_state(text,uuid) from public;
+grant execute on function public.get_collective_sequential_exam_state(text,uuid) to anon, authenticated;
+
+create or replace function public.save_sequential_exam_answer(p_attempt_id uuid,p_question_id uuid,p_answer_json jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_save_answer(p_attempt_id,p_question_id,p_answer_json,auth.uid(),null);
+end;
+$$;
+revoke all on function public.save_sequential_exam_answer(uuid,uuid,jsonb) from public, anon;
+grant execute on function public.save_sequential_exam_answer(uuid,uuid,jsonb) to authenticated;
+
+create or replace function public.save_collective_sequential_exam_answer(p_access_token text,p_attempt_id uuid,p_question_id uuid,p_answer_json jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_save_answer(p_attempt_id,p_question_id,p_answer_json,null,v_cp);
+end;
+$$;
+revoke all on function public.save_collective_sequential_exam_answer(text,uuid,uuid,jsonb) from public;
+grant execute on function public.save_collective_sequential_exam_answer(text,uuid,uuid,jsonb) to anon, authenticated;
+
+create or replace function public.advance_sequential_exam_question(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_advance(p_attempt_id,auth.uid(),null);
+end;
+$$;
+revoke all on function public.advance_sequential_exam_question(uuid) from public, anon;
+grant execute on function public.advance_sequential_exam_question(uuid) to authenticated;
+
+create or replace function public.advance_collective_sequential_exam_question(p_access_token text,p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_advance(p_attempt_id,null,v_cp);
+end;
+$$;
+revoke all on function public.advance_collective_sequential_exam_question(text,uuid) from public;
+grant execute on function public.advance_collective_sequential_exam_question(text,uuid) to anon, authenticated;
+
+create or replace function public.resolve_sequential_exam_timeout(p_attempt_id uuid,p_action text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_resolve_timeout(p_attempt_id,p_action,auth.uid(),null);
+end;
+$$;
+revoke all on function public.resolve_sequential_exam_timeout(uuid,text) from public, anon;
+grant execute on function public.resolve_sequential_exam_timeout(uuid,text) to authenticated;
+
+create or replace function public.resolve_collective_sequential_exam_timeout(p_access_token text,p_attempt_id uuid,p_action text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_resolve_timeout(p_attempt_id,p_action,null,v_cp);
+end;
+$$;
+revoke all on function public.resolve_collective_sequential_exam_timeout(text,uuid,text) from public;
+grant execute on function public.resolve_collective_sequential_exam_timeout(text,uuid,text) to anon, authenticated;
+
+create or replace function public.get_organizer_exam_config(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_uid uuid:=auth.uid(); v_c public.competitions%rowtype; v_cfg public.competition_exam_configs%rowtype; v_count integer;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  select * into v_c from public.competitions where id=p_competition_id;
+  if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+  insert into public.competition_exam_configs(competition_id,duration_seconds,created_by,updated_by)
+  values(p_competition_id,
+    greatest(60,case when coalesce(v_c.config->>'duration_minutes','') ~ '^[0-9]+$'
+      then least(360,(v_c.config->>'duration_minutes')::integer)*60 else 1800 end),v_uid,v_uid)
+  on conflict (competition_id) do nothing;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id;
+  select count(*) into v_count from public.questions where competition_id=p_competition_id and status='PUBLISHED';
+  return to_jsonb(v_cfg)||jsonb_build_object('published_question_count',v_count,'frozen',v_cfg.frozen_at is not null);
+end;
+$$;
+revoke all on function public.get_organizer_exam_config(uuid) from public, anon;
+grant execute on function public.get_organizer_exam_config(uuid) to authenticated;
+
+create or replace function public.save_organizer_exam_config(p_competition_id uuid,p_config jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare
+  v_uid uuid:=auth.uid(); v_cfg public.competition_exam_configs%rowtype;
+  v_duration integer; v_question_count integer; v_attempt_limit integer; v_decision integer; v_borrow integer;
+  v_grace integer; v_minimum integer; v_rand_q boolean; v_rand_o boolean;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id for update;
+  if not found then raise exception 'EXAM_CONFIG_NOT_FOUND'; end if;
+  if v_cfg.frozen_at is not null or exists(select 1 from public.exam_attempt_sessions where competition_id=p_competition_id) then
+    raise exception 'EXAM_CONFIG_FROZEN';
+  end if;
+  v_duration := coalesce((p_config->>'duration_seconds')::integer,v_cfg.duration_seconds);
+  v_question_count := nullif(p_config->>'question_count','')::integer;
+  v_attempt_limit := coalesce((p_config->>'attempt_limit')::integer,v_cfg.attempt_limit);
+  v_decision := coalesce((p_config->>'decision_window_seconds')::integer,v_cfg.decision_window_seconds);
+  v_borrow := coalesce((p_config->>'borrow_seconds')::integer,v_cfg.borrow_seconds);
+  v_grace := coalesce((p_config->>'overtime_grace_seconds')::integer,v_cfg.overtime_grace_seconds);
+  v_minimum := coalesce((p_config->>'min_next_question_seconds')::integer,v_cfg.min_next_question_seconds);
+  v_rand_q := coalesce((p_config->>'randomize_questions')::boolean,v_cfg.randomize_questions);
+  v_rand_o := coalesce((p_config->>'randomize_options')::boolean,v_cfg.randomize_options);
+
+  if v_duration not between 60 and 21600 then raise exception 'INVALID_DURATION_SECONDS'; end if;
+  if v_question_count is not null and v_question_count not between 1 and 1000 then raise exception 'INVALID_QUESTION_COUNT'; end if;
+  if v_attempt_limit not between 1 and 10 then raise exception 'INVALID_ATTEMPT_LIMIT'; end if;
+  if v_decision not between 0 and 120 then raise exception 'INVALID_DECISION_WINDOW'; end if;
+  if v_borrow not between 1 and 120 then raise exception 'INVALID_BORROW_SECONDS'; end if;
+  if v_grace not between 0 and 120 then raise exception 'INVALID_GRACE_SECONDS'; end if;
+  if v_minimum not between 5 and 300 then raise exception 'INVALID_MINIMUM_NEXT_TIME'; end if;
+
+  update public.competition_exam_configs set
+    duration_seconds=v_duration,question_count=v_question_count,attempt_limit=v_attempt_limit,
+    decision_window_seconds=v_decision,borrow_seconds=v_borrow,overtime_grace_seconds=v_grace,
+    min_next_question_seconds=v_minimum,randomize_questions=v_rand_q,randomize_options=v_rand_o,
+    updated_by=v_uid,updated_at=clock_timestamp()
+  where competition_id=p_competition_id returning * into v_cfg;
+  return to_jsonb(v_cfg)||jsonb_build_object('frozen',false);
+end;
+$$;
+revoke all on function public.save_organizer_exam_config(uuid,jsonb) from public, anon;
+grant execute on function public.save_organizer_exam_config(uuid,jsonb) to authenticated;
+
+create or replace function public.get_organizer_exam_monitor(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_uid uuid:=auth.uid(); v_output jsonb;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  with base as (
+    select a.id attempt_id,a.status attempt_status,a.started_at,a.submitted_at,
+      s.current_question_index,s.question_count,s.state exam_state,s.current_question_deadline,
+      coalesce(cp.full_name,p.full_name,p.username,'Peserta') participant_name,
+      cp.participant_code,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state in ('ANSWERED','OVERTIME_ANSWERED')),0) answered_count,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state='TIMEOUT'),0) timeout_count,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state='SKIPPED'),0) skipped_count,
+      coalesce((select jsonb_agg(jsonb_build_object('question_index',eq.question_index,'state',eq.state,
+        'allocated_seconds',eq.allocated_seconds,'elapsed_seconds',eq.elapsed_seconds,
+        'borrowed_seconds',eq.borrowed_seconds,'grace_seconds_used',eq.grace_seconds_used,
+        'opened_at',eq.opened_at,'closed_at',eq.closed_at) order by eq.question_index)
+        from public.exam_attempt_questions eq where eq.attempt_id=a.id),'[]'::jsonb) questions
+    from public.attempts a
+    join public.exam_attempt_sessions s on s.attempt_id=a.id
+    left join public.profiles p on p.id=a.participant_id
+    left join public.collective_participants cp on cp.id=a.collective_participant_id
+    where a.competition_id=p_competition_id
+    order by a.started_at desc nulls last
+    limit 200
+  )
+  select jsonb_build_object(
+    'total',count(*),
+    'active',count(*) filter(where exam_state in ('ACTIVE','TIMEOUT_DECISION','OVERTIME')),
+    'completed',count(*) filter(where exam_state='COMPLETED'),
+    'timed_out',coalesce(sum(timeout_count),0),
+    'skipped',coalesce(sum(skipped_count),0),
+    'sessions',coalesce(jsonb_agg(to_jsonb(base) order by started_at desc nulls last),'[]'::jsonb)
+  ) into v_output from base;
+  return coalesce(v_output,'{"total":0,"active":0,"completed":0,"timed_out":0,"skipped":0,"sessions":[]}'::jsonb);
+end;
+$$;
+revoke all on function public.get_organizer_exam_monitor(uuid) from public, anon;
+grant execute on function public.get_organizer_exam_monitor(uuid) to authenticated;
+
+-- Direct access to exam snapshots, answer keys and logs stays private. Legacy APIs are
+-- blocked only for competitions configured for the sequential engine; other legacy data
+-- is left in place for a safe migration window.
+create or replace function private.guard_sequential_exam_answer_write()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_attempt_id uuid;
+begin
+  v_attempt_id := case when tg_op='DELETE' then old.attempt_id else new.attempt_id end;
+  if exists (
+    select 1 from public.attempts a
+    join public.competition_exam_configs c on c.competition_id=a.competition_id
+    where a.id=v_attempt_id
+  ) and coalesce(current_setting('app.sequential_exam_rpc',true),'') <> 'on' then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  if tg_op='DELETE' then return old; end if;
+  return new;
+end;
+$$;
+revoke all on function private.guard_sequential_exam_answer_write() from public, anon, authenticated;
+drop trigger if exists guard_sequential_exam_answer_write on public.answers;
+create trigger guard_sequential_exam_answer_write
+before insert or update or delete on public.answers
+for each row execute function private.guard_sequential_exam_answer_write();
+
+create or replace function private.guard_sequential_exam_attempt_transition()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if new.status is distinct from old.status
+    and new.status in ('SUBMITTED','GRADING','FINALIZED','EXPIRED')
+    and exists(select 1 from public.competition_exam_configs c where c.competition_id=new.competition_id)
+    and coalesce(current_setting('app.sequential_exam_rpc',true),'') <> 'on' then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.guard_sequential_exam_attempt_transition() from public, anon, authenticated;
+drop trigger if exists guard_sequential_exam_attempt_transition on public.attempts;
+create trigger guard_sequential_exam_attempt_transition
+before update of status on public.attempts
+for each row execute function private.guard_sequential_exam_attempt_transition();
+
+-- Existing participant question RPCs must not reveal the complete question set once
+-- a competition opts into the sequential engine.
+create or replace function public.get_participant_questions(p_competition_id uuid)
+returns table(id uuid,type text,prompt text,points numeric,required boolean,display_order integer,config jsonb,options jsonb)
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if exists(select 1 from public.competition_exam_configs where competition_id=p_competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  return query
+  select q.id,q.type,q.prompt,q.points,q.required,q.display_order,
+    (coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id') as config,
+    coalesce(jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label) order by qo.display_order,qo.id)
+      filter(where qo.id is not null),'[]'::jsonb) as options
+  from public.questions q
+  left join public.question_options qo on qo.question_id=q.id
+  join public.registrations r on r.competition_id=q.competition_id and r.user_id=auth.uid() and r.status in ('APPROVED','ACTIVE')
+  join public.competitions c on c.id=q.competition_id and c.status='LIVE'
+  where q.competition_id=p_competition_id and q.status='PUBLISHED'
+  group by q.id
+  order by q.display_order,q.id;
+end;
+$$;
+revoke all on function public.get_participant_questions(uuid) from public, anon;
+grant execute on function public.get_participant_questions(uuid) to authenticated;
+
+create or replace function public.get_attempt_resume(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare u uuid:=auth.uid(); a public.attempts; c public.competitions; qs jsonb; ans jsonb;
+begin
+  if u is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  select * into a from public.attempts where id=p_attempt_id and participant_id=u;
+  if not found then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if exists(select 1 from public.competition_exam_configs where competition_id=a.competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  select * into c from public.competitions where id=a.competition_id;
+  select coalesce(jsonb_agg(qobj order by qobj->>'display_order'),'[]'::jsonb) into qs from (
+    select jsonb_build_object('id',q.id,'type',q.type,'prompt',q.prompt,'points',q.points,'required',q.required,
+      'display_order',q.display_order,'config',(coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id'),
+      'options',coalesce((select jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label) order by qo.display_order)
+      from public.question_options qo where qo.question_id=q.id),'[]'::jsonb)) qobj
+    from public.questions q where q.competition_id=a.competition_id and q.status='PUBLISHED'
+  ) t;
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.saved_at),'[]'::jsonb) into ans from public.answers x where x.attempt_id=a.id;
+  return jsonb_build_object('attempt',to_jsonb(a)-'score','competition',to_jsonb(c),'questions',qs,'answers',ans);
+end;
+$$;
+revoke all on function public.get_attempt_resume(uuid) from public, anon;
+grant execute on function public.get_attempt_resume(uuid) to authenticated;
+
+create or replace function public.get_collective_participant_questions(p_access_token text,p_competition_id uuid)
+returns table(id uuid,type text,prompt text,points numeric,required boolean,display_order integer,config jsonb,options jsonb)
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  if exists(select 1 from public.competition_exam_configs where competition_id=p_competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  if not exists(select 1 from public.collective_participants where id=v_cp and competition_id=p_competition_id and status='ACTIVE') then
+    raise exception 'PARTICIPANT_NOT_REGISTERED';
+  end if;
+  return query
+  select q.id,q.type,q.prompt,q.points,q.required,q.display_order,
+    (coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id') as config,
+    coalesce(jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label,'value',qo.value) order by qo.display_order,qo.id)
+      filter(where qo.id is not null),'[]'::jsonb) as options
+  from public.questions q left join public.question_options qo on qo.question_id=q.id
+  join public.competitions c on c.id=q.competition_id and c.status='LIVE'
+  where q.competition_id=p_competition_id and q.status='PUBLISHED'
+  group by q.id order by q.display_order,q.id;
+end;
+$$;
+revoke all on function public.get_collective_participant_questions(text,uuid) from public;
+grant execute on function public.get_collective_participant_questions(text,uuid) to anon, authenticated;
+
+-- A completed attempt's score/rank is withheld until the organizer publishes results.
+create or replace function public.get_canonical_competition_result(p_participant_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare p public.participants; a public.attempts; v_rank bigint; c public.competitions;
+begin
+  select * into p from public.participants where id=p_participant_id;
+  if not found then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  if not private.current_user_is_admin()
+    and (p.user_id is null or p.user_id<>auth.uid())
+    and not exists(select 1 from public.collective_participants cp where cp.id=p.collective_participant_id and cp.managed_by_user_id=auth.uid()) then
+    raise exception 'NOT_AUTHORIZED';
+  end if;
+  select * into c from public.competitions where id=p.competition_id;
+  if c.status not in ('RESULT_PUBLISHED','ARCHIVED') then
+    return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,
+      'participant_type',p.participant_type,'name',p.full_name,'attempt',null,'rank',null,'published',false);
+  end if;
+  select * into a from public.attempts where canonical_participant_id=p.id and status='FINALIZED'
+    order by finalized_at desc nulls last,created_at desc limit 1;
+  if not found then
+    return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,'participant_type',p.participant_type,
+      'name',p.full_name,'attempt',null,'rank',null,'published',true);
+  end if;
+  select 1+count(*) into v_rank from public.attempts x
+    where x.competition_id=p.competition_id and x.status='FINALIZED'
+      and x.canonical_participant_id is not null and x.score>a.score;
+  return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,'participant_type',p.participant_type,
+    'name',p.full_name,'attempt',jsonb_build_object('id',a.id,'status',a.status,'score',a.score,'finalized_at',a.finalized_at),
+    'rank',v_rank,'published',true);
+end;
+$$;
+revoke all on function public.get_canonical_competition_result(uuid) from public, anon;
+grant execute on function public.get_canonical_competition_result(uuid) to authenticated;
+
+create or replace function public.get_my_canonical_competition_result(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_pid uuid;
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  select id into v_pid from public.participants
+    where competition_id=p_competition_id and user_id=auth.uid() limit 1;
+  if v_pid is null then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  return public.get_canonical_competition_result(v_pid);
+end;
+$$;
+revoke all on function public.get_my_canonical_competition_result(uuid) from public, anon;
+grant execute on function public.get_my_canonical_competition_result(uuid) to authenticated;
+ then least(360,(v_c.config->>'duration_minutes')::integer)*60 else 1800 end),
+    v_uid,v_uid)
+  on conflict (competition_id) do nothing;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id for update;
+
+  select * into v_existing from public.attempts
+    where competition_id=p_competition_id and participant_id=v_uid and status='IN_PROGRESS'
+    order by attempt_number desc limit 1;
+  if found then
+    if not exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then perform private.exam_initialize_attempt(v_existing.id); end if;
+    return private.exam_state_payload(v_existing.id);
+  end if;
+
+  select count(*) into v_count from public.attempts where competition_id=p_competition_id and participant_id=v_uid;
+  if v_count >= v_cfg.attempt_limit then
+    select * into v_existing from public.attempts where competition_id=p_competition_id and participant_id=v_uid order by attempt_number desc limit 1;
+    if found and exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then
+      return private.exam_state_payload(v_existing.id);
+    end if;
+    raise exception 'ATTEMPT_LIMIT_REACHED';
+  end if;
+
   v_a := public.start_competition_attempt(p_competition_id);
   perform private.exam_initialize_attempt(v_a.id);
   return private.exam_state_payload(v_a.id);
 end;
-$$;
+$;
 revoke all on function public.start_sequential_exam(uuid) from public, anon;
 grant execute on function public.start_sequential_exam(uuid) to authenticated;
 
@@ -970,7 +1468,7 @@ set search_path = public, private, pg_catalog
 as $$
 declare
   v_uid uuid:=auth.uid(); v_cfg public.competition_exam_configs%rowtype;
-  v_duration integer; v_question_count integer; v_decision integer; v_borrow integer;
+  v_duration integer; v_question_count integer; v_attempt_limit integer; v_decision integer; v_borrow integer;
   v_grace integer; v_minimum integer; v_rand_q boolean; v_rand_o boolean;
 begin
   if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
@@ -981,6 +1479,7 @@ begin
   end if;
   v_duration := coalesce((p_config->>'duration_seconds')::integer,v_cfg.duration_seconds);
   v_question_count := nullif(p_config->>'question_count','')::integer;
+  v_attempt_limit := coalesce((p_config->>'attempt_limit')::integer,v_cfg.attempt_limit);
   v_decision := coalesce((p_config->>'decision_window_seconds')::integer,v_cfg.decision_window_seconds);
   v_borrow := coalesce((p_config->>'borrow_seconds')::integer,v_cfg.borrow_seconds);
   v_grace := coalesce((p_config->>'overtime_grace_seconds')::integer,v_cfg.overtime_grace_seconds);
@@ -990,13 +1489,946 @@ begin
 
   if v_duration not between 60 and 21600 then raise exception 'INVALID_DURATION_SECONDS'; end if;
   if v_question_count is not null and v_question_count not between 1 and 1000 then raise exception 'INVALID_QUESTION_COUNT'; end if;
+  if v_attempt_limit not between 1 and 10 then raise exception 'INVALID_ATTEMPT_LIMIT'; end if;
   if v_decision not between 0 and 120 then raise exception 'INVALID_DECISION_WINDOW'; end if;
   if v_borrow not between 1 and 120 then raise exception 'INVALID_BORROW_SECONDS'; end if;
   if v_grace not between 0 and 120 then raise exception 'INVALID_GRACE_SECONDS'; end if;
   if v_minimum not between 5 and 300 then raise exception 'INVALID_MINIMUM_NEXT_TIME'; end if;
 
   update public.competition_exam_configs set
-    duration_seconds=v_duration,question_count=v_question_count,
+    duration_seconds=v_duration,question_count=v_question_count,attempt_limit=v_attempt_limit,
+    decision_window_seconds=v_decision,borrow_seconds=v_borrow,overtime_grace_seconds=v_grace,
+    min_next_question_seconds=v_minimum,randomize_questions=v_rand_q,randomize_options=v_rand_o,
+    updated_by=v_uid,updated_at=clock_timestamp()
+  where competition_id=p_competition_id returning * into v_cfg;
+  return to_jsonb(v_cfg)||jsonb_build_object('frozen',false);
+end;
+$$;
+revoke all on function public.save_organizer_exam_config(uuid,jsonb) from public, anon;
+grant execute on function public.save_organizer_exam_config(uuid,jsonb) to authenticated;
+
+create or replace function public.get_organizer_exam_monitor(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_uid uuid:=auth.uid(); v_output jsonb;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  with base as (
+    select a.id attempt_id,a.status attempt_status,a.started_at,a.submitted_at,
+      s.current_question_index,s.question_count,s.state exam_state,s.current_question_deadline,
+      coalesce(cp.full_name,p.full_name,p.username,'Peserta') participant_name,
+      cp.participant_code,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state in ('ANSWERED','OVERTIME_ANSWERED')),0) answered_count,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state='TIMEOUT'),0) timeout_count,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state='SKIPPED'),0) skipped_count,
+      coalesce((select jsonb_agg(jsonb_build_object('question_index',eq.question_index,'state',eq.state,
+        'allocated_seconds',eq.allocated_seconds,'elapsed_seconds',eq.elapsed_seconds,
+        'borrowed_seconds',eq.borrowed_seconds,'grace_seconds_used',eq.grace_seconds_used,
+        'opened_at',eq.opened_at,'closed_at',eq.closed_at) order by eq.question_index)
+        from public.exam_attempt_questions eq where eq.attempt_id=a.id),'[]'::jsonb) questions
+    from public.attempts a
+    join public.exam_attempt_sessions s on s.attempt_id=a.id
+    left join public.profiles p on p.id=a.participant_id
+    left join public.collective_participants cp on cp.id=a.collective_participant_id
+    where a.competition_id=p_competition_id
+    order by a.started_at desc nulls last
+    limit 200
+  )
+  select jsonb_build_object(
+    'total',count(*),
+    'active',count(*) filter(where exam_state in ('ACTIVE','TIMEOUT_DECISION','OVERTIME')),
+    'completed',count(*) filter(where exam_state='COMPLETED'),
+    'timed_out',coalesce(sum(timeout_count),0),
+    'skipped',coalesce(sum(skipped_count),0),
+    'sessions',coalesce(jsonb_agg(to_jsonb(base) order by started_at desc nulls last),'[]'::jsonb)
+  ) into v_output from base;
+  return coalesce(v_output,'{"total":0,"active":0,"completed":0,"timed_out":0,"skipped":0,"sessions":[]}'::jsonb);
+end;
+$$;
+revoke all on function public.get_organizer_exam_monitor(uuid) from public, anon;
+grant execute on function public.get_organizer_exam_monitor(uuid) to authenticated;
+
+-- Direct access to exam snapshots, answer keys and logs stays private. Legacy APIs are
+-- blocked only for competitions configured for the sequential engine; other legacy data
+-- is left in place for a safe migration window.
+create or replace function private.guard_sequential_exam_answer_write()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_attempt_id uuid;
+begin
+  v_attempt_id := case when tg_op='DELETE' then old.attempt_id else new.attempt_id end;
+  if exists (
+    select 1 from public.attempts a
+    join public.competition_exam_configs c on c.competition_id=a.competition_id
+    where a.id=v_attempt_id
+  ) and coalesce(current_setting('app.sequential_exam_rpc',true),'') <> 'on' then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  if tg_op='DELETE' then return old; end if;
+  return new;
+end;
+$$;
+revoke all on function private.guard_sequential_exam_answer_write() from public, anon, authenticated;
+drop trigger if exists guard_sequential_exam_answer_write on public.answers;
+create trigger guard_sequential_exam_answer_write
+before insert or update or delete on public.answers
+for each row execute function private.guard_sequential_exam_answer_write();
+
+create or replace function private.guard_sequential_exam_attempt_transition()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if new.status is distinct from old.status
+    and new.status in ('SUBMITTED','GRADING','FINALIZED','EXPIRED')
+    and exists(select 1 from public.competition_exam_configs c where c.competition_id=new.competition_id)
+    and coalesce(current_setting('app.sequential_exam_rpc',true),'') <> 'on' then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.guard_sequential_exam_attempt_transition() from public, anon, authenticated;
+drop trigger if exists guard_sequential_exam_attempt_transition on public.attempts;
+create trigger guard_sequential_exam_attempt_transition
+before update of status on public.attempts
+for each row execute function private.guard_sequential_exam_attempt_transition();
+
+-- Existing participant question RPCs must not reveal the complete question set once
+-- a competition opts into the sequential engine.
+create or replace function public.get_participant_questions(p_competition_id uuid)
+returns table(id uuid,type text,prompt text,points numeric,required boolean,display_order integer,config jsonb,options jsonb)
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if exists(select 1 from public.competition_exam_configs where competition_id=p_competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  return query
+  select q.id,q.type,q.prompt,q.points,q.required,q.display_order,
+    (coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id') as config,
+    coalesce(jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label) order by qo.display_order,qo.id)
+      filter(where qo.id is not null),'[]'::jsonb) as options
+  from public.questions q
+  left join public.question_options qo on qo.question_id=q.id
+  join public.registrations r on r.competition_id=q.competition_id and r.user_id=auth.uid() and r.status in ('APPROVED','ACTIVE')
+  join public.competitions c on c.id=q.competition_id and c.status='LIVE'
+  where q.competition_id=p_competition_id and q.status='PUBLISHED'
+  group by q.id
+  order by q.display_order,q.id;
+end;
+$$;
+revoke all on function public.get_participant_questions(uuid) from public, anon;
+grant execute on function public.get_participant_questions(uuid) to authenticated;
+
+create or replace function public.get_attempt_resume(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare u uuid:=auth.uid(); a public.attempts; c public.competitions; qs jsonb; ans jsonb;
+begin
+  if u is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  select * into a from public.attempts where id=p_attempt_id and participant_id=u;
+  if not found then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if exists(select 1 from public.competition_exam_configs where competition_id=a.competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  select * into c from public.competitions where id=a.competition_id;
+  select coalesce(jsonb_agg(qobj order by qobj->>'display_order'),'[]'::jsonb) into qs from (
+    select jsonb_build_object('id',q.id,'type',q.type,'prompt',q.prompt,'points',q.points,'required',q.required,
+      'display_order',q.display_order,'config',(coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id'),
+      'options',coalesce((select jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label) order by qo.display_order)
+      from public.question_options qo where qo.question_id=q.id),'[]'::jsonb)) qobj
+    from public.questions q where q.competition_id=a.competition_id and q.status='PUBLISHED'
+  ) t;
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.saved_at),'[]'::jsonb) into ans from public.answers x where x.attempt_id=a.id;
+  return jsonb_build_object('attempt',to_jsonb(a)-'score','competition',to_jsonb(c),'questions',qs,'answers',ans);
+end;
+$$;
+revoke all on function public.get_attempt_resume(uuid) from public, anon;
+grant execute on function public.get_attempt_resume(uuid) to authenticated;
+
+create or replace function public.get_collective_participant_questions(p_access_token text,p_competition_id uuid)
+returns table(id uuid,type text,prompt text,points numeric,required boolean,display_order integer,config jsonb,options jsonb)
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  if exists(select 1 from public.competition_exam_configs where competition_id=p_competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  if not exists(select 1 from public.collective_participants where id=v_cp and competition_id=p_competition_id and status='ACTIVE') then
+    raise exception 'PARTICIPANT_NOT_REGISTERED';
+  end if;
+  return query
+  select q.id,q.type,q.prompt,q.points,q.required,q.display_order,
+    (coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id') as config,
+    coalesce(jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label,'value',qo.value) order by qo.display_order,qo.id)
+      filter(where qo.id is not null),'[]'::jsonb) as options
+  from public.questions q left join public.question_options qo on qo.question_id=q.id
+  join public.competitions c on c.id=q.competition_id and c.status='LIVE'
+  where q.competition_id=p_competition_id and q.status='PUBLISHED'
+  group by q.id order by q.display_order,q.id;
+end;
+$$;
+revoke all on function public.get_collective_participant_questions(text,uuid) from public;
+grant execute on function public.get_collective_participant_questions(text,uuid) to anon, authenticated;
+
+-- A completed attempt's score/rank is withheld until the organizer publishes results.
+create or replace function public.get_canonical_competition_result(p_participant_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare p public.participants; a public.attempts; v_rank bigint; c public.competitions;
+begin
+  select * into p from public.participants where id=p_participant_id;
+  if not found then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  if not private.current_user_is_admin()
+    and (p.user_id is null or p.user_id<>auth.uid())
+    and not exists(select 1 from public.collective_participants cp where cp.id=p.collective_participant_id and cp.managed_by_user_id=auth.uid()) then
+    raise exception 'NOT_AUTHORIZED';
+  end if;
+  select * into c from public.competitions where id=p.competition_id;
+  if c.status not in ('RESULT_PUBLISHED','ARCHIVED') then
+    return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,
+      'participant_type',p.participant_type,'name',p.full_name,'attempt',null,'rank',null,'published',false);
+  end if;
+  select * into a from public.attempts where canonical_participant_id=p.id and status='FINALIZED'
+    order by finalized_at desc nulls last,created_at desc limit 1;
+  if not found then
+    return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,'participant_type',p.participant_type,
+      'name',p.full_name,'attempt',null,'rank',null,'published',true);
+  end if;
+  select 1+count(*) into v_rank from public.attempts x
+    where x.competition_id=p.competition_id and x.status='FINALIZED'
+      and x.canonical_participant_id is not null and x.score>a.score;
+  return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,'participant_type',p.participant_type,
+    'name',p.full_name,'attempt',jsonb_build_object('id',a.id,'status',a.status,'score',a.score,'finalized_at',a.finalized_at),
+    'rank',v_rank,'published',true);
+end;
+$$;
+revoke all on function public.get_canonical_competition_result(uuid) from public, anon;
+grant execute on function public.get_canonical_competition_result(uuid) to authenticated;
+
+create or replace function public.get_my_canonical_competition_result(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_pid uuid;
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  select id into v_pid from public.participants
+    where competition_id=p_competition_id and user_id=auth.uid() limit 1;
+  if v_pid is null then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  return public.get_canonical_competition_result(v_pid);
+end;
+$$;
+revoke all on function public.get_my_canonical_competition_result(uuid) from public, anon;
+grant execute on function public.get_my_canonical_competition_result(uuid) to authenticated;
+ then least(360,(v_c.config->>'duration_minutes')::integer)*60 else 1800 end))
+  on conflict (competition_id) do nothing;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id for update;
+
+  select * into v_existing from public.attempts
+    where competition_id=p_competition_id and collective_participant_id=v_cp and status='IN_PROGRESS'
+    order by attempt_number desc limit 1;
+  if found then
+    if not exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then perform private.exam_initialize_attempt(v_existing.id); end if;
+    return private.exam_state_payload(v_existing.id);
+  end if;
+
+  select count(*) into v_count from public.attempts where competition_id=p_competition_id and collective_participant_id=v_cp;
+  if v_count >= v_cfg.attempt_limit then
+    select * into v_existing from public.attempts where competition_id=p_competition_id and collective_participant_id=v_cp order by attempt_number desc limit 1;
+    if found and exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then
+      return private.exam_state_payload(v_existing.id);
+    end if;
+    raise exception 'ATTEMPT_LIMIT_REACHED';
+  end if;
+
+  v_a := public.start_collective_competition_attempt(p_access_token,p_competition_id);
+  perform private.exam_initialize_attempt(v_a.id);
+  return private.exam_state_payload(v_a.id);
+end;
+$;
+revoke all on function public.start_collective_sequential_exam(text,uuid) from public;
+grant execute on function public.start_collective_sequential_exam(text,uuid) to anon, authenticated;
+
+create or replace function public.get_sequential_exam_state(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  if not exists(select 1 from public.attempts where id=p_attempt_id and participant_id=auth.uid()) then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if not exists(select 1 from public.exam_attempt_sessions where attempt_id=p_attempt_id) then raise exception 'SEQUENTIAL_EXAM_NOT_INITIALIZED'; end if;
+  return private.exam_state_payload(p_attempt_id);
+end;
+$$;
+revoke all on function public.get_sequential_exam_state(uuid) from public, anon;
+grant execute on function public.get_sequential_exam_state(uuid) to authenticated;
+
+create or replace function public.get_collective_sequential_exam_state(p_access_token text,p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  if not exists(select 1 from public.attempts where id=p_attempt_id and collective_participant_id=v_cp) then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if not exists(select 1 from public.exam_attempt_sessions where attempt_id=p_attempt_id) then raise exception 'SEQUENTIAL_EXAM_NOT_INITIALIZED'; end if;
+  return private.exam_state_payload(p_attempt_id);
+end;
+$$;
+revoke all on function public.get_collective_sequential_exam_state(text,uuid) from public;
+grant execute on function public.get_collective_sequential_exam_state(text,uuid) to anon, authenticated;
+
+create or replace function public.save_sequential_exam_answer(p_attempt_id uuid,p_question_id uuid,p_answer_json jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_save_answer(p_attempt_id,p_question_id,p_answer_json,auth.uid(),null);
+end;
+$$;
+revoke all on function public.save_sequential_exam_answer(uuid,uuid,jsonb) from public, anon;
+grant execute on function public.save_sequential_exam_answer(uuid,uuid,jsonb) to authenticated;
+
+create or replace function public.save_collective_sequential_exam_answer(p_access_token text,p_attempt_id uuid,p_question_id uuid,p_answer_json jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_save_answer(p_attempt_id,p_question_id,p_answer_json,null,v_cp);
+end;
+$$;
+revoke all on function public.save_collective_sequential_exam_answer(text,uuid,uuid,jsonb) from public;
+grant execute on function public.save_collective_sequential_exam_answer(text,uuid,uuid,jsonb) to anon, authenticated;
+
+create or replace function public.advance_sequential_exam_question(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_advance(p_attempt_id,auth.uid(),null);
+end;
+$$;
+revoke all on function public.advance_sequential_exam_question(uuid) from public, anon;
+grant execute on function public.advance_sequential_exam_question(uuid) to authenticated;
+
+create or replace function public.advance_collective_sequential_exam_question(p_access_token text,p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_advance(p_attempt_id,null,v_cp);
+end;
+$$;
+revoke all on function public.advance_collective_sequential_exam_question(text,uuid) from public;
+grant execute on function public.advance_collective_sequential_exam_question(text,uuid) to anon, authenticated;
+
+create or replace function public.resolve_sequential_exam_timeout(p_attempt_id uuid,p_action text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_resolve_timeout(p_attempt_id,p_action,auth.uid(),null);
+end;
+$$;
+revoke all on function public.resolve_sequential_exam_timeout(uuid,text) from public, anon;
+grant execute on function public.resolve_sequential_exam_timeout(uuid,text) to authenticated;
+
+create or replace function public.resolve_collective_sequential_exam_timeout(p_access_token text,p_attempt_id uuid,p_action text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_resolve_timeout(p_attempt_id,p_action,null,v_cp);
+end;
+$$;
+revoke all on function public.resolve_collective_sequential_exam_timeout(text,uuid,text) from public;
+grant execute on function public.resolve_collective_sequential_exam_timeout(text,uuid,text) to anon, authenticated;
+
+create or replace function public.get_organizer_exam_config(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_uid uuid:=auth.uid(); v_c public.competitions%rowtype; v_cfg public.competition_exam_configs%rowtype; v_count integer;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  select * into v_c from public.competitions where id=p_competition_id;
+  if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+  insert into public.competition_exam_configs(competition_id,duration_seconds,created_by,updated_by)
+  values(p_competition_id,
+    greatest(60,case when coalesce(v_c.config->>'duration_minutes','') ~ '^[0-9]+$'
+      then least(360,(v_c.config->>'duration_minutes')::integer)*60 else 1800 end),v_uid,v_uid)
+  on conflict (competition_id) do nothing;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id;
+  select count(*) into v_count from public.questions where competition_id=p_competition_id and status='PUBLISHED';
+  return to_jsonb(v_cfg)||jsonb_build_object('published_question_count',v_count,'frozen',v_cfg.frozen_at is not null);
+end;
+$$;
+revoke all on function public.get_organizer_exam_config(uuid) from public, anon;
+grant execute on function public.get_organizer_exam_config(uuid) to authenticated;
+
+create or replace function public.save_organizer_exam_config(p_competition_id uuid,p_config jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare
+  v_uid uuid:=auth.uid(); v_cfg public.competition_exam_configs%rowtype;
+  v_duration integer; v_question_count integer; v_attempt_limit integer; v_decision integer; v_borrow integer;
+  v_grace integer; v_minimum integer; v_rand_q boolean; v_rand_o boolean;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id for update;
+  if not found then raise exception 'EXAM_CONFIG_NOT_FOUND'; end if;
+  if v_cfg.frozen_at is not null or exists(select 1 from public.exam_attempt_sessions where competition_id=p_competition_id) then
+    raise exception 'EXAM_CONFIG_FROZEN';
+  end if;
+  v_duration := coalesce((p_config->>'duration_seconds')::integer,v_cfg.duration_seconds);
+  v_question_count := nullif(p_config->>'question_count','')::integer;
+  v_attempt_limit := coalesce((p_config->>'attempt_limit')::integer,v_cfg.attempt_limit);
+  v_decision := coalesce((p_config->>'decision_window_seconds')::integer,v_cfg.decision_window_seconds);
+  v_borrow := coalesce((p_config->>'borrow_seconds')::integer,v_cfg.borrow_seconds);
+  v_grace := coalesce((p_config->>'overtime_grace_seconds')::integer,v_cfg.overtime_grace_seconds);
+  v_minimum := coalesce((p_config->>'min_next_question_seconds')::integer,v_cfg.min_next_question_seconds);
+  v_rand_q := coalesce((p_config->>'randomize_questions')::boolean,v_cfg.randomize_questions);
+  v_rand_o := coalesce((p_config->>'randomize_options')::boolean,v_cfg.randomize_options);
+
+  if v_duration not between 60 and 21600 then raise exception 'INVALID_DURATION_SECONDS'; end if;
+  if v_question_count is not null and v_question_count not between 1 and 1000 then raise exception 'INVALID_QUESTION_COUNT'; end if;
+  if v_attempt_limit not between 1 and 10 then raise exception 'INVALID_ATTEMPT_LIMIT'; end if;
+  if v_decision not between 0 and 120 then raise exception 'INVALID_DECISION_WINDOW'; end if;
+  if v_borrow not between 1 and 120 then raise exception 'INVALID_BORROW_SECONDS'; end if;
+  if v_grace not between 0 and 120 then raise exception 'INVALID_GRACE_SECONDS'; end if;
+  if v_minimum not between 5 and 300 then raise exception 'INVALID_MINIMUM_NEXT_TIME'; end if;
+
+  update public.competition_exam_configs set
+    duration_seconds=v_duration,question_count=v_question_count,attempt_limit=v_attempt_limit,
+    decision_window_seconds=v_decision,borrow_seconds=v_borrow,overtime_grace_seconds=v_grace,
+    min_next_question_seconds=v_minimum,randomize_questions=v_rand_q,randomize_options=v_rand_o,
+    updated_by=v_uid,updated_at=clock_timestamp()
+  where competition_id=p_competition_id returning * into v_cfg;
+  return to_jsonb(v_cfg)||jsonb_build_object('frozen',false);
+end;
+$$;
+revoke all on function public.save_organizer_exam_config(uuid,jsonb) from public, anon;
+grant execute on function public.save_organizer_exam_config(uuid,jsonb) to authenticated;
+
+create or replace function public.get_organizer_exam_monitor(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_uid uuid:=auth.uid(); v_output jsonb;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  with base as (
+    select a.id attempt_id,a.status attempt_status,a.started_at,a.submitted_at,
+      s.current_question_index,s.question_count,s.state exam_state,s.current_question_deadline,
+      coalesce(cp.full_name,p.full_name,p.username,'Peserta') participant_name,
+      cp.participant_code,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state in ('ANSWERED','OVERTIME_ANSWERED')),0) answered_count,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state='TIMEOUT'),0) timeout_count,
+      coalesce((select count(*) from public.exam_attempt_questions eq where eq.attempt_id=a.id and eq.state='SKIPPED'),0) skipped_count,
+      coalesce((select jsonb_agg(jsonb_build_object('question_index',eq.question_index,'state',eq.state,
+        'allocated_seconds',eq.allocated_seconds,'elapsed_seconds',eq.elapsed_seconds,
+        'borrowed_seconds',eq.borrowed_seconds,'grace_seconds_used',eq.grace_seconds_used,
+        'opened_at',eq.opened_at,'closed_at',eq.closed_at) order by eq.question_index)
+        from public.exam_attempt_questions eq where eq.attempt_id=a.id),'[]'::jsonb) questions
+    from public.attempts a
+    join public.exam_attempt_sessions s on s.attempt_id=a.id
+    left join public.profiles p on p.id=a.participant_id
+    left join public.collective_participants cp on cp.id=a.collective_participant_id
+    where a.competition_id=p_competition_id
+    order by a.started_at desc nulls last
+    limit 200
+  )
+  select jsonb_build_object(
+    'total',count(*),
+    'active',count(*) filter(where exam_state in ('ACTIVE','TIMEOUT_DECISION','OVERTIME')),
+    'completed',count(*) filter(where exam_state='COMPLETED'),
+    'timed_out',coalesce(sum(timeout_count),0),
+    'skipped',coalesce(sum(skipped_count),0),
+    'sessions',coalesce(jsonb_agg(to_jsonb(base) order by started_at desc nulls last),'[]'::jsonb)
+  ) into v_output from base;
+  return coalesce(v_output,'{"total":0,"active":0,"completed":0,"timed_out":0,"skipped":0,"sessions":[]}'::jsonb);
+end;
+$$;
+revoke all on function public.get_organizer_exam_monitor(uuid) from public, anon;
+grant execute on function public.get_organizer_exam_monitor(uuid) to authenticated;
+
+-- Direct access to exam snapshots, answer keys and logs stays private. Legacy APIs are
+-- blocked only for competitions configured for the sequential engine; other legacy data
+-- is left in place for a safe migration window.
+create or replace function private.guard_sequential_exam_answer_write()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_attempt_id uuid;
+begin
+  v_attempt_id := case when tg_op='DELETE' then old.attempt_id else new.attempt_id end;
+  if exists (
+    select 1 from public.attempts a
+    join public.competition_exam_configs c on c.competition_id=a.competition_id
+    where a.id=v_attempt_id
+  ) and coalesce(current_setting('app.sequential_exam_rpc',true),'') <> 'on' then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  if tg_op='DELETE' then return old; end if;
+  return new;
+end;
+$$;
+revoke all on function private.guard_sequential_exam_answer_write() from public, anon, authenticated;
+drop trigger if exists guard_sequential_exam_answer_write on public.answers;
+create trigger guard_sequential_exam_answer_write
+before insert or update or delete on public.answers
+for each row execute function private.guard_sequential_exam_answer_write();
+
+create or replace function private.guard_sequential_exam_attempt_transition()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if new.status is distinct from old.status
+    and new.status in ('SUBMITTED','GRADING','FINALIZED','EXPIRED')
+    and exists(select 1 from public.competition_exam_configs c where c.competition_id=new.competition_id)
+    and coalesce(current_setting('app.sequential_exam_rpc',true),'') <> 'on' then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.guard_sequential_exam_attempt_transition() from public, anon, authenticated;
+drop trigger if exists guard_sequential_exam_attempt_transition on public.attempts;
+create trigger guard_sequential_exam_attempt_transition
+before update of status on public.attempts
+for each row execute function private.guard_sequential_exam_attempt_transition();
+
+-- Existing participant question RPCs must not reveal the complete question set once
+-- a competition opts into the sequential engine.
+create or replace function public.get_participant_questions(p_competition_id uuid)
+returns table(id uuid,type text,prompt text,points numeric,required boolean,display_order integer,config jsonb,options jsonb)
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if exists(select 1 from public.competition_exam_configs where competition_id=p_competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  return query
+  select q.id,q.type,q.prompt,q.points,q.required,q.display_order,
+    (coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id') as config,
+    coalesce(jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label) order by qo.display_order,qo.id)
+      filter(where qo.id is not null),'[]'::jsonb) as options
+  from public.questions q
+  left join public.question_options qo on qo.question_id=q.id
+  join public.registrations r on r.competition_id=q.competition_id and r.user_id=auth.uid() and r.status in ('APPROVED','ACTIVE')
+  join public.competitions c on c.id=q.competition_id and c.status='LIVE'
+  where q.competition_id=p_competition_id and q.status='PUBLISHED'
+  group by q.id
+  order by q.display_order,q.id;
+end;
+$$;
+revoke all on function public.get_participant_questions(uuid) from public, anon;
+grant execute on function public.get_participant_questions(uuid) to authenticated;
+
+create or replace function public.get_attempt_resume(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare u uuid:=auth.uid(); a public.attempts; c public.competitions; qs jsonb; ans jsonb;
+begin
+  if u is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  select * into a from public.attempts where id=p_attempt_id and participant_id=u;
+  if not found then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if exists(select 1 from public.competition_exam_configs where competition_id=a.competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  select * into c from public.competitions where id=a.competition_id;
+  select coalesce(jsonb_agg(qobj order by qobj->>'display_order'),'[]'::jsonb) into qs from (
+    select jsonb_build_object('id',q.id,'type',q.type,'prompt',q.prompt,'points',q.points,'required',q.required,
+      'display_order',q.display_order,'config',(coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id'),
+      'options',coalesce((select jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label) order by qo.display_order)
+      from public.question_options qo where qo.question_id=q.id),'[]'::jsonb)) qobj
+    from public.questions q where q.competition_id=a.competition_id and q.status='PUBLISHED'
+  ) t;
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.saved_at),'[]'::jsonb) into ans from public.answers x where x.attempt_id=a.id;
+  return jsonb_build_object('attempt',to_jsonb(a)-'score','competition',to_jsonb(c),'questions',qs,'answers',ans);
+end;
+$$;
+revoke all on function public.get_attempt_resume(uuid) from public, anon;
+grant execute on function public.get_attempt_resume(uuid) to authenticated;
+
+create or replace function public.get_collective_participant_questions(p_access_token text,p_competition_id uuid)
+returns table(id uuid,type text,prompt text,points numeric,required boolean,display_order integer,config jsonb,options jsonb)
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  if exists(select 1 from public.competition_exam_configs where competition_id=p_competition_id) then
+    raise exception 'SEQUENTIAL_EXAM_ENGINE_REQUIRED';
+  end if;
+  if not exists(select 1 from public.collective_participants where id=v_cp and competition_id=p_competition_id and status='ACTIVE') then
+    raise exception 'PARTICIPANT_NOT_REGISTERED';
+  end if;
+  return query
+  select q.id,q.type,q.prompt,q.points,q.required,q.display_order,
+    (coalesce(q.config,'{}'::jsonb)-'accepted_answers'-'correct_answer'-'answer_key'-'correct_option_id') as config,
+    coalesce(jsonb_agg(jsonb_build_object('id',qo.id,'label',qo.label,'value',qo.value) order by qo.display_order,qo.id)
+      filter(where qo.id is not null),'[]'::jsonb) as options
+  from public.questions q left join public.question_options qo on qo.question_id=q.id
+  join public.competitions c on c.id=q.competition_id and c.status='LIVE'
+  where q.competition_id=p_competition_id and q.status='PUBLISHED'
+  group by q.id order by q.display_order,q.id;
+end;
+$$;
+revoke all on function public.get_collective_participant_questions(text,uuid) from public;
+grant execute on function public.get_collective_participant_questions(text,uuid) to anon, authenticated;
+
+-- A completed attempt's score/rank is withheld until the organizer publishes results.
+create or replace function public.get_canonical_competition_result(p_participant_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare p public.participants; a public.attempts; v_rank bigint; c public.competitions;
+begin
+  select * into p from public.participants where id=p_participant_id;
+  if not found then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  if not private.current_user_is_admin()
+    and (p.user_id is null or p.user_id<>auth.uid())
+    and not exists(select 1 from public.collective_participants cp where cp.id=p.collective_participant_id and cp.managed_by_user_id=auth.uid()) then
+    raise exception 'NOT_AUTHORIZED';
+  end if;
+  select * into c from public.competitions where id=p.competition_id;
+  if c.status not in ('RESULT_PUBLISHED','ARCHIVED') then
+    return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,
+      'participant_type',p.participant_type,'name',p.full_name,'attempt',null,'rank',null,'published',false);
+  end if;
+  select * into a from public.attempts where canonical_participant_id=p.id and status='FINALIZED'
+    order by finalized_at desc nulls last,created_at desc limit 1;
+  if not found then
+    return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,'participant_type',p.participant_type,
+      'name',p.full_name,'attempt',null,'rank',null,'published',true);
+  end if;
+  select 1+count(*) into v_rank from public.attempts x
+    where x.competition_id=p.competition_id and x.status='FINALIZED'
+      and x.canonical_participant_id is not null and x.score>a.score;
+  return jsonb_build_object('participant_id',p.id,'competition_id',p.competition_id,'participant_type',p.participant_type,
+    'name',p.full_name,'attempt',jsonb_build_object('id',a.id,'status',a.status,'score',a.score,'finalized_at',a.finalized_at),
+    'rank',v_rank,'published',true);
+end;
+$$;
+revoke all on function public.get_canonical_competition_result(uuid) from public, anon;
+grant execute on function public.get_canonical_competition_result(uuid) to authenticated;
+
+create or replace function public.get_my_canonical_competition_result(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_pid uuid;
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  select id into v_pid from public.participants
+    where competition_id=p_competition_id and user_id=auth.uid() limit 1;
+  if v_pid is null then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  return public.get_canonical_competition_result(v_pid);
+end;
+$$;
+revoke all on function public.get_my_canonical_competition_result(uuid) from public, anon;
+grant execute on function public.get_my_canonical_competition_result(uuid) to authenticated;
+ then least(360,(v_c.config->>'duration_minutes')::integer)*60 else 1800 end),
+    v_uid,v_uid)
+  on conflict (competition_id) do nothing;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id for update;
+
+  select * into v_existing from public.attempts
+    where competition_id=p_competition_id and participant_id=v_uid and status='IN_PROGRESS'
+    order by attempt_number desc limit 1;
+  if found then
+    if not exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then perform private.exam_initialize_attempt(v_existing.id); end if;
+    return private.exam_state_payload(v_existing.id);
+  end if;
+
+  select count(*) into v_count from public.attempts where competition_id=p_competition_id and participant_id=v_uid;
+  if v_count >= v_cfg.attempt_limit then
+    select * into v_existing from public.attempts where competition_id=p_competition_id and participant_id=v_uid order by attempt_number desc limit 1;
+    if found and exists(select 1 from public.exam_attempt_sessions where attempt_id=v_existing.id) then
+      return private.exam_state_payload(v_existing.id);
+    end if;
+    raise exception 'ATTEMPT_LIMIT_REACHED';
+  end if;
+
+  v_a := public.start_competition_attempt(p_competition_id);
+  perform private.exam_initialize_attempt(v_a.id);
+  return private.exam_state_payload(v_a.id);
+end;
+$;
+revoke all on function public.start_sequential_exam(uuid) from public, anon;
+grant execute on function public.start_sequential_exam(uuid) to authenticated;
+
+create or replace function public.start_collective_sequential_exam(p_access_token text,p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_a public.attempts%rowtype; v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  v_a := public.start_collective_competition_attempt(p_access_token,p_competition_id);
+  perform private.exam_initialize_attempt(v_a.id);
+  return private.exam_state_payload(v_a.id);
+end;
+$$;
+revoke all on function public.start_collective_sequential_exam(text,uuid) from public;
+grant execute on function public.start_collective_sequential_exam(text,uuid) to anon, authenticated;
+
+create or replace function public.get_sequential_exam_state(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  if not exists(select 1 from public.attempts where id=p_attempt_id and participant_id=auth.uid()) then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if not exists(select 1 from public.exam_attempt_sessions where attempt_id=p_attempt_id) then raise exception 'SEQUENTIAL_EXAM_NOT_INITIALIZED'; end if;
+  return private.exam_state_payload(p_attempt_id);
+end;
+$$;
+revoke all on function public.get_sequential_exam_state(uuid) from public, anon;
+grant execute on function public.get_sequential_exam_state(uuid) to authenticated;
+
+create or replace function public.get_collective_sequential_exam_state(p_access_token text,p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  if not exists(select 1 from public.attempts where id=p_attempt_id and collective_participant_id=v_cp) then raise exception 'ATTEMPT_NOT_FOUND'; end if;
+  if not exists(select 1 from public.exam_attempt_sessions where attempt_id=p_attempt_id) then raise exception 'SEQUENTIAL_EXAM_NOT_INITIALIZED'; end if;
+  return private.exam_state_payload(p_attempt_id);
+end;
+$$;
+revoke all on function public.get_collective_sequential_exam_state(text,uuid) from public;
+grant execute on function public.get_collective_sequential_exam_state(text,uuid) to anon, authenticated;
+
+create or replace function public.save_sequential_exam_answer(p_attempt_id uuid,p_question_id uuid,p_answer_json jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_save_answer(p_attempt_id,p_question_id,p_answer_json,auth.uid(),null);
+end;
+$$;
+revoke all on function public.save_sequential_exam_answer(uuid,uuid,jsonb) from public, anon;
+grant execute on function public.save_sequential_exam_answer(uuid,uuid,jsonb) to authenticated;
+
+create or replace function public.save_collective_sequential_exam_answer(p_access_token text,p_attempt_id uuid,p_question_id uuid,p_answer_json jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_save_answer(p_attempt_id,p_question_id,p_answer_json,null,v_cp);
+end;
+$$;
+revoke all on function public.save_collective_sequential_exam_answer(text,uuid,uuid,jsonb) from public;
+grant execute on function public.save_collective_sequential_exam_answer(text,uuid,uuid,jsonb) to anon, authenticated;
+
+create or replace function public.advance_sequential_exam_question(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_advance(p_attempt_id,auth.uid(),null);
+end;
+$$;
+revoke all on function public.advance_sequential_exam_question(uuid) from public, anon;
+grant execute on function public.advance_sequential_exam_question(uuid) to authenticated;
+
+create or replace function public.advance_collective_sequential_exam_question(p_access_token text,p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_advance(p_attempt_id,null,v_cp);
+end;
+$$;
+revoke all on function public.advance_collective_sequential_exam_question(text,uuid) from public;
+grant execute on function public.advance_collective_sequential_exam_question(text,uuid) to anon, authenticated;
+
+create or replace function public.resolve_sequential_exam_timeout(p_attempt_id uuid,p_action text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+begin
+  if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+  return private.exam_resolve_timeout(p_attempt_id,p_action,auth.uid(),null);
+end;
+$$;
+revoke all on function public.resolve_sequential_exam_timeout(uuid,text) from public, anon;
+grant execute on function public.resolve_sequential_exam_timeout(uuid,text) to authenticated;
+
+create or replace function public.resolve_collective_sequential_exam_timeout(p_access_token text,p_attempt_id uuid,p_action text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_cp uuid:=private.collective_session_participant(p_access_token);
+begin
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  return private.exam_resolve_timeout(p_attempt_id,p_action,null,v_cp);
+end;
+$$;
+revoke all on function public.resolve_collective_sequential_exam_timeout(text,uuid,text) from public;
+grant execute on function public.resolve_collective_sequential_exam_timeout(text,uuid,text) to anon, authenticated;
+
+create or replace function public.get_organizer_exam_config(p_competition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare v_uid uuid:=auth.uid(); v_c public.competitions%rowtype; v_cfg public.competition_exam_configs%rowtype; v_count integer;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  select * into v_c from public.competitions where id=p_competition_id;
+  if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+  insert into public.competition_exam_configs(competition_id,duration_seconds,created_by,updated_by)
+  values(p_competition_id,
+    greatest(60,case when coalesce(v_c.config->>'duration_minutes','') ~ '^[0-9]+$'
+      then least(360,(v_c.config->>'duration_minutes')::integer)*60 else 1800 end),v_uid,v_uid)
+  on conflict (competition_id) do nothing;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id;
+  select count(*) into v_count from public.questions where competition_id=p_competition_id and status='PUBLISHED';
+  return to_jsonb(v_cfg)||jsonb_build_object('published_question_count',v_count,'frozen',v_cfg.frozen_at is not null);
+end;
+$$;
+revoke all on function public.get_organizer_exam_config(uuid) from public, anon;
+grant execute on function public.get_organizer_exam_config(uuid) to authenticated;
+
+create or replace function public.save_organizer_exam_config(p_competition_id uuid,p_config jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, private, pg_catalog
+as $$
+declare
+  v_uid uuid:=auth.uid(); v_cfg public.competition_exam_configs%rowtype;
+  v_duration integer; v_question_count integer; v_attempt_limit integer; v_decision integer; v_borrow integer;
+  v_grace integer; v_minimum integer; v_rand_q boolean; v_rand_o boolean;
+begin
+  if v_uid is null or not private.exam_is_manager(p_competition_id,v_uid) then raise exception 'FORBIDDEN'; end if;
+  select * into v_cfg from public.competition_exam_configs where competition_id=p_competition_id for update;
+  if not found then raise exception 'EXAM_CONFIG_NOT_FOUND'; end if;
+  if v_cfg.frozen_at is not null or exists(select 1 from public.exam_attempt_sessions where competition_id=p_competition_id) then
+    raise exception 'EXAM_CONFIG_FROZEN';
+  end if;
+  v_duration := coalesce((p_config->>'duration_seconds')::integer,v_cfg.duration_seconds);
+  v_question_count := nullif(p_config->>'question_count','')::integer;
+  v_attempt_limit := coalesce((p_config->>'attempt_limit')::integer,v_cfg.attempt_limit);
+  v_decision := coalesce((p_config->>'decision_window_seconds')::integer,v_cfg.decision_window_seconds);
+  v_borrow := coalesce((p_config->>'borrow_seconds')::integer,v_cfg.borrow_seconds);
+  v_grace := coalesce((p_config->>'overtime_grace_seconds')::integer,v_cfg.overtime_grace_seconds);
+  v_minimum := coalesce((p_config->>'min_next_question_seconds')::integer,v_cfg.min_next_question_seconds);
+  v_rand_q := coalesce((p_config->>'randomize_questions')::boolean,v_cfg.randomize_questions);
+  v_rand_o := coalesce((p_config->>'randomize_options')::boolean,v_cfg.randomize_options);
+
+  if v_duration not between 60 and 21600 then raise exception 'INVALID_DURATION_SECONDS'; end if;
+  if v_question_count is not null and v_question_count not between 1 and 1000 then raise exception 'INVALID_QUESTION_COUNT'; end if;
+  if v_attempt_limit not between 1 and 10 then raise exception 'INVALID_ATTEMPT_LIMIT'; end if;
+  if v_decision not between 0 and 120 then raise exception 'INVALID_DECISION_WINDOW'; end if;
+  if v_borrow not between 1 and 120 then raise exception 'INVALID_BORROW_SECONDS'; end if;
+  if v_grace not between 0 and 120 then raise exception 'INVALID_GRACE_SECONDS'; end if;
+  if v_minimum not between 5 and 300 then raise exception 'INVALID_MINIMUM_NEXT_TIME'; end if;
+
+  update public.competition_exam_configs set
+    duration_seconds=v_duration,question_count=v_question_count,attempt_limit=v_attempt_limit,
     decision_window_seconds=v_decision,borrow_seconds=v_borrow,overtime_grace_seconds=v_grace,
     min_next_question_seconds=v_minimum,randomize_questions=v_rand_q,randomize_options=v_rand_o,
     updated_by=v_uid,updated_at=clock_timestamp()
