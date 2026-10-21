@@ -21,7 +21,7 @@ import {
   type LinearExamState,
 } from '@/services/linearExam.service';
 
-type RoomMode = 'INDIVIDUAL' | 'COLLECTIVE';
+type RoomMode = 'INDIVIDUAL' | 'COLLECTIVE' | 'PREVIEW';
 type Props = {
   mode: RoomMode;
   title: string;
@@ -211,7 +211,8 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
     if (!question || busyRef.current) return;
     setUploading(true);
     try {
-      const uploaded = await uploadRawFile(file, `sykabelajar/answers/${state.attempt_id}`);
+      const folder = mode === 'PREVIEW' ? `sykabelajar/preview-answers/${state.attempt_id}` : `sykabelajar/answers/${state.attempt_id}`;
+      const uploaded = await uploadRawFile(file, folder);
       updateAnswer({
         type: 'file',
         url: uploaded.secure_url,
@@ -234,14 +235,14 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
   if (state.phase === 'COMPLETED') {
     return <div className="min-h-[75vh] surface-bg px-4 py-10 text-fg"><Card className="mx-auto max-w-xl p-8 text-center">
       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10"><CheckCircle2 size={34} className="text-emerald-500" /></div>
-      <h1 className="text-xl font-bold text-fg">Ujian selesai</h1>
-      <p className="mt-2 text-sm text-fg-muted">Jawaban telah diterima oleh server. Nilai dan peringkat tidak ditampilkan sekarang dan hanya tersedia setelah penyelenggara mengumumkan hasil resmi.</p>
+      <h1 className="text-xl font-bold text-fg">{mode === 'PREVIEW' ? 'Simulasi selesai' : 'Ujian selesai'}</h1>
+      <p className="mt-2 text-sm text-fg-muted">{mode === 'PREVIEW' ? 'Simulasi selesai. Data uji tidak masuk ke nilai atau peringkat peserta resmi.' : 'Jawaban telah diterima oleh server. Nilai dan peringkat tidak ditampilkan sekarang dan hanya tersedia setelah penyelenggara mengumumkan hasil resmi.'}</p>
       <div className="mt-5 grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.answered_count}</p><p className="text-xs text-fg-muted">Dijawab</p></div>
         <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.skipped_count}</p><p className="text-xs text-fg-muted">Dilewati</p></div>
         <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.timeout_count}</p><p className="text-xs text-fg-muted">Timeout</p></div>
       </div>
-      <Link to={finishHref}><Button className="mt-6" fullWidth>Kembali ke portal</Button></Link>
+      <Link to={finishHref}><Button className="mt-6" fullWidth>{mode === 'PREVIEW' ? 'Lihat laporan simulasi' : 'Kembali ke portal'}</Button></Link>
     </Card></div>;
   }
 

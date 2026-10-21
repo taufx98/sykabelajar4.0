@@ -1,6 +1,6 @@
 import { toast } from "@/lib/toast";
 import { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award, UserRound, Activity, Clock3, Shuffle } from 'lucide-react';
+import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award, UserRound, Activity, Clock3, Shuffle, FlaskConical, Rocket } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -20,7 +20,8 @@ export function OrganizerCompetitionConfigPage() {
   const navigate = useNavigate();
   const [competition, setCompetition] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [workingAction, setWorkingAction] = useState<'save' | 'preview' | 'release' | null>(null);
+  const saving = workingAction !== null;
   const [participantMode, setParticipantMode] = useState('INDIVIDUAL');
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [publishedQuestionCount, setPublishedQuestionCount] = useState(0);
@@ -82,19 +83,23 @@ export function OrganizerCompetitionConfigPage() {
   const updateReward = (index: number, key: string, value: any) => setForm((x) => ({ ...x, rewards: x.rewards.map((r, i) => i === index ? { ...r, [key]: value } : r) }));
   const toggleGrade = (list: string[], grade: string) => list.includes(grade) ? list.filter((x) => x !== grade) : [...list, grade];
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!id) return;
+  async function saveConfiguration(action: 'save' | 'preview' | 'release') {
+    if (!id || workingAction) return;
+    if (action === 'release' && !window.confirm('Terbitkan lomba ini sekarang? Setelah diterbitkan, peserta dapat melihatnya sesuai jadwal dan aturan pendaftaran.')) return;
     const duration = Number(durationMinutes);
     if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
       toast.error('Durasi ujian harus 1 sampai 1.440 menit.');
+      return;
+    }
+    if (publishedQuestionCount < 1 && action !== 'save') {
+      toast.error('Tambahkan dan publikasikan minimal satu soal sebelum simulasi atau Release.');
       return;
     }
     if (duration * 60 < publishedQuestionCount) {
       toast.error(`Durasi terlalu singkat: ${publishedQuestionCount} soal membutuhkan minimal ${Math.ceil(publishedQuestionCount / 60)} menit.`);
       return;
     }
-    setSaving(true);
+    setWorkingAction(action);
     try {
       await saveCompetitionConfig(id, {
         ...form,
@@ -116,11 +121,48 @@ export function OrganizerCompetitionConfigPage() {
         },
       }).eq('id', id);
       if (error) throw error;
+
+      if (action === 'preview') {
+        const { data, error: previewError } = await supabase.rpc('start_organizer_exam_preview', { p_competition_id: id });
+        if (previewError) throw previewError;
+        const attemptId = String((data as Record<string, unknown> | null)?.attempt_id ?? '');
+        if (!attemptId) throw new Error('Sesi simulasi tidak berhasil dibuat.');
+        toast.success('Konfigurasi tersimpan. Simulasi dimulai.');
+        navigate(`/organizer/competition/${id}/simulation/${attemptId}`);
+        return;
+      }
+
+      if (action === 'release') {
+        const { error: releaseError } = await supabase.rpc('release_organizer_competition', { p_competition_id: id });
+        if (releaseError) throw releaseError;
+        toast.success('Lomba berhasil diterbitkan.');
+        navigate('/organizer');
+        return;
+      }
+
       toast.success('Konfigurasi lomba berhasil disimpan.');
       navigate('/organizer');
     } catch (error: any) {
-      toast.error(error?.message ?? 'Gagal menyimpan konfigurasi lomba.');
-    } finally { setSaving(false); }
+      const message = String(error?.message ?? '');
+      if (message.includes('EXAM_HAS_NO_PUBLISHED_QUESTIONS')) {
+        toast.error('Publikasikan minimal satu soal sebelum menjalankan simulasi atau Release.');
+      } else if (message.includes('PREVIEW_REQUIRES_DRAFT_COMPETITION')) {
+        toast.error('Simulasi hanya tersedia untuk lomba yang masih Draft.');
+      } else if (message.includes('COMPETITION_TIMELINE_INCOMPLETE')) {
+        toast.error('Lengkapi seluruh jadwal lomba sebelum Release.');
+      } else if (message.includes('COMPETITION_TIMELINE_INVALID')) {
+        toast.error('Periksa kembali urutan jadwal pendaftaran dan pelaksanaan lomba.');
+      } else {
+        toast.error(error?.message ?? 'Gagal menyimpan konfigurasi lomba.');
+      }
+    } finally {
+      setWorkingAction(null);
+    }
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    void saveConfiguration('save');
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-500">Memuat konfigurasi…</div>;
@@ -155,7 +197,13 @@ export function OrganizerCompetitionConfigPage() {
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><CalendarDays size={18} className="text-accent"/> Timeline</div><div className="grid md:grid-cols-2 gap-4"><Input label="Pendaftaran mulai" type="datetime-local" value={(form.level.registration_starts_at||'').slice(0,16)} onChange={(v)=>updateLevel('registration_starts_at',v)}/><Input label="Pendaftaran berakhir" type="datetime-local" value={(form.level.registration_ends_at||'').slice(0,16)} onChange={(v)=>updateLevel('registration_ends_at',v)}/><Input label="Kompetisi mulai" type="datetime-local" value={(form.level.starts_at||'').slice(0,16)} onChange={(v)=>updateLevel('starts_at',v)}/><Input label="Kompetisi berakhir" type="datetime-local" value={(form.level.ends_at||'').slice(0,16)} onChange={(v)=>updateLevel('ends_at',v)}/><Input label="Pengumuman" type="datetime-local" value={(form.level.announcement_at||'').slice(0,16)} onChange={(v)=>updateLevel('announcement_at',v)}/></div></Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Users size={18} className="text-accent"/> Registration Rules</div><div className="grid md:grid-cols-2 gap-4"><Input label="Maksimal peserta" type="number" value={form.registration_rule.max_participants == null ? '' : String(form.registration_rule.max_participants)} onChange={(v)=>updateRule('max_participants',v === '' ? null : Number(v))}/><Input label="Biaya Express" type="number" value={String(form.registration_rule.express_cost)} onChange={(v)=>updateRule('express_cost',Number(v||0))}/></div><div className="mt-4 flex flex-wrap gap-2">{grades.map(g=><button type="button" key={g} onClick={()=>updateRule('allowed_grades',toggleGrade(form.registration_rule.allowed_grades,g))} className={`px-3 py-2 rounded-lg border text-sm ${form.registration_rule.allowed_grades.includes(g)?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-slate-500'}`}>{g.toUpperCase()}</button>)}</div><div className="grid md:grid-cols-2 gap-3 mt-4"><Toggle label="Twibbon wajib" checked={form.registration_rule.require_twibbon} onChange={(v)=>updateRule('require_twibbon',v)}/><Toggle label="Social proof wajib" checked={form.registration_rule.require_social_proof} onChange={(v)=>updateRule('require_social_proof',v)}/><Toggle label="Express registration" checked={form.registration_rule.express_enabled} onChange={(v)=>updateRule('express_enabled',v)}/><div><label className="label">Mode approval</label><select className="input" value={form.registration_rule.approval_mode} onChange={e=>updateRule('approval_mode',e.target.value)}><option value="MANUAL">Manual</option><option value="AUTO">Otomatis</option></select></div></div></Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Award size={18} className="text-accent"/> Rewards</div><div className="space-y-3">{form.rewards.map((r,i)=><div key={r.rank_code} className="grid md:grid-cols-4 gap-3 p-3 rounded-xl bg-white/[.03] border surface-border"><Input label={r.rank_code} value={r.title} onChange={(v)=>updateReward(i,'title',v)}/><Input label="Points" type="number" value={String(r.points)} onChange={(v)=>updateReward(i,'points',Number(v||0))}/><Input label="Emblem" value={r.emblem_name||''} onChange={(v)=>updateReward(i,'emblem_name',v)}/><Toggle label="Sertifikat" checked={r.certificate_enabled} onChange={(v)=>updateReward(i,'certificate_enabled',v)}/></div>)}</div></Card>
-        <div className="flex justify-end"><Button type="submit" loading={saving} icon={<Save size={17}/>}>Simpan konfigurasi</Button></div>
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+          <Button type="submit" variant="outline" loading={workingAction === 'save'} disabled={saving} icon={<Save size={17}/>}>Simpan Konfigurasi</Button>
+          {competition.status === 'DRAFT' && <>
+            <Button type="button" variant="outline" loading={workingAction === 'preview'} disabled={saving} icon={<FlaskConical size={17}/>} onClick={() => void saveConfiguration('preview')}>Simulasi</Button>
+            <Button type="button" loading={workingAction === 'release'} disabled={saving} icon={<Rocket size={17}/>} onClick={() => void saveConfiguration('release')}>Release · Terbitkan Lomba</Button>
+          </>}
+        </div>
       </form>
     </div>
   </div>;
