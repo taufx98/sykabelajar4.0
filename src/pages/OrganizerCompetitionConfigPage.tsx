@@ -20,7 +20,7 @@ const rewardLabels: Record<string, { label: string; description: string }> = {
   THIRD: { label: 'Juara 3', description: 'Penghargaan untuk peraih peringkat ketiga.' },
   PARTICIPANT: { label: 'Peserta', description: 'Apresiasi untuk peserta yang memenuhi ketentuan lomba.' },
 };
-const participantModes = [
+const participantModeOptions = [
   { value: 'INDIVIDUAL', label: 'Individu', description: 'Peserta mendaftar dengan akun SykaBelajar sendiri.' },
   { value: 'COLLECTIVE_TEACHER', label: 'Kolektif oleh Guru', description: 'Guru memilih siswa dari roster dan membagikan akses peserta.' },
   { value: 'COLLECTIVE_ORGANIZATION', label: 'Kolektif oleh Organisasi', description: 'Organisasi/sekolah mengelola peserta kolektif. Fondasi backend sudah disiapkan.' },
@@ -72,7 +72,7 @@ export function OrganizerCompetitionConfigPage() {
         : {};
       setCompetition(data);
       const configuredModes = Array.isArray(savedExamConfig.participant_modes)
-        ? savedExamConfig.participant_modes.map(String).filter((mode) => participantModes.some((option) => option.value === mode))
+        ? savedExamConfig.participant_modes.map(String).filter((mode) => participantModeOptions.some((option) => option.value === mode))
         : [];
       setParticipantModes(configuredModes.length ? configuredModes : [String(data.participant_mode || 'INDIVIDUAL')]);
       setDurationMinutes(String(Math.max(1, Math.min(1440, Number(savedExamConfig.duration_minutes ?? 60) || 60))));
@@ -300,7 +300,7 @@ export function OrganizerCompetitionConfigPage() {
           <div className="mb-2 flex items-center gap-2 text-fg font-semibold"><UserRound size={18} className="text-accent"/> Cara Pendaftaran Peserta</div>
           <p className="mb-4 text-sm leading-relaxed text-fg-muted">Centang semua cara pendaftaran yang ingin dibuka. Peserta individu dan peserta kolektif dapat sama-sama diterima pada lomba yang sama.</p>
           <div className="grid gap-3 md:grid-cols-3">
-            {participantModes.map((mode) => {
+            {participantModeOptions.map((mode) => {
               const selected = participantModes.includes(mode.value);
               return <button key={mode.value} type="button" aria-pressed={selected} onClick={() => toggleParticipantMode(mode.value)} disabled={saving} className={`flex h-full items-start gap-3 rounded-xl border p-4 text-left transition ${selected ? 'border-accent bg-accent/5 ring-1 ring-accent/20' : 'border-border hover:border-accent/40'}`}>
                 <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 ${selected ? 'border-accent bg-accent text-white' : 'border-fg-muted/50'}`}>{selected && <Check size={13}/>}</span>
