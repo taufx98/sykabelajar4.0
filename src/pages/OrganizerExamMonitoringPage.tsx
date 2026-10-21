@@ -27,11 +27,11 @@ function phaseLabel(value: string) {
   const map: Record<string, string> = { ACTIVE: 'Mengerjakan', DECISION: 'Memilih waktu', GRACE: 'Waktu tambahan', COMPLETED: 'Selesai', IN_PROGRESS: 'Berlangsung', FINALIZED: 'Selesai', GRADING: 'Menunggu penilaian' };
   return map[value] ?? value;
 }
-function phaseColor(value: string): 'moss' | 'warn' | 'danger' | 'default' {
+function phaseColor(value: string): 'moss' | 'warn' | 'err' | 'default' {
   if (value === 'COMPLETED' || value === 'FINALIZED') return 'moss';
   if (value === 'DECISION' || value === 'GRACE') return 'warn';
   if (value === 'ACTIVE' || value === 'IN_PROGRESS') return 'default';
-  return 'danger';
+  return 'err';
 }
 function formatDate(value: string) {
   try { return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(value)); }
