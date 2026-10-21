@@ -56,13 +56,11 @@ export function CompetitionWorkPage() {
   const activeState = exam;
   const competitionId = String(competition?.id || '');
 
-  const acceptState = useCallback((next: SecureExamState) => {
+  const acceptState = useCallback((next: SecureExamState, restoreDraft = true) => {
     setExam(next);
     setServerOffset(Date.parse(next.server_now) - Date.now());
     setNow(Date.now());
-    setDraft(next.question?.answer && typeof next.question.answer === 'object'
-      ? { ...next.question.answer }
-      : {});
+    if (restoreDraft) setDraft(next.question?.answer && typeof next.question.answer === 'object' ? { ...next.question.answer } : {});
     answerLock.current = false;
   }, []);
 
@@ -131,7 +129,7 @@ export function CompetitionWorkPage() {
       setSaving(true);
       try {
         const next = await saveSecureExamAnswer(activeState.attempt_id, competitionId, draft);
-        acceptState(next);
+        acceptState(next, false);
       } catch (e: any) {
         toast(e?.message || 'Jawaban belum tersimpan. Tetap di halaman ini dan coba lagi.', 'error');
       } finally {
