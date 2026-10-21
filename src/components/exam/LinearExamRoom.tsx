@@ -318,8 +318,8 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
           <div className="flex items-center gap-2 text-xs text-fg-muted" aria-live="polite">
             {saveState === 'saving' ? <><Loader2 size={14} className="animate-spin" /> Menyimpan draft…</> : saveState === 'saved' ? <><ShieldCheck size={14} className="text-emerald-500" /> Draft tersimpan di server</> : <><ShieldCheck size={14} /> Timer dan perpindahan soal dikendalikan server</>}
           </div>
-          <Button onClick={() => void finishQuestion()} loading={busy} disabled={busy || state.phase === 'DECISION' || clock <= 0 || !hasAnswer(answer)}>
-            {state.position === state.total_questions ? 'Kunci jawaban & selesaikan' : hasAnswer(answer) ? 'Kunci jawaban & lanjut' : 'Pilih jawaban untuk lanjut'}
+          <Button onClick={() => void finishQuestion()} loading={busy} disabled={busy || state.phase === 'DECISION' || clock <= 0}>
+            {state.position === state.total_questions ? 'Kunci jawaban & selesaikan' : hasAnswer(answer) ? 'Kunci jawaban & lanjut' : 'Lanjut tanpa jawaban'}
           </Button>
         </div>
         {!hasAnswer(answer) && state.phase !== 'DECISION' && <p className="mt-2 text-right text-xs text-fg-muted">Soal kosong akan tercatat sebagai skip. Jika waktu habis, sistem melanjutkan otomatis.</p>}
