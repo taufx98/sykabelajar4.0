@@ -429,6 +429,11 @@ begin
     where attempt_id = p_attempt_id
     order by position
   loop
+    -- Drafts are not submitted responses. Score only answers explicitly locked by the participant.
+    if v_item.state <> 'ANSWERED' then
+      continue;
+    end if;
+
     v_key := coalesce(v_item.answer_key_snapshot, '{}'::jsonb);
     v_type := lower(replace(coalesce(v_item.question_snapshot->>'type',''), '-', '_'));
     v_points := v_item.points_snapshot;
@@ -704,6 +709,9 @@ begin
     elsif v_runtime.phase = 'GRACE' then
       if v_question.grace_deadline is null or p_server_now < v_question.grace_deadline then return; end if;
       v_transition_at := v_question.grace_deadline;
+      -- Remove any unsubmitted draft: an unanswered timeout must never be graded.
+      delete from public.answers
+      where attempt_id = p_attempt_id and question_id = v_question.question_id;
       perform private.log_linear_exam_event(p_attempt_id, v_question.position, v_question.question_id, 'QUESTION_SKIPPED', 'SYSTEM', jsonb_build_object('reason', 'GRACE_EXPIRED'), v_transition_at);
       perform private.advance_linear_exam_question(p_attempt_id, v_transition_at, 'SKIPPED', 0, 'GRACE_EXPIRED', 'SYSTEM');
       continue;
