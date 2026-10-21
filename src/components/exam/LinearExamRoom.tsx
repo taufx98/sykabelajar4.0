@@ -325,7 +325,7 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
         {!hasAnswer(answer) && state.phase !== 'DECISION' && <p className="mt-2 text-right text-xs text-fg-muted">Soal kosong akan tercatat sebagai skip. Jika waktu habis, sistem melanjutkan otomatis.</p>}
       </Card>}
 
-      {!question && state.phase !== 'COMPLETED' && <Card className="p-6 text-center"><Loader2 className="mx-auto animate-spin text-accent" /><p className="mt-3 text-sm text-fg-muted">Mengambil status soal dari server…</p></Card>}
+      {!question && <Card className="p-6 text-center"><Loader2 className="mx-auto animate-spin text-accent" /><p className="mt-3 text-sm text-fg-muted">Mengambil status soal dari server…</p></Card>}
     </div>
   </div>;
 }
