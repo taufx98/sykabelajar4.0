@@ -1,32 +1,30 @@
 # Rilis SYKABELAJAR 4.0 — secure linear exam
 
-Tujuan: memasang UI dan backend ujian satu-soal-per-request tanpa memutus UI ujian lama sebelum frontend baru siap.
+Status implementasi: kode frontend sudah masuk `main`, ketiga migration backend sudah diterapkan di Supabase production, legacy lockdown sudah aktif, dan pengujian CI terbaru berhasil.
 
-## Status saat ini
+## Migration production
 
-- Migration phase 1 dan skrip lockdown phase 2 telah diuji sebagai satu transaksi SQL lalu di-`ROLLBACK`.
-- Migration Phase 1 sudah diterapkan ke production Supabase project `mvdczyitbkxkldjughor` dan tercatat sebagai `20261021121831 / linear_server_authoritative_exam_phase1`.
-- Migration kompatibilitas grading sudah diterapkan sebagai `20261021122452 / linear_exam_preserve_grading_compat`; ini mempertahankan Premium AI essay grading, accepted answers lama, dan XP otomatis.
-- Migration hotfix penyelesaian attempt `20261021124911 / fix_linear_exam_completion_status_enum` telah memperbaiki cast enum status yang ditemukan oleh uji integrasi.
-- Security lockdown sudah diterapkan sebagai `20261021125110 / linear_exam_security_lockdown`; RPC legacy langsung dicabut, baca tabel soal oleh peserta dibatasi, tulis jawaban langsung ditutup, dan akses langsung ke attempt yang sudah selesai disembunyikan.
-- Verifikasi production memastikan tiga tabel engine ada, RPC baru memiliki izin eksekusi, jalur legacy tetap punya izin, dan saat dicek tidak ada attempt `IN_PROGRESS`.
-- Lockdown Phase 2 **belum diterapkan**. Uji CI untuk commit terakhir sebelum rename migration lulus; commit rename ini menjalankan CI ulang.
-- Skrip phase 2 sengaja berada di `supabase/manual/`, bukan `supabase/migrations/`, agar tidak ikut dijalankan otomatis bersamaan dengan migration additive.
+- `20261021121831 / linear_server_authoritative_exam_phase1`: snapshot soal per attempt, timer di server, RPC linear, log kejadian, dan fondasi state machine.
+- `20261021122452 / linear_exam_preserve_grading_compat`: menjaga Premium AI essay grading, jawaban singkat yang memakai `question_options`, dan XP otomatis.
+- `20261021124911 / fix_linear_exam_completion_status_enum`: memperbaiki error runtime ketika penyelesaian attempt mengisi kolom enum status dari ekspresi `CASE` bertipe `text`.
+- `20261021125110 / linear_exam_security_lockdown`: menutup RPC ujian lama, membatasi direct read soal dan attempt selesai, serta mencabut jalur insert/update jawaban langsung.
 
-## Urutan deployment wajib
+File migration di `supabase/migrations/` cocok dengan versi yang tercatat pada ledger production.
 
-1. **Phase 1 — backend additive (sudah dilakukan).** Migration `supabase/migrations/20261021121831_linear_server_authoritative_exam_phase1.sql` telah diaplikasikan dan tercatat di ledger. Ia membuat snapshot soal, timer server, RPC baru, audit event, dan proteksi perubahan soal; jalur legacy masih aktif.
-2. **Kompatibilitas grading (sudah dilakukan).** Migration `supabase/migrations/20261021122452_linear_exam_preserve_grading_compat.sql` mempertahankan penilaian esai otomatis Premium, jawaban singkat dari `question_options`, dan XP kompetisi untuk attempt yang selesai otomatis.
-3. **Deploy frontend baru.** Setelah phase 1 berhasil, merge/deploy PR #47 sehingga halaman individual dan kolektif memakai RPC linear yang baru. Jangan mulai ujian live untuk peserta sebelum CI hijau dan build baru aktif.
-4. **Verifikasi smoke test.** Gunakan lomba uji dengan akun uji: mulai attempt, jawab dan lanjut, biarkan timer habis, cek pilihan 30 detik, cek auto-skip, lalu buka tombol **Pantau Ujian** dari konfigurasi lomba. Pastikan peserta tidak menerima nilai/skor pada layar selesai.
-5. **Phase 2 — lockdown.** Setelah frontend baru terbukti aktif, jalankan seluruh SQL dari `supabase/manual/linear_exam_security_lockdown.sql` lewat SQL Editor. Ini menutup RPC lama, melarang baca semua soal melalui table API, membatasi baca skor attempt peserta, serta membuang jalur tulis jawaban langsung.
+## Hasil verifikasi
 
-**Phase 2 sudah diterapkan setelah halaman individu/kolektif memakai RPC linear dan CI lulus.** Nama migration yang tercatat di production kini disimpan di `supabase/migrations/20261021125110_linear_exam_security_lockdown.sql` agar ledger dan repo tetap sinkron.
+- CI `main` pada commit yang menambahkan smoke-release marker lulus: lint, typecheck, build, browser E2E access-control, dan production smoke test. Smoke test kini memastikan halaman production menyajikan marker `linear-exam-secure-v1`, bukan sekadar mengembalikan HTML.
+- Uji integrasi individual dan kolektif dijalankan langsung pada database production dalam transaksi rollback-only. Keduanya lulus untuk mulai attempt, timeout, keputusan 30 detik, pinjaman 30 detik, grace period, auto-skip, penghapusan draft yang belum dikunci, grading server, dan penahanan skor sampai hasil dipublikasikan.
+- Setelah lockdown, verifikasi juga memastikan RPC legacy individual/kolektif sudah tidak dapat dieksekusi, RPC linear tetap tersedia, direct write policy jawaban sudah hilang, dan RPC hasil canonical mengembalikan `published: false` tanpa skor sebelum pengumuman.
+- Seluruh data lomba/roster/attempt yang dipakai oleh smoke test dibatalkan di dalam transaksi; pengecekan setelah tes mengonfirmasi tidak ada data tes tersisa.
+- Saat pemeriksaan terakhir, production memiliki nol lomba berstatus `LIVE` dan nol attempt `IN_PROGRESS`. Karena tidak ada lomba aktif, tes belum dilakukan oleh peserta manusia pada lomba yang sedang berjalan; yang sudah lulus adalah alur integrasi server yang disimulasikan dan dibatalkan dalam transaksi.
 
 ## Perilaku keamanan
 
-- Timer, deadline, transisi waktu, jawaban final dan penilaian dihitung oleh backend.
-- Draft belum dihitung sebagai jawaban. Hanya soal berstatus `ANSWERED` yang masuk penilaian; draft soal yang timeout dihapus.
-- Hasil tidak dikembalikan kepada peserta sampai status lomba menjadi `RESULT_PUBLISHED` atau `ARCHIVED`. Panel OG tidak menampilkan isi jawaban atau skor.
-- Legacy attempt yang sudah memiliki jawaban tetapi belum punya snapshot linear ditolak otomatis dengan `LEGACY_ATTEMPT_REQUIRES_REVIEW`; periksa manual, jangan reset atau migrasikan otomatis.
-- Uji integrasi rollback-only di database production lulus setelah lockdown: timeout/borrow/grace/autoskip, penghapusan draft, grading server, penahanan skor, dan penolakan RPC legacy.
+- Timer, deadline, transisi timeout, jawaban final, dan grading diputuskan server.
+- Draft bukan jawaban final. Hanya soal dengan status `ANSWERED` dinilai; draft untuk soal yang timeout dihapus.
+- Peserta hanya menerima satu soal aktif dari RPC linear; hasil tidak dikirim sebelum status lomba menjadi `RESULT_PUBLISHED` atau `ARCHIVED`.
+- Panel OG menampilkan progres, timeout, skip, dan jejak peristiwa tanpa membuka isi jawaban atau nilai peserta.
+- Attempt lama yang sudah berisi jawaban tetapi belum memiliki snapshot linear ditolak dengan `LEGACY_ATTEMPT_REQUIRES_REVIEW`. Jangan reset atau migrasikan attempt lama otomatis; periksa manual.
+
+Security lockdown sudah aktif. Jangan membuka kembali RPC lama hanya untuk mengatasi attempt lawas; periksa attempt tersebut melalui jalur review yang sesuai.
