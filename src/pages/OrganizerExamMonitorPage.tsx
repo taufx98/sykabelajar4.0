@@ -15,9 +15,9 @@ function statusLabel(status: string) {
   };
   return labels[status] || status;
 }
-function statusTone(status: string): 'moss' | 'warn' | 'danger' | 'default' {
+function statusTone(status: string): 'moss' | 'warn' | 'err' | 'default' {
   if (status === 'ANSWERED' || status === 'OVERTIME_ANSWERED' || status === 'FINALIZED') return 'moss';
-  if (status === 'TIMEOUT' || status === 'TIMEOUT_PENDING' || status === 'TIMEOUT_DECISION' || status === 'SKIPPED') return 'danger';
+  if (status === 'TIMEOUT' || status === 'TIMEOUT_PENDING' || status === 'TIMEOUT_DECISION' || status === 'SKIPPED') return 'err';
   if (status === 'OVERTIME' || status === 'GRADING') return 'warn';
   return 'default';
 }
