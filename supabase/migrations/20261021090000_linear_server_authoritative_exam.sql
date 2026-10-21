@@ -71,6 +71,7 @@ using (
     from public.attempts a
     join public.competitions c on c.id = a.competition_id
     where a.id = answers.attempt_id
+      and a.status in ('SUBMITTED','GRADING','FINALIZED')
       and (
         private.current_user_is_admin()
         or (c.organizer_id is not null and private.current_user_is_organizer_for(c.organizer_id))
