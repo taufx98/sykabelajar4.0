@@ -93,11 +93,18 @@ export function OrganizerExamPreviewReportPage() {
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
         <Link to={`/organizer/competition/${id}/config`}><Button variant="outline" icon={<ArrowLeft size={16}/>}>Kembali ke konfigurasi</Button></Link>
         <Button icon={<Clock3 size={16}/>} onClick={async () => {
-          const { data, error: startError } = await supabase.rpc('start_organizer_exam_preview', { p_competition_id: id });
-          if (startError) throw startError;
-          const nextId = String((data as Record<string, unknown> | null)?.attempt_id ?? '');
-          if (!nextId) throw new Error('Simulasi baru tidak berhasil dimulai.');
-          window.location.assign(`/organizer/competition/${id}/simulation/${nextId}`);
+          setLoading(true);
+          setError('');
+          try {
+            const { data, error: startError } = await supabase.rpc('start_organizer_exam_preview', { p_competition_id: id });
+            if (startError) throw startError;
+            const nextId = String((data as Record<string, unknown> | null)?.attempt_id ?? '');
+            if (!nextId) throw new Error('Simulasi baru tidak berhasil dimulai.');
+            window.location.assign(`/organizer/competition/${id}/simulation/${nextId}`);
+          } catch (cause: unknown) {
+            setError(cause instanceof Error ? cause.message : 'Gagal mengulangi simulasi.');
+            setLoading(false);
+          }
         }}>Ulangi Simulasi</Button>
       </div>
     </div>
