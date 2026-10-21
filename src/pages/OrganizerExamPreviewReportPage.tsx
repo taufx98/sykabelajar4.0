@@ -53,6 +53,9 @@ export function OrganizerExamPreviewReportPage() {
 
   useEffect(() => {
     let active = true;
+    setReport(null);
+    setError('');
+    setLoading(true);
     void (async () => {
       try {
         const { data, error: rpcError } = await supabase.rpc('get_organizer_exam_preview_report', { p_attempt_id: attemptId });
