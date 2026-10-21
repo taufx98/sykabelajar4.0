@@ -282,7 +282,7 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
         </div>
         <div className="whitespace-pre-wrap break-words text-base font-semibold leading-relaxed text-fg sm:text-lg">{question.prompt}</div>
 
-        {(question.type === 'multiple-choice' || question.type === 'multiple_choice' || question.type === 'single_choice' || question.type === 'true-false' || question.type === 'true_false') &&
+        {(['multiple-choice', 'multiple_choice', 'single-choice', 'single_choice', 'true-false', 'true_false'].includes(question.type)) &&
           <div className="mt-6 space-y-3">{question.options.map((option) => {
             const selected = String(answer.value ?? '') === option.id;
             return <button key={option.id} type="button" disabled={busy || state.phase === 'DECISION' || state.phase === 'COMPLETED' || clock <= 0} onClick={() => updateAnswer({ value: option.id }, true)} className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${selected ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/60'} disabled:cursor-not-allowed disabled:opacity-60`}>
@@ -291,7 +291,7 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
             </button>;
           })}</div>}
 
-        {(question.type === 'multiple_checkbox' || question.type === 'multiple-select' || question.type === 'multiple_select') &&
+        {(['multiple-checkbox', 'multiple_checkbox', 'multiple-select', 'multiple_select'].includes(question.type)) &&
           <div className="mt-6 space-y-3">{question.options.map((option) => {
             const selected = selectedValues.includes(option.id);
             return <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${selected ? 'border-accent bg-accent/10' : 'border-border'}`}>
