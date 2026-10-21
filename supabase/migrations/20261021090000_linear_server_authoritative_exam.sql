@@ -876,6 +876,7 @@ begin
   where attempt_id = p_attempt_id and position = v_runtime.current_position
   for update;
 
+  if v_question.question_id <> p_question_id then raise exception 'EXAM_QUESTION_CHANGED'; end if;
   if v_runtime.phase = 'ACTIVE' and (v_question.question_deadline is null or v_now >= v_question.question_deadline) then
     perform private.resolve_linear_exam_timeouts(p_attempt_id, v_now);
     return private.build_linear_exam_state(p_attempt_id);
@@ -889,7 +890,9 @@ begin
 
   v_payload_present :=
     nullif(btrim(coalesce(p_answer_json->>'value','')), '') is not null
-    or (jsonb_typeof(p_answer_json->'values') = 'array' and jsonb_array_length(p_answer_json->'values') > 0);
+    or (jsonb_typeof(p_answer_json->'values') = 'array' and jsonb_array_length(p_answer_json->'values') > 0)
+    or nullif(btrim(coalesce(p_answer_json->>'url','')), '') is not null
+    or nullif(btrim(coalesce(p_answer_json->>'text','')), '') is not null;
 
   if p_skip or not v_payload_present then
     delete from public.answers where attempt_id = p_attempt_id and question_id = v_question.question_id;
@@ -1178,7 +1181,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(p_answer_json,'{}'::jsonb))<>'object' or pg_column_size(coalesce(p_answer_json,'{}'::jsonb))>50000 then raise exception 'INVALID_ANSWER_PAYLOAD'; end if;
   v_payload_present := nullif(btrim(coalesce(p_answer_json->>'value','')), '') is not null
-    or (jsonb_typeof(p_answer_json->'values')='array' and jsonb_array_length(p_answer_json->'values')>0);
+    or (jsonb_typeof(p_answer_json->'values')='array' and jsonb_array_length(p_answer_json->'values')>0)
+    or nullif(btrim(coalesce(p_answer_json->>'url','')), '') is not null
+    or nullif(btrim(coalesce(p_answer_json->>'text','')), '') is not null;
 
   if p_skip or not v_payload_present then
     delete from public.answers where attempt_id=p_attempt_id and question_id=v_question.question_id;
