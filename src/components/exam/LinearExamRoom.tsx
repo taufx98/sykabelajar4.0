@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, Clock3, FileText, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, Clock3, FileText, Info, Loader2, ShieldCheck, Trophy } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -37,6 +37,15 @@ function formatTime(total: number) {
 function phaseDeadline(state: LinearExamState) {
   return state.phase === 'ACTIVE' ? state.question_deadline ?? null : null;
 }
+function questionTypeLabel(type: string) {
+  const normalized = type.toLowerCase().replaceAll('-', '_');
+  if (['multiple_choice', 'single_choice', 'true_false'].includes(normalized)) return 'Pilihan Ganda';
+  if (['multiple_checkbox', 'multiple_select'].includes(normalized)) return 'Pilihan Ganda Kompleks';
+  if (['short_answer', 'short_text', 'numeric'].includes(normalized)) return 'Isian Singkat';
+  if (['essay', 'long_answer'].includes(normalized)) return 'Uraian';
+  if (normalized === 'file_upload') return 'Unggah Berkas';
+  return 'Soal';
+}
 function textValue(answer: LinearExamAnswer) {
   const value = answer.value ?? answer.text;
   return typeof value === 'string' ? value : '';
@@ -55,6 +64,7 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
   const [state, setState] = useState<LinearExamState>(initialState);
   const [answer, setAnswer] = useState<LinearExamAnswer>(initialState.answer ?? {});
   const [clock, setClock] = useState(0);
+  const [totalClock, setTotalClock] = useState(0);
   const [serverOffset, setServerOffset] = useState(Date.parse(initialState.server_now) - Date.now());
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -91,13 +101,21 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
   useEffect(() => {
     if (!state.question) {
       setClock(0);
+      setTotalClock(0);
       return;
     }
-    const tick = () => setClock(secondsLeft(stateRef.current, serverOffset));
+    const tick = () => {
+      const current = stateRef.current;
+      setClock(secondsLeft(current, serverOffset));
+      const globalDue = current.global_deadline;
+      setTotalClock(globalDue
+        ? Math.max(0, Math.ceil((Date.parse(globalDue) - (Date.now() + serverOffset)) / 1000))
+        : 0);
+    };
     tick();
     const interval = window.setInterval(tick, 250);
     return () => window.clearInterval(interval);
-  }, [deadline, serverOffset, secondsLeft, state.question?.id]);
+  }, [deadline, state.global_deadline, serverOffset, secondsLeft, state.question?.id]);
 
   useEffect(() => {
     setAnswer(state.answer ?? {});
@@ -206,98 +224,140 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
   };
 
   const selectedValues = Array.isArray(answer.values) ? answer.values.map(String) : [];
-  const remainingProgress = state.total_questions > 0 ? Math.min(100, (state.position / state.total_questions) * 100) : 0;
+  const normalizedType = question?.type.toLowerCase().replaceAll('-', '_') ?? '';
+  const multipleChoice = ['multiple_choice', 'single_choice', 'true_false'].includes(normalizedType);
+  const multipleSelect = ['multiple_checkbox', 'multiple_select'].includes(normalizedType);
+  const themeTitle = mode === 'PREVIEW' ? 'Simulasi penyelenggara' : participantName ? 'Peserta: ' + participantName : 'Ruang ujian resmi';
 
   if (state.phase === 'COMPLETED') {
-    return <div className="min-h-screen w-full surface-bg px-4 py-10 text-fg"><Card className="mx-auto max-w-xl p-8 text-center">
-      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10"><CheckCircle2 size={34} className="text-emerald-500" /></div>
-      <h1 className="text-xl font-bold text-fg">{mode === 'PREVIEW' ? 'Simulasi selesai' : 'Ujian selesai'}</h1>
-      <p className="mt-2 text-sm text-fg-muted">{mode === 'PREVIEW' ? 'Simulasi selesai. Data uji tidak masuk ke nilai atau peringkat peserta resmi.' : 'Jawaban telah diterima oleh server. Nilai dan peringkat tidak ditampilkan sekarang dan hanya tersedia setelah penyelenggara mengumumkan hasil resmi.'}</p>
-      <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.answered_count}</p><p className="text-xs text-fg-muted">Dijawab</p></div>
-        <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.skipped_count}</p><p className="text-xs text-fg-muted">Dilewati</p></div>
-        <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.timeout_count}</p><p className="text-xs text-fg-muted">Timeout</p></div>
-      </div>
-      <Link to={finishHref}><Button className="mt-6" fullWidth>{mode === 'PREVIEW' ? 'Lihat laporan simulasi' : 'Kembali ke portal'}</Button></Link>
-    </Card></div>;
+    return <div className="fixed inset-0 z-[90] flex min-h-screen w-full items-center justify-center overflow-y-auto surface-bg px-4 py-8 text-fg">
+      <Card className="mx-auto w-full max-w-xl p-8 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10"><CheckCircle2 size={34} className="text-emerald-500" /></div>
+        <h1 className="text-xl font-bold text-fg">{mode === 'PREVIEW' ? 'Simulasi selesai' : 'Ujian selesai'}</h1>
+        <p className="mt-2 text-sm text-fg-muted">{mode === 'PREVIEW' ? 'Simulasi selesai. Data uji tidak masuk ke nilai atau peringkat peserta resmi.' : 'Jawaban telah diterima oleh server. Nilai dan peringkat tersedia setelah penyelenggara mengumumkan hasil resmi.'}</p>
+        <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.answered_count}</p><p className="text-xs text-fg-muted">Dijawab</p></div>
+          <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.skipped_count}</p><p className="text-xs text-fg-muted">Dilewati</p></div>
+          <div className="rounded-xl border border-border p-3"><p className="text-xl font-bold text-fg">{state.timeout_count}</p><p className="text-xs text-fg-muted">Timeout</p></div>
+        </div>
+        <Link to={finishHref}><Button className="mt-6" fullWidth>{mode === 'PREVIEW' ? 'Lihat laporan simulasi' : 'Kembali ke portal'}</Button></Link>
+      </Card>
+    </div>;
   }
 
-  return <div className="fixed inset-0 z-[90] min-h-screen w-full overflow-y-auto surface-bg px-3 py-3 text-fg sm:px-5 sm:py-4">
-    <div className="mx-auto w-full max-w-5xl space-y-4">
-      <header className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold tracking-[0.18em] text-accent">RUANG UJIAN • MODE AMAN</p>
-          <h1 className="mt-1 truncate text-lg font-bold text-fg sm:text-xl">{title}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
-            {participantName && <span>Peserta: {participantName}</span>}
-            <span>Soal {state.position} dari {state.total_questions}</span>
-            <span aria-live="polite">{saveState === 'saving' ? 'Menyimpan jawaban…' : saveState === 'saved' ? 'Jawaban tersimpan sementara' : 'Perpindahan soal otomatis'}</span>
+  return <div className="fixed inset-0 z-[90] flex h-[100dvh] min-h-screen w-full flex-col overflow-hidden surface-bg text-fg">
+    <header className="z-10 flex shrink-0 flex-col gap-3 border-b border-border bg-card px-4 py-3 sm:min-h-[84px] sm:flex-row sm:items-center sm:justify-between sm:gap-5 sm:px-6 md:px-8">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-500">
+          <Trophy size={28} strokeWidth={2.1} />
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate text-base font-bold leading-tight text-fg sm:text-lg">{title}</h1>
+          <p className="mt-1 truncate text-xs text-fg-muted sm:text-sm">{themeTitle}</p>
+        </div>
+      </div>
+
+      <div className="order-first flex items-center justify-center sm:order-none sm:flex-1">
+        <div className="inline-flex items-center gap-2.5 rounded-full border border-border bg-surface-elevated/30 px-4 py-2 text-xs font-semibold text-fg sm:text-sm">
+          <ClipboardList size={19} className="text-accent" />
+          <span>Soal {state.position} dari {state.total_questions}</span>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center justify-between gap-3 sm:min-w-[190px] sm:justify-end sm:gap-4">
+        <div className="flex items-center gap-3">
+          <Clock3 size={27} className={totalClock <= 60 ? 'text-red-500' : 'text-accent'} strokeWidth={1.9} />
+          <div>
+            <p className={'font-mono text-xl font-bold leading-tight tabular-nums sm:text-2xl ' + (totalClock <= 60 ? 'text-red-500' : 'text-fg')} aria-live="off">{formatTime(totalClock)}</p>
+            <p className="mt-0.5 text-[11px] text-fg-muted sm:text-xs">Waktu tersisa</p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
-          <div className={`flex items-center gap-2 rounded-xl px-3 py-2 font-mono text-lg font-bold tabular-nums ${clock <= 10 ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'}`}>
-            <Clock3 size={18} />
-            <span>{formatTime(clock)}</span>
+        <ThemeToggle className="shrink-0 border border-border" />
+      </div>
+    </header>
+
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-[940px] px-5 pb-8 pt-8 sm:px-8 sm:pt-10 md:px-10 md:pt-12">
+        {roomError && <Card className="mb-5 border-red-500/30 p-3"><div className="flex items-start gap-2 text-sm text-red-500"><AlertTriangle size={17} className="mt-0.5 shrink-0" /><span>{roomError}</span><Button variant="ghost" size="sm" onClick={() => void requestState()}>Sinkronkan</Button></div></Card>}
+
+        {question && <>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <span className="inline-flex rounded-full bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent">{questionTypeLabel(question.type)}</span>
+            <div className="flex items-center gap-2.5 text-xs sm:text-sm">
+              <span className="text-fg-muted">Kerjakan soal ini sebelum</span>
+              <span className={'rounded-lg border px-3 py-1.5 font-mono text-base font-bold tabular-nums ' + (clock <= 10 ? 'border-red-500/30 bg-red-500/10 text-red-500' : 'border-accent/25 bg-accent/10 text-accent')}>{formatTime(clock)}</span>
+            </div>
           </div>
-          <ThemeToggle className="shrink-0 border border-border" />
-        </div>
-      </header>
 
-      <div className="h-1.5 overflow-hidden rounded-full bg-fg/10"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${remainingProgress}%` }} /></div>
-
-      {roomError && <Card className="border-red-500/30 p-3"><div className="flex items-start gap-2 text-sm text-red-500"><AlertTriangle size={17} className="mt-0.5 shrink-0" /><span>{roomError}</span><Button variant="ghost" onClick={() => void requestState()}>Sinkronkan</Button></div></Card>}
-
-
-      {question && <Card className="p-5 sm:p-7">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <Badge>SOAL {state.position}</Badge><span className="text-xs text-fg-muted">{question.points} poin · {question.required ? 'Wajib' : 'Opsional'}</span>
-        </div>
-        <div className="whitespace-pre-wrap break-words text-base font-semibold leading-relaxed text-fg sm:text-lg">{question.prompt}</div>
-
-        {(['multiple-choice', 'multiple_choice', 'single-choice', 'single_choice', 'true-false', 'true_false'].includes(question.type)) &&
-          <div className="mt-6 space-y-3">{question.options.map((option) => {
-            const selected = String(answer.value ?? '') === option.id;
-            return <button key={option.id} type="button" disabled={busy || state.phase !== 'ACTIVE' || clock <= 0} onClick={() => updateAnswer({ value: option.id }, true)} className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${selected ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/60'} disabled:cursor-not-allowed disabled:opacity-60`}>
-              <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-accent bg-accent text-white' : 'border-fg-muted/50'}`}>{selected ? <CheckCircle2 size={14} /> : null}</span>
-              <span className="whitespace-pre-wrap text-sm text-fg-secondary">{option.label}</span>
-            </button>;
-          })}</div>}
-
-        {(['multiple-checkbox', 'multiple_checkbox', 'multiple-select', 'multiple_select'].includes(question.type)) &&
-          <div className="mt-6 space-y-3">{question.options.map((option) => {
-            const selected = selectedValues.includes(option.id);
-            return <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${selected ? 'border-accent bg-accent/10' : 'border-border'}`}>
-              <input type="checkbox" checked={selected} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0} onChange={() => updateAnswer({ values: selected ? selectedValues.filter((id) => id !== option.id) : [...selectedValues, option.id] }, true)} />
-              <span className="whitespace-pre-wrap text-sm text-fg-secondary">{option.label}</span>
-            </label>;
-          })}</div>}
-
-        {(question.type === 'short-answer' || question.type === 'short_answer' || question.type === 'numeric' || question.type === 'short_text') &&
-          <div className="mt-6"><input className="input w-full" value={textValue(answer)} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0} onChange={(event) => updateAnswer({ value: event.target.value })} placeholder="Tulis jawaban di sini…" inputMode={question.type === 'numeric' ? 'decimal' : 'text'} /></div>}
-
-        {(question.type === 'essay' || question.type === 'long-answer' || question.type === 'long_answer') &&
-          <div className="mt-6"><textarea className="input min-h-40 w-full resize-y" value={textValue(answer)} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0} onChange={(event) => updateAnswer({ value: event.target.value })} placeholder="Tuliskan jawabanmu…" /></div>}
-
-        {(question.type === 'file-upload' || question.type === 'file_upload') &&
-          <div className="mt-6"><label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-border p-6 text-center hover:border-accent">
-            <input className="hidden" type="file" disabled={busy || uploading || state.phase !== 'ACTIVE' || clock <= 0} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadFile(file); event.currentTarget.value = ''; }} />
-            {uploading ? <Loader2 className="animate-spin text-accent" /> : <FileText className="text-accent" size={24} />}
-            <span className="text-sm font-semibold text-fg">{String(answer.file_name ?? 'Pilih berkas jawaban')}</span>
-            <span className="text-xs text-fg-muted">Berkas dikirim ke penyimpanan lalu direferensikan di jawaban ujian.</span>
-          </label></div>}
-
-        <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-xs text-fg-muted" aria-live="polite">
-            {saveState === 'saving' ? <><Loader2 size={14} className="animate-spin" /> Menyimpan draft…</> : saveState === 'saved' ? <><ShieldCheck size={14} className="text-emerald-500" /> Draft tersimpan di server</> : <><ShieldCheck size={14} /> Timer dan perpindahan soal dikendalikan server</>}
+          <div className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 sm:grid-cols-[32px_minmax(0,1fr)] sm:gap-4">
+            <span className="pt-0.5 text-lg font-bold leading-relaxed text-fg sm:text-xl">{state.position}.</span>
+            <div>
+              <h2 className="whitespace-pre-wrap break-words text-base font-semibold leading-[1.7] text-fg sm:text-[19px]">{question.prompt}</h2>
+              <p className="mt-2 text-xs text-fg-muted">{question.points} poin{question.required ? ' · Wajib dijawab' : ' · Opsional'}</p>
+            </div>
           </div>
-          <Button onClick={() => void finishQuestion()} loading={busy} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0}>
-            {state.position === state.total_questions ? 'Kunci jawaban & selesaikan' : hasAnswer(answer) ? 'Kunci jawaban & lanjut' : 'Lanjut tanpa jawaban'}
-          </Button>
-        </div>
-        {!hasAnswer(answer) && state.phase === 'ACTIVE' && <p className="mt-2 text-right text-xs text-fg-muted">Soal kosong akan tercatat sebagai skip. Jika waktu habis, sistem melanjutkan otomatis.</p>}
-      </Card>}
 
-      {!question && <Card className="p-6 text-center"><Loader2 className="mx-auto animate-spin text-accent" /><p className="mt-3 text-sm text-fg-muted">Mengambil status soal dari server…</p></Card>}
-    </div>
+          {multipleChoice && <div className="mt-6 space-y-3">
+            {question.options.map((option, index) => {
+              const selected = String(answer.value ?? '') === option.id;
+              return <button key={option.id} type="button" disabled={busy || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0} onClick={() => updateAnswer({ value: option.id }, true)} className={'flex min-h-[62px] w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition sm:gap-4 sm:px-5 ' + (selected ? 'border-accent bg-accent/10 ring-1 ring-accent/10' : 'border-border bg-card hover:border-accent/50 hover:bg-surface-elevated/20') + ' disabled:cursor-not-allowed disabled:opacity-60'}>
+                <span className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ' + (selected ? 'border-accent bg-accent' : 'border-fg-muted/50 bg-transparent')}>{selected && <span className="h-2 w-2 rounded-full bg-white" />}</span>
+                <span className="min-w-0 text-sm leading-relaxed text-fg-secondary sm:text-base"><span className="mr-2 font-semibold">{String.fromCharCode(65 + index)}.</span>{option.label}</span>
+              </button>;
+            })}
+          </div>}
+
+          {multipleSelect && <div className="mt-6 space-y-3">
+            {question.options.map((option, index) => {
+              const selected = selectedValues.includes(option.id);
+              return <button key={option.id} type="button" disabled={busy || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0} onClick={() => updateAnswer({ values: selected ? selectedValues.filter((id) => id !== option.id) : [...selectedValues, option.id] }, true)} className={'flex min-h-[62px] w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition sm:px-5 ' + (selected ? 'border-accent bg-accent/10 ring-1 ring-accent/10' : 'border-border bg-card hover:border-accent/50') + ' disabled:cursor-not-allowed disabled:opacity-60'}>
+                <span className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 ' + (selected ? 'border-accent bg-accent text-white' : 'border-fg-muted/50')}>{selected && <CheckCircle2 size={13} />}</span>
+                <span className="min-w-0 text-sm leading-relaxed text-fg-secondary sm:text-base"><span className="mr-2 font-semibold">{String.fromCharCode(65 + index)}.</span>{option.label}</span>
+              </button>;
+            })}
+          </div>}
+
+          {(normalizedType === 'short_answer' || normalizedType === 'short_text' || normalizedType === 'numeric') && <div className="mt-6">
+            <input className="input w-full" value={textValue(answer)} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0} onChange={(event) => updateAnswer({ value: event.target.value })} placeholder="Tulis jawaban di sini…" inputMode={normalizedType === 'numeric' ? 'decimal' : 'text'} />
+          </div>}
+
+          {(normalizedType === 'essay' || normalizedType === 'long_answer') && <div className="mt-6">
+            <textarea className="input min-h-40 w-full resize-y" value={textValue(answer)} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0} onChange={(event) => updateAnswer({ value: event.target.value })} placeholder="Tuliskan jawabanmu…" />
+          </div>}
+
+          {normalizedType === 'file_upload' && <div className="mt-6">
+            <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-card px-6 py-8 text-center hover:border-accent">
+              <input className="hidden" type="file" disabled={busy || uploading || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadFile(file); event.currentTarget.value = ''; }} />
+              {uploading ? <Loader2 className="animate-spin text-accent" /> : <FileText className="text-accent" size={24} />}
+              <span className="text-sm font-semibold text-fg">{String(answer.file_name ?? 'Pilih berkas jawaban')}</span>
+              <span className="text-xs text-fg-muted">Berkas akan disimpan lalu ditautkan ke jawaban ujian.</span>
+            </label>
+          </div>}
+
+          <div className="mt-8 flex items-start gap-3 rounded-xl border border-accent/10 bg-accent/5 px-4 py-4 sm:px-5">
+            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent"><Info size={16} /></span>
+            <p className="text-xs leading-5 text-fg-muted sm:text-sm sm:leading-6">
+              {hasAnswer(answer)
+                ? 'Periksa kembali pilihanmu. Setelah dikunci, jawaban tidak dapat diubah dan kamu langsung berpindah ke soal berikutnya.'
+                : 'Pilih jawaban yang paling tepat. Soal kosong atau waktu habis akan tercatat sebagai SKIP dengan nilai 0.'}
+            </p>
+          </div>
+        </>}
+        
+        {!question && <Card className="p-6 text-center"><Loader2 className="mx-auto animate-spin text-accent" /><p className="mt-3 text-sm text-fg-muted">Mengambil status soal dari server…</p></Card>}
+      </div>
+    </main>
+
+    <footer className="z-10 flex shrink-0 flex-col gap-3 border-t border-border bg-card px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6 md:px-8">
+      <div className="flex items-center gap-2 text-xs text-fg-muted sm:text-sm">
+        <ShieldCheck size={17} className="shrink-0 text-accent" />
+        <span>{saveState === 'saving' ? 'Menyimpan jawaban…' : saveState === 'saved' ? 'Draft jawaban tersimpan' : 'Jawaban dikunci satu per satu; soal sebelumnya tidak bisa dibuka lagi.'}</span>
+      </div>
+      <Button className="w-full sm:w-auto sm:min-w-[260px]" onClick={() => void finishQuestion()} loading={busy} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0 || totalClock <= 0 || !question} icon={<ArrowRight size={17} />}>
+        {state.position === state.total_questions
+          ? (hasAnswer(answer) ? 'Kunci jawaban & selesaikan' : 'Lewati & selesaikan')
+          : (hasAnswer(answer) ? 'Kunci jawaban & selanjutnya' : 'Lewati soal & selanjutnya')}
+      </Button>
+    </footer>
   </div>;
 }
