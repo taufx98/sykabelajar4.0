@@ -209,7 +209,7 @@ function Metric({icon,label,value}:{icon:ReactNode;label:string;value:string|num
 function Field({label,value,onChange,type='text',min,max,disabled}:{label:string;value:string;onChange:(v:string)=>void;type?:string;min?:number;max?:number;disabled?:boolean}) {
   return <label className="block"><span className="block text-xs font-medium text-fg-secondary mb-1.5">{label}</span><input className="input w-full" type={type} min={min} max={max} value={value} disabled={disabled} onChange={(e)=>onChange(e.target.value)}/></label>;
 }
-function Toggle({icon,label,checked,disabled,onChange}:{icon:React.ReactNode;label:string;checked:boolean;disabled?:boolean;onChange:(v:boolean)=>void}) {
+function Toggle({icon,label,checked,disabled,onChange}:{icon:ReactNode;label:string;checked:boolean;disabled?:boolean;onChange:(v:boolean)=>void}) {
   return <label className={`flex items-center gap-3 rounded-xl border border-border px-4 py-3 ${disabled?'opacity-50':'cursor-pointer hover:border-emerald-400/40'}`}><input type="checkbox" checked={checked} disabled={disabled} onChange={(e)=>onChange(e.target.checked)} className="accent-emerald-400"/><span className="text-accent">{icon}</span><span className="text-sm text-fg-secondary">{label}</span></label>;
 }
 function MiniStat({label,value}:{label:string;value:string|number|null}) {
