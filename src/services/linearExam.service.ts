@@ -86,11 +86,11 @@ export async function startLinearExamAttempt(competitionId: string) {
 export async function getLinearExamState(attemptId: string) {
   return rpcState('get_linear_exam_state', { p_attempt_id: attemptId });
 }
-export async function saveLinearExamDraft(attemptId: string, answer: LinearExamAnswer) {
-  return rpcState('save_linear_exam_draft', { p_attempt_id: attemptId, p_answer_json: answer });
+export async function saveLinearExamDraft(attemptId: string, questionId: string, answer: LinearExamAnswer) {
+  return rpcState('save_linear_exam_draft', { p_attempt_id: attemptId, p_question_id: questionId, p_answer_json: answer });
 }
-export async function answerLinearExamQuestion(attemptId: string, answer: LinearExamAnswer) {
-  return rpcState('answer_linear_exam_question', { p_attempt_id: attemptId, p_answer_json: answer, p_skip: false });
+export async function answerLinearExamQuestion(attemptId: string, questionId: string, answer: LinearExamAnswer) {
+  return rpcState('answer_linear_exam_question', { p_attempt_id: attemptId, p_question_id: questionId, p_answer_json: answer, p_skip: false });
 }
 export async function chooseLinearExamTimeout(attemptId: string, decision: 'BORROW' | 'CONTINUE') {
   return rpcState('choose_linear_exam_timeout', { p_attempt_id: attemptId, p_decision: decision });
@@ -105,11 +105,11 @@ export async function startCollectiveLinearExamAttempt(competitionId: string, ac
 export async function getCollectiveLinearExamState(attemptId: string, accessToken: string) {
   return rpcState('get_collective_linear_exam_state', { p_attempt_id: attemptId, ...collectiveArgs(accessToken) });
 }
-export async function saveCollectiveLinearExamDraft(attemptId: string, accessToken: string, answer: LinearExamAnswer) {
-  return rpcState('save_collective_linear_exam_draft', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_answer_json: answer });
+export async function saveCollectiveLinearExamDraft(attemptId: string, accessToken: string, questionId: string, answer: LinearExamAnswer) {
+  return rpcState('save_collective_linear_exam_draft', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_question_id: questionId, p_answer_json: answer });
 }
-export async function answerCollectiveLinearExamQuestion(attemptId: string, accessToken: string, answer: LinearExamAnswer) {
-  return rpcState('answer_collective_linear_exam_question', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_answer_json: answer, p_skip: false });
+export async function answerCollectiveLinearExamQuestion(attemptId: string, accessToken: string, questionId: string, answer: LinearExamAnswer) {
+  return rpcState('answer_collective_linear_exam_question', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_question_id: questionId, p_answer_json: answer, p_skip: false });
 }
 export async function chooseCollectiveLinearExamTimeout(attemptId: string, accessToken: string, decision: 'BORROW' | 'CONTINUE') {
   return rpcState('choose_collective_linear_exam_timeout', { p_attempt_id: attemptId, ...collectiveArgs(accessToken), p_decision: decision });
