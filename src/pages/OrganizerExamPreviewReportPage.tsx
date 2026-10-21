@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Clock3, FileQuestion, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock3, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -79,7 +79,7 @@ export function OrganizerExamPreviewReportPage() {
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-sm font-bold text-accent">{item.position}</div>
               <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2"><Badge>{item.state === 'ANSWERED' ? 'Dijawab' : item.state === 'TIMEOUT' ? 'Timeout' : item.state === 'SKIPPED' ? 'Dilewati' : 'Tidak dijawab'}</Badge><span className="text-xs text-fg-muted">{item.points} poin</span>{item.manual_review_required && <Badge color="warning">Perlu penilaian manual</Badge>}</div>
+                <div className="mb-2 flex flex-wrap items-center gap-2"><Badge>{item.state === 'ANSWERED' ? 'Dijawab' : item.state === 'TIMEOUT' ? 'Timeout' : item.state === 'SKIPPED' ? 'Dilewati' : 'Tidak dijawab'}</Badge><span className="text-xs text-fg-muted">{item.points} poin</span>{item.manual_review_required && <Badge color="warn">Perlu penilaian manual</Badge>}</div>
                 <p className="whitespace-pre-wrap break-words font-semibold">{q.prompt || 'Soal'}</p>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <div className="rounded-lg border border-border p-3"><p className="text-xs text-fg-muted">Jawaban simulasi</p><p className="mt-1 whitespace-pre-wrap break-words text-sm">{answerText(item.answer)}</p></div>
