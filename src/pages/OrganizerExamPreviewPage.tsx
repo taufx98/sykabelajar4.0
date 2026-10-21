@@ -10,6 +10,7 @@ import { LinearExamRoom } from '@/components/exam/LinearExamRoom';
 export function OrganizerExamPreviewPage() {
   const { id = '', attemptId = '' } = useParams();
   const [title, setTitle] = useState('');
+  const [subtitle, setSubtitle] = useState('');
   const [state, setState] = useState<LinearExamState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,7 +21,7 @@ export function OrganizerExamPreviewPage() {
       try {
         if (!id || !attemptId) throw new Error('ID simulasi tidak lengkap.');
         const [{ data: competition, error: competitionError }, exam] = await Promise.all([
-          supabase.from('competitions').select('id,title,status').eq('id', id).maybeSingle(),
+          supabase.from('competitions').select('id,title,short_description,category,status').eq('id', id).maybeSingle(),
           getLinearExamState(attemptId),
         ]);
         if (competitionError) throw competitionError;
@@ -29,6 +30,7 @@ export function OrganizerExamPreviewPage() {
         }
         if (!active) return;
         setTitle(String(competition.title ?? 'Simulasi Ujian'));
+        setSubtitle(String(competition.short_description || competition.category || 'Simulasi penyelenggara'));
         setState(exam);
       } catch (cause: unknown) {
         if (active) setError(cause instanceof Error ? cause.message : 'Gagal membuka simulasi.');
@@ -46,6 +48,7 @@ export function OrganizerExamPreviewPage() {
   return <LinearExamRoom
     mode="PREVIEW"
     title={title}
+    subtitle={subtitle}
     initialState={state}
     finishHref={`/organizer/competition/${id}/simulation/${attemptId}/report`}
   />;
