@@ -1330,7 +1330,11 @@ begin
 end;
 $$;
 
-create or replace function public.get_linear_exam_activity(p_competition_id uuid)
+create or replace function public.get_linear_exam_activity(
+  p_competition_id uuid,
+  p_limit integer default 100,
+  p_offset integer default 0
+)
 returns jsonb
 language plpgsql
 security definer
@@ -1339,6 +1343,9 @@ as $$
 declare
   v_comp public.competitions%rowtype;
   v_result jsonb;
+  v_limit integer := greatest(1, least(coalesce(p_limit, 100), 200));
+  v_offset integer := greatest(0, coalesce(p_offset, 0));
+  v_total integer := 0;
 begin
   if auth.uid() is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
   select * into v_comp from public.competitions where id=p_competition_id;
@@ -1347,11 +1354,18 @@ begin
     raise exception 'FORBIDDEN';
   end if;
 
-  -- Resolve timed-out participants on read so the panel never trusts browser timers.
+  select count(*)::integer into v_total
+  from public.attempts a
+  join public.exam_attempt_runtime r on r.attempt_id=a.id
+  where a.competition_id=p_competition_id;
+
+  -- Process overdue state transitions only for the bounded page currently requested.
   perform private.resolve_linear_exam_timeouts(a.id,clock_timestamp())
   from public.attempts a
   join public.exam_attempt_runtime r on r.attempt_id=a.id and r.phase<>'COMPLETED'
-  where a.competition_id=p_competition_id;
+  where a.competition_id=p_competition_id
+  order by a.created_at desc, a.id
+  limit v_limit offset v_offset;
 
   select coalesce(jsonb_agg(row_data order by created_at desc), '[]'::jsonb)
   into v_result
@@ -1382,7 +1396,7 @@ begin
             from public.exam_attempt_events ev
             where ev.attempt_id=a.id
             order by ev.occurred_at desc
-            limit 30
+            limit 10
           ) recent
         ),'[]'::jsonb)
       ) as row_data
@@ -1391,9 +1405,19 @@ begin
     left join public.profiles p on p.id=a.participant_id
     left join public.collective_participants cp on cp.id=a.collective_participant_id
     where a.competition_id=p_competition_id
+    order by a.created_at desc, a.id
+    limit v_limit offset v_offset
   ) activity;
 
-  return jsonb_build_object('competition_id',p_competition_id,'generated_at',clock_timestamp(),'participants',v_result);
+  return jsonb_build_object(
+    'competition_id',p_competition_id,
+    'generated_at',clock_timestamp(),
+    'total_count',v_total,
+    'page_size',v_limit,
+    'offset',v_offset,
+    'has_more',(v_offset + jsonb_array_length(coalesce(v_result,'[]'::jsonb))) < v_total,
+    'participants',coalesce(v_result,'[]'::jsonb)
+  );
 end;
 $$;
 
@@ -1412,6 +1436,86 @@ as $$
     and q.status='PUBLISHED'
     and c.status in ('LIVE','RESULT_PUBLISHED','ARCHIVED');
 $$;
+
+
+-- Prevent direct result RPCs from revealing a finalized score before public announcement.
+create or replace function public.get_canonical_competition_result(p_participant_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  p public.participants%rowtype;
+  a public.attempts%rowtype;
+  c public.competitions%rowtype;
+  v_rank bigint;
+begin
+  select * into p from public.participants where id=p_participant_id;
+  if not found then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  if not private.current_user_is_admin()
+     and (p.user_id is null or p.user_id<>auth.uid())
+     and not exists(
+       select 1 from public.collective_participants cp
+       where cp.id=p.collective_participant_id and cp.managed_by_user_id=auth.uid()
+     ) then
+    raise exception 'NOT_AUTHORIZED';
+  end if;
+
+  select * into c from public.competitions where id=p.competition_id;
+  if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+
+  if not private.current_user_is_admin() and c.status not in ('RESULT_PUBLISHED','ARCHIVED') then
+    return jsonb_build_object(
+      'participant_id',p.id,
+      'competition_id',p.competition_id,
+      'participant_type',p.participant_type,
+      'name',p.full_name,
+      'attempt',null,
+      'rank',null,
+      'published',false
+    );
+  end if;
+
+  select * into a
+  from public.attempts
+  where canonical_participant_id=p.id and status='FINALIZED'
+  order by finalized_at desc nulls last,created_at desc
+  limit 1;
+
+  if not found then
+    return jsonb_build_object(
+      'participant_id',p.id,
+      'competition_id',p.competition_id,
+      'participant_type',p.participant_type,
+      'name',p.full_name,
+      'attempt',null,
+      'rank',null,
+      'published',true
+    );
+  end if;
+
+  select 1+count(*) into v_rank
+  from public.attempts x
+  where x.competition_id=p.competition_id
+    and x.status='FINALIZED'
+    and x.canonical_participant_id is not null
+    and x.score>a.score;
+
+  return jsonb_build_object(
+    'participant_id',p.id,
+    'competition_id',p.competition_id,
+    'participant_type',p.participant_type,
+    'name',p.full_name,
+    'attempt',jsonb_build_object('id',a.id,'status',a.status,'score',a.score,'finalized_at',a.finalized_at),
+    'rank',v_rank,
+    'published',true
+  );
+end;
+$;
+
+revoke all on function public.get_canonical_competition_result(uuid) from public, anon, authenticated;
+grant execute on function public.get_canonical_competition_result(uuid) to authenticated;
 
 -- Remove legacy RPC paths which disclosed every question at once or bypassed the
 -- per-question server state machine. New clients use the linear RPCs below.
@@ -1449,7 +1553,7 @@ revoke all on function public.answer_collective_linear_exam_question(uuid,text,u
 revoke all on function public.choose_collective_linear_exam_timeout(uuid,text,text) from public, anon, authenticated;
 revoke all on function public.resolve_collective_linear_exam_timeout(uuid,text) from public, anon, authenticated;
 revoke all on function public.skip_collective_linear_exam_question(uuid,text) from public, anon, authenticated;
-revoke all on function public.get_linear_exam_activity(uuid) from public, anon, authenticated;
+revoke all on function public.get_linear_exam_activity(uuid,integer,integer) from public, anon, authenticated;
 
 grant execute on function public.start_linear_exam_attempt(uuid) to authenticated;
 grant execute on function public.get_linear_exam_state(uuid) to authenticated;
@@ -1466,7 +1570,7 @@ grant execute on function public.answer_collective_linear_exam_question(uuid,tex
 grant execute on function public.choose_collective_linear_exam_timeout(uuid,text,text) to anon, authenticated;
 grant execute on function public.resolve_collective_linear_exam_timeout(uuid,text) to anon, authenticated;
 grant execute on function public.skip_collective_linear_exam_question(uuid,text) to anon, authenticated;
-grant execute on function public.get_linear_exam_activity(uuid) to authenticated;
+grant execute on function public.get_linear_exam_activity(uuid,integer,integer) to authenticated;
 grant execute on function public.get_public_competition_question_count(uuid) to anon, authenticated;
 
 commit;
