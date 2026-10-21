@@ -61,6 +61,10 @@ export type LinearExamActivityParticipant = {
 export type LinearExamActivity = {
   competition_id: string;
   generated_at: string;
+  total_count: number;
+  page_size: number;
+  offset: number;
+  has_more: boolean;
   participants: LinearExamActivityParticipant[];
 };
 
@@ -118,8 +122,8 @@ export async function resolveCollectiveLinearExamTimeout(attemptId: string, acce
   return rpcState('resolve_collective_linear_exam_timeout', { p_attempt_id: attemptId, ...collectiveArgs(accessToken) });
 }
 
-export async function getLinearExamActivity(competitionId: string): Promise<LinearExamActivity> {
-  const { data, error } = await supabase.rpc('get_linear_exam_activity', { p_competition_id: competitionId });
+export async function getLinearExamActivity(competitionId: string, offset = 0, limit = 100): Promise<LinearExamActivity> {
+  const { data, error } = await supabase.rpc('get_linear_exam_activity', { p_competition_id: competitionId, p_limit: limit, p_offset: offset });
   if (error) throw error;
   if (!data || typeof data !== 'object') throw new Error('Data pemantauan ujian tidak valid.');
   return data as LinearExamActivity;
