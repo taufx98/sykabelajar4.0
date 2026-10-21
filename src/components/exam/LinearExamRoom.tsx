@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, Clock3, FileText, Loader2, ShieldCheck, TimerReset } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, FileText, Loader2, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useApp } from '@/store/AppContext';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { uploadRawFile } from '@/services/cloudinary.service';
 import {
   answerCollectiveLinearExamQuestion,
   answerLinearExamQuestion,
-  chooseCollectiveLinearExamTimeout,
-  chooseLinearExamTimeout,
   getCollectiveLinearExamState,
   getLinearExamState,
   resolveCollectiveLinearExamTimeout,
@@ -36,10 +35,7 @@ function formatTime(total: number) {
   return `${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
 }
 function phaseDeadline(state: LinearExamState) {
-  if (state.phase === 'DECISION') return state.decision_deadline;
-  if (state.phase === 'GRACE') return state.grace_deadline;
-  if (state.phase === 'ACTIVE') return state.question_deadline;
-  return null;
+  return state.phase === 'ACTIVE' ? state.question_deadline ?? null : null;
 }
 function textValue(answer: LinearExamAnswer) {
   const value = answer.value ?? answer.text;
@@ -151,7 +147,7 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
   }, [accessToken, mode, resolveTimeout, setServerState, toast]);
 
   const updateAnswer = (next: LinearExamAnswer, immediate = false) => {
-    if (state.phase === 'COMPLETED' || !question || busyRef.current || (state.phase !== 'ACTIVE' && state.phase !== 'GRACE')) return;
+    if (state.phase === 'COMPLETED' || !question || busyRef.current || state.phase !== 'ACTIVE') return;
     setAnswer(next);
     if (draftTimer.current !== null) window.clearTimeout(draftTimer.current);
     if (immediate) {
@@ -188,25 +184,6 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
     }
   };
 
-  const chooseTimeout = async (decision: 'BORROW' | 'CONTINUE') => {
-    if (busyRef.current || state.phase !== 'DECISION') return;
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      const next = mode === 'COLLECTIVE'
-        ? await chooseCollectiveLinearExamTimeout(state.attempt_id, accessToken, decision)
-        : await chooseLinearExamTimeout(state.attempt_id, decision);
-      setServerState(next);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Pilihan waktu gagal diproses.';
-      toast(message, 'error');
-      await requestState();
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  };
-
   const uploadFile = async (file: File) => {
     if (!question || busyRef.current) return;
     setUploading(true);
@@ -230,10 +207,9 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
 
   const selectedValues = Array.isArray(answer.values) ? answer.values.map(String) : [];
   const remainingProgress = state.total_questions > 0 ? Math.min(100, (state.position / state.total_questions) * 100) : 0;
-  const overtime = state.phase === 'DECISION' || state.phase === 'GRACE';
 
   if (state.phase === 'COMPLETED') {
-    return <div className="min-h-[75vh] surface-bg px-4 py-10 text-fg"><Card className="mx-auto max-w-xl p-8 text-center">
+    return <div className="min-h-screen w-full surface-bg px-4 py-10 text-fg"><Card className="mx-auto max-w-xl p-8 text-center">
       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10"><CheckCircle2 size={34} className="text-emerald-500" /></div>
       <h1 className="text-xl font-bold text-fg">{mode === 'PREVIEW' ? 'Simulasi selesai' : 'Ujian selesai'}</h1>
       <p className="mt-2 text-sm text-fg-muted">{mode === 'PREVIEW' ? 'Simulasi selesai. Data uji tidak masuk ke nilai atau peringkat peserta resmi.' : 'Jawaban telah diterima oleh server. Nilai dan peringkat tidak ditampilkan sekarang dan hanya tersedia setelah penyelenggara mengumumkan hasil resmi.'}</p>
@@ -246,17 +222,24 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
     </Card></div>;
   }
 
-  return <div className="min-h-screen surface-bg px-4 py-5 text-fg">
-    <div className="mx-auto max-w-3xl space-y-4">
-      <header className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold tracking-[0.18em] text-accent">RUANG UJIAN TERKUNCI</p>
-          <h1 className="mt-1 truncate text-lg font-bold text-fg">{title}</h1>
-          <p className="text-xs text-fg-muted">{participantName ? `Peserta: ${participantName} · ` : ''}Soal {state.position} dari {state.total_questions}</p>
+  return <div className="fixed inset-0 z-[90] min-h-screen w-full overflow-y-auto surface-bg px-3 py-3 text-fg sm:px-5 sm:py-4">
+    <div className="mx-auto w-full max-w-5xl space-y-4">
+      <header className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent">RUANG UJIAN • MODE AMAN</p>
+          <h1 className="mt-1 truncate text-lg font-bold text-fg sm:text-xl">{title}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
+            {participantName && <span>Peserta: {participantName}</span>}
+            <span>Soal {state.position} dari {state.total_questions}</span>
+            <span aria-live="polite">{saveState === 'saving' ? 'Menyimpan jawaban…' : saveState === 'saved' ? 'Jawaban tersimpan sementara' : 'Perpindahan soal otomatis'}</span>
+          </div>
         </div>
-        <div className={`flex items-center gap-2 rounded-xl px-3 py-2 font-mono text-lg font-bold ${clock <= 10 ? 'bg-red-500/10 text-red-500' : overtime ? 'bg-amber-500/10 text-amber-500' : 'bg-accent/10 text-accent'}`}>
-          {overtime ? <TimerReset size={18} /> : <Clock3 size={18} />}
-          <span>{formatTime(clock)}</span>
+        <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+          <div className={`flex items-center gap-2 rounded-xl px-3 py-2 font-mono text-lg font-bold tabular-nums ${clock <= 10 ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'}`}>
+            <Clock3 size={18} />
+            <span>{formatTime(clock)}</span>
+          </div>
+          <ThemeToggle className="shrink-0 border border-border" />
         </div>
       </header>
 
@@ -264,18 +247,6 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
 
       {roomError && <Card className="border-red-500/30 p-3"><div className="flex items-start gap-2 text-sm text-red-500"><AlertTriangle size={17} className="mt-0.5 shrink-0" /><span>{roomError}</span><Button variant="ghost" onClick={() => void requestState()}>Sinkronkan</Button></div></Card>}
 
-      {state.phase === 'DECISION' && <Card className="border-amber-500/30 bg-amber-500/5 p-5">
-        <div className="flex items-start gap-3"><TimerReset className="mt-0.5 shrink-0 text-amber-500" size={22} /><div><h2 className="font-bold text-fg">Waktu soal habis</h2><p className="mt-1 text-sm text-fg-muted">Dalam {formatTime(clock)}, pilih apakah akan mengambil 30 detik dari jatah soal berikutnya. Jika tidak memilih sampai hitung mundur habis, sistem memberi 30 detik terakhir untuk mengisi jawaban.</p></div></div>
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          {state.can_borrow && <Button loading={busy} disabled={busy} onClick={() => void chooseTimeout('BORROW')}>Ambil 30 detik dari soal berikutnya</Button>}
-          <Button variant="outline" loading={busy} disabled={busy} onClick={() => void chooseTimeout('CONTINUE')}>Lanjut tanpa meminjam</Button>
-        </div>
-        {!state.can_borrow && <p className="mt-2 text-xs text-fg-muted">Waktu tidak dapat dipinjam karena soal berikutnya tidak memiliki sisa waktu minimum yang disyaratkan.</p>}
-      </Card>}
-
-      {state.phase === 'GRACE' && <Card className="border-sky-500/30 bg-sky-500/5 p-4">
-        <div className="flex items-start gap-2"><AlertTriangle size={18} className="mt-0.5 text-sky-500" /><div><p className="font-semibold text-fg">{state.grace_kind === 'BORROWED' ? 'Waktu pinjaman aktif' : 'Waktu tambahan terakhir'}</p><p className="mt-1 text-sm text-fg-muted">{state.grace_kind === 'BORROWED' ? '30 detik berasal dari jatah soal berikutnya. Jawab sekarang; jika waktu habis, soal otomatis dilewati.' : 'Ini tambahan 30 detik terakhir untuk soal ini. Setelah hitung mundur habis, sistem langsung beralih ke soal selanjutnya.'}</p></div></div>
-      </Card>}
 
       {question && <Card className="p-5 sm:p-7">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -286,7 +257,7 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
         {(['multiple-choice', 'multiple_choice', 'single-choice', 'single_choice', 'true-false', 'true_false'].includes(question.type)) &&
           <div className="mt-6 space-y-3">{question.options.map((option) => {
             const selected = String(answer.value ?? '') === option.id;
-            return <button key={option.id} type="button" disabled={busy || state.phase === 'DECISION' || state.phase === 'COMPLETED' || clock <= 0} onClick={() => updateAnswer({ value: option.id }, true)} className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${selected ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/60'} disabled:cursor-not-allowed disabled:opacity-60`}>
+            return <button key={option.id} type="button" disabled={busy || state.phase !== 'ACTIVE' || clock <= 0} onClick={() => updateAnswer({ value: option.id }, true)} className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${selected ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/60'} disabled:cursor-not-allowed disabled:opacity-60`}>
               <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-accent bg-accent text-white' : 'border-fg-muted/50'}`}>{selected ? <CheckCircle2 size={14} /> : null}</span>
               <span className="whitespace-pre-wrap text-sm text-fg-secondary">{option.label}</span>
             </button>;
@@ -296,20 +267,20 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
           <div className="mt-6 space-y-3">{question.options.map((option) => {
             const selected = selectedValues.includes(option.id);
             return <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${selected ? 'border-accent bg-accent/10' : 'border-border'}`}>
-              <input type="checkbox" checked={selected} disabled={busy || state.phase === 'DECISION' || clock <= 0} onChange={() => updateAnswer({ values: selected ? selectedValues.filter((id) => id !== option.id) : [...selectedValues, option.id] }, true)} />
+              <input type="checkbox" checked={selected} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0} onChange={() => updateAnswer({ values: selected ? selectedValues.filter((id) => id !== option.id) : [...selectedValues, option.id] }, true)} />
               <span className="whitespace-pre-wrap text-sm text-fg-secondary">{option.label}</span>
             </label>;
           })}</div>}
 
         {(question.type === 'short-answer' || question.type === 'short_answer' || question.type === 'numeric' || question.type === 'short_text') &&
-          <div className="mt-6"><input className="input w-full" value={textValue(answer)} disabled={busy || state.phase === 'DECISION' || clock <= 0} onChange={(event) => updateAnswer({ value: event.target.value })} placeholder="Tulis jawaban di sini…" inputMode={question.type === 'numeric' ? 'decimal' : 'text'} /></div>}
+          <div className="mt-6"><input className="input w-full" value={textValue(answer)} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0} onChange={(event) => updateAnswer({ value: event.target.value })} placeholder="Tulis jawaban di sini…" inputMode={question.type === 'numeric' ? 'decimal' : 'text'} /></div>}
 
         {(question.type === 'essay' || question.type === 'long-answer' || question.type === 'long_answer') &&
-          <div className="mt-6"><textarea className="input min-h-40 w-full resize-y" value={textValue(answer)} disabled={busy || state.phase === 'DECISION' || clock <= 0} onChange={(event) => updateAnswer({ value: event.target.value })} placeholder="Tuliskan jawabanmu…" /></div>}
+          <div className="mt-6"><textarea className="input min-h-40 w-full resize-y" value={textValue(answer)} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0} onChange={(event) => updateAnswer({ value: event.target.value })} placeholder="Tuliskan jawabanmu…" /></div>}
 
         {(question.type === 'file-upload' || question.type === 'file_upload') &&
           <div className="mt-6"><label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-border p-6 text-center hover:border-accent">
-            <input className="hidden" type="file" disabled={busy || uploading || state.phase === 'DECISION' || clock <= 0} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadFile(file); event.currentTarget.value = ''; }} />
+            <input className="hidden" type="file" disabled={busy || uploading || state.phase !== 'ACTIVE' || clock <= 0} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadFile(file); event.currentTarget.value = ''; }} />
             {uploading ? <Loader2 className="animate-spin text-accent" /> : <FileText className="text-accent" size={24} />}
             <span className="text-sm font-semibold text-fg">{String(answer.file_name ?? 'Pilih berkas jawaban')}</span>
             <span className="text-xs text-fg-muted">Berkas dikirim ke penyimpanan lalu direferensikan di jawaban ujian.</span>
@@ -319,11 +290,11 @@ export function LinearExamRoom({ mode, title, participantName, accessToken = '',
           <div className="flex items-center gap-2 text-xs text-fg-muted" aria-live="polite">
             {saveState === 'saving' ? <><Loader2 size={14} className="animate-spin" /> Menyimpan draft…</> : saveState === 'saved' ? <><ShieldCheck size={14} className="text-emerald-500" /> Draft tersimpan di server</> : <><ShieldCheck size={14} /> Timer dan perpindahan soal dikendalikan server</>}
           </div>
-          <Button onClick={() => void finishQuestion()} loading={busy} disabled={busy || state.phase === 'DECISION' || clock <= 0}>
+          <Button onClick={() => void finishQuestion()} loading={busy} disabled={busy || state.phase !== 'ACTIVE' || clock <= 0}>
             {state.position === state.total_questions ? 'Kunci jawaban & selesaikan' : hasAnswer(answer) ? 'Kunci jawaban & lanjut' : 'Lanjut tanpa jawaban'}
           </Button>
         </div>
-        {!hasAnswer(answer) && state.phase !== 'DECISION' && <p className="mt-2 text-right text-xs text-fg-muted">Soal kosong akan tercatat sebagai skip. Jika waktu habis, sistem melanjutkan otomatis.</p>}
+        {!hasAnswer(answer) && state.phase === 'ACTIVE' && <p className="mt-2 text-right text-xs text-fg-muted">Soal kosong akan tercatat sebagai skip. Jika waktu habis, sistem melanjutkan otomatis.</p>}
       </Card>}
 
       {!question && <Card className="p-6 text-center"><Loader2 className="mx-auto animate-spin text-accent" /><p className="mt-3 text-sm text-fg-muted">Mengambil status soal dari server…</p></Card>}
