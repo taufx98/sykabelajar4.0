@@ -53,6 +53,8 @@ const OrganizerQuestionEditorPage = lazy(() => import('@/pages/OrganizerQuestion
 const OrganizerRegistrationsPage = lazy(() => import('@/pages/OrganizerRegistrationsPage').then((module) => ({ default: module.OrganizerRegistrationsPage })));
 const OrganizerMembersPage = lazy(() => import('@/pages/OrganizerMembersPage').then((module) => ({ default: module.OrganizerMembersPage })));
 const OrganizerCompetitionConfigPage = lazy(() => import('@/pages/OrganizerCompetitionConfigPage').then((module) => ({ default: module.OrganizerCompetitionConfigPage })));
+const OrganizerExamPreviewPage = lazy(() => import('@/pages/OrganizerExamPreviewPage').then((module) => ({ default: module.OrganizerExamPreviewPage })));
+const OrganizerExamPreviewReportPage = lazy(() => import('@/pages/OrganizerExamPreviewReportPage').then((module) => ({ default: module.OrganizerExamPreviewReportPage })));
 const OrganizerExamMonitoringPage = lazy(() => import('@/pages/OrganizerExamMonitoringPage').then((module) => ({ default: module.OrganizerExamMonitoringPage })));
 const OrganizerCompetitionCreatePage = lazy(() => import('@/pages/OrganizerCompetitionCreatePage').then((module) => ({ default: module.OrganizerCompetitionCreatePage })));
 const OrganizerGradingPage = lazy(() => import('@/pages/OrganizerGradingPage').then((module) => ({ default: module.OrganizerGradingPage })));
@@ -181,6 +183,8 @@ function AppRoutes() {
           <Route path="/organizer/registrations" element={<OrganizerShellRoute><OrganizerRegistrationsPage /></OrganizerShellRoute>} />
           <Route path="/organizer/members" element={<OrganizerShellRoute><OrganizerMembersPage /></OrganizerShellRoute>} />
           <Route path="/organizer/competition/:id/config" element={<OrganizerShellRoute><OrganizerCompetitionConfigPage /></OrganizerShellRoute>} />
+          <Route path="/organizer/competition/:id/simulation/:attemptId" element={<OrganizerShellRoute><OrganizerExamPreviewPage /></OrganizerShellRoute>} />
+          <Route path="/organizer/competition/:id/simulation/:attemptId/report" element={<OrganizerShellRoute><OrganizerExamPreviewReportPage /></OrganizerShellRoute>} />
           <Route path="/organizer/competition/:id/exam-monitor" element={<OrganizerShellRoute><OrganizerExamMonitoringPage /></OrganizerShellRoute>} />
           <Route path="/organizer/grading" element={<OrganizerShellRoute><OrganizerGradingPage /></OrganizerShellRoute>} />
           <Route path="/organizer/plan" element={<OrganizerShellRoute><OrganizerPlanPage /></OrganizerShellRoute>} />
