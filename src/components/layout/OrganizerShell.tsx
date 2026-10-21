@@ -67,6 +67,9 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
     return location.search === `?${search}`;
   };
 
+  const isExamRoom = /^\/organizer\/competition\/[^/]+\/simulation\/[^/]+$/.test(location.pathname);
+  if (isExamRoom) return <main className="min-h-screen w-full surface-bg">{children}</main>;
+
   return (
     <div className="surface-bg">
       <section className="border-b surface-border bg-surface-elevated/10">
