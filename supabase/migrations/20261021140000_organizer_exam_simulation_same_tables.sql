@@ -64,6 +64,72 @@ create trigger guard_attempt_preview_identity
 before update on public.attempts
 for each row execute function private.guard_attempt_preview_identity();
 
+-- Direct table reads must not reveal another organizer's preview attempt/answers.
+drop policy if exists attempts_admin_or_owner_read on public.attempts;
+create policy attempts_admin_or_owner_read on public.attempts
+for select to authenticated
+using (
+  (is_preview = true and preview_owner_id = (select auth.uid()))
+  or (is_preview = false and participant_id = (select auth.uid())
+      and status in ('NOT_STARTED','IN_PROGRESS'))
+  or private.current_user_is_admin()
+  or (
+    is_preview = false
+    and exists (
+      select 1 from public.competitions c
+      where c.id = attempts.competition_id
+        and c.organizer_id is not null
+        and private.current_user_is_organizer_for(c.organizer_id)
+    )
+  )
+);
+
+drop policy if exists attempts_admin_or_owner_update on public.attempts;
+create policy attempts_admin_or_owner_update on public.attempts
+for update to authenticated
+using (
+  private.current_user_is_admin()
+  or (
+    is_preview = false
+    and exists (
+      select 1 from public.competitions c
+      where c.id = attempts.competition_id
+        and c.organizer_id is not null
+        and private.current_user_is_organizer_for(c.organizer_id)
+    )
+  )
+)
+with check (
+  private.current_user_is_admin()
+  or (
+    is_preview = false
+    and exists (
+      select 1 from public.competitions c
+      where c.id = attempts.competition_id
+        and c.organizer_id is not null
+        and private.current_user_is_organizer_for(c.organizer_id)
+    )
+  )
+);
+
+drop policy if exists answers_organizer_read on public.answers;
+create policy answers_organizer_read on public.answers
+for select to authenticated
+using (
+  exists (
+    select 1
+    from public.attempts a
+    join public.competitions c on c.id = a.competition_id
+    where a.id = answers.attempt_id
+      and a.is_preview = false
+      and a.status in ('SUBMITTED','GRADING','FINALIZED')
+      and (
+        private.current_user_is_admin()
+        or (c.organizer_id is not null and private.current_user_is_organizer_for(c.organizer_id))
+      )
+  )
+);
+
 -- The existing linear exam access helper permits the verified owner of a preview
 -- attempt while keeping ordinary attempts bound to their participant account.
 create or replace function private.assert_individual_linear_exam_access(p_attempt_id uuid)
