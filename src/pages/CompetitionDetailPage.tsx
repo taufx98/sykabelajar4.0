@@ -189,7 +189,7 @@ export function CompetitionDetailPage() {
   const joinable = competition?.status === 'REGISTRATION_OPEN' && registrationWindowOpen && !cd.expired && (capacity == null || remainingCapacity! > 0);
   const status = statusUi(String(competition?.status ?? ''));
   const category = CATEGORY_LABELS[String(competition?.category ?? '')] ?? String(competition?.category ?? 'Kompetisi');
-  const grades = useMemo(() => {
+  const grades = useMemo<string[]>(() => {
     // Use one authoritative eligibility source. Combining level, rule, and
     // broad target arrays caused duplicates and displayed grades not actually
     // allowed by the published registration rules.
@@ -211,7 +211,8 @@ export function CompetitionDetailPage() {
       return raw;
     };
 
-    return [...new Set(source.map(normalizeGrade).filter(Boolean))];
+    const normalized: string[] = source.map(normalizeGrade).filter((grade): grade is string => Boolean(grade));
+    return [...new Set<string>(normalized)];
   }, [levels, rules?.allowed_grades, competition?.target_grades]);
 
   const copyTwibbonLink = async () => {
