@@ -43,17 +43,53 @@ export async function getCompetitionBySlug(slug: string) {
 }
 
 export async function getCompetitionDetails(competitionId: string) {
-  const [{ data: competition, error: competitionError }, { data: levels, error: levelError }, { data: rules, error: rulesError }, { data: rewards, error: rewardsError }, { data: twibbons, error: twibbonError }, { count: questionCount, error: questionError }] = await Promise.all([
+  const [
+    { data: competition, error: competitionError },
+    { data: levels, error: levelError },
+    { data: rules, error: rulesError },
+    { data: rewards, error: rewardsError },
+    { data: twibbons, error: twibbonError },
+    { data: summaryRows, error: summaryError },
+  ] = await Promise.all([
     supabase.from('competitions').select('*').eq('id', competitionId).maybeSingle(),
     supabase.from('competition_levels').select('*').eq('competition_id', competitionId).order('created_at', { ascending: true }),
     supabase.from('registration_rules').select('*').eq('competition_id', competitionId).maybeSingle(),
     supabase.from('competition_rewards').select('*').eq('competition_id', competitionId).order('points', { ascending: false }),
     supabase.from('twibbon_templates').select('*').eq('competition_id', competitionId).eq('is_active', true).order('created_at', { ascending: false }),
-    supabase.from('questions').select('id', { count: 'exact', head: true }).eq('competition_id', competitionId).eq('status', 'PUBLISHED'),
+    supabase.rpc('get_public_competition_detail_summary', { p_competition_id: competitionId }),
   ]);
-  for (const error of [competitionError, levelError, rulesError, rewardsError, twibbonError, questionError]) if (error) throw error;
+
+  for (const error of [competitionError, levelError, rulesError, rewardsError, twibbonError, summaryError]) {
+    if (error) throw error;
+  }
   if (!competition) return null;
-  return { competition, levels: levels ?? [], rules: rules, rewards: rewards ?? [], twibbons: twibbons ?? [], questionCount: questionCount ?? 0 };
+
+  const summary = Array.isArray(summaryRows) ? summaryRows[0] : summaryRows;
+  const participantCount = Number(summary?.participant_count ?? 0);
+  const questionCount = Number(summary?.question_count ?? 0);
+
+  return {
+    competition: {
+      ...competition,
+      participant_count: participantCount,
+    },
+    organizer: {
+      name: String(summary?.organizer_name ?? 'Penyelenggara'),
+      logoUrl: summary?.organizer_logo_url ? String(summary.organizer_logo_url) : null,
+    },
+    questionBank: summary?.question_bank_name
+      ? {
+          name: String(summary.question_bank_name),
+          providerName: summary.question_provider_name ? String(summary.question_provider_name) : null,
+        }
+      : null,
+    participantCount,
+    levels: levels ?? [],
+    rules,
+    rewards: rewards ?? [],
+    twibbons: twibbons ?? [],
+    questionCount,
+  };
 }
 
 export async function getRegistrationsForCompetition(competitionId: string) {
