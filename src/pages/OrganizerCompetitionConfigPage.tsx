@@ -20,6 +20,20 @@ const rewardLabels: Record<string, { label: string; description: string }> = {
   THIRD: { label: 'Juara 3', description: 'Penghargaan untuk peraih peringkat ketiga.' },
   PARTICIPANT: { label: 'Peserta', description: 'Apresiasi untuk peserta yang memenuhi ketentuan lomba.' },
 };
+function toLocalDateTimeInput(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toTimestampFromLocalInput(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+}
+
 const participantModeOptions = [
   { value: 'INDIVIDUAL', label: 'Individu', description: 'Peserta mendaftar dengan akun SykaBelajar sendiri.' },
   { value: 'COLLECTIVE_TEACHER', label: 'Kolektif oleh Guru', description: 'Guru memilih siswa dari roster dan membagikan akses peserta.' },
@@ -173,7 +187,17 @@ export function OrganizerCompetitionConfigPage() {
     try {
       await saveCompetitionConfig(id, {
         ...form,
-        level: { ...form.level, allowed_grades: form.level.allowed_grades },
+        level: {
+          ...form.level,
+          allowed_grades: form.level.allowed_grades,
+          // JSON strings without a timezone are interpreted as UTC by Postgres.
+          // Normalize the user's local datetime inputs to explicit UTC instants first.
+          registration_starts_at: toTimestampFromLocalInput(form.level.registration_starts_at),
+          registration_ends_at: toTimestampFromLocalInput(form.level.registration_ends_at),
+          starts_at: toTimestampFromLocalInput(form.level.starts_at),
+          ends_at: toTimestampFromLocalInput(form.level.ends_at),
+          announcement_at: toTimestampFromLocalInput(form.level.announcement_at),
+        },
         registration_rule: { ...form.registration_rule, allowed_grades: form.registration_rule.allowed_grades },
       });
       const currentConfig = competition?.config && typeof competition.config === 'object'
@@ -342,7 +366,17 @@ export function OrganizerCompetitionConfigPage() {
             </div>
           </details>
         </Card>
-        <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><CalendarDays size={18} className="text-accent"/> Timeline</div><div className="grid md:grid-cols-2 gap-4"><Input label="Pendaftaran mulai" type="datetime-local" value={(form.level.registration_starts_at||'').slice(0,16)} onChange={(v)=>updateLevel('registration_starts_at',v)}/><Input label="Pendaftaran berakhir" type="datetime-local" value={(form.level.registration_ends_at||'').slice(0,16)} onChange={(v)=>updateLevel('registration_ends_at',v)}/><Input label="Kompetisi mulai" type="datetime-local" value={(form.level.starts_at||'').slice(0,16)} onChange={(v)=>updateLevel('starts_at',v)}/><Input label="Kompetisi berakhir" type="datetime-local" value={(form.level.ends_at||'').slice(0,16)} onChange={(v)=>updateLevel('ends_at',v)}/><Input label="Pengumuman" type="datetime-local" value={(form.level.announcement_at||'').slice(0,16)} onChange={(v)=>updateLevel('announcement_at',v)}/></div></Card>
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-2 text-fg font-semibold"><CalendarDays size={18} className="text-accent"/> Jadwal Lomba</div>
+          <p className="mb-4 text-xs leading-relaxed text-fg-muted">Tanggal dan jam ditampilkan mengikuti zona waktu perangkatmu (misalnya WIB di Indonesia). Sistem menyimpan waktu yang sama ke server tanpa menggeser jam 7 jam.</p>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Input label="Pendaftaran mulai" type="datetime-local" value={toLocalDateTimeInput(form.level.registration_starts_at)} onChange={(v)=>updateLevel('registration_starts_at',v)}/>
+            <Input label="Pendaftaran berakhir" type="datetime-local" value={toLocalDateTimeInput(form.level.registration_ends_at)} onChange={(v)=>updateLevel('registration_ends_at',v)}/>
+            <Input label="Kompetisi mulai" type="datetime-local" value={toLocalDateTimeInput(form.level.starts_at)} onChange={(v)=>updateLevel('starts_at',v)}/>
+            <Input label="Kompetisi berakhir" type="datetime-local" value={toLocalDateTimeInput(form.level.ends_at)} onChange={(v)=>updateLevel('ends_at',v)}/>
+            <Input label="Pengumuman" type="datetime-local" value={toLocalDateTimeInput(form.level.announcement_at)} onChange={(v)=>updateLevel('announcement_at',v)}/>
+          </div>
+        </Card>
         <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Users size={18} className="text-accent"/> Syarat Pendaftaran</div><div className="grid md:grid-cols-2 gap-4"><Input label="Maksimal peserta" type="number" value={form.registration_rule.max_participants == null ? '' : String(form.registration_rule.max_participants)} onChange={(v)=>updateRule('max_participants',v === '' ? null : Number(v))}/><Input label="Biaya pendaftaran prioritas" type="number" value={String(form.registration_rule.express_cost)} onChange={(v)=>updateRule('express_cost',Number(v||0))}/></div><div className="mt-4 flex flex-wrap gap-2">{grades.map(g=><button type="button" key={g} onClick={()=>updateRule('allowed_grades',toggleGrade(form.registration_rule.allowed_grades,g))} className={`px-3 py-2 rounded-lg border text-sm ${form.registration_rule.allowed_grades.includes(g)?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-slate-500'}`}>{g.toUpperCase()}</button>)}</div><div className="grid md:grid-cols-2 gap-3 mt-4"><Toggle label="Twibbon wajib" checked={form.registration_rule.require_twibbon} onChange={(v)=>updateRule('require_twibbon',v)}/><Toggle label="Bukti promosi di media sosial wajib" checked={form.registration_rule.require_social_proof} onChange={(v)=>updateRule('require_social_proof',v)}/><Toggle label="Sediakan pendaftaran prioritas" checked={form.registration_rule.express_enabled} onChange={(v)=>updateRule('express_enabled',v)}/><div><label className="label">Persetujuan pendaftaran</label><select className="input" value={form.registration_rule.approval_mode} onChange={e=>updateRule('approval_mode',e.target.value)}><option value="MANUAL">Manual</option><option value="AUTO">Otomatis</option></select></div></div></Card>
         <Card className="p-5 md:p-6">
           <div className="mb-2 flex items-center gap-2 text-fg font-semibold"><Award size={18} className="text-accent"/> Hadiah & Apresiasi</div>
