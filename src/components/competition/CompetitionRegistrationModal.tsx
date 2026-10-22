@@ -25,7 +25,9 @@ function registrationErrorMessage(message: string) {
     REGISTRATION_CLOSED: 'Pendaftaran lomba ini sudah ditutup.',
     ALREADY_REGISTERED: 'Akun ini sudah terdaftar pada lomba tersebut.',
     ELIGIBILITY_FAILED: 'Jenjang pada profilmu belum sesuai dengan syarat lomba.',
-    PARTICIPANT_LIMIT_REACHED: 'Kuota peserta telah terpenuhi.',
+    PARTICIPANT_LIMIT_REACHED: 'Kuota peserta yang ditetapkan panitia telah terpenuhi.',
+    PARTICIPANT_QUOTA_EXCEEDED: 'Pendaftaran saat ini ditolak oleh kuota paket penyelenggara. Silakan coba kembali; Coin Edu tidak dipotong jika pendaftaran gagal.',
+    PLAN_ENTITLEMENT_REQUIRED: 'Paket penyelenggara belum memiliki kuota untuk pendaftaran peserta. Hubungi panitia jika masalah berlanjut.',
     TWIBBON_REQUIRED: 'Lengkapi syarat pendaftaran atau gunakan Skip 100 Coin Edu.',
     SOCIAL_PROOF_REQUIRED: 'Isi username dan tautan postingan, atau gunakan Skip 100 Coin Edu.',
     SOCIAL_PROOF_OR_COIN_REQUIRED: 'Isi username dan tautan postingan, atau gunakan Skip 100 Coin Edu.',
@@ -34,8 +36,9 @@ function registrationErrorMessage(message: string) {
     AUTHORIZATION_REQUIRED: 'Sesi login berakhir. Silakan masuk kembali.',
     PROFILE_GRADE_REQUIRED: 'Lengkapi jenjang sekolah di profil sebelum mendaftar.',
     INTEGRITY_AGREEMENT_REQUIRED: 'Setujui Pakta Integritas sebelum mengirim pendaftaran.',
-    SOCIAL_PROOF_PLATFORM_MISMATCH: 'Platform pilihan tidak sesuai dengan alamat tautan yang dimasukkan.',
+    SOCIAL_PROOF_PLATFORM_MISMATCH: 'Tautan postingan tidak cocok dengan platform yang dipilih. Periksa kembali URL TikTok/Instagram.',
     SOCIAL_PROOF_PLATFORM_INVALID: 'Pilih TikTok atau Instagram sesuai dengan tautan postinganmu.',
+    SOCIAL_USERNAME_INVALID: 'Username media sosial minimal 2 karakter (huruf, angka, titik, atau garis bawah).',
   };
   for (const [key, value] of Object.entries(messages)) {
     if (message.includes(key)) return value;
@@ -216,8 +219,14 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
       if (result.eduCoinBalance != null) setEduCoinBalance(Number(result.eduCoinBalance));
       toast(result.eduCoinSpent ? 'Pendaftaran terkirim. 100 Coin Edu telah digunakan untuk skip syarat media sosial.' : 'Pendaftaran berhasil dikirim ke penyelenggara.', 'success');
     } catch (error) {
-      const message = error instanceof Error ? error.message : '';
-      toast(registrationErrorMessage(message), 'error');
+      const message = error instanceof Error
+        ? error.message
+        : error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+          ? error.message
+          : typeof error === 'string' ? error : '';
+      const details = error && typeof error === 'object' && 'details' in error && typeof error.details === 'string'
+        ? error.details : '';
+      toast(registrationErrorMessage([message, details].filter(Boolean).join(' ')), 'error');
     } finally {
       setSubmitting(false);
     }
