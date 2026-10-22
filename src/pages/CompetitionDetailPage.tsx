@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  ArrowLeft, CalendarDays, CheckCircle2, Clock3, FileText, Image as ImageIcon,
+  ArrowLeft, CalendarDays, CheckCircle2, Clock3, FileText,
   Info, Landmark, Medal, ShieldCheck, Trophy, Users, X,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
 import { CommentsSection } from '@/components/ui/Comments';
 import { CompetitionRegistrationModal } from '@/components/competition/CompetitionRegistrationModal';
 import { useApp } from '@/store/AppContext';
@@ -173,7 +172,6 @@ export function CompetitionDetailPage() {
   const organizer = detail?.organizer;
   const rewards = detail?.rewards ?? [];
   const levels = detail?.levels ?? [];
-  const twibbons = detail?.twibbons ?? [];
   const participantCount = Number(detail?.participantCount ?? competition?.participant_count ?? 0);
   const questionCount = Number(detail?.questionCount ?? 0);
   const capacity = rules?.max_participants == null ? null : Math.max(0, Number(rules.max_participants));
@@ -215,16 +213,6 @@ export function CompetitionDetailPage() {
     return [...new Set<string>(normalized)];
   }, [levels, rules?.allowed_grades, competition?.target_grades]);
 
-  const copyTwibbonLink = async () => {
-    const link = String(competition?.twibbon_external_url ?? '');
-    if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-      toast('Tautan Twibbon berhasil disalin.', 'success');
-    } catch {
-      toast('Browser tidak mengizinkan salin otomatis. Pilih tautan pada kolom lalu salin secara manual.', 'error');
-    }
-  };
 
   if (loading) return <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-7">
     <div className="h-72 animate-pulse rounded-3xl surface-elevated"/>
@@ -381,21 +369,7 @@ export function CompetitionDetailPage() {
             </div> : <p className="text-xs text-fg-muted">Detail hadiah belum ditambahkan penyelenggara.</p>}
           </Card>
 
-          <Card className="p-5 sm:p-6">
-            <SectionHeading icon={<ImageIcon size={17}/>} title="Twibbon Lomba" subtitle="Ikuti panduan Twibbon dari penyelenggara"/>
-            {twibbons.length ? <div className="grid gap-3 sm:grid-cols-2">
-              {twibbons.map((twibbon: any) => <div key={twibbon.id} className="overflow-hidden rounded-xl border border-border">
-                <img src={twibbon.image_url} alt={twibbon.name} loading="lazy" className="aspect-video w-full object-cover"/>
-                <div className="flex items-center justify-between gap-2 p-3"><span className="text-xs font-semibold text-fg">{twibbon.name}</span>{twibbon.is_required && <Badge color="moss">Wajib</Badge>}</div>
-              </div>)}
-            </div> : competition.twibbon_external_url ? <div className="rounded-xl border border-border bg-surface-elevated/30 p-3.5">
-              <p className="text-xs leading-relaxed text-fg-muted">Penyelenggara menggunakan tautan Twibbon eksternal. Kamu bisa menyalin atau membukanya dari popup pendaftaran.</p>
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <input className="input min-w-0 flex-1 text-xs" aria-label="Tautan Twibbon eksternal" value={String(competition.twibbon_external_url)} readOnly onFocus={(event) => event.currentTarget.select()}/>
-                <Button variant="outline" size="sm" onClick={() => void copyTwibbonLink()}>Salin tautan</Button>
-              </div>
-            </div> : <p className="text-xs text-fg-muted">Informasi Twibbon belum tersedia.</p>}
-          </Card>
+
 
           {postId ? <Card className="p-5 sm:p-6"><CommentsSection postId={postId}/></Card> : <Card className="p-4"><p className="text-[11px] text-fg-muted">Komentar akan tersedia setelah postingan lomba dibuat.</p></Card>}
         </div>

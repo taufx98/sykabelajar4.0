@@ -61,7 +61,7 @@ begin
   if not v_bypass and (
     nullif(trim(coalesce(p_social_proof_url, '')), '') is null
     or nullif(regexp_replace(trim(coalesce(p_social_username, '')), '^@+', ''), '') is null
-    or nullif(lower(trim(coalesce(p_social_platform, '')), '') is null
+    or nullif(lower(trim(coalesce(p_social_platform, ''))), '') is null
   ) then
     raise exception 'SOCIAL_PROOF_OR_COIN_REQUIRED';
   end if;
