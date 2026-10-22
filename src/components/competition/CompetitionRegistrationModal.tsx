@@ -35,6 +35,7 @@ function registrationErrorMessage(message: string) {
     PROFILE_GRADE_REQUIRED: 'Lengkapi jenjang sekolah di profil sebelum mendaftar.',
     INTEGRITY_AGREEMENT_REQUIRED: 'Setujui Pakta Integritas sebelum mengirim pendaftaran.',
     SOCIAL_PROOF_PLATFORM_MISMATCH: 'Platform pilihan tidak sesuai dengan alamat tautan yang dimasukkan.',
+    SOCIAL_PROOF_PLATFORM_INVALID: 'Pilih TikTok atau Instagram sesuai dengan tautan postinganmu.',
   };
   for (const [key, value] of Object.entries(messages)) {
     if (message.includes(key)) return value;
@@ -59,8 +60,8 @@ function isMatchingPostUrl(platform: 'instagram' | 'tiktok', raw: string) {
     if (!['https:', 'http:'].includes(url.protocol)) return false;
     const host = url.hostname.toLowerCase();
     return platform === 'instagram'
-      ? host === 'instagram.com' || host.endsWith('.instagram.com') || host === 'instagr.am'
-      : host === 'tiktok.com' || host.endsWith('.tiktok.com');
+      ? host === 'instagram.com' || host === 'www.instagram.com'
+      : host === 'tiktok.com' || host === 'www.tiktok.com';
   } catch {
     return false;
   }
