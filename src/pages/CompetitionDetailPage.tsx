@@ -257,18 +257,16 @@ export function CompetitionDetailPage() {
         {competition.poster_url && <img src={competition.poster_url} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.08]"/>}
         <div className="relative z-10">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-blue-300 sm:text-xs"><Trophy size={12}/> {category}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-300 sm:text-xs"><Users size={12}/> {participantCount.toLocaleString('id-ID')} Peserta Terdaftar</span>
-            <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-300 sm:text-xs"><Landmark size={12}/> <span className="truncate">Penyelenggara: {organizerName}</span></span>
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-blue-400 sm:text-xs"><Trophy size={12} className="text-blue-400"/> {category}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-400 sm:text-xs"><Users size={12} className="text-emerald-400"/> {participantCount.toLocaleString('id-ID')} Peserta Terdaftar</span>
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-300 sm:text-xs"><Landmark size={12} className="text-amber-400"/> <span className="truncate">Penyelenggara: {organizerName}</span></span>
           </div>
 
           <div className="mt-4 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
             <div className="max-w-3xl min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">{competition.title}</h1>
-                <Badge color={status.color}>{status.label}</Badge>
               </div>
-              <p className="mt-2 max-w-2xl whitespace-pre-line text-xs leading-relaxed text-slate-300 sm:text-sm">{description}</p>
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="mr-1 text-[11px] font-medium text-slate-400">Tingkat:</span>
                 {grades.length ? grades.map((grade: string) => <span key={grade} className="rounded-md border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-[10px] font-semibold text-slate-200 sm:text-xs">{LEVEL_LABELS[grade.toLowerCase()] ?? (grade === 'mahasiswa' ? 'Mahasiswa' : grade === 'profesional' ? 'Profesional' : grade === 'alumni' ? 'Alumni' : grade === 'sma/smk' ? 'SMA/SMK' : grade.toUpperCase())}</span>) : <span className="text-xs text-slate-400">Semua jenjang</span>}
