@@ -1,55 +1,346 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calendar, Clock, FileText, Image as ImageIcon, Trophy, Users, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ArrowLeft, CalendarDays, CheckCircle2, Clipboard, Clock3, FileText, Image as ImageIcon, Medal, ShieldCheck, Sparkles, Trophy, Users } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { CommentsSection } from '@/components/ui/Comments';
+import { CompetitionRegistrationModal } from '@/components/competition/CompetitionRegistrationModal';
 import { useApp } from '@/store/AppContext';
 import { getCompetitionBySlug, getCompetitionDetails, syncCompetitionRegistrationStatus } from '@/services/competition.service';
 import { listCompetitionPosts } from '@/services/social.service';
 import { CATEGORY_LABELS, LEVEL_LABELS } from '@/data/catalog';
 import { formatShortDate, countdown } from '@/lib/utils';
 
-function statusUi(status: string){if(status==='REGISTRATION_OPEN')return{label:'Pendaftaran Dibuka',color:'moss' as const};if(status==='LIVE')return{label:'Sedang Berlangsung',color:'warn' as const};if(status==='RESULT_PUBLISHED'||status==='ARCHIVED')return{label:'Selesai',color:'default' as const};if(status==='REGISTRATION_CLOSED')return{label:'Pendaftaran Ditutup',color:'info' as const};return{label:'Segera Dibuka',color:'default' as const};}
-
-export function CompetitionDetailPage(){
- const{slug=''}=useParams();const navigate=useNavigate();const{isGuest,user}=useApp();const[detail,setDetail]=useState<any>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState('');const[postId,setPostId]=useState<string|null>(null);
- useEffect(()=>{let active=true;(async()=>{setLoading(true);setError('');try{const base=await getCompetitionBySlug(slug);if(!base){if(active){setDetail(null);setPostId(null);setError('Uji kompetensi tidak ditemukan.');}return;}const [next,posts]=await Promise.all([getCompetitionDetails(String(base.id)),listCompetitionPosts(String(base.id),1)]);if(active){setDetail(next);setPostId(posts[0]?.id??null);}}catch(e:any){if(active)setError(e?.message??'Gagal memuat detail lomba.');}finally{if(active)setLoading(false);}})();return()=>{active=false;}},[slug]);
- useEffect(()=>{
-   const competitionId=String(detail?.competition?.id??'');
-   const currentStatus=String(detail?.competition?.status??'');
-   if(!competitionId||!['PUBLISHED','REGISTRATION_OPEN'].includes(currentStatus)) return;
-   let active=true;
-   const timer=window.setInterval(async()=>{
-     try {
-       const latestStatus=await syncCompetitionRegistrationStatus(competitionId);
-       if(!active||!latestStatus||latestStatus===currentStatus) return;
-       const refreshed=await getCompetitionDetails(competitionId);
-       if(active&&refreshed) setDetail(refreshed);
-     } catch {
-       // The schedule job is authoritative; a temporary refresh failure should not break the detail page.
-     }
-   },30000);
-   return ()=>{active=false;window.clearInterval(timer)};
- },[detail?.competition?.id,detail?.competition?.status]);
- const competition=detail?.competition;const rules=detail?.rules;const rewards=detail?.rewards??[];const levels=detail?.levels??[];const twibbons=detail?.twibbons??[];const[clock,setClock]=useState(Date.now());useEffect(()=>{const t=window.setInterval(()=>setClock(Date.now()),1000);return()=>window.clearInterval(t)},[]);void clock;
- const cd=competition?.registration_ends_at?countdown(String(competition.registration_ends_at)):{days:0,hours:0,minutes:0,seconds:0,expired:true};const registrationStartMs=competition?.registration_starts_at?new Date(String(competition.registration_starts_at)).getTime():null;const registrationEndMs=competition?.registration_ends_at?new Date(String(competition.registration_ends_at)).getTime():null;const registrationWindowOpen=(registrationStartMs===null||clock>=registrationStartMs)&&(registrationEndMs===null||clock<=registrationEndMs);const joinable=competition?.status==='REGISTRATION_OPEN'&&registrationWindowOpen&&!cd.expired;const category=CATEGORY_LABELS[String(competition?.category??'')]??String(competition?.category??'Kompetisi');const grades=useMemo(()=>[...new Set(levels.flatMap((l:any)=>l.allowed_grades??[]))],[levels]);
- if(loading)return <div className="p-5 space-y-4"><div className="h-56 rounded-2xl surface-elevated animate-pulse"/><Card className="p-6"><div className="h-6 w-2/3 rounded surface-elevated animate-pulse"/><div className="h-4 w-1/2 rounded surface-elevated animate-pulse mt-3"/></Card></div>;
- if(!competition)return <div className="p-8 text-center"><Trophy size={36} className="mx-auto text-slate-600 mb-3"/><p className="text-fg-muted">{error||'Uji kompetensi tidak ditemukan.'}</p><Button variant="ghost" className="mt-4" onClick={()=>navigate(-1)}>Kembali</Button></div>;
- const st=statusUi(String(competition.status));
- return <div className="pb-10"><div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3 flex items-center gap-3"><button onClick={()=>navigate(-1)} className="p-2 rounded-lg hover:bg-white/5 dark:hover:bg-white/5"><ArrowLeft size={19}/></button><div className="flex-1 min-w-0"><h2 className="font-display font-semibold text-sm text-fg truncate">{competition.title}</h2><p className="text-xs text-slate-500">{Number(competition.participant_count??0).toLocaleString('id-ID')} peserta</p></div><Badge color={st.color}>{st.label}</Badge></div>
- <div className="relative h-56 md:h-72 surface-elevated overflow-hidden">{competition.poster_url?<img src={competition.poster_url} alt={competition.title} className="w-full h-full object-cover opacity-55"/>:<div className="w-full h-full flex items-center justify-center"><Trophy size={60} className="text-moss-500/30"/></div>}<div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/35 to-transparent"/><div className="absolute bottom-0 left-0 right-0 p-5"><div className="flex gap-2 mb-2"><Badge color={st.color}>{st.label}</Badge><Badge>{category}</Badge></div><h1 className="font-display text-2xl md:text-3xl font-bold text-fg">{competition.title}</h1></div></div>
- <div className="p-4 space-y-4"><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Stat icon={<Users size={17}/>} label="Peserta" value={competition.participant_count}/><Stat icon={<Trophy size={17}/>} label="Soal aktif" value={detail?.questionCount??0}/><Stat icon={<Calendar size={17}/>} label="Mulai" value={formatShortDate(competition.starts_at)}/><Stat icon={<ShieldCheck size={17}/>} label="Kategori" value={category}/></div>
- {joinable&&<Card className="p-4 bg-moss-500/5 border-moss-500/20"><div className="flex items-center gap-2 mb-2"><Clock size={16} className="text-accent"/><p className="text-sm font-semibold text-fg">Pendaftaran ditutup dalam</p></div><div className="grid grid-cols-4 gap-2">{[[cd.days,'Hari'],[cd.hours,'Jam'],[cd.minutes,'Menit'],[cd.seconds,'Detik']].map(([v,l])=><div key={String(l)} className="text-center"><div className="surface-elevated rounded-lg py-2"><span className="text-xl font-bold text-accent tabular-nums">{String(v).padStart(2,'0')}</span></div><p className="text-[10px] text-slate-500 mt-1">{l}</p></div>)}</div></Card>}
- <Card className="p-4"><h3 className="font-display font-semibold text-fg mb-2">Tentang Uji Kompetensi</h3><p className="text-sm text-fg-secondary leading-relaxed whitespace-pre-line">{competition.description||competition.short_description||'Deskripsi belum tersedia.'}</p></Card>
- <Card className="p-4"><h3 className="font-display font-semibold text-fg mb-3">Timeline</h3>{[['Pendaftaran dibuka',competition.registration_starts_at],['Batas pendaftaran',competition.registration_ends_at],['Uji kompetensi dimulai',competition.starts_at],['Uji kompetensi selesai',competition.ends_at],['Pengumuman',competition.announcement_at]].map(([label,date])=><div key={String(label)} className="flex items-center gap-3 py-2"><div className={`w-3 h-3 rounded-full ${date&&new Date(String(date)).getTime()<=Date.now()?'bg-moss-500':'surface-elevated'}`}/><p className="flex-1 text-sm text-fg-secondary">{label}</p><span className="text-xs text-slate-500">{date?formatShortDate(String(date)):'—'}</span></div>)}</Card>
- <Card className="p-4"><h3 className="font-display font-semibold text-fg mb-3">Eligibility & Aturan</h3><div className="flex flex-wrap gap-2">{grades.length?grades.map(g=><span key={String(g)} className="chip bg-moss-500/10 border border-moss-500/20 text-accent">{LEVEL_LABELS[String(g)]??String(g)}</span>):<span className="text-sm text-slate-500">Tidak dibatasi jenjang.</span>}</div>{rules&&<div className="grid sm:grid-cols-2 gap-3 mt-4"><Rule l="Approval" v={rules.approval_mode??'MANUAL'}/><Rule l="Maks peserta" v={rules.max_participants??'Tidak dibatasi'}/><Rule l="Twibbon" v={rules.require_twibbon?'Wajib':'Opsional'}/><Rule l="Social proof" v={rules.require_social_proof?'Wajib':'Opsional'}/></div>}</Card>
- <Card className="p-4"><h3 className="font-display font-semibold text-fg mb-3 flex items-center gap-2"><Trophy size={16} className="text-amber-400"/> Hadiah</h3>{rewards.length?rewards.map((r:any)=><div key={r.id} className="flex items-center gap-3 rounded-xl surface-elevated p-3 mb-2 last:mb-0"><div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-300 font-bold">{r.rank_code??'•'}</div><div className="flex-1"><p className="text-sm font-semibold text-fg">{r.title}</p><p className="text-xs text-slate-500">{r.emblem_name??'Tanpa emblem'}{r.certificate_enabled?' · Sertifikat':''}</p></div><span className="text-sm font-semibold text-accent">+{Number(r.points??0).toLocaleString('id-ID')} XP</span></div>):<p className="text-sm text-slate-500">Belum ada reward.</p>}</Card>
- <Card className="p-4"><h3 className="font-display font-semibold text-fg mb-3 flex items-center gap-2"><ImageIcon size={16} className="text-accent"/> Twibbon</h3>{twibbons.length?<div className="grid sm:grid-cols-2 gap-3">{twibbons.map((t:any)=><div key={t.id} className="rounded-xl overflow-hidden border surface-border"><img src={t.image_url} alt={t.name} loading="lazy" className="w-full aspect-video object-cover"/><div className="p-3 flex items-center justify-between"><span className="text-sm text-fg">{t.name}</span>{t.is_required&&<Badge color="moss">Wajib</Badge>}</div></div>)}</div>:<p className="text-sm text-slate-500">Belum ada template twibbon aktif.</p>}</Card>
- <div className="flex gap-2">{joinable&&<Button fullWidth size="lg" disabled={isGuest||!user} onClick={()=>navigate(`/lomba/${competition.slug}/twibbon`)} icon={<Trophy size={17}/>} >{isGuest?'Masuk untuk Daftar':'Daftar Sekarang'}</Button>}{competition.status==='LIVE'&&Number(detail?.questionCount??0)>0&&<Button fullWidth size="lg" disabled={!user||isGuest} onClick={()=>navigate(`/lomba/${competition.slug}/kerja`)}>Kerjakan Uji Kompetensi</Button>}{competition.juknis_url&&<Button variant="outline" size="lg" onClick={()=>window.open(competition.juknis_url,'_blank')} icon={<FileText size={16}/>}>Juknis</Button>}</div>
- {postId?<Card className="p-4"><CommentsSection postId={postId}/></Card>:<Card className="p-4"><p className="text-xs text-slate-500">Komentar akan tersedia setelah postingan lomba dibuat.</p></Card>}
- </div></div>;
+function statusUi(status: string) {
+  if (status === 'REGISTRATION_OPEN') return { label: 'Pendaftaran dibuka', color: 'moss' as const };
+  if (status === 'LIVE') return { label: 'Sedang berlangsung', color: 'warn' as const };
+  if (status === 'RESULT_PUBLISHED' || status === 'ARCHIVED') return { label: 'Selesai', color: 'default' as const };
+  if (status === 'REGISTRATION_CLOSED') return { label: 'Pendaftaran ditutup', color: 'info' as const };
+  if (status === 'CANCELLED' || status === 'SUSPENDED') return { label: 'Tidak tersedia', color: 'default' as const };
+  return { label: 'Segera dibuka', color: 'default' as const };
 }
-function Stat({icon,label,value}:{icon:React.ReactNode;label:string;value:any}){return <Card className="p-3"><div className="text-accent mb-2">{icon}</div><p className="text-lg font-bold text-fg truncate">{value==null||value===''?'—':typeof value==='number'?value.toLocaleString('id-ID'):String(value)}</p><p className="text-[11px] text-slate-500 mt-1">{label}</p></Card>}
-function Rule({l,v}:{l:string;v:any}){return <div className="rounded-xl surface-elevated p-3"><p className="text-[10px] text-slate-500">{l}</p><p className="text-sm text-fg-secondary mt-1">{String(v)}</p></div>}
+
+function dateTime(value?: string | null) {
+  if (!value) return 'Belum ditentukan';
+  return new Date(value).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' });
+}
+
+function CountdownCard({ cd }: { cd: ReturnType<typeof countdown> }) {
+  const parts: Array<[number, string]> = [[cd.days, 'Hari'], [cd.hours, 'Jam'], [cd.minutes, 'Menit'], [cd.seconds, 'Detik']];
+  return <div className="grid grid-cols-4 gap-2">
+    {parts.map(([value, label]) => <div key={label} className="rounded-xl border border-border bg-surface-elevated/40 p-2 text-center sm:p-3">
+      <p className="font-mono text-xl font-bold tabular-nums text-accent sm:text-2xl">{String(value).padStart(2, '0')}</p>
+      <p className="mt-1 text-[10px] text-fg-muted sm:text-xs">{label}</p>
+    </div>)}
+  </div>;
+}
+
+function Stat({ icon, label, value }: { icon: ReactNode; label: string; value: unknown }) {
+  return <Card className="flex items-center gap-3 p-3.5 sm:p-4">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">{icon}</div>
+    <div className="min-w-0">
+      <p className="truncate text-lg font-bold text-fg sm:text-xl">{value == null || value === '' ? '—' : typeof value === 'number' ? value.toLocaleString('id-ID') : String(value)}</p>
+      <p className="text-xs text-fg-muted">{label}</p>
+    </div>
+  </Card>;
+}
+
+function TimelineItem({ label, value, first, last }: { label: string; value?: string | null; first?: boolean; last?: boolean }) {
+  const happened = Boolean(value && new Date(value).getTime() <= Date.now());
+  return <div className="flex gap-3">
+    <div className="flex w-4 shrink-0 flex-col items-center">
+      <span className={'mt-1 h-3 w-3 rounded-full ' + (happened ? 'bg-accent' : 'border-2 border-border bg-card')} />
+      {!last && <span className="mt-1 w-px flex-1 bg-border" />}
+    </div>
+    <div className={'min-w-0 flex-1 ' + (last ? 'pb-0' : 'pb-5')}>
+      <p className="text-sm font-medium text-fg">{label}</p>
+      <p className="mt-1 text-xs leading-relaxed text-fg-muted">{dateTime(value)}</p>
+    </div>
+  </div>;
+}
+
+export function CompetitionDetailPage() {
+  const { slug = '' } = useParams();
+  const navigate = useNavigate();
+  const { isGuest, user, toast } = useApp();
+  const [detail, setDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [postId, setPostId] = useState<string | null>(null);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [clock, setClock] = useState(Date.now());
+
+  const refreshDetail = async (competitionId: string) => {
+    const refreshed = await getCompetitionDetails(competitionId);
+    if (refreshed) setDetail(refreshed);
+  };
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const base = await getCompetitionBySlug(slug);
+        if (!base) {
+          if (active) {
+            setDetail(null);
+            setPostId(null);
+            setError('Uji kompetensi tidak ditemukan.');
+          }
+          return;
+        }
+        const [next, posts] = await Promise.all([
+          getCompetitionDetails(String(base.id)),
+          listCompetitionPosts(String(base.id), 1),
+        ]);
+        if (active) {
+          setDetail(next);
+          setPostId(posts[0]?.id ?? null);
+        }
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Gagal memuat detail lomba.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [slug]);
+
+  useEffect(() => {
+    const competitionId = String(detail?.competition?.id ?? '');
+    const currentStatus = String(detail?.competition?.status ?? '');
+    if (!competitionId || !['PUBLISHED', 'REGISTRATION_OPEN'].includes(currentStatus)) return;
+    let active = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const latestStatus = await syncCompetitionRegistrationStatus(competitionId);
+        if (!active || !latestStatus || latestStatus === currentStatus) return;
+        const refreshed = await getCompetitionDetails(competitionId);
+        if (active && refreshed) setDetail(refreshed);
+      } catch {
+        // A transient status-sync failure should not break the detail page.
+      }
+    }, 30000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [detail?.competition?.id, detail?.competition?.status]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const competition = detail?.competition;
+  const rules = detail?.rules;
+  const rewards = detail?.rewards ?? [];
+  const levels = detail?.levels ?? [];
+  const twibbons = detail?.twibbons ?? [];
+  const cd = competition?.registration_ends_at
+    ? countdown(String(competition.registration_ends_at))
+    : { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };
+  const registrationStartMs = competition?.registration_starts_at ? new Date(String(competition.registration_starts_at)).getTime() : null;
+  const registrationEndMs = competition?.registration_ends_at ? new Date(String(competition.registration_ends_at)).getTime() : null;
+  const registrationWindowOpen = (registrationStartMs === null || clock >= registrationStartMs)
+    && (registrationEndMs === null || clock <= registrationEndMs);
+  const joinable = competition?.status === 'REGISTRATION_OPEN' && registrationWindowOpen && !cd.expired;
+  const category = CATEGORY_LABELS[String(competition?.category ?? '')] ?? String(competition?.category ?? 'Kompetisi');
+  const grades = useMemo(() => [...new Set(levels.flatMap((level: any) => level.allowed_grades ?? []))], [levels]);
+
+  const copyTwibbonLink = async () => {
+    const link = String(competition?.twibbon_external_url ?? '');
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast('Tautan Twibbon berhasil disalin.', 'success');
+    } catch {
+      toast('Browser tidak mengizinkan salin otomatis. Salin tautan dari bagian Twibbon secara manual.', 'error');
+    }
+  };
+
+  if (loading) return <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-7">
+    <div className="h-64 animate-pulse rounded-3xl surface-elevated" />
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4].map((value) => <div key={value} className="h-20 animate-pulse rounded-2xl surface-elevated" />)}</div>
+    <Card className="space-y-3 p-6"><div className="h-5 w-2/3 animate-pulse rounded surface-elevated" /><div className="h-4 w-4/5 animate-pulse rounded surface-elevated" /></Card>
+  </div>;
+
+  if (!competition) return <div className="mx-auto max-w-xl p-6 md:p-10">
+    <Card className="p-8 text-center sm:p-10">
+      <Trophy size={38} className="mx-auto mb-3 text-fg-muted" />
+      <h1 className="text-lg font-bold text-fg">Lomba tidak ditemukan</h1>
+      <p className="mt-2 text-sm text-fg-muted">{error || 'Uji kompetensi ini tidak tersedia atau tautannya sudah berubah.'}</p>
+      <Button variant="outline" className="mt-5" onClick={() => navigate(-1)}>Kembali</Button>
+    </Card>
+  </div>;
+
+  const status = statusUi(String(competition.status));
+  const description = String(competition.description || competition.short_description || 'Deskripsi lomba akan ditambahkan oleh penyelenggara.');
+
+  return <div className="min-h-screen pb-12 surface-bg text-fg">
+    <div className="sticky top-0 z-30 border-b border-border bg-card/90 px-3 py-3 backdrop-blur-xl sm:px-5">
+      <div className="mx-auto flex max-w-6xl items-center gap-3">
+        <button onClick={() => navigate(-1)} aria-label="Kembali" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-fg-muted transition hover:bg-surface-elevated hover:text-fg"><ArrowLeft size={18}/></button>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-sm font-bold text-fg sm:text-base">{competition.title}</h2>
+          <p className="truncate text-xs text-fg-muted">{category}</p>
+        </div>
+        <Badge color={status.color}>{status.label}</Badge>
+      </div>
+    </div>
+
+    <main className="mx-auto max-w-6xl space-y-6 p-3 sm:p-5 lg:p-7">
+      <section className="relative isolate flex min-h-[300px] overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 sm:min-h-[360px]">
+        {competition.poster_url && <img src={competition.poster_url} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover" />}
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-slate-950/95 via-slate-950/75 to-slate-950/30" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-slate-950/70 via-transparent to-slate-950/15" />
+        <div className="flex w-full flex-col justify-end p-5 sm:p-8 lg:max-w-3xl lg:p-10">
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white"><Trophy size={13} className="text-amber-300"/>{category}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white"><Users size={13}/>{Number(competition.participant_count ?? 0).toLocaleString('id-ID')} peserta</span>
+          </div>
+          <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">{competition.title}</h1>
+          <p className="mt-3 max-w-2xl whitespace-pre-line text-sm leading-relaxed text-slate-200 sm:text-base">{description}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {grades.slice(0, 5).map((grade: any) => <span key={String(grade)} className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-white/90">{LEVEL_LABELS[String(grade)] ?? String(grade)}</span>)}
+            {grades.length > 5 && <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-white/90">+{grades.length - 5} jenjang</span>}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat icon={<Users size={18}/>} label="Peserta terdaftar" value={competition.participant_count ?? 0}/>
+        <Stat icon={<Trophy size={18}/>} label="Soal tersedia" value={detail?.questionCount ?? 0}/>
+        <Stat icon={<CalendarDays size={18}/>} label="Mulai lomba" value={formatShortDate(competition.starts_at)}/>
+        <Stat icon={<ShieldCheck size={18}/>} label="Sistem persetujuan" value={rules?.approval_mode === 'AUTO' ? 'Otomatis' : 'Ditinjau panitia'}/>
+      </section>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-6">
+          <Card className="p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><Sparkles size={19}/></div>
+              <div><h2 className="text-lg font-bold text-fg">Tentang lomba</h2><p className="text-xs text-fg-muted">Informasi dan jadwal resmi</p></div>
+            </div>
+            <p className="mt-4 whitespace-pre-line text-sm leading-7 text-fg-secondary">{description}</p>
+            {competition.juknis_url && <a href={competition.juknis_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-fg transition hover:border-accent/50 hover:text-accent"><FileText size={16}/> Baca petunjuk teknis</a>}
+          </Card>
+
+          <Card className="p-5 sm:p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent"><CalendarDays size={19}/></div>
+              <div><h2 className="text-lg font-bold text-fg">Jadwal penting</h2><p className="text-xs text-fg-muted">Gunakan waktu yang ditampilkan sebagai acuan</p></div>
+            </div>
+            <div className="space-y-0">
+              <TimelineItem label="Pendaftaran dibuka" value={competition.registration_starts_at} />
+              <TimelineItem label="Batas akhir pendaftaran" value={competition.registration_ends_at} />
+              <TimelineItem label="Uji kompetensi dimulai" value={competition.starts_at} />
+              <TimelineItem label="Uji kompetensi berakhir" value={competition.ends_at} />
+              <TimelineItem label="Pengumuman hasil" value={competition.announcement_at} last />
+            </div>
+          </Card>
+
+          <Card className="p-5 sm:p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent"><ShieldCheck size={19}/></div>
+              <div><h2 className="text-lg font-bold text-fg">Syarat peserta</h2><p className="text-xs text-fg-muted">Periksa sebelum mengirim pendaftaran</p></div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {grades.length ? grades.map((grade: any) => <span key={String(grade)} className="rounded-full border border-accent/20 bg-accent/5 px-3 py-1.5 text-xs font-medium text-accent">{LEVEL_LABELS[String(grade)] ?? String(grade)}</span>) : <span className="text-sm text-fg-muted">Tidak ada pembatasan jenjang yang ditampilkan.</span>}
+            </div>
+            {rules && <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <Rule label="Persetujuan pendaftaran" value={rules.approval_mode === 'AUTO' ? 'Otomatis' : 'Ditinjau panitia'} />
+              <Rule label="Kuota peserta" value={rules.max_participants ? Number(rules.max_participants).toLocaleString('id-ID') + ' peserta' : 'Tidak dibatasi'} />
+              <Rule label="Twibbon" value={rules.require_twibbon ? 'Wajib' : 'Opsional'} />
+              <Rule label="Bukti media sosial" value={rules.require_social_proof ? 'Wajib' : 'Opsional'} />
+            </div>}
+          </Card>
+
+          <Card className="p-5 sm:p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500"><Medal size={19}/></div>
+              <div><h2 className="text-lg font-bold text-fg">Hadiah & apresiasi</h2><p className="text-xs text-fg-muted">Penghargaan yang disiapkan penyelenggara</p></div>
+            </div>
+            {rewards.length ? <div className="grid gap-3 sm:grid-cols-2">
+              {rewards.map((reward: any, index: number) => {
+                const rank = String(reward.rank_code ?? '');
+                const label = rank === 'FIRST' ? 'Juara 1' : rank === 'SECOND' ? 'Juara 2' : rank === 'THIRD' ? 'Juara 3' : rank === 'PARTICIPANT' ? 'Peserta' : reward.title;
+                return <div key={reward.id} className="flex items-center gap-3 rounded-2xl border border-border p-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 font-bold text-amber-500">{index < 3 ? index + 1 : <Medal size={18}/>}</div>
+                  <div className="min-w-0 flex-1"><p className="font-semibold text-fg">{label || 'Penghargaan'}</p><p className="mt-1 text-xs text-fg-muted">{reward.emblem_name || 'Lencana digital'}{reward.certificate_enabled ? ' · Sertifikat' : ''}</p></div>
+                  <span className="shrink-0 text-sm font-bold text-accent">+{Number(reward.points ?? 0).toLocaleString('id-ID')} XP</span>
+                </div>;
+              })}
+            </div> : <p className="text-sm text-fg-muted">Detail hadiah belum dipublikasikan.</p>}
+          </Card>
+
+          <Card className="p-5 sm:p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent"><ImageIcon size={19}/></div>
+              <div><h2 className="text-lg font-bold text-fg">Twibbon lomba</h2><p className="text-xs text-fg-muted">Ikuti panduan dari penyelenggara</p></div>
+            </div>
+            {twibbons.length > 0 ? <div className="grid gap-3 sm:grid-cols-2">
+              {twibbons.map((twibbon: any) => <div key={twibbon.id} className="overflow-hidden rounded-2xl border border-border">
+                <img src={twibbon.image_url} alt={twibbon.name} loading="lazy" className="aspect-video w-full object-cover"/>
+                <div className="flex items-center justify-between gap-2 p-3"><span className="text-sm font-semibold text-fg">{twibbon.name}</span>{twibbon.is_required && <Badge color="moss">Wajib</Badge>}</div>
+              </div>)}
+            </div> : competition.twibbon_external_url ? <div className="rounded-2xl border border-border bg-surface-elevated/20 p-4">
+              <p className="text-sm leading-relaxed text-fg-secondary">Penyelenggara menggunakan Twibbon eksternal. Salin tautannya dari popup pendaftaran untuk tetap berada di halaman lomba.</p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input className="input min-w-0 flex-1 text-xs" aria-label="Tautan Twibbon eksternal" value={String(competition.twibbon_external_url)} readOnly onFocus={(event) => event.currentTarget.select()}/>
+                <Button variant="outline" onClick={() => void copyTwibbonLink()} icon={<Clipboard size={15}/>}>Salin tautan</Button>
+              </div>
+            </div> : <p className="text-sm text-fg-muted">Informasi Twibbon belum tersedia.</p>}
+          </Card>
+
+          {postId ? <Card className="p-5 sm:p-6"><CommentsSection postId={postId}/></Card> : <Card className="p-4"><p className="text-xs text-fg-muted">Kolom komentar akan tersedia setelah postingan lomba dibuat.</p></Card>}
+        </div>
+
+        <aside className="space-y-4 lg:sticky lg:top-24">
+          <Card className="overflow-hidden p-0">
+            <div className="bg-gradient-to-br from-accent/15 via-card to-card p-5 sm:p-6">
+              <div className="flex items-center gap-2"><span className={'h-2.5 w-2.5 rounded-full ' + (joinable ? 'animate-pulse bg-emerald-500' : competition.status === 'LIVE' ? 'bg-amber-500' : 'bg-fg-muted')}/><p className="text-sm font-semibold text-fg">{status.label}</p></div>
+              {joinable ? <>
+                <h2 className="mt-4 text-xl font-bold text-fg">Siap ikut NCCS?</h2>
+                <p className="mt-1 text-xs leading-relaxed text-fg-muted">Lengkapi syarat dan kirim pendaftaran langsung dari popup ini.</p>
+                <div className="mt-4"><p className="mb-2 text-xs font-medium text-fg-muted">Waktu tersisa untuk mendaftar</p><CountdownCard cd={cd}/></div>
+                <Button className="mt-5 w-full" size="lg" onClick={() => setRegistrationOpen(true)} icon={<Trophy size={17}/>}>{isGuest || !user ? 'Masuk untuk daftar' : 'Daftar sekarang'}</Button>
+              </> : competition.status === 'LIVE' && Number(detail?.questionCount ?? 0) > 0 ? <>
+                <h2 className="mt-4 text-xl font-bold text-fg">Ujian sedang berlangsung</h2>
+                <p className="mt-1 text-xs leading-relaxed text-fg-muted">Jika sudah terdaftar dan mendapat akses, lanjutkan ke ruang ujian.</p>
+                <Button className="mt-5 w-full" onClick={() => navigate('/lomba/' + competition.slug + '/kerja')} disabled={!user || isGuest}>Kerjakan uji kompetensi</Button>
+              </> : <>
+                <h2 className="mt-4 text-lg font-bold text-fg">{competition.status === 'REGISTRATION_CLOSED' ? 'Pendaftaran ditutup' : competition.status === 'RESULT_PUBLISHED' || competition.status === 'ARCHIVED' ? 'Lomba telah selesai' : 'Siapkan dirimu'}</h2>
+                <p className="mt-1 text-xs leading-relaxed text-fg-muted">{competition.status === 'PUBLISHED' ? 'Pendaftaran akan tersedia sesuai jadwal yang ditetapkan penyelenggara.' : 'Lihat jadwal dan ketentuan lomba untuk informasi selanjutnya.'}</p>
+              </>}
+            </div>
+            <div className="space-y-3 border-t border-border p-5">
+              <div className="flex items-start gap-3"><CalendarDays size={16} className="mt-0.5 shrink-0 text-accent"/><div><p className="text-xs text-fg-muted">Mulai lomba</p><p className="mt-0.5 text-sm font-semibold text-fg">{dateTime(competition.starts_at)}</p></div></div>
+              <div className="flex items-start gap-3"><Clock3 size={16} className="mt-0.5 shrink-0 text-accent"/><div><p className="text-xs text-fg-muted">Batas pendaftaran</p><p className="mt-0.5 text-sm font-semibold text-fg">{dateTime(competition.registration_ends_at)}</p></div></div>
+              {competition.juknis_url && <a href={competition.juknis_url} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-fg transition hover:border-accent/50 hover:text-accent"><FileText size={15}/> Petunjuk teknis</a>}
+            </div>
+          </Card>
+          {joinable && <div className="flex items-start gap-3 rounded-2xl border border-accent/15 bg-accent/5 p-4">
+            <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-accent"/>
+            <p className="text-xs leading-relaxed text-fg-muted">Pendaftaran terhubung dengan akun SykaBelajar. Statusnya dapat dipantau setelah formulir dikirim.</p>
+          </div>}
+        </aside>
+      </div>
+    </main>
+
+    <CompetitionRegistrationModal
+      open={registrationOpen}
+      competition={competition}
+      rules={rules}
+      slug={slug}
+      onClose={() => setRegistrationOpen(false)}
+      onRegistered={() => { void refreshDetail(String(competition.id)); }}
+    />
+  </div>;
+}
+
+function Rule({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-border bg-surface-elevated/25 p-3.5">
+    <p className="text-xs text-fg-muted">{label}</p>
+    <p className="mt-1 text-sm font-semibold text-fg">{value}</p>
+  </div>;
+}
