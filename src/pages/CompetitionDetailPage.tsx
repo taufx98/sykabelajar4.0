@@ -211,7 +211,7 @@ export function CompetitionDetailPage() {
       return raw;
     };
 
-    const normalized: string[] = source.map(normalizeGrade).filter((grade): grade is string => Boolean(grade));
+    const normalized: string[] = source.map((grade: unknown) => normalizeGrade(grade)).filter((grade: unknown): grade is string => Boolean(grade));
     return [...new Set<string>(normalized)];
   }, [levels, rules?.allowed_grades, competition?.target_grades]);
 
