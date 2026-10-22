@@ -63,7 +63,7 @@ function SectionHeading({ icon, title, subtitle }: { icon: ReactNode; title: str
 
 function Stat({ icon, label, value, suffix, accent }: { icon: ReactNode; label: string; value: unknown; suffix?: string; accent?: boolean }) {
   return <div className="min-w-0 rounded-xl border border-border/80 bg-surface-elevated/45 p-3 sm:p-3.5">
-    <p className="truncate text-[11px] text-fg-muted">{label}</p>
+    <p className="flex items-center gap-1.5 truncate text-[11px] text-fg-muted"><span className="shrink-0 text-blue-400">{icon}</span>{label}</p>
     <div className="mt-1 flex min-w-0 items-baseline gap-1">
       <span className={'truncate text-base font-extrabold sm:text-lg ' + (accent ? 'text-amber-400' : 'text-fg')}>{value == null || value === '' ? '—' : typeof value === 'number' ? value.toLocaleString('id-ID') : String(value)}</span>
       {suffix && <span className="shrink-0 text-[10px] text-fg-muted">{suffix}</span>}
@@ -322,7 +322,7 @@ export function CompetitionDetailPage() {
             <div className="mt-4 flex items-start gap-3.5 rounded-xl border border-border bg-surface-elevated/50 p-3.5 sm:p-4">
               {organizer?.logoUrl ? <img src={organizer.logoUrl} alt="" className="h-10 w-10 shrink-0 rounded-xl border border-border object-cover"/> : <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-500 to-blue-500 text-xs font-black text-white">{initials(organizerName)}</div>}
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex flex-wrap items-center gap-2 text-xs font-bold text-fg">{organizerName}<span className="rounded bg-cyan-500/10 px-2 py-0.5 text-[9px] font-semibold text-cyan-400">Penyelenggara</span></h3><span className="text-[10px] text-fg-muted">{String(organizer?.status ?? 'ACTIVE') === 'ACTIVE' ? 'Aktif' : ''}</span></div>
+                <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex flex-wrap items-center gap-2 text-xs font-bold text-fg">{organizerName}<span className="rounded bg-cyan-500/10 px-2 py-0.5 text-[9px] font-semibold text-cyan-400">Penyelenggara</span></h3></div>
                 <p className="mt-1 text-[10px] leading-relaxed text-fg-muted sm:text-[11px]">{String(organizer?.description ?? '').trim() || 'Informasi profil penyelenggara belum dilengkapi.'}</p>
               </div>
             </div>
