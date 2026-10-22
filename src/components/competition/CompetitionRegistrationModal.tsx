@@ -155,22 +155,25 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
     let active = true;
     setEduCoinBalance(null);
     setCoinBalanceLoading(true);
-    void supabase
-      .from('profiles')
-      .select('edu_coin')
-      .eq('id', String(user.id))
-      .maybeSingle()
-      .then(({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('edu_coin')
+          .eq('id', String(user.id))
+          .maybeSingle();
         if (!active) return;
         if (error) {
           setEduCoinBalance(null);
           return;
         }
         setEduCoinBalance(Number(data?.edu_coin ?? 0));
-      })
-      .finally(() => {
+      } catch {
+        if (active) setEduCoinBalance(null);
+      } finally {
         if (active) setCoinBalanceLoading(false);
-      });
+      }
+    })();
     return () => { active = false; };
   }, [open, user?.id, isGuest]);
 
