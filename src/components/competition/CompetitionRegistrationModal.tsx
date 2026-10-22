@@ -209,7 +209,7 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
   const activeStatus = ['ACTIVE', 'APPROVED'].includes(String(registrationResult?.status ?? '').toUpperCase());
 
   return <div
-    className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-md sm:p-5"
+    className="competition-detail-theme fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-md sm:p-5"
     role="presentation"
     onMouseDown={(event) => { if (event.target === event.currentTarget) closeIfAllowed(); }}
   >
