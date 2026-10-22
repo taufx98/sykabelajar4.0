@@ -22,9 +22,11 @@ export async function checkRegistrationEligibility(competitionId: string, grade?
 }
 
 export async function submitRegistration(input: SubmitRegistrationInput) {
-  const socialProofUrl = input.socialProofUrl.trim();
-  if (!socialProofUrl) throw new Error('Link postingan wajib diisi.');
-  if (!input.socialUsername.trim()) throw new Error('Username media sosial wajib diisi.');
+  const socialProofUrl = input.socialProofUrl.trim() || null;
+  const socialUsername = input.socialUsername.trim().replace(/^@+/, '') || null;
+  if (Boolean(socialProofUrl) !== Boolean(socialUsername)) {
+    throw new Error('Isi username dan link postingan bersama-sama.');
+  }
 
   const { data, error } = await supabase.rpc('register_for_competition', {
     p_competition_id: input.competitionId,
@@ -33,7 +35,7 @@ export async function submitRegistration(input: SubmitRegistrationInput) {
     p_social_proof_url: socialProofUrl,
     p_twibbon_completed: Boolean(input.twibbonCompleted),
     p_social_platform: input.socialPlatform,
-    p_social_username: input.socialUsername.trim().replace(/^@+/, ''),
+    p_social_username: socialUsername,
     p_referral_code: input.referralCode?.trim() || null,
   });
   if (error) throw error;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, BarChart3, BookOpen, Building2, Camera, ClipboardList, FileQuestion, Gauge, Megaphone, Plus, Trophy, Users } from 'lucide-react';
+import { ArrowRight, BarChart3, BookOpen, Building2, Camera, ClipboardList, FileQuestion, Gauge, Lock, Megaphone, Plus, Trophy, Users } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -42,6 +42,7 @@ export function OrganizerControlCenterPage() {
   const [banks, setBanks] = useState<any[]>([]);
   const [stats, setStats] = useState({ competitions: 0, registrations: 0, members: 0, banks: 0 });
   const [plan, setPlan] = useState<string | null>(null);
+  const [bankLimit, setBankLimit] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
@@ -76,6 +77,8 @@ export function OrganizerControlCenterPage() {
       setBanks(b.data ?? []);
       setStats({ competitions: c.data?.length ?? 0, registrations: r.data?.length ?? 0, members: m.count ?? 0, banks: b.data?.length ?? 0 });
       setPlan(ent.planCode);
+      const bankEntitlement = ent.entitlements.find(item => item.capability === 'question_bank');
+      setBankLimit(bankEntitlement ? (bankEntitlement.limit_value == null ? null : Math.max(0, Number(bankEntitlement.limit_value))) : 0);
     } catch (e: any) {
       toast(e?.message ?? 'Gagal memuat Control Center penyelenggara.', 'error');
     } finally {
@@ -127,6 +130,11 @@ export function OrganizerControlCenterPage() {
 
   const createBank = async () => {
     if (!org || !canEdit || !bankName.trim()) return;
+    if (bankLimit !== null && banks.length >= bankLimit) {
+      toast(`Kuota bank soal paket ${plan ?? 'saat ini'} sudah penuh (${banks.length}/${bankLimit}). Kamu tetap bisa menambah soal ke bank yang sudah ada. Buka salah satu bank atau tingkatkan paket untuk membuat bank tambahan.`, 'error');
+      setBankOpen(false);
+      return;
+    }
     setBusy(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
@@ -147,7 +155,12 @@ export function OrganizerControlCenterPage() {
       toast('Bank soal berhasil dibuat.', 'success');
       navigate(`/organizer/question-bank/${data.id}`);
     } catch (e: any) {
-      toast(e?.message ?? 'Gagal membuat bank soal.', 'error');
+      const message = String(e?.message ?? '');
+      if (message.includes('QUESTION_BANK_QUOTA_EXCEEDED')) {
+        toast(`Kuota bank soal paket ${plan ?? 'saat ini'} sudah penuh. Kamu bisa menambah soal di bank yang sudah ada, atau membuka halaman Paket & Kuota untuk membuat bank baru.`, 'error');
+      } else {
+        toast(message || 'Gagal membuat bank soal.', 'error');
+      }
     } finally {
       setBusy(false);
     }
@@ -194,7 +207,36 @@ export function OrganizerControlCenterPage() {
 
     {activeTab==='competitions' && <section><div className="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-4"><div><p className="text-[10px] uppercase tracking-widest text-accent font-semibold">Manajemen Lomba</p><h2 className="text-xl font-bold text-fg">Semua Lomba</h2><p className="text-xs text-fg-muted mt-1">Kelola draft, status, dan masuk ke konfigurasi lomba.</p></div>{canEdit&&<Link to="/organizer/competition/new"><Button icon={<Plus size={16}/>}>Buat Lomba</Button></Link>}</div><div className="space-y-2">{competitions.map(c=><Card key={c.id} className="p-4"><div className="flex flex-col md:flex-row md:items-center gap-3"><div className="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center shrink-0"><Trophy size={18} className="text-accent"/></div><div className="flex-1 min-w-0"><p className="font-semibold text-fg truncate">{c.title}</p><p className="text-[11px] text-fg-muted truncate">/{c.slug}</p><p className="text-[11px] text-fg-muted mt-1">Pendaftaran: {c.registration_starts_at?new Date(c.registration_starts_at).toLocaleString('id-ID'):'—'} → {c.registration_ends_at?new Date(c.registration_ends_at).toLocaleString('id-ID'):'—'}</p></div><Badge color={c.status==='DRAFT'?'default':'moss'}>{humanStatus(c.status)}</Badge><div className="flex gap-2"><Link to={`/organizer/competition/${c.id}/config`}><Button size="sm" variant="outline">Konfigurasi</Button></Link><Link to={`/lomba/${c.slug}`}><Button size="sm" variant="ghost">Lihat</Button></Link></div></div></Card>)}{!competitions.length&&<Card className="p-10 text-center"><Trophy size={28} className="mx-auto text-fg-muted mb-2"/><p className="font-semibold text-fg">Belum ada lomba</p><p className="text-xs text-fg-muted mt-1">Mulai dengan wizard Buat Lomba untuk membuat draft pertama.</p></Card>}</div></section>}
 
-    {activeTab==='question-bank' && <section><div className="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-4"><div><p className="text-[10px] uppercase tracking-widest text-accent font-semibold">Question Engine</p><h2 className="text-xl font-bold text-fg">Bank Soal</h2><p className="text-xs text-fg-muted mt-1">Buat bank lalu susun Pilihan Ganda, Benar/Salah, atau Essay.</p></div>{canEdit&&<Button icon={<Plus size={16}/>} onClick={()=>setBankOpen(true)}>Tambah Bank Soal</Button>}</div><div className="grid md:grid-cols-2 gap-3">{banks.map(b=><Card key={b.id} className="p-4"><div className="flex items-start gap-3"><div className="w-11 h-11 rounded-xl bg-moss-500/10 flex items-center justify-center shrink-0"><BookOpen size={18} className="text-accent"/></div><div className="flex-1 min-w-0"><p className="font-semibold text-fg truncate">{b.name}</p><p className="text-xs text-fg-muted mt-1">{b.grade_code || 'Semua jenjang'} · {humanStatus(b.status)}</p>{b.description&&<p className="text-xs text-fg-muted mt-2 line-clamp-2">{b.description}</p>}</div><Link to={`/organizer/question-bank/${b.id}`}><Button size="sm" variant="outline">Kelola Soal</Button></Link></div></Card>)}{!banks.length&&<Card className="p-10 text-center md:col-span-2"><FileQuestion size={28} className="mx-auto text-fg-muted mb-2"/><p className="font-semibold text-fg">Belum ada bank soal</p><p className="text-xs text-fg-muted mt-1">Tambahkan bank soal pertama untuk mulai menyusun soal.</p></Card>}</div></section>}
+    {activeTab==='question-bank' && <section>
+      <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-end">
+        <div><p className="text-[10px] font-semibold uppercase tracking-widest text-accent">Question Engine</p><h2 className="text-xl font-bold text-fg">Bank Soal</h2><p className="mt-1 text-sm text-fg-muted">Setiap bank bisa berisi banyak soal. Gunakan bank yang sama untuk terus menambah atau mengedit pertanyaan.</p></div>
+        <div className="flex flex-wrap gap-2">
+          {canEdit && (bankLimit === null || banks.length < bankLimit)
+            ? <Button icon={<Plus size={16}/>} onClick={()=>setBankOpen(true)}>Tambah Bank Soal</Button>
+            : canEdit && <Button disabled icon={<Lock size={15}/>} title="Kuota paket sudah penuh">Kuota Bank Penuh</Button>}
+          <Link to="/organizer/plan"><Button variant="outline">Paket & Kuota</Button></Link>
+        </div>
+      </div>
+      <Card className="mb-4 border border-accent/15 bg-accent/5 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><BookOpen size={18}/></div>
+            <div><p className="text-sm font-semibold text-fg">Penggunaan bank soal</p><p className="mt-1 text-xs leading-relaxed text-fg-muted">Terpakai <strong className="text-fg">{banks.length}</strong> dari <strong className="text-fg">{bankLimit === null ? 'tanpa batas' : bankLimit}</strong> bank yang tersedia di paket {plan ?? 'akunmu'}. Kuota ini menghitung jumlah bank, bukan jumlah pertanyaan di dalamnya.</p></div>
+          </div>
+          {bankLimit !== null && banks.length >= bankLimit && <Link to="/organizer/plan" className="shrink-0"><Button variant="outline" size="sm">Lihat opsi paket</Button></Link>}
+        </div>
+      </Card>
+      <div className="grid gap-3 md:grid-cols-2">
+        {banks.map(b=><Card key={b.id} className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-moss-500/10"><BookOpen size={18} className="text-accent"/></div>
+            <div className="min-w-0 flex-1"><p className="truncate font-semibold text-fg">{b.name}</p><p className="mt-1 text-xs text-fg-muted">{b.grade_code || 'Semua jenjang'} · {humanStatus(b.status)}</p>{b.description&&<p className="mt-2 line-clamp-2 text-xs text-fg-muted">{b.description}</p>}</div>
+          </div>
+          <div className="mt-4 flex items-center justify-between border-t border-border pt-3"><p className="text-xs text-fg-muted">Tambah dan atur soal di sini</p><Link to={`/organizer/question-bank/${b.id}`}><Button size="sm" variant="outline">Kelola Soal</Button></Link></div>
+        </Card>)}
+        {!banks.length&&<Card className="p-10 text-center md:col-span-2"><FileQuestion size={28} className="mx-auto mb-2 text-fg-muted"/><p className="font-semibold text-fg">Belum ada bank soal</p><p className="mt-1 text-xs text-fg-muted">Buat bank soal pertama untuk mulai menyusun soal.</p></Card>}
+      </div>
+    </section>}
 
     {bankOpen&&<div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"><Card className="w-full max-w-lg p-5 md:p-6"><div className="flex items-center gap-3 mb-5"><div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center"><Plus size={18} className="text-accent"/></div><div><h3 className="font-bold text-fg">Buat Bank Soal</h3><p className="text-xs text-fg-muted mt-0.5">Setelah dibuat, kamu langsung masuk ke editor soal.</p></div></div><div className="space-y-3"><label className="text-xs text-fg-muted block">Nama Bank Soal<input className="input mt-1 w-full" value={bankName} onChange={e=>setBankName(e.target.value)} placeholder="Contoh: Bank Soal NSSC 2026" /></label><label className="text-xs text-fg-muted block">Deskripsi<textarea className="input mt-1 w-full min-h-24" value={bankDescription} onChange={e=>setBankDescription(e.target.value)} placeholder="Jelaskan isi atau tujuan bank soal…" /></label><label className="text-xs text-fg-muted block">Jenjang<select className="input mt-1 w-full" value={bankGrade} onChange={e=>setBankGrade(e.target.value)}><option value="">Semua jenjang</option><option value="SD">SD</option><option value="SMP">SMP</option><option value="SMA">SMA</option><option value="Mahasiswa">Mahasiswa</option><option value="Profesional">Profesional</option></select></label></div><div className="flex justify-end gap-2 mt-6"><Button variant="outline" onClick={()=>setBankOpen(false)}>Batal</Button><Button loading={busy} disabled={!bankName.trim()} onClick={()=>void createBank()}>Buat & Kelola Soal</Button></div></Card></div>}
   </div>;
