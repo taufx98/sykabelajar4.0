@@ -300,7 +300,7 @@ export function CompetitionDetailPage() {
             <div className="bg-gradient-to-br from-accent/15 via-card to-card p-5 sm:p-6">
               <div className="flex items-center gap-2"><span className={'h-2.5 w-2.5 rounded-full ' + (joinable ? 'animate-pulse bg-emerald-500' : competition.status === 'LIVE' ? 'bg-amber-500' : 'bg-fg-muted')}/><p className="text-sm font-semibold text-fg">{status.label}</p></div>
               {joinable ? <>
-                <h2 className="mt-4 text-xl font-bold text-fg">Siap ikut NCCS?</h2>
+                <h2 className="mt-4 text-xl font-bold text-fg">{'Siap ikut ' + competition.title + '?'}</h2>
                 <p className="mt-1 text-xs leading-relaxed text-fg-muted">Lengkapi syarat dan kirim pendaftaran langsung dari popup ini.</p>
                 <div className="mt-4"><p className="mb-2 text-xs font-medium text-fg-muted">Waktu tersisa untuk mendaftar</p><CountdownCard cd={cd}/></div>
                 <Button className="mt-5 w-full" size="lg" onClick={() => setRegistrationOpen(true)} icon={<Trophy size={17}/>}>{isGuest || !user ? 'Masuk untuk daftar' : 'Daftar sekarang'}</Button>
