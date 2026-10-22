@@ -13,9 +13,32 @@ export async function listPublicCompetitions(limit = 30) {
   return data ?? [];
 }
 
+export async function syncCompetitionRegistrationStatus(competitionId: string) {
+  const { data, error } = await supabase.rpc('sync_competition_registration_status', {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return String(data ?? '');
+}
+
 export async function getCompetitionBySlug(slug: string) {
   const { data, error } = await supabase.from('competitions').select('*').eq('slug', slug).maybeSingle();
   if (error) throw error;
+  if (!data) return null;
+
+  // A visitor arriving during the configured opening window should not need
+  // an organizer to manually change PUBLISHED to REGISTRATION_OPEN.
+  if (['PUBLISHED', 'REGISTRATION_OPEN'].includes(String(data.status))) {
+    await syncCompetitionRegistrationStatus(String(data.id));
+    const { data: refreshed, error: refreshError } = await supabase
+      .from('competitions')
+      .select('*')
+      .eq('id', data.id)
+      .maybeSingle();
+    if (refreshError) throw refreshError;
+    return refreshed ?? data;
+  }
+
   return data;
 }
 
