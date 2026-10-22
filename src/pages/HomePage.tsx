@@ -17,22 +17,141 @@ import { supabase } from '@/lib/supabase';
 import { optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 
 type HomeCompetition = {
-  id:string; title:string; slug:string; category:string; organizer_name:string; organizer_photo_url:string|null; short_description:string; poster_url:string|null;
-  participant_count:number; participants_count:number; status:string; deadline:string; registration_end:string;
+  id: string;
+  title: string;
+  slug: string;
+  category: string;
+  organizer_name: string;
+  organizer_photo_url: string | null;
+  short_description: string;
+  poster_url: string | null;
+  participant_count: number;
+  participants_count: number;
+  status: string;
+  deadline: string;
+  registration_end: string;
+  registration_starts_at: string | null;
+  registration_ends_at: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  announcement_at: string | null;
 };
 type HomeFeedRow = HomeSnapshot['feed'][number];
 const readString=(row:Record<string,unknown>,key:string,fallback=''):string=>row[key]==null?fallback:String(row[key]);
 const readNullableString=(row:Record<string,unknown>,key:string):string|null=>row[key]==null?null:String(row[key]);
 const readNumber=(row:Record<string,unknown>,key:string,fallback=0):number=>{const value=Number(row[key]??fallback);return Number.isFinite(value)?value:fallback;};
-const normalizeCompetition=(row:Record<string,unknown>):HomeCompetition=>{const participants=readNumber(row,'participants_count',readNumber(row,'participant_count'));return {id:readString(row,'id'),title:readString(row,'title'),slug:readString(row,'slug'),category:readString(row,'category','Kompetisi'),organizer_name:readString(row,'organizer_name','Penyelenggara'),organizer_photo_url:readNullableString(row,'organizer_photo_url'),short_description:readString(row,'short_description'),poster_url:readNullableString(row,'poster_url'),participant_count:participants,participants_count:participants,status:readString(row,'status'),deadline:readString(row,'deadline'),registration_end:readString(row,'registration_end')};};
+const normalizeCompetition = (row: Record<string, unknown>): HomeCompetition => {
+  const participants = readNumber(row, 'participants_count', readNumber(row, 'participant_count'));
+  return {
+    id: readString(row, 'id'),
+    title: readString(row, 'title'),
+    slug: readString(row, 'slug'),
+    category: readString(row, 'category', 'Kompetisi'),
+    organizer_name: readString(row, 'organizer_name', 'Penyelenggara'),
+    organizer_photo_url: readNullableString(row, 'organizer_photo_url'),
+    short_description: readString(row, 'short_description'),
+    poster_url: readNullableString(row, 'poster_url'),
+    participant_count: participants,
+    participants_count: participants,
+    status: readString(row, 'status'),
+    deadline: readString(row, 'deadline'),
+    registration_end: readString(row, 'registration_end') ?? '',
+    registration_starts_at: readNullableString(row, 'registration_starts_at'),
+    registration_ends_at: readNullableString(row, 'registration_ends_at') ?? readNullableString(row, 'registration_end'),
+    starts_at: readNullableString(row, 'starts_at'),
+    ends_at: readNullableString(row, 'ends_at'),
+    announcement_at: readNullableString(row, 'announcement_at'),
+  };
+};
+
+type CompetitionPhase = {
+  label: string;
+  tone: 'open' | 'upcoming' | 'closed' | 'running' | 'waiting' | 'result' | 'finished' | 'unavailable';
+};
+
+function getCompetitionPhase(competition: HomeCompetition, now: number): CompetitionPhase {
+  const status = String(competition.status ?? '').toUpperCase();
+  const time = (value: string | null | undefined): number | null => {
+    if (!value) return null;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const registrationStart = time(competition.registration_starts_at);
+  const registrationEnd = time(competition.registration_ends_at);
+  const competitionStart = time(competition.starts_at);
+  const competitionEnd = time(competition.ends_at);
+  const announcement = time(competition.announcement_at);
+
+  if (status === 'CANCELLED') return { label: 'Dibatalkan', tone: 'unavailable' };
+  if (status === 'SUSPENDED') return { label: 'Tidak tersedia', tone: 'unavailable' };
+  if (status === 'RESULT_PUBLISHED') return { label: 'Hasil diumumkan', tone: 'result' };
+  if (status === 'ARCHIVED') return { label: 'Selesai', tone: 'finished' };
+
+  // The schedule takes precedence over a stale state label so the home card
+  // reflects which phase is actually active at the current local time.
+  if (competitionStart !== null && competitionEnd !== null && now >= competitionStart && now < competitionEnd) {
+    return { label: 'Sedang berlangsung', tone: 'running' };
+  }
+  if (competitionEnd !== null && now >= competitionEnd) {
+    if (status === 'SUBMISSION_CLOSED' || status === 'GRADING' || announcement !== null) {
+      return { label: 'Menunggu pengumuman', tone: 'waiting' };
+    }
+    return { label: 'Uji kompetensi selesai', tone: 'finished' };
+  }
+  if (registrationStart !== null && now < registrationStart) {
+    return { label: 'Segera dibuka', tone: 'upcoming' };
+  }
+  if (registrationEnd !== null && now > registrationEnd && (competitionStart === null || now < competitionStart)) {
+    return { label: 'Pendaftaran ditutup', tone: 'closed' };
+  }
+  if (
+    (registrationStart !== null || registrationEnd !== null) &&
+    (registrationStart === null || now >= registrationStart) &&
+    (registrationEnd === null || now <= registrationEnd) &&
+    (competitionStart === null || now < competitionStart)
+  ) {
+    return { label: 'Pendaftaran dibuka', tone: 'open' };
+  }
+
+  switch (status) {
+    case 'REGISTRATION_OPEN': return { label: 'Pendaftaran dibuka', tone: 'open' };
+    case 'REGISTRATION_CLOSED': return { label: 'Pendaftaran ditutup', tone: 'closed' };
+    case 'LIVE': return { label: 'Sedang berlangsung', tone: 'running' };
+    case 'SUBMISSION_CLOSED':
+    case 'GRADING': return { label: 'Menunggu pengumuman', tone: 'waiting' };
+    case 'PUBLISHED': return { label: 'Segera dibuka', tone: 'upcoming' };
+    default: return { label: 'Jadwal belum tersedia', tone: 'finished' };
+  }
+}
+
+function CompetitionPhaseBadge({ competition, now }: { competition: HomeCompetition; now: number }) {
+  const phase = getCompetitionPhase(competition, now);
+  const styles: Record<CompetitionPhase['tone'], { badge: string; dot: string }> = {
+    open: { badge: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400', dot: 'bg-emerald-400 animate-pulse' },
+    upcoming: { badge: 'border-blue-500/25 bg-blue-500/10 text-blue-400', dot: 'bg-blue-400' },
+    closed: { badge: 'border-amber-500/25 bg-amber-500/10 text-amber-400', dot: 'bg-amber-400' },
+    running: { badge: 'border-sky-500/25 bg-sky-500/10 text-sky-400', dot: 'bg-sky-400 animate-pulse' },
+    waiting: { badge: 'border-violet-500/25 bg-violet-500/10 text-violet-400', dot: 'bg-violet-400' },
+    result: { badge: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400', dot: 'bg-emerald-400' },
+    finished: { badge: 'border-slate-500/20 bg-slate-500/10 text-slate-400', dot: 'bg-slate-400' },
+    unavailable: { badge: 'border-rose-500/25 bg-rose-500/10 text-rose-400', dot: 'bg-rose-400' },
+  };
+  const style = styles[phase.tone];
+  return <span className={'ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold leading-none ' + style.badge}>
+    <span className={'h-1.5 w-1.5 rounded-full ' + style.dot} />
+    {phase.label}
+  </span>;
+}
 const normalizeHomeFeedRow=(row:HomeFeedRow):SocialPost=>({id:readString(row,'id'),author_user_id:readString(row,'author_user_id'),author_name:readString(row,'author_name','Pengguna'),author_username:readString(row,'author_username'),avatar_url:readNullableString(row,'avatar_url'),title:readString(row,'title'),body:readString(row,'body'),cover_url:readNullableString(row,'cover_url'),created_at:readString(row,'created_at'),competition_id:readNullableString(row,'competition_id'),competition_slug:readNullableString(row,'competition_slug'),likes:readNumber(row,'likes'),liked:Boolean(row.liked),comments:readNumber(row,'comments')});
 const errorMessage=(error:unknown,fallback:string):string=>error instanceof Error?error.message:fallback;
 
 export function HomePage(){
- const{user,isGuest,notifications,toast}=useApp();const navigate=useNavigate();const[tab,setTab]=useState<'lomba'|'prestasi'>('lomba');const[posts,setPosts]=useState<SocialPost[]>([]);const[competitions,setCompetitions]=useState<HomeCompetition[]>([]);const[leaders,setLeaders]=useState<PublicLeaderboardRow[]>([]);const[loading,setLoading]=useState(true);const[loadingMore,setLoadingMore]=useState(false);const[cursor,setCursor]=useState<string|null>(null);const[expanded,setExpanded]=useState<string|null>(null);const[searchQuery,setSearchQuery]=useState('');const[searchAllComps,setSearchAllComps]=useState<HomeCompetition[]>([]);const[leaderMode,setLeaderMode]=useState<'xp'|'coin'>('xp');const[coinLeaders,setCoinLeaders]=useState<HomeSnapshot['coin_leaderboard']>([]);const[showAllPosts,setShowAllPosts]=useState(false);const[mobilePage,setMobilePage]=useState(1);
+ const{user,isGuest,notifications,toast}=useApp();const navigate=useNavigate();const[tab,setTab]=useState<'lomba'|'prestasi'>('lomba');const[posts,setPosts]=useState<SocialPost[]>([]);const[competitions,setCompetitions]=useState<HomeCompetition[]>([]);const[leaders,setLeaders]=useState<PublicLeaderboardRow[]>([]);const[loading,setLoading]=useState(true);const[loadingMore,setLoadingMore]=useState(false);const[cursor,setCursor]=useState<string|null>(null);const[expanded,setExpanded]=useState<string|null>(null);const[searchQuery,setSearchQuery]=useState('');const[searchAllComps,setSearchAllComps]=useState<HomeCompetition[]>([]);const[leaderMode,setLeaderMode]=useState<'xp'|'coin'>('xp');const[coinLeaders,setCoinLeaders]=useState<HomeSnapshot['coin_leaderboard']>([]);const[showAllPosts,setShowAllPosts]=useState(false);const[mobilePage,setMobilePage]=useState(1);const[phaseClock,setPhaseClock]=useState(Date.now());
  const loadFirst=useCallback(async()=>{setLoading(true);try{const home=await getHomeSnapshot(15);const feedRows=home.feed;const initialPosts=feedRows.slice(0,15).map(normalizeHomeFeedRow);const snapshotCompetitions=home.competitions.map(normalizeCompetition);setPosts(initialPosts);setCursor(feedRows.length>15?String(feedRows[14]?.created_at??''):null);setCompetitions(snapshotCompetitions);setSearchAllComps(snapshotCompetitions);setLeaders(home.leaderboard);setCoinLeaders(home.coin_leaderboard);}catch(error:unknown){toast(errorMessage(error,'Beranda gagal dimuat.'),'error')}finally{setLoading(false)}},[toast]);
  useEffect(()=>{const handler=(e:MouseEvent)=>{if(searchQuery&&!(e.target as HTMLElement).closest('[data-search]'))setSearchQuery('')};document.addEventListener('mousedown',handler);return()=>document.removeEventListener('mousedown',handler)},[searchQuery]);
  useEffect(()=>{void loadFirst()},[loadFirst]);
+ useEffect(()=>{const timer=window.setInterval(()=>setPhaseClock(Date.now()),30000);return()=>window.clearInterval(timer)},[]);
  const loadMore=async()=>{if(!cursor||loadingMore)return;setLoadingMore(true);try{const{items,nextCursor}=await listPublishedPostsPage(15,cursor);setPosts(p=>[...p,...items]);setCursor(nextCursor)}catch(error:unknown){toast(errorMessage(error,'Feed gagal dimuat.'),'error')}finally{setLoadingMore(false)}};
  const searchResults=useMemo(()=>{if(!searchQuery.trim())return[];const q=searchQuery.normalize('NFD').replace(/\u0300-\u036f/g,'').toLowerCase();const norm=(s:string)=>String(s??'').normalize('NFD').replace(/\u0300-\u036f/g,'').toLowerCase();const compResults=searchAllComps.filter((c)=>norm(c.title).includes(q)||norm(c.slug).includes(q)||norm(c.category).includes(q)||norm(c.organizer_name).includes(q)).map((c)=>({id:c.id,title:c.title,slug:c.slug,type:'competition' as const,subtitle:c.category||'Lomba',avatar_url:c.poster_url||null}));const postResults=posts.filter((p)=>norm(p.title).includes(q)||norm(p.body).includes(q)).map((p)=>({id:p.id,title:p.title,slug:'',type:'post' as const,subtitle:'Postingan',avatar_url:p.cover_url||null}));return[...compResults,...postResults].slice(0,10);},[searchQuery,searchAllComps,posts]);
  const lombaPosts=useMemo(()=>posts.filter(p=>Boolean(p.competition_id)),[posts]);
@@ -56,7 +175,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
         <div className="md:hidden px-4 py-2 relative" data-search><Search size={15} className="absolute left-7 top-1/2 -translate-y-1/2 text-slate-500" /><input className="input pl-9 text-sm" placeholder="Cari lomba atau postingan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />{searchQuery && <div className="absolute left-4 right-4 top-full mt-1 z-30 surface-elevated border surface-border rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">{searchResults.length > 0 ? searchResults.map((r) => <Link key={r.id + r.type} to={r.type === 'competition' ? `/lomba/${r.slug}` : '/feed'} className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition" onClick={() => setSearchQuery('')}><div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">{r.type === 'competition' ? <Trophy size={13} className="text-accent" /> : <FileText size={13} className="text-accent" />}</div><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-fg truncate">{r.title}</p><p className="text-[10px] text-slate-500 truncate">{r.subtitle}</p></div></Link>) : <p className="text-xs text-slate-500 text-center py-3">Tidak ditemukan</p>}</div>}</div>
       </div>
       <div className="px-4 py-4"><div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start"><main className="space-y-4 min-w-0"><div className="flex border-b surface-border">{(['lomba', 'prestasi'] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`flex-1 py-3 text-sm font-medium transition-all relative ${tab === t ? 'text-accent' : 'text-slate-500 hover:text-fg-secondary'}`}>{t === 'lomba' ? 'Lomba' : 'Prestasi'}{tab === t && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-[2px] bg-moss-400 rounded-full" />}</button>)} </div>
-            {loading ? <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div> : tab === 'lomba' ? (showCompetitions ? competitions.slice(0, 5).map((comp) => <Card key={comp.id} className="overflow-hidden"><div className="p-4"><div className="flex items-center gap-3 mb-3">{comp.organizer_photo_url ? <img src={optimizedCloudinaryUrl(comp.organizer_photo_url,{width:96})} alt={comp.organizer_name} loading="lazy" decoding="async" className="w-12 h-12 rounded-2xl object-cover border surface-border shrink-0" /> : <Avatar name={comp.organizer_name} id={comp.id} size={48} />}<div className="flex-1 min-w-0"><p className="font-display text-[15px] font-semibold tracking-[-0.01em] text-fg truncate">{comp.organizer_name || 'Penyelenggara'}</p><div className="flex items-center gap-2"><span className="chip bg-moss-500/10 text-accent border border-moss-500/20 text-[10px]">Lomba</span><span className="text-[11px] text-slate-600">· {comp.category || 'Kompetisi'}</span></div></div></div><Link to={`/lomba/${comp.slug}`}><h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{comp.title}</h3>{comp.short_description && <p className="text-sm text-fg-secondary leading-relaxed mb-3">{comp.short_description}</p>}{comp.poster_url && <img src={optimizedCloudinaryUrl(comp.poster_url,{width:800})} alt={comp.title} loading="lazy" decoding="async" className="w-full aspect-video object-cover rounded-xl border surface-border mt-2" />}<p className="text-xs text-accent flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14} /></p></Link></div><div className="px-4 py-3 border-t surface-border flex items-center gap-4 text-xs text-slate-500"><span>{comp.participant_count || 0} peserta</span><span className="ml-auto">{comp.status === 'REGISTRATION_OPEN' ? 'Pendaftaran dibuka' : comp.status === 'LIVE' ? 'Sedang berlangsung' : comp.status === 'PUBLISHED' ? 'Segera dibuka' : comp.status}</span></div></Card>) : lombaPosts.length ? lombaPosts.slice(0, showAllPosts ? undefined : 5).map((post) => <FeedPostCard key={post.id} post={post} expanded={expanded === post.id} onExpand={() => setExpanded((v) => (v === post.id ? null : post.id))} onLike={() => void like(post.id)} onShare={() => void sharePost(post)} onOpen={() => post.competition_slug && navigate(`/lomba/${post.competition_slug}`)} isGuest={isGuest} />) : <Card className="p-10 text-center"><Trophy size={32} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-400">Belum ada lomba publik.</p></Card>) : prestasiPosts.length ? prestasiPosts.slice(0, showAllPosts ? undefined : 5).map((post) => <FeedPostCard key={post.id} post={post} expanded={expanded === post.id} onExpand={() => setExpanded((v) => (v === post.id ? null : v))} onLike={() => void like(post.id)} onShare={() => void sharePost(post)} onOpen={() => post.competition_slug && navigate(`/lomba/${post.competition_slug}`)} isGuest={isGuest} />) : <Card className="p-10 text-center"><Trophy size={32} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-400">Belum ada postingan prestasi.</p></Card>}
+            {loading ? <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div> : tab === 'lomba' ? (showCompetitions ? competitions.slice(0, 5).map((comp) => <Card key={comp.id} className="overflow-hidden"><div className="p-4"><div className="flex items-center gap-3 mb-3">{comp.organizer_photo_url ? <img src={optimizedCloudinaryUrl(comp.organizer_photo_url,{width:96})} alt={comp.organizer_name} loading="lazy" decoding="async" className="w-12 h-12 rounded-2xl object-cover border surface-border shrink-0" /> : <Avatar name={comp.organizer_name} id={comp.id} size={48} />}<div className="flex-1 min-w-0"><p className="font-display text-[15px] font-semibold tracking-[-0.01em] text-fg truncate">{comp.organizer_name || 'Penyelenggara'}</p><div className="flex items-center gap-2"><span className="chip bg-moss-500/10 text-accent border border-moss-500/20 text-[10px]">Lomba</span><span className="text-[11px] text-slate-600">· {comp.category || 'Kompetisi'}</span></div></div></div><Link to={`/lomba/${comp.slug}`}><h3 className="font-display font-semibold text-[15px] text-fg mb-1.5">{comp.title}</h3>{comp.short_description && <p className="text-sm text-fg-secondary leading-relaxed mb-3">{comp.short_description}</p>}{comp.poster_url && <img src={optimizedCloudinaryUrl(comp.poster_url,{width:800})} alt={comp.title} loading="lazy" decoding="async" className="w-full aspect-video object-cover rounded-xl border surface-border mt-2" />}<p className="text-xs text-accent flex items-center gap-1 mt-3">Lihat detail uji kompetensi <ChevronRight size={14} /></p></Link></div><div className="px-4 py-3 border-t surface-border flex items-center gap-4 text-xs text-slate-500"><span>{comp.participant_count || 0} peserta</span><CompetitionPhaseBadge competition={comp} now={phaseClock} /></div></Card>) : lombaPosts.length ? lombaPosts.slice(0, showAllPosts ? undefined : 5).map((post) => <FeedPostCard key={post.id} post={post} expanded={expanded === post.id} onExpand={() => setExpanded((v) => (v === post.id ? null : post.id))} onLike={() => void like(post.id)} onShare={() => void sharePost(post)} onOpen={() => post.competition_slug && navigate(`/lomba/${post.competition_slug}`)} isGuest={isGuest} />) : <Card className="p-10 text-center"><Trophy size={32} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-400">Belum ada lomba publik.</p></Card>) : prestasiPosts.length ? prestasiPosts.slice(0, showAllPosts ? undefined : 5).map((post) => <FeedPostCard key={post.id} post={post} expanded={expanded === post.id} onExpand={() => setExpanded((v) => (v === post.id ? null : v))} onLike={() => void like(post.id)} onShare={() => void sharePost(post)} onOpen={() => post.competition_slug && navigate(`/lomba/${post.competition_slug}`)} isGuest={isGuest} />) : <Card className="p-10 text-center"><Trophy size={32} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-400">Belum ada postingan prestasi.</p></Card>}
             {!showAllPosts && ((tab === 'lomba' && lombaPosts.length > 5) || (tab === 'prestasi' && prestasiPosts.length > 5) || (showCompetitions && competitions.length > 5)) && <div className="text-center pt-1"><Button variant="outline" size="sm" onClick={() => setShowAllPosts(true)}>Lihat lebih banyak</Button></div>}{cursor && showAllPosts && <div className="text-center pt-1"><Button variant="outline" size="sm" loading={loadingMore} onClick={() => void loadMore()}>Muat lebih banyak</Button></div>}
           </main><aside className={`hidden lg:block space-y-4 lg:sticky lg:top-[108px] ${showAllPosts ? 'hidden' : ''}`}><div className="relative" data-search><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input className="input pl-9 text-sm" placeholder="Cari lomba atau postingan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />{searchQuery && <div className="absolute left-0 right-0 top-full mt-1 z-30 surface-elevated border surface-border rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">{searchResults.length > 0 ? searchResults.map((r) => <Link key={r.id + r.type} to={r.type === 'competition' ? `/lomba/${r.slug}` : '/feed'} className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition" onClick={() => setSearchQuery('')}><div className="w-7 h-7 rounded-lg bg-moss-500/10 flex items-center justify-center shrink-0">{r.type === 'competition' ? <Trophy size={13} className="text-accent" /> : <FileText size={13} className="text-accent" />}</div><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-fg truncate">{r.title}</p><p className="text-[10px] text-slate-500 truncate">{r.subtitle || (r.type === 'competition' ? 'Lomba' : 'Postingan')}</p></div></Link>) : <p className="text-xs text-slate-500 text-center py-3">Tidak ditemukan untuk "{searchQuery}"</p>}</div>}</div>
             <Card className="p-4"><div className="flex items-center gap-2 mb-3"><Sparkles size={16} className="text-accent" /><h3 className="font-display font-semibold text-fg text-sm">Uji Kompetensi Trending</h3></div><div className="space-y-3">{competitions.slice(0, 3).map((comp, idx: number) => <Link key={comp.id} to={`/lomba/${comp.slug}`} className="flex items-start gap-3 group"><div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5 ${idx === 0 ? 'bg-moss-500/20 text-accent' : idx === 1 ? 'bg-sky-500/20 text-sky-300' : 'bg-amber-500/20 text-amber-300'}`}>{idx + 1}</div><div className="min-w-0"><p className="text-xs font-semibold text-fg group-hover:text-accent transition line-clamp-2">{comp.title}</p><p className="text-[10px] text-slate-500 mt-0.5">{comp.category || 'Umum'} · {comp.participants_count ?? 0} peserta</p></div></Link>)}{competitions.length === 0 && <p className="text-xs text-slate-500 text-center py-2">Belum ada data trending.</p>}</div></Card>
