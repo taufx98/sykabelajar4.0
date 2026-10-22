@@ -171,7 +171,6 @@ export function CompetitionDetailPage() {
   const competition = detail?.competition;
   const rules = detail?.rules;
   const organizer = detail?.organizer;
-  const questionBank = detail?.questionBank;
   const rewards = detail?.rewards ?? [];
   const levels = detail?.levels ?? [];
   const twibbons = detail?.twibbons ?? [];
@@ -190,11 +189,30 @@ export function CompetitionDetailPage() {
   const joinable = competition?.status === 'REGISTRATION_OPEN' && registrationWindowOpen && !cd.expired && (capacity == null || remainingCapacity! > 0);
   const status = statusUi(String(competition?.status ?? ''));
   const category = CATEGORY_LABELS[String(competition?.category ?? '')] ?? String(competition?.category ?? 'Kompetisi');
-  const grades = useMemo(() => [...new Set([
-    ...levels.flatMap((level: any) => level.allowed_grades ?? []),
-    ...(rules?.allowed_grades ?? []),
-    ...(competition?.target_grades ?? []),
-  ].map((grade: any) => String(grade).trim()).filter(Boolean))], [levels, rules?.allowed_grades, competition?.target_grades]);
+  const grades = useMemo(() => {
+    // Use one authoritative eligibility source. Combining level, rule, and
+    // broad target arrays caused duplicates and displayed grades not actually
+    // allowed by the published registration rules.
+    const ruleGrades = Array.isArray(rules?.allowed_grades) ? rules.allowed_grades : [];
+    const levelGrades = levels.flatMap((level: any) => Array.isArray(level.allowed_grades) ? level.allowed_grades : []);
+    const targetGrades = Array.isArray(competition?.target_grades) ? competition.target_grades : [];
+    const source = ruleGrades.length ? ruleGrades : levelGrades.length ? levelGrades : targetGrades;
+
+    const normalizeGrade = (value: unknown) => {
+      const raw = String(value ?? '').trim().toLowerCase();
+      const compact = raw.replace(/[\\s_-]+/g, '');
+      if (/^sd(?:[1-6])?$/.test(compact) || compact === 'sekolahdasar') return 'sd';
+      if (/^smp(?:[7-9])?$/.test(compact) || compact === 'sekolahmenengahpertama') return 'smp';
+      if (/^sma(?:10|11|12)?$/.test(compact) || /^smk(?:10|11|12)?$/.test(compact) || compact === 'sekolahmenengahatas') return 'sma';
+      if (compact === 'smasmk' || compact === 'sma/smk') return 'sma/smk';
+      if (compact === 'mahasiswa' || compact === 'kuliah') return 'mahasiswa';
+      if (compact === 'profesional' || compact === 'professional') return 'profesional';
+      if (compact === 'alumni') return 'alumni';
+      return raw;
+    };
+
+    return [...new Set(source.map(normalizeGrade).filter(Boolean))];
+  }, [levels, rules?.allowed_grades, competition?.target_grades]);
 
   const copyTwibbonLink = async () => {
     const link = String(competition?.twibbon_external_url ?? '');
@@ -228,8 +246,6 @@ export function CompetitionDetailPage() {
   const isCompleted = ['RESULT_PUBLISHED', 'ARCHIVED'].includes(String(competition.status));
   const startedDate = shortDate(competition.starts_at);
   const organizerName = String(organizer?.name ?? 'Penyelenggara');
-  const providerName = questionBank?.providerName ? String(questionBank.providerName) : null;
-  const hasQuestionProvider = Boolean(providerName && providerName !== organizerName);
   const remainingText = remainingCapacity == null ? 'Tidak dibatasi' : remainingCapacity.toLocaleString('id-ID');
 
   return <div className="competition-detail-theme min-h-screen pb-10 surface-bg text-fg">
@@ -254,8 +270,7 @@ export function CompetitionDetailPage() {
               <p className="mt-2 max-w-2xl whitespace-pre-line text-xs leading-relaxed text-slate-300 sm:text-sm">{description}</p>
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="mr-1 text-[11px] font-medium text-slate-400">Tingkat:</span>
-                {grades.length ? grades.map((grade: string) => <span key={grade} className="rounded-md border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-[10px] font-semibold text-slate-200 sm:text-xs">{LEVEL_LABELS[grade] ?? grade.toUpperCase()}</span>) : <span className="text-xs text-slate-400">Semua jenjang</span>}
-                {questionBank?.name && <><span className="mx-1 text-slate-600">•</span><span className="inline-flex max-w-full items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-2.5 py-1.5 text-[10px] text-slate-300 sm:text-xs"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-gradient-to-tr from-amber-500 to-blue-500 text-[9px] font-black text-white">S</span><span className="truncate">{hasQuestionProvider ? 'Mitra Penyedia Soal: ' + providerName : 'Sumber Soal: ' + questionBank.name}</span></span></>}
+                {grades.length ? grades.map((grade: string) => <span key={grade} className="rounded-md border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-[10px] font-semibold text-slate-200 sm:text-xs">{LEVEL_LABELS[grade.toLowerCase()] ?? (grade === 'mahasiswa' ? 'Mahasiswa' : grade === 'profesional' ? 'Profesional' : grade === 'alumni' ? 'Alumni' : grade === 'sma/smk' ? 'SMA/SMK' : grade.toUpperCase())}</span>) : <span className="text-xs text-slate-400">Semua jenjang</span>}
               </div>
             </div>
           </div>
@@ -326,10 +341,6 @@ export function CompetitionDetailPage() {
                 <p className="mt-1 text-[10px] leading-relaxed text-fg-muted sm:text-[11px]">{String(organizer?.description ?? '').trim() || 'Informasi profil penyelenggara belum dilengkapi.'}</p>
               </div>
             </div>
-            {questionBank && <div className="mt-3 flex items-start gap-3 rounded-xl border border-border bg-surface-elevated/25 p-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400"><Trophy size={15}/></div>
-              <div className="min-w-0"><p className="text-[11px] font-semibold text-fg">Sumber Soal</p><p className="mt-0.5 break-words text-[10px] leading-relaxed text-fg-muted">{hasQuestionProvider ? 'Disediakan oleh ' + providerName : 'Menggunakan bank soal “' + questionBank.name + '”.'}</p></div>
-            </div>}
           </Card>
 
           <Card className="p-5 sm:p-6">
@@ -346,7 +357,7 @@ export function CompetitionDetailPage() {
           <Card className="p-5 sm:p-6">
             <SectionHeading icon={<ShieldCheck size={17}/>} title="Syarat Peserta" subtitle="Periksa sebelum mengirim pendaftaran"/>
             <div className="mb-4 flex flex-wrap gap-2">
-              {grades.length ? grades.map((grade: string) => <span key={grade} className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-[10px] font-semibold text-blue-300">{LEVEL_LABELS[grade] ?? grade.toUpperCase()}</span>) : <span className="text-xs text-fg-muted">Tidak ada pembatasan jenjang yang ditampilkan.</span>}
+              {grades.length ? grades.map((grade: string) => <span key={grade} className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-[10px] font-semibold text-blue-300">{LEVEL_LABELS[grade.toLowerCase()] ?? (grade === 'mahasiswa' ? 'Mahasiswa' : grade === 'profesional' ? 'Profesional' : grade === 'alumni' ? 'Alumni' : grade === 'sma/smk' ? 'SMA/SMK' : grade.toUpperCase())}</span>) : <span className="text-xs text-fg-muted">Tidak ada pembatasan jenjang yang ditampilkan.</span>}
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Rule label="Persetujuan Pendaftaran" value={rules?.approval_mode === 'AUTO' ? 'Otomatis' : 'Ditinjau Panitia'}/>
