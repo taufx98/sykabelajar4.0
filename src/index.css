@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -47,6 +45,10 @@ html.light {
   * { -webkit-tap-highlight-color: transparent; }
   ::selection { background-color: rgba(59, 130, 246, 0.3); color: #FFFFFF; }
   h1, h2, h3, h4 { @apply font-display; }
+}
+
+html, body, #root {
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body {
