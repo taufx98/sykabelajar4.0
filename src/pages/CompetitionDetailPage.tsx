@@ -200,7 +200,7 @@ export function CompetitionDetailPage() {
 
     const normalizeGrade = (value: unknown) => {
       const raw = String(value ?? '').trim().toLowerCase();
-      const compact = raw.replace(/[\\s_-]+/g, '');
+      const compact = raw.replace(/[\s_-]+/g, '');
       if (/^sd(?:[1-6])?$/.test(compact) || compact === 'sekolahdasar') return 'sd';
       if (/^smp(?:[7-9])?$/.test(compact) || compact === 'sekolahmenengahpertama') return 'smp';
       if (/^sma(?:10|11|12)?$/.test(compact) || /^smk(?:10|11|12)?$/.test(compact) || compact === 'sekolahmenengahatas') return 'sma';
