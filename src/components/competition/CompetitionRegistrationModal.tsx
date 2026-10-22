@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
-  ArrowLeft, ArrowRight, Check, CheckCircle2, Clipboard, ExternalLink, FileCheck2,
-  Loader2, ShieldCheck, Trophy, UserRound, X,
+  ArrowLeft, ArrowRight, Check, CheckCircle2, Coins, FileCheck2,
+  Loader2, ShieldCheck, UserRound, X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
@@ -26,8 +26,11 @@ function registrationErrorMessage(message: string) {
     ALREADY_REGISTERED: 'Akun ini sudah terdaftar pada lomba tersebut.',
     ELIGIBILITY_FAILED: 'Jenjang pada profilmu belum sesuai dengan syarat lomba.',
     PARTICIPANT_LIMIT_REACHED: 'Kuota peserta telah terpenuhi.',
-    TWIBBON_REQUIRED: 'Selesaikan Twibbon terlebih dahulu, lalu centang konfirmasi Twibbon.',
-    SOCIAL_PROOF_REQUIRED: 'Link postingan dan username media sosial wajib diisi untuk lomba ini.',
+    TWIBBON_REQUIRED: 'Lengkapi syarat pendaftaran atau gunakan Skip 100 Coin Edu.',
+    SOCIAL_PROOF_REQUIRED: 'Isi username dan tautan postingan, atau gunakan Skip 100 Coin Edu.',
+    SOCIAL_PROOF_OR_COIN_REQUIRED: 'Isi username dan tautan postingan, atau gunakan Skip 100 Coin Edu.',
+    INSUFFICIENT_EDU_COIN: 'Saldo Coin Edu tidak cukup. Kamu membutuhkan 100 Coin Edu untuk skip.',
+    PROFILE_NOT_FOUND: 'Profil peserta tidak ditemukan. Lengkapi profilmu lalu coba lagi.',
     AUTHORIZATION_REQUIRED: 'Sesi login berakhir. Silakan masuk kembali.',
     PROFILE_GRADE_REQUIRED: 'Lengkapi jenjang sekolah di profil sebelum mendaftar.',
     INTEGRITY_AGREEMENT_REQUIRED: 'Setujui Pakta Integritas sebelum mengirim pendaftaran.',
@@ -70,13 +73,15 @@ function formatDateTime(value?: string | null) {
   }).format(new Date(value)) + ' WIB';
 }
 
-export function CompetitionRegistrationModal({ open, competition, rules, slug, onClose, onRegistered }: Props) {
+export function CompetitionRegistrationModal({ open, competition, slug, onClose, onRegistered }: Props) {
   const { user, isGuest, toast } = useApp();
   const [step, setStep] = useState<RegistrationStep>(1);
   const [platform, setPlatform] = useState<'instagram' | 'tiktok'>('tiktok');
   const [socialUsername, setSocialUsername] = useState('');
   const [postUrl, setPostUrl] = useState('');
-  const [twibbonDone, setTwibbonDone] = useState(false);
+  const [eduCoinBypass, setEduCoinBypass] = useState(false);
+  const [eduCoinBalance, setEduCoinBalance] = useState<number | null>(null);
+  const [coinBalanceLoading, setCoinBalanceLoading] = useState(false);
   const [integrityAgreed, setIntegrityAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -84,18 +89,11 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
   const [registrationResult, setRegistrationResult] = useState<any>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  const requireTwibbon = Boolean(rules?.require_twibbon);
-  const requireSocialProof = Boolean(rules?.require_social_proof);
-  const externalTwibbonUrl = String(competition?.twibbon_external_url ?? '');
   const userDisplayName = user?.displayName || user?.username || 'Peserta';
-  const registrationEnd = formatDateTime(competition?.registration_ends_at);
-  const hasSocialInputs = Boolean(socialUsername.trim() || postUrl.trim());
   const socialInputsPaired = Boolean(socialUsername.trim()) === Boolean(postUrl.trim());
-  const socialUrlValid = !postUrl.trim() || isMatchingPostUrl(platform, postUrl);
-  const canContinueStepOne = (!requireTwibbon || twibbonDone)
-    && (!requireSocialProof || (socialUsername.trim().length >= 2 && isMatchingPostUrl(platform, postUrl)))
-    && (requireSocialProof || (!hasSocialInputs || (socialUsername.trim().length >= 2 && isMatchingPostUrl(platform, postUrl))))
-    && socialInputsPaired && socialUrlValid;
+  const socialUrlValid = Boolean(postUrl.trim()) && isMatchingPostUrl(platform, postUrl);
+  const socialProofValid = socialUsername.trim().replace(/^@+/, '').length >= 2 && socialUrlValid;
+  const canContinueStepOne = eduCoinBypass || (socialInputsPaired && socialProofValid);
 
   const progressWidth = useMemo(() => ({ 1: '33.333%', 2: '66.667%', 3: '100%' })[step], [step]);
 
@@ -106,7 +104,7 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
     setPlatform('tiktok');
     setSocialUsername('');
     setPostUrl('');
-    setTwibbonDone(false);
+    setEduCoinBypass(false);
     setIntegrityAgreed(false);
     setSubmitting(false);
     setChecking(Boolean(user?.id && !isGuest));
@@ -147,17 +145,37 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
     };
   }, [open, competition?.id, user?.id, isGuest, toast]);
 
+
+  useEffect(() => {
+    if (!open || !user?.id || isGuest) {
+      setEduCoinBalance(null);
+      setCoinBalanceLoading(false);
+      return;
+    }
+    let active = true;
+    setEduCoinBalance(null);
+    setCoinBalanceLoading(true);
+    void supabase
+      .from('profiles')
+      .select('edu_coin')
+      .eq('id', String(user.id))
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setEduCoinBalance(null);
+          return;
+        }
+        setEduCoinBalance(Number(data?.edu_coin ?? 0));
+      })
+      .finally(() => {
+        if (active) setCoinBalanceLoading(false);
+      });
+    return () => { active = false; };
+  }, [open, user?.id, isGuest]);
+
   if (!open || !competition) return null;
 
-  const copyTwibbonLink = async () => {
-    if (!externalTwibbonUrl) return;
-    try {
-      await navigator.clipboard.writeText(externalTwibbonUrl);
-      toast('Tautan Twibbon berhasil disalin. Buka tautannya, lalu kembali ke popup ini.', 'success');
-    } catch {
-      toast('Gagal menyalin otomatis. Pilih tautan lalu salin secara manual.', 'error');
-    }
-  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -166,9 +184,7 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
       return;
     }
     if (!canContinueStepOne) {
-      toast(requireTwibbon && !twibbonDone
-        ? 'Selesaikan Twibbon dan centang konfirmasi terlebih dahulu.'
-        : 'Periksa kembali username dan tautan postingan media sosial.', 'error');
+      toast('Isi username dan tautan postingan yang valid, atau gunakan Skip 100 Coin Edu.', 'error');
       setStep(1);
       return;
     }
@@ -185,15 +201,16 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
         socialPlatform: platform,
         socialUsername,
         socialProofUrl: postUrl,
-        twibbonCompleted: twibbonDone,
         integrityAgreed,
+        eduCoinBypass,
       });
       setRegistrationResult(result.record);
       setExistingRegistration(result.record);
       setSubmitted(true);
       setStep(3);
       onRegistered?.();
-      toast('Pendaftaran berhasil dikirim ke penyelenggara.', 'success');
+      if (result.eduCoinBalance != null) setEduCoinBalance(Number(result.eduCoinBalance));
+      toast(result.eduCoinSpent ? 'Pendaftaran terkirim. 100 Coin Edu telah digunakan untuk skip syarat media sosial.' : 'Pendaftaran berhasil dikirim ke penyelenggara.', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       toast(registrationErrorMessage(message), 'error');
@@ -231,7 +248,7 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
         {!(existingRegistration && !submitted) && !checking && (user && !isGuest) && <>
           <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-border/80"><div className="h-full rounded-full bg-gradient-to-r from-accent to-indigo-500 transition-all duration-300" style={{ width: progressWidth }}/></div>
           <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] sm:text-[11px]">
-            <p className={step === 1 ? 'font-bold text-accent' : 'text-fg-muted'}>1. Twibbon & Repost</p>
+            <p className={step === 1 ? 'font-bold text-accent' : 'text-fg-muted'}>1. Username & Link</p>
             <p className={'text-center ' + (step === 2 ? 'font-bold text-accent' : 'text-fg-muted')}>2. Pakta Integritas</p>
             <p className={'text-right ' + (step === 3 ? 'font-bold text-emerald-500' : 'text-fg-muted')}>3. Selesai</p>
           </div>
@@ -279,49 +296,38 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
         </div>}
 
         {!checking && user && !isGuest && !existingRegistration && step === 1 && <div className="space-y-5">
-          <div className="flex items-start gap-3 rounded-2xl border border-accent/20 bg-accent/5 p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><Trophy size={18}/></div>
-            <div><h3 className="text-sm font-bold text-fg">Selesaikan syarat pendaftaran</h3><p className="mt-1 text-xs leading-relaxed text-fg-muted">Ikuti ketentuan Twibbon dan bukti media sosial yang ditetapkan penyelenggara. Kamu tetap berada di halaman lomba ini.</p></div>
-          </div>
 
-          {(requireTwibbon || externalTwibbonUrl) && <section className="rounded-2xl border border-border p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><Trophy size={17}/></div>
-                <div><h3 className="text-sm font-semibold text-fg">Twibbon resmi</h3><p className="mt-1 text-xs leading-relaxed text-fg-muted">{requireTwibbon ? 'Wajib diselesaikan sebelum pendaftaran dikirim.' : 'Opsional, kecuali ketentuan lomba menyatakan wajib.'}</p></div>
-              </div>
-              {requireTwibbon && <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-500">Wajib</span>}
-            </div>
-            {externalTwibbonUrl ? <div className="mt-3 rounded-xl border border-border bg-surface-elevated/25 p-3">
-              <p className="break-all text-xs leading-relaxed text-fg-secondary">{externalTwibbonUrl}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <a href={externalTwibbonUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-white transition hover:opacity-90"><ExternalLink size={14}/>Buka Twibbonize</a>
-                <Button type="button" variant="outline" size="sm" onClick={() => void copyTwibbonLink()} icon={<Clipboard size={14}/>}>Salin tautan</Button>
-              </div>
-            </div> : <p className="mt-3 rounded-xl border border-dashed border-border p-3 text-xs leading-relaxed text-fg-muted">Tautan Twibbon belum ditambahkan penyelenggara. Jika wajib, hubungi panitia sebelum melanjutkan.</p>}
-            {requireTwibbon && <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface-elevated/20 p-3">
-              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-current" checked={twibbonDone} onChange={(event) => setTwibbonDone(event.target.checked)}/>
-              <span><span className="block text-sm font-medium text-fg">Saya sudah menyelesaikan Twibbon</span><span className="mt-0.5 block text-xs leading-relaxed text-fg-muted">Centang setelah menggunakan template sesuai ketentuan lomba.</span></span>
-            </label>}
-          </section>}
 
           <section className="rounded-2xl border border-border p-4">
-            <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-fg">Bukti postingan media sosial</h3><p className="mt-1 text-xs leading-relaxed text-fg-muted">{requireSocialProof ? 'Masukkan username dan URL postingan yang dapat diperiksa panitia.' : 'Opsional bila kamu ingin melampirkan bukti posting.'}</p></div>{requireSocialProof && <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-500">Wajib</span>}</div>
+            <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-fg">Username & bukti media sosial</h3><p className="mt-1 text-xs leading-relaxed text-fg-muted">Masukkan username dan tautan postingan yang dapat diperiksa panitia. Kamu juga bisa melewati bagian ini dengan 100 Coin Edu.</p></div><span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-500">Wajib / Skip</span></div>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setPlatform('tiktok')} className={'flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ' + (platform === 'tiktok' ? 'border-accent bg-accent/10 text-accent' : 'border-border text-fg-muted hover:bg-surface-elevated/50')}>TikTok{platform === 'tiktok' && <Check size={14}/>}</button>
-              <button type="button" onClick={() => setPlatform('instagram')} className={'flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ' + (platform === 'instagram' ? 'border-accent bg-accent/10 text-accent' : 'border-border text-fg-muted hover:bg-surface-elevated/50')}>Instagram{platform === 'instagram' && <Check size={14}/>}</button>
+              <button type="button" onClick={() => { setPlatform('tiktok'); setEduCoinBypass(false); }} className={'flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ' + (platform === 'tiktok' ? 'border-accent bg-accent/10 text-accent' : 'border-border text-fg-muted hover:bg-surface-elevated/50')}>TikTok{platform === 'tiktok' && <Check size={14}/>}</button>
+              <button type="button" onClick={() => { setPlatform('instagram'); setEduCoinBypass(false); }} className={'flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ' + (platform === 'instagram' ? 'border-accent bg-accent/10 text-accent' : 'border-border text-fg-muted hover:bg-surface-elevated/50')}>Instagram{platform === 'instagram' && <Check size={14}/>}</button>
             </div>
-            <label className="mt-3 block text-xs text-fg-muted">Username {requireSocialProof ? '(wajib)' : '(opsional)'}
+            <label className="mt-3 block text-xs text-fg-muted">Username (wajib)
               <div className="mt-1 flex items-center rounded-xl border border-border bg-surface-elevated/20 focus-within:border-accent">
                 <span className="pl-3 text-xs text-fg-muted">@</span>
-                <input className="min-w-0 flex-1 bg-transparent px-2.5 py-3 text-sm text-fg outline-none" value={socialUsername} onChange={(event) => setSocialUsername(event.target.value)} placeholder="username_kamu" autoComplete="nickname"/>
+                <input className="min-w-0 flex-1 bg-transparent px-2.5 py-3 text-sm text-fg outline-none" value={socialUsername} onChange={(event) => { setSocialUsername(event.target.value); setEduCoinBypass(false); }} placeholder="username_kamu" autoComplete="nickname"/>
               </div>
             </label>
-            <label className="mt-3 block text-xs text-fg-muted">Link postingan {requireSocialProof ? '(wajib)' : '(opsional)'}
-              <input className="input mt-1 w-full" type="url" value={postUrl} onChange={(event) => setPostUrl(event.target.value)} placeholder={platform === 'tiktok' ? 'https://www.tiktok.com/…' : 'https://www.instagram.com/p/…'} autoComplete="url"/>
+            <label className="mt-3 block text-xs text-fg-muted">Tautan postingan (wajib)
+              <input className="input mt-1 w-full" type="url" value={postUrl} onChange={(event) => { setPostUrl(event.target.value); setEduCoinBypass(false); }} placeholder={platform === 'tiktok' ? 'https://www.tiktok.com/…' : 'https://www.instagram.com/p/…'} autoComplete="url"/>
             </label>
             {postUrl.trim() && !socialUrlValid && <p className="mt-2 text-xs text-rose-500">Tautan tersebut tidak sesuai dengan platform {platform === 'tiktok' ? 'TikTok' : 'Instagram'}.</p>}
             {!socialInputsPaired && <p className="mt-2 text-xs text-rose-500">Username dan tautan posting harus diisi bersama-sama.</p>}
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="mb-3 flex items-start gap-2.5">
+                <Coins size={17} className="mt-0.5 shrink-0 text-amber-400"/>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-fg">Lewati syarat dengan Coin Edu</p>
+                  <p className="mt-1 text-xs leading-relaxed text-fg-muted">Potongan 100 Coin Edu hanya terjadi jika pendaftaran berhasil dikirim pada langkah terakhir.</p>
+                  <p className="mt-1 text-xs font-semibold text-fg-secondary">Saldo: {coinBalanceLoading ? 'Memuat…' : eduCoinBalance == null ? 'Tidak tersedia' : eduCoinBalance.toLocaleString('id-ID') + ' Coin Edu'}</p>
+                </div>
+              </div>
+              <Button type="button" fullWidth variant="outline" disabled={coinBalanceLoading || eduCoinBalance == null || eduCoinBalance < 100} onClick={() => { setEduCoinBypass(true); setStep(2); }} icon={<Coins size={15}/>}>Skip 100 Coin Edu</Button>
+              {eduCoinBalance != null && eduCoinBalance < 100 && <p className="mt-2 text-xs text-rose-500">Saldo belum cukup. Kamu membutuhkan minimal 100 Coin Edu.</p>}
+              {eduCoinBalance == null && !coinBalanceLoading && <p className="mt-2 text-xs text-fg-muted">Saldo Coin Edu belum bisa diperiksa, sehingga opsi skip dinonaktifkan demi keamanan.</p>}
+            </div>
           </section>
 
           <div className="flex items-start gap-2.5 rounded-xl border border-border bg-surface-elevated/20 p-3">
@@ -351,10 +357,14 @@ export function CompetitionRegistrationModal({ open, competition, rules, slug, o
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-current" checked={integrityAgreed} onChange={(event) => setIntegrityAgreed(event.target.checked)}/>
             <span><span className="block text-sm font-semibold text-fg">Saya menyetujui Pakta Integritas</span><span className="mt-1 block text-xs leading-relaxed text-fg-muted">Persetujuan ini akan dicatat bersama waktu pengiriman pendaftaran.</span></span>
           </label>
+          {eduCoinBypass && <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+            <Coins size={17} className="mt-0.5 shrink-0 text-amber-400"/>
+            <p className="text-xs leading-relaxed text-fg-muted">Kamu memilih skip. <strong className="text-fg">100 Coin Edu</strong> akan dipotong secara otomatis setelah pendaftaran berhasil diproses.</p>
+          </div>}
           <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
             <Button type="button" variant="outline" onClick={() => setStep(1)} disabled={submitting} icon={<ArrowLeft size={15}/>}>Kembali</Button>
             <form onSubmit={(event) => void handleSubmit(event)}>
-              <Button type="submit" loading={submitting} disabled={!integrityAgreed || submitting} icon={<CheckCircle2 size={16}/>}>Setujui & Kirim Pendaftaran</Button>
+              <Button type="submit" loading={submitting} disabled={!integrityAgreed || submitting} icon={<CheckCircle2 size={16}/>}>{eduCoinBypass ? 'Setujui & Kirim (100 Coin Edu)' : 'Setujui & Kirim Pendaftaran'}</Button>
             </form>
           </div>
         </div>}
