@@ -232,7 +232,7 @@ export function CompetitionDetailPage() {
   const hasQuestionProvider = Boolean(providerName && providerName !== organizerName);
   const remainingText = remainingCapacity == null ? 'Tidak dibatasi' : remainingCapacity.toLocaleString('id-ID');
 
-  return <div className="min-h-screen pb-10 surface-bg text-fg">
+  return <div className="competition-detail-theme min-h-screen pb-10 surface-bg text-fg">
     <main className="mx-auto max-w-6xl space-y-6 p-3 sm:p-5 lg:p-7">
       <section className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/80 p-5 shadow-sm sm:p-7 lg:p-8">
         <div className="pointer-events-none absolute -right-14 -top-20 h-72 w-72 rounded-full bg-blue-600/15 blur-3xl"/>
