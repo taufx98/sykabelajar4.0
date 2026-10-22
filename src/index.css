@@ -249,3 +249,42 @@ html.dark {
   .border-emerald-500\/20 { border-color: rgba(59, 130, 246, 0.20) !important; }
   .border-emerald-500\/30 { border-color: rgba(59, 130, 246, 0.30) !important; }
 }
+
+
+/* Keep outlines calm on competition detail pages, matching the reference UI.
+   Scope these refinements to the competition page and its modals only. */
+.competition-detail-theme .card {
+  border-color: rgba(148, 163, 184, 0.11) !important;
+}
+.competition-detail-theme [class~="border-border"],
+.competition-detail-theme [class~="border-border/80"] {
+  border-color: rgba(148, 163, 184, 0.11) !important;
+}
+.competition-detail-theme [class~="border-slate-700"],
+.competition-detail-theme [class~="border-slate-700/80"] {
+  border-color: rgba(148, 163, 184, 0.12) !important;
+}
+.competition-detail-theme [class~="border-blue-500/25"] {
+  border-color: rgba(96, 165, 250, 0.18) !important;
+}
+.competition-detail-theme [class~="border-indigo-400/30"] {
+  border-color: rgba(129, 140, 248, 0.18) !important;
+}
+
+html.light .competition-detail-theme .card {
+  border-color: rgba(100, 116, 139, 0.16) !important;
+}
+html.light .competition-detail-theme [class~="border-border"],
+html.light .competition-detail-theme [class~="border-border/80"] {
+  border-color: rgba(100, 116, 139, 0.16) !important;
+}
+html.light .competition-detail-theme [class~="border-slate-700"],
+html.light .competition-detail-theme [class~="border-slate-700/80"] {
+  border-color: rgba(100, 116, 139, 0.16) !important;
+}
+html.light .competition-detail-theme [class~="border-blue-500/25"] {
+  border-color: rgba(37, 99, 235, 0.16) !important;
+}
+html.light .competition-detail-theme [class~="border-indigo-400/30"] {
+  border-color: rgba(79, 70, 229, 0.16) !important;
+}
