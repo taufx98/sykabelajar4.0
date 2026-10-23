@@ -270,7 +270,7 @@ export function CompetitionDetailPage() {
   );
   const isAnnouncementActive = ['RESULT_PUBLISHED', 'ARCHIVED'].includes(String(competition.status))
     || timelineStageActive(competition.announcement_at, null, clock);
-  const isExamLive = competition.status === 'LIVE' || isExamTimelineActive;
+  const isExamLive = competition.status === 'LIVE';
   const isCompleted = ['RESULT_PUBLISHED', 'ARCHIVED'].includes(String(competition.status));
   const startedDate = shortDate(competition.starts_at);
   const organizerName = String(organizer?.name ?? 'Penyelenggara');
