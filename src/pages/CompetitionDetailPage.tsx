@@ -70,8 +70,15 @@ function Stat({ icon, label, value, suffix, accent }: { icon: ReactNode; label: 
   </div>;
 }
 
-function TimelineItem({ label, value, active, last }: { label: string; value?: string | null; active?: boolean; last?: boolean }) {
-  const passed = Boolean(value && new Date(value).getTime() < Date.now() && !active);
+function timelineStageActive(startValue: string | null | undefined, endValue: string | null | undefined, now: number) {
+  if (!startValue) return false;
+  const start = new Date(startValue).getTime();
+  const end = endValue ? new Date(endValue).getTime() : Number.POSITIVE_INFINITY;
+  return Number.isFinite(start) && now >= start && now < end;
+}
+
+function TimelineItem({ label, value, active, last, now }: { label: string; value?: string | null; active?: boolean; last?: boolean; now: number }) {
+  const passed = Boolean(value && new Date(value).getTime() < now && !active);
   return <div className="relative flex gap-3">
     <div className="flex w-4 shrink-0 flex-col items-center">
       <span className={'relative z-10 mt-1 h-3 w-3 shrink-0 rounded-full ' + (active ? 'bg-emerald-400 ring-4 ring-emerald-400/15' : passed ? 'bg-accent/70' : 'border border-slate-600 bg-slate-700')}/>
@@ -230,7 +237,39 @@ export function CompetitionDetailPage() {
   </div>;
 
   const description = String(competition.description || competition.short_description || 'Deskripsi lomba belum ditambahkan penyelenggara.');
-  const isRegistrationActive = competition.status === 'REGISTRATION_OPEN';
+  // The timeline follows the actual schedule timestamps, not only the competition
+  // status field, which may lag behind its schedule. Each marker remains green
+  // for the phase between its timestamp and the next scheduled event.
+  const isRegistrationActive = timelineStageActive(
+    competition.registration_starts_at,
+    competition.registration_ends_at,
+    clock,
+  ) || (
+    !competition.registration_starts_at &&
+    competition.status === 'REGISTRATION_OPEN' &&
+    (registrationEndMs === null || clock <= registrationEndMs)
+  );
+  const isRegistrationDeadlineActive = timelineStageActive(
+    competition.registration_ends_at,
+    competition.starts_at,
+    clock,
+  );
+  const isExamTimelineActive = timelineStageActive(
+    competition.starts_at,
+    competition.ends_at,
+    clock,
+  ) || (
+    !competition.starts_at &&
+    competition.status === 'LIVE' &&
+    (competition.ends_at == null || clock < new Date(String(competition.ends_at)).getTime())
+  );
+  const isExamEndActive = timelineStageActive(
+    competition.ends_at,
+    competition.announcement_at,
+    clock,
+  );
+  const isAnnouncementActive = ['RESULT_PUBLISHED', 'ARCHIVED'].includes(String(competition.status))
+    || timelineStageActive(competition.announcement_at, null, clock);
   const isExamLive = competition.status === 'LIVE';
   const isCompleted = ['RESULT_PUBLISHED', 'ARCHIVED'].includes(String(competition.status));
   const startedDate = shortDate(competition.starts_at);
@@ -333,11 +372,11 @@ export function CompetitionDetailPage() {
           <Card className="p-5 sm:p-6">
             <SectionHeading icon={<CalendarDays size={17}/>} title="Jadwal Penting" subtitle="Gunakan waktu yang tersedia sebagai acuan"/>
             <div className="relative pl-1">
-              <TimelineItem label="Pendaftaran Dibuka" value={competition.registration_starts_at} active={isRegistrationActive}/>
-              <TimelineItem label="Batas Akhir Pendaftaran" value={competition.registration_ends_at} active={false}/>
-              <TimelineItem label="Uji Kompetensi Dimulai" value={competition.starts_at} active={isExamLive}/>
-              <TimelineItem label="Uji Kompetensi Berakhir" value={competition.ends_at} active={false}/>
-              <TimelineItem label="Pengumuman Hasil" value={competition.announcement_at} active={['RESULT_PUBLISHED', 'ARCHIVED'].includes(String(competition.status))} last/>
+              <TimelineItem label="Pendaftaran Dibuka" value={competition.registration_starts_at} active={isRegistrationActive} now={clock}/>
+              <TimelineItem label="Batas Akhir Pendaftaran" value={competition.registration_ends_at} active={isRegistrationDeadlineActive} now={clock}/>
+              <TimelineItem label="Uji Kompetensi Dimulai" value={competition.starts_at} active={isExamTimelineActive} now={clock}/>
+              <TimelineItem label="Uji Kompetensi Berakhir" value={competition.ends_at} active={isExamEndActive} now={clock}/>
+              <TimelineItem label="Pengumuman Hasil" value={competition.announcement_at} active={isAnnouncementActive} now={clock} last/>
             </div>
           </Card>
 
