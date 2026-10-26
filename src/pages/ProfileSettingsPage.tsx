@@ -1,5 +1,5 @@
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { Eye, SlidersHorizontal, UserRound } from 'lucide-react';
+import { Eye, SlidersHorizontal, UserRound, type LucideIcon } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { EditProfilePage } from '@/pages/EditProfilePage';
 import { ProfileInterfaceSettingsPage } from '@/pages/ProfileInterfaceSettingsPage';
@@ -20,7 +20,7 @@ export function ProfileSettingsPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: typeof UserRound }> = [
+  const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: LucideIcon }> = [
     { id: 'profile', label: 'Informasi Profil', description: 'Identitas, pendidikan, foto, dan minat', icon: UserRound },
     { id: 'appearance', label: 'Tampilan & Privasi', description: 'Badge, akses sosial, keamanan, dan navigasi', icon: SlidersHorizontal },
   ];
