@@ -180,18 +180,8 @@ export function MessagesPage() {
  const joinGroupFromInput=async()=>{const value=joinGroupValue.trim();if(!value){toast('Tempel link atau token undangan terlebih dahulu.','error');return;}let token=value;try{const url=new URL(value);token=url.searchParams.get('join_group')||value;}catch{/* Input may be a raw invitation token. */}if(!token||token.length<12){toast('Link atau token undangan tidak valid.','error');return;}setGroupBusy(true);try{const result=await joinChatGroup(token);if(!result.ok)throw new Error('Undangan tidak dapat digunakan.');setGroupInvite(null);setJoinGroupValue('');setMode('group');setSelected(null);setMobileList(true);await loadGroups();toast('Berhasil bergabung ke group.','success')}catch(error:unknown){toast(error instanceof Error?error.message:'Undangan tidak valid atau sudah kedaluwarsa.','error')}finally{setGroupBusy(false)}};
  const isSelectedPinned=!!selected&&pinnedIds.includes(selected.id);
  const cooldownMs=spam?.blocked_until?Math.max(0,new Date(spam.blocked_until).getTime()-now):0;const canSend=!cooldownMs&&!blocked;const canManageGroup=!!selectedGroup&&['OWNER','ADMIN'].includes(selectedGroup.my_role);
- return <div className="flex h-[calc(100dvh-120px)] min-h-[420px] flex-col overflow-hidden surface-bg text-fg-secondary md:h-[calc(100dvh-68px)]">
-   <header className="z-10 flex shrink-0 items-center justify-between gap-3 border-b surface-border bg-white/80 px-3 py-3 backdrop-blur dark:bg-[#111827]/85 sm:px-5 md:px-6">
-     <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-       <Link to={admin?'/admin':teacher?'/guru':user?.role==='penyelenggara'?'/organizer':'/home'} className="hidden shrink-0 items-center gap-1 text-xs font-medium text-fg-muted transition hover:text-fg sm:inline-flex"><ArrowLeft size={15}/> Kembali</Link>
-       <span className="hidden h-7 w-px bg-slate-200 dark:bg-slate-800 sm:block"/>
-       <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-500 dark:text-blue-400">Komunikasi</p><h1 className="truncate font-display text-lg font-bold leading-tight text-fg sm:text-xl">Pesan</h1></div>
-     </div>
-     <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-       {admin ? <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700/70 dark:bg-slate-800"><Link to="/pesan" className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 py-2 text-[11px] font-semibold text-white shadow-sm sm:px-3"><MessageCircle size={13}/> Pesan</Link><Link to="/admin/chat" className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"><Settings2 size={13}/><span className="hidden sm:inline">Kontrol Admin</span><span className="sm:hidden">Admin</span></Link></div> : <Button size="sm" variant="outline" icon={<Headphones size={14}/>} onClick={()=>activeTicket?toast('Anda masih memiliki laporan yang sedang berjalan.','info'):setTicketOpen(true)}>{activeTicket?'Tiket Aktif':'Hubungi Admin'}</Button>}
-       {admin && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-bold tracking-wide text-emerald-500 dark:text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/> ADMIN</span>}
-     </div>
-   </header>
+ return <div className="flex h-[calc(100dvh-176px)] min-h-[420px] flex-col overflow-hidden surface-bg text-fg-secondary md:h-[calc(100dvh-60px)]">
+
    <div className="relative flex min-h-0 flex-1 overflow-hidden border-b surface-border bg-white dark:bg-[#0f172a]">
      <aside className={(mobileList?'flex':'hidden')+' w-full shrink-0 flex-col border-r surface-border bg-slate-50 dark:bg-[#111827] md:flex md:w-[320px] lg:w-[340px] xl:w-[365px]'}>
        <div className="shrink-0 space-y-3 border-b surface-border p-3 sm:p-4">
