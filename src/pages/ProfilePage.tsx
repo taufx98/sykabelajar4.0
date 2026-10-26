@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Award, Calendar, Camera, Filter, MessageCircle, School, Settings2, Trophy, UserMinus, Users, X } from 'lucide-react';
+import { Award, Calendar, Camera, Eye, EyeOff, Filter, MessageCircle, School, Trophy, UserMinus, Users, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { VerifiedMark } from '@/components/ui/VerifiedMark';
@@ -72,7 +72,9 @@ export function ProfilePage() {
   const [showFollowing, setShowFollowing] = useState(true);
   const [social, setSocial] = useState<Social | null>(null);
   const [rows, setRows] = useState<any[]>([]);
+  const [previewGuest, setPreviewGuest] = useState(false);
   const own = user?.username === username;
+  const ownerView = own && !previewGuest;
 
   useEffect(() => {
     let alive = true;
@@ -116,8 +118,8 @@ export function ProfilePage() {
   const grade = GRADE_OPTIONS.find((x) => x.value === profile?.grade)?.label || profile?.grade || '';
   const accountType = String(profile?.account_type || '').trim().toLowerCase();
   const accountTypeLabel = ACCOUNT_TYPE_LABELS[accountType] || (profile?.account_type ? String(profile.account_type) : '');
-  const canShowBadges = own || badgeVisibility.showBadges;
-  const canShowCollection = own || badgeVisibility.showBadgeCollection;
+  const canShowBadges = ownerView || badgeVisibility.showBadges;
+  const canShowCollection = ownerView || badgeVisibility.showBadgeCollection;
 
   const doFollow = async () => {
     if (!user || !profile || own || busy) return;
@@ -140,19 +142,19 @@ export function ProfilePage() {
         <div className="relative h-44 overflow-hidden sm:h-52 md:h-56 surface-bg">
           {profile.cover_url ? <img src={optimizedCloudinaryUrl(profile.cover_url, { width: 1600 })} alt="" className="h-full w-full object-cover"/> : <div className="relative h-full w-full overflow-hidden bg-gradient-to-br from-amber-700 via-fuchsia-800 to-violet-950"><div className="absolute -left-10 top-8 h-48 w-[58%] -rotate-12 rounded-[45%] bg-cyan-500/80 blur-[1px] sm:h-56"/><div className="absolute -left-12 top-20 h-48 w-[78%] -rotate-6 rounded-[45%] bg-sky-400/45 blur-sm sm:top-24"/><div className="absolute -right-12 -top-16 h-64 w-[58%] rotate-[-12deg] rounded-[48%] bg-purple-500/45 blur-2xl"/><div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-950/55 to-transparent"/></div>}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/20 to-black/10"/>
-          {own && <Link to="/profile/edit" aria-label="Edit cover" className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-slate-950/55 px-3 py-2 text-xs font-semibold text-white shadow-sm backdrop-blur transition hover:bg-slate-950/75"><Camera size={14}/> Edit Cover</Link>}
+          {ownerView && <Link to="/profile/edit" aria-label="Edit cover" className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-slate-950/55 px-3 py-2 text-xs font-semibold text-white shadow-sm backdrop-blur transition hover:bg-slate-950/75"><Camera size={14}/> Edit Cover</Link>}
         </div>
         <div className="relative px-4 pb-5 sm:px-6 md:px-7">
           <div className="-mt-12 flex flex-col gap-4 md:-mt-16">
             <div className="flex flex-col gap-4 md:flex-row md:items-end">
-              <div className="relative flex shrink-0 justify-center md:justify-start"><ProfilePortrait name={profile.full_name || profile.username} id={profile.id} src={profile.avatar_url || undefined}/>{own && <Link to="/profile/edit" aria-label="Edit foto profil" className="absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-white shadow-md dark:border-slate-950"><Camera size={14}/></Link>}</div>
+              <div className="relative flex shrink-0 justify-center md:justify-start"><ProfilePortrait name={profile.full_name || profile.username} id={profile.id} src={profile.avatar_url || undefined}/>{ownerView && <Link to="/profile/edit" aria-label="Edit foto profil" className="absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-white shadow-md dark:border-slate-950"><Camera size={14}/></Link>}</div>
               <div className="min-w-0 flex-1 pb-1 text-center md:text-left">
                 <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start"><h1 className="font-display text-2xl font-bold tracking-tight text-fg md:text-3xl">{profile.full_name || profile.username}</h1><VerifiedMark type={profile.verification_type}/></div>
                 <p className="mt-0.5 text-sm font-medium text-fg-muted">@{profile.username}</p>
                 <div className="mt-2 flex flex-wrap items-center justify-center gap-2 md:justify-start">{accountTypeLabel && <span className="rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent">{accountTypeLabel}</span>}{grade && <span className="rounded-full bg-slate-500/10 px-2.5 py-1 text-[11px] font-semibold text-fg-muted">{grade}</span>}</div>
 
               </div>
-              <div className="flex shrink-0 justify-center gap-2 pb-1 md:justify-end">{own ? <><Link to="/profile/edit"><Button size="sm" variant="primary">Edit Profil</Button></Link><Link to="/profile/edit?tab=appearance"><Button size="sm" variant="outline" icon={<Settings2 size={14}/>}>Tampilan & Privasi</Button></Link></> : user && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button>{(follow === 'approved' || follow === 'auto') && <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="outline" icon={<MessageCircle size={14}/>}>Kirim Pesan</Button></Link>}</>}</div>
+              <div className="flex shrink-0 flex-wrap justify-center gap-2 pb-1 md:justify-end">{own ? previewGuest ? <Button size="sm" variant="outline" icon={<EyeOff size={14}/>} onClick={() => setPreviewGuest(false)}>Kembali ke Pemilik</Button> : <><Link to="/profile/edit"><Button size="sm" variant="primary">Edit Profil</Button></Link><Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>Tampilan Tamu</Button></> : user && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button>{(follow === 'approved' || follow === 'auto') && <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="outline" icon={<MessageCircle size={14}/>}>Kirim Pesan</Button></Link>}</>}</div>
             </div>
           </div>
           <div className="mt-5 grid gap-4 border-t surface-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.58fr)]">
