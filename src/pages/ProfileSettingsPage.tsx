@@ -1,5 +1,6 @@
-import { Navigate, useSearchParams } from 'react-router-dom';
-import { Eye, SlidersHorizontal, UserRound, type LucideIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Eye, SlidersHorizontal, UserRound, type LucideIcon } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { EditProfilePage } from '@/pages/EditProfilePage';
 import { ProfileInterfaceSettingsPage } from '@/pages/ProfileInterfaceSettingsPage';
@@ -10,10 +11,16 @@ export function ProfileSettingsPage() {
   const { user } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab: SettingsTab = searchParams.get('tab') === 'appearance' ? 'appearance' : 'profile';
+  const [visitedTabs, setVisitedTabs] = useState<SettingsTab[]>([activeTab]);
+
+  useEffect(() => {
+    setVisitedTabs((current) => current.includes(activeTab) ? current : [...current, activeTab]);
+  }, [activeTab]);
 
   if (!user?.id) return <Navigate to="/home" replace />;
 
   const selectTab = (tab: SettingsTab) => {
+    setVisitedTabs((current) => current.includes(tab) ? current : [...current, tab]);
     const next = new URLSearchParams(searchParams);
     if (tab === 'profile') next.delete('tab');
     else next.set('tab', tab);
@@ -34,6 +41,7 @@ export function ProfileSettingsPage() {
             <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-fg sm:text-3xl">Pengaturan Profil</h1>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-fg-muted">Semua pengaturan profil dalam satu tempat. Pilih bagian yang ingin kamu kelola.</p>
           </div>
+          <Link to={`/profile/@${user.username}`} className="inline-flex w-fit items-center gap-2 rounded-xl border surface-border surface-card-bg px-3 py-2 text-xs font-semibold text-fg-muted transition hover:border-accent/30 hover:text-accent"><ArrowLeft size={14}/> Kembali ke Profil</Link>
         </header>
 
         <nav aria-label="Bagian pengaturan profil" role="tablist" className="grid gap-2 rounded-2xl border surface-border surface-card-bg p-2 sm:grid-cols-2">
@@ -61,11 +69,11 @@ export function ProfileSettingsPage() {
           })}
         </nav>
 
-        <section id="profile-settings-panel-profile" role="tabpanel" aria-labelledby="profile-settings-tab-profile" hidden={activeTab !== 'profile'} className="min-w-0">
+        {visitedTabs.includes('profile') && <section id="profile-settings-panel-profile" role="tabpanel" aria-labelledby="profile-settings-tab-profile" hidden={activeTab !== 'profile'} className="min-w-0">
           <EditProfilePage embedded />
-        </section>
+        </section>}
 
-        <section id="profile-settings-panel-appearance" role="tabpanel" aria-labelledby="profile-settings-tab-appearance" hidden={activeTab !== 'appearance'} className="min-w-0 space-y-4">
+        {visitedTabs.includes('appearance') && <section id="profile-settings-panel-appearance" role="tabpanel" aria-labelledby="profile-settings-tab-appearance" hidden={activeTab !== 'appearance'} className="min-w-0 space-y-4">
           <div className="flex flex-wrap gap-2" aria-label="Pintasan bagian tampilan dan privasi">
             {[
               ['#appearance', 'Badge Showcase'],
@@ -79,7 +87,7 @@ export function ProfileSettingsPage() {
             ))}
           </div>
           <ProfileInterfaceSettingsPage embedded />
-        </section>
+        </section>}
       </div>
     </div>
   );
