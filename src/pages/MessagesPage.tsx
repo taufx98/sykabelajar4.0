@@ -96,7 +96,25 @@ export function MessagesPage() {
  const fileRef=useRef<HTMLInputElement|null>(null);
  const loadToken=useRef(0);
  const refreshToken=useRef(0);
- const open=useMemo(()=>threads.filter(t=>t.status==='open'),[threads]);const pendingRating=useMemo(()=>threads.filter(t=>t.status==='closed'&&isTicket(t)&&t.rating==null),[threads]);const history=useMemo(()=>threads.filter(t=>t.status==='closed'&&(!isTicket(t)||t.rating!=null)),[threads]);const activeTicket=!admin?(open.find(isTicket)||null):null;const counterpart=useMemo(()=>selected?(selected.user_id===me?selected.participant_id:selected.user_id):null,[selected,me]);
+ const open=useMemo(()=>threads.filter(t=>t.status==='open'),[threads]);
+ const pendingRating=useMemo(()=>threads.filter(t=>t.status==='closed'&&isTicket(t)&&t.rating==null),[threads]);
+ const history=useMemo(()=>threads.filter(t=>t.status==='closed'&&(!isTicket(t)||t.rating!=null)),[threads]);
+ const activeTicket=!admin?(open.find(isTicket)||null):null;
+ const counterpart=useMemo(()=>selected?(selected.user_id===me?selected.participant_id:selected.user_id):null,[selected,me]);
+ const filterThreadRows=useCallback((items:ChatThread[])=>items.filter(thread=>{
+   const query=threadSearch.trim().toLocaleLowerCase();
+   const text=[nameOf(thread,me,admin),usernameOf(thread,me,admin),thread.last_message||'',thread.subject||'',thread.description||''].join(' ').toLocaleLowerCase();
+   return (!query||text.includes(query))&&(!pinnedOnly||pinnedIds.includes(thread.id));
+ }).sort((a,b)=>Number(pinnedIds.includes(b.id))-Number(pinnedIds.includes(a.id))),[threadSearch,me,admin,pinnedOnly,pinnedIds]);
+ const visibleOpen=useMemo(()=>filterThreadRows(open),[filterThreadRows,open]);
+ const visiblePendingRating=useMemo(()=>filterThreadRows(pendingRating),[filterThreadRows,pendingRating]);
+ const visibleHistory=useMemo(()=>filterThreadRows(history),[filterThreadRows,history]);
+ const visibleGroups=useMemo(()=>{const query=threadSearch.trim().toLocaleLowerCase();return groups.filter(group=>!query||`${group.name} ${group.last_message||''}`.toLocaleLowerCase().includes(query));},[groups,threadSearch]);
+ const messageMatches=useMemo(()=>{const query=messageSearch.trim().toLocaleLowerCase();return query?messages.filter(isCachedMessage).filter(message=>message.body.toLocaleLowerCase().includes(query)):[]},[messages,messageSearch]);
+ const jumpToMessageMatch=(direction:number)=>{if(!messageMatches.length)return;const next=(messageSearchIndex+direction+messageMatches.length)%messageMatches.length;setMessageSearchIndex(next);window.requestAnimationFrame(()=>document.getElementById(`chat-message-${messageMatches[next].id}`)?.scrollIntoView({behavior:'smooth',block:'center'}));};
+ const togglePinned=()=>{if(!selected)return;const next=pinnedIds.includes(selected.id)?pinnedIds.filter(id=>id!==selected.id):[selected.id,...pinnedIds];setPinnedIds(next);try{localStorage.setItem(`syka.chat.pinned.${me}`,JSON.stringify(next));}catch{toast('Sematan tidak dapat disimpan di perangkat ini.','error')}toast(next.includes(selected.id)?'Percakapan disematkan di perangkat ini.':'Sematan percakapan dilepas.','success');};
+ const chooseAttachment=(accept:string)=>{setAttachmentMenuOpen(false);const picker=fileRef.current;if(!picker)return;picker.accept=accept;picker.click();};
+
  const refresh=useCallback(async(force=false)=>{if(!user)return;const token=++refreshToken.current;try{const rows=await loadMyThreads(force);if(token!==refreshToken.current)return;const normalized=rows.map(t=>({...t,user_name:t.user_name||'User',username:t.username||'user',other_user_name:t.other_user_name||'User',other_username:t.other_username||'user'}));setThreads(normalized);if(selected){const next=normalized.find(t=>t.id===selected.id);if(next)setSelected(next);}else if(normalized.length){const initial=normalized.find(t=>t.thread_type==='dm'&&t.status==='open')||normalized.find(t=>t.status==='open')||normalized[0];if(initial)setSelected(initial);}}catch(error:unknown){if(token===refreshToken.current)toast(error instanceof Error?error.message:'Gagal memuat chat.','error')}finally{if(token===refreshToken.current)setLoading(false)}},[user?.id,selected?.id,toast]);
  useEffect(()=>{if(!me){setPinnedIds([]);return;}try{const parsed=JSON.parse(localStorage.getItem(`syka.chat.pinned.${me}`)||'[]');setPinnedIds(Array.isArray(parsed)?parsed.filter((value):value is string=>typeof value==='string'):[]);}catch{setPinnedIds([])}},[me]);
  useEffect(()=>{if(!recording)return;const timer=window.setInterval(()=>setRecordingSeconds(value=>{if(value>=59){window.setTimeout(()=>mediaRecorderRef.current?.stop(),0);return 60;}return value+1}),1000);return()=>window.clearInterval(timer)},[recording]);
@@ -119,6 +137,31 @@ export function MessagesPage() {
  const sendText=async()=>{if(!selected||selected.status!=='open'||blocked||!input.trim()||busy||(admin&&isTicket(selected)&&!selected.handled_by))return;const cooldownMs=spam?.blocked_until?Math.max(0,new Date(spam.blocked_until).getTime()-Date.now()):0;if(cooldownMs>0)return;const text=input.trim();const optimistic:ChatMessage={id:`local-${crypto.randomUUID()}`,thread_id:selected.id,sender_id:me,body:text,created_at:new Date().toISOString()};setMessages(current=>[...current.filter(isCachedMessage),optimistic]);setInput('');setBusy(true);try{const saved=await sendMessage(selected.id,text);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');setMessages(current=>{const next=current.map(x=>x.id===optimistic.id?saved:x).filter(isCachedMessage);cacheSet(selected.id,next);return next});setThreads(current=>current.map(t=>t.id===selected.id?{...t,last_message:saved.body,last_message_at:saved.created_at}:t))}catch(error:unknown){setMessages(current=>current.filter(isCachedMessage).filter(x=>x.id!==optimistic.id));if(!parseCooldown(error))toast(error instanceof Error?error.message:'Gagal mengirim pesan.','error')}finally{setBusy(false)}};
  const sendGroupText=async()=>{if(!selectedGroup||!groupInput.trim()||groupBusy)return;const text=groupInput.trim();setGroupBusy(true);try{await sendChatGroupMessage(selectedGroup.id,text);setGroupInput('');const rows=await loadChatGroupMessages(selectedGroup.id,PAGE);setGroupMessages(rows);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,last_message:text,last_message_at:new Date().toISOString()}:g))}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal mengirim pesan group.','error')}finally{setGroupBusy(false)}};
  const upload=async(file:File)=>{if(!selected||selected.status!=='open'||blocked||busy)return;try{validateChatFile(file);setBusy(true);const uploadResult=await uploadChatAttachment(file,selected.id,me);const saved=await sendMessage(selected.id,uploadResult.secure_url);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');await attachChatMedia(uploadResult.media_id,saved.id);setMessages(current=>{const next=[...current.filter(isCachedMessage),saved];cacheSet(selected.id,next);return next});toast('Lampiran berhasil dikirim.','success')}catch(error:unknown){if(!parseCooldown(error))toast(error instanceof Error?error.message:'Lampiran gagal dikirim.','error')}finally{setBusy(false)}};
+ const toggleVoiceRecording=async()=>{
+   if(recordingRef.current){mediaRecorderRef.current?.stop();return;}
+   if(!selected||selected.status!=='open'||blocked||busy||cooldownMs>0)return;
+   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){toast('Browser ini belum mendukung perekaman pesan suara.','error');return;}
+   try{
+     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+     const preferred=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'].find(type=>MediaRecorder.isTypeSupported(type));
+     const recorder=preferred?new MediaRecorder(stream,{mimeType:preferred}):new MediaRecorder(stream);
+     recordedPartsRef.current=[];mediaStreamRef.current=stream;mediaRecorderRef.current=recorder;recordingRef.current=true;setRecording(true);setRecordingSeconds(0);
+     recorder.ondataavailable=event=>{if(event.data.size)recordedPartsRef.current.push(event.data)};
+     recorder.onerror=()=>toast('Perekaman pesan suara mengalami kendala.','error');
+     recorder.onstop=async()=>{
+       const type=(recorder.mimeType||recordedPartsRef.current[0]?.type||'audio/webm').split(';')[0];
+       const blob=new Blob(recordedPartsRef.current,{type});
+       stream.getTracks().forEach(track=>track.stop());mediaStreamRef.current=null;mediaRecorderRef.current=null;recordingRef.current=false;setRecording(false);setRecordingSeconds(0);
+       if(!blob.size){toast('Pesan suara kosong. Coba rekam lagi.','error');return;}
+       const ext=type==='audio/mp4'?'m4a':type==='audio/ogg'?'ogg':type==='audio/mpeg'?'mp3':type==='audio/wav'?'wav':'webm';
+       const file=new File([blob],`pesan-suara-${Date.now()}.${ext}`,{type});
+       if(file.size>2*1024*1024){toast('Pesan suara melebihi batas 2MB. Rekam dengan durasi lebih pendek.','error');return;}
+       await upload(file);
+     };
+     recorder.start();
+     toast('Perekaman dimulai. Maksimal 60 detik. Tekan tombol stop untuk mengirim.','info');
+   }catch(error:unknown){recordingRef.current=false;setRecording(false);mediaStreamRef.current?.getTracks().forEach(track=>track.stop());mediaStreamRef.current=null;toast(error instanceof Error?error.message:'Mikrofon tidak dapat diakses. Izinkan akses mikrofon di browser.','error');}
+ };
  const onPaste=(event:ClipboardEvent)=>{const item=Array.from(event.clipboardData.items).find(entry=>entry.kind==='file'&&entry.type.startsWith('image/'));const file=item?.getAsFile();if(file){event.preventDefault();void upload(file)}};const onDrop=(event:DragEvent)=>{event.preventDefault();setDrop(false);const file=event.dataTransfer.files?.[0];if(file)void upload(file)};
  const hide=async(thread:ChatThread)=>{setThreads(current=>current.filter(item=>item.id!==thread.id));if(selected?.id===thread.id){setSelected(null);setMessages([]);setRating(0);setRatingOpen(false);setMobileList(true)}try{await hideChatThread(thread.id);toast('Percakapan dihapus dari riwayat.','success')}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal menghapus chat.','error');void refresh(true)}};
  const toggleBlock=async()=>{if(!counterpart||blockBusy)return;const old=blocked;setBlockBusy(true);setBlocked(!old);try{if(old)await unblockChatUser(counterpart);else await blockChatUser(counterpart);toast(old?'Blokir dibuka.':'Pengguna diblokir.','success')}catch(error:unknown){setBlocked(old);toast(error instanceof Error?error.message:'Gagal mengubah blokir.','error')}finally{setBlockBusy(false)}};
