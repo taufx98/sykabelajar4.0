@@ -19,8 +19,7 @@ const DailyTasksPage = lazy(() => import('@/pages/DailyTasksPage').then((module)
 const LeaderboardPage = lazy(() => import('@/pages/LeaderboardPage').then((module) => ({ default: module.LeaderboardPage })));
 const AwardsPage = lazy(() => import('@/pages/AwardsPage').then((module) => ({ default: module.AwardsPage })));
 const ProfilePage = lazy(() => import('@/pages/ProfilePage').then((module) => ({ default: module.ProfilePage })));
-const ProfileInterfaceSettingsPage = lazy(() => import('@/pages/ProfileInterfaceSettingsPage').then((module) => ({ default: module.ProfileInterfaceSettingsPage })));
-const EditProfilePage = lazy(() => import('@/pages/EditProfilePage').then((module) => ({ default: module.EditProfilePage })));
+const ProfileSettingsPage = lazy(() => import('@/pages/ProfileSettingsPage').then((module) => ({ default: module.ProfileSettingsPage })));
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then((module) => ({ default: module.NotificationsPage })));
 const OrdersPage = lazy(() => import('@/pages/OrdersPage').then((module) => ({ default: module.OrdersPage })));
 const ReferralPage = lazy(() => import('@/pages/ReferralPage').then((module) => ({ default: module.ReferralPage })));
@@ -143,6 +142,12 @@ function MessagesEntryPage() {
   return collectiveChatSession ? <CollectiveMessagesPage /> : <MessagesPage />;
 }
 
+function OwnProfileRedirect() {
+  const { user, isGuest } = useApp();
+  if (user?.username) return <Navigate to={`/profile/@${user.username}`} replace />;
+  return <Navigate to={isGuest ? '/home' : '/login'} replace />;
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<RouteLoading />}>
@@ -165,9 +170,10 @@ function AppRoutes() {
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/awards" element={<AwardsPage />} />
           <Route path="/referrals" element={<ReferralPage />} />
+          <Route path="/profile" element={<OwnProfileRedirect />} />
           <Route path="/profile/:username" element={<ProfilePage />} />
-          <Route path="/profile/interface-settings" element={<ProfileInterfaceSettingsPage />} />
-          <Route path="/profile/edit" element={<EditProfilePage />} />
+          <Route path="/profile/interface-settings" element={<Navigate to="/profile/edit?tab=appearance" replace />} />
+          <Route path="/profile/edit" element={<ProfileSettingsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/pesan" element={<MessagesEntryPage />} />
