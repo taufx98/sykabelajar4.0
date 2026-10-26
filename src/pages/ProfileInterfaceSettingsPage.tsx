@@ -76,7 +76,7 @@ function SectionCard({ id, title, description, children }: { id?: string; title:
   return id ? <div id={id}>{card}</div> : card;
 }
 
-export function ProfileInterfaceSettingsPage() {
+export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: boolean }) {
   const { user, toast, refreshUser } = useApp();
   const [showSocial, setShowSocial] = useState(true);
   const [showFollowing, setShowFollowing] = useState(true);
@@ -266,16 +266,16 @@ export function ProfileInterfaceSettingsPage() {
 
   if (!user) return null;
 
-  return <div className="min-h-screen bg-surface/30 p-4 md:p-6">
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-4 flex items-center gap-2 text-sm text-fg-muted">
+  return <div className={embedded ? 'min-w-0' : 'min-h-screen bg-surface/30 p-4 md:p-6'}>
+    <div className={embedded ? 'space-y-4' : 'mx-auto max-w-6xl'}>
+      {!embedded && <div className="mb-4 flex items-center gap-2 text-sm text-fg-muted">
         <Link to={`/profile/@${user.username}`} className="inline-flex items-center gap-2 hover:text-fg"><ArrowLeft size={16}/> Kembali ke profil</Link>
         <span>/</span>
         <span>Pengaturan</span>
-      </div>
+      </div>}
 
-      <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="hidden lg:block rounded-2xl border surface-border surface-card-bg p-3 self-start sticky top-20">
+      <div className={embedded ? 'space-y-5' : 'grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]'}>
+        {!embedded && <aside className="hidden lg:block rounded-2xl border surface-border surface-card-bg p-3 self-start sticky top-20">
           <div className="mb-3 px-3 py-2">
             <p className="font-display text-lg font-bold text-fg">Pengaturan Profil</p>
             <p className="mt-1 text-xs text-fg-muted">Kelola akun, keamanan, tampilan, dan privasi.</p>
@@ -289,21 +289,21 @@ export function ProfileInterfaceSettingsPage() {
                 : <button key={key} type="button" onClick={() => scrollTo(to)} className={className}><Icon size={16}/><span>{label}</span></button>;
             })}
           </nav>
-        </aside>
+        </aside>}
 
         <main className="min-w-0 space-y-4">
-          <div>
+          {!embedded && <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Profil</p>
             <h1 className="font-display text-2xl font-bold text-fg">Tampilan & Privasi</h1>
             <p className="mt-1 text-sm text-fg-muted">Atur badge, privasi profil, pesan, navigasi mobile, dan kontrol akun.</p>
-          </div>
+          </div>}
 
           <SectionCard id="appearance" title="Badge Showcase" description="Pilih maksimal 3 badge untuk ditampilkan pada identitas profil.">
             <BadgeShowcaseSelector badges={badges} selected={selectedBadges} onChange={setSelectedBadges}/>
             <div className="mt-4 flex items-start gap-2 rounded-xl border border-accent/15 bg-accent/5 p-3 text-xs text-fg-muted"><Eye size={15} className="mt-0.5 shrink-0 text-accent"/>Badge showcase hanya bisa memakai badge yang benar-benar sudah kamu miliki. Perubahan diterapkan setelah menekan Simpan Pengaturan.</div>
           </SectionCard>
 
-          <SectionCard title="Visibilitas badge" description="Kontrol bagaimana badge muncul di profil publik.">
+          <SectionCard id="badge-visibility" title="Visibilitas badge" description="Kontrol bagaimana badge muncul di profil publik.">
             <div className="divide-y surface-border">
               <SettingRow title="Tampilkan badge di profil" description="Sembunyikan badge showcase dari identitas profil tanpa menghapus koleksi badge." checked={showBadges} onChange={setShowBadges} disabled={saving}/>
               <SettingRow title="Izinkan orang lain melihat koleksi badge" description="Mengatur apakah tab Badge pada profil publik dapat dibuka pengguna lain." checked={showBadgeCollection} onChange={setShowBadgeCollection} disabled={saving}/>
@@ -328,7 +328,7 @@ export function ProfileInterfaceSettingsPage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Navigasi bawah mobile" description="Pilih maksimal 5 tombol yang muncul pada mobile. Urutan mengikuti urutan pilihan.">
+          <SectionCard id="mobile-navigation" title="Navigasi bawah mobile" description="Pilih maksimal 5 tombol yang muncul pada mobile. Urutan mengikuti urutan pilihan.">
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {MOBILE_ITEMS.map(([key, label]) => {
                 const active = mobileNav.includes(key);

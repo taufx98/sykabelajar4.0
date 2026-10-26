@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Camera, Calendar, Check, GraduationCap, School, User as UserIcon, UserCheck, Clock, Settings2 } from 'lucide-react';
+import { ArrowLeft, Camera, Calendar, Check, GraduationCap, School, User as UserIcon, UserCheck, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { EmblemIcon } from '@/components/ui/Emblem';
 import { useApp } from '@/store/AppContext';
 import { CATEGORY_LABELS, GRADE_OPTIONS } from '@/data/catalog';
 import { uploadProfileImage } from '@/services/cloudinary.service';
@@ -20,10 +19,8 @@ interface Form {
   grade: string;
   pembina: string;
   favoriteCategories: CompetitionCategory[];
-  showcaseEmblems: string[];
   profilePhoto: string;
   coverPhoto: string;
-  acceptMessages: string;
 }
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -40,7 +37,7 @@ function getCooldownRemaining(lastChange: string | null) {
   };
 }
 
-export function EditProfilePage() {
+export function EditProfilePage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const { user, toast, refreshUser } = useApp();
 
@@ -53,10 +50,8 @@ export function EditProfilePage() {
     grade: (user as any)?.grade || '',
     pembina: (user as any)?.pembina || '',
     favoriteCategories: (user?.favoriteCategories || []) as CompetitionCategory[],
-    showcaseEmblems: user?.showcaseEmblems || user?.emblems?.slice(0, 3).map((e) => e.id) || [],
     profilePhoto: user?.profilePhoto || '',
     coverPhoto: user?.coverPhoto || '',
-    acceptMessages: (user as any)?.accept_messages || 'public',
   });
   const [profileFile, setProfileFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -136,7 +131,6 @@ export function EditProfilePage() {
         birth_date: form.birthDate || null,
         grade: form.grade || null,
         subjects: form.favoriteCategories.join(','),
-        accept_messages: form.acceptMessages,
       };
 
       const oldAvatar = current?.avatar_public_id as string | undefined;
@@ -195,7 +189,7 @@ export function EditProfilePage() {
       setPreviews({});
       toast('Profil berhasil diperbarui.', 'success');
       void refreshUser();
-      navigate(`/profile/@${form.username}`);
+      if (!embedded) navigate(`/profile/@${form.username}`);
     } catch (error: any) {
       toast(error?.message || 'Profil gagal diperbarui.', 'error');
     } finally {
@@ -211,18 +205,18 @@ export function EditProfilePage() {
     return acc;
   }, {} as Record<string, typeof GRADE_OPTIONS>);
 
-  return <div className="min-h-screen pb-28 md:pb-6">
-    <div className="mx-auto max-w-5xl px-4 pt-4 md:px-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-fg"><ArrowLeft size={18}/> Kembali ke profil</button>
-        <LinkButton to="/profile/interface-settings" icon={<Settings2 size={15}/>} label="Tampilan & Privasi" />
-      </div>
-
-      <div className="mb-5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Profil</p>
-        <h1 className="font-display text-2xl font-bold text-fg">Edit Profil</h1>
-        <p className="mt-1 text-sm text-fg-muted">Perbarui identitas, pendidikan, foto, dan preferensi pesan.</p>
-      </div>
+  return <div className={embedded ? 'pb-2' : 'min-h-screen pb-28 md:pb-6'}>
+    <div className={embedded ? 'space-y-4' : 'mx-auto max-w-5xl px-4 pt-4 md:px-6'}>
+      {!embedded && <>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-fg"><ArrowLeft size={18}/> Kembali ke profil</button>
+        </div>
+        <div className="mb-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Profil</p>
+          <h1 className="font-display text-2xl font-bold text-fg">Edit Profil</h1>
+          <p className="mt-1 text-sm text-fg-muted">Perbarui identitas, pendidikan, foto, dan informasi publik.</p>
+        </div>
+      </> }
 
       <Card className="overflow-hidden p-0">
         <div className="relative h-32 bg-gradient-to-br from-surface-elevated to-surface-card md:h-40">
@@ -249,7 +243,6 @@ export function EditProfilePage() {
           <div><label className="label">Nama Tampilan</label><div className="relative"><UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"/><input className={`input pl-9 ${nameDisabled ? 'cursor-not-allowed opacity-60' : ''}`} value={form.displayName} onChange={(e) => set('displayName', e.target.value)} disabled={nameDisabled}/></div>{cooldown.locked && <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2"><Clock size={14} className="shrink-0 text-amber-400"/><p className="text-xs text-amber-300">Bisa ganti lagi dalam <span className="font-semibold">{cooldown.days > 0 && `${cooldown.days} hari `}{cooldown.hours} jam {cooldown.minutes} mnt</span></p></div>}{!cooldown.locked && nameChanged && <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2"><Check size={14} className="text-accent"/><p className="text-xs text-accent">Setelah disimpan, nama terkunci 7 hari.</p></div>}</div>
           <div><label className="label">Username</label><input className="input cursor-not-allowed opacity-60" value={form.username} disabled readOnly/><p className="mt-1 text-[10px] text-fg-muted">Tidak dapat diubah setelah pendaftaran.</p></div>
           <div><label className="label">Bio <span className="text-fg-muted">({form.bio.length}/160)</span></label><textarea className="input min-h-[90px] resize-none" maxLength={160} value={form.bio} onChange={(e) => set('bio', e.target.value)} /></div>
-          <div><label className="label">Siapa yang bisa mengirim pesan</label><select className="input" value={form.acceptMessages} onChange={(e) => set('acceptMessages', e.target.value)}><option value="public">Semua orang (Publik)</option><option value="followers">Hanya Pengikut</option><option value="private">Tidak ada (Privat)</option></select><p className="mt-1 text-[10px] text-fg-muted">{form.acceptMessages === 'public' ? 'Semua pengguna bisa mengirim pesan langsung.' : form.acceptMessages === 'followers' ? 'Hanya pengikut yang disetujui yang bisa mengirim pesan.' : 'Tidak ada yang bisa mengirim pesan langsung.'}</p></div>
           <div><label className="label">Tanggal Lahir</label><div className="relative"><Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"/><input type="date" className="input pl-9" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)}/></div></div>
         </Card>
 
@@ -258,24 +251,18 @@ export function EditProfilePage() {
           <div><label className="label">Sekolah / Institusi</label><div className="relative"><School size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"/><input className="input pl-9" value={form.school} onChange={(e) => set('school', e.target.value)}/></div></div>
           <div><label className="label">Tingkat / Kelas</label><div className="relative"><GraduationCap size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"/><select className="input pl-9" value={form.grade} onChange={(e) => set('grade', e.target.value)}><option value="">Pilih tingkat...</option>{Object.entries(gradeGroups).map(([group, options]) => <optgroup key={group} label={group}>{options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</optgroup>)}</select></div></div>
           <div><label className="label">Nama Pembina <span className="text-fg-muted">(opsional)</span></label><div className="relative"><UserCheck size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"/><input className="input pl-9" value={form.pembina} onChange={(e) => set('pembina', e.target.value)} placeholder="Contoh: Pak Budi Santoso"/></div></div>
-          <div className="rounded-2xl border border-accent/15 bg-accent/5 p-4"><p className="text-sm font-semibold text-fg">Badge & Privasi</p><p className="mt-1 text-xs leading-relaxed text-fg-muted">Pengaturan Badge Showcase, visibilitas badge, sosial, dan navigasi mobile sekarang terpusat di Tampilan & Privasi.</p><LinkButton to="/profile/interface-settings" label="Buka Tampilan & Privasi" icon={<Settings2 size={14}/>} className="mt-3"/></div>
         </Card>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card className="p-4 md:p-5"><h2 className="font-display text-sm font-semibold text-fg">Kategori Favorit</h2><div className="mt-3 grid grid-cols-2 gap-2">{Object.entries(CATEGORY_LABELS).map(([key, label]) => { const selected = form.favoriteCategories.includes(key as CompetitionCategory); return <button key={key} type="button" onClick={() => toggleCat(key as CompetitionCategory)} className={`flex items-center justify-between rounded-xl border p-3 text-sm transition ${selected ? 'border-accent bg-accent-muted-strong font-medium text-accent' : 'surface-border text-fg-secondary hover:border-accent/30'}`}>{label}{selected && <Check size={16}/>}</button>; })}</div></Card>
-        {user.emblems.length > 0 && <Card className="p-4 md:p-5"><h2 className="font-display text-sm font-semibold text-fg">Emblem Showcase <span className="font-normal text-fg-muted">(maks 3)</span></h2><div className="mt-3 flex flex-wrap gap-2">{user.emblems.map((emblem) => { const selected = form.showcaseEmblems.includes(emblem.id); return <button key={emblem.id} type="button" aria-pressed={selected} onClick={() => setForm((current) => ({ ...current, showcaseEmblems: selected ? current.showcaseEmblems.filter((id) => id !== emblem.id) : current.showcaseEmblems.length < 3 ? [...current.showcaseEmblems, emblem.id] : current.showcaseEmblems }))} className={`rounded-xl border p-1.5 transition ${selected ? 'border-accent bg-accent-muted' : 'surface-border hover:border-accent/30'}`}><EmblemIcon emblem={emblem} size={30}/></button>; })}</div></Card>}
+      <div className="mt-4">
+        <Card className="p-4 md:p-5"><h2 className="font-display text-sm font-semibold text-fg">Kategori Favorit</h2><p className="mt-1 text-xs text-fg-muted">Pilih kategori yang paling sesuai dengan minat dan aktivitas belajarmu.</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{Object.entries(CATEGORY_LABELS).map(([key, label]) => { const selected = form.favoriteCategories.includes(key as CompetitionCategory); return <button key={key} type="button" aria-pressed={selected} onClick={() => toggleCat(key as CompetitionCategory)} className={`flex items-center justify-between rounded-xl border p-3 text-sm transition ${selected ? 'border-accent bg-accent-muted-strong font-medium text-accent' : 'surface-border text-fg-secondary hover:border-accent/30'}`}>{label}{selected && <Check size={16}/>}</button>; })}</div></Card>
       </div>
 
-      <div className="mt-4 flex justify-end gap-2 pb-2"><Button variant="outline" onClick={() => navigate(-1)}>Batal</Button><Button loading={saving} onClick={() => void handleSave()}>Simpan Perubahan</Button></div>
+      <div className="mt-4 flex justify-end gap-2 pb-2">
+        {!embedded && <Button variant="outline" onClick={() => navigate(-1)}>Batal</Button>}
+        <Button loading={saving} onClick={() => void handleSave()}>{saving ? 'Menyimpan…' : embedded ? 'Simpan Profil' : 'Simpan Perubahan'}</Button>
+      </div>
     </div>
-
-    <div className="md:hidden fixed inset-x-0 bottom-0 z-30 flex gap-3 border-t surface-border glass px-4 py-3 safe-area-bottom"><Button variant="outline" fullWidth onClick={() => navigate(-1)}>Batal</Button><Button fullWidth loading={saving} onClick={() => void handleSave()}>Simpan</Button></div>
+    {!embedded && <div className="md:hidden fixed inset-x-0 bottom-0 z-30 flex gap-3 border-t surface-border glass px-4 py-3 safe-area-bottom"><Button variant="outline" fullWidth onClick={() => navigate(-1)}>Batal</Button><Button fullWidth loading={saving} onClick={() => void handleSave()}>Simpan</Button></div>}
   </div>;
 }
-
-function LinkButton({ to, label, icon, className = '' }: { to: string; label: string; icon?: ReactNode; className?: string }) {
-  return <a href={to} className={`inline-flex items-center gap-2 rounded-xl border border-accent/20 bg-accent/5 px-3 py-2 text-xs font-semibold text-accent transition hover:bg-accent/10 ${className}`}>{icon}{label}</a>;
-}
-
-type ReactNode = import('react').ReactNode;
