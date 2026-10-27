@@ -166,6 +166,7 @@ test.describe('backend-authoritative login flow', () => {
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
 
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    await expect(page.getByText(/Akun belum memiliki role aktif di backend/i)).toBeVisible({ timeout: 5_000 });
     await expect.poll(() => audit.roleLookupCount()).toBeGreaterThan(0);
     const persistedAuthTokens = await page.evaluate(() => Object.keys(window.localStorage).filter((key) => key.endsWith('-auth-token')));
     expect(persistedAuthTokens).toHaveLength(0);
