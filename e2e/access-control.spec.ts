@@ -388,6 +388,11 @@ test.describe('Shop editor', () => {
 
     await typeSelector.selectOption('DIGITAL_ITEM');
     await page.getByLabel('Nama produk').fill('Paket Latihan Sains');
+    await expect(page.getByLabel('Mata uang harga produk')).toBeVisible();
+    await page.getByLabel('Mata uang harga produk').selectOption('EDU_COIN');
+    await expect(page.getByLabel('Harga (Edu Coin)')).toBeVisible();
+    await expect(page.getByText(/tidak perlu bukti transfer/i)).toBeVisible();
+    await page.getByLabel('Mata uang harga produk').selectOption('IDR');
     await page.getByLabel('Tampilkan di Shop').check();
     await page.getByRole('button', { name: 'Simpan produk' }).click();
     await expect(page.getByText(/Produk aktif harus memiliki harga di atas Rp0/i)).toBeVisible();
