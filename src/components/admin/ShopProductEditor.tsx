@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
-import { Check, Eye, ImagePlus, Info, Package, Sparkles, X } from 'lucide-react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { Check, Eye, ImagePlus, Info, Package, Sparkles, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { AdminProductInput } from '@/services/adminCore.service';
+import { uploadImage } from '@/services/cloudinary.service';
 
 export type ShopProductDraft = AdminProductInput & {
   code: string;
@@ -80,6 +81,7 @@ function validImageUrl(value: string) {
 export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
   const [draft, setDraft] = useState<ShopProductDraft>(() => initialDraft(product));
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [imageUploadBusy, setImageUploadBusy] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
   const isEditing = Boolean(draft.id);
   const selectedType = PRODUCT_TYPES.find((item) => item.value === draft.product_type);
@@ -97,6 +99,35 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
     patch({ audiences: next });
   };
 
+  const uploadProductImage = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setValidationMessage('Pilih file gambar, misalnya PNG, JPG, atau WEBP.');
+      input.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setValidationMessage('Ukuran gambar maksimal 5 MB.');
+      input.value = '';
+      return;
+    }
+
+    setImageUploadBusy(true);
+    setValidationMessage('');
+    try {
+      const folder = `sykabelajar/shop-products/${draft.id ?? 'new'}`;
+      const uploaded = await uploadImage(file, folder);
+      patch({ image_url: uploaded.secure_url });
+    } catch {
+      setValidationMessage('Gambar gagal diunggah. Coba lagi atau gunakan tautan gambar publik.');
+    } finally {
+      setImageUploadBusy(false);
+      input.value = '';
+    }
+  };
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = draft.name.trim();
@@ -112,7 +143,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
   };
 
   return <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 sm:p-5" role="dialog" aria-modal="true" aria-labelledby="shop-product-editor-title">
-    <button type="button" aria-label="Tutup formulir" className="absolute inset-0 cursor-default" onClick={() => { if (!busy) onClose(); }} />
+    <button type="button" aria-label="Tutup formulir" className="absolute inset-0 cursor-default" onClick={() => { if (!busy && !imageUploadBusy) onClose(); }} />
     <Card className="relative z-10 flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden border surface-border p-0 shadow-2xl">
       <header className="flex items-start justify-between gap-3 border-b surface-border px-5 py-4 sm:px-6">
         <div className="flex min-w-0 items-start gap-3">
@@ -169,11 +200,19 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
                 </div>
                 {draft.price <= 0 && <p className="mt-1.5 text-xs text-amber-400">Produk dengan harga Rp0 belum bisa diklaim otomatis. Simpan sebagai draft dahulu.</p>}
               </label>
-              <label className="block">
-                <span className="label">Tautan gambar</span>
-                <input className="input mt-1 w-full" type="url" value={draft.image_url} onChange={(event) => patch({ image_url: event.target.value })} placeholder="https://..." />
-                <span className="mt-1 block text-xs text-fg-muted">Tempel tautan gambar publik yang bisa dibuka pengguna.</span>
-              </label>
+              <div>
+                <span className="label">Gambar produk</span>
+                <input className="input mt-1 w-full" type="url" value={draft.image_url} onChange={(event) => patch({ image_url: event.target.value })} placeholder="Tempel tautan gambar (opsional)" aria-label="Tautan gambar"/>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border surface-border px-3 py-2 text-xs font-semibold text-fg transition hover:bg-surface-elevated/50 ${imageUploadBusy || busy ? 'pointer-events-none opacity-60' : ''}`}>
+                    <Upload size={14}/>
+                    <span>{imageUploadBusy ? 'Sedang mengunggah…' : 'Unggah gambar'}</span>
+                    <input className="sr-only" type="file" accept="image/*" onChange={(event) => void uploadProductImage(event)} disabled={imageUploadBusy || busy}/>
+                  </label>
+                  {draft.image_url && <button type="button" className="rounded-xl px-3 py-2 text-xs text-fg-muted hover:bg-surface-elevated/40" onClick={() => patch({ image_url: '' })} disabled={imageUploadBusy || busy}>Hapus gambar</button>}
+                </div>
+                <span className="mt-1.5 block text-xs leading-5 text-fg-muted">Format gambar umum, maksimal 5 MB. Kamu juga bisa menempel tautan gambar publik.</span>
+              </div>
               <label className="block">
                 <span className="label">Urutan di Shop</span>
                 <input className="input mt-1 w-full" type="number" min="0" step="1" value={draft.sort_order} onChange={(event) => patch({ sort_order: event.target.value === '' ? 0 : Number(event.target.value) })} />
@@ -251,8 +290,8 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
         <footer className="sticky bottom-0 flex flex-col-reverse gap-2 border-t surface-border bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p className="flex items-center gap-2 text-xs text-fg-muted"><Eye size={14}/>Pratinjau di samping mengikuti perubahan form.</p>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Batal</Button>
-            <Button type="submit" disabled={busy} loading={busy} icon={<Check size={15}/>} >{busy ? 'Menyimpan…' : isEditing ? 'Simpan perubahan' : 'Simpan produk'}</Button>
+            <Button type="button" variant="ghost" onClick={onClose} disabled={busy || imageUploadBusy}>Batal</Button>
+            <Button type="submit" disabled={busy || imageUploadBusy} loading={busy || imageUploadBusy} icon={<Check size={15}/>} >{imageUploadBusy ? 'Mengunggah gambar…' : busy ? 'Menyimpan…' : isEditing ? 'Simpan perubahan' : 'Simpan produk'}</Button>
           </div>
         </footer>
       </form>
