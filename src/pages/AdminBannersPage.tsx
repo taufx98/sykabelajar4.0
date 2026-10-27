@@ -14,8 +14,8 @@ import {
   approveBannerRequest, rejectBannerRequest, updateBannerSettings,
   loadPlatformSettings, updatePlatformSetting,
   adminAddBanner, adminUpdateBanner, adminDeleteBanner, adminLoadAllBanners,
-  deactivateBanner, uploadBannerMedia,
-  type AdBannerRequest, type AdBannerSettings, type AdBanner,
+  deactivateBanner, uploadBannerMedia, BANNER_PLACEMENT_LABELS,
+  type BannerPlacement, type AdBannerRequest, type AdBannerSettings, type AdBanner,
   type PlatformSettings, type AdminBank, type MediaType,
 } from '@/services/ad.service';
 
@@ -27,6 +27,7 @@ interface BannerEditor {
   file: File | null;
   previewUrl: string;
   mediaType: MediaType;
+  placement: BannerPlacement;
   slotNumber: number;
   widthSlots: number;
   linkUrl: string;
@@ -41,17 +42,15 @@ const MEDIA_LABELS: Record<MediaType, { label: string; icon: typeof ImageIcon; c
   video: { label: 'Video', icon: Film, color: 'text-amber-400' },
 };
 
-/** Keep admin previews consistent with the organizer banner request form. */
-const SLOT_RATIOS: Record<number, string> = {
-  1: '465 / 300',
-  2: '930 / 300',
-  3: '1400 / 300',
-};
-const SLOT_DIMENSIONS: Record<number, string> = {
-  1: '465 × 300 px',
-  2: '930 × 300 px',
-  3: '1400 × 300 px',
-};
+/** Match the organizer request's destination-specific creative dimensions. */
+function getBannerAspectRatio(placement: BannerPlacement, widthSlots: number): string {
+  if (placement === 'home_sidebar') return '600 / 500';
+  return widthSlots > 1 ? '2400 / 512' : '1200 / 512';
+}
+function getBannerDimensions(placement: BannerPlacement, widthSlots: number): string {
+  if (placement === 'home_sidebar') return '600 × 500 px';
+  return widthSlots > 1 ? '2400 × 512 px (banner lebar, mengisi area tengah)' : '1200 × 512 px per gambar';
+}
 
 export function AdminBannersPage() {
   const { toast } = useApp();
@@ -91,7 +90,14 @@ export function AdminBannersPage() {
 
   const pending = requests.filter((r) => r.status === 'PENDING');
   const activeBanners = allBanners.filter((b) => b.is_active);
-  const usedSlots = new Set(activeBanners.map((b) => b.slot_number));
+  const nextSlotNumber = (placement: BannerPlacement, exceptBannerId?: string) => {
+    const used = new Set(allBanners
+      .filter((banner) => (banner.placement || 'home_top') === placement && banner.id !== exceptBannerId)
+      .map((banner) => Number(banner.slot_number)));
+    let slot = 1;
+    while (used.has(slot)) slot++;
+    return slot;
+  };
 
   // ── Approve / Reject ──
   const handleApprove = async (id: string) => {
@@ -167,17 +173,13 @@ export function AdminBannersPage() {
 
   // ── Open editor ──
   const openAddEditor = () => {
-    const nextSlot = (() => {
-      let s = 1;
-      while (usedSlots.has(s)) s++;
-      return s;
-    })();
     setEditor({
       mode: 'add',
       file: null,
       previewUrl: '',
       mediaType: 'image',
-      slotNumber: nextSlot,
+      placement: 'home_top',
+      slotNumber: nextSlotNumber('home_top'),
       widthSlots: 1,
       linkUrl: '',
       title: '',
@@ -193,6 +195,7 @@ export function AdminBannersPage() {
       file: null,
       previewUrl: banner.image_url,
       mediaType: banner.media_type || 'image',
+      placement: banner.placement || 'home_top',
       slotNumber: banner.slot_number,
       widthSlots: banner.image_width_slots,
       linkUrl: banner.link_url || '',
@@ -205,14 +208,25 @@ export function AdminBannersPage() {
   // ── Save banner ──
   const handleSaveBanner = async () => {
     if (!editor) return;
+    if (!Number.isInteger(editor.slotNumber) || editor.slotNumber < 1) {
+      return toast('Urutan iklan harus berupa bilangan bulat minimal 1.', 'error');
+    }
+    if (allBanners.some((banner) =>
+      (banner.placement || 'home_top') === editor.placement &&
+      Number(banner.slot_number) === Number(editor.slotNumber) &&
+      banner.id !== editor.bannerId
+    )) {
+      return toast('Nomor urutan sudah digunakan pada penempatan ini. Pilih nomor lain.', 'error');
+    }
     setUploading(true);
     try {
       if (editor.mode === 'add') {
         if (!editor.file) return toast('Pilih file terlebih dahulu.', 'error');
         await adminAddBanner({
           file: editor.file,
+          placement: editor.placement,
           slotNumber: editor.slotNumber,
-          widthSlots: editor.widthSlots,
+          widthSlots: editor.placement === 'home_sidebar' ? 1 : editor.widthSlots,
           linkUrl: editor.linkUrl,
           title: editor.title,
           durationDays: editor.durationDays,
@@ -221,11 +235,12 @@ export function AdminBannersPage() {
         toast('Banner berhasil ditambahkan.', 'success');
       } else {
         const patch: Partial<AdBanner> = {
+          placement: editor.placement,
           slot_number: editor.slotNumber,
-          image_width_slots: editor.widthSlots,
+          image_width_slots: editor.placement === 'home_sidebar' ? 1 : editor.widthSlots,
           link_url: editor.linkUrl,
           title: editor.title,
-          single_image: editor.widthSlots > 1,
+          single_image: editor.placement !== 'home_sidebar' && editor.widthSlots > 1,
           slide_duration_seconds: editor.slideDuration,
         };
         // If new file uploaded, replace media
@@ -368,8 +383,11 @@ export function AdminBannersPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <Badge color={b.is_active ? 'moss' : 'default'}>
-                              Slot #{b.slot_number}
+                              Urutan #{b.slot_number}
                             </Badge>
+                            <span className="text-[10px] rounded px-1.5 py-0.5 surface-elevated text-slate-400">
+                              {BANNER_PLACEMENT_LABELS[b.placement || 'home_top']}
+                            </span>
                             <span className={`flex items-center gap-1 text-[10px] ${mediaInfo.color}`}>
                               <MediaIcon size={10} /> {mediaInfo.label}
                             </span>
@@ -462,7 +480,7 @@ export function AdminBannersPage() {
                       </span>
                     </div>
                     <p className="text-xs text-slate-400">
-                      {r.slots_requested} slot · {r.duration_days} hari ·{' '}
+                      {BANNER_PLACEMENT_LABELS[r.placement || 'home_top']} · {r.slots_requested} slot · {r.duration_days} hari ·{' '}
                       {r.image_urls?.length ? `${r.image_urls.length} gambar` : '1 gambar'}
                     </p>
                     <p className="text-sm text-accent font-semibold mt-1">
@@ -644,28 +662,55 @@ export function AdminBannersPage() {
                 <button onClick={() => !uploading && setEditor(null)} className="text-slate-400 hover:text-fg">✕</button>
               </div>
 
-              {/* Slot number and width — choose first so the upload preview matches the selected slot */}
+              {/* Placement is part of the existing banner record/request flow. */}
+              <div className="mb-4">
+                <label className="text-xs text-slate-400 block mb-1">Lokasi Penayangan</label>
+                <select
+                  value={editor.placement}
+                  onChange={(e) => {
+                    const placement = e.target.value as BannerPlacement;
+                    setEditor({
+                      ...editor,
+                      placement,
+                      slotNumber: nextSlotNumber(placement, editor.bannerId),
+                      widthSlots: placement === 'home_sidebar' ? 1 : Math.min(editor.widthSlots, 2),
+                    });
+                  }}
+                  className="input text-sm w-full"
+                >
+                  <option value="home_top">Banner Tengah Atas (1200 × 512 px)</option>
+                  <option value="home_sidebar">Sidebar Kanan (600 × 500 px)</option>
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Iklan lama tetap berada di Banner Tengah Atas. Lokasi baru berlaku setelah iklan disimpan atau request disetujui.
+                </p>
+              </div>
+
+              {/* Slot number and width — preview follows the selected placement */}
               <div className="grid grid-cols-2 gap-3 mb-2">
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">Nomor Slot</label>
+                  <label className="text-xs text-slate-400 block mb-1">Urutan Iklan</label>
                   <input type="number" min={1} step={1} value={editor.slotNumber}
                     onChange={e => setEditor({ ...editor, slotNumber: +e.target.value })}
                     className="input text-sm w-full" />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">Lebar Slot / Rasio Gambar</label>
-                  <select value={editor.widthSlots}
+                  <label className="text-xs text-slate-400 block mb-1">Lebar Penayangan</label>
+                  <select
+                    value={editor.placement === 'home_sidebar' ? 1 : editor.widthSlots}
+                    disabled={editor.placement === 'home_sidebar'}
                     onChange={e => setEditor({ ...editor, widthSlots: +e.target.value })}
-                    className="input text-sm w-full">
-                    <option value={1}>1 slot — standar</option>
-                    <option value={2}>2 slot — lebar</option>
-                    <option value={3}>3 slot — full width</option>
+                    className="input text-sm w-full"
+                  >
+                    <option value={1}>1 slot — satu banner</option>
+                    <option value={2}>2 slot — banner lebar</option>
+                    {editor.mode === 'edit' && editor.widthSlots > 2 && <option value={editor.widthSlots}>3 slot — data lama</option>}
                   </select>
                 </div>
               </div>
               <p className="text-[10px] text-slate-500 mb-4">
-                Ukuran rekomendasi: <span className="text-accent font-medium">{SLOT_DIMENSIONS[editor.widthSlots]}</span>.
-                Rasio dan preview gambar otomatis menyesuaikan pilihan slot.
+                Ukuran rekomendasi: <span className="text-accent font-medium">{getBannerDimensions(editor.placement, editor.widthSlots)}</span>.
+                Rasio dan preview mengikuti lokasi penayangan.
               </p>
 
               {/* File upload with slot-matched preview */}
@@ -676,15 +721,15 @@ export function AdminBannersPage() {
                   <div className="rounded-xl overflow-hidden surface-elevated border surface-border">
                     <div
                       className="relative w-full overflow-hidden"
-                      style={{ aspectRatio: SLOT_RATIOS[editor.widthSlots] }}
+                      style={{ aspectRatio: getBannerAspectRatio(editor.placement, editor.widthSlots) }}
                     >
                       {editor.mediaType === 'video' ? (
-                        <video src={editor.previewUrl} className="w-full h-full object-cover" controls muted />
+                        <video src={editor.previewUrl} className="w-full h-full object-contain bg-black/5" controls muted />
                       ) : (
-                        <img src={editor.previewUrl} alt="Preview banner" className="w-full h-full object-cover" />
+                        <img src={editor.previewUrl} alt="Preview banner" className="w-full h-full object-contain bg-black/5" />
                       )}
                       <div className="absolute top-2 left-2 rounded-md bg-black/65 px-2 py-1 text-[10px] text-white">
-                        Slot {editor.widthSlots} · {SLOT_DIMENSIONS[editor.widthSlots]}
+                        {BANNER_PLACEMENT_LABELS[editor.placement]} · {getBannerDimensions(editor.placement, editor.widthSlots)}
                       </div>
                       <button
                         onClick={() => fileRef.current?.click()}
@@ -698,12 +743,12 @@ export function AdminBannersPage() {
                   <button
                     onClick={() => fileRef.current?.click()}
                     className="w-full rounded-xl border-2 border-dashed surface-border flex flex-col items-center justify-center gap-2 px-3 py-4 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition"
-                    style={{ aspectRatio: SLOT_RATIOS[editor.widthSlots] }}
+                    style={{ aspectRatio: getBannerAspectRatio(editor.placement, editor.widthSlots) }}
                   >
                     <Upload size={22} />
                     <span className="text-xs">Klik untuk upload media</span>
                     <span className="text-[10px] text-slate-500">
-                      Slot {editor.widthSlots} · {SLOT_DIMENSIONS[editor.widthSlots]}
+                      {BANNER_PLACEMENT_LABELS[editor.placement]} · {getBannerDimensions(editor.placement, editor.widthSlots)}
                     </span>
                   </button>
                 )}
