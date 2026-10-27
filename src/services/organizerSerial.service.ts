@@ -12,6 +12,7 @@ export interface OrganizerSerial {
   assigned_at: string | null;
   revoked_at: string | null;
   created_at: string;
+  source_order_id: string | null;
 }
 
 const GENERATE_RPC_NAME = 'generate_organizer_serials';
@@ -20,7 +21,7 @@ const GENERATE_HEALTH_KEY = `__rpc_health:${GENERATE_RPC_NAME}`;
 export async function listOrganizerSerials(organizerId: string, limit = 500) {
   const { data, error } = await supabase
     .from('organizer_serials')
-    .select('id,organizer_id,serial_code,qr_payload,status,certificate_id,assigned_at,revoked_at,created_at')
+    .select('id,organizer_id,serial_code,qr_payload,status,certificate_id,assigned_at,revoked_at,created_at,source_order_id')
     .eq('organizer_id', organizerId)
     .order('created_at', { ascending: false })
     .limit(limit);

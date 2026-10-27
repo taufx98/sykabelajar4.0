@@ -320,6 +320,17 @@ test.describe('Shop editor', () => {
     await expect(page.getByLabel('Harga (Rp)')).toBeVisible();
     await expect(page.locator('[role="dialog"] select').first()).toBeVisible();
     await expect(page.getByText('Unggah gambar', { exact: true })).toBeVisible();
+
+    const typeSelector = page.locator('[role="dialog"] select').first();
+    await typeSelector.selectOption('EDU_COIN_TOPUP');
+    await expect(page.getByText('Edu Coin yang diterima pembeli')).toBeVisible();
+    await typeSelector.selectOption('BADGE');
+    await expect(page.getByText('Badge yang akan diberikan')).toBeVisible();
+    await expect(page.getByText(/badge yang diizinkan untuk dijual/i)).toBeVisible();
+    await typeSelector.selectOption('CERTIFICATE_SERIALS');
+    await expect(page.getByText('Jumlah QR / Serial dalam paket')).toBeVisible();
+
+    await typeSelector.selectOption('DIGITAL_ITEM');
     await page.getByLabel('Nama produk').fill('Paket Latihan Sains');
     await page.getByLabel('Tampilkan di Shop').check();
     await page.getByRole('button', { name: 'Simpan produk' }).click();
