@@ -158,11 +158,17 @@ export async function saveProduct(input: AdminProductInput) {
   if (!name) throw new Error('Nama produk wajib diisi.');
   if (!code) throw new Error('Kode produk belum tersedia. Isi pada bagian Identitas produk atau kosongkan agar dibuat otomatis.');
   if (!slug) throw new Error('Tautan produk belum tersedia. Isi pada bagian Identitas produk atau kosongkan agar dibuat otomatis.');
-  if (!['DIGITAL_ITEM', 'DONATION'].includes(productType)) throw new Error('Jenis produk ini belum didukung untuk pemesanan Shop.');
+  if (!['DIGITAL_ITEM', 'DONATION', 'EDU_COIN_TOPUP', 'BADGE', 'CERTIFICATE_SERIALS', 'COLLECTIVE_CERTIFICATE'].includes(productType)) throw new Error('Jenis produk ini belum didukung untuk pemesanan Shop.');
   if (!audiences.length) throw new Error('Pilih minimal satu kelompok pengguna.');
   if (audiences.some((value) => !['student', 'teacher', 'organizer'].includes(value))) throw new Error('Kelompok pengguna tidak valid.');
   if (!Number.isFinite(price) || price < 0) throw new Error('Harga harus berupa angka nol atau lebih.');
-  if (input.is_active && price <= 0) throw new Error('Produk yang ditampilkan harus memiliki harga di atas Rp0.');
+  if (input.is_active && price <= 0 && productType !== 'COLLECTIVE_CERTIFICATE') throw new Error('Produk yang ditampilkan harus memiliki harga di atas Rp0.');
+  const metadata = input.metadata ?? {};
+  if (productType === 'EDU_COIN_TOPUP' && (!Number.isInteger(Number(metadata.coin_amount)) || Number(metadata.coin_amount) < 1 || Number(metadata.coin_amount) > 1_000_000)) throw new Error('Jumlah Edu Coin harus antara 1 dan 1.000.000.');
+  if (productType === 'BADGE' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(metadata.badge_id ?? ''))) throw new Error('Pilih badge yang akan diberikan setelah pembayaran berhasil.');
+  if (productType === 'CERTIFICATE_SERIALS' && (!Number.isInteger(Number(metadata.serial_quantity)) || Number(metadata.serial_quantity) < 1 || Number(metadata.serial_quantity) > 1000)) throw new Error('Jumlah QR / Serial sertifikat harus antara 1 dan 1.000.');
+  if (productType === 'CERTIFICATE_SERIALS' && !audiences.includes('organizer')) throw new Error('Paket QR / Serial hanya ditujukan untuk penyelenggara.');
+  if (productType === 'COLLECTIVE_CERTIFICATE' && !audiences.includes('teacher')) throw new Error('Produk sertifikat peserta kolektif harus ditujukan untuk guru.');
   const imageUrl = input.image_url?.trim() ?? '';
   if (imageUrl) {
     try {
@@ -188,7 +194,7 @@ export async function saveProduct(input: AdminProductInput) {
     p_is_active: !!input.is_active,
     p_is_featured: !!input.is_featured,
     p_sort_order: Number.isInteger(input.sort_order) && Number(input.sort_order) >= 0 ? Number(input.sort_order) : 0,
-    p_metadata: input.metadata ?? {},
+    p_metadata: productType === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : metadata,
   });
 
   if (error) {
