@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { lazy, Suspense, type ReactNode, useEffect } from 'react';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
+import { LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { MobileNavigationOverride } from '@/components/layout/MobileNavigationOverride';
 import { ChatUXBridge } from '@/components/chat/ChatUXBridge';
@@ -108,6 +109,11 @@ function ChatSessionIsolation() {
     void loadInitial();
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUserId = session?.user?.id ?? null;
+      if (event === 'SIGNED_OUT' && sessionStorage.getItem(LOGIN_REJECTION_SIGNOUT_KEY) === '1') {
+        sessionStorage.removeItem(LOGIN_REJECTION_SIGNOUT_KEY);
+        previousUserId = null;
+        return;
+      }
       if (event === 'SIGNED_OUT' || (event === 'SIGNED_IN' && previousUserId !== null && nextUserId !== previousUserId)) {
         if (!reloading) {
           reloading = true;
