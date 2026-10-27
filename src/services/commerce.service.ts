@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
 export interface CommerceProduct {
-  id: string; code: string; slug: string; name: string; short_description: string | null; product_type: string; audiences: string[] | null; price: number; currency: string; image_url: string | null; public_id: string | null; is_active: boolean; is_featured: boolean; sort_order: number;
+  id: string; code: string; slug: string; name: string; short_description: string | null; description: string | null; product_type: string; audiences: string[] | null; price: number; currency: string; image_url: string | null; public_id: string | null; is_active: boolean; is_featured: boolean; sort_order: number; metadata: Record<string, unknown>;
 }
 export interface OrganizerPlanCatalogRow { plan_code: string; name: string; badge: string | null; description: string | null; monthly_price: number; yearly_price: number; monthly_discount_percent: number; yearly_discount_percent: number; currency: string; sort_order: number; is_active: boolean; config: Record<string, unknown>; }
 export interface OrganizerPlanBenefit { plan_code: string; capability: string; limit_value: number | null; config: Record<string, unknown>; }
@@ -15,7 +15,32 @@ function mapVoucher(row: Record<string, unknown>): OrganizerVoucher { return { i
 function mapPaymentField(row: Record<string, unknown>): OrganizerPaymentFieldSetting { return { id: String(row.id), field_key: String(row.field_key), label: String(row.label), description: String(row.description ?? ''), is_enabled: Boolean(row.is_enabled), is_required: Boolean(row.is_required), sort_order: Number(row.sort_order ?? 0), input_type: String(row.input_type ?? 'TEXT').toUpperCase() === 'NUMBER' ? 'NUMBER' : 'TEXT' }; }
 function mapPaymentMethod(row: Record<string, unknown>): OrganizerPaymentMethod { return { id: String(row.id), name: String(row.name ?? ''), payment_type: String(row.payment_type ?? ''), details: row.details && typeof row.details === 'object' ? row.details as Record<string, unknown> : {}, image_url: row.image_url == null ? null : String(row.image_url), image_public_id: row.image_public_id == null ? null : String(row.image_public_id), is_active: Boolean(row.is_active), sort_order: Number(row.sort_order ?? 0), created_at: String(row.created_at ?? ''), updated_at: String(row.updated_at ?? '') }; }
 
-export async function listActiveProducts(): Promise<CommerceProduct[]> { const { data, error } = await supabase.from('commerce_products').select('id,code,slug,name,short_description,product_type,audiences,price,currency,image_url,public_id,is_active,is_featured,sort_order').eq('is_active', true).order('sort_order', { ascending: true }); if (error) throw error; return ((data ?? []) as Array<Record<string, unknown>>).map((p) => ({ id: String(p.id), code: String(p.code ?? ''), slug: String(p.slug ?? ''), name: String(p.name ?? ''), short_description: p.short_description == null ? null : String(p.short_description), product_type: String(p.product_type ?? ''), audiences: Array.isArray(p.audiences) ? p.audiences.map(String) : null, price: Number(p.price ?? 0), currency: String(p.currency ?? 'IDR'), image_url: p.image_url == null ? null : String(p.image_url), public_id: p.public_id == null ? null : String(p.public_id), is_active: Boolean(p.is_active), is_featured: Boolean(p.is_featured), sort_order: Number(p.sort_order ?? 0) })); }
+export async function listActiveProducts(): Promise<CommerceProduct[]> {
+  const { data, error } = await supabase
+    .from('commerce_products')
+    .select('id,code,slug,name,short_description,description,product_type,audiences,price,currency,image_url,public_id,is_active,is_featured,sort_order,metadata')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as Array<Record<string, unknown>>).map((product) => ({
+    id: String(product.id),
+    code: String(product.code ?? ''),
+    slug: String(product.slug ?? ''),
+    name: String(product.name ?? ''),
+    short_description: product.short_description == null ? null : String(product.short_description),
+    description: product.description == null ? null : String(product.description),
+    product_type: String(product.product_type ?? ''),
+    audiences: Array.isArray(product.audiences) ? product.audiences.map(String) : null,
+    price: Number(product.price ?? 0),
+    currency: String(product.currency ?? 'IDR'),
+    image_url: product.image_url == null ? null : String(product.image_url),
+    public_id: product.public_id == null ? null : String(product.public_id),
+    is_active: Boolean(product.is_active),
+    is_featured: Boolean(product.is_featured),
+    sort_order: Number(product.sort_order ?? 0),
+    metadata: product.metadata && typeof product.metadata === 'object' ? product.metadata as Record<string, unknown> : {},
+  }));
+}
 export async function listActiveOrganizerPlans(): Promise<OrganizerPlanCatalogRow[]> { const { data, error } = await supabase.from('plan_catalog').select('plan_code,name,badge,description,monthly_price,yearly_price,monthly_discount_percent,yearly_discount_percent,currency,sort_order,is_active,config').eq('is_active', true).in('plan_code', ['FREE','PREMIUM','PRO']).order('sort_order', { ascending: true }); if (error) throw error; return ((data ?? []) as Array<Record<string, unknown>>).map((p) => ({ plan_code: String(p.plan_code), name: String(p.name ?? p.plan_code), badge: p.badge == null ? null : String(p.badge), description: p.description == null ? null : String(p.description), monthly_price: Number(p.monthly_price ?? 0), yearly_price: Number(p.yearly_price ?? 0), monthly_discount_percent: Number(p.monthly_discount_percent ?? 0), yearly_discount_percent: Number(p.yearly_discount_percent ?? 0), currency: String(p.currency ?? 'IDR'), sort_order: Number(p.sort_order ?? 0), is_active: Boolean(p.is_active), config: p.config && typeof p.config === 'object' ? p.config as Record<string, unknown> : {} })); }
 export async function listOrganizerPlanBenefits(planCodes: string[]): Promise<OrganizerPlanBenefit[]> { const normalized = [...new Set(planCodes.map((code) => code.trim().toUpperCase()).filter(Boolean))]; if (!normalized.length) return []; const { data, error } = await supabase.from('plan_entitlements').select('plan_code,capability,limit_value,config').in('plan_code', normalized).order('plan_code').order('capability'); if (error) throw error; return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({ plan_code: String(row.plan_code), capability: String(row.capability), limit_value: row.limit_value == null ? null : Number(row.limit_value), config: row.config && typeof row.config === 'object' ? row.config as Record<string, unknown> : {} })); }
 export async function listClaimableOrganizerVouchers(): Promise<OrganizerVoucher[]> { const { data, error } = await supabase.rpc('list_claimable_organizer_vouchers'); if (error) throw error; return ((data ?? []) as Array<Record<string, unknown>>).map(mapVoucher); }
@@ -35,5 +60,72 @@ export async function createOrganizerPlanOrder(input: { organizerId: string; pla
 export async function createOrganizerPlanOrderV2(input: { organizerId: string; planCode: string; billingPeriod: 'MONTHLY' | 'YEARLY'; whatsapp: string; proofUrl?: string; proofPublicId?: string; proofWidth?: number; proofHeight?: number; proofVersion?: string; proofResourceType?: string; voucherCode?: string; }) { return createOrganizerPlanOrder({ ...input, whatsapp: input.whatsapp }); }
 export async function requestCustomOrganizerPlan(input: { organizerId: string; requestedFeatures: string[]; quantities?: Record<string, number>; notes?: string; contactWhatsapp?: string; }) { const features = input.requestedFeatures.map((x) => x.trim()).filter(Boolean); if (!input.organizerId) throw new Error('Organisasi wajib dipilih.'); if (!features.length) throw new Error('Pilih minimal satu fitur custom.'); const quantities: Record<string, number> = {}; for (const [key,value] of Object.entries(input.quantities ?? {})) { if (!features.includes(key)) continue; if (!Number.isInteger(value) || value < 1) throw new Error(`Jumlah untuk ${key} harus bilangan bulat minimal 1.`); quantities[key]=value; } const { data,error }=await supabase.rpc('request_custom_organizer_plan',{p_organizer_id:input.organizerId,p_requested_features:{features,quantities},p_notes:input.notes?.trim()||null,p_contact_whatsapp:input.contactWhatsapp?.trim()||null});if(error)throw error;return Array.isArray(data)?data[0]:data; }
 export async function createProductOrder(productId:string,quantity:number){if(!Number.isInteger(quantity)||quantity<1)throw new Error('Jumlah produk tidak valid.');const{data,error}=await supabase.rpc('create_product_order',{p_product_id:productId,p_quantity:quantity});if(error)throw error;return Array.isArray(data)?data[0]:data;}
-export async function createProductOrderWithProof(input:{productId:string;quantity:number;whatsapp:string;paymentMethod:string;proofUrl:string;proofPublicId?:string;proofWidth?:number;proofHeight?:number;proofVersion?:string;proofResourceType?:string;}){if(!Number.isInteger(input.quantity)||input.quantity<1)throw new Error('Jumlah produk tidak valid.');const{data,error}=await supabase.rpc('create_product_order_with_proof',{p_product_id:input.productId,p_quantity:input.quantity,p_whatsapp:input.whatsapp.trim(),p_payment_method:input.paymentMethod,p_proof_url:input.proofUrl,p_proof_public_id:input.proofPublicId??null,p_proof_width:input.proofWidth??null,p_proof_height:input.proofHeight??null,p_proof_version:input.proofVersion??null,p_proof_resource_type:input.proofResourceType??null});if(error)throw error;return Array.isArray(data)?data[0]:data;}
+export async function createProductOrderWithProof(input: {
+  productId: string;
+  quantity: number;
+  whatsapp: string;
+  paymentMethod: string;
+  proofUrl: string;
+  proofPublicId?: string;
+  proofWidth?: number;
+  proofHeight?: number;
+  proofVersion?: string;
+  proofResourceType?: string;
+  targetOrganizerId?: string | null;
+}) {
+  if (!Number.isInteger(input.quantity) || input.quantity < 1) throw new Error('Jumlah produk tidak valid.');
+  const { data, error } = await supabase.rpc('create_product_order_with_proof', {
+    p_product_id: input.productId,
+    p_quantity: input.quantity,
+    p_whatsapp: input.whatsapp.trim(),
+    p_payment_method: input.paymentMethod,
+    p_proof_url: input.proofUrl,
+    p_proof_public_id: input.proofPublicId ?? null,
+    p_proof_width: input.proofWidth ?? null,
+    p_proof_height: input.proofHeight ?? null,
+    p_proof_version: input.proofVersion ?? null,
+    p_proof_resource_type: input.proofResourceType ?? null,
+    p_target_organizer_id: input.targetOrganizerId ?? null,
+  });
+  if (error) {
+    if (error.message.includes('BADGE_ALREADY_OWNED')) throw new Error('Badge ini sudah ada di koleksimu.');
+    if (error.message.includes('ORGANIZER_REQUIRED')) throw new Error('Pilih organisasi yang akan menerima QR / Serial sertifikat.');
+    if (error.message.includes('ORGANIZER_ACCESS_DENIED')) throw new Error('Kamu tidak memiliki akses untuk organisasi yang dipilih.');
+    if (error.message.includes('SINGLE_PACKAGE_ONLY')) throw new Error('Produk ini dijual per paket. Ubah jumlah paket menjadi 1.');
+    throw error;
+  }
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function createCollectiveCertificateOrderWithProof(input: {
+  certificateId: string;
+  paymentMethod: string;
+  proofUrl: string;
+  whatsapp?: string;
+  proofPublicId?: string;
+  proofWidth?: number;
+  proofHeight?: number;
+  proofVersion?: string;
+  proofResourceType?: string;
+}) {
+  const { data, error } = await supabase.rpc('create_collective_certificate_order_with_proof', {
+    p_certificate_id: input.certificateId,
+    p_payment_method: input.paymentMethod,
+    p_proof_url: input.proofUrl,
+    p_proof_public_id: input.proofPublicId ?? null,
+    p_proof_width: input.proofWidth ?? null,
+    p_proof_height: input.proofHeight ?? null,
+    p_proof_version: input.proofVersion ?? null,
+    p_proof_resource_type: input.proofResourceType ?? null,
+    p_whatsapp: input.whatsapp?.trim() || null,
+  });
+  if (error) {
+    if (error.message.includes('RESULT_NOT_FINALIZED')) throw new Error('Peserta belum menyelesaikan lomba. Sertifikat belum bisa dipesan.');
+    if (error.message.includes('RESULT_NOT_PUBLISHED')) throw new Error('Hasil lomba belum diumumkan. Sertifikat belum bisa dipesan.');
+    if (error.message.includes('CERTIFICATE_PRICE_NOT_CONFIGURED')) throw new Error('Harga sertifikat peserta belum diatur oleh admin.');
+    if (error.message.includes('CERTIFICATE_PAYMENT_ALREADY_SUBMITTED')) throw new Error('Bukti pembayaran untuk sertifikat ini sudah dikirim.');
+    throw error;
+  }
+  return Array.isArray(data) ? data[0] : data;
+}
 export async function adminReviewManualOrder(orderId:string,decision:'APPROVE'|'REJECT',reason=''){const{data,error}=await supabase.rpc('admin_review_manual_order',{p_order_id:orderId,p_decision:decision,p_reason:reason.trim()||null});if(error)throw error;return Array.isArray(data)?data[0]:data;}
