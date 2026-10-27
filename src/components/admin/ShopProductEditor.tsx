@@ -92,16 +92,23 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
   useEffect(() => {
     let active = true;
     setBadgeCatalogLoading(true);
-    void supabase.from('badges').select('id,name,icon_emoji,rarity').eq('status','ACTIVE').eq('is_purchasable',true).eq('award_type','MANUAL').order('name')
-      .then(({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await supabase.from('badges')
+          .select('id,name,icon_emoji,rarity')
+          .eq('status','ACTIVE')
+          .eq('is_purchasable',true)
+          .eq('award_type','MANUAL')
+          .order('name');
         if (!active) return;
         if (error) throw error;
         setAvailableBadges((data ?? []) as Array<{ id: string; name: string; icon_emoji: string | null; rarity: string }>);
-      })
-      .catch(() => {
+      } catch {
         if (active) setValidationMessage('Daftar badge belum bisa dimuat. Coba buka kembali formulir.');
-      })
-      .finally(() => { if (active) setBadgeCatalogLoading(false); });
+      } finally {
+        if (active) setBadgeCatalogLoading(false);
+      }
+    })();
     return () => { active = false; };
   }, []);
 
