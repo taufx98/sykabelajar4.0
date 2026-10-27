@@ -94,7 +94,7 @@ begin
       nullif(trim(coalesce(p_short_description,'')),''),
       nullif(trim(coalesce(p_description,'')),''),
       v_type,v_audiences,v_price,coalesce(nullif(trim(p_currency),''),'IDR'),
-      nullif(trim(coalesce(p_image_url,''),''),
+      nullif(trim(coalesce(p_image_url,'')),'',
       coalesce(p_is_active,false),coalesce(p_is_featured,false),greatest(coalesce(p_sort_order,0),0),v_metadata
     ) returning * into v_after;
     perform private.write_audit('admin.product_create','commerce_product',v_after.id::text,'Admin Shop',null,to_jsonb(v_after),null);
@@ -256,9 +256,7 @@ begin
   select * into v_cp from public.collective_participants where id=v_cert.collective_participant_id;
   if not found then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
   if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception 'FORBIDDEN'; end if;
-  if coalesce(v_cp.attempt_status,'') <> 'FINALIZED' and not exists (
-    select 1 from public.attempts a where a.collective_participant_id=v_cp.id and a.status='FINALIZED'
-  ) then raise exception 'RESULT_NOT_FINALIZED'; end if;
+  if not exists(select 1 from public.attempts a where a.collective_participant_id=v_cp.id and a.status='FINALIZED') then raise exception 'RESULT_NOT_FINALIZED'; end if;
   if not exists(select 1 from public.competitions c where c.id=v_cert.competition_id and c.status in ('RESULT_PUBLISHED','ARCHIVED')) then
     raise exception 'RESULT_NOT_PUBLISHED';
   end if;
@@ -357,6 +355,7 @@ begin
   if not found then raise exception 'ORDER_NOT_FOUND'; end if;
   if upper(trim(p_decision)) not in ('APPROVE','REJECT') then raise exception 'INVALID_DECISION'; end if;
   if v.status<>'PENDING_PAYMENT' then raise exception 'ORDER_NOT_REVIEWABLE:%',v.status; end if;
+  v_before := v;
   select * into i from public.order_items where order_id=v.id order by created_at limit 1;
   v_shop_metadata := coalesce(i.metadata->'shop_metadata',i.metadata->'metadata','{}'::jsonb);
 
