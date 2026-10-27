@@ -125,6 +125,46 @@ $$;
 revoke execute on function public.admin_save_product(uuid,text,text,text,text,text,text,text[],numeric,text,text,boolean,boolean,integer,jsonb) from public, anon;
 grant execute on function public.admin_save_product(uuid,text,text,text,text,text,text,text[],numeric,text,text,boolean,boolean,integer,jsonb) to authenticated;
 
+create or replace function public.create_product_order(
+  p_product_id uuid,
+  p_quantity integer default 1
+) returns public.orders
+language plpgsql
+security definer
+set search_path = public, private
+as $
+declare
+  v_product public.commerce_products;
+  v_order public.orders;
+  v_qty integer := p_quantity;
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  if v_qty is null or v_qty < 1 or v_qty > 100 then raise exception 'INVALID_QUANTITY'; end if;
+  select * into v_product from public.commerce_products where id=p_product_id and is_active=true for share;
+  if not found then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
+  if v_product.product_type not in ('DIGITAL_ITEM','DONATION') then raise exception 'PRODUCT_TYPE_NOT_SUPPORTED'; end if;
+  if v_product.price <= 0 then raise exception 'ACTIVE_PRODUCT_PRICE_REQUIRED'; end if;
+  if cardinality(coalesce(v_product.audiences,array[]::text[]))=0 then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
+  if not private.current_user_is_admin() and not exists (
+    select 1 from public.user_roles ur where ur.user_id=auth.uid() and ur.is_active=true
+      and ((ur.role::text='student' and 'student'=any(v_product.audiences))
+        or (ur.role::text='teacher' and 'teacher'=any(v_product.audiences))
+        or (ur.role::text='organizer_member' and 'organizer'=any(v_product.audiences)))
+  ) then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
+  insert into public.orders(user_id,status,subtotal,discount,shipping_cost,total,currency)
+  values(auth.uid(),'DRAFT',v_product.price*v_qty,0,0,v_product.price*v_qty,v_product.currency)
+  returning * into v_order;
+  insert into public.order_items(order_id,product_type,product_ref,name,quantity,unit_price,line_total,metadata)
+  values(v_order.id,v_product.product_type,v_product.id::text,v_product.name,v_qty,v_product.price,v_product.price*v_qty,
+    jsonb_build_object('product_code',v_product.code,'metadata',v_product.metadata));
+  perform private.write_audit('commerce.order_created','order',v_order.id::text,'Draft catalog order created by user',null,to_jsonb(v_order),null);
+  return v_order;
+end;
+$;
+
+revoke execute on function public.create_product_order(uuid,integer) from public, anon;
+grant execute on function public.create_product_order(uuid,integer) to authenticated;
+
 drop function if exists public.create_product_order_with_proof(uuid,integer,text,text,text,text,integer,integer,text,text);
 create function public.create_product_order_with_proof(
   p_product_id uuid,
