@@ -26,6 +26,7 @@ export type Badge = {
   rarity: BadgeRarity;
   status: BadgeStatus;
   award_type: BadgeAwardType;
+  is_purchasable: boolean;
   rule_config: BadgeRuleConfig;
   created_by: string | null;
   created_at: string;
@@ -77,6 +78,7 @@ export async function listAdminBadges(): Promise<Badge[]> {
 }
 
 export async function saveBadge(input: Partial<Badge> & { name: string; code: string; slug: string; description: string; category: string; rarity: BadgeRarity; status: BadgeStatus; award_type: BadgeAwardType; rule_config: BadgeRuleConfig }) {
+  if (input.is_purchasable && input.award_type !== 'MANUAL') throw new Error('Hanya badge manual yang boleh ditawarkan untuk dibeli. Badge prestasi otomatis tidak dapat dijual.');
   const payload = {
     code: input.code.trim().toUpperCase(),
     name: input.name.trim(),
@@ -88,6 +90,7 @@ export async function saveBadge(input: Partial<Badge> & { name: string; code: st
     rarity: input.rarity,
     status: input.status,
     award_type: input.award_type,
+    is_purchasable: input.award_type === 'MANUAL' && Boolean(input.is_purchasable),
     rule_config: normaliseRule(input.rule_config),
     updated_at: new Date().toISOString(),
   };
