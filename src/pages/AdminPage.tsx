@@ -1,6 +1,6 @@
 import { toast } from '@/lib/toast';
 import { useEffect, useMemo, useState } from 'react';
-import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, Package, Eye, EyeOff, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, Package, Eye, EyeOff, Sparkles, Image as ImageIcon, Copy } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
@@ -112,6 +112,27 @@ export function AdminPage() {
     if (!postEditor?.title || !postEditor?.body) return toast.warning('Judul dan isi postingan wajib diisi.');
     await run(async () => { const saved = await savePost(postEditor); if (saved) setPosts(rows => postEditor.id ? rows.map(row => row.id === postEditor.id ? { ...row, ...saved } : row) : [saved, ...rows]); setPostEditor(null); }, postEditor.id ? 'Postingan berhasil diperbarui.' : 'Postingan berhasil dibuat.', 'Gagal menyimpan postingan.');
   };
+  const openDuplicateProduct = (product: any) => {
+    const maxSortOrder = products.reduce((max, row) => Math.max(max, Number(row.sort_order) || 0), -1);
+    const productName = String(product.name || 'Produk').trim();
+    const metadata = product.metadata && typeof product.metadata === 'object'
+      ? JSON.parse(JSON.stringify(product.metadata)) as Record<string, unknown>
+      : {};
+
+    setProductEditor({
+      ...product,
+      id: null,
+      code: '',
+      slug: '',
+      name: `${productName.slice(0, 110)} (Salinan)`,
+      is_active: false,
+      is_featured: false,
+      sort_order: maxSortOrder + 1,
+      metadata,
+      isDuplicate: true,
+    });
+  };
+
   const saveProductAction = async (draft: ShopProductDraft) => {
     const name = draft.name.trim();
     if (!name) return toast.warning('Nama produk wajib diisi.');
@@ -305,8 +326,9 @@ export function AdminPage() {
                       <div className="flex flex-wrap gap-1.5">
                         {audienceLabels.length ? audienceLabels.map((audience: string) => <span key={audience} className="rounded-full bg-surface-elevated/50 px-2 py-1 text-[10px] text-fg-muted">{audience}</span>) : <span className="text-[10px] text-amber-400">Belum memilih kelompok pengguna</span>}
                       </div>
-                      <div className="flex gap-2 border-t surface-border pt-3">
+                      <div className="flex flex-wrap gap-2 border-t surface-border pt-3">
                         <Button size="sm" variant="outline" className="flex-1" icon={<Edit3 size={13}/>} onClick={() => setProductEditor(product)}>Edit produk</Button>
+                        <Button size="sm" variant="outline" icon={<Copy size={13}/>} aria-label={`Duplikat ${product.name || 'produk'}`} onClick={() => openDuplicateProduct(product)} disabled={busy}>Duplikat</Button>
                         <Button size="sm" variant="danger" aria-label={`Hapus ${product.name || 'produk'}`} onClick={() => void removeRow('product', product.id)} disabled={busy}><Trash2 size={14}/></Button>
                       </div>
                     </div>
@@ -319,7 +341,7 @@ export function AdminPage() {
     {usernameEditor&&<AdminUsernameModal user={usernameEditor} onClose={()=>setUsernameEditor(null)} onSaved={username=>{setUsers(rows=>rows.map(row=>row.id===usernameEditor.id?{...row,username}:row));setUsernameEditor(null);}}/>}
     {competitionEditor&&<Editor title={competitionEditor.id?'Edit Lomba':'Tambah Lomba'} onClose={()=>setCompetitionEditor(null)} onSave={()=>void saveCompetitionAction()} busy={busy}><Field label="Judul" value={competitionEditor.title||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,title:v}))}/><Field label="Slug" value={competitionEditor.slug||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,slug:v}))}/><Field label="Kategori" value={competitionEditor.category||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,category:v}))}/></Editor>}
     {postEditor&&<Editor title={postEditor.id?'Edit Postingan':'Tambah Postingan'} onClose={()=>setPostEditor(null)} onSave={()=>void savePostAction()} busy={busy}><Field label="Judul" value={postEditor.title||''} onChange={v=>setPostEditor((x:any)=>({...x,title:v}))}/><Field label="Isi" value={postEditor.body||''} onChange={v=>setPostEditor((x:any)=>({...x,body:v}))} textarea/></Editor>}
-    {productEditor&&<ShopProductEditor key={productEditor.id ?? 'new'} product={productEditor} busy={busy} onClose={()=>setProductEditor(null)} onSave={saveProductAction}/>}
+    {productEditor&&<ShopProductEditor key={productEditor.id ?? (productEditor.isDuplicate ? 'duplicate' : 'new')} product={productEditor} mode={productEditor.isDuplicate ? 'duplicate' : undefined} busy={busy} onClose={()=>setProductEditor(null)} onSave={saveProductAction}/>}
     {competitionDelete&&<CompetitionDeleteModal title={competitionDelete.title} blockers={competitionDelete.blockers} loading={competitionDelete.loading} deleting={competitionDelete.deleting} error={competitionDelete.error} onClose={()=>{if(!competitionDelete.deleting)setCompetitionDelete(null);}} onConfirm={()=>void confirmCompetitionDelete()}/>} 
   </div>;
 }
