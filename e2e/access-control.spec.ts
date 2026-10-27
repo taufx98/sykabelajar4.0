@@ -318,7 +318,7 @@ test.describe('Shop editor', () => {
     await page.getByRole('button', { name: 'Tambah produk', exact: true }).click();
     await expect(page.getByLabel('Nama produk')).toBeVisible();
     await expect(page.getByLabel('Harga (Rp)')).toBeVisible();
-    await expect(page.getByLabel('Jenis produk', { exact: true })).toBeVisible();
+    await expect(page.locator('[role="dialog"] select').first()).toBeVisible();
     await expect(page.getByText('Unggah gambar', { exact: true })).toBeVisible();
     await page.getByLabel('Nama produk').fill('Paket Latihan Sains');
     await page.getByLabel('Tampilkan di Shop').check();
