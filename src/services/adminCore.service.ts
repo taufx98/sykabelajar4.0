@@ -148,24 +148,59 @@ export async function deletePost(id: string) {
 }
 
 export async function saveProduct(input: AdminProductInput) {
+  const name = input.name.trim();
+  const code = input.code.trim();
+  const slug = input.slug.trim();
+  const audiences = [...new Set((input.audiences ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean))];
+  const productType = String(input.product_type ?? 'DIGITAL_ITEM').trim().toUpperCase();
+  const price = Number(input.price ?? 0);
+
+  if (!name) throw new Error('Nama produk wajib diisi.');
+  if (!code) throw new Error('Kode produk belum tersedia. Isi pada bagian Identitas produk atau kosongkan agar dibuat otomatis.');
+  if (!slug) throw new Error('Tautan produk belum tersedia. Isi pada bagian Identitas produk atau kosongkan agar dibuat otomatis.');
+  if (!['DIGITAL_ITEM', 'DONATION'].includes(productType)) throw new Error('Jenis produk ini belum didukung untuk pemesanan Shop.');
+  if (!audiences.length) throw new Error('Pilih minimal satu kelompok pengguna.');
+  if (audiences.some((value) => !['student', 'teacher', 'organizer'].includes(value))) throw new Error('Kelompok pengguna tidak valid.');
+  if (!Number.isFinite(price) || price < 0) throw new Error('Harga harus berupa angka nol atau lebih.');
+  if (input.is_active && price <= 0) throw new Error('Produk yang ditampilkan harus memiliki harga di atas Rp0.');
+  const imageUrl = input.image_url?.trim() ?? '';
+  if (imageUrl) {
+    try {
+      const url = new URL(imageUrl);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('invalid protocol');
+    } catch {
+      throw new Error('Tautan gambar harus diawali http:// atau https://.');
+    }
+  }
+
   const { data, error } = await supabase.rpc('admin_save_product', {
     p_product_id: input.id ?? null,
-    p_code: input.code.trim(),
-    p_slug: input.slug.trim(),
-    p_name: input.name.trim(),
-    p_short_description: input.short_description ?? null,
-    p_description: input.description ?? null,
-    p_product_type: input.product_type ?? 'DIGITAL_ITEM',
-    p_audiences: input.audiences ?? ['student'],
-    p_price: Number.isFinite(input.price) ? Number(input.price) : 0,
-    p_currency: input.currency ?? 'IDR',
-    p_image_url: input.image_url ?? null,
+    p_code: code,
+    p_slug: slug,
+    p_name: name,
+    p_short_description: input.short_description?.trim() || null,
+    p_description: input.description?.trim() || null,
+    p_product_type: productType,
+    p_audiences: audiences,
+    p_price: price,
+    p_currency: 'IDR',
+    p_image_url: imageUrl || null,
     p_is_active: !!input.is_active,
     p_is_featured: !!input.is_featured,
-    p_sort_order: Number.isFinite(input.sort_order) ? Number(input.sort_order) : 0,
+    p_sort_order: Number.isInteger(input.sort_order) && Number(input.sort_order) >= 0 ? Number(input.sort_order) : 0,
     p_metadata: input.metadata ?? {},
   });
-  if (error) throw error;
+
+  if (error) {
+    if (error.code === '23505' && error.message.includes('commerce_products_code_key')) throw new Error('Kode produk ini sudah digunakan. Gunakan kode lain.');
+    if (error.code === '23505' && error.message.includes('commerce_products_slug_key')) throw new Error('Tautan produk ini sudah digunakan. Ubah tautan pendeknya.');
+    if (error.message.includes('ACTIVE_PRODUCT_PRICE_REQUIRED')) throw new Error('Produk yang ditampilkan harus memiliki harga di atas Rp0.');
+    if (error.message.includes('PRODUCT_TYPE_NOT_SUPPORTED')) throw new Error('Jenis produk ini belum didukung untuk pemesanan Shop.');
+    if (error.message.includes('AUDIENCE_REQUIRED')) throw new Error('Pilih minimal satu kelompok pengguna.');
+    if (error.message.includes('IMAGE_URL_INVALID')) throw new Error('Tautan gambar harus diawali http:// atau https://.');
+    throw error;
+  }
+
   return data;
 }
 
