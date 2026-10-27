@@ -5,7 +5,7 @@ import { signIn, signUp, signOut } from '@/services/auth.service';
 import { getAuthenticatedProfileById, getProfileById, updateProfile as updateProfileRecord } from '@/services/profile.service';
 import { loadAwards } from '@/services/runtime.service';
 import { liveAwards } from '@/data/live';
-import { backendRoleToUiRole, getUserRoles, hasAllowedLoginRole, uiRoleToAccountType, type BackendRole } from '@/services/role.service';
+import { getUserRoles, uiRoleToAccountType, type BackendRole } from '@/services/role.service';
 import { getUnreadNotificationCount } from '@/services/notification.service';
 import { toast as globalToast } from '@/lib/toast';
 
@@ -21,7 +21,7 @@ interface AppState {
   certificates: Certificate[];
   orders: Order[];
   feed: FeedPost[];
-  login: (email: string, password: string, requestedRole?: Exclude<Role, 'admin'>) => Promise<{ ok: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   register: (data: Partial<User> & { email: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
   loginAsGuest: () => void;
   logout: () => Promise<void>;
@@ -48,7 +48,8 @@ function preferredRole(roles: BackendRole[]): Role {
   if (roles.includes('admin')) return 'admin';
   if (roles.includes('organizer_member')) return 'penyelenggara';
   if (roles.includes('teacher')) return 'guru';
-  return 'pelajar';
+  if (roles.includes('student')) return 'pelajar';
+  throw new Error('ROLE_NOT_ASSIGNED');
 }
 
 function mapProfileToUser(profile: Record<string, unknown>, email = ''): User {
@@ -315,20 +316,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     globalToast[type](message);
   }, []);
 
-  const login = useCallback(async (email: string, password: string, requestedRole: Exclude<Role, 'admin'> = 'pelajar') => {
+  const login = useCallback(async (email: string, password: string) => {
+    let authenticationEstablished = false;
     try {
       const result = await signIn(email.trim(), password);
       if (!result.user) return { ok: false, error: 'Login gagal: sesi pengguna tidak tersedia.' };
+      authenticationEstablished = true;
+
+      // Role eligibility is resolved from the backend only. Never accept a role
+      // selected at login as evidence of authorization.
       const roles = await getUserRoles(result.user.id);
       if (!roles.length) {
         await signOut();
-        return { ok: false, error: 'Akun belum memiliki role aktif di backend.' };
+        authenticationEstablished = false;
+        return { ok: false, error: 'Akun belum memiliki role aktif di backend. Hubungi administrator.' };
       }
-      if (!hasAllowedLoginRole(roles, requestedRole)) {
-        await signOut();
-        const roleNames = roles.map((role) => backendRoleToUiRole(role)).join(', ');
-        return { ok: false, error: `Role akun adalah ${roleNames}. Pilih jenis akun yang sesuai.` };
-      }
+
       const userEmail = result.user.email ?? email.trim();
       setAuthUser({ id: result.user.id, email: userEmail || undefined });
       setIsGuest(false);
@@ -336,11 +339,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
       await hydrateCurrentUser(result.user.id, userEmail, roles);
       void refreshUnreadCount(result.user.id);
+      authenticationEstablished = false;
       return { ok: true };
     } catch (error: unknown) {
+      // If authentication succeeded but role/profile resolution failed, do not
+      // leave a partially authenticated client session behind.
+      if (authenticationEstablished) {
+        try {
+          await signOut();
+        } catch {
+          clearUserState();
+        }
+      }
       return { ok: false, error: error instanceof Error ? error.message : 'Email atau password tidak valid.' };
     }
-  }, [hydrateCurrentUser, refreshUnreadCount]);
+  }, [clearUserState, hydrateCurrentUser, refreshUnreadCount]);
 
   const register = useCallback(async (data: Partial<User> & { email: string; password: string }) => {
     try {
@@ -384,13 +397,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const profile = await getAuthenticatedProfileById(current.id);
       if (!profile || !aliveRef.current || authUserRef.current?.id !== current.id) return;
-      const roles = await getUserRoles(current.id).catch(() => [] as BackendRole[]);
+      const roles = await getUserRoles(current.id);
+      if (!roles.length) {
+        await signOut().catch(() => undefined);
+        clearUserState();
+        return;
+      }
       const mapped = mapProfileToUser(profile, current.email);
-      setUser({ ...mapped, role: roles.length ? preferredRole(roles) : mapped.role });
+      setUser({ ...mapped, role: preferredRole(roles) });
     } catch (error) {
       console.warn('[SykaBelajar] refreshUser failed', error);
     }
-  }, []);
+  }, [clearUserState]);
 
   const updateProfile = useCallback(async (data: Partial<User>) => {
     const current = authUserRef.current;
@@ -405,10 +423,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (data.favoriteCategories !== undefined) patch.subjects = Array.isArray(data.favoriteCategories) ? data.favoriteCategories.join(',') : data.favoriteCategories;
     const fresh = await updateProfileRecord(current.id, patch);
     if (!aliveRef.current || authUserRef.current?.id !== current.id) return;
-    const roles = await getUserRoles(current.id).catch(() => [] as BackendRole[]);
+    const roles = await getUserRoles(current.id);
+    if (!roles.length) {
+      await signOut().catch(() => undefined);
+      clearUserState();
+      return;
+    }
     const mapped = mapProfileToUser(fresh, current.email);
-    setUser({ ...mapped, role: roles.length ? preferredRole(roles) : mapped.role });
-  }, []);
+    setUser({ ...mapped, role: preferredRole(roles) });
+  }, [clearUserState]);
 
   const markNotificationRead = useCallback(async (id: string) => {
     const current = authUserRef.current;

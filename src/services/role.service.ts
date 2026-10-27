@@ -22,13 +22,6 @@ export function uiRoleToAccountType(role: Role): 'student' | 'teacher' | 'organi
   return 'student';
 }
 
-export function hasAllowedLoginRole(roles: BackendRole[], requested: Exclude<Role, 'admin'>): boolean {
-  if (roles.includes('admin')) return true;
-  if (requested === 'pelajar') return roles.includes('student');
-  if (requested === 'guru') return roles.includes('teacher');
-  return roles.includes('organizer_member');
-}
-
 export async function adminSetUserRole(userId: string, role: BackendRole, active = true, reason = 'Updated from SykaBelajar admin panel') {
   const { data, error } = await supabase.rpc('admin_set_user_role', {
     p_user_id: userId,
