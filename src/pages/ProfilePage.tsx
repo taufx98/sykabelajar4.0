@@ -75,7 +75,7 @@ export function ProfilePage() {
   const [previewGuest, setPreviewGuest] = useState(false);
   const own = user?.username === username;
   const ownerView = own && !previewGuest;
-  const isAdminProfile = own && user?.role === 'admin';
+  const isAdminProfile = user?.role === 'admin' && user?.id === profile?.id;
 
   useEffect(() => {
     let alive = true;
@@ -88,7 +88,7 @@ export function ProfilePage() {
 
         // The administrator's profile is a workspace identity page, not a participant profile.
         // Avoid requesting badges, awards, social graph and competition history for this view.
-        if (user?.role === 'admin' && user?.username === username) {
+        if (user?.role === 'admin' && user?.id === p.data.id) {
           if (alive) {
             setProfile(p.data);
             setAwards([]);
@@ -122,7 +122,7 @@ export function ProfilePage() {
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
-  }, [username, user?.id, user?.role, user?.username, toast]);
+  }, [username, user?.id, user?.role, toast]);
 
   useEffect(() => {
     if (!social || !profile?.id) return;
