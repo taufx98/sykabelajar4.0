@@ -42,12 +42,14 @@ export function OrganizerSerialsPage() {
 
   const counts = useMemo(() => ({
     total: serials.length,
+    planGenerated: serials.filter((s) => !s.source_order_id).length,
+    purchased: serials.filter((s) => Boolean(s.source_order_id)).length,
     available: serials.filter((s) => s.status === 'AVAILABLE').length,
     assigned: serials.filter((s) => s.status === 'ASSIGNED').length,
     revoked: serials.filter((s) => s.status === 'REVOKED').length,
   }), [serials]);
 
-  const serialRemaining = Math.max(0, serialLimit - counts.total);
+  const serialRemaining = Math.max(0, serialLimit - counts.planGenerated);
 
   const load = async () => {
     const current = await resolveCurrentUserOrganizer();
@@ -147,8 +149,9 @@ export function OrganizerSerialsPage() {
   const stats: Array<[string, string | number, ElementType]> = [
     ['Plan', plan ?? '—', ShieldCheck],
     ['Kuota Plan', serialLimit, QrCode],
-    ['Terpakai', counts.total, KeyRound],
-    ['Sisa Kuota', serialRemaining, ShieldCheck],
+    ['Terpakai dari Plan', counts.planGenerated, KeyRound],
+    ['Serial dari Shop', counts.purchased, QrCode],
+    ['Sisa Kuota Plan', serialRemaining, ShieldCheck],
   ];
 
   return (
@@ -163,15 +166,15 @@ export function OrganizerSerialsPage() {
           <h1 className="text-2xl font-bold text-fg">QR & Serial Sertifikat</h1>
           <p className="text-sm text-fg-muted mt-1">Generate serial resmi, pasangkan ke sertifikat, dan revoke serial yang tidak boleh dipakai lagi.</p>
         </div>
-        <div className="grid sm:grid-cols-4 gap-3 mb-5">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
           {stats.map(([label, value, Icon]) => <Card key={label} className="p-4"><div className="flex items-center gap-3"><Icon size={18} className="text-accent"/><div><p className="text-xs text-fg-muted">{label}</p><p className="text-lg font-bold text-fg">{typeof value === 'number' ? value.toLocaleString('id-ID') : value}</p></div></div></Card>)}
         </div>
         <Card className="p-5 mb-5 no-print">
-          <div className="flex items-start gap-3 mb-4"><QrCode className="text-accent mt-0.5" size={20}/><div><h2 className="font-bold text-fg">Generate serial</h2><p className="text-sm text-fg-muted mt-1">Kuota plan aktif: <span className="font-semibold text-fg">{serialLimit.toLocaleString('id-ID')}</span> · terpakai: <span className="font-semibold text-fg">{counts.total.toLocaleString('id-ID')}</span> · sisa: <span className="font-semibold text-fg">{serialRemaining.toLocaleString('id-ID')}</span>.</p></div></div>
+          <div className="flex items-start gap-3 mb-4"><QrCode className="text-accent mt-0.5" size={20}/><div><h2 className="font-bold text-fg">Generate serial</h2><p className="text-sm text-fg-muted mt-1">Kuota plan aktif: <span className="font-semibold text-fg">{serialLimit.toLocaleString('id-ID')}</span> · terpakai dari kuota plan: <span className="font-semibold text-fg">{counts.planGenerated.toLocaleString('id-ID')}</span> · serial dari Shop: <span className="font-semibold text-fg">{counts.purchased.toLocaleString('id-ID')}</span> · sisa: <span className="font-semibold text-fg">{serialRemaining.toLocaleString('id-ID')}</span>.</p></div></div>
           <div className="flex flex-col md:flex-row gap-3">
             <input className="input md:w-40" type="number" min={1} max={Math.min(100, Math.max(serialRemaining, 1))} value={quantity} onChange={(e) => setQuantity(Number(e.target.value) || 1)} disabled={serialRemaining <= 0} />
             <Button loading={busy} disabled={serialRemaining <= 0} onClick={() => void generate()} icon={<RefreshCw size={15}/>}>Generate Serial</Button>
-            <div className="text-xs text-fg-muted flex items-center">Stok dibuat: {counts.available.toLocaleString('id-ID')} · Terpakai di sertifikat: {counts.assigned.toLocaleString('id-ID')} · Direvoke: {counts.revoked.toLocaleString('id-ID')}</div>
+            <div className="text-xs text-fg-muted flex items-center">Stok tersedia: {counts.available.toLocaleString('id-ID')} · Terpasang: {counts.assigned.toLocaleString('id-ID')} · Direvoke: {counts.revoked.toLocaleString('id-ID')}</div>
           </div>
         </Card>
         {selectedSerial && <Card className="p-5 mb-5 no-print border-accent/20">
@@ -188,7 +191,7 @@ export function OrganizerSerialsPage() {
           {serials.map((serial) => (
             <Card key={serial.id} className="p-4 serial-card break-inside-avoid">
               <div className="flex items-center justify-between gap-2 mb-3">
-                <Badge color={statusColor(serial.status)}>{serial.status}</Badge>
+                <div className="flex flex-wrap gap-1.5"><Badge color={statusColor(serial.status)}>{serial.status}</Badge>{serial.source_order_id && <Badge color="default">Dari Shop</Badge>}</div>
                 <span className="text-[11px] text-fg-muted">{new Date(serial.created_at).toLocaleDateString('id-ID')}</span>
               </div>
               <div className="bg-white rounded-xl p-3 flex justify-center mb-3">
