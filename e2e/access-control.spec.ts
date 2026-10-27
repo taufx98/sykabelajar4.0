@@ -319,6 +319,11 @@ test.describe('Shop editor', () => {
     await expect(page.getByLabel('Nama produk')).toBeVisible();
     await expect(page.getByLabel('Harga (Rp)')).toBeVisible();
     await expect(page.getByLabel('Jenis produk')).toBeVisible();
+    await expect(page.getByText('Unggah gambar', { exact: true })).toBeVisible();
+    await page.getByLabel('Nama produk').fill('Paket Latihan Sains');
+    await page.getByLabel('Tampilkan di Shop').check();
+    await page.getByRole('button', { name: 'Simpan produk' }).click();
+    await expect(page.getByText(/Produk aktif harus memiliki harga di atas Rp0/i)).toBeVisible();
   });
 });
 
