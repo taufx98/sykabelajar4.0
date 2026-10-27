@@ -25,7 +25,7 @@ function getSlotCount() {
 function getBannerWidthSlots(banner: PublicBanner, availableSlots: number): number {
   const value = Number(banner.image_width_slots ?? 1);
   const width = Number.isFinite(value) ? Math.floor(value) : 1;
-  return Math.max(1, Math.min(availableSlots, width));
+  return Math.max(1, Math.min(3, availableSlots, width));
 }
 
 function EmptySlot() {
