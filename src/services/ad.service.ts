@@ -3,6 +3,12 @@ import { uploadImage } from './cloudinary.service';
 import { env } from '@/lib/env';
 
 export type MediaType = 'image' | 'gif' | 'video';
+export type BannerPlacement = 'home_top' | 'home_sidebar';
+
+export const BANNER_PLACEMENT_LABELS: Record<BannerPlacement, string> = {
+  home_top: 'Banner Tengah Atas',
+  home_sidebar: 'Sidebar Kanan',
+};
 
 export interface AdBannerSettings {
   id: string;
@@ -18,6 +24,7 @@ export interface AdBannerSettings {
 
 export interface AdBannerRequest {
   id: string;
+  placement: BannerPlacement;
   organizer_id: string;
   user_id: string;
   image_url: string;
@@ -37,6 +44,7 @@ export interface AdBannerRequest {
 
 export interface AdBanner {
   id: string;
+  placement: BannerPlacement;
   slot_number: number;
   image_url: string;
   image_urls?: string[];
@@ -110,6 +118,7 @@ export async function loadActiveBanners(): Promise<AdBanner[]> {
   }
   return (data ?? []).map((r: any) => ({
     ...r,
+    placement: r.placement || 'home_top',
     media_type: r.media_type || 'image',
   })) as AdBanner[];
 }
@@ -127,6 +136,7 @@ export async function loadBannerSettings(): Promise<AdBannerSettings | null> {
 // ── Organizer: submit banner request ──
 export async function submitBannerRequest(params: {
   organizerId: string;
+  placement: BannerPlacement;
   file?: File;
   imageUrls?: string[];
   linkUrl: string;
@@ -163,6 +173,7 @@ export async function submitBannerRequest(params: {
     .insert({
       organizer_id: params.organizerId,
       user_id: auth.user.id,
+      placement: params.placement,
       image_url: primaryUrl,
       image_urls: allUrls,
       media_type: mediaType,
@@ -212,18 +223,22 @@ export async function approveBannerRequest(
     .single();
   if (reqErr || !req) throw reqErr ?? new Error('Request not found');
 
-  const { data: existing } = await supabase
+  const placement = (req.placement || 'home_top') as BannerPlacement;
+  const { data: existing, error: existingError } = await supabase
     .from('ad_banners')
     .select('slot_number')
-    .eq('is_active', true)
+    .eq('placement', placement)
     .order('slot_number', { ascending: true });
+  if (existingError) throw existingError;
 
-  const usedSlots = new Set((existing ?? []).map((b: any) => b.slot_number));
-  const startSlot = (() => {
-    let s = 1;
-    while (usedSlots.has(s)) s++;
-    return s;
-  })();
+  // Slot numbers are the order/queue within one placement. Reserve a
+  // contiguous block for multi-image requests so existing slots aren't overwritten.
+  const usedSlots = new Set((existing ?? []).map((b: any) => Number(b.slot_number)));
+  const slotsNeeded = req.single_image ? 1 : Math.max(1, Number(req.slots_requested) || 1);
+  let startSlot = 1;
+  while (Array.from({ length: slotsNeeded }, (_, i) => usedSlots.has(startSlot + i)).some(Boolean)) {
+    startSlot++;
+  }
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + req.duration_days);
@@ -235,6 +250,7 @@ export async function approveBannerRequest(
   if (req.single_image) {
     bannersToInsert.push({
       request_id: req.id,
+      placement,
       organizer_id: req.organizer_id,
       user_id: req.user_id,
       slot_number: startSlot,
@@ -252,6 +268,7 @@ export async function approveBannerRequest(
     for (let i = 0; i < req.slots_requested; i++) {
       bannersToInsert.push({
         request_id: req.id,
+        placement,
         organizer_id: req.organizer_id,
         user_id: req.user_id,
         slot_number: startSlot + i,
@@ -271,8 +288,8 @@ export async function approveBannerRequest(
   for (const banner of bannersToInsert) {
     const { error: upErr } = await supabase
       .from('ad_banners')
-      .upsert(banner, { onConflict: 'slot_number' });
-    if (upErr) console.warn('[AdBanner] upsert failed:', upErr.message);
+      .upsert(banner, { onConflict: 'placement,slot_number' });
+    if (upErr) throw upErr;
   }
 
   await supabase
@@ -315,6 +332,7 @@ export async function deactivateBanner(bannerId: string): Promise<void> {
 // ── Admin: add banner directly (skip request flow) ──
 export async function adminAddBanner(params: {
   file: File;
+  placement: BannerPlacement;
   slotNumber: number;
   widthSlots: number;
   linkUrl: string;
@@ -324,6 +342,15 @@ export async function adminAddBanner(params: {
 }): Promise<AdBanner> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Unauthorized');
+
+  const { data: existingSlot, error: slotError } = await supabase
+    .from('ad_banners')
+    .select('id')
+    .eq('placement', params.placement)
+    .eq('slot_number', params.slotNumber)
+    .maybeSingle();
+  if (slotError) throw slotError;
+  if (existingSlot) throw new Error('Nomor urutan iklan sudah digunakan pada penempatan ini. Pilih urutan lain.');
 
   const uploaded = await uploadBannerMedia(
     params.file,
@@ -336,6 +363,7 @@ export async function adminAddBanner(params: {
   const { data, error } = await supabase
     .from('ad_banners')
     .insert({
+      placement: params.placement,
       slot_number: params.slotNumber,
       image_url: uploaded.secure_url,
       image_urls: [uploaded.secure_url],
