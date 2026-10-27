@@ -49,7 +49,7 @@ function getBannerAspectRatio(placement: BannerPlacement, widthSlots: number): s
 }
 function getBannerDimensions(placement: BannerPlacement, widthSlots: number): string {
   if (placement === 'home_sidebar') return '600 × 500 px';
-  return widthSlots > 1 ? '2400 × 512 px (banner lebar 2 slot)' : '1200 × 512 px per gambar';
+  return widthSlots > 1 ? '2400 × 512 px (banner lebar, mengisi area tengah)' : '1200 × 512 px per gambar';
 }
 
 export function AdminBannersPage() {
@@ -208,6 +208,9 @@ export function AdminBannersPage() {
   // ── Save banner ──
   const handleSaveBanner = async () => {
     if (!editor) return;
+    if (!Number.isInteger(editor.slotNumber) || editor.slotNumber < 1) {
+      return toast('Urutan iklan harus berupa bilangan bulat minimal 1.', 'error');
+    }
     if (allBanners.some((banner) =>
       (banner.placement || 'home_top') === editor.placement &&
       Number(banner.slot_number) === Number(editor.slotNumber) &&
@@ -370,7 +373,7 @@ export function AdminBannersPage() {
                         {/* Preview */}
                         <div className="w-28 h-18 rounded-lg overflow-hidden surface-elevated shrink-0 flex">
                           {b.media_type === 'video' ? (
-                            <video src={b.image_url} className="w-full h-full object-cover" muted preload="metadata" />
+                            <video src={b.image_url} className="w-full h-full object-contain bg-black/5" muted preload="metadata" />
                           ) : (
                             <img src={b.image_url} alt="" className="w-full h-full object-cover" />
                           )}
