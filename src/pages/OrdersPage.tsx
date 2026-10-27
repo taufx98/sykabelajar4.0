@@ -332,7 +332,13 @@ export function OrdersPage() {
         });
       }
       const orderReference = String(order?.id ?? '').slice(0, 8);
-      close();
+      setSelected(null);
+      setQuantity(1);
+      setProofFile(null);
+      setProofPreview('');
+      setWhatsapp('');
+      setSelectedParticipantId('');
+      setError('');
       setMessage(`Pesanan ${orderReference ? `#${orderReference}` : ''} berhasil dikirim. Tim SYKABELAJAR akan memeriksa pembayaran sebelum manfaat diberikan.`);
       await load();
     } catch (checkoutError) {
@@ -451,7 +457,7 @@ export function OrdersPage() {
           <span className="mt-1 block text-xs text-fg-muted">Sistem akan mengecek ulang kelayakan peserta dan status pengumuman hasil di backend.</span>
         </label>}
 
-        {needsWhatsapp && <label className="block mt-4"><span className="label">Nomor WhatsApp {isEduCoinCheckout ? '' : <span className="text-red-400">*</span>}</span><input className="input mt-1 w-full" placeholder="Contoh: 08xxxxxxxxxx" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} disabled={submitting} required={!isEduCoinCheckout}/><span className="mt-1 block text-xs text-fg-muted">{isEduCoinCheckout ? 'Dipakai tim untuk tindak lanjut produk ini; tidak ada bukti transfer.' : 'Digunakan untuk koordinasi pesanan jika diperlukan.'}</span></label>}
+        {needsWhatsapp && <label className="block mt-4"><span className="label">Nomor WhatsApp <span className="text-red-400">*</span></span><input className="input mt-1 w-full" placeholder="Contoh: 08xxxxxxxxxx" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} disabled={submitting} required={needsWhatsapp}/><span className="mt-1 block text-xs text-fg-muted">{isEduCoinCheckout ? 'Dipakai tim untuk tindak lanjut produk ini; tidak ada bukti transfer.' : 'Digunakan untuk koordinasi pesanan jika diperlukan.'}</span></label>}
         {isEduCoinCheckout
           ? <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
               <div className="flex items-center justify-between gap-3"><span className="text-sm text-fg-muted">Saldo Edu Coin</span><span className="font-semibold text-fg">{eduCoinBalance == null ? 'Tidak tersedia' : eduCoinBalance.toLocaleString('id-ID') + ' Edu Coin'}</span></div>
