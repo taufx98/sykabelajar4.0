@@ -19,7 +19,7 @@ export function RegisterPage(){
  const set=(k:keyof typeof form,v:any)=>setForm(f=>({...f,[k]:v}));
  const toggleCategory=(category:CompetitionCategory)=>setForm(f=>({...f,favoriteCategories:f.favoriteCategories.includes(category)?f.favoriteCategories.filter(x=>x!==category):[...f.favoriteCategories,category]}));
  const step1Valid=form.email.includes('@')&&form.password.length>=6&&form.password===form.confirmPassword;
- const step2Valid=!!form.displayName&&!!form.username&&!!form.birthDate&&!!form.school&&(form.role==='guru'||!!form.educationLevel);
+ const step2Valid=!!form.displayName&&!!form.username&&!!form.birthDate&&!!form.school&&(form.role!=='pelajar'||!!form.educationLevel);
  const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')||file.size>5*1024*1024){toast('Foto harus gambar dan maksimal 5MB.','error');return;}if(photoPreview)URL.revokeObjectURL(photoPreview);setPhotoFile(file);setPhotoPreview(URL.createObjectURL(file));e.target.value='';};
  const handleSubmit=async()=>{if(!form.favoriteCategories.length){toast('Pilih minimal 1 kategori lomba favorit.','error');return;}setLoading(true);try{
    const result=await register({email:form.email,password:form.password,displayName:form.displayName,username:form.username,role:form.role,school:form.school,birthDate:form.birthDate,educationLevel:form.educationLevel||undefined,favoriteCategories:form.favoriteCategories});
