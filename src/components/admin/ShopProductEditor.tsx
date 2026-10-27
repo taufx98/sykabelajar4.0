@@ -92,7 +92,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
   useEffect(() => {
     let active = true;
     setBadgeCatalogLoading(true);
-    void supabase.from('badges').select('id,name,icon_emoji,rarity').eq('status','ACTIVE').order('name')
+    void supabase.from('badges').select('id,name,icon_emoji,rarity').eq('status','ACTIVE').eq('is_purchasable',true).eq('award_type','MANUAL').order('name')
       .then(({ data, error }) => {
         if (!active) return;
         if (error) throw error;
@@ -255,7 +255,8 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
                   <option value="">{badgeCatalogLoading ? 'Memuat badge…' : 'Pilih badge aktif'}</option>
                   {availableBadges.map((badge) => <option key={badge.id} value={badge.id}>{badge.icon_emoji ? badge.icon_emoji + ' ' : ''}{badge.name} · {badge.rarity}</option>)}
                 </select>
-                <span className="mt-1 block text-xs text-fg-muted">Pembeli yang sudah memiliki badge ini tidak dapat membeli duplikatnya.</span>
+                <span className="mt-1 block text-xs text-fg-muted">Hanya badge manual yang secara khusus diizinkan untuk dijual yang muncul di sini. Badge prestasi otomatis tidak bisa dipilih.</span>
+                {!badgeCatalogLoading && availableBadges.length === 0 && <span className="mt-2 block rounded-lg border border-amber-500/20 bg-amber-500/5 p-2 text-xs text-amber-300">Belum ada badge yang diizinkan untuk dijual. Buka menu Admin → Badge, edit badge kosmetik/manual, lalu aktifkan “Boleh dibeli melalui Shop”.</span>}
               </label>}
 
               {draft.product_type === 'CERTIFICATE_SERIALS' && <label className="block">
