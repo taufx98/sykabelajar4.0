@@ -407,7 +407,7 @@ export function OrganizerAdRequestPage() {
                       {previews[idx] ? (
                         <div className="relative rounded-lg overflow-hidden border surface-border surface-elevated">
                           <div style={{ aspectRatio: ratio }} className="w-full overflow-hidden">
-                            <img src={previews[idx]} alt="" className="w-full h-full object-cover" />
+                            <img src={previews[idx]} alt="" className="w-full h-full object-contain bg-black/5" />
                           </div>
                           <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/60 rounded px-1.5 py-0.5 text-[9px] text-fg">
                             <Crop size={8} /> {label}
@@ -515,7 +515,7 @@ export function OrganizerAdRequestPage() {
                   <div className="flex items-center gap-3">
                     <div className="w-16 h-10 rounded overflow-hidden surface-elevated shrink-0 flex">
                       {(r.image_urls?.length ? r.image_urls : [r.image_url]).slice(0, 3).map((url, i) => (
-                        <img key={i} src={url} alt="" className="h-full object-contain bg-black/5" style={{ width: `${100 / Math.min(r.image_urls?.length || 1, 3)}%` }} />
+                        <img key={i} src={url} alt="" className="h-full object-cover" style={{ width: `${100 / Math.min(r.image_urls?.length || 1, 3)}%` }} />
                       ))}
                     </div>
                     <div className="flex-1 min-w-0">
