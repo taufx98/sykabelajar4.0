@@ -229,6 +229,7 @@ export function OrganizerWorkspaceOnboarding({ onContinue }: { onContinue: () =>
       await onContinue();
     } catch (error) {
       toast(readableOrganizerError(error), 'error');
+    } finally {
       setBusy(false);
     }
   };
