@@ -46,7 +46,7 @@ function EmptySlot({ placement }: { placement: BannerPlacement }) {
 }
 
 function BannerMedia({ banner, className }: { banner: PublicBanner; className?: string }) {
-  const src = optimizedCloudinaryUrl(banner.image_url, { width: 1200 });
+  const src = optimizedCloudinaryUrl(banner.image_url, { width: banner.placement === 'home_sidebar' ? 600 : 1200 });
   if (banner.media_type === 'video') {
     return <video src={src} className={className} muted playsInline autoPlay loop preload="metadata" />;
   }
@@ -135,10 +135,8 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
   const visibleGroup = groups[safeCurrentGroup] ?? groups[0];
   // Reuse each banner's existing configured interval (slide_duration_seconds).
   // The current group interval resets after manual swipe or auto-advance.
-  const slideDurationMs = Math.max(
-    5,
-    Math.min(120, Math.max(45, ...(visibleGroup?.items.map(({ banner }) => Number(banner.slide_duration_seconds) || 45) ?? [45]))),
-  ) * 1000;
+  const configuredDurations = visibleGroup?.items.map(({ banner }) => Number(banner.slide_duration_seconds) || 45) ?? [45];
+  const slideDurationMs = Math.max(5, Math.min(120, Math.max(...configuredDurations))) * 1000;
   const advance = useCallback(() => setCurrentGroup((g) => (g + 1) % totalGroups), [totalGroups]);
   const previous = useCallback(() => setCurrentGroup((g) => (g - 1 + totalGroups) % totalGroups), [totalGroups]);
 
