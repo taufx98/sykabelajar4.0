@@ -373,7 +373,7 @@ export function AdminBannersPage() {
                         {/* Preview */}
                         <div className="w-28 h-18 rounded-lg overflow-hidden surface-elevated shrink-0 flex">
                           {b.media_type === 'video' ? (
-                            <video src={b.image_url} className="w-full h-full object-contain bg-black/5" muted preload="metadata" />
+                            <video src={b.image_url} className="w-full h-full object-cover" muted preload="metadata" />
                           ) : (
                             <img src={b.image_url} alt="" className="w-full h-full object-cover" />
                           )}
@@ -724,9 +724,9 @@ export function AdminBannersPage() {
                       style={{ aspectRatio: getBannerAspectRatio(editor.placement, editor.widthSlots) }}
                     >
                       {editor.mediaType === 'video' ? (
-                        <video src={editor.previewUrl} className="w-full h-full object-cover" controls muted />
+                        <video src={editor.previewUrl} className="w-full h-full object-contain bg-black/5" controls muted />
                       ) : (
-                        <img src={editor.previewUrl} alt="Preview banner" className="w-full h-full object-cover" />
+                        <img src={editor.previewUrl} alt="Preview banner" className="w-full h-full object-contain bg-black/5" />
                       )}
                       <div className="absolute top-2 left-2 rounded-md bg-black/65 px-2 py-1 text-[10px] text-white">
                         {BANNER_PLACEMENT_LABELS[editor.placement]} · {getBannerDimensions(editor.placement, editor.widthSlots)}
