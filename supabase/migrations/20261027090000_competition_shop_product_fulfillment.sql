@@ -132,7 +132,7 @@ create or replace function public.create_product_order(
 language plpgsql
 security definer
 set search_path = public, private
-as $
+as $$
 declare
   v_product public.commerce_products;
   v_order public.orders;
