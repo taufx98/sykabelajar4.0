@@ -160,7 +160,7 @@ begin
   perform private.write_audit('commerce.order_created','order',v_order.id::text,'Draft catalog order created by user',null,to_jsonb(v_order),null);
   return v_order;
 end;
-$;
+$$;
 
 revoke execute on function public.create_product_order(uuid,integer) from public, anon;
 grant execute on function public.create_product_order(uuid,integer) to authenticated;
