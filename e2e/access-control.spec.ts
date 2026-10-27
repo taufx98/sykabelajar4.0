@@ -14,21 +14,13 @@ test.describe('public entry points', () => {
     await expect(page.locator('body')).toContainText('sykabelajar', { timeout: 10_000 });
   });
 
-  test('login page exposes all supported account roles', async ({ page }) => {
+  test('login detects the account role from backend and keeps collective participant access', async ({ page }) => {
     await page.goto('/login');
     await expect(page.getByRole('heading', { name: 'Masuk' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Pelajar' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Guru' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Penyelenggara' })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Masuk sebagai Peserta Kolektif/ })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Guru' }).click();
-    await expect(page.getByRole('link', { name: /Masuk sebagai Peserta Kolektif/ })).toHaveCount(0);
-
-    await page.getByRole('button', { name: 'Penyelenggara' }).click();
-    await expect(page.getByRole('link', { name: /Masuk sebagai Peserta Kolektif/ })).toHaveCount(0);
-
-    await page.getByRole('button', { name: 'Pelajar' }).click();
+    await expect(page.getByText(/mengenali peran akun secara otomatis dari backend/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Pelajar' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Guru' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Penyelenggara' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /Masuk sebagai Peserta Kolektif/ })).toBeVisible();
   });
 
