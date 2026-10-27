@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Award, Calendar, Camera, Eye, EyeOff, Filter, MessageCircle, School, Trophy, UserMinus, Users, X } from 'lucide-react';
+import { Activity, ArrowUpRight, Award, Boxes, Calendar, Camera, Eye, EyeOff, Filter, LayoutDashboard, MessageCircle, School, Settings2, ShieldCheck, Store, Trophy, UserMinus, Users, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { VerifiedMark } from '@/components/ui/VerifiedMark';
@@ -75,6 +75,7 @@ export function ProfilePage() {
   const [previewGuest, setPreviewGuest] = useState(false);
   const own = user?.username === username;
   const ownerView = own && !previewGuest;
+  const isAdminProfile = user?.role === 'admin' && user?.id === profile?.id;
 
   useEffect(() => {
     let alive = true;
@@ -84,6 +85,25 @@ export function ProfilePage() {
         const p = await supabase.from('profiles').select(PROFILE_FIELDS).eq('username', username).maybeSingle();
         if (p.error) throw p.error;
         if (!p.data) { if (alive) setProfile(null); return; }
+
+        // The administrator's profile is a workspace identity page, not a participant profile.
+        // Avoid requesting badges, awards, social graph and competition history for this view.
+        if (user?.role === 'admin' && user?.id === p.data.id) {
+          if (alive) {
+            setProfile(p.data);
+            setAwards([]);
+            setBadges([]);
+            setBadgeVisibility({ showBadges: false, showBadgeCollection: false });
+            setFollowers(0);
+            setFollowing(0);
+            setCompetitionCount(0);
+            setShowSocial(false);
+            setShowFollowing(false);
+            setFollow('none');
+          }
+          return;
+        }
+
         const [a, s, u, b, v, registrations] = await Promise.all([
           supabase.from('awards').select('id,title,subtitle,rank_code,issued_at').eq('user_id', p.data.id).order('issued_at', { ascending: false }),
           supabase.rpc('get_public_profile_social', { p_profile_id: p.data.id }),
@@ -102,7 +122,7 @@ export function ProfilePage() {
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
-  }, [username, user?.id, toast]);
+  }, [username, user?.id, user?.role, toast]);
 
   useEffect(() => {
     if (!social || !profile?.id) return;
@@ -134,6 +154,89 @@ export function ProfilePage() {
 
   if (loading) return <div className="p-6 text-sm text-fg-muted">Memuat profil…</div>;
   if (!profile) return <div className="p-6"><Card className="p-8 text-center text-fg-muted">Profil tidak ditemukan.</Card></div>;
+
+  if (isAdminProfile) {
+    const adminLinks = [
+      { to: '/admin', label: 'Pusat Admin', description: 'Pusat kendali untuk pengembangan dan pengawasan platform.', icon: LayoutDashboard, primary: true },
+      { to: '/admin/core', label: 'Pengelolaan Inti', description: 'Kelola konten, pengguna, dan konfigurasi utama.', icon: Settings2 },
+      { to: '/admin/operations', label: 'Operasional', description: 'Periksa proses dan pekerjaan operasional platform.', icon: Boxes },
+      { to: '/admin/error-intelligence', label: 'Monitoring Sistem', description: 'Pantau insiden, laporan error, dan diagnostik.', icon: Activity },
+      { to: '/admin/orders/review', label: 'Verifikasi Pesanan', description: 'Periksa pesanan yang menunggu pembayaran manual.', icon: Store },
+    ];
+
+    return <div className="min-h-screen bg-slate-50/40 pb-12 dark:bg-slate-950/20">
+      <div className="mx-auto max-w-5xl space-y-5 px-3 py-5 sm:px-5 sm:py-8">
+        <section className="overflow-hidden rounded-3xl border surface-border surface-card-bg shadow-sm">
+          <div className="relative overflow-hidden border-b surface-border bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 px-5 py-6 sm:px-8 sm:py-8">
+            <div className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
+            <div className="relative flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">
+              <ShieldCheck size={15} />
+              SYKABELAJAR · INTERNAL
+            </div>
+            <h1 className="relative mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">Profil Administrator</h1>
+            <p className="relative mt-2 max-w-2xl text-sm leading-relaxed text-slate-300">Identitas akun untuk mengembangkan, mengelola, dan mengawasi platform. Halaman ini difokuskan pada akses kerja admin, bukan statistik peserta.</p>
+          </div>
+
+          <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="shrink-0">
+                <ProfilePortrait name={profile.full_name || profile.username} id={profile.id} src={profile.avatar_url || undefined} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="break-words font-display text-xl font-bold text-fg sm:text-2xl">{profile.full_name || profile.username}</h2>
+                  <VerifiedMark type={profile.verification_type} />
+                </div>
+                <p className="mt-1 text-sm text-fg-muted">@{profile.username}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300"><ShieldCheck size={13}/> Administrator</span>
+                  <span className="inline-flex items-center rounded-full surface-elevated px-3 py-1.5 text-xs font-medium text-fg-muted">Akun internal</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Link to="/profile/edit"><Button size="sm" variant="outline">Edit Identitas</Button></Link>
+              <Link to="/admin"><Button size="sm" variant="primary" icon={<ArrowUpRight size={14}/>}>Buka Pusat Admin</Button></Link>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-3 flex items-end justify-between gap-3 px-1">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Ruang Kerja</p>
+              <h2 className="mt-1 font-display text-xl font-bold text-fg">Akses Pengelolaan</h2>
+              <p className="mt-1 text-sm text-fg-muted">Jalur cepat menuju tugas utama administrator.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {adminLinks.map(({ to, label, description, icon: Icon, primary }) => <Link key={to} to={to} className={`group flex min-h-28 items-start gap-4 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${primary ? 'border-emerald-500/25 bg-emerald-500/[0.06]' : 'surface-border surface-card-bg hover:border-accent/40'}`}>
+              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${primary ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' : 'surface-elevated text-accent'}`}><Icon size={20}/></span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center justify-between gap-2 font-semibold text-fg">{label}<ArrowUpRight size={15} className="shrink-0 text-fg-muted transition group-hover:text-accent"/></span>
+                <span className="mt-1 block text-sm leading-relaxed text-fg-muted">{description}</span>
+              </span>
+            </Link>)}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border surface-border surface-card-bg p-5 sm:p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl surface-elevated text-accent"><ShieldCheck size={19}/></div>
+            <div>
+              <h2 className="font-semibold text-fg">Identitas & akses</h2>
+              <p className="mt-0.5 text-xs text-fg-muted">Informasi ringkas akun yang sedang digunakan.</p>
+            </div>
+          </div>
+          <dl className="mt-5 grid gap-4 border-t surface-border pt-4 sm:grid-cols-3">
+            <div><dt className="text-xs text-fg-muted">Nama akun</dt><dd className="mt-1 break-words text-sm font-medium text-fg">{profile.full_name || 'Belum diatur'}</dd></div>
+            <div><dt className="text-xs text-fg-muted">Username</dt><dd className="mt-1 break-words text-sm font-medium text-fg">@{profile.username}</dd></div>
+            <div><dt className="text-xs text-fg-muted">Ruang lingkup</dt><dd className="mt-1 text-sm font-medium text-fg">Pengembangan & pengawasan platform</dd></div>
+          </dl>
+        </section>
+      </div>
+    </div>;
+  }
 
   const tabs: Array<[Tab, string]> = [['tentang', 'Tentang'], ['prestasi', 'Prestasi'], ['lomba', 'Lomba'], ['statistik', 'Statistik'], ['badge', 'Badge'], ['kategori', 'Kategori Favorit']];
   return <div className="min-h-screen bg-slate-50/40 pb-12 dark:bg-slate-950/20">
