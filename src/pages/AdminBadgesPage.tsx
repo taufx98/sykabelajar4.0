@@ -444,6 +444,7 @@ export function AdminBadgesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <UiBadge color="moss">{badge.category}</UiBadge>
+                      {badge.is_purchasable && <UiBadge color="moss">Bisa dibeli</UiBadge>}
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] ${rarityClass(badge.rarity)}`}>
                         {badge.rarity}
                       </span>
