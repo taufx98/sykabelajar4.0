@@ -229,6 +229,18 @@ test.describe('backend-authoritative login flow', () => {
     await expect(page.locator('aside').getByText('Umum', { exact: true })).toHaveCount(0);
   });
 
+  test('active admin role shows the special-feature divider without a general section label', async ({ page }) => {
+    await mockSupabaseLogin(page, ['admin']);
+    await page.goto('/login?redirect=%2Fadmin');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+
+    await expect(page).toHaveURL(/\\/admin(?:\\?.*)?$/, { timeout: 15_000 });
+    await expect(page.locator('aside').getByText('Manajemen', { exact: true })).toBeVisible();
+    await expect(page.locator('aside').getByText('Umum', { exact: true })).toHaveCount(0);
+  });
+
   test('account without an active backend role is rejected instead of falling back to student', async ({ page }) => {
     const audit = await mockSupabaseLogin(page, []);
     await page.goto('/login');
