@@ -156,9 +156,9 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
       return;
     }
     let rows: unknown[] = [];
-    if (url.pathname.endsWith('/rpc/is_active_admin')) {
+    if (url.pathname.endsWith('/rpc/is_public_profile_admin')) {
       const payload = route.request().postDataJSON();
-      const targetId = String(payload.p_uid ?? '');
+      const targetId = String(payload.p_profile_id ?? '');
       const isAdmin = targetId === adminProfileId || (targetId === userId && roles.includes('admin'));
       await route.fulfill({
         status: 200,
