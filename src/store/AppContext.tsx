@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Role, User, AppNotification, Order, Award, Certificate, FeedPost } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { signIn, signUp, signOut } from '@/services/auth.service';
+import { signIn, signUp, signOut, LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
 import { getAuthenticatedProfileById, getProfileById, updateProfile as updateProfileRecord } from '@/services/profile.service';
 import { loadAwards } from '@/services/runtime.service';
 import { liveAwards } from '@/data/live';
@@ -43,6 +43,16 @@ const GUEST_KEY = 'sykabelajar_guest_mode_v1';
 const IDLE_TIMEOUT_MS = 25 * 60 * 1000;
 const LAST_ACTIVITY_KEY = 'sykabelajar_last_activity_v1';
 const ACTIVITY_PERSIST_INTERVAL_MS = 5000;
+
+async function signOutRejectedLogin() {
+  if (typeof window !== 'undefined') window.sessionStorage.setItem(LOGIN_REJECTION_SIGNOUT_KEY, '1');
+  try {
+    await signOut();
+  } catch (error) {
+    if (typeof window !== 'undefined') window.sessionStorage.removeItem(LOGIN_REJECTION_SIGNOUT_KEY);
+    throw error;
+  }
+}
 
 function preferredRole(roles: BackendRole[]): Role {
   if (roles.includes('admin')) return 'admin';
@@ -327,7 +337,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // selected at login as evidence of authorization.
       const roles = await getUserRoles(result.user.id);
       if (!roles.length) {
-        await signOut();
+        await signOutRejectedLogin();
         authenticationEstablished = false;
         return { ok: false, error: 'Akun belum memiliki role aktif di backend. Hubungi administrator.' };
       }
@@ -346,7 +356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // leave a partially authenticated client session behind.
       if (authenticationEstablished) {
         try {
-          await signOut();
+          await signOutRejectedLogin();
         } catch {
           clearUserState();
         }
