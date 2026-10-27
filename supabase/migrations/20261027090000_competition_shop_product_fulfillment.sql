@@ -99,7 +99,7 @@ begin
       nullif(trim(coalesce(p_short_description,'')),''),
       nullif(trim(coalesce(p_description,'')),''),
       v_type,v_audiences,v_price,coalesce(nullif(trim(p_currency),''),'IDR'),
-      nullif(trim(coalesce(p_image_url,'')),'',
+      nullif(trim(coalesce(p_image_url,'')),''),
       coalesce(p_is_active,false),coalesce(p_is_featured,false),greatest(coalesce(p_sort_order,0),0),v_metadata
     ) returning * into v_after;
     perform private.write_audit('admin.product_create','commerce_product',v_after.id::text,'Admin Shop',null,to_jsonb(v_after),null);
