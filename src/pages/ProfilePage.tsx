@@ -91,7 +91,7 @@ export function ProfilePage() {
 
         // Roles live in user_roles, separately from profiles.account_type. Resolve the
         // target profile using the existing backend helper so every viewer sees it consistently.
-        const adminCheck = await supabase.rpc('is_active_admin', { p_uid: p.data.id });
+        const adminCheck = await supabase.rpc('is_public_profile_admin', { p_profile_id: p.data.id });
         const accountType = String(p.data.account_type || '').trim().toLowerCase();
         const isAdminTarget = adminCheck.error
           ? accountType === 'admin' || accountType === 'administrator' || (user?.role === 'admin' && user?.id === p.data.id)
