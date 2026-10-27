@@ -60,6 +60,33 @@ export async function createOrganizerPlanOrder(input: { organizerId: string; pla
 export async function createOrganizerPlanOrderV2(input: { organizerId: string; planCode: string; billingPeriod: 'MONTHLY' | 'YEARLY'; whatsapp: string; proofUrl?: string; proofPublicId?: string; proofWidth?: number; proofHeight?: number; proofVersion?: string; proofResourceType?: string; voucherCode?: string; }) { return createOrganizerPlanOrder({ ...input, whatsapp: input.whatsapp }); }
 export async function requestCustomOrganizerPlan(input: { organizerId: string; requestedFeatures: string[]; quantities?: Record<string, number>; notes?: string; contactWhatsapp?: string; }) { const features = input.requestedFeatures.map((x) => x.trim()).filter(Boolean); if (!input.organizerId) throw new Error('Organisasi wajib dipilih.'); if (!features.length) throw new Error('Pilih minimal satu fitur custom.'); const quantities: Record<string, number> = {}; for (const [key,value] of Object.entries(input.quantities ?? {})) { if (!features.includes(key)) continue; if (!Number.isInteger(value) || value < 1) throw new Error(`Jumlah untuk ${key} harus bilangan bulat minimal 1.`); quantities[key]=value; } const { data,error }=await supabase.rpc('request_custom_organizer_plan',{p_organizer_id:input.organizerId,p_requested_features:{features,quantities},p_notes:input.notes?.trim()||null,p_contact_whatsapp:input.contactWhatsapp?.trim()||null});if(error)throw error;return Array.isArray(data)?data[0]:data; }
 export async function createProductOrder(productId:string,quantity:number){if(!Number.isInteger(quantity)||quantity<1)throw new Error('Jumlah produk tidak valid.');const{data,error}=await supabase.rpc('create_product_order',{p_product_id:productId,p_quantity:quantity});if(error)throw error;return Array.isArray(data)?data[0]:data;}
+export async function createProductOrderWithEduCoin(input: {
+  productId: string;
+  quantity: number;
+  whatsapp?: string;
+  targetOrganizerId?: string | null;
+}) {
+  if (!input.productId) throw new Error('Produk tidak valid.');
+  if (!Number.isInteger(input.quantity) || input.quantity < 1) throw new Error('Jumlah produk tidak valid.');
+  const { data, error } = await supabase.rpc('create_product_order_with_edu_coin', {
+    p_product_id: input.productId,
+    p_quantity: input.quantity,
+    p_whatsapp: input.whatsapp?.trim() || null,
+    p_target_organizer_id: input.targetOrganizerId ?? null,
+  });
+  if (error) {
+    if (error.message.includes('INSUFFICIENT_EDU_COIN')) throw new Error('INSUFFICIENT_EDU_COIN');
+    if (error.message.includes('BADGE_ALREADY_OWNED')) throw new Error('BADGE_ALREADY_OWNED');
+    if (error.message.includes('BADGE_NOT_AVAILABLE')) throw new Error('BADGE_NOT_AVAILABLE');
+    if (error.message.includes('ORGANIZER_REQUIRED')) throw new Error('ORGANIZER_REQUIRED');
+    if (error.message.includes('ORGANIZER_ACCESS_DENIED')) throw new Error('ORGANIZER_ACCESS_DENIED');
+    if (error.message.includes('SINGLE_PACKAGE_ONLY')) throw new Error('SINGLE_PACKAGE_ONLY');
+    if (error.message.includes('PRODUCT_CURRENCY_NOT_SUPPORTED')) throw new Error('PRODUCT_CURRENCY_NOT_SUPPORTED');
+    throw error;
+  }
+  return Array.isArray(data) ? data[0] : data;
+}
+
 export async function createProductOrderWithProof(input: {
   productId: string;
   quantity: number;

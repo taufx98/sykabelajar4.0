@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { formatRupiah, formatShortDate } from '@/lib/utils';
-import { createCollectiveCertificateOrderWithProof, createProductOrderWithProof, listActiveProducts, type CommerceProduct } from '@/services/commerce.service';
+import { createCollectiveCertificateOrderWithProof, createProductOrderWithEduCoin, createProductOrderWithProof, listActiveProducts, type CommerceProduct } from '@/services/commerce.service';
 import { useApp } from '@/store/AppContext';
 import { uploadImage } from '@/services/cloudinary.service';
 import { supabase } from '@/lib/supabase';
@@ -51,6 +51,8 @@ function productErrorMessage(error: unknown) {
   const message = String((error as { message?: string } | null)?.message ?? '');
   if (message.includes('PRODUCT_NOT_AVAILABLE')) return 'Produk ini tidak tersedia untuk akunmu atau sudah tidak bisa dipesan.';
   if (message.includes('PRODUCT_TYPE_NOT_SUPPORTED')) return 'Jenis produk ini belum bisa dipesan melalui Shop.';
+  if (message.includes('INSUFFICIENT_EDU_COIN')) return 'Saldo Edu Coin tidak mencukupi untuk pembelian ini.';
+  if (message.includes('PRODUCT_CURRENCY_NOT_SUPPORTED')) return 'Produk ini tidak mendukung pembayaran Edu Coin.';
   if (message.includes('INVALID_QUANTITY')) return 'Jumlah paket tidak valid.';
   if (message.includes('PAYMENT_PROOF_REQUIRED')) return 'Unggah bukti pembayaran sebelum mengirim pesanan.';
   if (message.includes('WHATSAPP_REQUIRED')) return 'Nomor WhatsApp wajib diisi.';
@@ -95,6 +97,7 @@ export function OrdersPage() {
   const [certificatePrice, setCertificatePrice] = useState<number | null>(null);
   const [ownedBadgeIds, setOwnedBadgeIds] = useState<Set<string>>(new Set());
   const [badgeOptions, setBadgeOptions] = useState<Map<string, BadgeOption>>(new Map());
+  const [eduCoinBalance, setEduCoinBalance] = useState<number | null>(null);
   const proofRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -118,17 +121,21 @@ export function OrdersPage() {
 
       if (session.session?.user) {
         const userId = session.session.user.id;
-        const [{ data: orderData, error: orderError }, { data: ownedBadges, error: badgeError }] = await Promise.all([
+        const [{ data: orderData, error: orderError }, { data: ownedBadges, error: badgeError }, { data: wallet, error: walletError }] = await Promise.all([
           supabase.from('orders').select('*,order_items(*)').eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
           supabase.from('user_badges').select('badge_id').eq('user_id', userId),
+          supabase.from('profiles').select('edu_coin').eq('id', userId).maybeSingle(),
         ]);
         if (orderError) throw orderError;
         if (badgeError) throw badgeError;
+        if (walletError) throw walletError;
         setOrders(orderData ?? []);
         setOwnedBadgeIds(new Set((ownedBadges ?? []).map((row: any) => String(row.badge_id))));
+        setEduCoinBalance(Number(wallet?.edu_coin ?? 0));
       } else {
         setOrders([]);
         setOwnedBadgeIds(new Set());
+        setEduCoinBalance(null);
       }
 
       const badgeIds = [...new Set(visible.filter((p) => p.product_type === 'BADGE').map((p) => String(p.metadata?.badge_id ?? '')).filter(Boolean))];
@@ -183,6 +190,13 @@ export function OrdersPage() {
   const displayPrice = (product: CommerceProduct) => product.product_type === 'COLLECTIVE_CERTIFICATE'
     ? Number(certificatePrice ?? 0)
     : Number(product.price ?? 0);
+  const isEduCoinCheckout = selected?.currency === 'EDU_COIN';
+  const checkoutQuantity = selected && isQuantityPackage ? quantity : 1;
+  const checkoutTotal = selected ? displayPrice(selected) * checkoutQuantity : 0;
+  const formatProductPrice = (price: number, currency: string) => currency === 'EDU_COIN'
+    ? `${Number(price).toLocaleString('id-ID')} Edu Coin`
+    : formatRupiah(price);
+  const needsWhatsapp = Boolean(selected && (!isEduCoinCheckout || ['DIGITAL_ITEM', 'DONATION'].includes(selected.product_type)));
   const selectedBadgeId = selected?.product_type === 'BADGE' ? String(selected.metadata.badge_id ?? '') : '';
   const ownsSelectedBadge = Boolean(selectedBadgeId && ownedBadgeIds.has(selectedBadgeId));
   const selectedNeedsOrganizer = selected?.product_type === 'CERTIFICATE_SERIALS';
@@ -225,6 +239,43 @@ export function OrdersPage() {
     }
     if (selectedNeedsParticipant && !selectedParticipantId) {
       setError('Pilih peserta yang sudah menyelesaikan lomba.');
+      return;
+    }
+    if (isEduCoinCheckout) {
+      if (!['DIGITAL_ITEM', 'DONATION', 'BADGE', 'CERTIFICATE_SERIALS'].includes(selected.product_type)) {
+        setError('Jenis produk ini tidak mendukung pembayaran Edu Coin.');
+        return;
+      }
+      if (['DIGITAL_ITEM', 'DONATION'].includes(selected.product_type) && !whatsapp.trim()) {
+        setError('Nomor WhatsApp wajib diisi untuk produk yang diproses tim.');
+        return;
+      }
+      setSubmitting(true);
+      setError('');
+      setMessage('');
+      try {
+        const order = await createProductOrderWithEduCoin({
+          productId: selected.id,
+          quantity: checkoutQuantity,
+          whatsapp,
+          targetOrganizerId: selectedNeedsOrganizer ? selectedOrganizerId : null,
+        });
+        const orderReference = String(order?.id ?? '').slice(0, 8);
+        const purchasedName = selected.name;
+        setSelected(null);
+        setQuantity(1);
+        setProofFile(null);
+        setProofPreview('');
+        setWhatsapp('');
+        setSelectedParticipantId('');
+        setError('');
+        setMessage(`Pembelian ${orderReference ? `#${orderReference}` : ''} untuk “${purchasedName}” berhasil dibayar dengan Edu Coin. Saldo sudah dipotong otomatis oleh sistem.`);
+        await load();
+      } catch (checkoutError) {
+        setError(productErrorMessage(checkoutError));
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
     if (!proofFile) {
@@ -281,7 +332,13 @@ export function OrdersPage() {
         });
       }
       const orderReference = String(order?.id ?? '').slice(0, 8);
-      close();
+      setSelected(null);
+      setQuantity(1);
+      setProofFile(null);
+      setProofPreview('');
+      setWhatsapp('');
+      setSelectedParticipantId('');
+      setError('');
       setMessage(`Pesanan ${orderReference ? `#${orderReference}` : ''} berhasil dikirim. Tim SYKABELAJAR akan memeriksa pembayaran sebelum manfaat diberikan.`);
       await load();
     } catch (checkoutError) {
@@ -309,7 +366,7 @@ export function OrdersPage() {
   return <div>
     <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
       <h2 className="font-display font-bold text-lg text-fg">Shop & Pesanan</h2>
-      <p className="text-xs text-slate-500">Produk dan layanan penunjang lomba SYKABELAJAR. Pembayaran manual diperiksa admin sebelum manfaat diberikan.</p>
+      <p className="text-xs text-slate-500">Produk dan layanan penunjang lomba SYKABELAJAR. Produk berharga Rupiah diverifikasi admin; pembayaran Edu Coin diproses otomatis oleh sistem.</p>
     </div>
     <div className="p-4 space-y-6">
       {error && <Card className="p-3 border-red-500/20 text-sm text-red-300">{error}</Card>}
@@ -339,7 +396,7 @@ export function OrdersPage() {
                   </div>
                 </div>
                 <p className="text-sm text-slate-500 mt-3">{productBenefit(product, badgeOptions)}</p>
-                <p className="text-lg font-bold text-accent mt-3">{unavailableCertificatePrice ? 'Harga belum diatur' : formatRupiah(price)}</p>
+                <p className="text-lg font-bold text-accent mt-3">{unavailableCertificatePrice ? 'Harga belum diatur' : formatProductPrice(price, product.currency)}</p>
                 <Button size="sm" fullWidth className="mt-3 w-full" disabled={alreadyOwned || unavailableCertificatePrice || cannotBuySerials} onClick={() => { setSelected(product); setQuantity(1); setProofFile(null); setProofPreview(''); setSelectedParticipantId(''); setError(''); }}>
                   {alreadyOwned ? 'Sudah dimiliki' : unavailableCertificatePrice ? 'Belum tersedia' : cannotBuySerials ? 'Butuh organisasi aktif' : 'Pilih & pesan'}
                 </Button>
@@ -357,10 +414,10 @@ export function OrdersPage() {
             <div className="flex flex-col md:flex-row md:items-center gap-3">
               <Package size={18} className="text-accent"/>
               <div className="flex-1 min-w-0"><p className="text-sm text-fg">{itemTitle(order)}</p><p className="text-xs text-slate-500">{formatShortDate(order.created_at)} · Pesanan #{String(order.id).slice(0, 8)}</p></div>
-              <b className="text-fg">{formatRupiah(Number(order.total || 0))}</b><Badge>{statusLabelForOrder(order)}</Badge>
+              <b className="text-fg">{formatProductPrice(Number(order.total || 0), String(order.currency ?? 'IDR'))}</b><Badge>{statusLabelForOrder(order)}</Badge>
             </div>
           </Card>)}
-          {!loading && !orders.length && <Card className="p-6 text-center text-sm text-slate-500">Belum ada pesanan. Pesanan baru akan tercatat setelah kamu mengirim bukti pembayaran.</Card>}
+          {!loading && !orders.length && <Card className="p-6 text-center text-sm text-slate-500">Belum ada pesanan. Pesanan akan tercatat setelah pembayaran manual dikirim atau pembayaran Edu Coin diproses oleh sistem.</Card>}
         </div>
       </section>
     </div>
@@ -400,12 +457,21 @@ export function OrdersPage() {
           <span className="mt-1 block text-xs text-fg-muted">Sistem akan mengecek ulang kelayakan peserta dan status pengumuman hasil di backend.</span>
         </label>}
 
-        <label className="block mt-4"><span className="label">Nomor WhatsApp <span className="text-red-400">*</span></span><input className="input mt-1 w-full" placeholder="Contoh: 08xxxxxxxxxx" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} disabled={submitting} required/></label>
-        <label className="block mt-3"><span className="label">Metode pembayaran</span><select className="input mt-1 w-full" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} disabled={submitting}><option value="BANK_TRANSFER">Transfer bank</option><option value="QRIS">QRIS</option><option value="EWALLET">Dompet digital</option></select></label>
-        <div className="mt-4"><span className="label">Bukti pembayaran <span className="text-red-400">*</span></span><p className="text-xs text-fg-muted mt-1">Unggah bukti transfer yang menampilkan nominal dan status pembayaran.</p><label className="mt-2 flex items-center gap-2 input cursor-pointer"><Upload size={15}/><span>{proofFile ? 'Ganti bukti pembayaran' : 'Pilih gambar bukti'}</span><input ref={proofRef} type="file" accept="image/*" className="sr-only" onChange={chooseProof} disabled={submitting}/></label>{proofPreview && <img src={proofPreview} alt="Pratinjau bukti pembayaran" className="mt-3 w-full max-h-48 object-contain rounded-xl border surface-border"/>}</div>
+        {needsWhatsapp && <label className="block mt-4"><span className="label">Nomor WhatsApp <span className="text-red-400">*</span></span><input className="input mt-1 w-full" placeholder="Contoh: 08xxxxxxxxxx" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} disabled={submitting} required={needsWhatsapp}/><span className="mt-1 block text-xs text-fg-muted">{isEduCoinCheckout ? 'Dipakai tim untuk tindak lanjut produk ini; tidak ada bukti transfer.' : 'Digunakan untuk koordinasi pesanan jika diperlukan.'}</span></label>}
+        {isEduCoinCheckout
+          ? <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+              <div className="flex items-center justify-between gap-3"><span className="text-sm text-fg-muted">Saldo Edu Coin</span><span className="font-semibold text-fg">{eduCoinBalance == null ? 'Tidak tersedia' : eduCoinBalance.toLocaleString('id-ID') + ' Edu Coin'}</span></div>
+              <div className="mt-2 flex items-center justify-between gap-3"><span className="text-sm text-fg-muted">Total pembayaran</span><span className="font-bold text-accent">{formatProductPrice(checkoutTotal, 'EDU_COIN')}</span></div>
+              {eduCoinBalance != null && eduCoinBalance < checkoutTotal && <p className="mt-2 text-xs text-red-300">Saldo tidak mencukupi. Isi saldo Edu Coin terlebih dahulu.</p>}
+              <p className="mt-2 text-xs leading-5 text-fg-muted">Tidak perlu bukti transfer. Backend mengecek harga dan saldo terbaru, lalu memotong koin serta mencatat transaksi secara bersamaan. Saldo yang terlihat di sini hanya informasi; server tetap memvalidasi ulang saat pembayaran.</p>
+            </div>
+          : <>
+              <label className="block mt-3"><span className="label">Metode pembayaran</span><select className="input mt-1 w-full" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} disabled={submitting}><option value="BANK_TRANSFER">Transfer bank</option><option value="QRIS">QRIS</option><option value="EWALLET">Dompet digital</option></select></label>
+              <div className="mt-4"><span className="label">Bukti pembayaran <span className="text-red-400">*</span></span><p className="text-xs text-fg-muted mt-1">Unggah bukti transfer yang menampilkan nominal dan status pembayaran.</p><label className="mt-2 flex items-center gap-2 input cursor-pointer"><Upload size={15}/><span>{proofFile ? 'Ganti bukti pembayaran' : 'Pilih gambar bukti'}</span><input ref={proofRef} type="file" accept="image/*" className="sr-only" onChange={chooseProof} disabled={submitting}/></label>{proofPreview && <img src={proofPreview} alt="Pratinjau bukti pembayaran" className="mt-3 w-full max-h-48 object-contain rounded-xl border surface-border"/>}</div>
+            </>}
         {error && <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-300">{error}</div>}
-        <div className="flex items-center justify-between mt-5 pt-4 border-t surface-border"><span className="text-sm text-slate-400">Total pesanan</span><span className="text-lg font-bold text-fg">{formatRupiah(displayPrice(selected) * (isQuantityPackage ? quantity : 1))}</span></div>
-        <div className="flex gap-2 mt-5"><Button variant="outline" fullWidth onClick={close} disabled={submitting}>Batal</Button><Button fullWidth loading={submitting} disabled={submitting || (selectedNeedsParticipant && !(Number(certificatePrice) > 0))} onClick={() => void submit()}>Kirim untuk verifikasi</Button></div>
+        <div className="flex items-center justify-between mt-5 pt-4 border-t surface-border"><span className="text-sm text-slate-400">Total pesanan</span><span className="text-lg font-bold text-fg">{formatProductPrice(checkoutTotal, String(selected.currency ?? 'IDR'))}</span></div>
+        <div className="flex gap-2 mt-5"><Button variant="outline" fullWidth onClick={close} disabled={submitting}>Batal</Button><Button fullWidth loading={submitting} disabled={submitting || (selectedNeedsParticipant && !(Number(certificatePrice) > 0)) || (isEduCoinCheckout && eduCoinBalance != null && eduCoinBalance < checkoutTotal)} onClick={() => void submit()}>{isEduCoinCheckout ? 'Beli dengan Edu Coin' : 'Kirim untuk verifikasi'}</Button></div>
       </Card>
     </div>}
   </div>;

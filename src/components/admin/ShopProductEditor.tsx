@@ -47,6 +47,8 @@ const AUDIENCES = [
   { value: 'organizer', label: 'Penyelenggara' },
 ];
 
+const EDU_COIN_SUPPORTED_TYPES = ['DIGITAL_ITEM', 'DONATION', 'BADGE', 'CERTIFICATE_SERIALS'];
+
 function initialDraft(product: Props['product']): ShopProductDraft {
   return {
     id: product.id ?? null,
@@ -58,7 +60,7 @@ function initialDraft(product: Props['product']): ShopProductDraft {
     product_type: String(product.product_type ?? 'DIGITAL_ITEM'),
     audiences: Array.isArray(product.audiences) ? product.audiences.map(String) : ['student'],
     price: Number.isFinite(Number(product.price)) ? Number(product.price ?? 0) : 0,
-    currency: 'IDR',
+    currency: String(product.currency ?? 'IDR').toUpperCase(),
     image_url: String(product.image_url ?? ''),
     is_active: Boolean(product.is_active),
     is_featured: Boolean(product.is_featured),
@@ -92,6 +94,8 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
   const selectedType = PRODUCT_TYPES.find((item) => item.value === draft.product_type);
   const unsupportedType = !selectedType;
   const usesSpecialAudience = draft.product_type === 'CERTIFICATE_SERIALS' || draft.product_type === 'COLLECTIVE_CERTIFICATE';
+  const canUseEduCoin = EDU_COIN_SUPPORTED_TYPES.includes(draft.product_type);
+  const isCoinPrice = canUseEduCoin && draft.currency === 'EDU_COIN';
 
   useEffect(() => {
     let active = true;
@@ -133,7 +137,8 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
   const changeProductType = (productType: string) => {
     const fixedAudience = productType === 'CERTIFICATE_SERIALS' ? ['organizer']
       : productType === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : draft.audiences;
-    patch({ product_type: productType, audiences: fixedAudience, metadata: productType === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : {} , price: productType === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price });
+    const currency = EDU_COIN_SUPPORTED_TYPES.includes(productType) ? draft.currency : 'IDR';
+    patch({ product_type: productType, audiences: fixedAudience, currency, metadata: productType === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : {} , price: productType === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price });
   };
 
   const toggleAudience = (audience: string) => {
@@ -181,7 +186,9 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
     if (draft.audiences.length === 0) return setValidationMessage('Pilih minimal satu kelompok pengguna.');
     if (unsupportedType) return setValidationMessage('Jenis produk ini belum didukung untuk pemesanan Shop. Pilih Produk digital atau Donasi.');
     if (!Number.isFinite(draft.price) || draft.price < 0) return setValidationMessage('Harga harus berupa angka nol atau lebih.');
-    if (draft.is_active && draft.price <= 0 && draft.product_type !== 'COLLECTIVE_CERTIFICATE') return setValidationMessage('Produk aktif harus memiliki harga di atas Rp0.');
+    if (draft.is_active && draft.price <= 0 && draft.product_type !== 'COLLECTIVE_CERTIFICATE') return setValidationMessage(isCoinPrice ? 'Produk aktif harus memiliki harga minimal 1 Edu Coin.' : 'Produk aktif harus memiliki harga di atas Rp0.');
+    if (draft.currency === 'EDU_COIN' && !canUseEduCoin) return setValidationMessage('Jenis produk ini wajib memakai Rupiah karena menggunakan alur khusus.');
+    if (isCoinPrice && (!Number.isInteger(draft.price) || draft.price < 1)) return setValidationMessage('Harga Edu Coin harus berupa bilangan bulat minimal 1.');
     if (draft.product_type === 'EDU_COIN_TOPUP' && (!Number.isInteger(Number(draft.metadata.coin_amount)) || Number(draft.metadata.coin_amount) < 1 || Number(draft.metadata.coin_amount) > 1000000)) return setValidationMessage('Masukkan jumlah Edu Coin antara 1 dan 1.000.000.');
     if (draft.product_type === 'BADGE' && !draft.metadata.badge_id) return setValidationMessage('Pilih badge yang akan diberikan setelah pembayaran berhasil.');
     if (draft.product_type === 'CERTIFICATE_SERIALS' && (!Number.isInteger(Number(draft.metadata.serial_quantity)) || Number(draft.metadata.serial_quantity) < 1 || Number(draft.metadata.serial_quantity) > 1000)) return setValidationMessage('Masukkan jumlah QR / Serial antara 1 dan 1.000.');
@@ -239,18 +246,33 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
             <section className="space-y-3 border-t surface-border pt-5">
               <div>
                 <h3 className="text-sm font-semibold text-fg">Harga dan gambar</h3>
-                <p className="mt-1 text-xs text-fg-muted">Harga dalam Rupiah. Gambar bersifat opsional, tetapi membantu produk lebih mudah dikenali.</p>
+                <p className="mt-1 text-xs text-fg-muted">Atur harga dalam Rupiah atau Edu Coin. Gambar bersifat opsional, tetapi membantu produk lebih mudah dikenali.</p>
               </div>
+              {canUseEduCoin
+                ? <label className="block">
+                    <span className="label">Mata uang harga</span>
+                    <select className="input mt-1 w-full" aria-label="Mata uang harga produk" value={isCoinPrice ? 'EDU_COIN' : 'IDR'} onChange={(event) => patch({ currency: event.target.value === 'EDU_COIN' ? 'EDU_COIN' : 'IDR' })} disabled={busy || imageUploadBusy}>
+                      <option value="IDR">Rupiah (Rp) · pembayaran manual</option>
+                      <option value="EDU_COIN">Edu Coin · pembayaran otomatis</option>
+                    </select>
+                    <span className="mt-1 block text-xs leading-5 text-fg-muted">{isCoinPrice ? 'Saldo Edu Coin divalidasi dan dipotong oleh backend dalam satu transaksi. Tidak perlu bukti transfer.' : 'Pembeli mengirim bukti pembayaran Rupiah untuk diverifikasi admin.'}</span>
+                  </label>
+                : <div className="rounded-xl border surface-border bg-surface-elevated/25 px-3 py-2.5">
+                    <p className="text-xs font-semibold text-fg">Pembayaran Rupiah saja</p>
+                    <p className="mt-1 text-xs leading-5 text-fg-muted">{draft.product_type === 'EDU_COIN_TOPUP' ? 'Paket Edu Coin tidak dapat dibeli memakai Edu Coin agar tidak terjadi perputaran saldo tanpa pembayaran Rupiah.' : 'Sertifikat peserta memakai harga dan proses penerbitan dari pengaturan sertifikat khusus.'}</p>
+                  </div>}
               <div>
                 <label className="block">
-                  <span className="label">{draft.product_type === 'COLLECTIVE_CERTIFICATE' ? 'Harga sertifikat peserta' : 'Harga (Rp)'} {draft.product_type !== 'COLLECTIVE_CERTIFICATE' && <span className="text-red-400">*</span>}</span>
+                  <span className="label">{draft.product_type === 'COLLECTIVE_CERTIFICATE' ? 'Harga sertifikat peserta (Rp)' : isCoinPrice ? 'Harga (Edu Coin)' : 'Harga (Rp)'} {draft.product_type !== 'COLLECTIVE_CERTIFICATE' && <span className="text-red-400">*</span>}</span>
                   <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-fg-muted">Rp</span>
-                    <input className="input w-full pl-10" type="number" min="0" step="1" inputMode="numeric" value={draft.product_type === 'COLLECTIVE_CERTIFICATE' ? (collectiveCertificatePrice ?? '') : draft.price} onChange={(event) => patch({ price: event.target.value === '' ? 0 : Number(event.target.value) })} disabled={draft.product_type === 'COLLECTIVE_CERTIFICATE'} required={draft.product_type !== 'COLLECTIVE_CERTIFICATE'} />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-fg-muted">{isCoinPrice ? 'Coin' : 'Rp'}</span>
+                    <input className={isCoinPrice ? 'input w-full pl-14' : 'input w-full pl-10'} type="number" min={isCoinPrice ? '1' : '0'} step="1" inputMode="numeric" value={draft.product_type === 'COLLECTIVE_CERTIFICATE' ? (collectiveCertificatePrice ?? '') : draft.price} onChange={(event) => patch({ price: event.target.value === '' ? 0 : Number(event.target.value) })} disabled={draft.product_type === 'COLLECTIVE_CERTIFICATE'} required={draft.product_type !== 'COLLECTIVE_CERTIFICATE'} />
                   </div>
                   {draft.product_type === 'COLLECTIVE_CERTIFICATE'
-                    ? <p className="mt-1.5 text-xs leading-5 text-fg-muted">Harga mengikuti Pengaturan Sertifikat Kolektif. Atur nominal pada menu Pengaturan Sertifikat; katalog ini hanya mengaktifkan penawaran di Shop.</p>
-                    : <p className="mt-1.5 text-xs text-fg-muted">Harga per paket. Semua pembayaran diperiksa admin sebelum manfaat diberikan.</p>}
+                    ? <p className="mt-1.5 text-xs leading-5 text-fg-muted">Harga mengikuti Pengaturan Sertifikat Kolektif dalam Rupiah. Harga koin belum tersedia karena sertifikat memakai proses penerbitan khusus.</p>
+                    : isCoinPrice
+                      ? <p className="mt-1.5 text-xs leading-5 text-fg-muted">Harga per paket berupa bilangan bulat. Pembayaran berhasil hanya jika saldo cukup dan manfaat berhasil diproses di backend.</p>
+                      : <p className="mt-1.5 text-xs text-fg-muted">Harga per paket dalam Rupiah. Pembayaran diperiksa admin sebelum manfaat diberikan.</p>}
                 </label>
               </div>
 
@@ -334,7 +356,7 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
                 </div>
                 <p className="break-words text-sm font-semibold text-fg">{draft.name.trim() || 'Nama produk'}</p>
                 <p className="line-clamp-3 text-xs leading-5 text-fg-muted">{draft.short_description || 'Ringkasan produk akan tampil di sini.'}</p>
-                <p className="pt-1 text-lg font-bold text-accent">Rp {Math.max(0, Number(draft.price) || 0).toLocaleString('id-ID')}</p>
+                <p className="pt-1 text-lg font-bold text-accent">{isCoinPrice ? Math.max(0, Number(draft.price) || 0).toLocaleString('id-ID') + ' Edu Coin' : 'Rp ' + Math.max(0, Number(draft.price) || 0).toLocaleString('id-ID')}</p>
               </div>
             </Card>
 

@@ -153,6 +153,7 @@ export async function saveProduct(input: AdminProductInput) {
   const slug = input.slug.trim();
   const audiences = [...new Set((input.audiences ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean))];
   const productType = String(input.product_type ?? 'DIGITAL_ITEM').trim().toUpperCase();
+  const currency = String(input.currency ?? 'IDR').trim().toUpperCase();
   const price = Number(input.price ?? 0);
 
   if (!name) throw new Error('Nama produk wajib diisi.');
@@ -161,8 +162,12 @@ export async function saveProduct(input: AdminProductInput) {
   if (!['DIGITAL_ITEM', 'DONATION', 'EDU_COIN_TOPUP', 'BADGE', 'CERTIFICATE_SERIALS', 'COLLECTIVE_CERTIFICATE'].includes(productType)) throw new Error('Jenis produk ini belum didukung untuk pemesanan Shop.');
   if (!audiences.length) throw new Error('Pilih minimal satu kelompok pengguna.');
   if (audiences.some((value) => !['student', 'teacher', 'organizer'].includes(value))) throw new Error('Kelompok pengguna tidak valid.');
+  if (!['IDR', 'EDU_COIN'].includes(currency)) throw new Error('Mata uang produk tidak valid.');
+  if (currency === 'EDU_COIN' && !['DIGITAL_ITEM', 'DONATION', 'BADGE', 'CERTIFICATE_SERIALS'].includes(productType)) throw new Error('Jenis produk ini wajib memakai Rupiah karena menggunakan alur khusus.');
+  if (currency === 'EDU_COIN' && (!Number.isInteger(price) || price < 1)) throw new Error('Harga Edu Coin harus berupa bilangan bulat minimal 1.');
+  if (['EDU_COIN_TOPUP', 'COLLECTIVE_CERTIFICATE', 'PLAN', 'FEATURE_UNLOCK'].includes(productType) && currency !== 'IDR') throw new Error('Produk ini hanya dapat memakai Rupiah.');
   if (!Number.isFinite(price) || price < 0) throw new Error('Harga harus berupa angka nol atau lebih.');
-  if (input.is_active && price <= 0 && productType !== 'COLLECTIVE_CERTIFICATE') throw new Error('Produk yang ditampilkan harus memiliki harga di atas Rp0.');
+  if (input.is_active && price <= 0 && productType !== 'COLLECTIVE_CERTIFICATE') throw new Error(currency === 'EDU_COIN' ? 'Produk aktif harus memiliki harga minimal 1 Edu Coin.' : 'Produk yang ditampilkan harus memiliki harga di atas Rp0.');
   const metadata = input.metadata ?? {};
   if (productType === 'EDU_COIN_TOPUP' && (!Number.isInteger(Number(metadata.coin_amount)) || Number(metadata.coin_amount) < 1 || Number(metadata.coin_amount) > 1_000_000)) throw new Error('Jumlah Edu Coin harus antara 1 dan 1.000.000.');
   if (productType === 'BADGE' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(metadata.badge_id ?? ''))) throw new Error('Pilih badge yang akan diberikan setelah pembayaran berhasil.');
@@ -192,7 +197,7 @@ export async function saveProduct(input: AdminProductInput) {
     p_product_type: productType,
     p_audiences: audiences,
     p_price: price,
-    p_currency: 'IDR',
+    p_currency: currency,
     p_image_url: imageUrl || null,
     p_is_active: !!input.is_active,
     p_is_featured: !!input.is_featured,
@@ -203,7 +208,9 @@ export async function saveProduct(input: AdminProductInput) {
   if (error) {
     if (error.code === '23505' && error.message.includes('commerce_products_code_key')) throw new Error('Kode produk ini sudah digunakan. Gunakan kode lain.');
     if (error.code === '23505' && error.message.includes('commerce_products_slug_key')) throw new Error('Tautan produk ini sudah digunakan. Ubah tautan pendeknya.');
-    if (error.message.includes('ACTIVE_PRODUCT_PRICE_REQUIRED')) throw new Error('Produk yang ditampilkan harus memiliki harga di atas Rp0.');
+    if (error.message.includes('ACTIVE_PRODUCT_PRICE_REQUIRED')) throw new Error(currency === 'EDU_COIN' ? 'Produk aktif harus memiliki harga minimal 1 Edu Coin.' : 'Produk yang ditampilkan harus memiliki harga di atas Rp0.');
+    if (error.message.includes('COIN_PRICE_INVALID')) throw new Error('Harga Edu Coin harus berupa bilangan bulat minimal 1.');
+    if (error.message.includes('PRODUCT_CURRENCY_NOT_SUPPORTED')) throw new Error('Jenis produk ini wajib memakai Rupiah karena menggunakan alur khusus.');
     if (error.message.includes('PRODUCT_TYPE_NOT_SUPPORTED')) throw new Error('Jenis produk ini belum didukung untuk pemesanan Shop.');
     if (error.message.includes('AUDIENCE_REQUIRED')) throw new Error('Pilih minimal satu kelompok pengguna.');
     if (error.message.includes('IMAGE_URL_CLOUDINARY_REQUIRED')) throw new Error('Gambar produk wajib diunggah ke Cloudinary melalui tombol Unggah gambar.');
