@@ -308,8 +308,33 @@ test.describe('organizer workspace after login', () => {
 });
 
 test.describe('Shop editor', () => {
-  test('admin product editor shows product information fields', async ({ page }) => {
+  test('admin product editor shows product information fields and opens a safe duplicate draft', async ({ page }) => {
     await mockSupabaseLogin(page, ['admin']);
+    await page.route('**/rest/v1/commerce_products**', async (route) => {
+      const rows = [{
+        id: '44444444-4444-4444-8444-444444444444',
+        code: 'SHOP-EDU-COIN',
+        slug: 'paket-edu-coin',
+        name: 'Paket Edu Coin',
+        short_description: 'Isi saldo Edu Coin',
+        description: 'Paket contoh untuk pengujian duplikasi.',
+        product_type: 'EDU_COIN_TOPUP',
+        audiences: ['student'],
+        price: 15000,
+        currency: 'IDR',
+        image_url: null,
+        is_active: true,
+        is_featured: true,
+        sort_order: 3,
+        metadata: { coin_amount: 250 },
+      }];
+      await route.fulfill({
+        status: 200,
+        headers: { 'access-control-allow-origin': '*', 'content-range': '0-0/1' },
+        contentType: 'application/json',
+        body: JSON.stringify(rows),
+      });
+    });
     await page.goto('/login?redirect=%2Fadmin%2Fcore%3Ftab%3Dshop');
     await page.locator('input[autocomplete="email"]').fill('guru@example.test');
     await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
@@ -329,6 +354,15 @@ test.describe('Shop editor', () => {
         }),
       });
     });
+    await expect(page.getByRole('button', { name: 'Duplikat Paket Edu Coin', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Duplikat Paket Edu Coin', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Duplikat produk' })).toBeVisible();
+    await expect(page.getByLabel('Nama produk')).toHaveValue('Paket Edu Coin (Salinan)');
+    await expect(page.getByLabel('Tampilkan di Shop')).not.toBeChecked();
+    await expect(page.getByLabel('Jadikan unggulan')).not.toBeChecked();
+    await expect(page.getByRole('button', { name: 'Simpan salinan' })).toBeVisible();
+    await page.getByRole('button', { name: 'Batal', exact: true }).click();
+
     await page.getByRole('button', { name: 'Tambah produk', exact: true }).click();
     await expect(page.getByLabel('Nama produk')).toBeVisible();
     await expect(page.getByLabel('Harga (Rp)')).toBeVisible();
