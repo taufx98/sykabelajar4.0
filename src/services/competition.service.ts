@@ -13,6 +13,28 @@ export async function listPublicCompetitions(limit = 30) {
   return data ?? [];
 }
 
+
+/**
+ * Returns the nearest future public registration deadlines for the Home sidebar.
+ * Keep this query intentionally narrow and order by deadline (not creation date),
+ * so recently created competitions are not limited by the five-item Home snapshot.
+ */
+export async function listUpcomingPublicCompetitionDeadlines(limit = 3) {
+  const boundedLimit = Math.min(10, Math.max(1, Math.floor(limit)));
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('competitions')
+    .select('id,slug,title,status,registration_starts_at,registration_ends_at,starts_at,ends_at')
+    .eq('visibility', 'PUBLIC')
+    .in('status', ['PUBLISHED', 'REGISTRATION_OPEN'])
+    .not('registration_ends_at', 'is', null)
+    .gte('registration_ends_at', now)
+    .order('registration_ends_at', { ascending: true })
+    .limit(boundedLimit);
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function syncCompetitionRegistrationStatus(competitionId: string) {
   const { data, error } = await supabase.rpc('sync_competition_registration_status', {
     p_competition_id: competitionId,
