@@ -9,6 +9,7 @@ import { listCurrentUserOrganizers, resolveCurrentUserOrganizer, setSelectedOrga
 import { getActiveOrganizerEntitlements } from '@/services/organizerEntitlement.service';
 import { uploadProfileImageSigned, optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 import { supabase } from '@/lib/supabase';
+import { OrganizerWorkspaceOnboarding } from '@/components/organizer/OrganizerWorkspaceOnboarding';
 
 const TABS = [
   ['overview', 'Ringkasan', Building2],
@@ -175,7 +176,7 @@ export function OrganizerControlCenterPage() {
 
   if (loading && !org) return <div className="p-6 md:p-8"><Card className="p-10 text-center"><p className="text-sm text-fg-muted">Memuat workspace penyelenggara…</p></Card></div>;
 
-  if (!org) return <div className="p-6 md:p-10"><Card className="max-w-xl mx-auto p-8 text-center"><Building2 size={36} className="mx-auto text-accent mb-3"/><h1 className="text-xl font-bold text-fg">Belum ada workspace</h1><p className="text-sm text-fg-muted mt-2">Buat atau bergabung ke organisasi untuk mengelola lomba dan bank soal.</p><Link to="/organizer" className="inline-flex mt-5"><Button>Buka Pengaturan Organisasi</Button></Link></Card></div>;
+  if (!org) return <OrganizerWorkspaceOnboarding onContinue={load} />;
 
   return <div className="p-4 md:p-7 space-y-6">
     <section className="rounded-3xl surface-card-bg border surface-border p-5 md:p-7 overflow-hidden relative">
