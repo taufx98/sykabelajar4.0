@@ -13,6 +13,11 @@ alter table public.commerce_products
 alter table public.organizer_serials
   add column if not exists source_order_id uuid references public.orders(id) on delete restrict;
 
+alter table public.badges
+  add column if not exists is_purchasable boolean not null default false;
+create index if not exists badges_shop_purchasable_idx
+  on public.badges(name) where status = 'ACTIVE' and is_purchasable = true and award_type = 'MANUAL';
+
 create index if not exists organizer_serials_source_order_idx
   on public.organizer_serials(source_order_id) where source_order_id is not null;
 
@@ -72,7 +77,7 @@ begin
   elsif v_type = 'BADGE' then
     if coalesce(v_metadata->>'badge_id','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then raise exception 'BADGE_REQUIRED'; end if;
     v_badge_id := (v_metadata->>'badge_id')::uuid;
-    if not exists(select 1 from public.badges b where b.id=v_badge_id and b.status='ACTIVE') then raise exception 'BADGE_NOT_AVAILABLE'; end if;
+    if not exists(select 1 from public.badges b where b.id=v_badge_id and b.status='ACTIVE' and b.is_purchasable=true and b.award_type='MANUAL') then raise exception 'BADGE_NOT_AVAILABLE'; end if;
   elsif v_type = 'CERTIFICATE_SERIALS' then
     if coalesce(v_metadata->>'serial_quantity','') !~ '^[0-9]+$' then raise exception 'SERIAL_QUANTITY_REQUIRED'; end if;
     v_serial_quantity := (v_metadata->>'serial_quantity')::integer;
@@ -183,7 +188,7 @@ begin
   elsif v_product.product_type='BADGE' then
     if coalesce(v_product.metadata->>'badge_id','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then raise exception 'BADGE_NOT_AVAILABLE'; end if;
     v_badge_id := (v_product.metadata->>'badge_id')::uuid;
-    if not exists(select 1 from public.badges where id=v_badge_id and status='ACTIVE') then raise exception 'BADGE_NOT_AVAILABLE'; end if;
+    if not exists(select 1 from public.badges where id=v_badge_id and status='ACTIVE' and is_purchasable=true and award_type='MANUAL') then raise exception 'BADGE_NOT_AVAILABLE'; end if;
     if exists(select 1 from public.user_badges where user_id=auth.uid() and badge_id=v_badge_id) then raise exception 'BADGE_ALREADY_OWNED'; end if;
   elsif v_product.product_type='CERTIFICATE_SERIALS' then
     if coalesce(v_product.metadata->>'serial_quantity','') !~ '^[0-9]+$'
