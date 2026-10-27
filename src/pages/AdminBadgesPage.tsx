@@ -100,6 +100,7 @@ function emptyBadge(): Partial<Badge> {
     rarity: 'Common',
     status: 'DRAFT',
     award_type: 'MANUAL',
+    is_purchasable: false,
     rule_config: { conditions: [] },
   };
 }
@@ -235,6 +236,10 @@ export function AdminBadgesPage() {
       toast('Nama dan deskripsi badge wajib diisi.', 'error');
       return;
     }
+    if (editor.is_purchasable && editor.award_type !== 'MANUAL') {
+      toast('Badge prestasi otomatis/event tidak boleh dijual. Gunakan metode Manual untuk badge yang bisa dibeli.', 'error');
+      return;
+    }
     if (editor.award_type === 'AUTOMATIC' && !editor.rule_config?.conditions?.length) {
       toast('Badge otomatis membutuhkan minimal satu kondisi.', 'error');
       return;
@@ -253,6 +258,7 @@ export function AdminBadgesPage() {
         rarity: editor.rarity || 'Common',
         status: editor.status || 'DRAFT',
         award_type: editor.award_type || 'MANUAL',
+        is_purchasable: Boolean(editor.is_purchasable) && editor.award_type === 'MANUAL',
         rule_config: editor.rule_config || { conditions: [] },
       });
       toast(editor.id ? 'Badge diperbarui.' : 'Badge berhasil dibuat.', 'success');
@@ -599,6 +605,23 @@ export function AdminBadgesPage() {
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="rounded-xl border surface-border p-3">
+                      <label className={`flex items-start gap-3 ${editor.award_type === 'MANUAL' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={Boolean(editor.is_purchasable) && editor.award_type === 'MANUAL'}
+                          disabled={editor.award_type !== 'MANUAL'}
+                          onChange={(event) => updateEditor({ is_purchasable: event.target.checked })}
+                        />
+                        <span>
+                          <span className="block text-xs font-semibold text-fg">Boleh dibeli melalui Shop</span>
+                          <span className="mt-1 block text-[11px] leading-5 text-fg-muted">Aktifkan hanya untuk badge manual seperti badge profil khusus. Badge prestasi otomatis atau berbasis event tidak dapat dijual agar hasil dan penghargaan lomba tetap bermakna.</span>
+                        </span>
+                      </label>
+                      {editor.is_purchasable && editor.award_type === 'MANUAL' && <p className="mt-2 rounded-lg bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-300">Badge ini bisa dipilih dari Shop setelah statusnya Aktif.</p>}
                     </div>
 
                     {editor.award_type === 'AUTOMATIC' && (
