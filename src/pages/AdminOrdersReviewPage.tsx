@@ -8,7 +8,8 @@ import { supabase } from '@/lib/supabase';
 import { adminReviewManualOrder } from '@/services/commerce.service';
 
 function meta(order: any) { const item = Array.isArray(order.order_items) ? order.order_items[0] : order.order_items; return item?.metadata && typeof item.metadata === 'object' ? item.metadata as Record<string, any> : {}; }
-function planLabel(order: any) { const m = meta(order); return m.plan_code ? `${m.plan_code} · ${m.billing_period === 'YEARLY' ? 'Tahunan' : 'Bulanan'}` : (order.order_items?.[0]?.name ?? 'Order Organizer'); }
+function orderItemLabel(order: any) { const m = meta(order); if (m.plan_code) return `${m.plan_code} · ${m.billing_period === 'YEARLY' ? 'Tahunan' : 'Bulanan'}`; return order.order_items?.[0]?.name ?? 'Pesanan Shop'; }
+function paymentMethodLabel(value: unknown) { const method = String(value ?? '').toUpperCase(); if (method === 'BANK_TRANSFER' || method === 'MANUAL_TRANSFER') return 'Transfer bank'; if (method === 'QRIS') return 'QRIS'; if (method === 'EWALLET') return 'Dompet digital'; return '—'; }
 function contactEntries(order: any) { const fields = order.contact_fields && typeof order.contact_fields === 'object' ? order.contact_fields as Record<string, unknown> : {}; return Object.entries(fields).filter(([,value]) => value !== null && value !== undefined && String(value) !== '').slice(0, 20); }
 
 export function AdminOrdersReviewPage() {
