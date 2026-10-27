@@ -47,7 +47,7 @@ export function AdminPage() {
   const [competitionDelete, setCompetitionDelete] = useState<CompetitionDeleteState | null>(null);
   const [shopSearch, setShopSearch] = useState('');
   const [shopStatus, setShopStatus] = useState<'all' | 'active' | 'inactive' | 'featured'>('all');
-  const [shopType, setShopType] = useState<'all' | 'DIGITAL_ITEM' | 'DONATION'>('all');
+  const [shopType, setShopType] = useState<string>('all');
 
   useEffect(() => { if (requestedTab && tabs.some(t => t.key === requestedTab)) setTab(requestedTab); }, [requestedTab]);
 
@@ -116,9 +116,9 @@ export function AdminPage() {
     const name = draft.name.trim();
     if (!name) return toast.warning('Nama produk wajib diisi.');
     if (!draft.audiences.length) return toast.warning('Pilih minimal satu kelompok pengguna.');
-    if (!['DIGITAL_ITEM', 'DONATION'].includes(draft.product_type)) return toast.warning('Jenis produk ini belum didukung untuk pemesanan Shop.');
+    if (!['DIGITAL_ITEM', 'DONATION', 'EDU_COIN_TOPUP', 'BADGE', 'CERTIFICATE_SERIALS', 'COLLECTIVE_CERTIFICATE'].includes(draft.product_type)) return toast.warning('Jenis produk ini belum didukung untuk pemesanan Shop.');
     if (!Number.isFinite(draft.price) || draft.price < 0) return toast.warning('Harga harus berupa angka nol atau lebih.');
-    if (draft.is_active && draft.price <= 0) return toast.warning('Produk aktif harus memiliki harga di atas Rp0. Alur klaim produk gratis belum tersedia.');
+    if (draft.is_active && draft.price <= 0 && draft.product_type !== 'COLLECTIVE_CERTIFICATE') return toast.warning('Produk aktif harus memiliki harga di atas Rp0.');
 
     const toSlug = (value: string) => value.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'produk';
     const token = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
@@ -134,8 +134,8 @@ export function AdminPage() {
       description: draft.description.trim(),
       image_url: draft.image_url.trim(),
       currency: 'IDR',
-      audiences: [...new Set(draft.audiences)],
-      metadata: draft.metadata ?? {},
+      audiences: draft.product_type === 'CERTIFICATE_SERIALS' ? ['organizer'] : draft.product_type === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : [...new Set(draft.audiences)],
+      metadata: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : draft.metadata ?? {},
     };
 
     setBusy(true);
@@ -150,7 +150,10 @@ export function AdminPage() {
       await load();
     } catch (error: any) {
       const raw = String(error?.message ?? '');
-      if (raw.includes('commerce_products_code_key')) toast.error('Kode produk ini sudah dipakai. Ubah kode di Identitas produk.');
+      if (raw.includes('COIN_AMOUNT_REQUIRED') || raw.includes('COIN_AMOUNT_INVALID')) toast.error('Jumlah Edu Coin paket ini belum valid.');
+      else if (raw.includes('BADGE_REQUIRED') || raw.includes('BADGE_NOT_AVAILABLE')) toast.error('Pilih badge aktif yang tersedia.');
+      else if (raw.includes('SERIAL_QUANTITY_REQUIRED') || raw.includes('SERIAL_QUANTITY_INVALID')) toast.error('Jumlah QR / Serial harus antara 1 dan 1.000.');
+      else if (raw.includes('commerce_products_code_key')) toast.error('Kode produk ini sudah dipakai. Ubah kode di Identitas produk.');
       else if (raw.includes('commerce_products_slug_key')) toast.error('Tautan pendek ini sudah dipakai. Ubah tautan di Identitas produk.');
       else if (raw.includes('ACTIVE_PRODUCT_PRICE_REQUIRED')) toast.error('Produk yang ditampilkan harus memiliki harga di atas Rp0.');
       else if (raw.includes('PRODUCT_TYPE_NOT_SUPPORTED')) toast.error('Jenis produk ini belum didukung untuk pemesanan Shop.');
@@ -262,7 +265,7 @@ export function AdminPage() {
               <option value="all">Semua status</option><option value="active">Tampil di Shop</option><option value="inactive">Belum ditampilkan</option><option value="featured">Produk unggulan</option>
             </select>
             <select className="input w-full" value={shopType} onChange={(event) => setShopType(event.target.value as typeof shopType)} aria-label="Filter jenis produk">
-              <option value="all">Semua jenis</option><option value="DIGITAL_ITEM">Produk digital</option><option value="DONATION">Donasi</option>
+              <option value="all">Semua jenis</option><option value="EDU_COIN_TOPUP">Paket Edu Coin</option><option value="BADGE">Badge profil</option><option value="CERTIFICATE_SERIALS">Paket QR / Serial</option><option value="COLLECTIVE_CERTIFICATE">Sertifikat peserta kolektif</option><option value="DIGITAL_ITEM">Layanan / materi lomba</option><option value="DONATION">Donasi</option>
             </select>
           </div>
         </Card>
@@ -271,7 +274,7 @@ export function AdminPage() {
           ? <Card className="p-8 text-center sm:p-12">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent"><Store size={25}/></div>
               <h4 className="mt-4 font-display text-lg font-bold text-fg">Shop masih kosong</h4>
-              <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-fg-muted">Mulai dengan produk digital atau pilihan donasi. Produk baru tidak langsung terlihat oleh pengguna sampai kamu mengaktifkannya.</p>
+              <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-fg-muted">Mulai dengan paket Edu Coin, badge profil, QR / serial sertifikat, sertifikat peserta, layanan lomba, atau donasi. Produk baru tidak langsung terlihat sampai kamu mengaktifkannya.</p>
               <Button className="mt-5" icon={<Plus size={14}/>} onClick={() => setProductEditor({code:'',slug:'',name:'',short_description:'',description:'',product_type:'DIGITAL_ITEM',audiences:['student'],price:0,currency:'IDR',image_url:'',is_active:false,is_featured:false,sort_order:products.length,metadata:{}})}>Buat produk pertama</Button>
             </Card>
           : filteredShopProducts.length === 0
@@ -280,7 +283,7 @@ export function AdminPage() {
                 {filteredShopProducts.map((product: any) => {
                   const audiences = Array.isArray(product.audiences) ? product.audiences : [];
                   const audienceLabels = audiences.map((audience: string) => ({student:'Pelajar',teacher:'Guru',organizer:'Penyelenggara'}[audience] ?? 'Pengguna'));
-                  const typeLabel = product.product_type === 'DONATION' ? 'Donasi' : product.product_type === 'DIGITAL_ITEM' ? 'Produk digital' : 'Belum didukung';
+                  const typeLabel = ({ EDU_COIN_TOPUP: 'Paket Edu Coin', BADGE: 'Badge profil', CERTIFICATE_SERIALS: 'Paket QR / Serial', COLLECTIVE_CERTIFICATE: 'Sertifikat peserta kolektif', DIGITAL_ITEM: 'Layanan / materi lomba', DONATION: 'Donasi' } as Record<string,string>)[product.product_type] ?? 'Jenis lama';
                   return <Card key={product.id} className="overflow-hidden border surface-border p-0 transition hover:border-accent/25">
                     <div className="relative flex aspect-[16/8] items-center justify-center bg-surface-elevated/30">
                       {product.image_url
@@ -296,7 +299,9 @@ export function AdminPage() {
                         <div className="min-w-0"><p className="break-words text-sm font-semibold text-fg">{product.name || 'Tanpa nama'}</p><p className="mt-1 text-xs leading-5 text-fg-muted">{product.short_description || 'Belum ada ringkasan produk.'}</p></div>
                         <span className="shrink-0 rounded-full border surface-border px-2 py-1 text-[10px] text-fg-muted">{typeLabel}</span>
                       </div>
-                      <p className="text-xl font-bold text-accent">Rp {Number(product.price || 0).toLocaleString('id-ID')}</p>
+                      <p className="text-xl font-bold text-accent">{product.product_type === 'COLLECTIVE_CERTIFICATE' ? 'Harga mengikuti pengaturan sertifikat' : `Rp ${Number(product.price || 0).toLocaleString('id-ID')}`}</p>
+                      {product.product_type === 'EDU_COIN_TOPUP' && <p className="text-xs text-fg-muted">Isi paket: {Number(product.metadata?.coin_amount ?? 0).toLocaleString('id-ID')} Edu Coin</p>}
+                      {product.product_type === 'CERTIFICATE_SERIALS' && <p className="text-xs text-fg-muted">Isi paket: {Number(product.metadata?.serial_quantity ?? 0).toLocaleString('id-ID')} QR / Serial sertifikat</p>}
                       <div className="flex flex-wrap gap-1.5">
                         {audienceLabels.length ? audienceLabels.map((audience: string) => <span key={audience} className="rounded-full bg-surface-elevated/50 px-2 py-1 text-[10px] text-fg-muted">{audience}</span>) : <span className="text-[10px] text-amber-400">Belum memilih kelompok pengguna</span>}
                       </div>
