@@ -4,7 +4,27 @@ import type { CloudinaryUploadResult } from '@/services/cloudinary.service';
 const MAX=2*1024*1024;const ALLOWED:Record<string,string>={'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','pdf':'application/pdf','webm':'audio/webm','ogg':'audio/ogg','oga':'audio/ogg','m4a':'audio/mp4','mp3':'audio/mpeg','wav':'audio/wav'};
 export function validateChatFile(file:File){if(!file)throw new Error('File wajib dipilih.');if(file.size>MAX)throw new Error('File chat maksimal 2MB.');const ext=file.name.split('.').pop()?.toLowerCase()||'';const mime=file.type.toLowerCase().split(';')[0];if(!ALLOWED[ext]||ALLOWED[ext]!==mime)throw new Error('Format chat yang didukung: JPG, PNG, PDF, atau audio WEBM/OGG/M4A/MP3/WAV maksimal 2MB.');}
 async function compressImage(file:File){if(!file.type.startsWith('image/'))return file;const bitmap=await createImageBitmap(file);const scale=Math.min(1,512/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Browser tidak mendukung pemrosesan gambar.');ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);const blob=await new Promise<Blob|null>(r=>canvas.toBlob(r,'image/jpeg',0.84));bitmap.close();if(!blob)throw new Error('Gambar gagal diproses.');return new File([blob],`${file.name.replace(/\.[^.]+$/,'')}.jpg`,{type:'image/jpeg',lastModified:Date.now()});}
-export async function uploadChatAttachment(file:File,threadId:string,ownerId:string,messageId?:string):Promise<CloudinaryUploadResult & {media_id:string;mime_type:string;size_bytes:number;expires_at:string}>{validateChatFile(file);const prepared=await compressImage(file);if(prepared.size>MAX)throw new Error('Ukuran hasil gambar masih di atas 2MB. Pilih gambar yang lebih kecil.');const rawMedia=prepared.type==='application/pdf'||prepared.type.startsWith('audio/');const form=new FormData();form.append('file',prepared);form.append('upload_preset',env.cloudinaryUploadPreset);form.append('folder',`sykabelajar/chat/${threadId}`);const response=await fetch(`https://api.cloudinary.com/v1_1/${env.cloudinaryCloudName}/${rawMedia?'raw':'image'}/upload`,{method:'POST',body:form});if(!response.ok)throw new Error(`Upload chat gagal (${response.status}).`);const result=await response.json() as CloudinaryUploadResult;const expiresAt=new Date(Date.now()+7*24*60*60*1000).toISOString();const{data,error}=await supabase.from('chat_media').insert({thread_id:threadId,message_id:messageId??null,owner_id:ownerId,public_id:result.public_id,secure_url:result.secure_url,resource_type:result.resource_type??(rawMedia?'raw':'image'),mime_type:prepared.type,size_bytes:prepared.size,expires_at:expiresAt}).select('id').single();if(error)throw error;return{...result,media_id:String(data.id),mime_type:prepared.type,size_bytes:prepared.size,expires_at:expiresAt};}
+export async function uploadChatAttachment(file:File,threadId:string,ownerId:string,messageId?:string):Promise<CloudinaryUploadResult & {media_id:string;mime_type:string;size_bytes:number;expires_at:string}>{
+  validateChatFile(file);
+  const prepared=await compressImage(file);
+  if(prepared.size>MAX)throw new Error('Ukuran hasil gambar masih di atas 2MB. Pilih gambar yang lebih kecil.');
+  const isPdf=prepared.type==='application/pdf';
+  const isAudio=prepared.type.startsWith('audio/');
+  // Cloudinary treats audio assets as video resources. Keep this aligned with
+  // resource_type so playback and expired-media cleanup can resolve the asset.
+  const assetType:'image'|'raw'|'video'=isAudio?'video':isPdf?'raw':'image';
+  const form=new FormData();
+  form.append('file',prepared);
+  form.append('upload_preset',env.cloudinaryUploadPreset);
+  form.append('folder',`sykabelajar/chat/${threadId}`);
+  const response=await fetch(`https://api.cloudinary.com/v1_1/${env.cloudinaryCloudName}/${assetType}/upload`,{method:'POST',body:form});
+  if(!response.ok)throw new Error(`Upload chat gagal (${response.status}).`);
+  const result=await response.json() as CloudinaryUploadResult;
+  const expiresAt=new Date(Date.now()+7*24*60*60*1000).toISOString();
+  const{data,error}=await supabase.from('chat_media').insert({thread_id:threadId,message_id:messageId??null,owner_id:ownerId,public_id:result.public_id,secure_url:result.secure_url,resource_type:result.resource_type??assetType,mime_type:prepared.type,size_bytes:prepared.size,expires_at:expiresAt}).select('id').single();
+  if(error)throw error;
+  return{...result,media_id:String(data.id),mime_type:prepared.type,size_bytes:prepared.size,expires_at:expiresAt};
+}
 export async function attachChatMedia(mediaId:string,messageId:string){const{error}=await supabase.rpc('attach_chat_media',{p_media_id:mediaId,p_message_id:messageId});if(error)throw error;}
 export function isImageUrl(text:string){const clean=text.trim().split(/[?#]/)[0].toLowerCase();return /\.(gif|jpe?g|png|webp|avif)$/i.test(clean);}
 export function isAudioUrl(text:string){const clean=text.trim().split(/[?#]/)[0].toLowerCase();return /\.(webm|ogg|oga|m4a|mp3|wav|aac)$/i.test(clean);}
