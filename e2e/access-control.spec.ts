@@ -51,6 +51,7 @@ test.describe('registration role validation', () => {
 });
 
 async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: string[]) {
+  let roleLookupCount = 0;
   const userId = '11111111-1111-4111-8111-111111111111';
   const email = 'guru@example.test';
   const user = {
@@ -129,6 +130,7 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
     }
     let rows: unknown[] = [];
     if (url.pathname.endsWith('/user_roles')) {
+      roleLookupCount += 1;
       rows = roles.map((role) => ({ role, is_active: true }));
     } else if (url.pathname.endsWith('/profiles')) {
       rows = [profile];
@@ -140,6 +142,8 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
       body: JSON.stringify(rows),
     });
   });
+
+  return { roleLookupCount: () => roleLookupCount };
 }
 
 test.describe('backend-authoritative login flow', () => {
@@ -155,14 +159,16 @@ test.describe('backend-authoritative login flow', () => {
   });
 
   test('account without an active backend role is rejected instead of falling back to student', async ({ page }) => {
-    await mockSupabaseLogin(page, []);
+    const audit = await mockSupabaseLogin(page, []);
     await page.goto('/login');
     await page.locator('input[autocomplete="email"]').fill('guru@example.test');
     await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
 
-    await expect(page.getByText(/Akun belum memiliki role aktif di backend/i)).toBeVisible({ timeout: 10_000 });
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    await expect.poll(() => audit.roleLookupCount()).toBeGreaterThan(0);
+    const persistedAuthTokens = await page.evaluate(() => Object.keys(window.localStorage).filter((key) => key.endsWith('-auth-token')));
+    expect(persistedAuthTokens).toHaveLength(0);
   });
 });
 
