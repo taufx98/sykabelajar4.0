@@ -251,6 +251,7 @@ declare
   v_proof text := nullif(trim(coalesce(p_proof_url,'')),'');
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not exists(select 1 from public.commerce_products p where p.is_active=true and p.product_type='COLLECTIVE_CERTIFICATE' and 'teacher'=any(p.audiences)) then raise exception 'CERTIFICATE_SHOP_NOT_AVAILABLE'; end if;
   if v_price <= 0 then raise exception 'CERTIFICATE_PRICE_NOT_CONFIGURED'; end if;
   if v_method not in ('BANK_TRANSFER','MANUAL_TRANSFER','QRIS','EWALLET') then raise exception 'INVALID_PAYMENT_METHOD'; end if;
   if v_proof is null or v_proof !~* '^https?://' then raise exception 'PAYMENT_PROOF_REQUIRED'; end if;
