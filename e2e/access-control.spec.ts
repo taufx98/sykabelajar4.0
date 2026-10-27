@@ -225,6 +225,8 @@ test.describe('backend-authoritative login flow', () => {
 
     await expect(page).toHaveURL(/\/guru(?:\?.*)?$/, { timeout: 15_000 });
     await expect(page.getByRole('heading', { name: 'Masuk' })).toHaveCount(0);
+    await expect(page.locator('aside').getByText('Fitur Guru', { exact: true })).toBeVisible();
+    await expect(page.locator('aside').getByText('Umum', { exact: true })).toHaveCount(0);
   });
 
   test('account without an active backend role is rejected instead of falling back to student', async ({ page }) => {
@@ -251,6 +253,8 @@ test.describe('organizer workspace after login', () => {
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
 
     await expect(page).toHaveURL(/\/organizer(?:\?.*)?$/, { timeout: 15_000 });
+    await expect(page.locator('aside').getByText('Manajemen', { exact: true })).toBeVisible();
+    await expect(page.locator('aside').getByText('Umum', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Selesaikan setup organisasi' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Buka Pengaturan Organisasi' })).toHaveCount(0);
 
