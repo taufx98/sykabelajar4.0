@@ -15,7 +15,7 @@ export interface PublicBanner {
   slide_duration_seconds: number;
 }
 
-const CACHE_KEY = 'syka.public.v1.banners';
+const CACHE_KEY = 'syka.public.v2.banners';
 const CACHE_TTL_MS = 5 * 60_000;
 const NEGATIVE_CACHE_TTL_MS = 10 * 60_000;
 let memory: { expiresAt: number; data: PublicBanner[] } | null = null;
@@ -59,7 +59,7 @@ export async function loadPublicBanners(): Promise<PublicBanner[]> {
   inFlight = (async () => {
     const { data, error } = await supabase
       .from('ad_banners')
-      .select('id,title,image_url,link_url,is_active,sort_order,created_at')
+      .select('id,title,image_url,link_url,is_active,sort_order,created_at,image_width_slots,single_image')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .limit(5);
@@ -77,8 +77,8 @@ export async function loadPublicBanners(): Promise<PublicBanner[]> {
       slot_number: Number(row.sort_order ?? 0),
       created_at: String(row.created_at ?? ''),
       media_type: 'image' as const,
-      single_image: false,
-      image_width_slots: 1,
+      single_image: Boolean(row.single_image ?? false),
+      image_width_slots: Math.max(1, Math.min(3, Number(row.image_width_slots ?? 1) || 1)),
       slide_duration_seconds: 45,
     }));
     memory = { expiresAt: Date.now() + CACHE_TTL_MS, data: result };
