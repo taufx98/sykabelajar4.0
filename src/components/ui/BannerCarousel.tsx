@@ -19,8 +19,11 @@ interface BannerCarouselProps {
   placement?: BannerPlacement;
 }
 
-function aspectRatioFor(placement: BannerPlacement) {
-  return placement === 'home_sidebar' ? SIDEBAR_ASPECT_RATIO : TOP_ASPECT_RATIO;
+function aspectRatioFor(placement: BannerPlacement, widthSlots = 1, visibleSlots = 1) {
+  if (placement === 'home_sidebar') return SIDEBAR_ASPECT_RATIO;
+  // Wide creatives span two columns only when both are visible; on mobile
+  // preserve the usual single-card height and contain the full creative.
+  return widthSlots > 1 && visibleSlots > 1 ? '2400 / 512' : TOP_ASPECT_RATIO;
 }
 
 function getBannerWidthSlots(banner: PublicBanner, placement: BannerPlacement, availableSlots: number): number {
@@ -76,7 +79,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
   const suppressClickRef = useRef(false);
   const canSeeEmptySlots = user?.role === 'admin' || user?.role === 'guru' || user?.role === 'penyelenggara';
   const slotCount = placement === 'home_sidebar' ? 1 : topSlotCount;
-  const aspectRatio = aspectRatioFor(placement);
+  const aspectRatio = aspectRatioFor(placement, 1, slotCount);
 
   useEffect(() => {
     if (placement === 'home_sidebar') {
@@ -224,7 +227,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
                     className="relative min-w-0 rounded-xl overflow-hidden group bg-black/5"
                     style={{
                       gridColumn: `span ${widthSlots} / span ${widthSlots}`,
-                      aspectRatio,
+                      aspectRatio: aspectRatioFor(placement, widthSlots, slotCount),
                     }}
                   >
                     <BannerMedia
