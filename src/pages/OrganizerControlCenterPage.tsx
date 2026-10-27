@@ -9,6 +9,7 @@ import { listCurrentUserOrganizers, resolveCurrentUserOrganizer, setSelectedOrga
 import { getActiveOrganizerEntitlements } from '@/services/organizerEntitlement.service';
 import { uploadProfileImageSigned, optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 import { supabase } from '@/lib/supabase';
+import { OrganizerWorkspaceOnboarding } from '@/components/organizer/OrganizerWorkspaceOnboarding';
 
 const TABS = [
   ['overview', 'Ringkasan', Building2],
