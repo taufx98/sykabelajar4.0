@@ -1,9 +1,11 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Check, Eye, ImagePlus, Info, Package, Sparkles, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { AdminProductInput } from '@/services/adminCore.service';
 import { uploadImage } from '@/services/cloudinary.service';
+import { supabase } from '@/lib/supabase';
+import { getCollectiveCertificatePrice } from '@/services/collectiveParticipant.service';
 
 export type ShopProductDraft = AdminProductInput & {
   code: string;
@@ -30,16 +32,12 @@ type Props = {
 };
 
 const PRODUCT_TYPES = [
-  {
-    value: 'DIGITAL_ITEM',
-    label: 'Produk digital',
-    description: 'File, materi, template, atau layanan digital yang diproses oleh tim SYKABELAJAR.',
-  },
-  {
-    value: 'DONATION',
-    label: 'Donasi',
-    description: 'Pilihan nominal donasi untuk mendukung kegiatan atau program tertentu.',
-  },
+  { value: 'EDU_COIN_TOPUP', label: 'Paket Edu Coin', description: 'Saldo Edu Coin akan bertambah otomatis setelah pembayaran disetujui admin.' },
+  { value: 'BADGE', label: 'Badge profil', description: 'Badge profil dari koleksi badge SYKABELAJAR akan diberikan otomatis setelah pembayaran disetujui.' },
+  { value: 'CERTIFICATE_SERIALS', label: 'Paket QR / Serial Sertifikat', description: 'Tambahkan QR / serial yang siap dipasangkan pada sertifikat milik organisasi.' },
+  { value: 'COLLECTIVE_CERTIFICATE', label: 'Sertifikat peserta kolektif', description: 'Tautan pemesanan sertifikat peserta yang sudah menyelesaikan lomba kolektif. Harga mengikuti pengaturan sertifikat.' },
+  { value: 'DIGITAL_ITEM', label: 'Layanan / materi lomba', description: 'Materi latihan, template, atau layanan digital yang diproses oleh tim SYKABELAJAR.' },
+  { value: 'DONATION', label: 'Donasi', description: 'Pilihan donasi untuk mendukung kegiatan dan pengembangan SYKABELAJAR.' },
 ] as const;
 
 const AUDIENCES = [
@@ -81,18 +79,54 @@ function validImageUrl(value: string) {
 export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
   const [draft, setDraft] = useState<ShopProductDraft>(() => initialDraft(product));
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [availableBadges, setAvailableBadges] = useState<Array<{ id: string; name: string; icon_emoji: string | null; rarity: string }>>([]);
+  const [badgeCatalogLoading, setBadgeCatalogLoading] = useState(false);
+  const [collectiveCertificatePrice, setCollectiveCertificatePrice] = useState<number | null>(null);
   const [imageUploadBusy, setImageUploadBusy] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
   const isEditing = Boolean(draft.id);
   const selectedType = PRODUCT_TYPES.find((item) => item.value === draft.product_type);
   const unsupportedType = !selectedType;
+  const usesSpecialAudience = draft.product_type === 'CERTIFICATE_SERIALS' || draft.product_type === 'COLLECTIVE_CERTIFICATE';
+
+  useEffect(() => {
+    let active = true;
+    setBadgeCatalogLoading(true);
+    void supabase.from('badges').select('id,name,icon_emoji,rarity').eq('status','ACTIVE').order('name')
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) throw error;
+        setAvailableBadges((data ?? []) as Array<{ id: string; name: string; icon_emoji: string | null; rarity: string }>);
+      })
+      .catch(() => {
+        if (active) setValidationMessage('Daftar badge belum bisa dimuat. Coba buka kembali formulir.');
+      })
+      .finally(() => { if (active) setBadgeCatalogLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (draft.product_type !== 'COLLECTIVE_CERTIFICATE') return;
+    let active = true;
+    void getCollectiveCertificatePrice()
+      .then((price) => { if (active) setCollectiveCertificatePrice(price); })
+      .catch(() => { if (active) setCollectiveCertificatePrice(null); });
+    return () => { active = false; };
+  }, [draft.product_type]);
 
   const patch = (changes: Partial<ShopProductDraft>) => {
     setDraft((current) => ({ ...current, ...changes }));
     setValidationMessage('');
   };
 
+  const changeProductType = (productType: string) => {
+    const fixedAudience = productType === 'CERTIFICATE_SERIALS' ? ['organizer']
+      : productType === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : draft.audiences;
+    patch({ product_type: productType, audiences: fixedAudience, metadata: productType === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : {} , price: productType === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price });
+  };
+
   const toggleAudience = (audience: string) => {
+    if (usesSpecialAudience) return;
     const next = draft.audiences.includes(audience)
       ? draft.audiences.filter((item) => item !== audience)
       : [...draft.audiences, audience];
@@ -136,10 +170,14 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
     if (draft.audiences.length === 0) return setValidationMessage('Pilih minimal satu kelompok pengguna.');
     if (unsupportedType) return setValidationMessage('Jenis produk ini belum didukung untuk pemesanan Shop. Pilih Produk digital atau Donasi.');
     if (!Number.isFinite(draft.price) || draft.price < 0) return setValidationMessage('Harga harus berupa angka nol atau lebih.');
-    if (draft.is_active && draft.price <= 0) return setValidationMessage('Produk aktif harus memiliki harga di atas Rp0. Alur klaim produk gratis belum tersedia.');
+    if (draft.is_active && draft.price <= 0 && draft.product_type !== 'COLLECTIVE_CERTIFICATE') return setValidationMessage('Produk aktif harus memiliki harga di atas Rp0.');
+    if (draft.product_type === 'EDU_COIN_TOPUP' && (!Number.isInteger(Number(draft.metadata.coin_amount)) || Number(draft.metadata.coin_amount) < 1 || Number(draft.metadata.coin_amount) > 1000000)) return setValidationMessage('Masukkan jumlah Edu Coin antara 1 dan 1.000.000.');
+    if (draft.product_type === 'BADGE' && !draft.metadata.badge_id) return setValidationMessage('Pilih badge yang akan diberikan setelah pembayaran berhasil.');
+    if (draft.product_type === 'CERTIFICATE_SERIALS' && (!Number.isInteger(Number(draft.metadata.serial_quantity)) || Number(draft.metadata.serial_quantity) < 1 || Number(draft.metadata.serial_quantity) > 1000)) return setValidationMessage('Masukkan jumlah QR / Serial antara 1 dan 1.000.');
+    if (draft.product_type === 'COLLECTIVE_CERTIFICATE' && collectiveCertificatePrice == null) return setValidationMessage('Harga sertifikat belum dapat dimuat. Atur atau periksa Pengaturan Sertifikat Kolektif terlebih dahulu.');
     if (draft.image_url.trim() && !validImageUrl(draft.image_url)) return setValidationMessage('Tautan gambar harus diawali http:// atau https://.');
     if (!Number.isFinite(draft.sort_order) || draft.sort_order < 0 || !Number.isInteger(draft.sort_order)) return setValidationMessage('Urutan tampilan harus bilangan bulat nol atau lebih.');
-    void onSave({ ...draft, name, short_description: draft.short_description.trim(), description: draft.description.trim(), image_url: draft.image_url.trim() });
+    void onSave({ ...draft, name, price: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price, audiences: draft.product_type === 'CERTIFICATE_SERIALS' ? ['organizer'] : draft.product_type === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : draft.audiences, metadata: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : draft.metadata, short_description: draft.short_description.trim(), description: draft.description.trim(), image_url: draft.image_url.trim() });
   };
 
   return <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 sm:p-5" role="dialog" aria-modal="true" aria-labelledby="shop-product-editor-title">
@@ -170,7 +208,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
               </label>
               <label className="block">
                 <span className="label">Jenis produk <span className="text-red-400">*</span></span>
-                <select className="input mt-1 w-full" value={draft.product_type} onChange={(event) => patch({ product_type: event.target.value })}>
+                <select className="input mt-1 w-full" value={draft.product_type} onChange={(event) => changeProductType(event.target.value)}>
                   {unsupportedType && <option value={draft.product_type} disabled>Jenis lama — belum didukung</option>}
                   {PRODUCT_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
                 </select>
@@ -192,14 +230,39 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
                 <h3 className="text-sm font-semibold text-fg">Harga dan gambar</h3>
                 <p className="mt-1 text-xs text-fg-muted">Harga dalam Rupiah. Gambar bersifat opsional, tetapi membantu produk lebih mudah dikenali.</p>
               </div>
-              <label className="block">
-                <span className="label">Harga (Rp) <span className="text-red-400">*</span></span>
-                <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-fg-muted">Rp</span>
-                  <input className="input w-full pl-10" type="number" min="0" step="1" inputMode="numeric" value={draft.price} onChange={(event) => patch({ price: event.target.value === '' ? 0 : Number(event.target.value) })} required />
-                </div>
-                {draft.price <= 0 && <p className="mt-1.5 text-xs text-amber-400">Produk dengan harga Rp0 belum bisa diklaim otomatis. Simpan sebagai draft dahulu.</p>}
-              </label>
+              <div>
+                <label className="block">
+                  <span className="label">{draft.product_type === 'COLLECTIVE_CERTIFICATE' ? 'Harga sertifikat peserta' : 'Harga (Rp)'} {draft.product_type !== 'COLLECTIVE_CERTIFICATE' && <span className="text-red-400">*</span>}</span>
+                  <div className="relative mt-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-fg-muted">Rp</span>
+                    <input className="input w-full pl-10" type="number" min="0" step="1" inputMode="numeric" value={draft.product_type === 'COLLECTIVE_CERTIFICATE' ? (collectiveCertificatePrice ?? '') : draft.price} onChange={(event) => patch({ price: event.target.value === '' ? 0 : Number(event.target.value) })} disabled={draft.product_type === 'COLLECTIVE_CERTIFICATE'} required={draft.product_type !== 'COLLECTIVE_CERTIFICATE'} />
+                  </div>
+                  {draft.product_type === 'COLLECTIVE_CERTIFICATE'
+                    ? <p className="mt-1.5 text-xs leading-5 text-fg-muted">Harga mengikuti Pengaturan Sertifikat Kolektif. Atur nominal pada menu Pengaturan Sertifikat; katalog ini hanya mengaktifkan penawaran di Shop.</p>
+                    : <p className="mt-1.5 text-xs text-fg-muted">Harga per paket. Semua pembayaran diperiksa admin sebelum manfaat diberikan.</p>}
+                </label>
+              </div>
+
+              {draft.product_type === 'EDU_COIN_TOPUP' && <label className="block">
+                <span className="label">Edu Coin yang diterima pembeli <span className="text-red-400">*</span></span>
+                <input className="input mt-1 w-full" type="number" min="1" max="1000000" step="1" value={String(draft.metadata.coin_amount ?? '')} onChange={(event) => patch({ metadata: { ...draft.metadata, coin_amount: event.target.value === '' ? '' : Number(event.target.value) } })} placeholder="Contoh: 250" required />
+                <span className="mt-1 block text-xs text-fg-muted">Coin akan ditambahkan ke saldo setelah admin menyetujui pembayaran. Membeli lebih dari satu paket akan menambah Coin sesuai jumlah paket.</span>
+              </label>}
+
+              {draft.product_type === 'BADGE' && <label className="block">
+                <span className="label">Badge yang akan diberikan <span className="text-red-400">*</span></span>
+                <select className="input mt-1 w-full" value={String(draft.metadata.badge_id ?? '')} onChange={(event) => patch({ metadata: { ...draft.metadata, badge_id: event.target.value } })} required disabled={badgeCatalogLoading}>
+                  <option value="">{badgeCatalogLoading ? 'Memuat badge…' : 'Pilih badge aktif'}</option>
+                  {availableBadges.map((badge) => <option key={badge.id} value={badge.id}>{badge.icon_emoji ? badge.icon_emoji + ' ' : ''}{badge.name} · {badge.rarity}</option>)}
+                </select>
+                <span className="mt-1 block text-xs text-fg-muted">Pembeli yang sudah memiliki badge ini tidak dapat membeli duplikatnya.</span>
+              </label>}
+
+              {draft.product_type === 'CERTIFICATE_SERIALS' && <label className="block">
+                <span className="label">Jumlah QR / Serial dalam paket <span className="text-red-400">*</span></span>
+                <input className="input mt-1 w-full" type="number" min="1" max="1000" step="1" value={String(draft.metadata.serial_quantity ?? '')} onChange={(event) => patch({ metadata: { ...draft.metadata, serial_quantity: event.target.value === '' ? '' : Number(event.target.value) } })} placeholder="Contoh: 100" required />
+                <span className="mt-1 block text-xs text-fg-muted">Serial langsung ditambahkan ke organisasi yang dipilih saat pemesanan. Paket hanya bisa dibeli oleh penyelenggara yang memiliki akses ke organisasi tersebut.</span>
+              </label>}
               <div>
                 <span className="label">Gambar produk</span>
                 <input className="input mt-1 w-full" type="url" value={draft.image_url} onChange={(event) => patch({ image_url: event.target.value })} placeholder="Tempel tautan gambar (opsional)" aria-label="Tautan gambar"/>
@@ -223,13 +286,13 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
             <section className="space-y-3 border-t surface-border pt-5">
               <div>
                 <h3 className="text-sm font-semibold text-fg">Siapa yang boleh melihat produk ini?</h3>
-                <p className="mt-1 text-xs text-fg-muted">Pengguna di luar pilihan ini tidak akan dapat melihat atau memesan produk.</p>
+                <p className="mt-1 text-xs text-fg-muted">Pengguna di luar pilihan ini tidak akan dapat melihat atau memesan produk. Paket serial khusus penyelenggara, sedangkan sertifikat peserta kolektif khusus guru.</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {AUDIENCES.map((audience) => {
                   const checked = draft.audiences.includes(audience.value);
                   return <label key={audience.value} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm transition ${checked ? 'border-accent/30 bg-accent/5 text-fg' : 'border-surface-border text-fg-muted hover:bg-surface-elevated/35'}`}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleAudience(audience.value)} />
+                    <input type="checkbox" checked={checked} onChange={() => toggleAudience(audience.value)} disabled={usesSpecialAudience} />
                     <span>{audience.label}</span>
                   </label>;
                 })}
@@ -281,7 +344,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
 
             <div className="flex items-start gap-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-xs leading-5 text-fg-muted">
               <Info size={15} className="mt-0.5 shrink-0 text-sky-400"/>
-              <span>Pembayaran produk saat ini perlu bukti pembayaran dan persetujuan admin. Barang fisik, isi ulang Coin otomatis, dan pembukaan fitur otomatis belum tersedia.</span>
+              <span>Edu Coin, badge profil, paket QR / Serial, dan sertifikat peserta kolektif diproses melalui alur khusus setelah pembayaran disetujui. Produk digital biasa tetap diproses tim SYKABELAJAR.</span>
             </div>
           </aside>
         </div>
