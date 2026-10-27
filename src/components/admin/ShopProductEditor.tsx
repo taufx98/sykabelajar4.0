@@ -66,11 +66,13 @@ function initialDraft(product: Props['product']): ShopProductDraft {
   };
 }
 
-function validImageUrl(value: string) {
+function validCloudinaryImageUrl(value: string) {
   if (!value.trim()) return false;
   try {
     const url = new URL(value.trim());
-    return url.protocol === 'https:' || url.protocol === 'http:';
+    return url.protocol === 'https:'
+      && url.hostname.toLowerCase() === 'res.cloudinary.com'
+      && /^\/[^/]+\/image\/upload\/.+/.test(url.pathname);
   } catch {
     return false;
   }
@@ -162,7 +164,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
       const uploaded = await uploadImage(file, folder);
       patch({ image_url: uploaded.secure_url });
     } catch {
-      setValidationMessage('Gambar gagal diunggah. Coba lagi atau gunakan tautan gambar publik.');
+      setValidationMessage('Gambar gagal diunggah ke Cloudinary. Periksa koneksi atau konfigurasi Cloudinary, lalu coba lagi.');
     } finally {
       setImageUploadBusy(false);
       input.value = '';
@@ -182,7 +184,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
     if (draft.product_type === 'BADGE' && !draft.metadata.badge_id) return setValidationMessage('Pilih badge yang akan diberikan setelah pembayaran berhasil.');
     if (draft.product_type === 'CERTIFICATE_SERIALS' && (!Number.isInteger(Number(draft.metadata.serial_quantity)) || Number(draft.metadata.serial_quantity) < 1 || Number(draft.metadata.serial_quantity) > 1000)) return setValidationMessage('Masukkan jumlah QR / Serial antara 1 dan 1.000.');
     if (draft.product_type === 'COLLECTIVE_CERTIFICATE' && collectiveCertificatePrice == null) return setValidationMessage('Harga sertifikat belum dapat dimuat. Atur atau periksa Pengaturan Sertifikat Kolektif terlebih dahulu.');
-    if (draft.image_url.trim() && !validImageUrl(draft.image_url)) return setValidationMessage('Tautan gambar harus diawali http:// atau https://.');
+    if (draft.image_url.trim() && !validCloudinaryImageUrl(draft.image_url)) return setValidationMessage('Gambar produk wajib berasal dari Cloudinary. Hapus gambar lama atau unggah ulang melalui tombol Unggah gambar.');
     if (!Number.isFinite(draft.sort_order) || draft.sort_order < 0 || !Number.isInteger(draft.sort_order)) return setValidationMessage('Urutan tampilan harus bilangan bulat nol atau lebih.');
     void onSave({ ...draft, name, price: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price, audiences: draft.product_type === 'CERTIFICATE_SERIALS' ? ['organizer'] : draft.product_type === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : draft.audiences, metadata: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : draft.metadata, short_description: draft.short_description.trim(), description: draft.description.trim(), image_url: draft.image_url.trim() });
   };
@@ -272,8 +274,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
                 <span className="mt-1 block text-xs text-fg-muted">Serial langsung ditambahkan ke organisasi yang dipilih saat pemesanan. Paket hanya bisa dibeli oleh penyelenggara yang memiliki akses ke organisasi tersebut.</span>
               </label>}
               <div>
-                <span className="label">Gambar produk</span>
-                <input className="input mt-1 w-full" type="url" value={draft.image_url} onChange={(event) => patch({ image_url: event.target.value })} placeholder="Tempel tautan gambar (opsional)" aria-label="Tautan gambar"/>
+                <span className="label">Gambar produk (Cloudinary)</span>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border surface-border px-3 py-2 text-xs font-semibold text-fg transition hover:bg-surface-elevated/50 ${imageUploadBusy || busy ? 'pointer-events-none opacity-60' : ''}`}>
                     <Upload size={14}/>
@@ -282,7 +283,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
                   </label>
                   {draft.image_url && <button type="button" className="rounded-xl px-3 py-2 text-xs text-fg-muted hover:bg-surface-elevated/40" onClick={() => patch({ image_url: '' })} disabled={imageUploadBusy || busy}>Hapus gambar</button>}
                 </div>
-                <span className="mt-1.5 block text-xs leading-5 text-fg-muted">Format gambar umum, maksimal 5 MB. Kamu juga bisa menempel tautan gambar publik.</span>
+                <span className="mt-1.5 block text-xs leading-5 text-fg-muted">Format gambar umum, maksimal 5 MB. Semua gambar yang disimpan harus diunggah langsung ke Cloudinary; URL eksternal tidak diterima.</span>
               </div>
               <label className="block">
                 <span className="label">Urutan di Shop</span>
@@ -320,7 +321,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
           <aside className="space-y-4">
             <Card className="overflow-hidden border surface-border p-0">
               <div className="flex aspect-[4/3] items-center justify-center bg-surface-elevated/35">
-                {validImageUrl(draft.image_url)
+                {validCloudinaryImageUrl(draft.image_url)
                   ? <img src={draft.image_url} alt={draft.name || 'Pratinjau produk'} className="h-full w-full object-cover" />
                   : <div className="px-4 text-center text-fg-muted"><ImagePlus size={26} className="mx-auto mb-2 opacity-70"/><p className="text-xs">Pratinjau gambar</p><p className="mt-1 text-[10px]">Gambar akan terlihat di sini</p></div>}
               </div>

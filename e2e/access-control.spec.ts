@@ -315,11 +315,33 @@ test.describe('Shop editor', () => {
     await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
     await expect(page).toHaveURL(/admin\/core\?tab=shop$/, { timeout: 15000 });
+    await page.route('**/image/upload', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          public_id: 'sykabelajar/shop-products/new/product',
+          secure_url: 'https://res.cloudinary.com/test-cloud/image/upload/v123/sykabelajar/shop-products/new/product.png',
+          width: 320,
+          height: 180,
+          version: 123,
+          resource_type: 'image',
+        }),
+      });
+    });
     await page.getByRole('button', { name: 'Tambah produk', exact: true }).click();
     await expect(page.getByLabel('Nama produk')).toBeVisible();
     await expect(page.getByLabel('Harga (Rp)')).toBeVisible();
     await expect(page.locator('[role="dialog"] select').first()).toBeVisible();
     await expect(page.getByText('Unggah gambar', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Tautan gambar')).toHaveCount(0);
+    await expect(page.getByText(/semua gambar yang disimpan harus diunggah langsung ke Cloudinary/i)).toBeVisible();
+    await page.locator('[role="dialog"] input[type="file"]').setInputFiles({
+      name: 'product.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('cloudinary-test-image'),
+    });
+    await expect(page.locator('[role="dialog"] img[src^="https://res.cloudinary.com/test-cloud/image/upload/"]')).toBeVisible();
 
     const typeSelector = page.locator('[role="dialog"] select').first();
     await typeSelector.selectOption('EDU_COIN_TOPUP');
