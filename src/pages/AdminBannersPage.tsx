@@ -41,6 +41,18 @@ const MEDIA_LABELS: Record<MediaType, { label: string; icon: typeof ImageIcon; c
   video: { label: 'Video', icon: Film, color: 'text-amber-400' },
 };
 
+/** Keep admin previews consistent with the organizer banner request form. */
+const SLOT_RATIOS: Record<number, string> = {
+  1: '465 / 300',
+  2: '930 / 300',
+  3: '1400 / 300',
+};
+const SLOT_DIMENSIONS: Record<number, string> = {
+  1: '465 × 300 px',
+  2: '930 × 300 px',
+  3: '1400 × 300 px',
+};
+
 export function AdminBannersPage() {
   const { toast } = useApp();
   const [tab, setTab] = useState<Tab>('slots');
@@ -632,54 +644,73 @@ export function AdminBannersPage() {
                 <button onClick={() => !uploading && setEditor(null)} className="text-slate-400 hover:text-fg">✕</button>
               </div>
 
-              {/* File upload */}
-              <div className="mb-4">
-                <label className="text-xs text-slate-400 block mb-2">File Media</label>
-                <input ref={fileRef} type="file" accept="image/*,video/mp4,.gif" className="hidden" onChange={handleFileSelect} />
-                {editor.previewUrl ? (
-                  <div className="relative rounded-xl overflow-hidden surface-elevated">
-                    {editor.mediaType === 'video' ? (
-                      <video src={editor.previewUrl} className="w-full h-40 object-cover" controls muted />
-                    ) : (
-                      <img src={editor.previewUrl} alt="" className="w-full h-40 object-cover" />
-                    )}
-                    <button
-                      onClick={() => fileRef.current?.click()}
-                      className="absolute bottom-2 right-2 px-3 py-1.5 rounded-lg bg-black/60 text-xs text-white flex items-center gap-1.5"
-                    >
-                      <Upload size={12} /> Ganti
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="w-full h-32 rounded-xl border-2 border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition"
-                  >
-                    <Upload size={24} />
-                    <span className="text-xs">Klik untuk upload</span>
-                    <span className="text-[10px] text-slate-600">JPG, PNG, GIF (max 2MB) · MP4 (max 2MB)</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Slot number */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              {/* Slot number and width — choose first so the upload preview matches the selected slot */}
+              <div className="grid grid-cols-2 gap-3 mb-2">
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">Nomor Slot</label>
-                  <input type="number" min={1} value={editor.slotNumber}
+                  <input type="number" min={1} step={1} value={editor.slotNumber}
                     onChange={e => setEditor({ ...editor, slotNumber: +e.target.value })}
                     className="input text-sm w-full" />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">Lebar Slot</label>
+                  <label className="text-xs text-slate-400 block mb-1">Lebar Slot / Rasio Gambar</label>
                   <select value={editor.widthSlots}
                     onChange={e => setEditor({ ...editor, widthSlots: +e.target.value })}
                     className="input text-sm w-full">
-                    <option value={1}>1 slot (standar)</option>
-                    <option value={2}>2 slot (lebar)</option>
-                    <option value={3}>3 slot (full width)</option>
+                    <option value={1}>1 slot — standar</option>
+                    <option value={2}>2 slot — lebar</option>
+                    <option value={3}>3 slot — full width</option>
                   </select>
                 </div>
+              </div>
+              <p className="text-[10px] text-slate-500 mb-4">
+                Ukuran rekomendasi: <span className="text-accent font-medium">{SLOT_DIMENSIONS[editor.widthSlots]}</span>.
+                Rasio dan preview gambar otomatis menyesuaikan pilihan slot.
+              </p>
+
+              {/* File upload with slot-matched preview */}
+              <div className="mb-4">
+                <label className="text-xs text-slate-400 block mb-2">File Media & Preview</label>
+                <input ref={fileRef} type="file" accept="image/*,video/mp4,.gif" className="hidden" onChange={handleFileSelect} />
+                {editor.previewUrl ? (
+                  <div className="rounded-xl overflow-hidden surface-elevated border surface-border">
+                    <div
+                      className="relative w-full overflow-hidden"
+                      style={{ aspectRatio: SLOT_RATIOS[editor.widthSlots] }}
+                    >
+                      {editor.mediaType === 'video' ? (
+                        <video src={editor.previewUrl} className="w-full h-full object-cover" controls muted />
+                      ) : (
+                        <img src={editor.previewUrl} alt="Preview banner" className="w-full h-full object-cover" />
+                      )}
+                      <div className="absolute top-2 left-2 rounded-md bg-black/65 px-2 py-1 text-[10px] text-white">
+                        Slot {editor.widthSlots} · {SLOT_DIMENSIONS[editor.widthSlots]}
+                      </div>
+                      <button
+                        onClick={() => fileRef.current?.click()}
+                        className="absolute bottom-2 right-2 px-3 py-1.5 rounded-lg bg-black/70 text-xs text-white flex items-center gap-1.5"
+                      >
+                        <Upload size={12} /> Ganti media
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="w-full rounded-xl border-2 border-dashed surface-border flex flex-col items-center justify-center gap-2 px-3 py-4 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition"
+                    style={{ aspectRatio: SLOT_RATIOS[editor.widthSlots] }}
+                  >
+                    <Upload size={22} />
+                    <span className="text-xs">Klik untuk upload media</span>
+                    <span className="text-[10px] text-slate-500">
+                      Slot {editor.widthSlots} · {SLOT_DIMENSIONS[editor.widthSlots]}
+                    </span>
+                  </button>
+                )}
+                <p className="text-[10px] text-slate-600 mt-2">
+                  Gambar akan dipratinjau dengan rasio slot terpilih (seperti form request banner penyelenggara).
+                  JPG/PNG/WebP maks. 5 MB · GIF/MP4 maks. 2 MB.
+                </p>
               </div>
 
               {/* Title */}
