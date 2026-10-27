@@ -26,6 +26,7 @@ export type ShopProductDraft = AdminProductInput & {
 
 type Props = {
   product: Partial<ShopProductDraft> & { id?: string | null };
+  mode?: 'duplicate';
   busy: boolean;
   onClose: () => void;
   onSave: (product: ShopProductDraft) => Promise<unknown>;
@@ -78,7 +79,7 @@ function validCloudinaryImageUrl(value: string) {
   }
 }
 
-export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
+export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Props) {
   const [draft, setDraft] = useState<ShopProductDraft>(() => initialDraft(product));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [availableBadges, setAvailableBadges] = useState<Array<{ id: string; name: string; icon_emoji: string | null; rarity: string }>>([]);
@@ -87,6 +88,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
   const [imageUploadBusy, setImageUploadBusy] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
   const isEditing = Boolean(draft.id);
+  const isDuplicate = mode === 'duplicate';
   const selectedType = PRODUCT_TYPES.find((item) => item.value === draft.product_type);
   const unsupportedType = !selectedType;
   const usesSpecialAudience = draft.product_type === 'CERTIFICATE_SERIALS' || draft.product_type === 'COLLECTIVE_CERTIFICATE';
@@ -196,8 +198,8 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><Package size={19}/></div>
           <div className="min-w-0">
-            <h2 id="shop-product-editor-title" className="font-display text-lg font-bold text-fg">{isEditing ? 'Edit produk' : 'Tambah produk baru'}</h2>
-            <p className="mt-1 text-xs leading-5 text-fg-muted">Lengkapi informasi yang akan dilihat pengguna sebelum produk ditampilkan di Shop.</p>
+            <h2 id="shop-product-editor-title" className="font-display text-lg font-bold text-fg">{isEditing ? 'Edit produk' : isDuplicate ? 'Duplikat produk' : 'Tambah produk baru'}</h2>
+            <p className="mt-1 text-xs leading-5 text-fg-muted">{isDuplicate ? 'Periksa dan sesuaikan salinan ini sebelum disimpan. Produk salinan dibuat tidak aktif sampai kamu menampilkannya di Shop.' : 'Lengkapi informasi yang akan dilihat pengguna sebelum produk ditampilkan di Shop.'}</p>
           </div>
         </div>
         <button type="button" aria-label="Tutup" onClick={() => { if (!busy) onClose(); }} disabled={busy} className="rounded-xl p-2 text-fg-muted transition hover:bg-surface-elevated hover:text-fg disabled:opacity-40"><X size={18}/></button>
@@ -363,7 +365,7 @@ export function ShopProductEditor({ product, busy, onClose, onSave }: Props) {
           <p className="flex items-center gap-2 text-xs text-fg-muted"><Eye size={14}/>Pratinjau di samping mengikuti perubahan form.</p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose} disabled={busy || imageUploadBusy}>Batal</Button>
-            <Button type="submit" disabled={busy || imageUploadBusy} loading={busy || imageUploadBusy} icon={<Check size={15}/>} >{imageUploadBusy ? 'Mengunggah gambar…' : busy ? 'Menyimpan…' : isEditing ? 'Simpan perubahan' : 'Simpan produk'}</Button>
+            <Button type="submit" disabled={busy || imageUploadBusy} loading={busy || imageUploadBusy} icon={<Check size={15}/>} >{imageUploadBusy ? 'Mengunggah gambar…' : busy ? 'Menyimpan…' : isDuplicate ? 'Simpan salinan' : isEditing ? 'Simpan perubahan' : 'Simpan produk'}</Button>
           </div>
         </footer>
       </form>
