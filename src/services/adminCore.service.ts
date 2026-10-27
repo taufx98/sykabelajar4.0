@@ -173,9 +173,12 @@ export async function saveProduct(input: AdminProductInput) {
   if (imageUrl) {
     try {
       const url = new URL(imageUrl);
-      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('invalid protocol');
+      const validCloudinaryImage = url.protocol === 'https:'
+        && url.hostname.toLowerCase() === 'res.cloudinary.com'
+        && /^\/[^/]+\/image\/upload\/.+/.test(url.pathname);
+      if (!validCloudinaryImage) throw new Error('invalid Cloudinary image URL');
     } catch {
-      throw new Error('Tautan gambar harus diawali http:// atau https://.');
+      throw new Error('Gambar produk wajib diunggah ke Cloudinary melalui tombol Unggah gambar.');
     }
   }
 
@@ -203,7 +206,7 @@ export async function saveProduct(input: AdminProductInput) {
     if (error.message.includes('ACTIVE_PRODUCT_PRICE_REQUIRED')) throw new Error('Produk yang ditampilkan harus memiliki harga di atas Rp0.');
     if (error.message.includes('PRODUCT_TYPE_NOT_SUPPORTED')) throw new Error('Jenis produk ini belum didukung untuk pemesanan Shop.');
     if (error.message.includes('AUDIENCE_REQUIRED')) throw new Error('Pilih minimal satu kelompok pengguna.');
-    if (error.message.includes('IMAGE_URL_INVALID')) throw new Error('Tautan gambar harus diawali http:// atau https://.');
+    if (error.message.includes('IMAGE_URL_CLOUDINARY_REQUIRED')) throw new Error('Gambar produk wajib diunggah ke Cloudinary melalui tombol Unggah gambar.');
     throw error;
   }
 
