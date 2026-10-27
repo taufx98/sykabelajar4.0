@@ -351,7 +351,13 @@ begin
     jsonb_build_object('collective_certificate_id',v_cert.id,'participant_id',v_cp.id,'shop_checkout',true));
 
   insert into public.collective_certificate_orders(collective_certificate_id,order_id,payer_user_id,amount,status)
-  values(v_cert.id,v_order.id,v_uid,v_price,'PENDING');
+  values(v_cert.id,v_order.id,v_uid,v_price,'PENDING')
+  on conflict (collective_certificate_id) do update set
+    order_id=excluded.order_id,
+    payer_user_id=excluded.payer_user_id,
+    amount=excluded.amount,
+    status='PENDING',
+    updated_at=now();
   return v_order;
 end;
 $$;
@@ -525,10 +531,17 @@ begin
     perform private.write_audit('commerce.order_payment_approved','order',v.id::text,
       coalesce(nullif(trim(p_reason),''),'Shop payment approved'),to_jsonb(v_before),to_jsonb(v),null);
     insert into public.notifications(user_id,type,title,body,data)
-      values(v.user_id,case when i.product_type='DONATION' then 'ORDER_PAYMENT' else 'ORDER_PAYMENT' end,
-        case when i.product_type='DONATION' then 'Donasi berhasil diverifikasi' else 'Pembayaran produk berhasil' end,
-        case when i.product_type='DONATION' then 'Terima kasih atas dukunganmu. Donasi telah diverifikasi oleh tim SYKABELAJAR.'
-             else 'Pembayaran telah diverifikasi. Tim SYKABELAJAR akan memproses pesananmu.' end,
+      values(v.user_id,'ORDER_PAYMENT',
+        case
+          when i.product_type='DONATION' then 'Donasi berhasil diverifikasi'
+          when i.product_ref='COLLECTIVE_CERTIFICATE' then 'Sertifikat peserta telah diterbitkan'
+          else 'Pembayaran produk berhasil'
+        end,
+        case
+          when i.product_type='DONATION' then 'Terima kasih atas dukunganmu. Donasi telah diverifikasi oleh tim SYKABELAJAR.'
+          when i.product_ref='COLLECTIVE_CERTIFICATE' then 'Pembayaran disetujui dan sertifikat peserta kolektif telah diterbitkan. Lihat sertifikat pada menu peserta kolektif.'
+          else 'Pembayaran telah diverifikasi. Tim SYKABELAJAR akan memproses pesananmu.'
+        end,
         jsonb_build_object('order_id',v.id,'product_type',i.product_type,'product_ref',i.product_ref,'product_name',i.name));
     return v;
   end if;
