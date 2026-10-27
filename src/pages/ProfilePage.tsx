@@ -14,7 +14,7 @@ import { CATEGORY_LABELS, GRADE_OPTIONS } from '@/data/catalog';
 import { initials, avatarGradient } from '@/lib/utils';
 import { optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 
-type Tab = 'tentang' | 'prestasi' | 'lomba' | 'statistik' | 'badge' | 'kategori';
+type Tab = 'tentang' | 'prestasi' | 'lomba' | 'statistik' | 'badge' | 'kategori' | 'admin';
 type Social = 'following' | 'followers';
 
 const normalizeUsername = (value?: string) => decodeURIComponent(value ?? '').replace(/^@+/, '').trim().toLowerCase();
@@ -137,7 +137,7 @@ export function ProfilePage() {
   const resolvedShowcase = showcase.length ? showcase : (showcaseNames.length ? [] : badges.slice(0, 3));
   const grade = GRADE_OPTIONS.find((x) => x.value === profile?.grade)?.label || profile?.grade || '';
   const accountType = String(profile?.account_type || '').trim().toLowerCase();
-  const accountTypeLabel = ACCOUNT_TYPE_LABELS[accountType] || (profile?.account_type ? String(profile.account_type) : '');
+  const accountTypeLabel = isAdminProfile ? 'Administrator' : (ACCOUNT_TYPE_LABELS[accountType] || (profile?.account_type ? String(profile.account_type) : ''));
   const canShowBadges = ownerView || badgeVisibility.showBadges;
   const canShowCollection = ownerView || badgeVisibility.showBadgeCollection;
 
@@ -155,90 +155,18 @@ export function ProfilePage() {
   if (loading) return <div className="p-6 text-sm text-fg-muted">Memuat profil…</div>;
   if (!profile) return <div className="p-6"><Card className="p-8 text-center text-fg-muted">Profil tidak ditemukan.</Card></div>;
 
-  if (isAdminProfile) {
-    const adminLinks = [
-      { to: '/admin', label: 'Pusat Admin', description: 'Pusat kendali untuk pengembangan dan pengawasan platform.', icon: LayoutDashboard, primary: true },
-      { to: '/admin/core', label: 'Pengelolaan Inti', description: 'Kelola konten, pengguna, dan konfigurasi utama.', icon: Settings2 },
-      { to: '/admin/operations', label: 'Operasional', description: 'Periksa proses dan pekerjaan operasional platform.', icon: Boxes },
-      { to: '/admin/error-intelligence', label: 'Monitoring Sistem', description: 'Pantau insiden, laporan error, dan diagnostik.', icon: Activity },
-      { to: '/admin/orders/review', label: 'Verifikasi Pesanan', description: 'Periksa pesanan yang menunggu pembayaran manual.', icon: Store },
-    ];
 
-    return <div className="min-h-screen bg-slate-50/40 pb-12 dark:bg-slate-950/20">
-      <div className="mx-auto max-w-5xl space-y-5 px-3 py-5 sm:px-5 sm:py-8">
-        <section className="overflow-hidden rounded-3xl border surface-border surface-card-bg shadow-sm">
-          <div className="relative overflow-hidden border-b surface-border bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 px-5 py-6 sm:px-8 sm:py-8">
-            <div className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
-            <div className="relative flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">
-              <ShieldCheck size={15} />
-              SYKABELAJAR · INTERNAL
-            </div>
-            <h1 className="relative mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">Profil Administrator</h1>
-            <p className="relative mt-2 max-w-2xl text-sm leading-relaxed text-slate-300">Identitas akun untuk mengembangkan, mengelola, dan mengawasi platform. Halaman ini difokuskan pada akses kerja admin, bukan statistik peserta.</p>
-          </div>
+  const adminLinks = [
+    { to: '/admin', label: 'Pusat Admin', description: 'Buka pusat kendali pengelolaan platform.', icon: LayoutDashboard, primary: true },
+    { to: '/admin/core', label: 'Pengelolaan Inti', description: 'Kelola konten dan konfigurasi utama.', icon: Settings2 },
+    { to: '/admin/operations', label: 'Operasional', description: 'Periksa proses operasional platform.', icon: Boxes },
+    { to: '/admin/error-intelligence', label: 'Monitoring Sistem', description: 'Lihat insiden, laporan error, dan diagnostik.', icon: Activity },
+    { to: '/admin/orders/review', label: 'Verifikasi Pesanan', description: 'Periksa pesanan yang menunggu verifikasi.', icon: Store },
+  ];
+  const tabs: Array<[Tab, string]> = isAdminProfile
+    ? [['tentang', 'Tentang'], ['admin', 'Akses Admin']]
+    : [['tentang', 'Tentang'], ['prestasi', 'Prestasi'], ['lomba', 'Lomba'], ['statistik', 'Statistik'], ['badge', 'Badge'], ['kategori', 'Kategori Favorit']];
 
-          <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-            <div className="flex min-w-0 items-center gap-4">
-              <div className="shrink-0">
-                <ProfilePortrait name={profile.full_name || profile.username} id={profile.id} src={profile.avatar_url || undefined} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="break-words font-display text-xl font-bold text-fg sm:text-2xl">{profile.full_name || profile.username}</h2>
-                  <VerifiedMark type={profile.verification_type} />
-                </div>
-                <p className="mt-1 text-sm text-fg-muted">@{profile.username}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300"><ShieldCheck size={13}/> Administrator</span>
-                  <span className="inline-flex items-center rounded-full surface-elevated px-3 py-1.5 text-xs font-medium text-fg-muted">Akun internal</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Link to="/profile/edit"><Button size="sm" variant="outline">Edit Identitas</Button></Link>
-              <Link to="/admin"><Button size="sm" variant="primary" icon={<ArrowUpRight size={14}/>}>Buka Pusat Admin</Button></Link>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-3 flex items-end justify-between gap-3 px-1">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Ruang Kerja</p>
-              <h2 className="mt-1 font-display text-xl font-bold text-fg">Akses Pengelolaan</h2>
-              <p className="mt-1 text-sm text-fg-muted">Jalur cepat menuju tugas utama administrator.</p>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {adminLinks.map(({ to, label, description, icon: Icon, primary }) => <Link key={to} to={to} className={`group flex min-h-28 items-start gap-4 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${primary ? 'border-emerald-500/25 bg-emerald-500/[0.06]' : 'surface-border surface-card-bg hover:border-accent/40'}`}>
-              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${primary ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' : 'surface-elevated text-accent'}`}><Icon size={20}/></span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-2 font-semibold text-fg">{label}<ArrowUpRight size={15} className="shrink-0 text-fg-muted transition group-hover:text-accent"/></span>
-                <span className="mt-1 block text-sm leading-relaxed text-fg-muted">{description}</span>
-              </span>
-            </Link>)}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border surface-border surface-card-bg p-5 sm:p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl surface-elevated text-accent"><ShieldCheck size={19}/></div>
-            <div>
-              <h2 className="font-semibold text-fg">Identitas & akses</h2>
-              <p className="mt-0.5 text-xs text-fg-muted">Informasi ringkas akun yang sedang digunakan.</p>
-            </div>
-          </div>
-          <dl className="mt-5 grid gap-4 border-t surface-border pt-4 sm:grid-cols-3">
-            <div><dt className="text-xs text-fg-muted">Nama akun</dt><dd className="mt-1 break-words text-sm font-medium text-fg">{profile.full_name || 'Belum diatur'}</dd></div>
-            <div><dt className="text-xs text-fg-muted">Username</dt><dd className="mt-1 break-words text-sm font-medium text-fg">@{profile.username}</dd></div>
-            <div><dt className="text-xs text-fg-muted">Ruang lingkup</dt><dd className="mt-1 text-sm font-medium text-fg">Pengembangan & pengawasan platform</dd></div>
-          </dl>
-        </section>
-      </div>
-    </div>;
-  }
-
-  const tabs: Array<[Tab, string]> = [['tentang', 'Tentang'], ['prestasi', 'Prestasi'], ['lomba', 'Lomba'], ['statistik', 'Statistik'], ['badge', 'Badge'], ['kategori', 'Kategori Favorit']];
   return <div className="min-h-screen bg-slate-50/40 pb-12 dark:bg-slate-950/20">
     <div className="px-3 pt-4 sm:px-5 md:px-8">
       <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl border surface-border surface-card-bg shadow-sm">
@@ -254,12 +182,20 @@ export function ProfilePage() {
               <div className="min-w-0 flex-1 pb-1 text-center md:text-left">
                 <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start"><h1 className="font-display text-2xl font-bold tracking-tight text-fg md:text-3xl">{profile.full_name || profile.username}</h1><VerifiedMark type={profile.verification_type}/></div>
                 <p className="mt-0.5 text-sm font-medium text-fg-muted">@{profile.username}</p>
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 md:justify-start">{accountTypeLabel && <span className="rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent">{accountTypeLabel}</span>}{grade && <span className="rounded-full bg-slate-500/10 px-2.5 py-1 text-[11px] font-semibold text-fg-muted">{grade}</span>}</div>
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 md:justify-start">{accountTypeLabel && <span className="rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent">{isAdminProfile && <ShieldCheck size={12} className="mr-1 inline" />}{accountTypeLabel}</span>}{!isAdminProfile && grade && <span className="rounded-full bg-slate-500/10 px-2.5 py-1 text-[11px] font-semibold text-fg-muted">{grade}</span>}</div>
 
               </div>
-              <div className="flex shrink-0 flex-wrap justify-center gap-2 pb-1 md:justify-end">{own ? previewGuest ? <Button size="sm" variant="outline" icon={<EyeOff size={14}/>} onClick={() => setPreviewGuest(false)}>Kembali ke Pemilik</Button> : <><Link to="/profile/edit"><Button size="sm" variant="primary">Edit Profil</Button></Link><Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>Tampilan Tamu</Button></> : user && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button>{(follow === 'approved' || follow === 'auto') && <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="outline" icon={<MessageCircle size={14}/>}>Kirim Pesan</Button></Link>}</>}</div>
+                            <div className="flex shrink-0 flex-wrap justify-center gap-2 pb-1 md:justify-end">
+                {own ? previewGuest ? <Button size="sm" variant="outline" icon={<EyeOff size={14}/>} onClick={() => setPreviewGuest(false)}>Kembali ke Pemilik</Button> : <>
+                  <Link to="/profile/edit"><Button size="sm" variant="primary">Edit Profil</Button></Link>
+                  {isAdminProfile
+                    ? <Link to="/admin"><Button size="sm" variant="outline" icon={<LayoutDashboard size={14}/>}>Pusat Admin</Button></Link>
+                    : <Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>Tampilan Tamu</Button>}
+                </> : user && !isAdminProfile && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button>{(follow === 'approved' || follow === 'auto') && <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="outline" icon={<MessageCircle size={14}/>}>Kirim Pesan</Button></Link>}</>}
+              </div>
             </div>
           </div>
+          {!isAdminProfile && (
           <div className="mt-5 grid gap-4 border-t surface-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.58fr)]">
             <div className="min-w-0 py-1">
               <p className="text-sm leading-relaxed text-fg">{profile.bio || 'Belum ada bio.'}</p>
@@ -275,11 +211,48 @@ export function ProfilePage() {
               <div className="min-w-0 rounded-xl px-1 py-2 text-center sm:px-2"><b className="block text-lg font-bold text-accent sm:text-xl">{competitionCount}</b><span className="mt-0.5 block text-[10px] text-fg-muted sm:text-xs">Lomba</span></div>
             </div>
           </div>
-          {canShowBadges && resolvedShowcase.length > 0 && <div className="mt-3 flex flex-wrap items-center justify-center gap-2 md:justify-start">{resolvedShowcase.map((badge) => <div key={badge.id} className="inline-flex items-center gap-2 rounded-full border surface-border surface-elevated px-2.5 py-1.5"><div className="flex h-7 w-7 items-center justify-center">{badge.icon_url ? <img src={optimizedCloudinaryUrl(badge.icon_url, { width: 64 })} alt="" className="h-7 w-7 object-contain"/> : <span className="text-lg" role="img" aria-label={badge.name}>{badge.icon_emoji || '🏅'}</span>}</div><div className="min-w-0"><p className="max-w-[150px] truncate text-xs font-semibold text-fg">{badge.name}</p><p className="text-[10px] text-fg-muted">{badge.rarity}</p></div></div>)}</div>}
+          )}
+          {!isAdminProfile && canShowBadges && resolvedShowcase.length > 0 && <div className="mt-3 flex flex-wrap items-center justify-center gap-2 md:justify-start">{resolvedShowcase.map((badge) => <div key={badge.id} className="inline-flex items-center gap-2 rounded-full border surface-border surface-elevated px-2.5 py-1.5"><div className="flex h-7 w-7 items-center justify-center">{badge.icon_url ? <img src={optimizedCloudinaryUrl(badge.icon_url, { width: 64 })} alt="" className="h-7 w-7 object-contain"/> : <span className="text-lg" role="img" aria-label={badge.name}>{badge.icon_emoji || '🏅'}</span>}</div><div className="min-w-0"><p className="max-w-[150px] truncate text-xs font-semibold text-fg">{badge.name}</p><p className="text-[10px] text-fg-muted">{badge.rarity}</p></div></div>)}</div>}
         </div>
       </div>
     </div>
     <div className="px-3 sm:px-5 md:px-8"><div className="mx-auto mt-4 max-w-6xl overflow-x-auto border-b surface-border"><div className="flex min-w-max justify-start gap-1">{tabs.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={`border-b-2 px-4 py-3 text-sm font-semibold whitespace-nowrap transition ${tab === value ? 'border-accent bg-accent/5 text-accent' : 'border-transparent text-fg-muted hover:bg-slate-500/5 hover:text-fg'}`}>{label}</button>)}</div></div>
-      <Card className="mx-auto mt-4 max-w-6xl p-4 sm:p-5 md:p-6">{tab === 'tentang' && <div className="grid gap-3 md:grid-cols-2"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Bio</p><p className="mt-1 text-sm leading-relaxed text-fg">{profile.bio || 'Belum ada bio.'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Pendidikan</p><p className="mt-1 text-sm text-fg">{profile.institution || 'Belum diisi'}</p><p className="mt-1 text-xs text-fg-muted">{grade || 'Jenjang belum diisi'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Identitas Akun</p><p className="mt-1 text-sm text-fg">{accountTypeLabel || 'Belum diisi'}</p><p className="mt-1 text-xs text-fg-muted">{profile.username ? `@${profile.username}` : 'Username belum diisi'}</p></div></div>}{tab === 'prestasi' && <div className="space-y-2">{awards.slice(0, 10).map((a) => <div key={a.id} className="flex items-center gap-3 rounded-xl p-2"><Award size={18} className="text-accent"/><div><p className="font-semibold text-fg">{a.title}</p><p className="text-xs text-fg-muted">{a.subtitle || a.rank_code || 'Penghargaan'}</p></div></div>)}{!awards.length && <p className="text-sm text-fg-muted">Belum ada prestasi.</p>}</div>}{tab === 'lomba' && <div className="rounded-2xl surface-elevated p-5"><p className="text-sm font-semibold text-fg">Riwayat Lomba</p><p className="mt-1 text-sm text-fg-muted">{competitionCount} lomba tercatat untuk profil ini.</p></div>}{tab === 'statistik' && <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">XP</p><b className="text-lg text-fg">{Number(profile.total_xp || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">EduCoin</p><b className="text-lg text-fg">{Number(profile.edu_coin || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Prestasi</p><b className="text-lg text-fg">{awards.length}</b></div></div>}{tab === 'badge' && (canShowCollection ? <ProfileBadgeCollection badges={badges} own={own}/> : <div className="py-10 text-center"><Filter className="mx-auto text-fg-muted" size={28}/><p className="mt-2 text-sm font-semibold text-fg">Koleksi badge disembunyikan</p><p className="mt-1 text-xs text-fg-muted">Pemilik profil memilih untuk tidak menampilkan koleksi badge.</p></div>)}{tab === 'kategori' && <div className="flex flex-wrap gap-2">{cats.map((c) => <span key={c} className="chip">{CATEGORY_LABELS[c] || c}</span>)}{!cats.length && <p className="text-sm text-fg-muted">Belum ada kategori favorit.</p>}</div>}</Card></div>
+      <Card className="mx-auto mt-4 max-w-6xl p-4 sm:p-5 md:p-6">
+        {tab === 'tentang' && (isAdminProfile ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl surface-elevated p-4">
+              <p className="text-xs font-medium text-fg-muted">Identitas Akun</p>
+              <p className="mt-1 text-sm font-semibold text-fg">{profile.full_name || 'Nama belum diatur'}</p>
+              <p className="mt-1 text-xs text-fg-muted">@{profile.username}</p>
+            </div>
+            <div className="rounded-2xl surface-elevated p-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-accent" />
+                <p className="text-xs font-medium text-fg-muted">Peran & Akses</p>
+              </div>
+              <p className="mt-1 text-sm font-semibold text-fg">Administrator SYKABELAJAR</p>
+              <p className="mt-1 text-xs leading-relaxed text-fg-muted">Akun untuk pengelolaan dan pengawasan platform.</p>
+            </div>
+          </div>
+        ) : (<div className="grid gap-3 md:grid-cols-2"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Bio</p><p className="mt-1 text-sm leading-relaxed text-fg">{profile.bio || 'Belum ada bio.'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Pendidikan</p><p className="mt-1 text-sm text-fg">{profile.institution || 'Belum diisi'}</p><p className="mt-1 text-xs text-fg-muted">{grade || 'Jenjang belum diisi'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Identitas Akun</p><p className="mt-1 text-sm text-fg">{accountTypeLabel || 'Belum diisi'}</p><p className="mt-1 text-xs text-fg-muted">{profile.username ? `@${profile.username}` : 'Username belum diisi'}</p></div></div>))}
+        {!isAdminProfile && tab === 'prestasi' && <div className="space-y-2">{awards.slice(0, 10).map((a) => <div key={a.id} className="flex items-center gap-3 rounded-xl p-2"><Award size={18} className="text-accent"/><div><p className="font-semibold text-fg">{a.title}</p><p className="text-xs text-fg-muted">{a.subtitle || a.rank_code || 'Penghargaan'}</p></div></div>)}{!awards.length && <p className="text-sm text-fg-muted">Belum ada prestasi.</p>}</div>}
+        {!isAdminProfile && tab === 'lomba' && <div className="rounded-2xl surface-elevated p-5"><p className="text-sm font-semibold text-fg">Riwayat Lomba</p><p className="mt-1 text-sm text-fg-muted">{competitionCount} lomba tercatat untuk profil ini.</p></div>}
+        {!isAdminProfile && tab === 'statistik' && <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">XP</p><b className="text-lg text-fg">{Number(profile.total_xp || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">EduCoin</p><b className="text-lg text-fg">{Number(profile.edu_coin || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Prestasi</p><b className="text-lg text-fg">{awards.length}</b></div></div>}
+        {!isAdminProfile && tab === 'badge' && (canShowCollection ? <ProfileBadgeCollection badges={badges} own={own}/> : <div className="py-10 text-center"><Filter className="mx-auto text-fg-muted" size={28}/><p className="mt-2 text-sm font-semibold text-fg">Koleksi badge disembunyikan</p><p className="mt-1 text-xs text-fg-muted">Pemilik profil memilih untuk tidak menampilkan koleksi badge.</p></div>)}
+        {!isAdminProfile && tab === 'kategori' && <div className="flex flex-wrap gap-2">{cats.map((c) => <span key={c} className="chip">{CATEGORY_LABELS[c] || c}</span>)}{!cats.length && <p className="text-sm text-fg-muted">Belum ada kategori favorit.</p>}</div>}
+        {tab === 'admin' && isAdminProfile && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {adminLinks.map(({ to, label, description, icon: Icon, primary }) => (
+              <Link key={to} to={to} className={`group flex min-h-24 items-start gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${primary ? 'border-accent/25 bg-accent/[0.06]' : 'surface-border surface-elevated hover:border-accent/40'}`}>
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${primary ? 'bg-accent/15 text-accent' : 'surface-card-bg text-accent'}`}><Icon size={19}/></span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2 text-sm font-semibold text-fg">{label}<ArrowUpRight size={14} className="shrink-0 text-fg-muted transition group-hover:text-accent"/></span>
+                  <span className="mt-1 block text-xs leading-relaxed text-fg-muted">{description}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card></div>
     {social && <ConnectionModal mode={social} rows={rows} close={() => setSocial(null)} onBlock={block} onUnfollow={unfollow}/>}</div>;
 }
