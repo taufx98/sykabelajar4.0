@@ -58,6 +58,7 @@ export function ProfilePage() {
   const username = useMemo(() => normalizeUsername(rawUsername), [rawUsername]);
   const { user, toast } = useApp();
   const [profile, setProfile] = useState<any>(null);
+  const [isAdminProfile, setIsAdminProfile] = useState(false);
   const [awards, setAwards] = useState<any[]>([]);
   const [badges, setBadges] = useState<ProfileBadge[]>([]);
   const [badgeVisibility, setBadgeVisibility] = useState({ showBadges: true, showBadgeCollection: true });
@@ -75,22 +76,35 @@ export function ProfilePage() {
   const [previewGuest, setPreviewGuest] = useState(false);
   const own = user?.username === username;
   const ownerView = own && !previewGuest;
-  const isAdminProfile = user?.role === 'admin' && user?.id === profile?.id;
+  const isAdminOwner = isAdminProfile && user?.role === 'admin' && user?.id === profile?.id;
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
+      setIsAdminProfile(false);
+      setTab('tentang');
       try {
         const p = await supabase.from('profiles').select(PROFILE_FIELDS).eq('username', username).maybeSingle();
         if (p.error) throw p.error;
         if (!p.data) { if (alive) setProfile(null); return; }
 
-        // The administrator's profile is a workspace identity page, not a participant profile.
-        // Avoid requesting badges, awards, social graph and competition history for this view.
-        if (user?.role === 'admin' && user?.id === p.data.id) {
+        // Roles live in user_roles, separately from profiles.account_type. Resolve the
+        // target profile using the existing backend helper so every viewer sees it consistently.
+        const adminCheck = await supabase.rpc('is_public_profile_admin', { p_profile_id: p.data.id });
+        const accountType = String(p.data.account_type || '').trim().toLowerCase();
+        const isAdminTarget = adminCheck.error
+          ? accountType === 'admin' || accountType === 'administrator' || (user?.role === 'admin' && user?.id === p.data.id)
+          : adminCheck.data === true;
+
+        if (alive) {
+          setProfile(p.data);
+          setIsAdminProfile(isAdminTarget);
+        }
+
+        // Skip participant-only queries for administrator profiles for every visitor.
+        if (isAdminTarget) {
           if (alive) {
-            setProfile(p.data);
             setAwards([]);
             setBadges([]);
             setBadgeVisibility({ showBadges: false, showBadgeCollection: false });
@@ -164,7 +178,7 @@ export function ProfilePage() {
     { to: '/admin/orders/review', label: 'Verifikasi Pesanan', description: 'Periksa pesanan yang menunggu verifikasi.', icon: Store },
   ];
   const tabs: Array<[Tab, string]> = isAdminProfile
-    ? [['tentang', 'Tentang'], ['admin', 'Akses Admin']]
+    ? (isAdminOwner ? [['tentang', 'Tentang'], ['admin', 'Akses Admin']] : [['tentang', 'Tentang']])
     : [['tentang', 'Tentang'], ['prestasi', 'Prestasi'], ['lomba', 'Lomba'], ['statistik', 'Statistik'], ['badge', 'Badge'], ['kategori', 'Kategori Favorit']];
 
   return <div className="min-h-screen bg-slate-50/40 pb-12 dark:bg-slate-950/20">
@@ -188,9 +202,11 @@ export function ProfilePage() {
                             <div className="flex shrink-0 flex-wrap justify-center gap-2 pb-1 md:justify-end">
                 {own ? previewGuest ? <Button size="sm" variant="outline" icon={<EyeOff size={14}/>} onClick={() => setPreviewGuest(false)}>Kembali ke Pemilik</Button> : <>
                   <Link to="/profile/edit"><Button size="sm" variant="primary">Edit Profil</Button></Link>
-                  {isAdminProfile
+                  {isAdminOwner
                     ? <Link to="/admin"><Button size="sm" variant="outline" icon={<LayoutDashboard size={14}/>}>Pusat Admin</Button></Link>
-                    : <Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>Tampilan Tamu</Button>}
+                    : isAdminProfile
+                      ? null
+                      : <Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>Tampilan Tamu</Button>}
                 </> : user && !isAdminProfile && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button>{(follow === 'approved' || follow === 'auto') && <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="outline" icon={<MessageCircle size={14}/>}>Kirim Pesan</Button></Link>}</>}
               </div>
             </div>
@@ -240,7 +256,7 @@ export function ProfilePage() {
         {!isAdminProfile && tab === 'statistik' && <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">XP</p><b className="text-lg text-fg">{Number(profile.total_xp || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">EduCoin</p><b className="text-lg text-fg">{Number(profile.edu_coin || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Prestasi</p><b className="text-lg text-fg">{awards.length}</b></div></div>}
         {!isAdminProfile && tab === 'badge' && (canShowCollection ? <ProfileBadgeCollection badges={badges} own={own}/> : <div className="py-10 text-center"><Filter className="mx-auto text-fg-muted" size={28}/><p className="mt-2 text-sm font-semibold text-fg">Koleksi badge disembunyikan</p><p className="mt-1 text-xs text-fg-muted">Pemilik profil memilih untuk tidak menampilkan koleksi badge.</p></div>)}
         {!isAdminProfile && tab === 'kategori' && <div className="flex flex-wrap gap-2">{cats.map((c) => <span key={c} className="chip">{CATEGORY_LABELS[c] || c}</span>)}{!cats.length && <p className="text-sm text-fg-muted">Belum ada kategori favorit.</p>}</div>}
-        {tab === 'admin' && isAdminProfile && (
+        {tab === 'admin' && isAdminOwner && (
           <div className="grid gap-3 sm:grid-cols-2">
             {adminLinks.map(({ to, label, description, icon: Icon, primary }) => (
               <Link key={to} to={to} className={`group flex min-h-24 items-start gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${primary ? 'border-accent/25 bg-accent/[0.06]' : 'surface-border surface-elevated hover:border-accent/40'}`}>

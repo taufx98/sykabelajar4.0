@@ -53,6 +53,7 @@ test.describe('registration role validation', () => {
 async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: string[]) {
   let roleLookupCount = 0;
   const userId = '11111111-1111-4111-8111-111111111111';
+  const adminProfileId = '88888888-8888-4888-8888-888888888888';
   const email = 'guru@example.test';
   const user = {
     id: userId,
@@ -155,11 +156,34 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
       return;
     }
     let rows: unknown[] = [];
+    if (url.pathname.endsWith('/rpc/is_public_profile_admin')) {
+      const payload = route.request().postDataJSON();
+      const targetId = String(payload.p_profile_id ?? '');
+      const isAdmin = targetId === adminProfileId || (targetId === userId && roles.includes('admin'));
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        contentType: 'application/json',
+        body: JSON.stringify(isAdmin),
+      });
+      return;
+    }
     if (url.pathname.endsWith('/user_roles')) {
       roleLookupCount += 1;
       rows = roles.map((role) => ({ role, is_active: true }));
     } else if (url.pathname.endsWith('/profiles')) {
-      rows = [profile];
+      const requestedUsername = url.searchParams.get('username');
+      rows = requestedUsername === 'eq.admin_resmi'
+        ? [{
+            id: adminProfileId,
+            username: 'admin_resmi',
+            full_name: 'Admin Resmi',
+            account_type: 'student',
+            avatar_url: null,
+            cover_url: null,
+            is_public: true,
+          }]
+        : [profile];
     } else if (url.pathname.endsWith('/rpc/create_organizer')) {
       const payload = route.request().postDataJSON();
       workspaceJoined = false;
@@ -262,6 +286,28 @@ test.describe('backend-authoritative login flow', () => {
     await page.getByRole('tab', { name: 'Akses Admin', exact: true }).click();
     await expect(page.getByRole('link', { name: /Monitoring Sistem/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Verifikasi Pesanan/ })).toBeVisible();
+  });
+
+  test('ordinary users see a minimal admin profile without internal admin shortcuts', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    await page.goto('/login?redirect=%2Fprofile%2Fadmin_resmi');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/profile\/admin_resmi(?:\?.*)?$/, { timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Admin Resmi' })).toBeVisible();
+    await expect(page.getByText('Administrator', { exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Tentang', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Akses Admin', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Prestasi', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Lomba', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Statistik', exact: true })).toHaveCount(0);
+    await expect(page.getByText('Pengikut', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Mengikuti', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Ikuti', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Pusat Admin/ })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Monitoring Sistem/ })).toHaveCount(0);
   });
 
   test('account without an active backend role is rejected instead of falling back to student', async ({ page }) => {
