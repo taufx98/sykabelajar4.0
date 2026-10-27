@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Home, CalendarCheck, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Megaphone, MessageCircle, SlidersHorizontal, School, AlertTriangle } from 'lucide-react';
+import { Home, CalendarCheck, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Megaphone, MessageCircle, SlidersHorizontal, School, AlertTriangle, ClipboardList, FileCheck2, Users2, WalletCards } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -120,7 +120,7 @@ export function AppLayout() {
   const guestNav: NavItem[] = [['/home', 'Beranda', Home, undefined], ['/leaderboard', 'Peringkat', BarChart3, undefined], ['/awards', 'Piagam', Award, undefined]];
   const userNav: NavItem[] = [['/home', 'Beranda', Home, undefined], ['/daily-tasks', 'Daily Tasks', CalendarCheck, undefined], ['/leaderboard', 'Peringkat', BarChart3, undefined], ['/awards', 'Piagam', Award, undefined], ['/notifications', 'Notifikasi', Bell, liveUnreadNotifications > 0 ? liveUnreadNotifications : undefined], ['/orders', 'Pesanan', ShoppingBag, unreadOrders > 0 ? unreadOrders : undefined]];
   if (isTeacher) userNav.push(['/guru', 'Guru', School, undefined], ['/guru/daftar', 'Daftar Kolektif', UserPlus, undefined], ['/guru/kartu', 'Kartu Akses', ShieldCheck, undefined], ['/guru/monitoring', 'Monitoring', BarChart3, undefined]);
-  if (isOrganizer) userNav.push(['/organizer', 'Penyelenggara', Building2, undefined], ['/organizer/ads', 'Pasang Iklan', Megaphone, undefined]);
+  if (isOrganizer) userNav.push(['/organizer', 'Penyelenggara', Building2, undefined], ['/organizer/competition/new', 'Buat Lomba', Award, undefined], ['/organizer/registrations', 'Pendaftaran', ClipboardList, undefined], ['/organizer/members', 'Anggota', Users2, undefined], ['/organizer/grading', 'Penilaian', FileCheck2, undefined], ['/organizer/plan', 'Paket & Usage', WalletCards, undefined], ['/organizer/serials', 'Serial Sertifikat', ShieldCheck, undefined], ['/organizer/ads', 'Pasang Iklan', Megaphone, undefined]);
   userNav.push([chatPath, 'Pesan', MessageCircle, unreadMessages > 0 ? unreadMessages : undefined]);
   if (isAdmin) userNav.push(['/admin', 'Admin', ShieldCheck, undefined], ['/admin/error-intelligence', 'Error Intelligence', AlertTriangle, undefined], ['/admin/plan-usage', 'Plan & Usage', SlidersHorizontal, undefined], ['/admin/organizers', 'Organisasi', Building2, undefined]);
   userNav.push([profilePath, 'Profil', UserIcon, undefined]);
@@ -128,7 +128,7 @@ export function AppLayout() {
   const nav: NavItem[] = isGuest ? guestNav : collectiveMode ? collectiveNav : userNav;
   const managedPaths = new Set<string>(isAdmin
     ? ['/admin', '/admin/error-intelligence', '/admin/plan-usage', '/admin/organizers']
-    : isOrganizer ? ['/organizer', '/organizer/ads'] : []);
+    : isOrganizer ? ['/organizer', '/organizer/competition/new', '/organizer/registrations', '/organizer/members', '/organizer/grading', '/organizer/plan', '/organizer/serials', '/organizer/ads'] : []);
   const navGroups: NavGroup[] = (isAdmin || isOrganizer)
     ? [
         { title: 'Umum', items: nav.filter(([to]) => !managedPaths.has(to)) },
