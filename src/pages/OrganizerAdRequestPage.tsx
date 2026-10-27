@@ -14,6 +14,8 @@ import {
   loadBannerSettings,
   loadPlatformSettings,
   submitBannerRequest,
+  BANNER_PLACEMENT_LABELS,
+  type BannerPlacement,
   type AdBannerRequest,
   type AdBannerSettings,
   type PlatformSettings,
@@ -24,8 +26,14 @@ import { supabase } from '@/lib/supabase';
 /* ─── Constants ─── */
 const BASE_PRICE = 50000;
 const MULTIPLIER = 0.95;
-const SLOT_RATIOS: Record<number, string> = { 1: '465/300', 2: '930/300', 3: '1400/300' };
-const SLOT_LABELS: Record<number, string> = { 1: '465 × 300 px', 2: '930 × 300 px', 3: '1400 × 300 px' };
+const getBannerRatio = (placement: BannerPlacement, widthSlots = 1): string => {
+  if (placement === 'home_sidebar') return '600/500';
+  return widthSlots > 1 ? '2400/512' : '1200/512';
+};
+const getBannerDimensions = (placement: BannerPlacement, widthSlots = 1): string => {
+  if (placement === 'home_sidebar') return '600 × 500 px';
+  return widthSlots > 1 ? '2400 × 512 px (banner lebar 2 slot)' : '1200 × 512 px per gambar';
+};
 const DURATION_OPTIONS = [
   { label: '1 Minggu', days: 7 },
   { label: '2 Minggu', days: 14 },
@@ -83,6 +91,7 @@ export function OrganizerAdRequestPage() {
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings | null>(null);
 
   // Form state
+  const [placement, setPlacement] = useState<BannerPlacement>('home_top');
   const [slots, setSlots] = useState(1);
   const [groupMode, setGroupMode] = useState<'none' | '2' | '3'>('none');
   const [files, setFiles] = useState<(File | null)[]>([null]);
@@ -165,11 +174,10 @@ export function OrganizerAdRequestPage() {
 
   // Slot sizes for upload boxes
   const getSlotWidth = (idx: number): number => {
+    if (placement === 'home_sidebar') return 1;
     if (groupMode === '3') return slots;
-    if (groupMode === '2') {
-      if (slots === 2) return 2;
-      return idx === 0 ? 2 : 1;
-    }
+    if (groupMode === '2' && slots === 2) return 2;
+    if (groupMode === '2' && slots === 3) return idx === 0 ? 2 : 1;
     return 1;
   };
 
@@ -198,6 +206,7 @@ export function OrganizerAdRequestPage() {
       // Use submitBannerRequest with imageUrls array
       const request = await submitBannerRequest({
         organizerId: org.id,
+        placement,
         imageUrls: uploadedUrls,
         linkUrl,
         slotsRequested: slots,
@@ -237,6 +246,7 @@ export function OrganizerAdRequestPage() {
       setFiles([null]);
       setPreviews(['']);
       setLinkUrl('');
+      setPlacement('home_top');
       setSlots(1);
       setGroupMode('none');
       setDurationPreset(0);
@@ -299,11 +309,36 @@ export function OrganizerAdRequestPage() {
           <Card className="p-6">
             <h3 className="font-semibold text-fg mb-4">Form Request Banner</h3>
 
-            {/* 1. Jumlah Slot */}
+            {/* 1. Penempatan iklan */}
             <div className="mb-4">
-              <label className="text-xs text-slate-400 block mb-1">Jumlah Slot</label>
+              <label className="text-xs text-slate-400 block mb-2">Lokasi Penayangan</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setPlacement('home_top'); setSlots((current) => Math.min(2, current)); setGroupMode('none'); }}
+                  className={`rounded-lg border p-3 text-left transition ${placement === 'home_top' ? 'border-moss-500 bg-moss-500/10' : 'surface-border hover:border-white/20'}`}
+                >
+                  <span className={`block text-xs font-semibold ${placement === 'home_top' ? 'text-accent' : 'text-fg'}`}>Banner Tengah Atas</span>
+                  <span className="block text-[10px] text-slate-500 mt-1">Maksimal 2 slot terlihat bersama</span>
+                  <span className="block text-[10px] text-slate-500">1200 × 512 px per gambar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPlacement('home_sidebar'); setSlots(1); setGroupMode('none'); }}
+                  className={`rounded-lg border p-3 text-left transition ${placement === 'home_sidebar' ? 'border-moss-500 bg-moss-500/10' : 'surface-border hover:border-white/20'}`}
+                >
+                  <span className={`block text-xs font-semibold ${placement === 'home_sidebar' ? 'text-accent' : 'text-fg'}`}>Sidebar Kanan</span>
+                  <span className="block text-[10px] text-slate-500 mt-1">1 iklan terlihat per giliran</span>
+                  <span className="block text-[10px] text-slate-500">600 × 500 px</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Jumlah slot / banner dalam request */}
+            <div className="mb-4">
+              <label className="text-xs text-slate-400 block mb-1">{placement === 'home_sidebar' ? 'Jumlah Banner' : 'Jumlah Slot'}</label>
               <div className="flex gap-2">
-                {[1, 2, 3].map(s => (
+                {(placement === 'home_sidebar' ? [1] : [1, 2]).map(s => (
                   <button key={s} onClick={() => setSlots(s)}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition ${
                       slots === s ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-500 hover:border-white/20'
@@ -312,11 +347,13 @@ export function OrganizerAdRequestPage() {
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-slate-600 mt-1">Ukuran: {SLOT_LABELS[slots]}</p>
+              <p className="text-[10px] text-slate-600 mt-1">
+                Ukuran rekomendasi: {getBannerDimensions(placement, groupMode === '2' && slots === 2 ? 2 : 1)}
+              </p>
             </div>
 
             {/* 2. Opsi grouping gambar (below slot selection, above upload) */}
-            {slots > 1 && (
+            {placement === 'home_top' && slots > 1 && (
               <div className="mb-4">
                 <label className="text-xs text-slate-400 block mb-1">Pengelompokan Gambar</label>
                 <div className="flex gap-2">
@@ -357,8 +394,9 @@ export function OrganizerAdRequestPage() {
               <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${uploadCount}, 1fr)` }}>
                 {Array.from({ length: uploadCount }).map((_, idx) => {
                   const slotW = getSlotWidth(idx);
-                  const ratio = slotW === 1 ? '465/300' : slotW === 2 ? '930/300' : '1400/300';
-                  const label = slotW === 1 ? '1 slot' : slotW === 2 ? '2 slot' : '3 slot';
+                  const ratio = getBannerRatio(placement, slotW);
+                  const label = placement === 'home_sidebar' ? 'Sidebar' : slotW === 1 ? '1 slot' : slotW === 2 ? '2 slot' : '3 slot';
+                  const recommendedSize = getBannerDimensions(placement, slotW);
                   return (
                     <div key={idx} className="relative">
                       <input
@@ -369,10 +407,13 @@ export function OrganizerAdRequestPage() {
                       {previews[idx] ? (
                         <div className="relative rounded-lg overflow-hidden border surface-border surface-elevated">
                           <div style={{ aspectRatio: ratio }} className="w-full overflow-hidden">
-                            <img src={previews[idx]} alt="" className="w-full h-full object-cover" />
+                            <img src={previews[idx]} alt="" className="w-full h-full object-contain bg-black/5" />
                           </div>
                           <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/60 rounded px-1.5 py-0.5 text-[9px] text-fg">
                             <Crop size={8} /> {label}
+                          </div>
+                          <div className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] text-white">
+                            {recommendedSize}
                           </div>
                           <button onClick={() => removeFile(idx)}
                             className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full text-white text-[10px] flex items-center justify-center hover:bg-black/80">
@@ -384,15 +425,15 @@ export function OrganizerAdRequestPage() {
                           className="w-full border-2 border-dashed surface-border rounded-lg flex flex-col items-center justify-center gap-1 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition"
                           style={{ aspectRatio: ratio, maxHeight: 160 }}>
                           <Upload size={16} />
-                          <span className="text-[10px]">Slot {idx + 1}</span>
-                          <span className="text-[9px] text-slate-600">{label} · JPG/PNG</span>
+                          <span className="text-[10px]">{placement === 'home_sidebar' ? 'Sidebar' : `Slot ${idx + 1}`}</span>
+                          <span className="text-[9px] text-slate-600">{label} · {recommendedSize}</span>
                         </button>
                       )}
                     </div>
                   );
                 })}
               </div>
-              <p className="text-[10px] text-slate-600 mt-1">Geser gambar untuk mengatur crop · Aspect ratio menyesuaikan slot</p>
+              <p className="text-[10px] text-slate-600 mt-1">Preview mengikuti lokasi iklan yang dipilih. Gunakan rasio sesuai rekomendasi agar teks dan logo tidak terpotong.</p>
             </div>
 
             {/* 4. Link Tujuan — website/sosmed only */}
@@ -479,7 +520,7 @@ export function OrganizerAdRequestPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-xs text-white font-medium">{r.slots_requested} slot · {r.duration_days} hari</p>
+                        <p className="text-xs text-white font-medium">{BANNER_PLACEMENT_LABELS[r.placement || 'home_top']} · {r.slots_requested} slot · {r.duration_days} hari</p>
                         <Badge color={r.status === 'PENDING' ? 'warn' : r.status === 'APPROVED' ? 'moss' : 'err'}>
                           {r.status}
                         </Badge>
@@ -532,7 +573,8 @@ export function OrganizerAdRequestPage() {
         <Card className="p-5 mb-4">
           <h3 className="font-semibold text-fg mb-3">Ringkasan Pesanan</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-400">Slot</span><span className="text-fg">{slots} slot</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Penempatan</span><span className="text-fg">{BANNER_PLACEMENT_LABELS[placement]}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">{placement === 'home_sidebar' ? 'Jumlah banner' : 'Slot'}</span><span className="text-fg">{slots}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Durasi</span><span className="text-fg">{durationDays} hari</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Harga dasar</span><span className="text-fg">Rp {basePrice.toLocaleString('id-ID')}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Kode unik</span><span className="text-amber-300">+ Rp {uniqueCodeValue.toLocaleString('id-ID')}</span></div>
