@@ -1,17 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { GraduationCap, Mail, Lock, ArrowRight, UserRound, School, Building2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { GraduationCap, Mail, Lock, ArrowRight, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
 import { resetPassword } from '@/services/auth.service';
-
-type LoginRole = 'pelajar' | 'guru' | 'penyelenggara';
-
-const ROLE_OPTIONS: { value: LoginRole; label: string; icon: typeof UserRound }[] = [
-  { value: 'pelajar', label: 'Pelajar', icon: UserRound },
-  { value: 'guru', label: 'Guru', icon: School },
-  { value: 'penyelenggara', label: 'Penyelenggara', icon: Building2 },
-];
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -20,7 +12,6 @@ export function LoginPage() {
   const { login, toast } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [requestedRole, setRequestedRole] = useState<LoginRole>('pelajar');
   const [loading, setLoading] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [showForgot, setShowForgot] = useState(false);
@@ -31,7 +22,7 @@ export function LoginPage() {
     if (!email || !password) { toast('Isi email dan password', 'error'); return; }
     setLoading(true);
     try {
-      const result = await login(email, password, requestedRole);
+      const result = await login(email, password);
       if (!result.ok) { toast(result.error || 'Login gagal', 'error'); return; }
       toast('Selamat datang kembali!', 'success');
       navigate(redirectTo, { replace: true });
@@ -54,7 +45,6 @@ export function LoginPage() {
     }
   };
 
-  const showCollectivePortalEntry = requestedRole === 'pelajar';
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -66,18 +56,12 @@ export function LoginPage() {
         <div className="w-full max-w-md">
           <div className="card p-6 md:p-8 animate-slide-up">
             <h1 className="font-display font-bold text-2xl text-fg mb-1">Masuk</h1>
-            <p className="text-sm text-slate-400 mb-6">Pilih jenis akun untuk verifikasi role dari backend.</p>
-            <div className="mb-5">
-              <label className="label">Masuk sebagai</label>
-              <div className="grid grid-cols-3 gap-2">
-                {ROLE_OPTIONS.map(({ value, label, icon: Icon }) => <button key={value} type="button" onClick={() => setRequestedRole(value)} className={`rounded-xl border p-3 flex flex-col items-center gap-2 transition ${requestedRole === value ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-400 hover:surface-border'}`}><Icon size={18} /><span className="text-xs font-medium">{label}</span></button>)}
-              </div>
-            </div>
-            {showCollectivePortalEntry && <Link to="/peserta-kolektif/login" className="mb-5 flex items-center gap-3 rounded-xl border surface-border px-3 py-3 hover:border-moss-500/40 hover:bg-moss-500/5 transition">
+            <p className="text-sm text-slate-400 mb-6">Masuk dengan email dan password. Sistem akan mengenali peran akun secara otomatis dari backend.</p>
+            <Link to="/peserta-kolektif/login" className="mb-5 flex items-center gap-3 rounded-xl border surface-border px-3 py-3 hover:border-moss-500/40 hover:bg-moss-500/5 transition">
               <span className="w-9 h-9 rounded-lg bg-moss-500/10 flex items-center justify-center text-accent"><ShieldCheck size={17} /></span>
               <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-fg">Masuk sebagai Peserta Kolektif</span><span className="block text-xs text-slate-500 mt-0.5">Gunakan password portal dari Guru.</span></span>
               <ArrowRight size={16} className="text-slate-500" />
-            </Link>}
+            </Link>
             <div className="space-y-4">
               <div><label className="label">Email</label><div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type="email" className="input pl-9" placeholder="nama@email.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></div></div>
               <div><label className="label">Password</label><div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type={showPassword ? "text" : "password"} className="input pl-9 pr-10" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void handleLogin()} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
