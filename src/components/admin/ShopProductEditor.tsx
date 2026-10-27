@@ -25,7 +25,7 @@ type Props = {
   product: Partial<ShopProductDraft> & { id?: string | null };
   busy: boolean;
   onClose: () => void;
-  onSave: (product: ShopProductDraft) => Promise<void>;
+  onSave: (product: ShopProductDraft) => Promise<unknown>;
 };
 
 const PRODUCT_TYPES = [
