@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
+export const LOGIN_REJECTION_SIGNOUT_KEY = 'syka_login_rejection_signout_v1';
+
 export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
