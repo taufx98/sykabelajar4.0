@@ -148,6 +148,12 @@ export async function submitBannerRequest(params: {
 }): Promise<AdBannerRequest> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Unauthorized');
+  if (!['home_top', 'home_sidebar'].includes(params.placement)) throw new Error('Penempatan iklan tidak valid.');
+  if (!Number.isInteger(params.slotsRequested) || params.slotsRequested < 1 || params.slotsRequested > (params.placement === 'home_sidebar' ? 1 : 2)) {
+    throw new Error(params.placement === 'home_sidebar'
+      ? 'Sidebar hanya mendukung satu banner per request.'
+      : 'Banner tengah atas mendukung satu atau dua slot per request.');
+  }
 
   let primaryUrl: string;
   let allUrls: string[] = [];
@@ -285,17 +291,22 @@ export async function approveBannerRequest(
     }
   }
 
-  for (const banner of bannersToInsert) {
-    const { error: upErr } = await supabase
-      .from('ad_banners')
-      .upsert(banner, { onConflict: 'placement,slot_number' });
-    if (upErr) throw upErr;
-  }
+  // Insert all rows as one statement. Do not upsert a slot: a race must
+  // fail safely rather than overwrite an existing advertiser's active banner.
+  const { error: insertError } = await supabase
+    .from('ad_banners')
+    .insert(bannersToInsert);
+  if (insertError) throw insertError;
 
-  await supabase
+  const { error: approveError } = await supabase
     .from('ad_banner_requests')
     .update({ status: 'APPROVED', reviewed_at: new Date().toISOString() })
     .eq('id', requestId);
+  if (approveError) {
+    // Best-effort rollback when the request status cannot be committed.
+    await supabase.from('ad_banners').delete().eq('request_id', req.id);
+    throw approveError;
+  }
 }
 
 // ── Admin: reject request ──
@@ -342,6 +353,12 @@ export async function adminAddBanner(params: {
 }): Promise<AdBanner> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Unauthorized');
+  if (!Number.isInteger(params.slotNumber) || params.slotNumber < 1) {
+    throw new Error('Urutan iklan harus berupa bilangan bulat minimal 1.');
+  }
+  const widthSlots = params.placement === 'home_sidebar'
+    ? 1
+    : Math.max(1, Math.min(2, Math.floor(Number(params.widthSlots) || 1)));
 
   const { data: existingSlot, error: slotError } = await supabase
     .from('ad_banners')
@@ -370,8 +387,8 @@ export async function adminAddBanner(params: {
       media_type: uploaded.media_type,
       link_url: params.linkUrl,
       title: params.title || '',
-      single_image: params.widthSlots > 1,
-      image_width_slots: params.widthSlots,
+      single_image: widthSlots > 1,
+      image_width_slots: widthSlots,
       slide_duration_seconds: params.slideDuration,
       expires_at: expiresAt.toISOString(),
       is_active: true,
