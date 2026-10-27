@@ -307,6 +307,26 @@ test.describe('organizer workspace after login', () => {
   });
 });
 
+test.describe('Shop editor', () => {
+  test('admin product editor shows product information fields', async ({ page }) => {
+    await mockSupabaseLogin(page, ['admin']);
+    await page.goto('/login?redirect=%2Fadmin%2Fcore%3Ftab%3Dshop');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect(page).toHaveURL(/admin\/core\?tab=shop$/, { timeout: 15000 });
+    await page.getByRole('button', { name: 'Tambah produk', exact: true }).click();
+    await expect(page.getByLabel('Nama produk')).toBeVisible();
+    await expect(page.getByLabel('Harga (Rp)')).toBeVisible();
+    await expect(page.locator('[role="dialog"] select').first()).toBeVisible();
+    await expect(page.getByText('Unggah gambar', { exact: true })).toBeVisible();
+    await page.getByLabel('Nama produk').fill('Paket Latihan Sains');
+    await page.getByLabel('Tampilkan di Shop').check();
+    await page.getByRole('button', { name: 'Simpan produk' }).click();
+    await expect(page.getByText(/Produk aktif harus memiliki harga di atas Rp0/i)).toBeVisible();
+  });
+});
+
 test.describe('public entry points', () => {
   test('landing page renders', async ({ page }) => {
     await page.goto('/');
