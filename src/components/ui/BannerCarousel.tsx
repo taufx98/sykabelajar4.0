@@ -46,7 +46,9 @@ function EmptySlot({ placement }: { placement: BannerPlacement }) {
 }
 
 function BannerMedia({ banner, className }: { banner: PublicBanner; className?: string }) {
-  const src = optimizedCloudinaryUrl(banner.image_url, { width: banner.placement === 'home_sidebar' ? 600 : 1200 });
+  const src = banner.media_type === 'video'
+    ? banner.image_url
+    : optimizedCloudinaryUrl(banner.image_url, { width: banner.placement === 'home_sidebar' ? 600 : 1200 });
   if (banner.media_type === 'video') {
     return <video src={src} className={className} muted playsInline autoPlay loop preload="metadata" />;
   }
