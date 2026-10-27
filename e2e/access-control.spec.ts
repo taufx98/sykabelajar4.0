@@ -236,7 +236,7 @@ test.describe('backend-authoritative login flow', () => {
     await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
 
-    await expect(page).toHaveURL(/\\/admin(?:\\?.*)?$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/admin(?:\?.*)?$/, { timeout: 15_000 });
     await expect(page.locator('aside').getByText('Manajemen', { exact: true })).toBeVisible();
     await expect(page.locator('aside').getByText('Umum', { exact: true })).toHaveCount(0);
   });
