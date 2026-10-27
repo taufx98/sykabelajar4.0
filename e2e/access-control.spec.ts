@@ -20,7 +20,7 @@ async function completeRegistrationDetails(page: import('@playwright/test').Page
     await page.getByRole('button', { name: role, exact: true }).click();
   }
 
-  const textInputs = page.locator('input[type="text"]');
+  const textInputs = page.locator('input:not([type]), input[type="text"]');
   await textInputs.nth(0).fill('Akun Uji');
   await textInputs.nth(1).fill('akun_uji_flow');
   await page.locator('input[type="date"]').fill('2000-01-01');
