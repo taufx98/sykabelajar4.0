@@ -120,7 +120,7 @@ export function AdminPage() {
     if (!Number.isFinite(draft.price) || draft.price < 0) return toast.warning('Harga harus berupa angka nol atau lebih.');
     if (draft.is_active && draft.price <= 0) return toast.warning('Produk aktif harus memiliki harga di atas Rp0. Alur klaim produk gratis belum tersedia.');
 
-    const toSlug = (value: string) => value.normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'produk';
+    const toSlug = (value: string) => value.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'produk';
     const token = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
     const base = toSlug(name);
     const code = draft.code.trim() || `SHOP-${base.toUpperCase()}-${token}`;
@@ -314,7 +314,7 @@ export function AdminPage() {
     {usernameEditor&&<AdminUsernameModal user={usernameEditor} onClose={()=>setUsernameEditor(null)} onSaved={username=>{setUsers(rows=>rows.map(row=>row.id===usernameEditor.id?{...row,username}:row));setUsernameEditor(null);}}/>}
     {competitionEditor&&<Editor title={competitionEditor.id?'Edit Lomba':'Tambah Lomba'} onClose={()=>setCompetitionEditor(null)} onSave={()=>void saveCompetitionAction()} busy={busy}><Field label="Judul" value={competitionEditor.title||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,title:v}))}/><Field label="Slug" value={competitionEditor.slug||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,slug:v}))}/><Field label="Kategori" value={competitionEditor.category||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,category:v}))}/></Editor>}
     {postEditor&&<Editor title={postEditor.id?'Edit Postingan':'Tambah Postingan'} onClose={()=>setPostEditor(null)} onSave={()=>void savePostAction()} busy={busy}><Field label="Judul" value={postEditor.title||''} onChange={v=>setPostEditor((x:any)=>({...x,title:v}))}/><Field label="Isi" value={postEditor.body||''} onChange={v=>setPostEditor((x:any)=>({...x,body:v}))} textarea/></Editor>}
-    {productEditor&&<ShopProductEditor key={productEditor.id ?? 'new'} product={productEditor} busy={busy} onClose={()=>setProductEditor(null)} onSave={saveProductAction}/>
+    {productEditor&&<ShopProductEditor key={productEditor.id ?? 'new'} product={productEditor} busy={busy} onClose={()=>setProductEditor(null)} onSave={saveProductAction}/>}
     {competitionDelete&&<CompetitionDeleteModal title={competitionDelete.title} blockers={competitionDelete.blockers} loading={competitionDelete.loading} deleting={competitionDelete.deleting} error={competitionDelete.error} onClose={()=>{if(!competitionDelete.deleting)setCompetitionDelete(null);}} onConfirm={()=>void confirmCompetitionDelete()}/>} 
   </div>;
 }
