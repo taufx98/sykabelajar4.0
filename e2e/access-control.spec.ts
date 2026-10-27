@@ -248,7 +248,7 @@ test.describe('backend-authoritative login flow', () => {
     await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
 
-    await expect(page).toHaveURL(/\\/profile\\/akun_uji(?:\\?.*)?$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/profile\/akun_uji(?:\?.*)?$/, { timeout: 15_000 });
     await expect(page.getByRole('heading', { name: 'Akun Uji' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Tentang', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Akses Admin', exact: true })).toBeVisible();
