@@ -595,7 +595,7 @@ export function AdminBadgesPage() {
                           <button
                             key={option.value}
                             type="button"
-                            onClick={() => updateEditor({ award_type: option.value })}
+                            onClick={() => updateEditor({ award_type: option.value, ...(option.value === 'MANUAL' ? {} : { is_purchasable: false }) })}
                             className={`rounded-xl border p-3 text-left transition ${editor.award_type === option.value ? 'border-accent/30 bg-accent/10' : 'surface-border hover:bg-white/5'}`}
                           >
                             <div className="flex items-center gap-2">
