@@ -144,6 +144,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
 
   useEffect(() => {
     if (!needsSlide || banners.length === 0) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const timer = window.setInterval(advance, slideDurationMs);
     return () => window.clearInterval(timer);
   }, [needsSlide, banners.length, advance, slideDurationMs, safeCurrentGroup]);
@@ -204,7 +205,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
       ) : (
         <>
           <div
-            className="flex transition-transform duration-700 ease-in-out"
+            className="flex transition-transform duration-700 ease-in-out motion-reduce:transition-none"
             style={{ transform: `translateX(-${safeCurrentGroup * 100}%)`, width: `${totalGroups * 100}%` }}
           >
             {groups.map((group, groupIndex) => (
