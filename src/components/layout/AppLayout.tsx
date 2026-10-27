@@ -126,13 +126,17 @@ export function AppLayout() {
   userNav.push([profilePath, 'Profil', UserIcon, undefined]);
   const collectiveNav: NavItem[] = [['/peserta-kolektif', 'Portal Peserta', School, undefined], ['/pesan', 'Pesan', MessageCircle, undefined]];
   const nav: NavItem[] = isGuest ? guestNav : collectiveMode ? collectiveNav : userNav;
-  const managedPaths = new Set<string>(isAdmin
+  const specialFeaturePaths = new Set<string>(isAdmin
     ? ['/admin', '/admin/error-intelligence', '/admin/plan-usage', '/admin/organizers']
-    : isOrganizer ? ['/organizer', '/organizer/competition/new', '/organizer/registrations', '/organizer/members', '/organizer/grading', '/organizer/plan', '/organizer/serials', '/organizer/ads'] : []);
-  const navGroups: NavGroup[] = (isAdmin || isOrganizer)
+    : isOrganizer
+      ? ['/organizer', '/organizer/competition/new', '/organizer/registrations', '/organizer/members', '/organizer/grading', '/organizer/plan', '/organizer/serials', '/organizer/ads']
+      : isTeacher
+        ? ['/guru', '/guru/daftar', '/guru/kartu', '/guru/monitoring']
+        : []);
+  const navGroups: NavGroup[] = specialFeaturePaths.size > 0
     ? [
-        { title: 'Umum', items: nav.filter(([to]) => !managedPaths.has(to)) },
-        { title: 'Manajemen', items: nav.filter(([to]) => managedPaths.has(to)) },
+        { items: nav.filter(([to]) => !specialFeaturePaths.has(to)) },
+        { title: isTeacher ? 'Fitur Guru' : 'Manajemen', items: nav.filter(([to]) => specialFeaturePaths.has(to)) },
       ].filter(group => group.items.length > 0)
     : [{ items: nav }];
   const globalHeaderNav: GlobalHeaderNavItem[] = nav.map(([to, label, icon]) => ({ to, label, icon }));
