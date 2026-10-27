@@ -120,6 +120,7 @@ export async function createCollectiveCertificateOrderWithProof(input: {
     p_whatsapp: input.whatsapp?.trim() || null,
   });
   if (error) {
+    if (error.message.includes('CERTIFICATE_SHOP_NOT_AVAILABLE')) throw new Error('Produk sertifikat peserta belum diaktifkan oleh admin di Shop.');
     if (error.message.includes('RESULT_NOT_FINALIZED')) throw new Error('Peserta belum menyelesaikan lomba. Sertifikat belum bisa dipesan.');
     if (error.message.includes('RESULT_NOT_PUBLISHED')) throw new Error('Hasil lomba belum diumumkan. Sertifikat belum bisa dipesan.');
     if (error.message.includes('CERTIFICATE_PRICE_NOT_CONFIGURED')) throw new Error('Harga sertifikat peserta belum diatur oleh admin.');
