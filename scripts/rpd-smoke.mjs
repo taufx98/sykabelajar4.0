@@ -9,7 +9,7 @@ for (const path of checks) {
     throw new Error('Smoke failed /: production is not yet serving the linear-exam-secure-v1 release.');
   }
   if (path === '/') {
-    const scriptSources = [...text.matchAll(/<script\\b[^>]*\\bsrc=["']([^"']+)["'][^>]*>/gi)].map((match) => match[1]);
+    const scriptSources = [...text.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map((match) => match[1]);
     if (scriptSources.length === 0) {
       console.log('[banner-deployment-diagnostic] No script asset URL found in production HTML.');
     }
