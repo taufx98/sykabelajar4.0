@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft, Check, X, Megaphone, Settings, Clock, DollarSign, CreditCard,
+  ArrowLeft, Check, X, Megaphone, Settings, DollarSign, CreditCard,
   MessageCircle, Plus, Trash2, Edit3, Eye, EyeOff, Upload, Film, Image as ImageIcon,
   Layers, Move, Calendar, Link as LinkIcon, AlertTriangle,
 } from 'lucide-react';
@@ -34,7 +34,6 @@ interface BannerEditor {
   linkUrl: string;
   title: string;
   durationDays: number;
-  slideDuration: number;
 }
 
 const MEDIA_LABELS: Record<MediaType, { label: string; icon: typeof ImageIcon; color: string }> = {
@@ -188,7 +187,6 @@ export function AdminBannersPage() {
       linkUrl: '',
       title: '',
       durationDays: 30,
-      slideDuration: settings?.slide_duration_seconds ?? 45,
     });
   };
 
@@ -205,16 +203,12 @@ export function AdminBannersPage() {
       linkUrl: banner.link_url || '',
       title: banner.title || '',
       durationDays: Math.max(1, Math.ceil((new Date(banner.expires_at).getTime() - Date.now()) / 86400000)),
-      slideDuration: banner.slide_duration_seconds,
     });
   };
 
   // ── Save banner ──
   const handleSaveBanner = async () => {
     if (!editor) return;
-    if (!Number.isInteger(editor.slideDuration) || editor.slideDuration < 5 || editor.slideDuration > 120) {
-      return toast('Durasi slide per banner harus 5–120 detik.', 'error');
-    }
     if (!Number.isInteger(editor.slotNumber) || editor.slotNumber < 1) {
       return toast('Urutan iklan harus berupa bilangan bulat minimal 1.', 'error');
     }
@@ -237,7 +231,7 @@ export function AdminBannersPage() {
           linkUrl: editor.linkUrl,
           title: editor.title,
           durationDays: editor.durationDays,
-          slideDuration: editor.slideDuration,
+          slideDuration: settings?.slide_duration_seconds ?? 45,
         });
         toast('Banner berhasil ditambahkan.', 'success');
       } else {
@@ -248,7 +242,7 @@ export function AdminBannersPage() {
           link_url: editor.linkUrl,
           title: editor.title,
           single_image: editor.placement !== 'home_sidebar' && editor.widthSlots > 1,
-          slide_duration_seconds: editor.slideDuration,
+          slide_duration_seconds: settings?.slide_duration_seconds ?? 45,
         };
         // If new file uploaded, replace media
         if (editor.file) {
@@ -283,6 +277,7 @@ export function AdminBannersPage() {
     }
     try {
       await updateBannerSettings(settings);
+      invalidatePublicBannerCache();
       toast('Pengaturan banner disimpan.', 'success');
     } catch (e: any) {
       toast(e?.message ?? 'Gagal menyimpan.', 'error');
@@ -526,11 +521,11 @@ export function AdminBannersPage() {
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Durasi default iklan baru (detik)</label>
+                <label className="text-xs text-slate-400 block mb-1">Durasi slide semua iklan (detik)</label>
                 <input type="number" min={5} max={120} step={1} value={settings.slide_duration_seconds}
                   onChange={(e) => setSettings({ ...settings, slide_duration_seconds: e.target.value === '' ? 0 : Number(e.target.value) })}
                   className="input text-sm w-full" />
-                <p className="mt-1 text-[10px] text-slate-500">Dipakai untuk iklan baru dan request yang disetujui. Iklan aktif menggunakan nilai Slide (detik) masing-masing pada menu Edit.</p>
+                <p className="mt-1 text-[10px] text-slate-500">Mengatur waktu pergantian otomatis semua banner aktif, termasuk iklan yang sudah ada. Hanya grup berisi iklan yang ditayangkan.</p>
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Harga per lot/hari (Rp)</label>
@@ -787,24 +782,14 @@ export function AdminBannersPage() {
                   placeholder="https://..." className="input text-sm w-full" />
               </div>
 
-              {/* Duration & slide */}
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1 flex items-center gap-1">
-                    <Calendar size={10} /> Durasi (hari)
-                  </label>
-                  <input type="number" min={1} max={365} value={editor.durationDays}
-                    onChange={e => setEditor({ ...editor, durationDays: +e.target.value })}
-                    className="input text-sm w-full" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1 flex items-center gap-1">
-                    <Clock size={10} /> Slide (detik)
-                  </label>
-                  <input type="number" min={5} max={120} step={1} value={editor.slideDuration}
-                    onChange={e => setEditor({ ...editor, slideDuration: e.target.value === '' ? 0 : Number(e.target.value) })}
-                    className="input text-sm w-full" />
-                </div>
+              {/* Duration */}
+              <div className="mb-6 max-w-xs">
+                <label className="text-xs text-slate-400 block mb-1 flex items-center gap-1">
+                  <Calendar size={10} /> Durasi tayang (hari)
+                </label>
+                <input type="number" min={1} max={365} value={editor.durationDays}
+                  onChange={e => setEditor({ ...editor, durationDays: +e.target.value })}
+                  className="input text-sm w-full" />
               </div>
 
               {/* Actions */}
