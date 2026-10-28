@@ -30,4 +30,63 @@ for (const path of checks) {
     }
   }
 }
+
+try {
+  const { chromium } = await import('@playwright/test');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+      const page = await browser.newPage({ viewport });
+      try {
+        await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.getByRole('button', { name: /lihat.*tamu/i }).first().click({ timeout: 15000 }).catch(() => undefined);
+        await page.waitForSelector('[data-home-top-banner]', { timeout: 20000 });
+        await page.waitForTimeout(1000);
+        const before = await page.evaluate(() => {
+          const banner = document.querySelector('[data-home-top-banner]');
+          return {
+            top: banner ? banner.getBoundingClientRect().top : null,
+            position: banner ? getComputedStyle(banner).position : null,
+            scrollY: window.scrollY,
+            scrollTop: document.scrollingElement?.scrollTop ?? null,
+            scrollHeight: document.scrollingElement?.scrollHeight ?? null,
+            clientHeight: document.scrollingElement?.clientHeight ?? null,
+          };
+        });
+        await page.evaluate(() => window.scrollTo(0, 700));
+        await page.waitForTimeout(250);
+        const after = await page.evaluate(() => {
+          const banner = document.querySelector('[data-home-top-banner]');
+          return {
+            top: banner ? banner.getBoundingClientRect().top : null,
+            position: banner ? getComputedStyle(banner).position : null,
+            scrollY: window.scrollY,
+            scrollTop: document.scrollingElement?.scrollTop ?? null,
+            scrollHeight: document.scrollingElement?.scrollHeight ?? null,
+            clientHeight: document.scrollingElement?.clientHeight ?? null,
+          };
+        });
+        const scrollDelta = after.scrollY - before.scrollY;
+        const bannerDelta = before.top - after.top;
+        console.log('[banner-scroll-diagnostic] ' + JSON.stringify({
+          viewport: viewport.width,
+          before,
+          after,
+          scrollDelta,
+          bannerDelta,
+          followsDocumentScroll: scrollDelta > 0 && Math.abs(bannerDelta - scrollDelta) < 30,
+        }));
+      } catch (error) {
+        console.log('[banner-scroll-diagnostic] viewport ' + viewport.width + ' failed: ' + String(error));
+      } finally {
+        await page.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+} catch (error) {
+  console.log('[banner-scroll-diagnostic] browser check skipped: ' + String(error));
+}
+
 console.log(`Smoke OK: ${checks.length} public routes and linear-exam-secure-v1 release marker`);
