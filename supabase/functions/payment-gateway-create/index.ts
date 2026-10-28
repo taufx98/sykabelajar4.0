@@ -173,7 +173,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const checkout = paymentOutput(provider as Provider, result);
-  if (!checkout.redirect_url && !checkout.token && !checkout.payment_code && !checkout.details) {
+  if (!checkout.redirect_url && !checkout.token && !checkout.payment_code && !checkout.provider_reference) {
     return response({ ok: false, error: "PAYMENT_RESPONSE_INCOMPLETE", message: "Provider merespons, tetapi detail pembayaran belum dapat dibaca. Periksa transaksi provider sebelum mencoba ulang." }, 502);
   }
   const providerReference = checkout.provider_reference || checkout.token || checkout.redirect_url;
