@@ -51,9 +51,12 @@ function EmptySlot({ placement, visible }: { placement: BannerPlacement; visible
 }
 
 function BannerMedia({ banner, className }: { banner: PublicBanner; className?: string }) {
+  const width = banner.placement === 'home_sidebar'
+    ? 600
+    : Number(banner.image_width_slots ?? 1) > 1 ? 2400 : 1200;
   const src = banner.media_type === 'video'
     ? banner.image_url
-    : optimizedCloudinaryUrl(banner.image_url, { width: banner.placement === 'home_sidebar' ? 600 : 1200 });
+    : optimizedCloudinaryUrl(banner.image_url, { width });
   if (banner.media_type === 'video') {
     return <video src={src} className={className} muted playsInline autoPlay loop preload="metadata" />;
   }
@@ -234,7 +237,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
                   >
                     <BannerMedia
                       banner={banner}
-                      className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-500"
+                      className="w-full h-full object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
                     />
                   </a>
                 ))}
