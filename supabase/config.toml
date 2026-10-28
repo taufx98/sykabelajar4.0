@@ -1,0 +1,46 @@
+project_id = "mvdczyitbkxkldjughor"
+
+# Preserve the current JWT policy for existing deployed functions.
+[functions.get-cloudinary-signature]
+verify_jwt = true
+
+[functions.payment-webhook]
+verify_jwt = false
+
+[functions.cloudinary-profile-upload]
+verify_jwt = true
+
+[functions.cloudinary-profile-upload-v2]
+verify_jwt = true
+
+[functions.cloudinary-delete-asset]
+verify_jwt = true
+
+[functions.cloudinary-delete-asset-v2]
+verify_jwt = true
+
+[functions.cloudinary-delete-profile]
+verify_jwt = true
+
+[functions.cleanup-expired-chat-media]
+verify_jwt = false
+
+[functions.midtrans-create-payment]
+verify_jwt = true
+
+[functions.generate-collective-certificate-pdf]
+verify_jwt = false
+
+# Admin management and checkout endpoints require the user's JWT.
+[functions.payment-gateway-admin]
+verify_jwt = true
+
+[functions.payment-gateway-create]
+verify_jwt = true
+
+# Payment providers must be able to send their callbacks without a Supabase JWT.
+[functions.payment-gateway-public]
+verify_jwt = false
+
+[functions.payment-gateway-webhook]
+verify_jwt = false
