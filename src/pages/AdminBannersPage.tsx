@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
+import { invalidatePublicBannerCache } from '@/services/public-banner.service';
 import {
   loadAllBannerRequests, loadBannerSettings, loadActiveBanners,
   approveBannerRequest, rejectBannerRequest, updateBannerSettings,
@@ -105,6 +106,7 @@ export function AdminBannersPage() {
     setBusy(id);
     try {
       await approveBannerRequest(id, settings);
+      invalidatePublicBannerCache();
       toast('Banner disetujui dan ditayangkan.', 'success');
       await load();
     } catch (e: any) {
@@ -131,6 +133,7 @@ export function AdminBannersPage() {
     setBusy(id);
     try {
       await deactivateBanner(id);
+      invalidatePublicBannerCache();
       toast('Banner ditakedown.', 'success');
       await load();
     } catch (e: any) {
@@ -144,6 +147,7 @@ export function AdminBannersPage() {
     setBusy(id);
     try {
       await adminDeleteBanner(id);
+      invalidatePublicBannerCache();
       toast('Banner dihapus.', 'success');
       await load();
     } catch (e: any) {
@@ -208,6 +212,9 @@ export function AdminBannersPage() {
   // ── Save banner ──
   const handleSaveBanner = async () => {
     if (!editor) return;
+    if (!Number.isInteger(editor.slideDuration) || editor.slideDuration < 5 || editor.slideDuration > 120) {
+      return toast('Durasi slide per banner harus 5–120 detik.', 'error');
+    }
     if (!Number.isInteger(editor.slotNumber) || editor.slotNumber < 1) {
       return toast('Urutan iklan harus berupa bilangan bulat minimal 1.', 'error');
     }
@@ -258,6 +265,7 @@ export function AdminBannersPage() {
         await adminUpdateBanner(editor.bannerId!, patch);
         toast('Banner diperbarui.', 'success');
       }
+      invalidatePublicBannerCache(editor.placement);
       setEditor(null);
       await load();
     } catch (e: any) {
@@ -270,6 +278,9 @@ export function AdminBannersPage() {
   // ── Settings save ──
   const handleSettingsSave = async () => {
     if (!settings) return;
+    if (!Number.isInteger(settings.slide_duration_seconds) || settings.slide_duration_seconds < 5 || settings.slide_duration_seconds > 120) {
+      return toast('Durasi default slide harus bilangan bulat 5–120 detik.', 'error');
+    }
     try {
       await updateBannerSettings(settings);
       toast('Pengaturan banner disimpan.', 'success');
@@ -426,6 +437,7 @@ export function AdminBannersPage() {
                               onClick={async () => {
                                 setBusy(b.id);
                                 await adminUpdateBanner(b.id, { is_active: true });
+                                invalidatePublicBannerCache();
                                 toast('Banner diaktifkan kembali.', 'success');
                                 await load();
                                 setBusy(null);
@@ -514,10 +526,11 @@ export function AdminBannersPage() {
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Durasi slide (detik)</label>
-                <input type="number" value={settings.slide_duration_seconds}
-                  onChange={(e) => setSettings({ ...settings, slide_duration_seconds: +e.target.value })}
+                <label className="text-xs text-slate-400 block mb-1">Durasi default iklan baru (detik)</label>
+                <input type="number" min={5} max={120} step={1} value={settings.slide_duration_seconds}
+                  onChange={(e) => setSettings({ ...settings, slide_duration_seconds: e.target.value === '' ? 0 : Number(e.target.value) })}
                   className="input text-sm w-full" />
+                <p className="mt-1 text-[10px] text-slate-500">Dipakai untuk iklan baru dan request yang disetujui. Iklan aktif menggunakan nilai Slide (detik) masing-masing pada menu Edit.</p>
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Harga per lot/hari (Rp)</label>
@@ -788,8 +801,8 @@ export function AdminBannersPage() {
                   <label className="text-xs text-slate-400 block mb-1 flex items-center gap-1">
                     <Clock size={10} /> Slide (detik)
                   </label>
-                  <input type="number" min={5} max={120} value={editor.slideDuration}
-                    onChange={e => setEditor({ ...editor, slideDuration: +e.target.value })}
+                  <input type="number" min={5} max={120} step={1} value={editor.slideDuration}
+                    onChange={e => setEditor({ ...editor, slideDuration: e.target.value === '' ? 0 : Number(e.target.value) })}
                     className="input text-sm w-full" />
                 </div>
               </div>
