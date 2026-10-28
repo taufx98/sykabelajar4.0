@@ -204,7 +204,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
       ) : banners.length === 0 ? (
         canSeeEmptySlots ? (
           <div className="grid w-full gap-2" style={{ gridTemplateColumns: `repeat(${slotCount}, minmax(0, 1fr))` }}>
-            {Array.from({ length: slotCount }).map((_, index) => <EmptySlot key={index} placement={placement} />)}
+            {Array.from({ length: slotCount }).map((_, index) => <EmptySlot key={index} placement={placement} visible={true} />)}
           </div>
         ) : null
       ) : (
