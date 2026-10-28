@@ -168,8 +168,9 @@ const runningTexts = [
   'Ikuti kompetisi terbaru dan raih prestasi terbaikmu',
 ];
 const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href);if(post.competition_slug)url.hash=`/lomba/${post.competition_slug}`;else url.hash=`/feed?post=${encodeURIComponent(post.id)}`;try{await navigator.clipboard?.writeText(url.toString());toast('Tautan postingan disalin.','success')}catch{toast('Tidak dapat menyalin tautan.','error')}};
+ // Ensure short Home pages can scroll the top banner completely out of view.
  return (
-    <div>
+    <div style={{ minHeight: 'calc(100dvh + 16rem)' }}>
       {/* Banner gambar sengaja non-sticky agar keluar dari viewport saat pengguna scroll. */}
       <div className="!static px-4 py-2" data-home-top-banner><BannerCarousel placement="home_top" /></div>
       {/* Di mobile ticker berada di bawah header global; desktop Home tidak memakai GlobalHeader. */}
