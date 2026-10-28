@@ -323,16 +323,24 @@ export async function rejectBannerRequest(requestId: string, note: string): Prom
 
 // ── Admin: update settings ──
 export async function updateBannerSettings(settings: Partial<AdBannerSettings>): Promise<void> {
-  const { data: existing } = await supabase
+  if (settings.slide_duration_seconds !== undefined) {
+    const duration = Number(settings.slide_duration_seconds);
+    if (!Number.isInteger(duration) || duration < 5 || duration > 120) {
+      throw new Error('Durasi default slide harus bilangan bulat 5–120 detik.');
+    }
+  }
+
+  const { data: existing, error: selectError } = await supabase
     .from('ad_banner_settings')
     .select('id')
     .limit(1)
     .maybeSingle();
-  if (existing) {
-    await supabase.from('ad_banner_settings').update(settings).eq('id', existing.id);
-  } else {
-    await supabase.from('ad_banner_settings').insert(settings);
-  }
+  if (selectError) throw selectError;
+
+  const result = existing
+    ? await supabase.from('ad_banner_settings').update(settings).eq('id', existing.id)
+    : await supabase.from('ad_banner_settings').insert(settings);
+  if (result.error) throw result.error;
 }
 
 // ── Admin: deactivate banner (takedown) ──

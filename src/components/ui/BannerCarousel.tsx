@@ -214,7 +214,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
         <>
           <div
             className="flex transition-transform duration-700 ease-in-out motion-reduce:transition-none"
-            style={{ transform: `translateX(-${safeCurrentGroup * 100}%)`, width: `${totalGroups * 100}%` }}
+            style={{ transform: `translateX(-${safeCurrentGroup * (100 / totalGroups)}%)`, width: `${totalGroups * 100}%` }}
           >
             {groups.map((group, groupIndex) => (
               <div

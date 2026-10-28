@@ -24,6 +24,19 @@ const memory = new Map<BannerPlacement, { expiresAt: number; data: PublicBanner[
 const failureUntil = new Map<BannerPlacement, number>();
 const inFlight = new Map<BannerPlacement, Promise<PublicBanner[]>>();
 
+export function invalidatePublicBannerCache(placement?: BannerPlacement): void {
+  const placements: BannerPlacement[] = placement ? [placement] : ['home_top', 'home_sidebar'];
+  for (const key of placements) {
+    memory.delete(key);
+    failureUntil.delete(key);
+    try {
+      sessionStorage.removeItem(placementCacheKey(key));
+    } catch {
+      // Session storage is optional.
+    }
+  }
+}
+
 function placementCacheKey(placement: BannerPlacement) {
   return `${CACHE_KEY}.${placement}`;
 }
