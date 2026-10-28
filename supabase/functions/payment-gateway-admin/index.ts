@@ -213,12 +213,13 @@ Deno.serve(async (req: Request) => {
           headers: { Authorization: `Basic ${btoa(`${key}:`)}` },
         });
         if (response.status === 401 || response.status === 403) return json({ ok: false, error: "MIDTRANS_AUTH_FAILED", message: "Midtrans menolak kredensial. Periksa Server Key dan environment." }, 422);
-        return json({ ok: true, message: "Koneksi Midtrans merespons. Order pemeriksaan tidak dibuat." });
+        if (response.status !== 404 && !response.ok) return json({ ok: false, error: "MIDTRANS_CONNECTION_FAILED", message: `Midtrans merespons HTTP ${response.status}. Periksa koneksi lalu coba lagi.` }, 502);
+        return json({ ok: true, message: "Koneksi dan otorisasi Midtrans terverifikasi. Order pemeriksaan tidak dibuat." });
       }
       const apiKey = nonEmpty(secretEnv.api_key);
       const apiSecret = nonEmpty(secretEnv.api_secret);
       const timestamp = new Date().toISOString();
-      const path = "/v1/payins?limit=1";
+      const path = "/v1/payins";
       const signature = await hmacBase64(apiSecret, `GET\n${path}\n${timestamp}\n`);
       const endpoint = environment === "production" ? "https://openapi.xenithpay.com" : "https://openapi.sandbox.xenithpay.com";
       const response = await fetch(`${endpoint}${path}`, { headers: { "Xenith-Api-Key": apiKey, "Xenith-Request-Timestamp": timestamp, "Xenith-Request-Signature": signature } });
