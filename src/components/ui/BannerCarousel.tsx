@@ -153,9 +153,12 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
   const totalGroups = Math.max(groups.length, 1);
   const needsSlide = groups.length > 1;
   const safeCurrentGroup = Math.min(currentGroup, totalGroups - 1);
-  // The admin's global slide duration is authoritative for every visible group.
-  // The timer restarts after a group change or when the admin duration refreshes.
-  const slideDurationMs = Math.max(5, Math.min(120, slideDurationSeconds)) * 1000;
+  // Each banner retains its configured slide interval. For a group showing
+  // multiple banners together, use the longest configured interval so neither
+  // creative is replaced before its display time has elapsed. The admin setting
+  // supplies the default when banners are created/approved.
+  const configuredDurations = groups[safeCurrentGroup]?.items.map(({ banner }) => Number(banner.slide_duration_seconds) || slideDurationSeconds) ?? [slideDurationSeconds];
+  const slideDurationMs = Math.max(5, Math.min(120, Math.max(...configuredDurations))) * 1000;
   const advance = useCallback(() => setCurrentGroup((g) => (g + 1) % totalGroups), [totalGroups]);
   const previous = useCallback(() => setCurrentGroup((g) => (g - 1 + totalGroups) % totalGroups), [totalGroups]);
 
