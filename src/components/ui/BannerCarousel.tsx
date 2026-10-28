@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Megaphone } from 'lucide-react';
-import { loadPublicBanners, type PublicBanner } from '@/services/public-banner.service';
+import { loadPublicBanners, loadPublicBannerSlideDuration, type PublicBanner } from '@/services/public-banner.service';
 import { useApp } from '@/store/AppContext';
 import { optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 import type { BannerPlacement } from '@/services/ad.service';
@@ -76,6 +76,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
   const [banners, setBanners] = useState<PublicBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [slideDurationSeconds, setSlideDurationSeconds] = useState(45);
   // Two top slots on a sufficiently wide content area; one card on narrow
   // screens. The sidebar remains one slot at all breakpoints.
   const [topSlotCount, setTopSlotCount] = useState(2);
@@ -121,7 +122,17 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
     }).catch(() => {
       if (alive) setLoading(false);
     });
-    return () => { alive = false; };
+    const refreshSlideDuration = () => {
+      void loadPublicBannerSlideDuration().then((seconds) => {
+        if (alive) setSlideDurationSeconds(seconds);
+      });
+    };
+    refreshSlideDuration();
+    const durationRefreshTimer = window.setInterval(refreshSlideDuration, 30_000);
+    return () => {
+      alive = false;
+      window.clearInterval(durationRefreshTimer);
+    };
   }, [placement]);
 
   const groups = useMemo<BannerGroup[]>(() => {
@@ -142,11 +153,9 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
   const totalGroups = Math.max(groups.length, 1);
   const needsSlide = groups.length > 1;
   const safeCurrentGroup = Math.min(currentGroup, totalGroups - 1);
-  const visibleGroup = groups[safeCurrentGroup] ?? groups[0];
-  // Reuse each banner's existing configured interval (slide_duration_seconds).
-  // The current group interval resets after manual swipe or auto-advance.
-  const configuredDurations = visibleGroup?.items.map(({ banner }) => Number(banner.slide_duration_seconds) || 45) ?? [45];
-  const slideDurationMs = Math.max(5, Math.min(120, Math.max(...configuredDurations))) * 1000;
+  // The admin's global slide duration is authoritative for every visible group.
+  // The timer restarts after a group change or when the admin duration refreshes.
+  const slideDurationMs = Math.max(5, Math.min(120, slideDurationSeconds)) * 1000;
   const advance = useCallback(() => setCurrentGroup((g) => (g + 1) % totalGroups), [totalGroups]);
   const previous = useCallback(() => setCurrentGroup((g) => (g - 1 + totalGroups) % totalGroups), [totalGroups]);
 
@@ -240,9 +249,6 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
                       className="w-full h-full object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
                     />
                   </a>
-                ))}
-                {Array.from({ length: Math.max(0, slotCount - group.usedSlots) }).map((_, index) => (
-                  <EmptySlot key={`empty-${groupIndex}-${index}`} placement={placement} visible={canSeeEmptySlots} />
                 ))}
               </div>
             ))}
