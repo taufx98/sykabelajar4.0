@@ -108,7 +108,11 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!intent) return json({ ok: false, error: "PAYMENT_INTENT_NOT_FOUND" }, 404);
-  if (status === "PAID" && ["CANCELLED", "EXPIRED", "FAILED", "REFUNDED"].includes(String(intent.status).toUpperCase())) {
+  const currentIntentStatus = String(intent.status).toUpperCase();
+  if (currentIntentStatus === "PAID" && status !== "PAID") {
+    return json({ ok: true, ignored: true, reason: "PAID_IS_TERMINAL", provider, order_id: orderId, status: currentIntentStatus });
+  }
+  if (status === "PAID" && ["CANCELLED", "EXPIRED", "FAILED", "REFUNDED"].includes(currentIntentStatus)) {
     return json({ ok: false, error: "PAYMENT_INTENT_ALREADY_CLOSED" }, 409);
   }
   if (status === "PAID" || status === "CANCELLED") {
