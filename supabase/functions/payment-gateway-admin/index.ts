@@ -155,8 +155,10 @@ Deno.serve(async (req: Request) => {
     if (!["MANUAL", "MIDTRANS", "XENITHPAY"].includes(String(requestedActive))) return json({ ok: false, error: "INVALID_ACTIVE_PROVIDER" }, 422);
     const requestedAutomatic = inputSettings.automaticPaymentsEnabled === true && requestedActive !== "MANUAL";
     const submittedProviders = record(inputSettings.providers);
-    const savedRows: AnyRecord[] = [];
+    const candidates: AnyRecord[] = [];
 
+    // Prepare and validate every provider first; do not erase a live credential
+    // when a requested provider switch is invalid.
     for (const provider of ["MIDTRANS", "XENITHPAY"] as Provider[]) {
       const submitted = record(submittedProviders[provider]);
       const current = configRows.get(provider);
@@ -165,22 +167,17 @@ Deno.serve(async (req: Request) => {
       const submittedEnv = record(record(submitted.environments)[environment]);
       const nextSecrets = mergeSecrets(record(current?.secret_config), submittedEnv, provider, environment);
       const nextPublic = mergePublicConfig(record(current?.public_config), submittedEnv, provider, environment);
-      const { error } = await admin.from("payment_gateway_configs").upsert({
-        provider,
-        is_enabled: enabled,
-        environment,
-        secret_config: nextSecrets,
-        public_config: nextPublic,
-        updated_by: userData.user.id,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "provider" });
-      if (error) return json({ ok: false, error: "PAYMENT_SETTINGS_SAVE_FAILED", provider }, 500);
-      savedRows.push({ provider, is_enabled: enabled, environment, secret_config: nextSecrets, public_config: nextPublic });
+      candidates.push({ provider, is_enabled: enabled, environment, secret_config: nextSecrets, public_config: nextPublic, updated_by: userData.user.id, updated_at: new Date().toISOString() });
     }
 
-    const chosen = requestedActive === "MANUAL" ? null : savedRows.find((row) => row.provider === requestedActive);
+    const chosen = requestedActive === "MANUAL" ? null : candidates.find((row) => row.provider === requestedActive);
     if (requestedAutomatic && (!chosen || chosen.is_enabled !== true || !isConfigured(requestedActive as Provider, chosen.environment as Environment, record(chosen.secret_config), record(chosen.public_config)))) {
-      return json({ ok: false, error: "ACTIVE_PROVIDER_NOT_CONFIGURED", message: "Provider aktif harus diaktifkan dan kredensial untuk environment yang dipilih harus lengkap." }, 422);
+      return json({ ok: false, error: "ACTIVE_PROVIDER_NOT_CONFIGURED", message: "Provider aktif harus diaktifkan dan kredensial untuk environment yang dipilih harus lengkap. Credential lama tidak dihapus karena pengaturan belum valid." }, 422);
+    }
+
+    for (const candidate of candidates) {
+      const { error } = await admin.from("payment_gateway_configs").upsert(candidate, { onConflict: "provider" });
+      if (error) return json({ ok: false, error: "PAYMENT_SETTINGS_SAVE_FAILED", provider: candidate.provider }, 500);
     }
 
     const { error: stateError } = await admin.from("payment_gateway_state").upsert({
