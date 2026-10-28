@@ -46,7 +46,11 @@ try {
           const banner = document.querySelector('[data-home-top-banner]');
           return {
             top: banner ? banner.getBoundingClientRect().top : null,
+            height: banner ? banner.getBoundingClientRect().height : null,
             position: banner ? getComputedStyle(banner).position : null,
+            imageCount: banner?.querySelectorAll('img').length ?? 0,
+            videoCount: banner?.querySelectorAll('video').length ?? 0,
+            slotCount: banner?.querySelectorAll('a').length ?? 0,
             scrollY: window.scrollY,
             scrollTop: document.scrollingElement?.scrollTop ?? null,
             scrollHeight: document.scrollingElement?.scrollHeight ?? null,
@@ -59,7 +63,11 @@ try {
           const banner = document.querySelector('[data-home-top-banner]');
           return {
             top: banner ? banner.getBoundingClientRect().top : null,
+            height: banner ? banner.getBoundingClientRect().height : null,
             position: banner ? getComputedStyle(banner).position : null,
+            imageCount: banner?.querySelectorAll('img').length ?? 0,
+            videoCount: banner?.querySelectorAll('video').length ?? 0,
+            slotCount: banner?.querySelectorAll('a').length ?? 0,
             scrollY: window.scrollY,
             scrollTop: document.scrollingElement?.scrollTop ?? null,
             scrollHeight: document.scrollingElement?.scrollHeight ?? null,
