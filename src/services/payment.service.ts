@@ -16,7 +16,7 @@ export type PaymentResult = {
 };
 
 export interface PaymentProvider {
-  readonly code: PaymentProviderCode;
+  readonly code: PaymentProviderCode | 'GLOBAL';
   createPayment(orderId: string): Promise<PaymentResult>;
 }
 
@@ -25,7 +25,7 @@ export interface PaymentProvider {
  * The browser must not choose provider or send provider credentials.
  */
 const globalGatewayProvider: PaymentProvider = {
-  code: 'MIDTRANS',
+  code: 'GLOBAL',
   async createPayment(orderId) {
     const { data, error } = await supabase.functions.invoke('payment-gateway-create', { body: { order_id: orderId } });
     if (error) {
@@ -52,9 +52,9 @@ const manualProvider: PaymentProvider = {
   },
 };
 
-export function getPaymentProvider(provider: PaymentProviderCode = 'MIDTRANS') {
+export function getPaymentProvider(provider: PaymentProviderCode | 'GLOBAL' = 'GLOBAL') {
   if (provider === 'MANUAL') return manualProvider;
-  // MIDTRANS/XENITHPAY are both routed through the same server-side global selection.
+  // Legacy provider arguments are accepted for compatibility, but selection is global/server-side.
   return globalGatewayProvider;
 }
 
