@@ -229,7 +229,7 @@ export function GlobalPaymentGatewaySettings() {
           </div>
           <div className="mt-5 space-y-4">
             <label className="block text-xs font-medium text-fg-muted">Environment<select className={fieldClass()} value={env} onChange={(event) => patchProvider(provider, { environment: event.target.value as GatewayEnvironment })}><option value="sandbox">Sandbox (testing)</option><option value="production">Production (transaksi nyata)</option></select></label>
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-surface-border bg-surface-elevated/20 p-3"><span className="text-xs text-fg-muted">{statusEnv?.configured ? 'Credential untuk environment ini terdeteksi lengkap.' : 'Credential untuk environment ini belum terdeteksi lengkap.'}</span><Badge color={statusEnv?.configured ? 'moss' : 'warning'}>{statusEnv?.configured ? 'Terkonfigurasi' : 'Belum lengkap'}</Badge></div>
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-surface-border bg-surface-elevated/20 p-3"><span className="text-xs text-fg-muted">{statusEnv?.configured ? 'Credential untuk environment ini terdeteksi lengkap.' : 'Credential untuk environment ini belum terdeteksi lengkap.'}</span><Badge color={statusEnv?.configured ? 'moss' : 'warn'}>{statusEnv?.configured ? 'Terkonfigurasi' : 'Belum lengkap'}</Badge></div>
             {provider === 'MIDTRANS' ? <div className="space-y-4">
               {secretField(provider, env, 'serverKey', 'Server Key (rahasia)', Boolean(statusEnv?.serverKeyConfigured))}
               {secretField(provider, env, 'clientKey', 'Client Key (public key)', Boolean(statusEnv?.clientKeyConfigured))}
