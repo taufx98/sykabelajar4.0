@@ -171,7 +171,7 @@ const sharePost=async(post:SocialPost)=>{const url=new URL(window.location.href)
  return (
     <div>
       {/* Banner gambar sengaja non-sticky agar keluar dari viewport saat pengguna scroll. */}
-      <div className="relative z-0 px-4 py-2" data-home-top-banner><BannerCarousel placement="home_top" /></div>
+      <div className="!static px-4 py-2" data-home-top-banner><BannerCarousel placement="home_top" /></div>
       {/* Di mobile ticker berada di bawah header global; desktop Home tidak memakai GlobalHeader. */}
       <div className="sticky top-[56px] md:top-0 z-40 isolate glass border-b surface-border surface-bg">
 <div className="relative min-h-8 overflow-hidden bg-moss-500/5 border-t border-moss-500/10"><div className="flex min-h-8 items-center whitespace-nowrap animate-marquee" style={{ animationDuration: '25s' }}>{[...runningTexts, ...runningTexts, ...runningTexts].map((text, i) => <span key={i} className="inline-flex items-center gap-2 mx-6 text-[11px] text-accent/80"><span className="w-1.5 h-1.5 rounded-full bg-moss-400/60 shrink-0" />{text}</span>)}</div></div>
