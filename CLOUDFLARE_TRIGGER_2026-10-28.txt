@@ -1,0 +1,1 @@
+Trigger Cloudflare Pages production deployment after the Home banner scroll fix was merged to main (commit b6549a1427ab56423b6a3aa489068a008f554c3e).
