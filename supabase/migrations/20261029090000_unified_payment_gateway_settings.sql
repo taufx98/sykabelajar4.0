@@ -41,3 +41,25 @@ grant all on table public.payment_gateway_state to service_role;
 insert into public.payment_gateway_state (id, active_provider, automatic_payments_enabled)
 values (true, 'MIDTRANS', true)
 on conflict (id) do nothing;
+
+
+-- Stable system method used by checkout to represent the currently selected global gateway.
+-- The method contains no credentials; real provider selection happens server-side.
+create unique index if not exists organizer_payment_methods_global_gateway_unique
+  on public.organizer_payment_methods ((details ->> 'global_gateway'))
+  where details ->> 'global_gateway' = 'true';
+
+insert into public.organizer_payment_methods (name, payment_type, details, is_active, sort_order)
+select
+  'Pembayaran Otomatis (Gateway Global)',
+  'SNAP',
+  jsonb_build_object(
+    'global_gateway', true,
+    'instructions', 'Pembayaran diproses melalui payment gateway aktif yang diatur admin.'
+  ),
+  true,
+  0
+where not exists (
+  select 1 from public.organizer_payment_methods
+  where details ->> 'global_gateway' = 'true'
+);
