@@ -35,11 +35,13 @@ function getBannerWidthSlots(banner: PublicBanner, placement: BannerPlacement, a
   return Math.max(1, Math.min(2, availableSlots, width));
 }
 
-function EmptySlot({ placement }: { placement: BannerPlacement }) {
+function EmptySlot({ placement, visible }: { placement: BannerPlacement; visible: boolean }) {
   return (
     <Link
       to="/organizer/ads"
-      className="w-full min-w-0 surface-elevated border border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-accent/60 transition cursor-pointer rounded-xl"
+      aria-hidden={!visible}
+      tabIndex={visible ? 0 : -1}
+      className={`w-full min-w-0 surface-elevated border border-dashed surface-border flex flex-col items-center justify-center gap-2 text-slate-600 hover:border-moss-500/30 hover:text-accent/60 transition rounded-xl ${visible ? 'cursor-pointer' : 'invisible pointer-events-none'}`}
       style={{ aspectRatio: aspectRatioFor(placement) }}
     >
       <Megaphone size={22} />
@@ -202,7 +204,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
       ) : banners.length === 0 ? (
         canSeeEmptySlots ? (
           <div className="grid w-full gap-2" style={{ gridTemplateColumns: `repeat(${slotCount}, minmax(0, 1fr))` }}>
-            {Array.from({ length: slotCount }).map((_, index) => <EmptySlot key={index} placement={placement} />)}
+            {Array.from({ length: slotCount }).map((_, index) => <EmptySlot key={index} placement={placement} visible={true} />)}
           </div>
         ) : null
       ) : (
@@ -236,8 +238,8 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
                     />
                   </a>
                 ))}
-                {canSeeEmptySlots && Array.from({ length: Math.max(0, slotCount - group.usedSlots) }).map((_, index) => (
-                  <EmptySlot key={`empty-${groupIndex}-${index}`} placement={placement} />
+                {Array.from({ length: Math.max(0, slotCount - group.usedSlots) }).map((_, index) => (
+                  <EmptySlot key={`empty-${groupIndex}-${index}`} placement={placement} visible={canSeeEmptySlots} />
                 ))}
               </div>
             ))}
