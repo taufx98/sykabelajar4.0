@@ -724,9 +724,9 @@ export function AdminBannersPage() {
                       style={{ aspectRatio: getBannerAspectRatio(editor.placement, editor.widthSlots) }}
                     >
                       {editor.mediaType === 'video' ? (
-                        <video src={editor.previewUrl} className="w-full h-full object-contain bg-black/5" controls muted />
+                        <video src={editor.previewUrl} className="w-full h-full object-cover object-center bg-black/5" controls muted />
                       ) : (
-                        <img src={editor.previewUrl} alt="Preview banner" className="w-full h-full object-contain bg-black/5" />
+                        <img src={editor.previewUrl} alt="Preview banner" className="w-full h-full object-cover object-center bg-black/5" />
                       )}
                       <div className="absolute top-2 left-2 rounded-md bg-black/65 px-2 py-1 text-[10px] text-white">
                         {BANNER_PLACEMENT_LABELS[editor.placement]} · {getBannerDimensions(editor.placement, editor.widthSlots)}

@@ -407,7 +407,7 @@ export function OrganizerAdRequestPage() {
                       {previews[idx] ? (
                         <div className="relative rounded-lg overflow-hidden border surface-border surface-elevated">
                           <div style={{ aspectRatio: ratio }} className="w-full overflow-hidden">
-                            <img src={previews[idx]} alt="" className="w-full h-full object-contain bg-black/5" />
+                            <img src={previews[idx]} alt="" className="w-full h-full object-cover object-center bg-black/5" />
                           </div>
                           <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/60 rounded px-1.5 py-0.5 text-[9px] text-fg">
                             <Crop size={8} /> {label}
