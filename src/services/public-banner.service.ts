@@ -20,11 +20,49 @@ export interface PublicBanner {
 const CACHE_KEY = 'syka.public.v3.banners';
 const CACHE_TTL_MS = 5 * 60_000;
 const NEGATIVE_CACHE_TTL_MS = 10 * 60_000;
+const SLIDE_DURATION_CACHE_TTL_MS = 25_000;
+const DEFAULT_SLIDE_DURATION_SECONDS = 45;
 const memory = new Map<BannerPlacement, { expiresAt: number; data: PublicBanner[] }>();
 const failureUntil = new Map<BannerPlacement, number>();
 const inFlight = new Map<BannerPlacement, Promise<PublicBanner[]>>();
+let slideDurationCache: { expiresAt: number; seconds: number } | null = null;
+let slideDurationInFlight: Promise<number> | null = null;
+
+export async function loadPublicBannerSlideDuration(): Promise<number> {
+  const now = Date.now();
+  if (slideDurationCache && slideDurationCache.expiresAt > now) return slideDurationCache.seconds;
+  if (slideDurationInFlight) return slideDurationInFlight;
+
+  const request = (async () => {
+    const { data, error } = await supabase
+      .from('ad_banner_settings')
+      .select('slide_duration_seconds')
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[PublicBanner] could not load admin slide duration:', error.message);
+      return DEFAULT_SLIDE_DURATION_SECONDS;
+    }
+
+    const raw = Number(data?.slide_duration_seconds ?? DEFAULT_SLIDE_DURATION_SECONDS);
+    const seconds = Number.isFinite(raw)
+      ? Math.min(120, Math.max(5, Math.round(raw)))
+      : DEFAULT_SLIDE_DURATION_SECONDS;
+    slideDurationCache = { expiresAt: Date.now() + SLIDE_DURATION_CACHE_TTL_MS, seconds };
+    return seconds;
+  })();
+
+  slideDurationInFlight = request;
+  try {
+    return await request;
+  } finally {
+    slideDurationInFlight = null;
+  }
+}
 
 export function invalidatePublicBannerCache(placement?: BannerPlacement): void {
+  slideDurationCache = null;
   const placements: BannerPlacement[] = placement ? [placement] : ['home_top', 'home_sidebar'];
   for (const key of placements) {
     memory.delete(key);
