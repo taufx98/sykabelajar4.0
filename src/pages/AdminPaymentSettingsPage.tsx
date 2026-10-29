@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Banknote, CreditCard, ImagePlus, ListChecks, Plus, Settings2, Trash2, UploadCloud, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
@@ -54,15 +54,15 @@ export function AdminPaymentSettingsPage() {
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setMethods(await listOrganizerPaymentMethods());
     } catch (error: any) {
       toast(error?.message || 'Gagal memuat metode pembayaran.', 'error');
     }
-  }
+  }, [toast]);
 
-  useEffect(() => { if (activeTab === 'METHODS') void load(); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'METHODS') void load(); }, [activeTab, load]);
 
   function resetForm() {
     if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
