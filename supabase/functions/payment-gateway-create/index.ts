@@ -13,7 +13,7 @@ type Row = Record<string, any>;
 
 function response(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: corsHeaders }); }
 function obj(value: unknown): Row { return value && typeof value === "object" && !Array.isArray(value) ? value as Row : {}; }
-function str(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
+function str(value: unknown) { return typeof value === "string" || typeof value === "number" ? String(value).trim() : ""; }
 function isEnv(value: unknown): value is Env { return value === "sandbox" || value === "production"; }
 function equalMoney(a: unknown, b: unknown) { return Math.round(Number(a) * 100) === Math.round(Number(b) * 100); }
 async function hmacBase64(secret: string, value: string) {

@@ -38,6 +38,14 @@ Deno.serve(async (req: Request) => {
 
   const path = new URL(req.url).pathname;
   const looksMidtrans = Boolean(payload.order_id && payload.signature_key);
+  const incomingEventType = str(payload.eventType || payload.event_type || payload.type).toLowerCase();
+  const incomingData = obj(payload.data);
+  const incomingReferenceCode = str(incomingData.referenceCode || incomingData.reference_code || payload.referenceCode || payload.reference_code);
+  // XenithPay also sends signed maintenance events that do not belong to an order.
+  // Acknowledge those without attempting to resolve a payment intent, avoiding 24-hour retries.
+  if (!looksMidtrans && incomingEventType.startsWith("maintenance.") && !incomingReferenceCode) {
+    return json({ ok: true, ignored: true, reason: "NON_TRANSACTION_EVENT", event_type: incomingEventType });
+  }
   let provider: Provider;
   let orderId = "";
   let providerEventId = "";
@@ -102,10 +110,18 @@ Deno.serve(async (req: Request) => {
     const signaturePayload = `POST\\n${path}\\n${rawBody}\\n${timestamp}`;
     const expected = await hmacBase64(webhookSecret, signaturePayload);
     if (!constantTimeEqual(expected, supplied)) return json({ ok: false, error: "INVALID_SIGNATURE" }, 401);
-    if (reportedAmount !== null && reportedAmount !== undefined && normalizeAmount(reportedAmount) !== normalizeAmount(intent.amount)) return json({ ok: false, error: "AMOUNT_MISMATCH" }, 422);
+    const normalizedReportedAmount = normalizeAmount(reportedAmount);
+    const expectedAmount = normalizeAmount(intent.amount);
+    if (reportedAmount !== null && reportedAmount !== undefined && (normalizedReportedAmount === null || normalizedReportedAmount !== expectedAmount)) {
+      return json({ ok: false, error: "AMOUNT_MISMATCH" }, 422);
+    }
     const eventType = str(payload.eventType || payload.event_type || payload.type);
     providerEventId = `XENITHPAY:${referenceId || orderId}:${rawStatus.toUpperCase()}:${eventType}`;
     status = mapStatus(provider, rawStatus);
+    // Fail closed: never fulfill an order from a "paid" webhook without a verifiable matching amount.
+    if (status === "PAID" && (normalizedReportedAmount === null || normalizedReportedAmount !== expectedAmount)) {
+      return json({ ok: false, error: "AMOUNT_MISMATCH" }, 422);
+    }
   }
 
   if (!intent) return json({ ok: false, error: "PAYMENT_INTENT_NOT_FOUND" }, 404);
