@@ -425,12 +425,41 @@ export function OrdersPage() {
 
   const statusLabelForOrder = (order: any) => {
     const status = String(order.status ?? '').toUpperCase();
+    const provider = String(order.payment_provider ?? '').toUpperCase();
+    const proofStatus = String(order.payment_proof_status ?? '').toUpperCase();
     if (status === 'PAID') {
       const type = order.order_items?.[0]?.product_type;
       return String(order.order_items?.[0]?.product_ref ?? '') === 'COLLECTIVE_CERTIFICATE' ? 'Sertifikat diterbitkan' : ['DIGITAL_ITEM', 'DONATION'].includes(String(type)) ? 'Terverifikasi' : 'Manfaat diberikan';
     }
     if (status === 'CANCELLED' || status === 'CANCELED' || status === 'REFUNDED') return 'Ditolak / dibatalkan';
+    if (status === 'PENDING_PAYMENT' || status === 'PENDING') {
+      if (provider === 'GLOBAL' || provider === 'MIDTRANS' || provider === 'XENITHPAY') return 'Menunggu pembayaran';
+      return proofStatus === 'SUBMITTED' ? 'Menunggu verifikasi admin' : 'Menunggu pembayaran';
+    }
+    if (status === 'PROCESSING') return 'Sedang diproses';
     return 'Menunggu verifikasi admin';
+  };
+
+  const continueGatewayPayment = async (orderId: string) => {
+    if (!orderId || submitting) return;
+    setPendingGatewayOrderId(orderId);
+    setSubmitting(true);
+    setGatewayPaymentError('');
+    setError('');
+    setMessage('');
+    try {
+      const payment = await createCheckoutPayment(orderId);
+      setGatewayPaymentResult(payment);
+      setPendingGatewayOrderId('');
+      if (payment.redirect_url) { window.location.assign(payment.redirect_url); return; }
+      setMessage(`Instruksi pembayaran untuk pesanan #${orderId.slice(0, 8)} sudah siap. Selesaikan pembayaran menggunakan detail di bawah.`);
+      await load();
+    } catch (gatewayError: any) {
+      setGatewayPaymentError(gatewayError?.message || 'Sesi pembayaran belum berhasil dibuat.');
+      setMessage(`Pesanan #${orderId.slice(0, 8)} masih menunggu pembayaran. Gunakan tombol Lanjutkan pembayaran setelah memeriksa pesan error.`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const itemTitle = (order: any) => {
@@ -441,7 +470,7 @@ export function OrdersPage() {
   return <div>
     <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
       <h2 className="font-display font-bold text-lg text-fg">Shop & Pesanan</h2>
-      <p className="text-xs text-slate-500">Produk dan layanan penunjang lomba SYKABELAJAR. Produk berharga Rupiah diverifikasi admin; pembayaran Edu Coin diproses otomatis oleh sistem.</p>
+      <p className="text-xs text-slate-500">Produk dan layanan penunjang lomba SYKABELAJAR. Pembayaran manual menunggu verifikasi admin; Gateway Global diperbarui otomatis setelah callback tervalidasi. Pembelian Edu Coin diproses otomatis.</p>
     </div>
     <div className="p-4 space-y-6">
       {error && <Card className="p-3 border-red-500/20 text-sm text-red-300">{error}</Card>}
@@ -486,10 +515,14 @@ export function OrdersPage() {
         <div className="flex items-center gap-2 mb-3"><ShoppingBag size={17} className="text-accent"/><h3 className="font-display text-xl font-bold text-fg">Riwayat pesanan</h3></div>
         <div className="space-y-2">
           {orders.map((order) => <Card key={order.id} className="p-4">
-            <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <Package size={18} className="text-accent"/>
               <div className="flex-1 min-w-0"><p className="text-sm text-fg">{itemTitle(order)}</p><p className="text-xs text-slate-500">{formatShortDate(order.created_at)} · Pesanan #{String(order.id).slice(0, 8)}</p></div>
-              <b className="text-fg">{formatProductPrice(Number(order.total || 0), String(order.currency ?? 'IDR'))}</b><Badge>{statusLabelForOrder(order)}</Badge>
+              <div className="flex flex-wrap items-center gap-3">
+                <b className="text-fg">{formatProductPrice(Number(order.total || 0), String(order.currency ?? 'IDR'))}</b>
+                <Badge>{statusLabelForOrder(order)}</Badge>
+                {String(order.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && String(order.payment_provider ?? '').toUpperCase() === 'GLOBAL' && <Button size="sm" variant="outline" disabled={submitting} loading={submitting && pendingGatewayOrderId === String(order.id)} onClick={() => void continueGatewayPayment(String(order.id))}>Lanjutkan pembayaran</Button>}
+              </div>
             </div>
           </Card>)}
           {!loading && !orders.length && <Card className="p-6 text-center text-sm text-slate-500">Belum ada pesanan. Pesanan akan tercatat setelah pembayaran manual dikirim atau pembayaran Edu Coin diproses oleh sistem.</Card>}
