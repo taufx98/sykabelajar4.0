@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingBag, Package, Plus, Minus, Loader2, Upload, X, Coins, BadgeCheck, QrCode, GraduationCap, HeartHandshake, FileText, Sparkles, CreditCard, Copy } from 'lucide-react';
+import { ShoppingBag, Package, Plus, Minus, Loader2, Upload, X, Coins, BadgeCheck, QrCode, GraduationCap, HeartHandshake, FileText, Sparkles, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -81,6 +81,9 @@ export function OrdersPage() {
   const { user } = useApp();
   const [products, setProducts] = useState<CommerceProduct[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [orderIntentsById, setOrderIntentsById] = useState<Record<string, any>>({});
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<any | null>(null);
+  const [orderActionId, setOrderActionId] = useState('');
   const [selected, setSelected] = useState<CommerceProduct | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -149,11 +152,37 @@ export function OrdersPage() {
         if (orderError) throw orderError;
         if (badgeError) throw badgeError;
         if (walletError) throw walletError;
-        setOrders(orderData ?? []);
+        const orderRows = orderData ?? [];
+        const orderIds = orderRows.map((row: any) => String(row.id));
+        let intentRows: any[] = [];
+        if (orderIds.length) {
+          const { data: intentData, error: intentError } = await supabase
+            .from('payment_intents')
+            .select('id,order_id,provider,provider_reference,amount,status,created_at,updated_at')
+            .in('order_id', orderIds)
+            .order('created_at', { ascending: false });
+          if (intentError) throw intentError;
+          intentRows = intentData ?? [];
+        }
+        const { data: archivedRows, error: archivedError } = await supabase
+          .from('user_order_history_archives')
+          .select('order_id')
+          .eq('user_id', userId);
+        if (archivedError) throw archivedError;
+
+        const intentMap: Record<string, any> = {};
+        for (const intent of intentRows) {
+          const orderId = String(intent.order_id);
+          if (!intentMap[orderId]) intentMap[orderId] = intent;
+        }
+        const archivedIds = new Set((archivedRows ?? []).map((row: any) => String(row.order_id)));
+        setOrderIntentsById(intentMap);
+        setOrders(orderRows.filter((row: any) => !archivedIds.has(String(row.id))));
         setOwnedBadgeIds(new Set((ownedBadges ?? []).map((row: any) => String(row.badge_id))));
         setEduCoinBalance(Number(wallet?.edu_coin ?? 0));
       } else {
         setOrders([]);
+        setOrderIntentsById({});
         setOwnedBadgeIds(new Set());
         setEduCoinBalance(null);
       }
@@ -462,10 +491,79 @@ export function OrdersPage() {
     }
   };
 
+
+  const itemForOrder = (order: any) => Array.isArray(order.order_items) ? order.order_items[0] : order.order_items;
   const itemTitle = (order: any) => {
-    const item = Array.isArray(order.order_items) ? order.order_items[0] : order.order_items;
-    return item?.name ?? `Pesanan #${String(order.id ?? '').slice(0, 8)}`;
+    const item = itemForOrder(order);
+    return item?.name ?? ('Pesanan #' + String(order.id ?? '').slice(0, 8));
   };
+  const terminalOrder = (order: any) => ['PAID', 'COMPLETED', 'CANCELLED', 'CANCELED', 'REFUNDED'].includes(String(order.status ?? '').toUpperCase());
+  const isShopOrder = (order: any) => {
+    const item = itemForOrder(order);
+    const type = String(item?.product_type ?? '').toUpperCase();
+    return ['EDU_COIN_TOPUP', 'BADGE', 'CERTIFICATE_SERIALS', 'DONATION'].includes(type)
+      || (type === 'DIGITAL_ITEM' && Boolean(item?.metadata?.shop_metadata) && String(item?.product_ref ?? '') !== 'COLLECTIVE_CERTIFICATE');
+  };
+  const canCancelOrder = (order: any) => {
+    const id = String(order.id ?? '');
+    const status = String(order.status ?? '').toUpperCase();
+    const proofStatus = String(order.payment_proof_status ?? '').toUpperCase();
+    const intentStatus = String(orderIntentsById[id]?.status ?? '').toUpperCase();
+    const intentFinal = ['FAILED', 'EXPIRED', 'CANCELLED', 'REJECTED'].includes(intentStatus);
+    return status === 'PENDING_PAYMENT'
+      && proofStatus !== 'SUBMITTED'
+      && !order.payment_proof_url
+      && isShopOrder(order)
+      && (!orderIntentsById[id] || intentFinal);
+  };
+
+  const cancelPendingOrder = async (order: any) => {
+    const orderId = String(order.id ?? '');
+    if (!orderId || orderActionId) return;
+    if (!window.confirm('Batalkan pesanan #' + orderId.slice(0, 8) + '? Pesanan yang dibatalkan tidak bisa dilanjutkan kembali.')) return;
+    setOrderActionId(orderId);
+    setError('');
+    setMessage('');
+    try {
+      const { error: cancelError } = await supabase.rpc('cancel_my_pending_order', { p_order_id: orderId });
+      if (cancelError) throw cancelError;
+      setMessage('Pesanan #' + orderId.slice(0, 8) + ' dibatalkan. Catatan transaksi tetap tersimpan untuk keperluan administrasi.');
+      setSelectedOrderForDetails(null);
+      await load();
+    } catch (actionError: any) {
+      const detail = String(actionError?.message ?? '');
+      if (detail.includes('PAYMENT_SESSION_ACTIVE')) {
+        setError('Sesi pembayaran masih aktif. Lanjutkan pembayaran yang sudah dibuat atau tunggu sampai sesi pembayaran dinyatakan kedaluwarsa oleh provider.');
+      } else if (detail.includes('PAYMENT_PROOF_SUBMITTED')) {
+        setError('Bukti pembayaran sudah dikirim sehingga pesanan tidak dapat dibatalkan sendiri. Hubungi admin untuk pemeriksaan.');
+      } else {
+        setError(detail || 'Pesanan belum bisa dibatalkan. Muat ulang riwayat dan coba lagi.');
+      }
+    } finally {
+      setOrderActionId('');
+    }
+  };
+
+  const archiveOrder = async (order: any) => {
+    const orderId = String(order.id ?? '');
+    if (!orderId || orderActionId) return;
+    if (!window.confirm('Hapus pesanan #' + orderId.slice(0, 8) + ' dari riwayat pribadimu? Catatan transaksi tetap disimpan untuk admin.')) return;
+    setOrderActionId(orderId);
+    setError('');
+    setMessage('');
+    try {
+      const { error: archiveError } = await supabase.rpc('archive_my_order_history', { p_order_id: orderId });
+      if (archiveError) throw archiveError;
+      setOrders((current) => current.filter((row) => String(row.id) !== orderId));
+      setSelectedOrderForDetails(null);
+      setMessage('Pesanan dihapus dari riwayat pribadimu. Catatan transaksi tetap tersimpan di sistem.');
+    } catch (actionError: any) {
+      setError(actionError?.message || 'Pesanan belum bisa dihapus dari riwayat.');
+    } finally {
+      setOrderActionId('');
+    }
+  };
+
 
   return <div>
     <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
@@ -512,23 +610,69 @@ export function OrdersPage() {
       </section>
 
       <section>
-        <div className="flex items-center gap-2 mb-3"><ShoppingBag size={17} className="text-accent"/><h3 className="font-display text-xl font-bold text-fg">Riwayat pesanan</h3></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2"><ShoppingBag size={17} className="text-accent"/><div><h3 className="font-display text-xl font-bold text-fg">Riwayat pesanan</h3><p className="text-xs text-fg-muted mt-0.5">Lihat detail, lanjutkan pembayaran, atau bersihkan riwayat tanpa menghapus catatan transaksi admin.</p></div></div>
+          <Button size="sm" variant="outline" disabled={loading} onClick={() => void load()}><RefreshCw size={13} className={loading ? 'mr-1 animate-spin' : 'mr-1'}/> Segarkan</Button>
+        </div>
         <div className="space-y-2">
           {orders.map((order) => <Card key={order.id} className="p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <Package size={18} className="text-accent"/>
-              <div className="flex-1 min-w-0"><p className="text-sm text-fg">{itemTitle(order)}</p><p className="text-xs text-slate-500">{formatShortDate(order.created_at)} · Pesanan #{String(order.id).slice(0, 8)}</p></div>
-              <div className="flex flex-wrap items-center gap-3">
-                <b className="text-fg">{formatProductPrice(Number(order.total || 0), String(order.currency ?? 'IDR'))}</b>
-                <Badge>{statusLabelForOrder(order)}</Badge>
-                {String(order.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && String(order.payment_provider ?? '').toUpperCase() === 'GLOBAL' && <Button size="sm" variant="outline" disabled={submitting} loading={submitting && pendingGatewayOrderId === String(order.id)} onClick={() => void continueGatewayPayment(String(order.id))}>Lanjutkan pembayaran</Button>}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <Package size={18} className="text-accent"/>
+                <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg">{itemTitle(order)}</p><p className="text-xs text-slate-500">{formatShortDate(order.created_at)} · Pesanan #{String(order.id).slice(0, 8)}</p><p className="mt-1 text-xs text-fg-muted">{String(order.payment_method ?? 'Metode belum tercatat')} · {String(order.payment_provider ?? '').toUpperCase() === 'GLOBAL' ? (gatewayStatus?.providerName || 'Gateway otomatis') : 'Pembayaran manual / internal'}</p></div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <b className="text-fg">{formatProductPrice(Number(order.total || 0), String(order.currency ?? 'IDR'))}</b>
+                  <Badge>{statusLabelForOrder(order)}</Badge>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 border-t surface-border pt-3">
+                {String(order.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && String(order.payment_provider ?? '').toUpperCase() === 'GLOBAL' && <Button size="sm" disabled={submitting} loading={submitting && pendingGatewayOrderId === String(order.id)} onClick={() => void continueGatewayPayment(String(order.id))}><CreditCard size={13} className="mr-1"/>Lanjutkan pembayaran</Button>}
+                <Button size="sm" variant="outline" onClick={() => setSelectedOrderForDetails(order)}><Eye size={13} className="mr-1"/>Lihat detail</Button>
+                {canCancelOrder(order) && <Button size="sm" variant="outline" disabled={Boolean(orderActionId)} loading={orderActionId === String(order.id)} onClick={() => void cancelPendingOrder(order)}><XCircle size={13} className="mr-1"/>Batalkan pesanan</Button>}
+                {terminalOrder(order) && <Button size="sm" variant="outline" disabled={Boolean(orderActionId)} loading={orderActionId === String(order.id)} onClick={() => void archiveOrder(order)}><Trash2 size={13} className="mr-1"/>Hapus dari riwayat</Button>}
+                {String(order.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && String(order.payment_provider ?? '').toUpperCase() === 'GLOBAL' && orderIntentsById[String(order.id)] && !canCancelOrder(order) && <span className="text-xs text-fg-muted">Sesi pembayaran dibuat; batalkan hanya setelah status sesi berakhir.</span>}
               </div>
             </div>
           </Card>)}
-          {!loading && !orders.length && <Card className="p-6 text-center text-sm text-slate-500">Belum ada pesanan. Pesanan akan tercatat setelah pembayaran manual dikirim atau pembayaran Edu Coin diproses oleh sistem.</Card>}
+          {!loading && !orders.length && <Card className="p-6 text-center text-sm text-slate-500">Belum ada pesanan di riwayat. Pesanan baru akan muncul di sini dan dapat dibuka kembali selama belum dibayar.</Card>}
         </div>
       </section>
     </div>
+
+    {selectedOrderForDetails && <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4" onClick={(event) => { if (event.target === event.currentTarget) setSelectedOrderForDetails(null); }}>
+      <Card className="w-full max-w-xl p-5 max-h-[92vh] overflow-auto">
+        {(() => {
+          const detailOrder = selectedOrderForDetails;
+          const detailItem = itemForOrder(detailOrder);
+          const detailIntent = orderIntentsById[String(detailOrder.id)] ?? null;
+          return <>
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-[10px] font-bold uppercase tracking-wider text-accent">Detail transaksi</p><h3 className="mt-1 font-display text-xl font-bold text-fg">{itemTitle(detailOrder)}</h3><p className="mt-1 text-xs text-fg-muted">Pesanan #{String(detailOrder.id).slice(0, 8)} · {formatShortDate(detailOrder.created_at)}</p></div>
+              <button type="button" onClick={() => setSelectedOrderForDetails(null)} className="rounded-lg p-2 text-fg-muted hover:bg-surface-elevated" aria-label="Tutup detail"><X size={17}/></button>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">Total</p><p className="mt-1 text-lg font-bold text-fg">{formatProductPrice(Number(detailOrder.total ?? 0), String(detailOrder.currency ?? 'IDR'))}</p></div>
+              <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">Status pesanan</p><p className="mt-1 font-semibold text-fg">{statusLabelForOrder(detailOrder)}</p><p className="mt-1 text-xs text-fg-muted">Status sistem: {String(detailOrder.status ?? '-')}</p></div>
+              <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">Metode pembayaran</p><p className="mt-1 text-sm font-semibold text-fg">{String(detailOrder.payment_method ?? 'Belum ditentukan')}</p><p className="mt-1 text-xs text-fg-muted">{String(detailOrder.payment_provider ?? 'Provider belum tercatat')}</p></div>
+              <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">Bukti pembayaran</p>{detailOrder.payment_proof_url ? <a className="mt-1 inline-block text-sm font-semibold text-accent underline" href={String(detailOrder.payment_proof_url)} target="_blank" rel="noreferrer">Lihat bukti pembayaran</a> : <p className="mt-1 text-sm text-fg-muted">Belum ada bukti transfer manual.</p>}<p className="mt-1 text-xs text-fg-muted">Status bukti: {String(detailOrder.payment_proof_status ?? 'NOT_SUBMITTED')}</p></div>
+            </div>
+            <div className="mt-4 rounded-xl border surface-border p-3">
+              <p className="text-xs font-semibold text-fg">Ringkasan barang</p>
+              <div className="mt-2 flex items-start justify-between gap-3"><div><p className="text-sm text-fg">{String(detailItem?.name ?? itemTitle(detailOrder))}</p><p className="text-xs text-fg-muted">Jumlah: {Number(detailItem?.quantity ?? 1)} × {formatProductPrice(Number(detailItem?.unit_price ?? detailOrder.total ?? 0), String(detailOrder.currency ?? 'IDR'))}</p></div><p className="text-sm font-semibold text-fg">{formatProductPrice(Number(detailItem?.line_total ?? detailOrder.total ?? 0), String(detailOrder.currency ?? 'IDR'))}</p></div>
+            </div>
+            {detailIntent && <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-3">
+              <p className="text-sm font-semibold text-fg">Sesi pembayaran gateway</p><p className="mt-1 text-xs text-fg-muted">{String(detailIntent.provider ?? 'Provider')} · status sesi: {String(detailIntent.status ?? 'UNKNOWN')}</p>
+              {detailIntent.provider_reference && <div className="mt-2 flex items-center justify-between gap-2"><p className="break-all font-mono text-xs text-fg-muted">Referensi: {String(detailIntent.provider_reference)}</p><button type="button" className="rounded-lg border surface-border p-2" onClick={() => { void navigator.clipboard?.writeText(String(detailIntent.provider_reference)); setMessage('Referensi pembayaran disalin.'); }} aria-label="Salin referensi pembayaran"><Copy size={13}/></button></div>}
+              <p className="mt-2 text-xs leading-5 text-fg-muted">Pesanan otomatis menjadi lunas setelah konfirmasi provider diterima dan diverifikasi server. Jangan menekan tombol bukti lunas di halaman provider tanpa benar-benar menyelesaikan proses yang diminta.</p>
+            </div>}
+            {detailOrder.admin_review_note && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3"><p className="text-xs font-semibold text-fg">Catatan admin</p><p className="mt-1 whitespace-pre-line text-sm text-fg-muted">{String(detailOrder.admin_review_note)}</p></div>}
+            {String(detailOrder.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && String(detailOrder.payment_provider ?? '').toUpperCase() === 'GLOBAL' && <Button className="mt-4 w-full" disabled={submitting} loading={submitting && pendingGatewayOrderId === String(detailOrder.id)} onClick={() => { const id = String(detailOrder.id); setSelectedOrderForDetails(null); void continueGatewayPayment(id); }}><CreditCard size={14} className="mr-1"/>Lanjutkan pembayaran</Button>}
+            {canCancelOrder(detailOrder) && <Button className="mt-3 w-full" variant="outline" disabled={Boolean(orderActionId)} loading={orderActionId === String(detailOrder.id)} onClick={() => void cancelPendingOrder(detailOrder)}><XCircle size={14} className="mr-1"/>Batalkan pesanan</Button>}
+            {terminalOrder(detailOrder) && <Button className="mt-3 w-full" variant="outline" disabled={Boolean(orderActionId)} loading={orderActionId === String(detailOrder.id)} onClick={() => void archiveOrder(detailOrder)}><Trash2 size={14} className="mr-1"/>Hapus dari riwayat</Button>}
+          </>;
+        })()}
+      </Card>
+    </div>}
 
     {selected && <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg p-5 max-h-[92vh] overflow-auto">
