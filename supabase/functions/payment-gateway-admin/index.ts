@@ -125,9 +125,14 @@ Deno.serve(async (req: Request) => {
   const { data: userData, error: userError } = await authClient.auth.getUser();
   if (userError || !userData.user) return json({ ok: false, error: "AUTH_REQUIRED" }, 401);
 
+  // Preserve the user's JWT context: is_active_admin() checks auth.uid() and
+  // intentionally rejects calls made without a signed-in user's request context.
+  const { data: isAdmin, error: adminError } = await authClient.rpc("is_active_admin", { p_uid: userData.user.id });
+  if (adminError) return json({ ok: false, error: "ADMIN_CHECK_FAILED" }, 500);
+  if (isAdmin !== true) return json({ ok: false, error: "ADMIN_REQUIRED" }, 403);
+
+  // Use service_role only after the user has passed the authenticated role check.
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const { data: isAdmin, error: adminError } = await admin.rpc("is_active_admin", { p_uid: userData.user.id });
-  if (adminError || isAdmin !== true) return json({ ok: false, error: "ADMIN_REQUIRED" }, 403);
 
   const [stateResult, configResult] = await Promise.all([
     admin.from("payment_gateway_state").select("active_provider,automatic_payments_enabled").eq("id", true).maybeSingle(),
