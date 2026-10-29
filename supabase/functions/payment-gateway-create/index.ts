@@ -101,7 +101,10 @@ Deno.serve(async (req: Request) => {
     if (!equalMoney(existing.amount, amount)) return response({ ok: false, error: "PAYMENT_AMOUNT_CHANGED", message: "Total pesanan berubah setelah sesi pembayaran dibuat. Hubungi admin untuk melanjutkan." }, 409);
     const meta = obj(existing.raw_meta);
     const cached = obj(meta.checkout);
-    if (String(existing.status).toUpperCase() === "PENDING" && (cached.redirect_url || cached.token || cached.payment_code || cached.details)) {
+    if (String(existing.status).toUpperCase() === "PENDING" && (cached.redirect_url || cached.token || cached.payment_code || cached.provider_reference)) {
+      const { error: markExistingProviderError } = await admin.from("orders").update({ payment_provider: provider, updated_at: new Date().toISOString() })
+        .eq("id", order.id).eq("status", "PENDING_PAYMENT");
+      if (markExistingProviderError) return response({ ok: false, error: "ORDER_PROVIDER_SAVE_FAILED" }, 500);
       return response({ ...cached, ok: true, provider, reused: true });
     }
     if (String(existing.status).toUpperCase() === "PAID") return response({ ok: false, error: "ORDER_ALREADY_PAID" }, 409);
@@ -194,5 +197,8 @@ Deno.serve(async (req: Request) => {
     updated_at: new Date().toISOString(),
   }, { onConflict: "order_id" });
   if (intentError) return response({ ok: false, error: "PAYMENT_INTENT_SAVE_FAILED", message: "Sesi dibuat oleh provider tetapi gagal direkam. Jangan buat pesanan pembayaran baru; hubungi admin dan sertakan ID pesanan." }, 500);
+  const { error: orderProviderError } = await admin.from("orders").update({ payment_provider: provider, updated_at: new Date().toISOString() })
+    .eq("id", order.id).eq("status", "PENDING_PAYMENT");
+  if (orderProviderError) return response({ ok: false, error: "ORDER_PROVIDER_SAVE_FAILED", message: "Sesi pembayaran sudah dibuat tetapi provider belum tercatat pada order. Coba ulang menggunakan order yang sama." }, 500);
   return response(checkout);
 });
