@@ -36,6 +36,10 @@ export interface AdBannerRequest {
   duration_days: number;
   total_price: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+  payment_order_id?: string | null;
+  payment_method_id?: string | null;
+  payment_status?: 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'LEGACY_REVIEW';
+  paid_at?: string | null;
   admin_note?: string;
   reviewed_at?: string;
   created_at: string;
@@ -194,6 +198,42 @@ export async function submitBannerRequest(params: {
     .single();
   if (error) throw error;
   return data as AdBannerRequest;
+}
+
+// ── Organizer: create a platform order for banner payment ──
+export async function createAdBannerPaymentOrder(input: {
+  requestId: string;
+  paymentMethodId: string;
+  proofUrl?: string | null;
+  proofPublicId?: string | null;
+  proofWidth?: number;
+  proofHeight?: number;
+  proofVersion?: string;
+  proofResourceType?: string;
+  uniqueCode?: number;
+}): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.rpc('create_ad_banner_payment_order', {
+    p_request_id: input.requestId,
+    p_payment_method_id: input.paymentMethodId,
+    p_proof_url: input.proofUrl ?? null,
+    p_proof_public_id: input.proofPublicId ?? null,
+    p_proof_width: input.proofWidth ?? null,
+    p_proof_height: input.proofHeight ?? null,
+    p_proof_version: input.proofVersion ?? null,
+    p_proof_resource_type: input.proofResourceType ?? null,
+    p_unique_code: Number(input.uniqueCode ?? 0),
+  });
+  if (error) {
+    if (error.message.includes('GLOBAL_GATEWAY_NOT_ACTIVE')) throw new Error('Pembayaran otomatis belum diaktifkan pada pengaturan admin.');
+    if (error.message.includes('GLOBAL_GATEWAY_NOT_CONFIGURED')) throw new Error('Kredensial provider pembayaran belum lengkap pada environment yang dipilih admin.');
+    if (error.message.includes('PAYMENT_METHOD_NOT_AVAILABLE')) throw new Error('Metode pembayaran ini sudah dinonaktifkan admin. Muat ulang halaman lalu pilih metode lain.');
+    if (error.message.includes('AD_BANNER_PAYMENT_ORDER_EXISTS')) throw new Error('Pesanan pembayaran iklan sudah dibuat. Lanjutkan melalui pesanan yang tersedia, jangan membuat transaksi baru.');
+    if (error.message.includes('AD_BANNER_ALREADY_PAID')) throw new Error('Pembayaran iklan ini sudah tercatat lunas.');
+    throw new Error(error.message || 'Gagal membuat pesanan pembayaran iklan.');
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== 'object') throw new Error('Pesanan pembayaran iklan tidak mengembalikan data.');
+  return row as Record<string, unknown>;
 }
 
 // ── Organizer: my requests ──
