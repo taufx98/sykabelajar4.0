@@ -41,7 +41,6 @@ function paymentOutput(provider: Provider, result: Row) {
     payment_code: str(raw.paymentCode) || str(raw.payment_code) || str(raw.virtualAccountNumber) || str(raw.virtual_account_number) || null,
     payment_code_type: str(raw.paymentCodeType) || str(raw.payment_code_type) || str(raw.bankName) || str(raw.bank_name) || null,
     expires_at: str(raw.expiresAt) || str(raw.expires_at) || null,
-    details: raw,
   };
 }
 Deno.serve(async (req: Request) => {
@@ -63,11 +62,18 @@ Deno.serve(async (req: Request) => {
   if (authError || !authData.user) return response({ ok: false, error: "AUTH_REQUIRED" }, 401);
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: order, error: orderError } = await admin.from("orders")
-    .select("id,user_id,total,currency,status,contact_name,contact_email,contact_whatsapp,contact_note")
+    .select("id,user_id,total,currency,status,payment_method_id,payment_provider,contact_name,contact_email,contact_whatsapp,contact_note")
     .eq("id", orderId).maybeSingle();
   if (orderError) return response({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
   if (!order || order.user_id !== authData.user.id) return response({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
   if (!["PENDING", "PENDING_PAYMENT"].includes(String(order.status))) return response({ ok: false, error: "ORDER_NOT_PAYABLE" }, 409);
+  if (!order.payment_method_id) return response({ ok: false, error: "GLOBAL_GATEWAY_METHOD_REQUIRED", message: "Order ini tidak memilih metode Gateway Global." }, 409);
+  const { data: selectedMethod, error: selectedMethodError } = await admin.from("organizer_payment_methods")
+    .select("payment_type,details").eq("id", order.payment_method_id).eq("is_active", true).maybeSingle();
+  if (selectedMethodError) return response({ ok: false, error: "PAYMENT_METHOD_LOOKUP_FAILED" }, 500);
+  if (!selectedMethod || obj(selectedMethod.details).global_gateway !== true || String(selectedMethod.payment_type).toUpperCase() !== "SNAP") {
+    return response({ ok: false, error: "GLOBAL_GATEWAY_METHOD_REQUIRED", message: "Pembayaran otomatis hanya dapat dibuat untuk order yang secara eksplisit memilih Gateway Global." }, 409);
+  }
   const amount = Number(order.total);
   if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) return response({ ok: false, error: "INVALID_ORDER_AMOUNT" }, 422);
 
