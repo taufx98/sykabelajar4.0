@@ -17,7 +17,8 @@ function normalizeAmount(value: unknown) { const amount = Number(value); return 
 function mapStatus(provider: Provider, rawStatus: string, fraudStatus = ""): "PAID" | "CANCELLED" | "PENDING" {
   const status = rawStatus.toUpperCase();
   if (provider === "MIDTRANS") {
-    if ((status === "SETTLEMENT" || status === "CAPTURE") && (!fraudStatus || fraudStatus.toLowerCase() === "accept")) return "PAID";
+    if (status === "SETTLEMENT") return "PAID";
+    if (status === "CAPTURE" && fraudStatus.toLowerCase() === "accept") return "PAID";
     if (["CANCEL", "CANCELLED", "DENY", "DENIED", "EXPIRE", "EXPIRED", "FAIL", "FAILED"].includes(status)) return "CANCELLED";
     return "PENDING";
   }
