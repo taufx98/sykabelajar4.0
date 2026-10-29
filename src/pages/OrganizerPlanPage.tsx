@@ -96,7 +96,7 @@ export function OrganizerPlanPage() {
   const selectedTotal = Math.max(0, selectedPricing.discountedPrice - voucherDiscount);
   const selectedMethod = paymentMethods.find((method) => method.id === selectedPaymentMethodId) ?? null;
   const globalGatewayMethod = paymentMethods.find((method) => method.details?.global_gateway === true) ?? null;
-  const manualPaymentMethods = paymentMethods.filter((method) => method.details?.global_gateway !== true && !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(String(method.payment_type).trim().toUpperCase()));
+  const manualPaymentMethods = paymentMethods.filter((method) => method.details?.global_gateway !== true && ['BANK_TRANSFER', 'MANUAL_TRANSFER', 'QRIS', 'EWALLET'].includes(String(method.payment_type).trim().toUpperCase()));
   const selectedMethodType = String(selectedMethod?.payment_type ?? '').trim().toUpperCase();
   const selectedIsGlobalAuto = Boolean(selectedMethod?.details?.global_gateway === true);
   const selectedMethodNeedsProof = !!selectedMethod && !selectedIsGlobalAuto && !['MIDTRANS', 'SNAP', 'VIRTUAL_ACCOUNT'].includes(selectedMethodType);
