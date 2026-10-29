@@ -225,10 +225,10 @@ export function ProfilePage() {
 
               </div>
                             <div className="flex shrink-0 flex-wrap justify-center gap-2 pb-1 md:justify-end">
-                {own ? previewGuest ? <Button size="sm" variant="outline" icon={<EyeOff size={14}/>} onClick={() => setPreviewGuest(false)}>{t('profile.backToOwner')}</Button> : <>
+                {own ? previewGuest ? <Button size="sm" variant="outline" icon={<EyeOff size={14}/>} onClick={() => { setTab('tentang'); setPreviewGuest(false); }}>{t('profile.backToOwner')}</Button> : <>
                   <Link to="/profile/edit"><Button size="sm" variant="primary">Edit Profil</Button></Link>
                   {isAdminOwner
-                    ? <><Link to="/admin"><Button size="sm" variant="outline" icon={<LayoutDashboard size={14}/>}>Pusat Admin</Button></Link><Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>{t('profile.viewAsVisitor')}</Button></>
+                    ? <><Link to="/admin"><Button size="sm" variant="outline" icon={<LayoutDashboard size={14}/>}>Pusat Admin</Button></Link><Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => { setTab('tentang'); setPreviewGuest(true); }}>{t('profile.viewAsVisitor')}</Button></>
                     : isAdminProfile
                       ? null
                       : <Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>{t('profile.viewAsVisitor')}</Button>}
