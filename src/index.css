@@ -290,3 +290,23 @@ html.light .competition-detail-theme [class~="border-blue-500/25"] {
 html.light .competition-detail-theme [class~="border-indigo-400/30"] {
   border-color: rgba(79, 70, 229, 0.16) !important;
 }
+
+/* Global modal treatment: solid dialog surfaces and a softly blurred backdrop. */
+.fixed.inset-0:has(> .card) {
+  -webkit-backdrop-filter: blur(9px);
+  backdrop-filter: blur(9px);
+}
+
+.fixed.inset-0:has(> .card) > .card {
+  background-color: var(--surface-card) !important;
+  background-image: none;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+html.dark .fixed.inset-0:has(> .card) > .card {
+  background-color: #1E293B !important;
+}
+html.light .fixed.inset-0:has(> .card) > .card {
+  background-color: #FFFFFF !important;
+}
+
