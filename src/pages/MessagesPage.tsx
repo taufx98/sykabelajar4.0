@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent,
 import { ArrowLeft, CheckCheck, ChevronDown, ChevronUp, FileText, Headphones, Link2, Lock, MessageCircle, Mic, MoreVertical, Paperclip, Pin, PinOff, Plus, Search, Send, Settings2, Shield, Smile, Square, Star, Trash2, Unlock, UserMinus, UserPlus, Users, X } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
+import { useLanguage } from '@/lib/LanguageContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -33,7 +34,7 @@ function dedupeInboxThreads(items: ChatThread[]): ChatThread[] {
   };
 
   for (const thread of uniqueRows) {
-    if (!thread.participant_id || thread.user_id === thread.participant_id) continue;
+    if (thread.thread_type !== 'dm' || !thread.participant_id || thread.user_id === thread.participant_id) continue;
     const key = [thread.user_id, thread.participant_id].sort().join(':');
     const existing = latestDmByPair.get(key);
     const shouldReplace = !existing
@@ -43,7 +44,7 @@ function dedupeInboxThreads(items: ChatThread[]): ChatThread[] {
   }
 
   return uniqueRows.filter((thread) => {
-    if (!thread.participant_id || thread.user_id === thread.participant_id) return true;
+    if (thread.thread_type !== 'dm' || !thread.participant_id || thread.user_id === thread.participant_id) return true;
     const key = [thread.user_id, thread.participant_id].sort().join(':');
     return latestDmByPair.get(key)?.id === thread.id;
   });
@@ -88,7 +89,7 @@ function GroupMembersModal({ group,me,members,canManage,busy,onClose,onRename,on
 
 export function MessagesPage() {
  const navigate=useNavigate();
- const { user,toast }=useApp();const me=user?.id||'';const admin=user?.role==='admin';const teacher=user?.role==='guru';const [params,setParams]=useSearchParams();const [mode,setMode]=useState<'private'|'group'>('private');const [threads,setThreads]=useState<ChatThread[]>([]);const [selected,setSelected]=useState<ChatThread|null>(null);const [messages,setMessages]=useState<ChatMessage[]>([]);const [groups,setGroups]=useState<ChatGroup[]>([]);const [selectedGroup,setSelectedGroup]=useState<ChatGroup|null>(null);const [groupMessages,setGroupMessages]=useState<ChatGroupMessage[]>([]);const [groupMembers,setGroupMembers]=useState<ChatGroupMember[]>([]);const [groupBusy,setGroupBusy]=useState(false);const [groupManageOpen,setGroupManageOpen]=useState(false);const [groupCreateOpen,setGroupCreateOpen]=useState(false);const [groupInvite,setGroupInvite]=useState<string|null>(null);const [joinGroupValue,setJoinGroupValue]=useState('');const [groupInput,setGroupInput]=useState('');const [groupOlderBusy,setGroupOlderBusy]=useState(false);const [groupHasOlder,setGroupHasOlder]=useState(false);const [competitions,setCompetitions]=useState<Array<{id:string;title:string}>>([]);
+ const { user,toast }=useApp();const {t,language}=useLanguage();const me=user?.id||'';const admin=user?.role==='admin';const teacher=user?.role==='guru';const [params,setParams]=useSearchParams();const [mode,setMode]=useState<'private'|'group'>('private');const [threads,setThreads]=useState<ChatThread[]>([]);const [selected,setSelected]=useState<ChatThread|null>(null);const [messages,setMessages]=useState<ChatMessage[]>([]);const [groups,setGroups]=useState<ChatGroup[]>([]);const [selectedGroup,setSelectedGroup]=useState<ChatGroup|null>(null);const [groupMessages,setGroupMessages]=useState<ChatGroupMessage[]>([]);const [groupMembers,setGroupMembers]=useState<ChatGroupMember[]>([]);const [groupBusy,setGroupBusy]=useState(false);const [groupManageOpen,setGroupManageOpen]=useState(false);const [groupCreateOpen,setGroupCreateOpen]=useState(false);const [groupInvite,setGroupInvite]=useState<string|null>(null);const [joinGroupValue,setJoinGroupValue]=useState('');const [groupInput,setGroupInput]=useState('');const [groupOlderBusy,setGroupOlderBusy]=useState(false);const [groupHasOlder,setGroupHasOlder]=useState(false);const [competitions,setCompetitions]=useState<Array<{id:string;title:string}>>([]);
  const [input,setInput]=useState('');
  const [loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(false);
@@ -219,8 +220,8 @@ export function MessagesPage() {
      <aside className={(mobileList?'flex':'hidden')+' w-full shrink-0 flex-col border-r surface-border bg-slate-50 dark:bg-[#111827] md:flex md:w-[320px] lg:w-[340px] xl:w-[365px]'}>
        <div className="shrink-0 space-y-3 border-b surface-border p-3 sm:p-4">
          <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 text-center text-xs font-semibold dark:border-slate-800 dark:bg-[#0b0f19]">
-           <button type="button" onClick={()=>{setMode('private');setSelectedGroup(null);setMobileList(true)}} className={mode==='private'?'rounded-lg bg-blue-600 py-2.5 text-white shadow-md shadow-blue-950/20 transition':'rounded-lg py-2.5 text-slate-500 transition hover:text-fg dark:text-slate-400 dark:hover:text-white'}>Chat Pribadi</button>
-           <button type="button" onClick={()=>{setMode('group');setSelected(null);setMobileList(true)}} className={mode==='group'?'rounded-lg bg-blue-600 py-2.5 text-white shadow-md shadow-blue-950/20 transition':'rounded-lg py-2.5 text-slate-500 transition hover:text-fg dark:text-slate-400 dark:hover:text-white'}>Chat Grup</button>
+           <button type="button" onClick={()=>{setMode('private');setSelectedGroup(null);setMobileList(true)}} className={mode==='private'?'rounded-lg bg-blue-600 py-2.5 text-white shadow-md shadow-blue-950/20 transition':'rounded-lg py-2.5 text-slate-500 transition hover:text-fg dark:text-slate-400 dark:hover:text-white'}>{t('chat.private')}</button>
+           <button type="button" onClick={()=>{setMode('group');setSelected(null);setMobileList(true)}} className={mode==='group'?'rounded-lg bg-blue-600 py-2.5 text-white shadow-md shadow-blue-950/20 transition':'rounded-lg py-2.5 text-slate-500 transition hover:text-fg dark:text-slate-400 dark:hover:text-white'}>{t('chat.group')}</button>
          </div>
          <div className="flex items-center gap-2">
            <div className="relative min-w-0 flex-1"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={threadSearch} onChange={event=>setThreadSearch(event.target.value)} placeholder={mode==='private'?'Cari percakapan...':'Cari grup...'} className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-8 text-xs text-fg outline-none transition placeholder:text-slate-400 focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-800 dark:bg-[#0b0f19] dark:text-slate-200 dark:placeholder:text-slate-500"/>{threadSearch&&<button type="button" onClick={()=>setThreadSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-fg" aria-label="Hapus pencarian"><X size={13}/></button>}</div>
@@ -231,13 +232,13 @@ export function MessagesPage() {
        </div>
        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2 sm:p-2.5">
          {mode==='private' ? (loading ? <div className="space-y-3 p-3"><div className="h-12 animate-pulse rounded-xl bg-slate-200/70 dark:bg-slate-800/70"/><div className="h-12 animate-pulse rounded-xl bg-slate-200/70 dark:bg-slate-800/70"/><div className="h-12 animate-pulse rounded-xl bg-slate-200/70 dark:bg-slate-800/70"/></div> : <>
-           {visibleOpen.length>0&&<div className="flex items-center justify-between px-2 pb-1 pt-1.5"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-500">{pinnedOnly?'Disematkan':'Aktif'}</span><span className="text-[10px] tabular-nums text-slate-400">{visibleOpen.length}</span></div>}
+           {visibleOpen.length>0&&<div className="flex items-center justify-between px-2 pb-1 pt-1.5"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-500" >{pinnedOnly?(language==='en'?'Pinned':'Disematkan'):t('chat.active')}</span><span className="text-[10px] tabular-nums text-slate-400">{visibleOpen.length}</span></div>}
            {visibleOpen.map(thread=><ThreadRow key={thread.id} t={thread} me={me} admin={admin} selected={selected?.id===thread.id} pinned={pinnedIds.includes(thread.id)} onTogglePin={()=>togglePinned(thread.id)} onClick={()=>void choose(thread)} onHide={()=>void hide(thread)}/>)}
            {visiblePendingRating.length>0&&<div className="flex items-center justify-between px-2 pb-1 pt-3"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-500">Menunggu Rating</span><span className="text-[10px] text-slate-400">{visiblePendingRating.length}</span></div>}
            {visiblePendingRating.map(thread=><ThreadRow key={thread.id} t={thread} me={me} admin={admin} selected={selected?.id===thread.id} pinned={pinnedIds.includes(thread.id)} onTogglePin={()=>togglePinned(thread.id)} onClick={()=>void choose(thread)} onHide={()=>void hide(thread)}/>)}
-           {visibleHistory.length>0&&<div className="flex items-center justify-between px-2 pb-1 pt-3"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-500">Riwayat</span><span className="text-[10px] text-slate-400">{visibleHistory.length}</span></div>}
+           {visibleHistory.length>0&&<div className="flex items-center justify-between px-2 pb-1 pt-3"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-500" >{t('chat.history')}</span><span className="text-[10px] text-slate-400">{visibleHistory.length}</span></div>}
            {visibleHistory.map(thread=><ThreadRow key={thread.id} t={thread} me={me} admin={admin} selected={selected?.id===thread.id} pinned={pinnedIds.includes(thread.id)} onTogglePin={()=>togglePinned(thread.id)} onClick={()=>void choose(thread)} onHide={()=>void hide(thread)}/>)}
-           {!visibleOpen.length&&!visiblePendingRating.length&&!visibleHistory.length&&<div className="px-5 py-12 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-200/70 text-slate-500 dark:bg-slate-800 dark:text-slate-400"><MessageCircle size={20}/></div><p className="mt-3 text-xs font-semibold text-fg">{pinnedOnly?'Belum ada percakapan disematkan.':threadSearch?'Percakapan tidak ditemukan.':'Belum ada percakapan.'}</p><p className="mt-1 text-[11px] text-fg-muted">{pinnedOnly?'Sematkan percakapan dari menu atas chat.':'Pesan baru akan muncul di sini.'}</p></div>}
+           {!visibleOpen.length&&!visiblePendingRating.length&&!visibleHistory.length&&<div className="px-5 py-12 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-200/70 text-slate-500 dark:bg-slate-800 dark:text-slate-400"><MessageCircle size={20}/></div><p className="mt-3 text-xs font-semibold text-fg">{pinnedOnly?t('chat.noPinned'):threadSearch?t('chat.notFound'):t('chat.noConversations')}</p><p className="mt-1 text-[11px] text-fg-muted">{pinnedOnly?(language==='en'?'Pin a conversation from the chat menu.':'Sematkan percakapan dari menu chat.'):t('chat.newMessages')}</p></div>}
          </>) : <>
            {visibleGroups.map(group=><GroupRow key={group.id} g={group} selected={selectedGroup?.id===group.id} onClick={()=>void chooseGroup(group)}/>)}
            {!visibleGroups.length&&<div className="px-5 py-12 text-center"><Users size={22} className="mx-auto text-slate-400"/><p className="mt-3 text-xs font-semibold text-fg">{threadSearch?'Grup tidak ditemukan.':'Belum ada grup.'}</p><p className="mt-1 text-[11px] text-fg-muted">Buat grup baru atau gabung dengan link undangan.</p></div>}
