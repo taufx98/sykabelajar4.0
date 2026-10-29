@@ -184,7 +184,7 @@ begin
       returning id into v_user_badge_id;
     if v_user_badge_id is null then raise exception 'BADGE_ALREADY_OWNED'; end if;
     insert into public.badge_audit_logs(badge_id,target_user_id,actor_user_id,action,reason,metadata)
-      values(v_badge_id,v.user_id,auth.uid(),'AWARDED_SHOP_PURCHASE','Badge dibeli melalui Shop',jsonb_build_object('order_id',v.id,'product_id',i.product_ref));
+      values(v_badge_id,v.user_id,v.user_id,'AWARDED_SHOP_PURCHASE','Badge dibeli melalui Shop',jsonb_build_object('order_id',v.id,'product_id',i.product_ref));
     update public.orders set status='PAID',payment_proof_status='APPROVED',admin_review_note=nullif(trim(p_reason),''),reviewed_at=now(),updated_at=now()
       where id=v.id returning * into v;
     perform private.write_audit('commerce.badge_purchase_fulfilled','order',v.id::text,coalesce(nullif(trim(p_reason),''),'Badge diberikan'),null,to_jsonb(v),null);
