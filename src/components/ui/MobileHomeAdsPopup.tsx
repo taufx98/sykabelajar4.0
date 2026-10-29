@@ -79,7 +79,7 @@ export function MobileHomeAdsPopup() {
             title={closeInSeconds > 0 ? `Tunggu ${closeInSeconds} detik untuk menutup` : 'Tutup iklan'}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border surface-border text-fg-muted transition hover:bg-surface-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {closeInSeconds > 0 ? <span className="text-xs font-semibold tabular-nums">{closeInSeconds}</span> : <X size={18}/>}
+            <X size={18}/>
           </button>
         </header>
         <div className="overflow-hidden rounded-xl">
