@@ -115,16 +115,28 @@ Deno.serve(async (req: Request) => {
   if (status === "PAID" && ["CANCELLED", "EXPIRED", "FAILED", "REFUNDED"].includes(currentIntentStatus)) {
     return json({ ok: false, error: "PAYMENT_INTENT_ALREADY_CLOSED" }, 409);
   }
-  if (status === "PAID" || status === "CANCELLED") {
-    const { error: intentUpdateError } = await admin.from("payment_intents").update({ status, updated_at: new Date().toISOString() }).eq("id", intent.id);
-    if (intentUpdateError) return json({ ok: false, error: "PAYMENT_INTENT_UPDATE_FAILED" }, 500);
-    if (status === "PAID") {
-      const { error: orderUpdateError } = await admin.from("orders").update({ status: "PAID", updated_at: new Date().toISOString() }).eq("id", orderId).eq("status", "PENDING_PAYMENT");
-      if (orderUpdateError) return json({ ok: false, error: "ORDER_UPDATE_FAILED" }, 500);
-    } else {
-      const { error: orderUpdateError } = await admin.from("orders").update({ status: "CANCELLED", updated_at: new Date().toISOString() }).eq("id", orderId).eq("status", "PENDING_PAYMENT");
-      if (orderUpdateError) return json({ ok: false, error: "ORDER_UPDATE_FAILED" }, 500);
+  if (status === "PAID") {
+    // One atomic server-side operation updates the intent/order and fulfills the purchased product.
+    // If fulfillment fails, the transaction rolls back so the provider can retry the webhook safely.
+    const { error: fulfillmentError } = await admin.rpc("process_payment_gateway_success", {
+      p_order_id: orderId,
+      p_provider: provider,
+      p_payment_intent_id: intent.id,
+    });
+    if (fulfillmentError) {
+      return json({ ok: false, error: "PAYMENT_FULFILLMENT_FAILED", message: "Pembayaran sudah terverifikasi oleh provider tetapi proses aktivasi belum selesai. Webhook dapat dicoba ulang.", detail: fulfillmentError.message }, 500);
     }
+  } else if (status === "CANCELLED") {
+    const { error: intentUpdateError } = await admin.from("payment_intents")
+      .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
+      .eq("id", intent.id)
+      .neq("status", "PAID");
+    if (intentUpdateError) return json({ ok: false, error: "PAYMENT_INTENT_UPDATE_FAILED" }, 500);
+    const { error: orderUpdateError } = await admin.from("orders")
+      .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
+      .eq("id", orderId)
+      .eq("status", "PENDING_PAYMENT");
+    if (orderUpdateError) return json({ ok: false, error: "ORDER_UPDATE_FAILED" }, 500);
   }
   const { error: eventError } = await admin.from("payment_events").insert({
     payment_intent_id: intent.id,
