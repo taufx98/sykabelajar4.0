@@ -117,6 +117,27 @@ export function AdminOrderPaymentsPanel() {
     return () => window.clearTimeout(timer);
   }, [query]);
 
+  const loadSummary = useCallback(async () => {
+    try {
+      const [allCount, pendingCount, manualCount, paidCount, cancelledCount] = await Promise.all([
+        supabase.from('orders').select('id', { count: 'exact', head: true }),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'PENDING_PAYMENT'),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'PENDING_PAYMENT').eq('payment_proof_status', 'SUBMITTED').not('payment_provider', 'in', '(GLOBAL,MIDTRANS,XENITHPAY)'),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['PAID', 'COMPLETED', 'PROCESSING', 'SHIPPED']),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['CANCELLED', 'REFUNDED']),
+      ]);
+      setSummary({
+        all: allCount.count ?? 0,
+        pending: pendingCount.count ?? 0,
+        manualReview: manualCount.count ?? 0,
+        paid: paidCount.count ?? 0,
+        cancelled: cancelledCount.count ?? 0,
+      });
+    } catch {
+      // Keep the last known summary if a non-critical count refresh fails.
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -166,24 +187,10 @@ export function AdminOrderPaymentsPanel() {
       }
 
       const from = (page - 1) * pageSize;
-      const [{ data, error, count }, allCount, pendingCount, manualCount, paidCount, cancelledCount] = await Promise.all([
-        request.range(from, from + pageSize - 1),
-        supabase.from('orders').select('id', { count: 'exact', head: true }),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'PENDING_PAYMENT'),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'PENDING_PAYMENT').eq('payment_proof_status', 'SUBMITTED').not('payment_provider', 'in', '(GLOBAL,MIDTRANS,XENITHPAY)'),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['PAID', 'COMPLETED', 'PROCESSING', 'SHIPPED']),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['CANCELLED', 'REFUNDED']),
-      ]);
+      const { data, error, count } = await request.range(from, from + pageSize - 1);
       if (error) throw error;
 
       setTotalRows(count ?? 0);
-      setSummary({
-        all: allCount.count ?? 0,
-        pending: pendingCount.count ?? 0,
-        manualReview: manualCount.count ?? 0,
-        paid: paidCount.count ?? 0,
-        cancelled: cancelledCount.count ?? 0,
-      });
 
       const ids = (data ?? []).map((row: any) => String(row.id));
       let intentRows: any[] = [];
@@ -196,7 +203,6 @@ export function AdminOrderPaymentsPanel() {
         if (intentError) throw intentError;
         intentRows = intents ?? [];
       }
-
       const intentByOrder = new Map<string, any>();
       for (const intent of intentRows) {
         const id = String(intent.order_id);
@@ -221,7 +227,12 @@ export function AdminOrderPaymentsPanel() {
     }
   }, [debouncedQuery, filter, page, pageSize, toast]);
 
+  const refresh = useCallback(async () => {
+    await Promise.all([load(), loadSummary()]);
+  }, [load, loadSummary]);
+
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadSummary(); }, [loadSummary]);
 
   const openDetails = async (order: AdminPaymentOrder) => {
     setSelected(order);
@@ -278,7 +289,7 @@ export function AdminOrderPaymentsPanel() {
       await adminReviewManualOrder(id, decision, String(reason ?? ''));
       toast(decision === 'APPROVE' ? 'Pembayaran manual disetujui.' : 'Bukti pembayaran manual ditolak.', 'success');
       setSelected(null);
-      await load();
+      await refresh();
     } catch (error: any) {
       toast(error?.message || 'Keputusan pembayaran gagal disimpan.', 'error');
     } finally {
@@ -301,7 +312,7 @@ export function AdminOrderPaymentsPanel() {
       setOverrideReason('');
       setVerifiedExternally(false);
       setSelected(null);
-      await load();
+      await refresh();
     } catch (error: any) {
       toast(error?.message || 'Pesanan belum bisa diselesaikan oleh admin.', 'error');
     } finally {
@@ -328,7 +339,7 @@ export function AdminOrderPaymentsPanel() {
           <h2 className="mt-1 text-2xl font-bold text-fg">Pesanan & pembayaran</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-fg-muted">Cari dan tinjau status pembayaran semua pengguna. Daftar dimuat per halaman; riwayat provider dan tindakan admin tersedia pada detail setiap pesanan.</p>
         </div>
-        <Button size="sm" variant="outline" disabled={loading} onClick={() => void load()}><RefreshCw size={14} className={loading ? 'mr-1 animate-spin' : 'mr-1'}/> Segarkan data</Button>
+        <Button size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}><RefreshCw size={14} className={loading ? 'mr-1 animate-spin' : 'mr-1'}/> Segarkan data</Button>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-5">
