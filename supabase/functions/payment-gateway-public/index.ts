@@ -34,9 +34,10 @@ Deno.serve(async (req: Request) => {
   const environment: Env = row?.environment === "production" ? "production" : (activeProvider === "MIDTRANS" && Deno.env.get("MIDTRANS_ENV") === "production" ? "production" : "sandbox");
   const secretEnv = obj(obj(row?.secret_config)[environment]);
   const publicEnv = obj(obj(row?.public_config)[environment]);
-  const legacyMidtrans = activeProvider === "MIDTRANS" && !row && Boolean(legacyMidtransKey(environment));
+  const legacyKey = secretEnv.disable_legacy_midtrans === true ? "" : legacyMidtransKey(environment);
+  const legacyMidtrans = activeProvider === "MIDTRANS" && !row && Boolean(legacyKey);
   const configured = activeProvider === "MIDTRANS"
-    ? Boolean(str(secretEnv.server_key) || legacyMidtransKey(environment))
+    ? Boolean(str(secretEnv.server_key) || legacyKey)
     : activeProvider === "XENITHPAY"
       ? Boolean(str(secretEnv.api_key) && str(secretEnv.api_secret) && str(secretEnv.webhook_secret) && str(publicEnv.payment_method) && str(publicEnv.payment_channel))
       : false;
