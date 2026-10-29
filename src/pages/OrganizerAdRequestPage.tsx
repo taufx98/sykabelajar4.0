@@ -619,7 +619,7 @@ export function OrganizerAdRequestPage() {
                     </div>
                     {/* Action buttons */}
                     <div className="flex gap-1">
-                      {r.status === 'PENDING' && (
+                      {r.status === 'PENDING' && !r.payment_order_id && r.payment_status !== 'PAID' && (
                         <button onClick={() => {
                           if (confirm('Batalkan request ini?')) {
                             supabase.from('ad_banner_requests').update({ status: 'REJECTED', admin_note: 'Dibatalkan oleh user' }).eq('id', r.id)
