@@ -848,7 +848,7 @@ function PersonRankingTable({ rows, placeholderRanks, mode, currentUserId }: { r
           {placeholderRanks.map((rank) => <RankingPlaceholderRow key={'empty-student-' + rank} rank={rank} kind="student" />)}
         </tbody>
       </table>
-      {!rows.length && !placeholderRanks.length && <div className="lb-empty">{text('Tidak ada siswa yang cocok dengan pencarian atau filter ini.','No students match this search or filter.')}</div>}
+      {!rows.length && !placeholderRanks.length && <div className="lb-empty">Tidak ada siswa yang cocok dengan pencarian atau filter ini.</div>}
     </div>
   );
 }
@@ -891,7 +891,7 @@ function SchoolRankingTable({ schools, placeholderRanks, onPickSchool }: { schoo
           {placeholderRanks.map((rank) => <RankingPlaceholderRow key={'empty-school-' + rank} rank={rank} kind="school" />)}
         </tbody>
       </table>
-      {!schools.length && !placeholderRanks.length && <div className="lb-empty">{text('Belum ada data sekolah yang cocok.','No matching school data yet.')}</div>}
+      {!schools.length && !placeholderRanks.length && <div className="lb-empty">Belum ada data sekolah yang cocok.</div>}
     </div>
   );
 }
