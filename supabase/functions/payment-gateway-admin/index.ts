@@ -219,7 +219,7 @@ Deno.serve(async (req: Request) => {
       const apiKey = nonEmpty(secretEnv.api_key);
       const apiSecret = nonEmpty(secretEnv.api_secret);
       const timestamp = new Date().toISOString();
-      const path = "/v1/payins";
+      const path = "/v1/payins?limit=1";
       const signature = await hmacBase64(apiSecret, `GET\n${path}\n${timestamp}\n`);
       const endpoint = environment === "production" ? "https://openapi.xenithpay.com" : "https://openapi.sandbox.xenithpay.com";
       const response = await fetch(`${endpoint}${path}`, { headers: { "Xenith-Api-Key": apiKey, "Xenith-Request-Timestamp": timestamp, "Xenith-Request-Signature": signature } });
