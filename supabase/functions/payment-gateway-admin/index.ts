@@ -32,6 +32,7 @@ function mergeSecrets(existing: AnyRecord, submitted: AnyRecord, provider: Provi
   const currentEnv = { ...record(next[environment]) };
   if (submitted.clearCredentials === true) {
     for (const key of provider === "MIDTRANS" ? ["server_key", "client_key"] : ["api_key", "api_secret", "webhook_secret"]) delete currentEnv[key];
+    if (provider === "MIDTRANS") currentEnv.disable_legacy_midtrans = true;
   } else {
     const keys = provider === "MIDTRANS"
       ? [["serverKey", "server_key"], ["clientKey", "client_key"]]
@@ -39,6 +40,7 @@ function mergeSecrets(existing: AnyRecord, submitted: AnyRecord, provider: Provi
     for (const [from, to] of keys) {
       const value = nonEmpty(submitted[from]);
       if (value) currentEnv[to] = value;
+      if (provider === "MIDTRANS" && from === "serverKey" && value) delete currentEnv.disable_legacy_midtrans;
     }
   }
   next[environment] = currentEnv;
@@ -58,7 +60,8 @@ function mergePublicConfig(existing: AnyRecord, submitted: AnyRecord, provider: 
   next[environment] = currentEnv;
   return next;
 }
-function legacyMidtransSecret(environment: Environment) {
+function legacyMidtransSecret(environment: Environment, secretEnvironment: AnyRecord = {}) {
+  if (secretEnvironment.disable_legacy_midtrans === true) return "";
   const legacyEnvironment = Deno.env.get("MIDTRANS_ENV") === "production" ? "production" : "sandbox";
   return environment === legacyEnvironment ? Deno.env.get("MIDTRANS_SERVER_KEY") ?? "" : "";
 }
@@ -66,7 +69,7 @@ function isConfigured(provider: Provider, environment: Environment, secrets: Any
   const cfg = record(secrets[environment]);
   const publicEnv = record(publicConfig[environment]);
   if (provider === "MIDTRANS") {
-    return Boolean(nonEmpty(cfg.server_key) || legacyMidtransSecret(environment));
+    return Boolean(nonEmpty(cfg.server_key) || legacyMidtransSecret(environment, cfg));
   }
   return Boolean(nonEmpty(cfg.api_key) && nonEmpty(cfg.api_secret) && nonEmpty(cfg.webhook_secret)
     && nonEmpty(publicEnv.payment_method) && nonEmpty(publicEnv.payment_channel));
@@ -85,8 +88,8 @@ function providerSummary(provider: Provider, row: AnyRecord | undefined) {
     const publicEnv = record(publicConfig[env]);
     environments[env] = {
       configured: isConfigured(provider, env, secrets, publicConfig),
-      serverKeyConfigured: provider === "MIDTRANS" && Boolean(nonEmpty(secretEnv.server_key) || legacyMidtransSecret(env)),
-      clientKeyConfigured: provider === "MIDTRANS" && Boolean(nonEmpty(secretEnv.client_key) || (env === envDefault && Boolean(Deno.env.get("MIDTRANS_CLIENT_KEY")))),
+      serverKeyConfigured: provider === "MIDTRANS" && Boolean(nonEmpty(secretEnv.server_key) || legacyMidtransSecret(env, secretEnv)),
+      clientKeyConfigured: provider === "MIDTRANS" && Boolean(nonEmpty(secretEnv.client_key) || (!secretEnv.disable_legacy_midtrans && env === envDefault && Boolean(Deno.env.get("MIDTRANS_CLIENT_KEY")))),
       apiKeyConfigured: provider === "XENITHPAY" && Boolean(nonEmpty(secretEnv.api_key)),
       apiSecretConfigured: provider === "XENITHPAY" && Boolean(nonEmpty(secretEnv.api_secret)),
       webhookSecretConfigured: provider === "XENITHPAY" && Boolean(nonEmpty(secretEnv.webhook_secret)),
@@ -207,7 +210,7 @@ Deno.serve(async (req: Request) => {
     if (!isConfigured(provider, environment, secrets, publicConfig)) return json({ ok: false, error: "CREDENTIALS_INCOMPLETE", message: "Lengkapi kredensial dan konfigurasi environment ini sebelum menguji koneksi." }, 422);
     try {
       if (provider === "MIDTRANS") {
-        const key = nonEmpty(secretEnv.server_key) || legacyMidtransSecret(environment);
+        const key = nonEmpty(secretEnv.server_key) || legacyMidtransSecret(environment, secretEnv);
         const endpoint = environment === "production" ? "https://api.midtrans.com" : "https://api.sandbox.midtrans.com";
         const response = await fetch(`${endpoint}/v2/SYKABELAJAR-CONNECTION-CHECK/status`, {
           headers: { Authorization: `Basic ${btoa(`${key}:`)}` },
