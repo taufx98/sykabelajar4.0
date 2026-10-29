@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
 import { AdminCommunicationLinks } from '@/components/admin/AdminCommunicationLinks';
+import { notifyHomeNavigationClick } from '@/lib/homeNavigation';
 
 export type GlobalHeaderNavItem = { to: string; label: string; icon: LucideIcon };
 type GlobalHeaderProps = { navItems: GlobalHeaderNavItem[]; badgeLabel?: string };
@@ -71,7 +72,7 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
     <header className="sticky top-0 z-30 glass border-b surface-border">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Link to="/home" className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg shrink-0"><ArrowLeft size={13} /><span className="hidden sm:inline">Kembali</span></Link>
+          <Link to="/home" onClick={() => notifyHomeNavigationClick("/home")} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg shrink-0"><ArrowLeft size={13} /><span className="hidden sm:inline">Kembali</span></Link>
           {Icon && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon size={16} /></span>}
           <div className="min-w-0"><p className="text-[10px] text-accent font-semibold uppercase tracking-[0.16em] truncate">{meta.section}</p><h1 className="font-display text-lg font-bold text-fg truncate">{label}</h1><p className="hidden md:block text-[10px] text-fg-muted truncate">{meta.subtitle}</p></div>
         </div>
