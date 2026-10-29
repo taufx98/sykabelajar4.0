@@ -475,13 +475,14 @@ export function AdminBannersPage() {
                     <p className="text-sm text-accent font-semibold mt-1">
                       Rp {r.total_price.toLocaleString('id-ID')}
                     </p>
+                    {r.payment_status && <p className={`mt-1 text-[11px] font-semibold ${r.payment_status === 'PAID' ? 'text-emerald-400' : r.payment_status === 'LEGACY_REVIEW' ? 'text-sky-300' : 'text-amber-300'}`}>Pembayaran: {r.payment_status === 'PAID' ? 'Lunas' : r.payment_status === 'LEGACY_REVIEW' ? 'Bukti transfer lama — perlu ditinjau' : r.payment_status === 'PENDING' ? 'Menunggu verifikasi di Pesanan' : r.payment_status === 'FAILED' ? 'Pembayaran gagal / ditolak' : 'Belum dibayar'}</p>}
                     {r.admin_note && (
                       <p className="text-[11px] text-red-400 mt-1">Catatan: {r.admin_note}</p>
                     )}
                   </div>
                   {r.status === 'PENDING' && (
                     <div className="flex gap-2">
-                      <Button size="sm" loading={busy === r.id} onClick={() => void handleApprove(r.id)} icon={<Check size={14} />}>
+                      <Button size="sm" loading={busy === r.id} disabled={busy === r.id || !['PAID', 'LEGACY_REVIEW'].includes(String(r.payment_status ?? 'UNPAID'))} onClick={() => void handleApprove(r.id)} icon={<Check size={14} />}>
                         Acc
                       </Button>
                       <Button size="sm" variant="outline" disabled={busy === r.id} onClick={() => void handleReject(r.id)} icon={<X size={14} />}>
