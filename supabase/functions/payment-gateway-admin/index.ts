@@ -227,13 +227,31 @@ Deno.serve(async (req: Request) => {
       const apiKey = nonEmpty(secretEnv.api_key);
       const apiSecret = nonEmpty(secretEnv.api_secret);
       const timestamp = new Date().toISOString();
-      const path = "/v1/payins?limit=1";
-      const signature = await hmacBase64(apiSecret, `GET\n${path}\n${timestamp}\n`);
+      // Test the permission needed by real checkout (Pay In: Write), not
+      // GET /v1/payins, which requires the separate Pay In: Read permission.
+      // The intentionally invalid empty payload must fail validation and cannot
+      // create a transaction; authentication/scope failures remain 401/403.
+      const path = "/v1/payins";
+      const bodyText = "{}";
+      const signature = await hmacBase64(apiSecret, `POST\\n${path}\\n${timestamp}\\n${bodyText}`);
       const endpoint = environment === "production" ? "https://openapi.xenithpay.com" : "https://openapi.sandbox.xenithpay.com";
-      const response = await fetch(`${endpoint}${path}`, { headers: { "Xenith-Api-Key": apiKey, "Xenith-Request-Timestamp": timestamp, "Xenith-Request-Signature": signature } });
-      if (response.status === 401 || response.status === 403) return json({ ok: false, error: "XENITH_AUTH_FAILED", message: "XenithPay menolak kredensial atau API Key belum memiliki izin baca Pay In." }, 422);
+      const response = await fetch(`${endpoint}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Xenith-Api-Key": apiKey,
+          "Xenith-Request-Timestamp": timestamp,
+          "Xenith-Request-Signature": signature,
+          "X-Idempotency-Key": `sykabelajar-connection-check-${crypto.randomUUID()}`,
+        },
+        body: bodyText,
+      });
+      if (response.status === 401 || response.status === 403) return json({ ok: false, error: "XENITH_AUTH_FAILED", message: "XenithPay menolak kredensial atau API Key belum memiliki izin tulis Pay In. Pastikan API Key yang sama memiliki Pay In: Write dan gunakan pasangan API Key/Secret dari environment ini." }, 422);
+      if (response.status === 400) {
+        return json({ ok: true, message: "Koneksi XenithPay dan izin Pay In: Write terverifikasi. Tes menggunakan payload kosong yang ditolak untuk validasi, sehingga tidak membuat transaksi." });
+      }
       if (!response.ok) return json({ ok: false, error: "XENITH_CONNECTION_FAILED", message: `XenithPay merespons HTTP ${response.status}. Periksa konfigurasi dan izin API Key.` }, 502);
-      return json({ ok: true, message: "Koneksi XenithPay berhasil diverifikasi." });
+      return json({ ok: false, error: "XENITH_TEST_UNEXPECTED_RESPONSE", message: "XenithPay menerima payload uji yang seharusnya tidak valid. Periksa daftar transaksi Sandbox sebelum mencoba lagi." }, 502);
     } catch {
       return json({ ok: false, error: "GATEWAY_CONNECTION_FAILED", message: "Tidak dapat menghubungi gateway. Periksa koneksi dan coba lagi." }, 502);
     }
