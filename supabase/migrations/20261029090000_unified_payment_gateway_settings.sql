@@ -296,3 +296,204 @@ $function$
 
 revoke all on function public.process_payment_gateway_success(uuid, text, uuid) from public, anon, authenticated;
 grant execute on function public.process_payment_gateway_success(uuid, text, uuid) to service_role;
+
+
+-- Allow Shop orders and collective certificate orders to use the same global gateway.
+-- Manual payment proof behavior remains unchanged for all existing method codes.
+CREATE OR REPLACE FUNCTION public.create_product_order_with_proof(p_product_id uuid, p_quantity integer DEFAULT 1, p_whatsapp text DEFAULT NULL::text, p_payment_method text DEFAULT 'MANUAL_TRANSFER'::text, p_proof_url text DEFAULT NULL::text, p_proof_public_id text DEFAULT NULL::text, p_proof_width integer DEFAULT NULL::integer, p_proof_height integer DEFAULT NULL::integer, p_proof_version text DEFAULT NULL::text, p_proof_resource_type text DEFAULT NULL::text, p_target_organizer_id uuid DEFAULT NULL::uuid)
+ RETURNS orders
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+declare
+  v_product public.commerce_products;
+  v_order public.orders;
+  v_qty integer := p_quantity;
+  v_total numeric(14,2);
+  v_payment_method text := upper(trim(coalesce(p_payment_method,'BANK_TRANSFER')));
+  v_proof_url text := nullif(trim(coalesce(p_proof_url,'')),'');
+  v_metadata jsonb;
+  v_badge_id uuid;
+  v_global_method public.organizer_payment_methods%rowtype;
+  v_is_global_gateway boolean := upper(trim(coalesce(p_payment_method,'')))='GATEWAY_GLOBAL';
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  if v_qty is null or v_qty < 1 or v_qty > 100 then raise exception 'INVALID_QUANTITY'; end if;
+  if nullif(trim(coalesce(p_whatsapp,'')),'') is null then raise exception 'WHATSAPP_REQUIRED'; end if;
+  if v_is_global_gateway then
+    select * into v_global_method from public.organizer_payment_methods where is_active=true and details->>'global_gateway'='true' limit 1;
+    if not found then raise exception 'GLOBAL_PAYMENT_METHOD_NOT_CONFIGURED'; end if;
+    v_proof_url := null;
+  else
+    if v_payment_method not in ('BANK_TRANSFER','MANUAL_TRANSFER','QRIS','EWALLET') then raise exception 'INVALID_PAYMENT_METHOD'; end if;
+    if v_proof_url is null or v_proof_url !~* '^https?://' then raise exception 'PAYMENT_PROOF_REQUIRED'; end if;
+  end if;
+
+  select * into v_product from public.commerce_products where id=p_product_id and is_active=true for share;
+  if not found then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
+  if v_product.product_type not in ('DIGITAL_ITEM','DONATION','EDU_COIN_TOPUP','BADGE','CERTIFICATE_SERIALS') then
+    raise exception 'PRODUCT_TYPE_NOT_SUPPORTED';
+  end if;
+  if v_product.price <= 0 then raise exception 'ACTIVE_PRODUCT_PRICE_REQUIRED'; end if;
+  if cardinality(coalesce(v_product.audiences,array[]::text[]))=0 then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
+  if not private.current_user_is_admin() and not exists (
+    select 1 from public.user_roles ur where ur.user_id=auth.uid() and ur.is_active=true
+      and ((ur.role::text='student' and 'student'=any(v_product.audiences))
+        or (ur.role::text='teacher' and 'teacher'=any(v_product.audiences))
+        or (ur.role::text='organizer_member' and 'organizer'=any(v_product.audiences)))
+  ) then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
+
+  if v_product.product_type in ('BADGE','CERTIFICATE_SERIALS') and v_qty <> 1 then raise exception 'SINGLE_PACKAGE_ONLY'; end if;
+  if v_product.product_type='CERTIFICATE_SERIALS' then
+    if p_target_organizer_id is null then raise exception 'ORGANIZER_REQUIRED'; end if;
+    if not (private.current_user_is_admin() or private.current_user_can_manage_organizer(p_target_organizer_id)) then raise exception 'ORGANIZER_ACCESS_DENIED'; end if;
+    if not exists(select 1 from public.organizers where id=p_target_organizer_id and status='ACTIVE') then raise exception 'ORGANIZER_NOT_AVAILABLE'; end if;
+  elsif p_target_organizer_id is not null then
+    raise exception 'UNEXPECTED_ORGANIZER';
+  end if;
+
+  if v_product.product_type='EDU_COIN_TOPUP' then
+    if coalesce(v_product.metadata->>'coin_amount','') !~ '^[0-9]+$'
+       or (v_product.metadata->>'coin_amount')::integer < 1 then raise exception 'COIN_AMOUNT_INVALID'; end if;
+  elsif v_product.product_type='BADGE' then
+    if coalesce(v_product.metadata->>'badge_id','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then raise exception 'BADGE_NOT_AVAILABLE'; end if;
+    v_badge_id := (v_product.metadata->>'badge_id')::uuid;
+    if not exists(select 1 from public.badges where id=v_badge_id and status='ACTIVE' and is_purchasable=true and award_type='MANUAL') then raise exception 'BADGE_NOT_AVAILABLE'; end if;
+    if exists(select 1 from public.user_badges where user_id=auth.uid() and badge_id=v_badge_id) then raise exception 'BADGE_ALREADY_OWNED'; end if;
+  elsif v_product.product_type='CERTIFICATE_SERIALS' then
+    if coalesce(v_product.metadata->>'serial_quantity','') !~ '^[0-9]+$'
+       or (v_product.metadata->>'serial_quantity')::integer not between 1 and 1000 then raise exception 'SERIAL_QUANTITY_INVALID'; end if;
+  end if;
+
+  v_total := v_product.price * v_qty;
+  v_metadata := jsonb_build_object(
+    'commerce_product_id',v_product.id,
+    'product_code',v_product.code,
+    'shop_metadata',coalesce(v_product.metadata,'{}'::jsonb)
+  );
+  if p_target_organizer_id is not null then
+    v_metadata := v_metadata || jsonb_build_object('organizer_id',p_target_organizer_id);
+  end if;
+
+  insert into public.orders(
+    user_id,status,subtotal,discount,shipping_cost,total,currency,contact_whatsapp,
+    payment_method,payment_provider,payment_method_id,payment_proof_url,payment_proof_public_id,payment_proof_width,payment_proof_height,
+    payment_proof_version,payment_proof_resource_type,payment_proof_status
+  ) values (
+    auth.uid(),'PENDING_PAYMENT',v_total,0,0,v_total,v_product.currency,trim(p_whatsapp),
+    case when v_is_global_gateway then v_global_method.name else v_payment_method end,
+    case when v_is_global_gateway then 'GLOBAL' else 'MANUAL_TRANSFER' end,
+    case when v_is_global_gateway then v_global_method.id else null end,
+    v_proof_url,p_proof_public_id,p_proof_width,p_proof_height,
+    p_proof_version,p_proof_resource_type,case when v_is_global_gateway then 'NOT_SUBMITTED' else 'SUBMITTED' end
+  ) returning * into v_order;
+
+  insert into public.order_items(order_id,product_type,product_ref,name,quantity,unit_price,line_total,metadata)
+  values(v_order.id,v_product.product_type,v_product.id::text,v_product.name,v_qty,v_product.price,v_total,v_metadata);
+
+  perform private.write_audit('commerce.order_created','order',v_order.id::text,'SYKABELAJAR Shop checkout',null,to_jsonb(v_order),null);
+  return v_order;
+end;
+$function$
+
+
+CREATE OR REPLACE FUNCTION public.create_collective_certificate_order_with_proof(p_certificate_id uuid, p_payment_method text, p_proof_url text, p_proof_public_id text DEFAULT NULL::text, p_proof_width integer DEFAULT NULL::integer, p_proof_height integer DEFAULT NULL::integer, p_proof_version text DEFAULT NULL::text, p_proof_resource_type text DEFAULT NULL::text, p_whatsapp text DEFAULT NULL::text)
+ RETURNS orders
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_cert public.collective_certificates%rowtype;
+  v_cp public.collective_participants%rowtype;
+  v_order public.orders%rowtype;
+  v_price numeric := public.get_collective_certificate_price();
+  v_method text := upper(trim(coalesce(p_payment_method,'BANK_TRANSFER')));
+  v_proof text := nullif(trim(coalesce(p_proof_url,'')),'');
+  v_global_method public.organizer_payment_methods%rowtype;
+  v_is_global_gateway boolean := upper(trim(coalesce(p_payment_method,'')))='GATEWAY_GLOBAL';
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not exists(select 1 from public.commerce_products p where p.is_active=true and p.product_type='COLLECTIVE_CERTIFICATE' and 'teacher'=any(p.audiences)) then raise exception 'CERTIFICATE_SHOP_NOT_AVAILABLE'; end if;
+  if v_price <= 0 then raise exception 'CERTIFICATE_PRICE_NOT_CONFIGURED'; end if;
+  if v_is_global_gateway then
+    select * into v_global_method from public.organizer_payment_methods where is_active=true and details->>'global_gateway'='true' limit 1;
+    if not found then raise exception 'GLOBAL_PAYMENT_METHOD_NOT_CONFIGURED'; end if;
+    v_proof := null;
+  else
+    if v_method not in ('BANK_TRANSFER','MANUAL_TRANSFER','QRIS','EWALLET') then raise exception 'INVALID_PAYMENT_METHOD'; end if;
+    if v_proof is null or v_proof !~* '^https?://' then raise exception 'PAYMENT_PROOF_REQUIRED'; end if;
+  end if;
+
+  select * into v_cert from public.collective_certificates where id=p_certificate_id for update;
+  if not found then raise exception 'CERTIFICATE_NOT_FOUND'; end if;
+  if v_cert.status not in ('ELIGIBLE','DRAFT') then raise exception 'CERTIFICATE_NOT_ORDERABLE'; end if;
+  select * into v_cp from public.collective_participants where id=v_cert.collective_participant_id;
+  if not found then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception 'FORBIDDEN'; end if;
+  if not exists(select 1 from public.attempts a where a.collective_participant_id=v_cp.id and a.status='FINALIZED') then raise exception 'RESULT_NOT_FINALIZED'; end if;
+  if not exists(select 1 from public.competitions c where c.id=v_cert.competition_id and c.status in ('RESULT_PUBLISHED','ARCHIVED')) then
+    raise exception 'RESULT_NOT_PUBLISHED';
+  end if;
+
+  select o.* into v_order
+  from public.collective_certificate_orders cco
+  join public.orders o on o.id=cco.order_id
+  where cco.collective_certificate_id=v_cert.id
+    and o.status not in ('CANCELLED','REFUNDED')
+  order by o.created_at desc limit 1
+  for update of o;
+
+  if found then
+    if v_order.user_id <> v_uid then raise exception 'CERTIFICATE_ORDER_OWNED_BY_ANOTHER_USER'; end if;
+    if v_order.status='PAID' then raise exception 'CERTIFICATE_ALREADY_PAID'; end if;
+    if v_order.payment_proof_status='SUBMITTED' then raise exception 'CERTIFICATE_PAYMENT_ALREADY_SUBMITTED'; end if;
+    update public.orders set
+      status='PENDING_PAYMENT',payment_method=case when v_is_global_gateway then v_global_method.name else v_method end,
+      payment_provider=case when v_is_global_gateway then 'GLOBAL' else v_method end,
+      payment_method_id=case when v_is_global_gateway then v_global_method.id else null end,
+      payment_proof_url=v_proof,payment_proof_public_id=p_proof_public_id,
+      payment_proof_width=p_proof_width,payment_proof_height=p_proof_height,
+      payment_proof_version=p_proof_version,payment_proof_resource_type=p_proof_resource_type,
+      payment_proof_status=case when v_is_global_gateway then 'NOT_SUBMITTED' else 'SUBMITTED' end,contact_whatsapp=nullif(trim(coalesce(p_whatsapp,'')),''),
+      subtotal=v_price,total=v_price,currency='IDR',updated_at=now()
+    where id=v_order.id returning * into v_order;
+    update public.order_items set unit_price=v_price,line_total=v_price,quantity=1
+      where order_id=v_order.id;
+    update public.collective_certificate_orders set amount=v_price,status='PENDING',updated_at=now()
+      where order_id=v_order.id;
+    return v_order;
+  end if;
+
+  insert into public.orders(
+    user_id,status,subtotal,discount,shipping_cost,total,currency,payment_method,payment_provider,
+    contact_name,contact_email,contact_note,contact_fields,contact_whatsapp,payment_proof_url,
+    payment_proof_public_id,payment_proof_width,payment_proof_height,payment_proof_version,
+    payment_proof_resource_type,payment_proof_status,payment_method_id
+  ) values (
+    v_uid,'PENDING_PAYMENT',v_price,0,0,v_price,'IDR',case when v_is_global_gateway then v_global_method.name else v_method end,
+    case when v_is_global_gateway then 'GLOBAL' else v_method end,
+    v_cp.full_name,null,'Sertifikat peserta kolektif',jsonb_build_object('collective_certificate_id',v_cert.id,'participant_code',v_cp.participant_code),
+    nullif(trim(coalesce(p_whatsapp,'')),''),v_proof,p_proof_public_id,p_proof_width,p_proof_height,
+    p_proof_version,p_proof_resource_type,case when v_is_global_gateway then 'NOT_SUBMITTED' else 'SUBMITTED' end,
+    case when v_is_global_gateway then v_global_method.id else null end
+  ) returning * into v_order;
+
+  insert into public.order_items(order_id,product_type,product_ref,name,quantity,unit_price,line_total,metadata)
+  values(v_order.id,'DIGITAL_ITEM','COLLECTIVE_CERTIFICATE','Sertifikat Peserta — '||v_cp.full_name,1,v_price,v_price,
+    jsonb_build_object('collective_certificate_id',v_cert.id,'participant_id',v_cp.id,'shop_checkout',true));
+
+  insert into public.collective_certificate_orders(collective_certificate_id,order_id,payer_user_id,amount,status)
+  values(v_cert.id,v_order.id,v_uid,v_price,'PENDING')
+  on conflict (collective_certificate_id) do update set
+    order_id=excluded.order_id,
+    payer_user_id=excluded.payer_user_id,
+    amount=excluded.amount,
+    status='PENDING',
+    updated_at=now();
+  return v_order;
+end;
+$function$
+
