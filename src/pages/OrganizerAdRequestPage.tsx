@@ -27,6 +27,7 @@ import { supabase } from '@/lib/supabase';
 
 /* ─── Constants ─── */
 const BASE_PRICE = 50000;
+const MULTIPLIER = 0.95;
 const getBannerRatio = (placement: BannerPlacement, widthSlots = 1): string => {
   if (placement === 'home_sidebar') return '600/500';
   return widthSlots > 1 ? '2400/512' : '1200/512';
@@ -695,9 +696,9 @@ export function OrganizerAdRequestPage() {
             <>
               <div className="mt-4 rounded-xl border surface-border p-4">
                 <p className="text-sm font-semibold text-fg">{selectedPaymentMethod.name}</p>
-                {selectedPaymentMethod.details?.bank_name && <p className="mt-2 text-xs text-fg-muted">Bank: <span className="text-fg">{String(selectedPaymentMethod.details.bank_name)}</span></p>}
-                {selectedPaymentMethod.details?.account_number && <div className="mt-1 flex items-center gap-2"><p className="font-mono text-sm text-fg">{String(selectedPaymentMethod.details.account_number)}</p><button type="button" onClick={() => copyNumber(String(selectedPaymentMethod.details.account_number))} className="rounded-lg border surface-border p-1.5 text-fg-muted hover:text-fg" aria-label="Salin nomor rekening"><Copy size={13}/></button></div>}
-                {selectedPaymentMethod.details?.account_name && <p className="mt-1 text-xs text-fg-muted">Atas nama: <span className="text-fg">{String(selectedPaymentMethod.details.account_name)}</span></p>}
+                {Boolean(selectedPaymentMethod.details?.bank_name) && <p className="mt-2 text-xs text-fg-muted">Bank: <span className="text-fg">{String(selectedPaymentMethod.details.bank_name)}</span></p>}
+                {Boolean(selectedPaymentMethod.details?.account_number) && <div className="mt-1 flex items-center gap-2"><p className="font-mono text-sm text-fg">{String(selectedPaymentMethod.details.account_number)}</p><button type="button" onClick={() => copyNumber(String(selectedPaymentMethod.details.account_number))} className="rounded-lg border surface-border p-1.5 text-fg-muted hover:text-fg" aria-label="Salin nomor rekening"><Copy size={13}/></button></div>}
+                {Boolean(selectedPaymentMethod.details?.account_name) && <p className="mt-1 text-xs text-fg-muted">Atas nama: <span className="text-fg">{String(selectedPaymentMethod.details.account_name)}</span></p>}
                 {typeof selectedPaymentMethod.details?.instructions === 'string' && selectedPaymentMethod.details.instructions && <p className="mt-2 whitespace-pre-line text-xs leading-5 text-fg-muted">{selectedPaymentMethod.details.instructions}</p>}
                 {(selectedPaymentMethod.image_url || (typeof selectedPaymentMethod.details?.image_url === 'string' ? selectedPaymentMethod.details.image_url : '')) && <img src={selectedPaymentMethod.image_url || String(selectedPaymentMethod.details.image_url)} alt={selectedPaymentMethod.name} className="mt-3 max-h-56 rounded-lg object-contain"/>}
               </div>
