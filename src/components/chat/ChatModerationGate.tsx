@@ -41,21 +41,53 @@ export function ChatCooldownGate() {
   const [spam, setSpam] = useState<ChatSpamStatus | null>(null);
   const [access, setAccess] = useState<ChatAccessStatus | null>(null);
   const [now, setNow] = useState(Date.now());
+  const timedBlockUntil = access?.blocked && !access.is_permanent
+    ? access.blocked_until
+    : !access?.blocked ? spam?.blocked_until : null;
 
   useEffect(() => {
     if (!user || location.pathname !== '/pesan') return;
     let alive = true;
+    let refreshInFlight = false;
     const refresh = async () => {
-      const [spamResult, accessResult] = await Promise.allSettled([getChatSpamStatus(), getChatAccessStatus()]);
-      if (!alive) return;
-      if (spamResult.status === 'fulfilled') setSpam(spamResult.value);
-      if (accessResult.status === 'fulfilled') setAccess(accessResult.value);
+      if (!alive || document.visibilityState === 'hidden' || refreshInFlight) return;
+      refreshInFlight = true;
+      try {
+        const [spamResult, accessResult] = await Promise.allSettled([getChatSpamStatus(), getChatAccessStatus()]);
+        if (!alive) return;
+        if (spamResult.status === 'fulfilled') setSpam(spamResult.value);
+        if (accessResult.status === 'fulfilled') setAccess(accessResult.value);
+      } finally {
+        refreshInFlight = false;
+      }
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+
     void refresh();
-    const poll = window.setInterval(() => void refresh(), 5000);
-    const tick = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => { alive = false; window.clearInterval(poll); window.clearInterval(tick); };
+    const poll = window.setInterval(() => void refresh(), 15000);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      alive = false;
+      window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [location.pathname, user?.id]);
+
+  useEffect(() => {
+    if (!user || location.pathname !== '/pesan' || !timedBlockUntil) return;
+    const deadline = new Date(timedBlockUntil).getTime();
+    if (!Number.isFinite(deadline) || deadline <= Date.now()) return;
+
+    setNow(Date.now());
+    const tick = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= deadline) window.clearInterval(tick);
+    }, 1000);
+    return () => window.clearInterval(tick);
+  }, [timedBlockUntil, location.pathname, user?.id]);
 
   if (!user || location.pathname !== '/pesan') return null;
   const accessRemaining = access?.blocked_until ? Math.max(0, new Date(access.blocked_until).getTime() - now) : 0;

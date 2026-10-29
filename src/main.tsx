@@ -8,6 +8,12 @@ import './index.css';
 startCacheAuthLifecycle();
 initializeErrorIntelligence();
 
+if (import.meta.env.DEV || new URLSearchParams(window.location.search).get('sykaPerf') === '1') {
+  void import('./lib/performanceDiagnostics').then(({ initializePerformanceDiagnostics }) => {
+    initializePerformanceDiagnostics();
+  });
+}
+
 const container = document.getElementById('page-root') ?? document.getElementById('root');
 
 if (!container) {

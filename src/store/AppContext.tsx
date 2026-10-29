@@ -151,17 +151,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser({ ...mapProfileToUser(profile, email), role: preferredRole(resolvedRoles) });
     setAuthUser({ id: userId, email: email || undefined });
 
-    if (loadedAwardsFor.current !== userId) {
-      loadedAwardsFor.current = userId;
-      liveAwards.length = 0;
-      try {
-        await loadAwards(userId);
-        if (aliveRef.current && authUserRef.current?.id === userId) setAwards([...liveAwards]);
-      } catch {
-        loadedAwardsFor.current = null;
-        setAwards([]);
-      }
-    }
   }, []);
 
   useEffect(() => {
@@ -228,6 +217,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       subscription.subscription.unsubscribe();
     };
   }, [clearUserState, hydrateCurrentUser, refreshUnreadCount]);
+
+  // Awards are secondary to authentication. Fetch them after the shell can render.
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || isGuest || authUser?.id !== userId || loadedAwardsFor.current === userId) return;
+
+    loadedAwardsFor.current = userId;
+    void loadAwards(userId).then(() => {
+      if (aliveRef.current && authUserRef.current?.id === userId) {
+        setAwards([...liveAwards]);
+      }
+    }).catch(() => {
+      if (loadedAwardsFor.current === userId) loadedAwardsFor.current = null;
+      if (aliveRef.current && authUserRef.current?.id === userId) setAwards([]);
+    });
+  }, [authUser?.id, user?.id, isGuest]);
 
   useEffect(() => {
     if (!authUser?.id || isGuest) return;
