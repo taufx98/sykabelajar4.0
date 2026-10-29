@@ -233,7 +233,7 @@ Deno.serve(async (req: Request) => {
       // create a transaction; authentication/scope failures remain 401/403.
       const path = "/v1/payins";
       const bodyText = "{}";
-      const signature = await hmacBase64(apiSecret, `POST\\n${path}\\n${timestamp}\\n${bodyText}`);
+      const signature = await hmacBase64(apiSecret, `POST\n${path}\n${timestamp}\n${bodyText}`);
       const endpoint = environment === "production" ? "https://openapi.xenithpay.com" : "https://openapi.sandbox.xenithpay.com";
       const response = await fetch(`${endpoint}${path}`, {
         method: "POST",
