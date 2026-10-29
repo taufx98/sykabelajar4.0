@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Banknote, ImagePlus, Plus, Trash2, UploadCloud, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Banknote, CreditCard, ImagePlus, ListChecks, Plus, Settings2, Trash2, UploadCloud, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -47,21 +47,22 @@ function meta(method: OrganizerPaymentMethod) {
 
 export function AdminPaymentSettingsPage() {
   const { toast } = useApp();
+  const [activeTab, setActiveTab] = useState<'TRANSACTIONS' | 'GATEWAY' | 'METHODS'>('TRANSACTIONS');
   const [methods, setMethods] = useState<OrganizerPaymentMethod[]>([]);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setMethods(await listOrganizerPaymentMethods());
     } catch (error: any) {
       toast(error?.message || 'Gagal memuat metode pembayaran.', 'error');
     }
-  }
+  }, [toast]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { if (activeTab === 'METHODS') void load(); }, [activeTab, load]);
 
   function resetForm() {
     if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
@@ -147,17 +148,28 @@ export function AdminPaymentSettingsPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Admin Commerce</p>
-              <h1 className="mt-1 text-3xl font-bold text-fg">Metode Pembayaran</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-fg-muted">Atur metode transfer manual yang digunakan oleh Shop, paket organizer, iklan banner, sertifikat kolektif, dan pendaftaran kolektif. Midtrans/XenithPay dikelola terpisah di Gateway Global; jangan menambahkan keduanya sebagai metode manual.</p>
+              <h1 className="mt-1 text-3xl font-bold text-fg">Pembayaran & transaksi</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-fg-muted">Satu pusat untuk memantau status dan riwayat transaksi, mengatur gateway otomatis, serta mengelola metode pembayaran manual tanpa menumpuk semua panel di satu halaman.</p>
             </div>
-            <Badge color="moss">{methods.length} aktif</Badge>
+            <Badge color="info">{activeTab === 'METHODS' ? methods.length + ' metode aktif' : activeTab === 'GATEWAY' ? 'Gateway global' : 'Monitoring transaksi'}</Badge>
           </div>
         </header>
 
-        <GlobalPaymentGatewaySettings />
+        <nav className="grid grid-cols-1 gap-2 rounded-2xl border border-surface-border bg-surface-elevated/10 p-2 sm:grid-cols-3" aria-label="Bagian pengaturan pembayaran">
+          <button type="button" onClick={() => setActiveTab('TRANSACTIONS')} className={'flex items-center gap-3 rounded-xl px-4 py-3 text-left transition ' + (activeTab === 'TRANSACTIONS' ? 'border border-accent/30 bg-accent/10 text-fg' : 'text-fg-muted hover:bg-surface-elevated/40')}>
+            <span className="rounded-lg bg-surface-elevated p-2"><ListChecks size={17}/></span><span><strong className="block text-sm">Transaksi & riwayat</strong><span className="mt-0.5 block text-xs">Status, log, dan tindakan admin</span></span>
+          </button>
+          <button type="button" onClick={() => setActiveTab('GATEWAY')} className={'flex items-center gap-3 rounded-xl px-4 py-3 text-left transition ' + (activeTab === 'GATEWAY' ? 'border border-accent/30 bg-accent/10 text-fg' : 'text-fg-muted hover:bg-surface-elevated/40')}>
+            <span className="rounded-lg bg-surface-elevated p-2"><Settings2 size={17}/></span><span><strong className="block text-sm">Gateway global</strong><span className="mt-0.5 block text-xs">Konfigurasi Midtrans / XenithPay</span></span>
+          </button>
+          <button type="button" onClick={() => setActiveTab('METHODS')} className={'flex items-center gap-3 rounded-xl px-4 py-3 text-left transition ' + (activeTab === 'METHODS' ? 'border border-accent/30 bg-accent/10 text-fg' : 'text-fg-muted hover:bg-surface-elevated/40')}>
+            <span className="rounded-lg bg-surface-elevated p-2"><CreditCard size={17}/></span><span><strong className="block text-sm">Metode manual</strong><span className="mt-0.5 block text-xs">Bank transfer, QRIS, e-wallet</span></span>
+          </button>
+        </nav>
 
-        <AdminOrderPaymentsPanel />
-
+        {activeTab === 'TRANSACTIONS' && <div className="min-w-0"><AdminOrderPaymentsPanel /></div>}
+        {activeTab === 'GATEWAY' && <div className="min-w-0 space-y-4"><GlobalPaymentGatewaySettings /></div>}
+        {activeTab === 'METHODS' && <>
         {!open ? (
           <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center justify-between rounded-2xl border border-dashed border-accent/40 bg-accent/5 p-5 text-left hover:bg-accent/10">
             <div className="flex items-center gap-3"><div className="rounded-xl bg-accent/10 p-2.5"><Plus size={18} className="text-accent"/></div><div><p className="font-semibold text-fg">Tambah metode pembayaran</p><p className="mt-1 text-xs text-fg-muted">Khusus QRIS, gambar wajib diupload sebelum disimpan.</p></div></div>
@@ -179,7 +191,8 @@ export function AdminPaymentSettingsPage() {
 
         <div className="grid gap-4 md:grid-cols-2">{methods.map((method) => { const m = meta(method); const qr = String(method.payment_type).toUpperCase() === 'QRIS'; return <Card key={method.id} className="p-5"><div className="flex items-start gap-3"><div className="rounded-xl bg-accent/10 p-2.5"><Banknote size={18} className="text-accent"/></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="font-bold text-fg">{method.name}</h2><Badge color="info">{typeLabel(String(method.payment_type).toUpperCase())}</Badge>{method.image_url && <Badge color="moss">Ada gambar</Badge>}{method.details?.global_gateway === true && <Badge color="info">Gateway global</Badge>}</div>{m.bank && <p className="mt-3 text-sm font-semibold text-fg">{m.bank}</p>}{m.account && <p className="mt-1 font-mono text-sm text-fg">{m.account}</p>}{m.name && <p className="mt-1 text-xs text-fg-muted">a.n. {m.name}</p>}{m.instructions && <p className="mt-3 text-xs leading-5 text-fg-muted">{m.instructions}</p>}{m.random && <p className="mt-3 text-xs font-semibold text-accent">Random 3 digit aktif</p>}{qr && method.image_url && <div className="mt-4 rounded-2xl border border-surface-border bg-surface-elevated/25 p-3"><img src={method.image_url} alt="QRIS tersimpan" className="mx-auto max-h-64 w-full object-contain"/></div>}</div>{method.details?.global_gateway !== true && <button type="button" disabled={busy} onClick={() => void removeMethod(method)} className="rounded-lg p-2 text-red-400 hover:bg-red-500/10" title="Hapus"><Trash2 size={16}/></button>}</div></Card>})}</div>
 
-        {!methods.length && <Card className="p-10 text-center"><Banknote size={26} className="mx-auto text-fg-muted"/><p className="mt-3 font-semibold text-fg">Belum ada metode pembayaran aktif</p><p className="mt-1 text-xs text-fg-muted">Tambahkan Bank Transfer atau QRIS dari panel di atas.</p></Card>}
+        {!methods.length && <Card className="p-10 text-center"><Banknote size={26} className="mx-auto text-fg-muted"/><p className="mt-3 font-semibold text-fg">Belum ada metode pembayaran aktif</p><p className="mt-1 text-xs text-fg-muted">Tambahkan Bank Transfer atau QRIS dari panel ini.</p></Card>}
+        </>}
       </div>
     </div>
   );
