@@ -246,11 +246,30 @@ Deno.serve(async (req: Request) => {
         },
         body: bodyText,
       });
-      if (response.status === 401 || response.status === 403) return json({ ok: false, error: "XENITH_AUTH_FAILED", message: "XenithPay menolak kredensial atau API Key belum memiliki izin tulis Pay In. Pastikan API Key yang sama memiliki Pay In: Write dan gunakan pasangan API Key/Secret dari environment ini." }, 422);
+      const providerResponse = await response.clone().json().catch(() => ({}));
+      const providerData = record(providerResponse);
+      const nestedProviderData = record(providerData.data);
+      const providerCode = nonEmpty(providerData.code ?? providerData.errorCode ?? providerData.error_code ?? nestedProviderData.code);
+      const providerMessage = nonEmpty(providerData.message ?? providerData.error_description ?? providerData.errorMessage ?? nestedProviderData.message ?? providerData.error);
+      if (response.status === 401 || response.status === 403) {
+        const reason = providerMessage ? providerMessage.slice(0, 240) : "XenithPay menolak autentikasi atau otorisasi request.";
+        return json({
+          ok: false,
+          error: "XENITH_AUTH_FAILED",
+          message: `XenithPay menolak request (HTTP ${response.status}${providerCode ? `, kode ${providerCode}` : ""}): ${reason} Periksa API Key dan Secret pasangan yang sama, environment Sandbox, serta izin Pay In: Write.`,
+        }, 422);
+      }
       if (response.status === 400) {
         return json({ ok: true, message: "Koneksi XenithPay dan izin Pay In: Write terverifikasi. Tes menggunakan payload kosong yang ditolak untuk validasi, sehingga tidak membuat transaksi." });
       }
-      if (!response.ok) return json({ ok: false, error: "XENITH_CONNECTION_FAILED", message: `XenithPay merespons HTTP ${response.status}. Periksa konfigurasi dan izin API Key.` }, 502);
+      if (!response.ok) {
+        const reason = providerMessage ? `: ${providerMessage.slice(0, 240)}` : "";
+        return json({
+          ok: false,
+          error: "XENITH_CONNECTION_FAILED",
+          message: `XenithPay merespons HTTP ${response.status}${providerCode ? `, kode ${providerCode}` : ""}${reason}. Periksa konfigurasi dan izin API Key.`,
+        }, 502);
+      }
       return json({ ok: false, error: "XENITH_TEST_UNEXPECTED_RESPONSE", message: "XenithPay menerima payload uji yang seharusnya tidak valid. Periksa daftar transaksi Sandbox sebelum mencoba lagi." }, 502);
     } catch {
       return json({ ok: false, error: "GATEWAY_CONNECTION_FAILED", message: "Tidak dapat menghubungi gateway. Periksa koneksi dan coba lagi." }, 502);
