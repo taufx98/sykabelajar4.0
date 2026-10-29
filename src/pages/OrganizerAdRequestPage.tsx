@@ -19,8 +19,10 @@ import {
   type AdBannerRequest,
   type AdBannerSettings,
   type PlatformSettings,
-  type AdminBank,
+  createAdBannerPaymentOrder,
 } from '@/services/ad.service';
+import { listOrganizerPaymentMethods, type OrganizerPaymentMethod } from '@/services/commerce.service';
+import { createCheckoutPayment, getPublicPaymentGatewayStatus } from '@/services/payment.service';
 import { supabase } from '@/lib/supabase';
 
 /* ─── Constants ─── */
@@ -64,14 +66,15 @@ function isAllowedUrl(url: string): boolean {
 }
 
 /* ─── Pricing ─── */
-function calcPricePerSlot(slots: number): number[] {
-  const prices: number[] = [];
-  for (let i = 0; i < slots; i++) prices.push(BASE_PRICE * Math.pow(MULTIPLIER, i));
-  return prices;
-}
-function calcTotalPrice(slots: number, days: number): number {
-  const total = calcPricePerSlot(slots).reduce((a, b) => a + b, 0);
-  return Math.round(total / 50000) * 50000 * days;
+function calcTotalPrice(slots: number, days: number, settings?: AdBannerSettings | null, singleImage = false): number {
+  const configuredPerLot = Number(settings?.price_per_lot_daily ?? 0);
+  const perLot = Number.isFinite(configuredPerLot) && configuredPerLot > 0 ? configuredPerLot : BASE_PRICE;
+  let perDay = perLot * Math.max(1, slots);
+  if (singleImage && slots === 2) {
+    const configuredBundle = Number(settings?.single_image_2slots_price ?? 0);
+    if (Number.isFinite(configuredBundle) && configuredBundle > 0) perDay = configuredBundle;
+  }
+  return Math.round(perDay * days);
 }
 function uniqueCode(): number {
   return Math.floor(100 + Math.random() * 900);
@@ -89,6 +92,12 @@ export function OrganizerAdRequestPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<OrganizerPaymentMethod[]>([]);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('');
+  const [gatewayStatus, setGatewayStatus] = useState<Awaited<ReturnType<typeof getPublicPaymentGatewayStatus>> | null>(null);
+  const [gatewayPaymentResult, setGatewayPaymentResult] = useState<Awaited<ReturnType<typeof createCheckoutPayment>> | null>(null);
+  const [gatewayPaymentError, setGatewayPaymentError] = useState('');
+  const [pendingGatewayOrderId, setPendingGatewayOrderId] = useState('');
 
   // Form state
   const [placement, setPlacement] = useState<BannerPlacement>('home_top');
@@ -110,7 +119,10 @@ export function OrganizerAdRequestPage() {
   const [totalWithUnique, setTotalWithUnique] = useState(0);
 
   const durationDays = showCustom ? customDays : DURATION_OPTIONS[durationPreset]?.days || 7;
-  const basePrice = calcTotalPrice(slots, durationDays);
+  const basePrice = calcTotalPrice(slots, durationDays, settings, groupMode !== 'none');
+  const selectablePaymentMethods = paymentMethods.filter((method) => method.details?.global_gateway === true || ['BANK_TRANSFER', 'MANUAL_TRANSFER', 'QRIS', 'EWALLET'].includes(String(method.payment_type).trim().toUpperCase()));
+  const selectedPaymentMethod = paymentMethods.find((method) => method.id === selectedPaymentMethodId) ?? null;
+  const isGlobalAdPayment = selectedPaymentMethod?.details?.global_gateway === true;
 
   const fileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -118,10 +130,23 @@ export function OrganizerAdRequestPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [s, reqs, ps] = await Promise.all([loadBannerSettings(), loadMyBannerRequests(), loadPlatformSettings()]);
+      const [s, reqs, ps, methods, gateway] = await Promise.all([
+        loadBannerSettings(), loadMyBannerRequests(), loadPlatformSettings(),
+        listOrganizerPaymentMethods().catch(() => [] as OrganizerPaymentMethod[]),
+        getPublicPaymentGatewayStatus().catch(() => null),
+      ]);
       setSettings(s);
       setMyRequests(reqs);
       setPlatformSettings(ps);
+      setPaymentMethods(methods);
+      setGatewayStatus(gateway);
+      const globalMethod = methods.find((method) => method.details?.global_gateway === true);
+      const manualMethods = methods.filter((method) => ['BANK_TRANSFER', 'MANUAL_TRANSFER', 'QRIS', 'EWALLET'].includes(String(method.payment_type).trim().toUpperCase()));
+      setSelectedPaymentMethodId((current) => {
+        if (current && methods.some((method) => method.id === current) && (current !== globalMethod?.id || gateway?.checkoutEnabled)) return current;
+        if (gateway?.checkoutEnabled && globalMethod) return globalMethod.id;
+        return manualMethods[0]?.id ?? '';
+      });
     } catch (e: any) {
       toast(e?.message ?? 'Gagal memuat.', 'error');
     } finally {
@@ -200,7 +225,7 @@ export function OrganizerAdRequestPage() {
       }
 
       const code = uniqueCode();
-      const total = basePrice + code;
+      const total = basePrice;
       const singleImage = groupMode !== 'none';
 
       // Use submitBannerRequest with imageUrls array
@@ -217,9 +242,12 @@ export function OrganizerAdRequestPage() {
 
       setCreatedRequest(request);
       setUniqueCodeValue(code);
-      setTotalWithUnique(total);
+      setTotalWithUnique(total + code);
+      setGatewayPaymentResult(null);
+      setGatewayPaymentError('');
+      setPendingGatewayOrderId('');
       setStep('payment');
-      toast('Request dibuat! Silakan upload bukti transfer.', 'success');
+      toast('Request iklan dibuat. Pilih metode pembayaran yang dikelola admin.', 'success');
     } catch (e: any) {
       toast(e?.message ?? 'Gagal mengirim request.', 'error');
     } finally {
@@ -227,21 +255,60 @@ export function OrganizerAdRequestPage() {
     }
   };
 
-  // Submit step 2: upload payment proof
+  // Submit step 2: create a canonical order and use the shared checkout flow.
   const handleConfirmPayment = async () => {
-    if (!paymentProof || !createdRequest) return;
+    if (!createdRequest || !selectedPaymentMethod) return;
+    if (isGlobalAdPayment && !gatewayStatus?.checkoutEnabled) {
+      toast('Pembayaran otomatis belum aktif atau kredensial provider belum lengkap di pengaturan admin.', 'error');
+      return;
+    }
+    if (!isGlobalAdPayment && !paymentProof) {
+      toast('Upload bukti pembayaran terlebih dahulu.', 'error');
+      return;
+    }
     setSubmitting(true);
+    setGatewayPaymentError('');
     try {
-      const { uploadImage } = await import('@/services/cloudinary.service');
-      const result = await uploadImage(paymentProof, `sykabelajar/payments/${createdRequest.id}`);
-      // Update request with payment proof
-      const { error } = await supabase
-        .from('ad_banner_requests')
-        .update({ admin_note: `BUKTI_TRANSFER: ${result.secure_url}` })
-        .eq('id', createdRequest.id);
-      if (error) throw error;
-      toast('Bukti transfer berhasil dikirim! Menunggu verifikasi admin.', 'success');
-      // Reset form
+      let uploaded: any = null;
+      if (!isGlobalAdPayment && paymentProof) {
+        const { uploadImage } = await import('@/services/cloudinary.service');
+        uploaded = await uploadImage(paymentProof, `sykabelajar/payments/${createdRequest.id}`);
+      }
+      const order = await createAdBannerPaymentOrder({
+        requestId: createdRequest.id,
+        paymentMethodId: selectedPaymentMethod.id,
+        proofUrl: uploaded?.secure_url ?? null,
+        proofPublicId: uploaded?.public_id ?? null,
+        proofWidth: uploaded?.width,
+        proofHeight: uploaded?.height,
+        proofVersion: uploaded?.version == null ? undefined : String(uploaded.version),
+        proofResourceType: uploaded?.resource_type,
+        uniqueCode: isGlobalAdPayment ? 0 : uniqueCodeValue,
+      });
+      const orderId = String(order.id ?? '');
+      if (!orderId) throw new Error('Pesanan iklan tersimpan, tetapi ID transaksi tidak tersedia.');
+      if (isGlobalAdPayment) {
+        setPendingGatewayOrderId(orderId);
+        try {
+          const result = await createCheckoutPayment(orderId);
+          setGatewayPaymentResult(result);
+          setGatewayPaymentError('');
+          if (result.redirect_url) {
+            window.location.assign(result.redirect_url);
+            return;
+          }
+          toast('Sesi pembayaran otomatis siap. Selesaikan pembayaran melalui instruksi provider.', 'success');
+          await load();
+        } catch (error: any) {
+          setPendingGatewayOrderId(orderId);
+          const message = error?.message || 'Sesi pembayaran otomatis belum berhasil dibuat.';
+          setGatewayPaymentError(message);
+          toast(message, 'error');
+        }
+        return;
+      }
+
+      toast('Pesanan iklan masuk ke menu Pesanan. Pembayaran menunggu verifikasi admin sebelum iklan ditayangkan.', 'success');
       setStep('form');
       setFiles([null]);
       setPreviews(['']);
@@ -254,9 +321,30 @@ export function OrganizerAdRequestPage() {
       setPaymentProof(null);
       setPaymentProofPreview('');
       setCreatedRequest(null);
+      setPendingGatewayOrderId('');
       await load();
     } catch (e: any) {
-      toast(e?.message ?? 'Gagal upload bukti transfer.', 'error');
+      toast(e?.message ?? 'Gagal membuat pesanan pembayaran iklan.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const retryGatewayPayment = async () => {
+    if (!pendingGatewayOrderId || submitting) return;
+    setSubmitting(true);
+    setGatewayPaymentError('');
+    try {
+      const result = await createCheckoutPayment(pendingGatewayOrderId);
+      setGatewayPaymentResult(result);
+      if (result.redirect_url) {
+        window.location.assign(result.redirect_url);
+        return;
+      }
+      toast('Sesi pembayaran siap. Selesaikan pembayaran dari instruksi provider.', 'success');
+      await load();
+    } catch (error: any) {
+      setGatewayPaymentError(error?.message || 'Sesi pembayaran belum berhasil dibuat.');
     } finally {
       setSubmitting(false);
     }
@@ -528,10 +616,11 @@ export function OrganizerAdRequestPage() {
                       <p className="text-[11px] text-slate-500">
                         Rp {Number(r.total_price).toLocaleString('id-ID')} · {new Date(r.created_at).toLocaleDateString('id-ID')}
                       </p>
+                      {r.payment_status && <p className={`mt-1 text-[10px] font-semibold ${r.payment_status === 'PAID' ? 'text-emerald-400' : r.payment_status === 'FAILED' || r.payment_status === 'UNPAID' ? 'text-amber-300' : 'text-fg-muted'}`}>Pembayaran: {r.payment_status === 'PAID' ? 'Lunas' : r.payment_status === 'PENDING' ? 'Menunggu verifikasi' : r.payment_status === 'LEGACY_REVIEW' ? 'Bukti transfer lama' : r.payment_status === 'FAILED' ? 'Gagal / ditolak' : 'Belum dibayar'}</p>}
                     </div>
                     {/* Action buttons */}
                     <div className="flex gap-1">
-                      {r.status === 'PENDING' && (
+                      {r.status === 'PENDING' && !r.payment_order_id && r.payment_status !== 'PAID' && (
                         <button onClick={() => {
                           if (confirm('Batalkan request ini?')) {
                             supabase.from('ad_banner_requests').update({ status: 'REJECTED', admin_note: 'Dibatalkan oleh user' }).eq('id', r.id)
@@ -577,67 +666,66 @@ export function OrganizerAdRequestPage() {
             <div className="flex justify-between"><span className="text-slate-400">{placement === 'home_sidebar' ? 'Jumlah banner' : 'Slot'}</span><span className="text-fg">{slots}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Durasi</span><span className="text-fg">{durationDays} hari</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Harga dasar</span><span className="text-fg">Rp {basePrice.toLocaleString('id-ID')}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Kode unik</span><span className="text-amber-300">+ Rp {uniqueCodeValue.toLocaleString('id-ID')}</span></div>
+            {!isGlobalAdPayment && <div className="flex justify-between"><span className="text-slate-400">Kode unik</span><span className="text-amber-300">+ Rp {uniqueCodeValue.toLocaleString('id-ID')}</span></div>}
             <div className="border-t surface-border pt-2 flex justify-between font-bold">
-              <span className="text-fg">Total Transfer</span>
-              <span className="text-accent text-lg">Rp {totalWithUnique.toLocaleString('id-ID')}</span>
+              <span className="text-fg">{isGlobalAdPayment ? 'Total pembayaran' : 'Total Transfer'}</span>
+              <span className="text-accent text-lg">Rp {(isGlobalAdPayment ? basePrice : totalWithUnique).toLocaleString('id-ID')}</span>
             </div>
           </div>
         </Card>
 
-        {/* Bank accounts */}
+        {/* Payment method is driven by the same admin-managed settings as Shop and organizer plans. */}
         <Card className="p-5 mb-4">
-          <h3 className="font-semibold text-fg mb-3">Transfer ke:</h3>
-          <div className="space-y-3">
-            {(platformSettings?.admin_banks ?? []).map((bank, i) => (
-              <div key={i} className="surface-elevated rounded-lg p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-accent font-semibold">{bank.bank}</p>
-                  <p className="text-sm text-fg">{bank.number}</p>
-                  <p className="text-[11px] text-slate-500">a.n. {bank.name}</p>
-                </div>
-                <button onClick={() => copyNumber(bank.number)}
-                  className="px-3 py-1.5 rounded-lg bg-white/5 text-xs text-fg-secondary hover:bg-white/10 transition flex items-center gap-1">
-                  <Copy size={12} /> Salin
-                </button>
+          <h3 className="font-semibold text-fg mb-3">Metode Pembayaran</h3>
+          <label className="block text-xs text-fg-muted">
+            Pilih metode pembayaran
+            <select value={selectedPaymentMethodId} disabled={submitting || Boolean(pendingGatewayOrderId)} onChange={(event) => { setSelectedPaymentMethodId(event.target.value); setPaymentProof(null); setPaymentProofPreview(''); setGatewayPaymentResult(null); setGatewayPaymentError(''); }} className="input mt-2 w-full">
+              <option value="">Pilih metode</option>
+              {selectablePaymentMethods.filter((method) => method.details?.global_gateway !== true || gatewayStatus?.checkoutEnabled).map((method) => (
+                <option key={method.id} value={method.id}>{method.name} · {method.details?.global_gateway === true ? (gatewayStatus?.providerName || 'Gateway Global') : String(method.payment_type).replaceAll('_', ' ')}</option>
+              ))}
+            </select>
+          </label>
+          {isGlobalAdPayment ? (
+            <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-4">
+              <div className="flex items-center gap-2 text-fg"><CreditCard size={17} className="text-accent"/><p className="text-sm font-semibold">Pembayaran Otomatis · {gatewayStatus?.providerName || 'Gateway Global'}</p></div>
+              <p className="mt-2 text-xs leading-5 text-fg-muted">Provider dan environment mengikuti pengaturan pembayaran admin. Tidak perlu upload bukti transfer. Status transaksi akan disinkronkan melalui webhook terverifikasi.</p>
+              {!gatewayStatus?.checkoutEnabled && <p className="mt-2 text-xs text-amber-300">Gateway belum siap. Minta admin memeriksa kredensial dan mengaktifkan pembayaran otomatis.</p>}
+            </div>
+          ) : selectedPaymentMethod ? (
+            <>
+              <div className="mt-4 rounded-xl border surface-border p-4">
+                <p className="text-sm font-semibold text-fg">{selectedPaymentMethod.name}</p>
+                {Boolean(selectedPaymentMethod.details?.bank_name) && <p className="mt-2 text-xs text-fg-muted">Bank: <span className="text-fg">{String(selectedPaymentMethod.details.bank_name)}</span></p>}
+                {Boolean(selectedPaymentMethod.details?.account_number) && <div className="mt-1 flex items-center gap-2"><p className="font-mono text-sm text-fg">{String(selectedPaymentMethod.details.account_number)}</p><button type="button" onClick={() => copyNumber(String(selectedPaymentMethod.details.account_number))} className="rounded-lg border surface-border p-1.5 text-fg-muted hover:text-fg" aria-label="Salin nomor rekening"><Copy size={13}/></button></div>}
+                {Boolean(selectedPaymentMethod.details?.account_name) && <p className="mt-1 text-xs text-fg-muted">Atas nama: <span className="text-fg">{String(selectedPaymentMethod.details.account_name)}</span></p>}
+                {typeof selectedPaymentMethod.details?.instructions === 'string' && selectedPaymentMethod.details.instructions && <p className="mt-2 whitespace-pre-line text-xs leading-5 text-fg-muted">{selectedPaymentMethod.details.instructions}</p>}
+                {(selectedPaymentMethod.image_url || (typeof selectedPaymentMethod.details?.image_url === 'string' ? selectedPaymentMethod.details.image_url : '')) && <img src={selectedPaymentMethod.image_url || String(selectedPaymentMethod.details.image_url)} alt={selectedPaymentMethod.name} className="mt-3 max-h-56 rounded-lg object-contain"/>}
               </div>
-            ))}
-          </div>
-          <p className="text-[11px] text-amber-400/80 mt-3">
-            ⚠️ Transfer harus tepat sesuai nominal termasuk kode unik (3 digit terakhir)
-          </p>
-        </Card>
-
-        {/* Upload bukti transfer */}
-        <Card className="p-5 mb-4">
-          <h3 className="font-semibold text-fg mb-3">Bukti Transfer</h3>
-          <input type="file" accept="image/*" className="hidden" id="payment-proof"
-            onChange={e => {
-              const f = e.target.files?.[0];
-              if (f) { setPaymentProof(f); setPaymentProofPreview(URL.createObjectURL(f)); }
-            }} />
-          {paymentProofPreview ? (
-            <div className="relative rounded-lg overflow-hidden border surface-border">
-              <img src={paymentProofPreview} alt="Bukti" className="w-full max-h-60 object-contain surface-elevated" />
-              <button onClick={() => { setPaymentProof(null); setPaymentProofPreview(''); }}
-                className="absolute top-2 right-2 w-6 h-6 bg-black/60 rounded-full text-white text-xs flex items-center justify-center hover:bg-black/80">
-                ✕
-              </button>
-            </div>
+              <Card className="p-5 mt-4">
+                <h3 className="font-semibold text-fg mb-3">Bukti Transfer</h3>
+                <input type="file" accept="image/*" className="hidden" id="payment-proof" onChange={event => { const file = event.target.files?.[0]; if (file) { setPaymentProof(file); setPaymentProofPreview(URL.createObjectURL(file)); } }} />
+                {paymentProofPreview ? (
+                  <div className="relative rounded-lg overflow-hidden border surface-border">
+                    <img src={paymentProofPreview} alt="Bukti" className="w-full max-h-60 object-contain surface-elevated" />
+                    <button onClick={() => { setPaymentProof(null); setPaymentProofPreview(''); }} className="absolute top-2 right-2 w-6 h-6 bg-black/60 rounded-full text-white text-xs flex items-center justify-center hover:bg-black/80">✕</button>
+                  </div>
+                ) : (
+                  <label htmlFor="payment-proof" className="flex flex-col items-center justify-center gap-2 border-2 border-dashed surface-border rounded-lg p-8 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition cursor-pointer">
+                    <Upload size={24}/><span className="text-sm">Klik untuk upload bukti transfer</span><span className="text-[11px] text-slate-600">JPG, PNG, max 2MB</span>
+                  </label>
+                )}
+              </Card>
+            </>
           ) : (
-            <label htmlFor="payment-proof"
-              className="flex flex-col items-center justify-center gap-2 border-2 border-dashed surface-border rounded-lg p-8 text-slate-500 hover:border-moss-500/30 hover:text-accent/60 transition cursor-pointer">
-              <Upload size={24} />
-              <span className="text-sm">Klik untuk upload bukti transfer</span>
-              <span className="text-[11px] text-slate-600">JPG, PNG, max 2MB</span>
-            </label>
+            <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-5 text-fg-muted">Belum ada metode pembayaran yang aktif. Admin perlu menambahkan atau mengaktifkan metode di Pengaturan Pembayaran.</p>
           )}
+          {gatewayPaymentError && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3"><p className="text-sm font-semibold text-fg">Sesi pembayaran belum siap</p><p className="mt-1 text-xs leading-5 text-fg-muted">{gatewayPaymentError}</p><Button className="mt-3" size="sm" disabled={submitting || !pendingGatewayOrderId} loading={submitting} onClick={() => void retryGatewayPayment()}>Coba buat sesi lagi</Button></div>}
+          {gatewayPaymentResult && <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3"><p className="text-sm font-semibold text-fg">Sesi pembayaran dibuat</p><p className="mt-1 text-xs leading-5 text-fg-muted">Selesaikan pembayaran provider. Setelah callback terverifikasi, pembayaran akan muncul lunas pada riwayat Pesanan.</p>{gatewayPaymentResult.payment_code && <div className="mt-3 rounded-lg border surface-border p-3"><p className="text-[10px] text-fg-muted">{gatewayPaymentResult.payment_code_type || 'Kode pembayaran'}</p><p className="mt-1 break-all font-mono font-bold text-fg">{gatewayPaymentResult.payment_code}</p><button type="button" onClick={() => copyNumber(String(gatewayPaymentResult.payment_code))} className="mt-2 text-xs text-accent">Salin kode pembayaran</button></div>}</div>}
+          <Button className="mt-4" fullWidth loading={submitting} disabled={!selectedPaymentMethod || (isGlobalAdPayment ? !gatewayStatus?.checkoutEnabled : !paymentProof) || Boolean(pendingGatewayOrderId)} onClick={() => void handleConfirmPayment()} icon={<CheckCircle size={16}/>}>
+            {isGlobalAdPayment ? 'Lanjut ke pembayaran' : 'Kirim pembayaran untuk verifikasi'}
+          </Button>
         </Card>
-
-        <Button fullWidth loading={submitting} disabled={!paymentProof}
-          onClick={() => void handleConfirmPayment()} icon={<CheckCircle size={16} />}>
-          Konfirmasi Pembayaran
-        </Button>
 
         {/* WhatsApp */}
         <div className="mt-4 text-center">

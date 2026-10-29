@@ -13,11 +13,10 @@ import { invalidatePublicBannerCache } from '@/services/public-banner.service';
 import {
   loadAllBannerRequests, loadBannerSettings, loadActiveBanners,
   approveBannerRequest, rejectBannerRequest, updateBannerSettings,
-  loadPlatformSettings, updatePlatformSetting,
   adminAddBanner, adminUpdateBanner, adminDeleteBanner, adminLoadAllBanners,
   deactivateBanner, uploadBannerMedia, BANNER_PLACEMENT_LABELS,
   type BannerPlacement, type AdBannerRequest, type AdBannerSettings, type AdBanner,
-  type PlatformSettings, type AdminBank, type MediaType,
+  type MediaType,
 } from '@/services/ad.service';
 
 type Tab = 'slots' | 'requests' | 'settings' | 'payment';
@@ -59,8 +58,6 @@ export function AdminBannersPage() {
   const [requests, setRequests] = useState<AdBannerRequest[]>([]);
   const [allBanners, setAllBanners] = useState<AdBanner[]>([]);
   const [settings, setSettings] = useState<AdBannerSettings | null>(null);
-  const [platformSettings, setPlatformSettings] = useState<PlatformSettings | null>(null);
-  const [bankEditor, setBankEditor] = useState<AdminBank | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [editor, setEditor] = useState<BannerEditor | null>(null);
@@ -70,16 +67,14 @@ export function AdminBannersPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [reqs, bans, s, ps] = await Promise.all([
+      const [reqs, bans, s] = await Promise.all([
         loadAllBannerRequests(),
         adminLoadAllBanners(),
         loadBannerSettings(),
-        loadPlatformSettings(),
       ]);
       setRequests(reqs);
       setAllBanners(bans);
       setSettings(s);
-      setPlatformSettings(ps);
     } catch (e: any) {
       toast(e?.message ?? 'Gagal memuat data banner.', 'error');
     } finally {
@@ -103,6 +98,11 @@ export function AdminBannersPage() {
   // ── Approve / Reject ──
   const handleApprove = async (id: string) => {
     if (!settings) return toast('Settings belum tersedia.', 'error');
+    const request = requests.find((item) => item.id === id);
+    if (!request) return toast('Permintaan iklan tidak ditemukan. Muat ulang halaman.', 'error');
+    if (!['PAID', 'LEGACY_REVIEW'].includes(String(request.payment_status ?? 'UNPAID'))) {
+      return toast('Iklan belum bisa disetujui: pembayaran harus lunas melalui Pesanan atau bukti transfer lama harus ditinjau.', 'error');
+    }
     setBusy(id);
     try {
       await approveBannerRequest(id, settings);
@@ -115,6 +115,11 @@ export function AdminBannersPage() {
   };
 
   const handleReject = async (id: string) => {
+    const request = requests.find((item) => item.id === id);
+    if (!request) return toast('Permintaan iklan tidak ditemukan. Muat ulang halaman.', 'error');
+    if (request.payment_status === 'PAID' || (request.payment_order_id && request.payment_status !== 'FAILED')) {
+      return toast('Permintaan memiliki transaksi pembayaran. Batalkan atau selesaikan transaksi di menu Pesanan terlebih dahulu.', 'error');
+    }
     const note = window.prompt('Alasan penolakan:')?.trim() || '';
     if (!note) return;
     setBusy(id);
@@ -288,30 +293,6 @@ export function AdminBannersPage() {
     } catch (e: any) {
       toast(e?.message ?? 'Gagal menyimpan.', 'error');
     }
-  };
-
-  const handlePlatformSave = async (key: string, value: any) => {
-    try {
-      await updatePlatformSetting(key, value);
-      toast('Pengaturan disimpan.', 'success');
-    } catch (e: any) {
-      toast(e?.message ?? 'Gagal menyimpan.', 'error');
-    }
-  };
-
-  const addBank = () => setBankEditor({ bank: '', name: '', number: '' });
-  const saveBank = async () => {
-    if (!bankEditor || !platformSettings) return;
-    const banks = [...platformSettings.admin_banks, bankEditor];
-    await handlePlatformSave('admin_banks', banks);
-    setPlatformSettings({ ...platformSettings, admin_banks: banks });
-    setBankEditor(null);
-  };
-  const removeBank = async (idx: number) => {
-    if (!platformSettings || !confirm('Hapus rekening ini?')) return;
-    const banks = platformSettings.admin_banks.filter((_, i) => i !== idx);
-    await handlePlatformSave('admin_banks', banks);
-    setPlatformSettings({ ...platformSettings, admin_banks: banks });
   };
 
   return (
@@ -499,13 +480,14 @@ export function AdminBannersPage() {
                     <p className="text-sm text-accent font-semibold mt-1">
                       Rp {r.total_price.toLocaleString('id-ID')}
                     </p>
+                    {r.payment_status && <p className={`mt-1 text-[11px] font-semibold ${r.payment_status === 'PAID' ? 'text-emerald-400' : r.payment_status === 'LEGACY_REVIEW' ? 'text-sky-300' : 'text-amber-300'}`}>Pembayaran: {r.payment_status === 'PAID' ? 'Lunas' : r.payment_status === 'LEGACY_REVIEW' ? 'Bukti transfer lama — perlu ditinjau' : r.payment_status === 'PENDING' ? 'Menunggu verifikasi di Pesanan' : r.payment_status === 'FAILED' ? 'Pembayaran gagal / ditolak' : 'Belum dibayar'}</p>}
                     {r.admin_note && (
                       <p className="text-[11px] text-red-400 mt-1">Catatan: {r.admin_note}</p>
                     )}
                   </div>
                   {r.status === 'PENDING' && (
                     <div className="flex gap-2">
-                      <Button size="sm" loading={busy === r.id} onClick={() => void handleApprove(r.id)} icon={<Check size={14} />}>
+                      <Button size="sm" loading={busy === r.id} disabled={busy === r.id || !['PAID', 'LEGACY_REVIEW'].includes(String(r.payment_status ?? 'UNPAID'))} onClick={() => void handleApprove(r.id)} icon={<Check size={14} />}>
                         Acc
                       </Button>
                       <Button size="sm" variant="outline" disabled={busy === r.id} onClick={() => void handleReject(r.id)} icon={<X size={14} />}>
@@ -571,97 +553,17 @@ export function AdminBannersPage() {
         )}
 
         {/* ═══ TAB: PAYMENT ═══ */}
-        {tab === 'payment' && platformSettings && (
-          <div className="space-y-6">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-fg font-semibold">
-                  <CreditCard size={18} className="text-accent" /> Rekening Bank Admin
-                </div>
-                <Button size="sm" icon={<Plus size={14} />} onClick={addBank}>Tambah</Button>
+        {tab === 'payment' && (
+          <Card className="p-6">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-accent/10 p-3 text-accent"><CreditCard size={20}/></div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-fg">Pengaturan Pembayaran Terpusat</h3>
+                <p className="mt-2 text-sm leading-6 text-fg-muted">Metode transfer manual, QRIS, XenithPay, Midtrans, environment, dan aktivasi pembayaran otomatis sekarang dikelola dari satu sumber. Perubahan di halaman ini akan digunakan oleh Shop, paket penyelenggara, iklan banner, dan checkout lain yang mendukung pembayaran.</p>
+                <Link to="/admin/payment-settings" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90">Buka Pengaturan Pembayaran <ArrowLeft className="rotate-180" size={15}/></Link>
               </div>
-              <div className="space-y-3">
-                {platformSettings.admin_banks.map((bank, i) => (
-                  <div key={i} className="surface-elevated rounded-lg p-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-accent font-semibold">{bank.bank}</p>
-                      <p className="text-sm text-fg">{bank.number}</p>
-                      <p className="text-[11px] text-slate-500">a.n. {bank.name}</p>
-                    </div>
-                    <button onClick={() => void removeBank(i)} className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 transition">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-                {platformSettings.admin_banks.length === 0 && (
-                  <p className="text-xs text-slate-500 text-center py-3">Belum ada rekening.</p>
-                )}
-              </div>
-              {bankEditor && (
-                <div className="mt-4 surface-elevated/30 rounded-lg p-4 space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-1">Bank</label>
-                      <input value={bankEditor.bank} onChange={e => setBankEditor({ ...bankEditor, bank: e.target.value })} placeholder="BCA" className="input text-sm w-full" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-1">Atas Nama</label>
-                      <input value={bankEditor.name} onChange={e => setBankEditor({ ...bankEditor, name: e.target.value })} placeholder="PT ..." className="input text-sm w-full" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-1">Nomor Rekening</label>
-                      <input value={bankEditor.number} onChange={e => setBankEditor({ ...bankEditor, number: e.target.value })} placeholder="1234567890" className="input text-sm w-full" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => void saveBank()}>Simpan</Button>
-                    <Button size="sm" variant="outline" onClick={() => setBankEditor(null)}>Batal</Button>
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4 text-fg font-semibold">
-                <MessageCircle size={18} className="text-accent" /> Pengaturan Chat & WhatsApp
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">Nomor WhatsApp Admin</label>
-                  <input type="tel" value={platformSettings.whatsapp_number}
-                    onChange={e => setPlatformSettings({ ...platformSettings, whatsapp_number: e.target.value })}
-                    placeholder="6281234567890" className="input text-sm w-full" />
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="text-xs text-slate-400">Aktifkan Chat</label>
-                  <button onClick={() => setPlatformSettings({ ...platformSettings, chat_enabled: !platformSettings.chat_enabled })}
-                    className={`w-10 h-5 rounded-full transition ${platformSettings.chat_enabled ? 'bg-moss-500' : 'surface-elevated'}`}>
-                    <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${platformSettings.chat_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                  </button>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">Tipe Chat</label>
-                  <div className="flex gap-2">
-                    {(['whatsapp', 'internal'] as const).map(t => (
-                      <button key={t} onClick={() => setPlatformSettings({ ...platformSettings, chat_type: t })}
-                        className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
-                          platformSettings.chat_type === t ? 'border-moss-500 bg-moss-500/10 text-accent' : 'surface-border text-slate-500 hover:border-white/20'
-                        }`}>
-                        {t === 'whatsapp' ? 'WhatsApp' : 'Chat Internal'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <Button className="mt-6" onClick={() => {
-                handlePlatformSave('whatsapp_number', platformSettings.whatsapp_number);
-                handlePlatformSave('chat_enabled', platformSettings.chat_enabled);
-                handlePlatformSave('chat_type', platformSettings.chat_type);
-              }}>
-                Simpan Pengaturan
-              </Button>
-            </Card>
-          </div>
+            </div>
+          </Card>
         )}
 
         {/* ═══ BANNER EDITOR MODAL ═══ */}

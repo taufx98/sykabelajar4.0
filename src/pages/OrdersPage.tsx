@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { formatRupiah, formatShortDate } from '@/lib/utils';
-import { createCollectiveCertificateOrderWithProof, createProductOrderWithEduCoin, createProductOrderWithProof, listActiveProducts, type CommerceProduct } from '@/services/commerce.service';
+import { createCollectiveCertificateOrderWithProof, createProductOrderWithEduCoin, createProductOrderWithProof, listActiveProducts, listOrganizerPaymentMethods, type CommerceProduct, type OrganizerPaymentMethod } from '@/services/commerce.service';
 import { useApp } from '@/store/AppContext';
 import { uploadImage } from '@/services/cloudinary.service';
 import { createCheckoutPayment, getPublicPaymentGatewayStatus } from '@/services/payment.service';
@@ -88,7 +88,8 @@ export function OrdersPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('BANK_TRANSFER');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentMethods, setPaymentMethods] = useState<OrganizerPaymentMethod[]>([]);
   const [gatewayStatus, setGatewayStatus] = useState<Awaited<ReturnType<typeof getPublicPaymentGatewayStatus>> | null>(null);
   const [gatewayPaymentResult, setGatewayPaymentResult] = useState<Awaited<ReturnType<typeof createCheckoutPayment>> | null>(null);
   const [gatewayPaymentError, setGatewayPaymentError] = useState('');
@@ -118,8 +119,21 @@ export function OrdersPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [{ data: session }, catalog, gateway] = await Promise.all([supabase.auth.getSession(), listActiveProducts(), getPublicPaymentGatewayStatus().catch(() => null)]);
+      const [{ data: session }, catalog, gateway, configuredMethods] = await Promise.all([
+        supabase.auth.getSession(),
+        listActiveProducts(),
+        getPublicPaymentGatewayStatus().catch(() => null),
+        listOrganizerPaymentMethods().catch(() => [] as OrganizerPaymentMethod[]),
+      ]);
       setGatewayStatus(gateway);
+      setPaymentMethods(configuredMethods);
+      const globalMethod = configuredMethods.find((method) => method.details?.global_gateway === true);
+      const usableManualMethods = configuredMethods.filter((method) => ['BANK_TRANSFER', 'MANUAL_TRANSFER', 'QRIS', 'EWALLET'].includes(String(method.payment_type).trim().toUpperCase()));
+      setPaymentMethod((current) => {
+        if (current && configuredMethods.some((method) => method.id === current) && (current !== globalMethod?.id || gateway?.checkoutEnabled)) return current;
+        if (gateway?.checkoutEnabled && globalMethod) return globalMethod.id;
+        return usableManualMethods[0]?.id ?? '';
+      });
       const role = String(user?.role ?? 'pelajar');
       const audience = role === 'guru' ? 'teacher' : role === 'penyelenggara' ? 'organizer' : 'student';
       const visible = catalog.filter((product) => role === 'admin' || (Array.isArray(product.audiences) && product.audiences.includes(audience)));
@@ -197,7 +211,9 @@ export function OrdersPage() {
     ? Number(certificatePrice ?? 0)
     : Number(product.price ?? 0);
   const isEduCoinCheckout = selected?.currency === 'EDU_COIN';
-  const isGlobalGatewayCheckout = !isEduCoinCheckout && paymentMethod === 'GATEWAY_GLOBAL';
+  const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethod) ?? null;
+  const usablePaymentMethods = paymentMethods.filter((method) => method.details?.global_gateway === true || ['BANK_TRANSFER', 'MANUAL_TRANSFER', 'QRIS', 'EWALLET'].includes(String(method.payment_type).trim().toUpperCase()));
+  const isGlobalGatewayCheckout = !isEduCoinCheckout && selectedPaymentMethod?.details?.global_gateway === true;
   const checkoutQuantity = selected && isQuantityPackage ? quantity : 1;
   const checkoutTotal = selected ? displayPrice(selected) * checkoutQuantity : 0;
   const formatProductPrice = (price: number, currency: string) => currency === 'EDU_COIN'
@@ -285,8 +301,12 @@ export function OrdersPage() {
       }
       return;
     }
+    if (!isEduCoinCheckout && !selectedPaymentMethod) {
+      setError('Belum ada metode pembayaran yang aktif. Periksa pengaturan pembayaran admin.');
+      return;
+    }
     if (isGlobalGatewayCheckout && !gatewayStatus?.checkoutEnabled) {
-      setError('Pembayaran otomatis sedang tidak tersedia. Pilih metode manual atau hubungi admin.');
+      setError('Pembayaran otomatis sedang tidak tersedia. Pilih metode manual yang diaktifkan admin.');
       return;
     }
     if (!isGlobalGatewayCheckout && !proofFile) {
@@ -307,6 +327,7 @@ export function OrdersPage() {
     setMessage('');
     try {
       const upload = isGlobalGatewayCheckout ? null : await uploadImage(proofFile!, `sykabelajar/payment-proofs/${selected.id}`);
+      const paymentMethodValue = isGlobalGatewayCheckout ? 'GATEWAY_GLOBAL' : `METHOD:${selectedPaymentMethod!.id}`;
       let order: any;
       if (selectedNeedsParticipant) {
         const participant = eligibleParticipants.find((row) => row.participant_id === selectedParticipantId);
@@ -318,7 +339,7 @@ export function OrdersPage() {
         }
         order = await createCollectiveCertificateOrderWithProof({
           certificateId: String((certificate as Record<string, unknown>).id),
-          paymentMethod: paymentMethod,
+          paymentMethod: paymentMethodValue,
           proofUrl: upload?.secure_url ?? null,
           proofPublicId: upload?.public_id,
           proofWidth: upload?.width,
@@ -332,7 +353,7 @@ export function OrdersPage() {
           productId: selected.id,
           quantity: isQuantityPackage ? quantity : 1,
           whatsapp,
-          paymentMethod,
+          paymentMethod: paymentMethodValue,
           proofUrl: upload?.secure_url ?? null,
           proofPublicId: upload?.public_id,
           proofWidth: upload?.width,
@@ -520,8 +541,8 @@ export function OrdersPage() {
               <p className="mt-2 text-xs leading-5 text-fg-muted">Tidak perlu bukti transfer. Backend mengecek harga dan saldo terbaru, lalu memotong koin serta mencatat transaksi secara bersamaan. Saldo yang terlihat di sini hanya informasi; server tetap memvalidasi ulang saat pembayaran.</p>
             </div>
           : <>
-              <label className="block mt-3"><span className="label">Metode pembayaran</span><select className="input mt-1 w-full" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setProofFile(null); }} disabled={submitting}><option value="BANK_TRANSFER">Transfer bank manual</option><option value="QRIS">QRIS manual</option><option value="EWALLET">Dompet digital manual</option>{gatewayStatus?.checkoutEnabled&&<option value="GATEWAY_GLOBAL">Pembayaran Otomatis · {gatewayStatus.providerName}</option>}</select></label>
-              {isGlobalGatewayCheckout ? <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-3"><p className="text-sm font-semibold text-fg">Pembayaran terpusat aktif</p><p className="mt-1 text-xs leading-5 text-fg-muted">Tidak perlu upload bukti transfer. SYKABELAJAR akan memakai gateway yang aktif di panel admin. Selesaikan pembayaran di halaman provider atau gunakan kode pembayaran yang muncul.</p></div> : <div className="mt-4"><span className="label">Bukti pembayaran <span className="text-red-400">*</span></span><p className="text-xs text-fg-muted mt-1">Unggah bukti transfer yang menampilkan nominal dan status pembayaran.</p><label className="mt-2 flex items-center gap-2 input cursor-pointer"><Upload size={15}/><span>{proofFile ? 'Ganti bukti pembayaran' : 'Pilih gambar bukti'}</span><input ref={proofRef} type="file" accept="image/*" className="sr-only" onChange={chooseProof} disabled={submitting}/></label>{proofPreview && <img src={proofPreview} alt="Pratinjau bukti pembayaran" className="mt-3 w-full max-h-48 object-contain rounded-xl border surface-border"/>}</div>}
+              <label className="block mt-3"><span className="label">Metode pembayaran</span><select className="input mt-1 w-full" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setProofFile(null); }} disabled={submitting}><option value="">Pilih metode pembayaran</option>{usablePaymentMethods.filter((method) => method.details?.global_gateway !== true || gatewayStatus?.checkoutEnabled).map((method) => <option key={method.id} value={method.id}>{method.name} · {method.details?.global_gateway === true ? (gatewayStatus?.providerName || 'Gateway Global') : String(method.payment_type).replaceAll('_', ' ')}</option>)}</select></label>
+              {isGlobalGatewayCheckout ? <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-3"><p className="text-sm font-semibold text-fg">Pembayaran otomatis · {gatewayStatus?.providerName || 'Gateway Global'}</p><p className="mt-1 text-xs leading-5 text-fg-muted">Provider mengikuti pengaturan admin. Tidak perlu upload bukti transfer; status pesanan akan diperbarui setelah callback provider tervalidasi.</p></div> : selectedPaymentMethod ? <div className="mt-4 rounded-xl border surface-border p-3"><p className="text-sm font-semibold text-fg">{selectedPaymentMethod.name}</p>{Boolean(selectedPaymentMethod.details?.bank_name) && <p className="mt-1 text-xs text-fg-muted">Bank: <span className="text-fg">{String(selectedPaymentMethod.details.bank_name)}</span></p>}{Boolean(selectedPaymentMethod.details?.account_number) && <p className="mt-1 text-xs text-fg-muted">Nomor rekening: <span className="font-mono text-fg">{String(selectedPaymentMethod.details.account_number)}</span></p>}{Boolean(selectedPaymentMethod.details?.account_name) && <p className="mt-1 text-xs text-fg-muted">Atas nama: <span className="text-fg">{String(selectedPaymentMethod.details.account_name)}</span></p>}{typeof selectedPaymentMethod.details?.instructions === 'string' && selectedPaymentMethod.details.instructions && <p className="mt-2 whitespace-pre-line text-xs leading-5 text-fg-muted">{selectedPaymentMethod.details.instructions}</p>}{(selectedPaymentMethod.image_url || (typeof selectedPaymentMethod.details?.image_url === 'string' ? selectedPaymentMethod.details.image_url : '')) && <img src={selectedPaymentMethod.image_url || String(selectedPaymentMethod.details.image_url)} alt={selectedPaymentMethod.name} className="mt-3 max-h-48 rounded-lg object-contain"/>}<div className="mt-4"><span className="label">Bukti pembayaran <span className="text-red-400">*</span></span><p className="text-xs text-fg-muted mt-1">Unggah bukti transfer yang menampilkan nominal dan status pembayaran.</p><label className="mt-2 flex items-center gap-2 input cursor-pointer"><Upload size={15}/><span>{proofFile ? 'Ganti bukti pembayaran' : 'Pilih gambar bukti'}</span><input ref={proofRef} type="file" accept="image/*" className="sr-only" onChange={chooseProof} disabled={submitting}/></label>{proofPreview && <img src={proofPreview} alt="Pratinjau bukti pembayaran" className="mt-3 w-full max-h-48 object-contain rounded-xl border surface-border"/>}</div></div> : <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-5 text-fg-muted">Belum ada metode pembayaran yang aktif. Admin perlu mengaktifkan atau menambahkan metode di Pengaturan Pembayaran.</div>}
             </>}
         {error && <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-300">{error}</div>}
         <div className="flex items-center justify-between mt-5 pt-4 border-t surface-border"><span className="text-sm text-slate-400">Total pesanan</span><span className="text-lg font-bold text-fg">{formatProductPrice(checkoutTotal, String(selected.currency ?? 'IDR'))}</span></div>
