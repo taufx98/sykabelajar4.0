@@ -325,7 +325,11 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 function getInitialLanguage(): Language {
   if (typeof window === 'undefined') return 'id';
-  return window.localStorage.getItem(STORAGE_KEY) === 'en' ? 'en' : 'id';
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) === 'en' ? 'en' : 'id';
+  } catch {
+    return 'id';
+  }
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
