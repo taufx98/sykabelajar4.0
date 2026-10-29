@@ -291,8 +291,7 @@ begin
     values(v.user_id,'ORDER_PAYMENT','Pembayaran berhasil','Pembayaran telah diverifikasi. Paket organizer Anda sekarang aktif.',jsonb_build_object('order_id',v.id,'plan_code',v_plan));
   return v;
 end;
-$function$
-
+$function$;
 
 revoke all on function public.process_payment_gateway_success(uuid, text, uuid) from public, anon, authenticated;
 grant execute on function public.process_payment_gateway_success(uuid, text, uuid) to service_role;
@@ -395,8 +394,7 @@ begin
   perform private.write_audit('commerce.order_created','order',v_order.id::text,'SYKABELAJAR Shop checkout',null,to_jsonb(v_order),null);
   return v_order;
 end;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.create_collective_certificate_order_with_proof(p_certificate_id uuid, p_payment_method text, p_proof_url text, p_proof_public_id text DEFAULT NULL::text, p_proof_width integer DEFAULT NULL::integer, p_proof_height integer DEFAULT NULL::integer, p_proof_version text DEFAULT NULL::text, p_proof_resource_type text DEFAULT NULL::text, p_whatsapp text DEFAULT NULL::text)
  RETURNS orders
@@ -495,9 +493,7 @@ begin
     updated_at=now();
   return v_order;
 end;
-$function$
-
-
+$function$;
 
 -- Bring the original Guru workspace certificate-order flow onto the global gateway.
 CREATE OR REPLACE FUNCTION public.create_collective_certificate_order(p_certificate_id uuid)
@@ -562,5 +558,4 @@ begin
   update public.collective_certificates set status='ELIGIBLE',updated_at=now() where id=v_cert.id;
   return v_order;
 end;
-$function$
-
+$function$;
