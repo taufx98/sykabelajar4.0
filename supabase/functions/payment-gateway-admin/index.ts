@@ -212,7 +212,7 @@ Deno.serve(async (req: Request) => {
     const secrets = mergeSecrets(record(current?.secret_config), submittedEnv, provider, environment);
     const publicConfig = mergePublicConfig(record(current?.public_config), submittedEnv, provider, environment);
     const secretEnv = record(secrets[environment]);
-    if (!isConfigured(provider, environment, secrets, publicConfig)) return json({ ok: false, error: "CREDENTIALS_INCOMPLETE", message: "Lengkapi kredensial dan konfigurasi environment ini sebelum menguji koneksi." }, 422);
+    if (!isConfigured(provider, environment, secrets)) return json({ ok: false, error: "CREDENTIALS_INCOMPLETE", message: "Lengkapi kredensial dan konfigurasi environment ini sebelum menguji koneksi." }, 422);
     try {
       if (provider === "MIDTRANS") {
         const key = nonEmpty(secretEnv.server_key) || legacyMidtransSecret(environment, secretEnv);
