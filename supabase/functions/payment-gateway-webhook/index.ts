@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
     const environment: Env = isEnv(obj(intent.raw_meta).environment) ? obj(intent.raw_meta).environment : "sandbox";
     const { data: providerRow, error: configError } = await admin.from("payment_gateway_configs").select("secret_config").eq("provider", provider).maybeSingle();
     if (configError) return json({ ok: false, error: "PROVIDER_CONFIG_LOOKUP_FAILED" }, 500);
-    const webhookSecret = str(obj(obj(obj(providerRow?.secret_config)[environment]).webhook_secret));
+    const webhookSecret = str(obj(obj(providerRow?.secret_config)[environment]).webhook_secret);
     if (!webhookSecret) return json({ ok: false, error: "WEBHOOK_SECRET_MISSING" }, 503);
     const signaturePayload = `POST\\n${path}\\n${rawBody}\\n${timestamp}`;
     const expected = await hmacBase64(webhookSecret, signaturePayload);
