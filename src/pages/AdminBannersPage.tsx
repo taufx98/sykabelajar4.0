@@ -115,6 +115,11 @@ export function AdminBannersPage() {
   };
 
   const handleReject = async (id: string) => {
+    const request = requests.find((item) => item.id === id);
+    if (!request) return toast('Permintaan iklan tidak ditemukan. Muat ulang halaman.', 'error');
+    if (request.payment_status === 'PAID' || (request.payment_order_id && request.payment_status !== 'FAILED')) {
+      return toast('Permintaan memiliki transaksi pembayaran. Batalkan atau selesaikan transaksi di menu Pesanan terlebih dahulu.', 'error');
+    }
     const note = window.prompt('Alasan penolakan:')?.trim() || '';
     if (!note) return;
     setBusy(id);
