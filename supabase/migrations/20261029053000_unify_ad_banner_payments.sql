@@ -73,8 +73,7 @@ begin
           when new.status in ('CANCELLED','REFUNDED') then 'FAILED'
           else 'PENDING'
         end,
-        paid_at = case when new.status = 'PAID' then coalesce(paid_at, now()) else null end,
-        updated_at = now()
+        paid_at = case when new.status = 'PAID' then coalesce(paid_at, now()) else null end
     where payment_order_id = new.id
       and payment_status is distinct from case
         when new.status = 'PAID' then 'PAID'
@@ -214,8 +213,7 @@ begin
   set payment_order_id=v_order.id,
       payment_method_id=p_payment_method_id,
       payment_status='PENDING',
-      paid_at=null,
-      updated_at=now()
+      paid_at=null
   where id=v_request.id;
 
   perform private.write_audit('commerce.ad_banner_order_created','order',v_order.id::text,
