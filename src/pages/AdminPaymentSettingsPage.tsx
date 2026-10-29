@@ -8,6 +8,7 @@ import { useApp } from '@/store/AppContext';
 import { adminCreateOrganizerPaymentMethod, adminDeleteOrganizerPaymentMethod, listOrganizerPaymentMethods, type OrganizerPaymentMethod } from '@/services/commerce.service';
 import { deleteImage, uploadImage } from '@/services/cloudinary.service';
 import { GlobalPaymentGatewaySettings } from '@/components/admin/GlobalPaymentGatewaySettings';
+import { AdminOrderPaymentsPanel } from '@/components/admin/AdminOrderPaymentsPanel';
 
 const PAYMENT_TYPES = [
   ['BANK_TRANSFER', 'Bank Transfer'],
@@ -154,6 +155,8 @@ export function AdminPaymentSettingsPage() {
         </header>
 
         <GlobalPaymentGatewaySettings />
+
+        <AdminOrderPaymentsPanel />
 
         {!open ? (
           <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center justify-between rounded-2xl border border-dashed border-accent/40 bg-accent/5 p-5 text-left hover:bg-accent/10">
