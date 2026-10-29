@@ -299,3 +299,101 @@ export async function getPublicCompetitions(limit = 6): Promise<Array<Record<str
   })();
   try { const rows = await competitionsInFlight; return rows.slice(0, safeLimit); } catch { return []; } finally { competitionsInFlight = null; }
 }
+
+
+export type PublicLeaderboardPeriod = 'weekly' | 'monthly' | 'all';
+
+export interface PublicEnrichedLeaderboardRow extends PublicLeaderboardRow {
+  average_score: number | null;
+  competitions_count: number;
+  school_id: string | null;
+}
+
+export interface PublicSchoolLeaderboardStudent {
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  grade: string | null;
+  xp: number;
+  average_score: number | null;
+  competitions_count: number;
+}
+
+export interface PublicSchoolLeaderboardRow {
+  school_key: string;
+  school_id: string | null;
+  school_name: string;
+  student_count: number;
+  levels: string;
+  average_score: number | null;
+  competitions_count: number;
+  xp: number;
+  rank: number;
+  top_students: PublicSchoolLeaderboardStudent[];
+}
+
+export async function getPublicLeaderboardEnriched(
+  period: PublicLeaderboardPeriod = 'all',
+  limit = 100,
+): Promise<PublicEnrichedLeaderboardRow[]> {
+  const safeLimit = Math.max(1, Math.min(Math.trunc(limit) || 100, 1000));
+  const { data, error } = await supabase.rpc('get_public_leaderboard_enriched', {
+    p_period: period,
+    p_limit: safeLimit,
+  });
+  if (error) throw error;
+
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    user_id: String(row.user_id ?? ''),
+    username: String(row.username ?? ''),
+    display_name: String(row.display_name ?? row.username ?? 'Pengguna'),
+    institution: row.institution == null ? null : String(row.institution),
+    avatar_url: row.avatar_url == null ? null : String(row.avatar_url),
+    grade: row.grade == null ? null : String(row.grade),
+    xp: Number(row.xp ?? 0),
+    rank: Number(row.rank ?? 0),
+    rank_change: row.rank_change === 'up' || row.rank_change === 'down' ? row.rank_change : 'same',
+    point_change: Number(row.point_change ?? 0),
+    average_score: row.average_score == null ? null : Number(row.average_score),
+    competitions_count: Number(row.competitions_count ?? 0),
+    school_id: row.school_id == null ? null : String(row.school_id),
+  }));
+}
+
+export async function getPublicSchoolLeaderboard(
+  period: PublicLeaderboardPeriod = 'all',
+  limit = 100,
+): Promise<PublicSchoolLeaderboardRow[]> {
+  const safeLimit = Math.max(1, Math.min(Math.trunc(limit) || 100, 1000));
+  const { data, error } = await supabase.rpc('get_public_school_leaderboard', {
+    p_period: period,
+    p_limit: safeLimit,
+  });
+  if (error) throw error;
+
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    school_key: String(row.school_key ?? ''),
+    school_id: row.school_id == null ? null : String(row.school_id),
+    school_name: String(row.school_name ?? 'Sekolah'),
+    student_count: Number(row.student_count ?? 0),
+    levels: String(row.levels ?? 'Beragam jenjang'),
+    average_score: row.average_score == null ? null : Number(row.average_score),
+    competitions_count: Number(row.competitions_count ?? 0),
+    xp: Number(row.xp ?? 0),
+    rank: Number(row.rank ?? 0),
+    top_students: (Array.isArray(row.top_students) ? row.top_students : []).map((student) => {
+      const entry = student as Record<string, unknown>;
+      return {
+        user_id: String(entry.user_id ?? ''),
+        username: String(entry.username ?? ''),
+        display_name: String(entry.display_name ?? entry.username ?? 'Pengguna'),
+        avatar_url: entry.avatar_url == null ? null : String(entry.avatar_url),
+        grade: entry.grade == null ? null : String(entry.grade),
+        xp: Number(entry.xp ?? 0),
+        average_score: entry.average_score == null ? null : Number(entry.average_score),
+        competitions_count: Number(entry.competitions_count ?? 0),
+      };
+    }),
+  }));
+}
