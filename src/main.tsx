@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { startCacheAuthLifecycle } from './lib/cacheAuthLifecycle';
 import { initializeErrorIntelligence } from './lib/errorIntelligence';
+import { initializePerformanceDiagnostics } from './lib/performanceDiagnostics';
 import './index.css';
 
 startCacheAuthLifecycle();
 initializeErrorIntelligence();
+initializePerformanceDiagnostics();
 
 const container = document.getElementById('page-root') ?? document.getElementById('root');
 
