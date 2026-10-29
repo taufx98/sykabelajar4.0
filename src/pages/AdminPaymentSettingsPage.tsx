@@ -13,9 +13,6 @@ const PAYMENT_TYPES = [
   ['BANK_TRANSFER', 'Bank Transfer'],
   ['QRIS', 'QRIS'],
   ['EWALLET', 'E-Wallet'],
-  ['MIDTRANS', 'Midtrans'],
-  ['SNAP', 'Snap / Payment Gateway'],
-  ['OTHER', 'Lainnya'],
 ] as const;
 
 type FormState = {
@@ -100,7 +97,7 @@ export function AdminPaymentSettingsPage() {
     try {
       if (form.imageFile) uploaded = await uploadImage(form.imageFile, { folder: 'sykabelajar/payment-methods' });
       const created = await adminCreateOrganizerPaymentMethod({
-        name: typeLabel(type),
+        name: type === 'BANK_TRANSFER' ? `${typeLabel(type)} · ${form.bankName.trim()}` : typeLabel(type),
         paymentType: type,
         details: {
           bank_name: form.bankName.trim() || null,
@@ -150,7 +147,7 @@ export function AdminPaymentSettingsPage() {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Admin Commerce</p>
               <h1 className="mt-1 text-3xl font-bold text-fg">Metode Pembayaran</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-fg-muted">Atur metode pembayaran yang tampil pada checkout Organizer. Gambar QRIS disimpan sebagai media dan URL-nya dicatat pada Supabase.</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-fg-muted">Atur metode transfer manual yang digunakan oleh Shop, paket organizer, iklan banner, sertifikat kolektif, dan pendaftaran kolektif. Midtrans/XenithPay dikelola terpisah di Gateway Global; jangan menambahkan keduanya sebagai metode manual.</p>
             </div>
             <Badge color="moss">{methods.length} aktif</Badge>
           </div>
