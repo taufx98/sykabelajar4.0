@@ -555,7 +555,7 @@ begin
  end if;
  return v_order;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.admin_review_manual_order(p_order_id uuid, p_decision text, p_reason text DEFAULT NULL::text)
@@ -775,5 +775,4 @@ begin
     values(v.user_id,'ORDER_PAYMENT','Pembayaran berhasil','Pembayaran telah diverifikasi. Paket organizer Anda sekarang aktif.',jsonb_build_object('order_id',v.id,'plan_code',v_plan));
   return v;
 end;
-$function$
-
+$function$;
