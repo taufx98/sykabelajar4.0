@@ -619,18 +619,18 @@ export function OrdersPage() {
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <Package size={18} className="text-accent"/>
-                <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg">{itemTitle(order)}</p><p className="text-xs text-slate-500">{formatShortDate(order.created_at)} · Pesanan #{String(order.id).slice(0, 8)}</p><p className="mt-1 text-xs text-fg-muted">{String(order.payment_method ?? 'Metode belum tercatat')} · {String(order.payment_provider ?? '').toUpperCase() === 'GLOBAL' ? (gatewayStatus?.providerName || 'Gateway otomatis') : 'Pembayaran manual / internal'}</p></div>
+                <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-fg">{itemTitle(order)}</p><p className="text-xs text-slate-500">{formatShortDate(order.created_at)} · Pesanan #{String(order.id).slice(0, 8)}</p><p className="mt-1 text-xs text-fg-muted">{String(order.payment_method ?? 'Metode belum tercatat')} · {['GLOBAL', 'MIDTRANS', 'XENITHPAY'].includes(String(order.payment_provider ?? '').toUpperCase()) ? (gatewayStatus?.providerName || 'Gateway otomatis') : 'Pembayaran manual / internal'}</p></div>
                 <div className="flex flex-wrap items-center gap-3">
                   <b className="text-fg">{formatProductPrice(Number(order.total || 0), String(order.currency ?? 'IDR'))}</b>
                   <Badge>{statusLabelForOrder(order)}</Badge>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t surface-border pt-3">
-                {String(order.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && String(order.payment_provider ?? '').toUpperCase() === 'GLOBAL' && <Button size="sm" disabled={submitting} loading={submitting && pendingGatewayOrderId === String(order.id)} onClick={() => void continueGatewayPayment(String(order.id))}><CreditCard size={13} className="mr-1"/>Lanjutkan pembayaran</Button>}
+                {String(order.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && ['GLOBAL', 'MIDTRANS', 'XENITHPAY'].includes(String(order.payment_provider ?? '').toUpperCase()) && <Button size="sm" disabled={submitting} loading={submitting && pendingGatewayOrderId === String(order.id)} onClick={() => void continueGatewayPayment(String(order.id))}><CreditCard size={13} className="mr-1"/>Lanjutkan pembayaran</Button>}
                 <Button size="sm" variant="outline" onClick={() => setSelectedOrderForDetails(order)}><Eye size={13} className="mr-1"/>Lihat detail</Button>
                 {canCancelOrder(order) && <Button size="sm" variant="outline" disabled={Boolean(orderActionId)} loading={orderActionId === String(order.id)} onClick={() => void cancelPendingOrder(order)}><XCircle size={13} className="mr-1"/>Batalkan pesanan</Button>}
                 {terminalOrder(order) && <Button size="sm" variant="outline" disabled={Boolean(orderActionId)} loading={orderActionId === String(order.id)} onClick={() => void archiveOrder(order)}><Trash2 size={13} className="mr-1"/>Hapus dari riwayat</Button>}
-                {String(order.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && String(order.payment_provider ?? '').toUpperCase() === 'GLOBAL' && orderIntentsById[String(order.id)] && !canCancelOrder(order) && <span className="text-xs text-fg-muted">Sesi pembayaran dibuat; batalkan hanya setelah status sesi berakhir.</span>}
+                {String(order.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && ['GLOBAL', 'MIDTRANS', 'XENITHPAY'].includes(String(order.payment_provider ?? '').toUpperCase()) && orderIntentsById[String(order.id)] && !canCancelOrder(order) && <span className="text-xs text-fg-muted">Sesi pembayaran dibuat; batalkan hanya setelah status sesi berakhir.</span>}
               </div>
             </div>
           </Card>)}
@@ -666,7 +666,7 @@ export function OrdersPage() {
               <p className="mt-2 text-xs leading-5 text-fg-muted">Pesanan otomatis menjadi lunas setelah konfirmasi provider diterima dan diverifikasi server. Jangan menekan tombol bukti lunas di halaman provider tanpa benar-benar menyelesaikan proses yang diminta.</p>
             </div>}
             {detailOrder.admin_review_note && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3"><p className="text-xs font-semibold text-fg">Catatan admin</p><p className="mt-1 whitespace-pre-line text-sm text-fg-muted">{String(detailOrder.admin_review_note)}</p></div>}
-            {String(detailOrder.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && String(detailOrder.payment_provider ?? '').toUpperCase() === 'GLOBAL' && <Button className="mt-4 w-full" disabled={submitting} loading={submitting && pendingGatewayOrderId === String(detailOrder.id)} onClick={() => { const id = String(detailOrder.id); setSelectedOrderForDetails(null); void continueGatewayPayment(id); }}><CreditCard size={14} className="mr-1"/>Lanjutkan pembayaran</Button>}
+            {String(detailOrder.status ?? '').toUpperCase() === 'PENDING_PAYMENT' && ['GLOBAL', 'MIDTRANS', 'XENITHPAY'].includes(String(detailOrder.payment_provider ?? '').toUpperCase()) && <Button className="mt-4 w-full" disabled={submitting} loading={submitting && pendingGatewayOrderId === String(detailOrder.id)} onClick={() => { const id = String(detailOrder.id); setSelectedOrderForDetails(null); void continueGatewayPayment(id); }}><CreditCard size={14} className="mr-1"/>Lanjutkan pembayaran</Button>}
             {canCancelOrder(detailOrder) && <Button className="mt-3 w-full" variant="outline" disabled={Boolean(orderActionId)} loading={orderActionId === String(detailOrder.id)} onClick={() => void cancelPendingOrder(detailOrder)}><XCircle size={14} className="mr-1"/>Batalkan pesanan</Button>}
             {terminalOrder(detailOrder) && <Button className="mt-3 w-full" variant="outline" disabled={Boolean(orderActionId)} loading={orderActionId === String(detailOrder.id)} onClick={() => void archiveOrder(detailOrder)}><Trash2 size={14} className="mr-1"/>Hapus dari riwayat</Button>}
           </>;
