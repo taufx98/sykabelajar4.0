@@ -214,16 +214,12 @@ export function AdminOrderPaymentsPanel() {
         payment_method_details: paymentMethods.get(String(row.payment_method_id ?? ''))?.details ?? null,
       }));
       setOrders(rows);
-      if (selected) {
-        const refreshed = rows.find((row) => String(row.id) === String(selected.id));
-        if (refreshed) setSelected(refreshed);
-      }
     } catch (error: any) {
       toast(error?.message || 'Gagal memuat riwayat pembayaran.', 'error');
     } finally {
       setLoading(false);
     }
-  }, [debouncedQuery, filter, page, pageSize, selected, toast]);
+  }, [debouncedQuery, filter, page, pageSize, toast]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -304,13 +300,8 @@ export function AdminOrderPaymentsPanel() {
       setOverrideOrder(null);
       setOverrideReason('');
       setVerifiedExternally(false);
+      setSelected(null);
       await load();
-      if (selected && String(selected.id) === id) {
-        const { data } = await supabase.from('orders')
-          .select('id,user_id,status,total,currency,created_at,updated_at,payment_method,payment_provider,payment_proof_url,payment_proof_status,admin_review_note,reviewed_at,contact_name,contact_email,contact_whatsapp,contact_note,contact_fields,order_items(id,name,product_type,product_ref,quantity,unit_price,line_total,metadata)')
-          .eq('id', id).maybeSingle();
-        if (data) await openDetails(data);
-      }
     } catch (error: any) {
       toast(error?.message || 'Pesanan belum bisa diselesaikan oleh admin.', 'error');
     } finally {
