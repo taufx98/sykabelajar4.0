@@ -22,31 +22,28 @@ const nameOf = (t: ChatThread, me: string, admin: boolean) => isTicket(t) ? (adm
 function dedupeInboxThreads(items: ChatThread[]): ChatThread[] {
   const byId = new Map<string, ChatThread>();
   for (const item of items) {
-    if (!item?.id) continue;
-    if (!byId.has(item.id)) byId.set(item.id, item);
+    if (item?.id && !byId.has(item.id)) byId.set(item.id, item);
   }
-
   const uniqueRows = [...byId.values()];
-  const latestDmByPair = new Map<string, ChatThread>();
+  const latestOpenDmByPair = new Map<string, ChatThread>();
   const timestamp = (thread: ChatThread) => {
     const value = new Date(thread.last_message_at || thread.created_at).getTime();
     return Number.isFinite(value) ? value : 0;
   };
 
+  // Keep closed conversation records intact. Only collapse duplicate active DMs
+  // in the UI; the database already has a unique index for an open DM pair.
   for (const thread of uniqueRows) {
-    if (thread.thread_type !== 'dm' || !thread.participant_id || thread.user_id === thread.participant_id) continue;
+    if (thread.thread_type !== 'dm' || thread.status !== 'open' || !thread.participant_id || thread.user_id === thread.participant_id) continue;
     const key = [thread.user_id, thread.participant_id].sort().join(':');
-    const existing = latestDmByPair.get(key);
-    const shouldReplace = !existing
-      || (thread.status === 'open' && existing.status !== 'open')
-      || (thread.status === existing.status && timestamp(thread) > timestamp(existing));
-    if (shouldReplace) latestDmByPair.set(key, thread);
+    const existing = latestOpenDmByPair.get(key);
+    if (!existing || timestamp(thread) > timestamp(existing)) latestOpenDmByPair.set(key, thread);
   }
 
   return uniqueRows.filter((thread) => {
-    if (thread.thread_type !== 'dm' || !thread.participant_id || thread.user_id === thread.participant_id) return true;
+    if (thread.thread_type !== 'dm' || thread.status !== 'open' || !thread.participant_id || thread.user_id === thread.participant_id) return true;
     const key = [thread.user_id, thread.participant_id].sort().join(':');
-    return latestDmByPair.get(key)?.id === thread.id;
+    return latestOpenDmByPair.get(key)?.id === thread.id;
   });
 }
 const usernameOf = (t: ChatThread, me: string, admin: boolean) => isTicket(t) ? (admin ? t.username || 'user' : 'sykabelajar') : (t.user_id === me ? t.other_username || 'user' : t.username || 'user');
@@ -108,6 +105,7 @@ export function MessagesPage() {
  const [now,setNow]=useState(Date.now());
  const [spamLevel,setSpamLevel]=useState(0);
  const [threadSearch,setThreadSearch]=useState('');
+ const [showAllHistory,setShowAllHistory]=useState(false);
  const [pinnedIds,setPinnedIds]=useState<string[]>([]);
  const [pinnedOnly,setPinnedOnly]=useState(false);
  const [messageSearchOpen,setMessageSearchOpen]=useState(false);
@@ -143,6 +141,20 @@ export function MessagesPage() {
  const visibleOpen=useMemo(()=>filterThreadRows(open),[filterThreadRows,open]);
  const visiblePendingRating=useMemo(()=>filterThreadRows(pendingRating),[filterThreadRows,pendingRating]);
  const visibleHistory=useMemo(()=>filterThreadRows(history),[filterThreadRows,history]);
+ const collapsedHistory=useMemo(()=>{
+   const latestByConversation=new Map<string,ChatThread>();
+   const timestamp=(thread:ChatThread)=>{const value=new Date(thread.last_message_at||thread.created_at).getTime();return Number.isFinite(value)?value:0};
+   for(const thread of visibleHistory){
+     const key=thread.thread_type==='dm'&&thread.participant_id
+       ? `dm:${[thread.user_id,thread.participant_id].sort().join(':')}`
+       : `thread:${thread.id}`;
+     const current=latestByConversation.get(key);
+     if(!current||timestamp(thread)>timestamp(current))latestByConversation.set(key,thread);
+   }
+   return [...latestByConversation.values()].sort((a,b)=>timestamp(b)-timestamp(a));
+ },[visibleHistory]);
+ const displayHistory=showAllHistory?visibleHistory:collapsedHistory;
+ const summarizedHistoryCount=Math.max(0,visibleHistory.length-collapsedHistory.length);
  const visibleGroups=useMemo(()=>{const query=threadSearch.trim().toLocaleLowerCase();return groups.filter(group=>!query||`${group.name} ${group.last_message||''}`.toLocaleLowerCase().includes(query));},[groups,threadSearch]);
  const messageMatches=useMemo(()=>{const query=messageSearch.trim().toLocaleLowerCase();return query?messages.filter(isCachedMessage).filter(message=>message.body.toLocaleLowerCase().includes(query)):[]},[messages,messageSearch]);
  const jumpToMessageMatch=(direction:number)=>{if(!messageMatches.length)return;const current=messageSearchIndex<0?(direction>0?-1:0):messageSearchIndex;const next=(current+direction+messageMatches.length)%messageMatches.length;setMessageSearchIndex(next);window.requestAnimationFrame(()=>document.getElementById(`chat-message-${messageMatches[next].id}`)?.scrollIntoView({behavior:'smooth',block:'center'}));};
@@ -236,8 +248,8 @@ export function MessagesPage() {
            {visibleOpen.map(thread=><ThreadRow key={thread.id} t={thread} me={me} admin={admin} selected={selected?.id===thread.id} pinned={pinnedIds.includes(thread.id)} onTogglePin={()=>togglePinned(thread.id)} onClick={()=>void choose(thread)} onHide={()=>void hide(thread)}/>)}
            {visiblePendingRating.length>0&&<div className="flex items-center justify-between px-2 pb-1 pt-3"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-500">Menunggu Rating</span><span className="text-[10px] text-slate-400">{visiblePendingRating.length}</span></div>}
            {visiblePendingRating.map(thread=><ThreadRow key={thread.id} t={thread} me={me} admin={admin} selected={selected?.id===thread.id} pinned={pinnedIds.includes(thread.id)} onTogglePin={()=>togglePinned(thread.id)} onClick={()=>void choose(thread)} onHide={()=>void hide(thread)}/>)}
-           {visibleHistory.length>0&&<div className="flex items-center justify-between px-2 pb-1 pt-3"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-500" >{t('chat.history')}</span><span className="text-[10px] text-slate-400">{visibleHistory.length}</span></div>}
-           {visibleHistory.map(thread=><ThreadRow key={thread.id} t={thread} me={me} admin={admin} selected={selected?.id===thread.id} pinned={pinnedIds.includes(thread.id)} onTogglePin={()=>togglePinned(thread.id)} onClick={()=>void choose(thread)} onHide={()=>void hide(thread)}/>)}
+           {visibleHistory.length>0&&<div className="flex items-center justify-between gap-2 px-2 pb-1 pt-3"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-500">{t('chat.history')} · {visibleHistory.length}</span>{summarizedHistoryCount>0&&<button type="button" onClick={()=>setShowAllHistory((value)=>!value)} className="text-[10px] font-semibold text-accent hover:underline">{showAllHistory?(language==='en'?'Show less':'Ringkas riwayat'):(language==='en'? `Show all (+${summarizedHistoryCount})` : `Lihat semua (+${summarizedHistoryCount})`)}</button>}</div>}
+           {displayHistory.map(thread=><ThreadRow key={thread.id} t={thread} me={me} admin={admin} selected={selected?.id===thread.id} pinned={pinnedIds.includes(thread.id)} onTogglePin={()=>togglePinned(thread.id)} onClick={()=>void choose(thread)} onHide={()=>void hide(thread)}/>)}
            {!visibleOpen.length&&!visiblePendingRating.length&&!visibleHistory.length&&<div className="px-5 py-12 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-200/70 text-slate-500 dark:bg-slate-800 dark:text-slate-400"><MessageCircle size={20}/></div><p className="mt-3 text-xs font-semibold text-fg">{pinnedOnly?t('chat.noPinned'):threadSearch?t('chat.notFound'):t('chat.noConversations')}</p><p className="mt-1 text-[11px] text-fg-muted">{pinnedOnly?(language==='en'?'Pin a conversation from the chat menu.':'Sematkan percakapan dari menu chat.'):t('chat.newMessages')}</p></div>}
          </>) : <>
            {visibleGroups.map(group=><GroupRow key={group.id} g={group} selected={selectedGroup?.id===group.id} onClick={()=>void chooseGroup(group)}/>)}
