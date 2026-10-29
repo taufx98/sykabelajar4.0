@@ -38,6 +38,17 @@ security definer
 set search_path = public, pg_catalog
 as $function$
 begin
+  if tg_op = 'INSERT' then
+    if (
+      new.payment_order_id is not null
+      or new.payment_method_id is not null
+      or new.payment_status is distinct from 'UNPAID'
+      or new.paid_at is not null
+    ) and coalesce(current_setting('app.ad_banner_payment_write', true), '') <> 'true' then
+      raise exception 'AD_BANNER_PAYMENT_FIELDS_MANAGED_BY_SYSTEM';
+    end if;
+    return new;
+  end if;
   if (
     new.payment_order_id is distinct from old.payment_order_id
     or new.payment_method_id is distinct from old.payment_method_id
@@ -56,6 +67,11 @@ drop trigger if exists ad_banner_payment_columns_guard on public.ad_banner_reque
 create trigger ad_banner_payment_columns_guard
 before update of payment_order_id, payment_method_id, payment_status, paid_at
 on public.ad_banner_requests
+for each row execute function public.guard_ad_banner_payment_columns();
+
+drop trigger if exists ad_banner_payment_columns_insert_guard on public.ad_banner_requests;
+create trigger ad_banner_payment_columns_insert_guard
+before insert on public.ad_banner_requests
 for each row execute function public.guard_ad_banner_payment_columns();
 
 create or replace function public.sync_ad_banner_payment_from_order()
@@ -114,9 +130,12 @@ declare
   v_method public.organizer_payment_methods%rowtype;
   v_gateway_state public.payment_gateway_state%rowtype;
   v_provider_config public.payment_gateway_configs%rowtype;
+  v_banner_settings public.ad_banner_settings%rowtype;
   v_order public.orders%rowtype;
   v_is_global boolean;
   v_environment text;
+  v_daily_price numeric(14,2);
+  v_base_amount numeric(14,2);
   v_amount numeric(14,2);
   v_proof text := nullif(trim(coalesce(p_proof_url,'')), '');
 begin
@@ -130,6 +149,22 @@ begin
   for update;
   if not found then raise exception 'AD_BANNER_REQUEST_NOT_FOUND'; end if;
   if v_request.status <> 'PENDING' then raise exception 'AD_BANNER_REQUEST_NOT_PAYABLE'; end if;
+  if v_request.duration_days not between 1 and 90 then raise exception 'AD_BANNER_DURATION_INVALID'; end if;
+  if (v_request.placement='home_sidebar' and v_request.slots_requested<>1)
+     or (v_request.placement='home_top' and v_request.slots_requested not between 1 and 2) then
+    raise exception 'AD_BANNER_SLOT_COUNT_INVALID';
+  end if;
+  select * into v_banner_settings from public.ad_banner_settings order by created_at limit 1;
+  v_daily_price := coalesce(nullif(v_banner_settings.price_per_lot_daily,0),50000);
+  if v_request.single_image and v_request.slots_requested=2 then
+    v_base_amount := round(coalesce(nullif(v_banner_settings.single_image_2slots_price,0),v_daily_price*2) * v_request.duration_days,2);
+  else
+    v_base_amount := round(v_daily_price * v_request.slots_requested * v_request.duration_days,2);
+  end if;
+  if v_base_amount<=0 then raise exception 'AD_BANNER_PRICE_INVALID'; end if;
+  -- Recalculate server-side; never trust the client-supplied request total for a payment amount.
+  update public.ad_banner_requests set total_price=v_base_amount where id=v_request.id;
+  v_request.total_price := v_base_amount;
 
   select * into v_method from public.organizer_payment_methods
   where id=p_payment_method_id and is_active=true;
@@ -177,7 +212,7 @@ begin
     if found then raise exception 'AD_BANNER_PAYMENT_ORDER_EXISTS'; end if;
   end if;
 
-  v_amount := v_request.total_price + case when v_is_global then 0 else p_unique_code end;
+  v_amount := v_base_amount + case when v_is_global then 0 else p_unique_code end;
   if not coalesce(v_amount > 0 and v_amount < 1000000000000, false) then raise exception 'INVALID_ORDER_AMOUNT'; end if;
 
   insert into public.orders(
