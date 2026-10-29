@@ -506,6 +506,33 @@ $function$;
 revoke execute on function public.create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text) from public, anon;
 grant execute on function public.create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text) to authenticated;
 
+CREATE OR REPLACE FUNCTION public.create_collective_registration_order(p_competition_id uuid, p_roster_student_ids uuid[], p_competition_level_id uuid, p_certificate_policy text, p_school_id uuid, p_school_name text, p_contact_name text, p_contact_whatsapp text, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_idempotency_key uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$ declare v_uid uuid:=auth.uid(); v_existing public.collective_registrations%rowtype; v_quote jsonb; v_comp public.competitions%rowtype; v_method public.organizer_payment_methods%rowtype; v_reg public.collective_registrations%rowtype; v_order public.orders%rowtype; v_status public.order_status; v_proof_status text; v_payment_method text; begin if v_uid is null then raise exception 'AUTH_REQUIRED'; end if; if p_idempotency_key is null then raise exception 'IDEMPOTENCY_KEY_REQUIRED'; end if; select * into v_existing from public.collective_registrations where teacher_user_id=v_uid and idempotency_key=p_idempotency_key limit 1; if found then select * into v_order from public.orders where id=v_existing.order_id; return jsonb_build_object('registration_id',v_existing.id,'order_id',v_existing.order_id,'status',v_existing.status,'amount',v_existing.amount,'currency',v_existing.currency,'student_count',v_existing.student_count,'certificate_policy',v_existing.certificate_policy,'order_status',v_order.status,'idempotent',true); end if; perform pg_advisory_xact_lock(hashtextextended(v_uid::text||':'||p_competition_id::text||':collective_registration',0)); select * into v_existing from public.collective_registrations where teacher_user_id=v_uid and idempotency_key=p_idempotency_key limit 1; if found then select * into v_order from public.orders where id=v_existing.order_id; return jsonb_build_object('registration_id',v_existing.id,'order_id',v_existing.order_id,'status',v_existing.status,'amount',v_existing.amount,'currency',v_existing.currency,'student_count',v_existing.student_count,'certificate_policy',v_existing.certificate_policy,'order_status',v_order.status,'idempotent',true); end if; select * into v_comp from public.competitions c where c.id=p_competition_id; if not found then raise exception 'COMPETITION_NOT_FOUND'; end if; v_quote:=public.quote_collective_registration(p_competition_id,p_roster_student_ids,p_certificate_policy); if p_competition_level_id is not null and not exists(select 1 from public.competition_levels cl where cl.id=p_competition_level_id and cl.competition_id=p_competition_id) then raise exception 'INVALID_COMPETITION_LEVEL'; end if; if (v_quote->>'total')::numeric>0 then
+  select * into v_method from public.organizer_payment_methods m where m.id=p_payment_method_id and m.is_active=true;
+  if not found then raise exception 'PAYMENT_METHOD_REQUIRED'; end if;
+  if coalesce(v_method.details->>'global_gateway','false')='true' then
+    if not exists(select 1 from public.payment_gateway_state s where s.id=true and s.automatic_payments_enabled=true and s.active_provider in ('MIDTRANS','XENITHPAY')) then
+      raise exception 'GLOBAL_GATEWAY_NOT_ACTIVE';
+    end if;
+  else
+    if upper(coalesce(v_method.payment_type,'')) not in ('BANK_TRANSFER','MANUAL_TRANSFER','QRIS','EWALLET') then raise exception 'PAYMENT_METHOD_NOT_SUPPORTED'; end if;
+    if nullif(trim(coalesce(p_proof_url,'')),'') is null or p_proof_url !~* '^https?://' then raise exception 'PAYMENT_PROOF_REQUIRED'; end if;
+  end if;
+end if; v_payment_method:=coalesce(v_method.name,case when (v_quote->>'total')::numeric=0 then 'FREE' else 'MANUAL_TRANSFER' end); v_status:=case when (v_quote->>'total')::numeric=0 then 'PAID'::public.order_status else 'PENDING_PAYMENT'::public.order_status end; v_proof_status:=case when nullif(trim(coalesce(p_proof_url,'')),'') is null then 'NOT_SUBMITTED' else 'SUBMITTED' end; insert into public.collective_registrations(competition_id,teacher_user_id,school_id,school_name,competition_level_id,certificate_policy,roster_student_ids,student_count,status,amount,currency,idempotency_key,payment_method_id,metadata) values(p_competition_id,v_uid,p_school_id,nullif(trim(p_school_name),''),p_competition_level_id,p_certificate_policy,coalesce(p_roster_student_ids,'{}'::uuid[]),(v_quote->>'student_count')::integer,case when v_status='PAID' then 'PAID' else 'PENDING_PAYMENT' end,(v_quote->>'total')::numeric,coalesce(v_quote->>'currency','IDR'),p_idempotency_key,p_payment_method_id,jsonb_build_object('source','guru_collective_registration','competition_id',p_competition_id,'teacher_user_id',v_uid,'certificate_policy',p_certificate_policy)); select * into v_reg from public.collective_registrations where teacher_user_id=v_uid and idempotency_key=p_idempotency_key; insert into public.orders(user_id,status,subtotal,discount,shipping_cost,total,currency,contact_whatsapp,payment_method,payment_provider,payment_proof_url,payment_proof_public_id,payment_proof_width,payment_proof_height,payment_proof_version,payment_proof_resource_type,payment_proof_status,contact_name,contact_email,contact_note,contact_fields,payment_method_id) values(v_uid,v_status,(v_quote->>'subtotal')::numeric,0,0,(v_quote->>'total')::numeric,coalesce(v_quote->>'currency','IDR'),nullif(trim(p_contact_whatsapp),''),v_payment_method,case when v_status='PAID' then 'FREE' when coalesce(v_method.details->>'global_gateway','false')='true' then 'GLOBAL' else 'MANUAL' end,nullif(trim(p_proof_url),''),nullif(trim(p_proof_public_id),''),p_proof_width,p_proof_height,p_proof_version,p_proof_resource_type,v_proof_status,nullif(trim(p_contact_name),''),null,null,jsonb_build_object('collective_registration_id',v_reg.id,'competition_id',p_competition_id,'teacher_user_id',v_uid,'certificate_policy',p_certificate_policy,'roster_student_ids',to_jsonb(coalesce(p_roster_student_ids,'{}'::uuid[]))),p_payment_method_id) returning * into v_order; insert into public.order_items(order_id,product_type,product_ref,name,quantity,unit_price,line_total,metadata) values(v_order.id,'COLLECTIVE_REGISTRATION',p_competition_id,'Pendaftaran Kolektif — '||v_comp.title,(v_quote->>'student_count')::integer,(v_quote->>'unit_price')::numeric,(v_quote->>'total')::numeric,jsonb_build_object('collective_registration_id',v_reg.id,'competition_id',p_competition_id,'teacher_user_id',v_uid,'roster_student_ids',to_jsonb(coalesce(p_roster_student_ids,'{}'::uuid[])),'competition_level_id',p_competition_level_id,'certificate_policy',p_certificate_policy)); update public.collective_registrations set order_id=v_order.id,updated_at=now() where id=v_reg.id returning * into v_reg; return jsonb_build_object('registration_id',v_reg.id,'order_id',v_order.id,'status',v_reg.status,'amount',v_order.total,'currency',v_order.currency,'student_count',v_reg.student_count,'certificate_policy',v_reg.certificate_policy,'order_status',v_order.status,'payment_method',v_order.payment_method,'idempotent',false); end; $function$
+
+
+revoke execute on function public.create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid) from public, anon;
+grant execute on function public.create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid) to authenticated;
+
+
+
+revoke execute on function public.create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text) from public, anon;
+grant execute on function public.create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text) to authenticated;
+
 CREATE OR REPLACE FUNCTION public.create_organizer_plan_order(p_organizer_id uuid, p_plan_code text, p_billing_period text, p_contact_name text DEFAULT NULL::text, p_contact_email text DEFAULT NULL::text, p_whatsapp text DEFAULT NULL::text, p_contact_note text DEFAULT NULL::text, p_contact_fields jsonb DEFAULT '{}'::jsonb, p_payment_method_id uuid DEFAULT NULL::uuid, p_proof_url text DEFAULT NULL::text, p_proof_public_id text DEFAULT NULL::text, p_proof_width integer DEFAULT NULL::integer, p_proof_height integer DEFAULT NULL::integer, p_proof_version text DEFAULT NULL::text, p_proof_resource_type text DEFAULT NULL::text, p_voucher_code text DEFAULT NULL::text)
  RETURNS orders
  LANGUAGE plpgsql
@@ -539,10 +566,6 @@ begin
  else
    select * into v_method from public.organizer_payment_methods where is_active=true and coalesce(details->>'global_gateway','false') <> 'true' order by sort_order,created_at limit 1;
  end if;
- if v_total>0 and coalesce(v_method.details->>'global_gateway','false')='true'
-    and not exists(select 1 from public.payment_gateway_state s where s.id=true and s.automatic_payments_enabled=true and s.active_provider in ('MIDTRANS','XENITHPAY')) then
-   raise exception 'GLOBAL_GATEWAY_NOT_ACTIVE';
- end if;
  if nullif(trim(p_voucher_code),'') is not null then
    select * into v_v from public.organizer_vouchers where code=upper(trim(p_voucher_code)) for update;
    if not found then raise exception 'VOUCHER_NOT_FOUND'; end if;
@@ -557,6 +580,20 @@ begin
    end if;
  end if;
  v_total:=greatest(0,v_total-v_voucher_disc);
+ if v_total>0 then
+   if coalesce(v_method.details->>'global_gateway','false')='true' then
+     if not exists(select 1 from public.payment_gateway_state s where s.id=true and s.automatic_payments_enabled=true and s.active_provider in ('MIDTRANS','XENITHPAY')) then
+       raise exception 'GLOBAL_GATEWAY_NOT_ACTIVE';
+     end if;
+   else
+     if upper(coalesce(v_method.payment_type,'')) not in ('BANK_TRANSFER','MANUAL_TRANSFER','QRIS','EWALLET') then
+       raise exception 'PAYMENT_METHOD_NOT_SUPPORTED';
+     end if;
+     if nullif(trim(coalesce(p_proof_url,'')),'') is null or p_proof_url !~* '^https?://' then
+       raise exception 'PAYMENT_PROOF_REQUIRED';
+     end if;
+   end if;
+ end if;
  if v_method.id is null and v_total>0 then raise exception 'PAYMENT_METHOD_REQUIRED'; end if;
  v_random_enabled:=upper(coalesce(v_method.payment_type,''))='BANK_TRANSFER' and coalesce((v_method.details->>'random_code_enabled')::boolean,false) and v_total>0;
  if v_random_enabled then v_random_code := case when coalesce((p_contact_fields->>'payment_random_code') ~ '^[0-9]{3}$',false) and (p_contact_fields->>'payment_random_code')::integer between 100 and 999 then (p_contact_fields->>'payment_random_code')::integer else floor(random()*900)+100 end; end if;
@@ -631,9 +668,12 @@ begin
   select * into v from public.orders where id=p_order_id for update;
   if not found then raise exception 'ORDER_NOT_FOUND'; end if;
   if upper(trim(p_decision)) not in ('APPROVE','REJECT') then raise exception 'INVALID_DECISION'; end if;
-  if upper(trim(p_decision))='APPROVE' and exists (
-    select 1 from public.organizer_payment_methods m
-    where m.id=v.payment_method_id and m.details->>'global_gateway'='true'
+  if upper(trim(p_decision))='APPROVE' and (
+    upper(coalesce(v.payment_provider,'')) in ('GLOBAL','MIDTRANS','XENITHPAY')
+    or exists (
+      select 1 from public.organizer_payment_methods m
+      where m.id=v.payment_method_id and m.details->>'global_gateway'='true'
+    )
   ) then raise exception 'GATEWAY_PAYMENT_REQUIRES_VERIFIED_WEBHOOK'; end if;
   if v.status<>'PENDING_PAYMENT' then raise exception 'ORDER_NOT_REVIEWABLE:%',v.status; end if;
   v_before := v;
