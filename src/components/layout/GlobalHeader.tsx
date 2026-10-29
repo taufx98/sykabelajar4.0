@@ -90,7 +90,7 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
   const isAdminBadges = location.pathname === '/admin/badges';
   const label = isAdminChat ? 'Kontrol Admin' : isAdminBadges ? 'Badge' : activeItem?.label ?? 'SYKABELAJAR';
   const Icon = isAdminBadges ? Medal : activeItem?.icon;
-  const meta = (language === 'en' ? META_EN[label] : META[label]) ?? fallbackMeta(label);
+  const meta = (language === 'en' ? META_EN[label] : META[label]) ?? (language === 'en' ? { section: 'SYKABELAJAR', subtitle: label === 'SYKABELAJAR' ? 'SYKABELAJAR workspace' : `${label} page` } : fallbackMeta(label));
   const showAdminCommunication = user?.role === 'admin' && (location.pathname === '/pesan' || isAdminChat);
 
   return (
