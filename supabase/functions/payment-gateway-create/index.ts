@@ -89,7 +89,8 @@ Deno.serve(async (req: Request) => {
     .select("provider,is_enabled,environment,public_config,secret_config").eq("provider", provider).maybeSingle();
   if (providerError) return response({ ok: false, error: "PAYMENT_PROVIDER_LOOKUP_FAILED" }, 500);
   const envFromConfig = isEnv(providerRow?.environment) ? providerRow.environment : (provider === "MIDTRANS" && Deno.env.get("MIDTRANS_ENV") === "production" ? "production" : "sandbox");
-  const legacyKey = provider === "MIDTRANS" ? legacyMidtransKey(envFromConfig) : "";
+  const { secrets, publicConfig } = providerCredentials(provider as Provider, obj(providerRow), envFromConfig);
+  const legacyKey = provider === "MIDTRANS" && secrets.disable_legacy_midtrans !== true ? legacyMidtransKey(envFromConfig) : "";
   const enabled = providerRow?.is_enabled === true || (provider === "MIDTRANS" && !providerRow && Boolean(legacyKey));
   if (!enabled) return response({ ok: false, error: "PAYMENT_PROVIDER_DISABLED", message: "Provider pembayaran belum diaktifkan oleh admin." }, 409);
 
@@ -113,7 +114,6 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const { secrets, publicConfig } = providerCredentials(provider as Provider, obj(providerRow), envFromConfig);
   let result: Row;
   if (provider === "MIDTRANS") {
     const serverKey = str(secrets.server_key) || legacyKey;
