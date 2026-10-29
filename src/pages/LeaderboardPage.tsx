@@ -507,6 +507,41 @@ export function LeaderboardPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedSchool]);
 
+  const categoryNavigation = (
+<nav className="lb-category-area" aria-label="Kategori papan peringkat">
+  <div className="lb-category-tabs">
+    {CATEGORIES.map((item) => {
+      const isDisabled = item.key === 'school' && mode === 'coin';
+      return (
+        <button
+          key={item.key}
+          type="button"
+          className={'lb-category-tab ' + (category === item.key ? 'active' : '')}
+          disabled={isDisabled}
+          title={isDisabled ? 'Peringkat sekolah menggunakan akumulasi XP.' : undefined}
+          onClick={() => changeCategory(item.key)}
+        >
+          {item.key === 'school' && <School size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }} />}
+          {item.label}
+        </button>
+      );
+    })}
+  </div>
+  {category !== 'all' && category !== 'school' && (
+    <div className="lb-subgrades" aria-label="Filter kelas">
+      <button type="button" className={'lb-subgrade ' + (!subGrade ? 'active' : '')} onClick={() => { setSubGrade(null); setPage(1); }}>
+        Semua {category === 'sd' ? 'SD' : category === 'smp' ? 'SMP' : 'SMA/SMK'}
+      </button>
+      {SUB_GRADES[category].map((level) => (
+        <button key={level} type="button" className={'lb-subgrade ' + (subGrade === level ? 'active' : '')} onClick={() => { setSubGrade(level); setPage(1); }}>
+          Kelas {level}
+        </button>
+      ))}
+    </div>
+  )}
+</nav>
+  );
+
   return (
     <main className="syka-leaderboard">
       <style>{LEADERBOARD_STYLES}</style>
@@ -550,38 +585,7 @@ export function LeaderboardPage() {
         </label>
       </div>
 
-      <nav className="lb-category-area" aria-label="Kategori papan peringkat">
-        <div className="lb-category-tabs">
-          {CATEGORIES.map((item) => {
-            const isDisabled = item.key === 'school' && mode === 'coin';
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={'lb-category-tab ' + (category === item.key ? 'active' : '')}
-                disabled={isDisabled}
-                title={isDisabled ? 'Peringkat sekolah menggunakan akumulasi XP.' : undefined}
-                onClick={() => changeCategory(item.key)}
-              >
-                {item.key === 'school' && <School size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }} />}
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-        {category !== 'all' && category !== 'school' && (
-          <div className="lb-subgrades" aria-label="Filter kelas">
-            <button type="button" className={'lb-subgrade ' + (!subGrade ? 'active' : '')} onClick={() => { setSubGrade(null); setPage(1); }}>
-              Semua {category === 'sd' ? 'SD' : category === 'smp' ? 'SMP' : 'SMA/SMK'}
-            </button>
-            {SUB_GRADES[category].map((level) => (
-              <button key={level} type="button" className={'lb-subgrade ' + (subGrade === level ? 'active' : '')} onClick={() => { setSubGrade(level); setPage(1); }}>
-                Kelas {level}
-              </button>
-            ))}
-          </div>
-        )}
-      </nav>
+
 
       {loading && <div className="lb-loading"><span className="lb-spinner" />Memuat peringkat...</div>}
       {!loading && error && (
@@ -611,6 +615,7 @@ export function LeaderboardPage() {
                   })}
                 </div>
               )}
+              {categoryNavigation}
               <SchoolRankingTable schools={pagedSchools} onPickSchool={onPickSchool} />
               {!sourceLength && <div className="lb-empty">Belum ada data sekolah yang dapat diperingkat.</div>}
               {sourceLength > 3 && renderPagination(safePage, totalPages, setPage, listLength, 'sekolah', searchActive)}
@@ -625,6 +630,7 @@ export function LeaderboardPage() {
                   ))}
                 </div>
               )}
+              {categoryNavigation}
               <PersonRankingTable rows={pagedPeople} mode={mode} currentUserId={user?.id} onPickSchool={onPickSchool} />
               {!sourceLength && <div className="lb-empty">Belum ada data peringkat untuk filter ini.</div>}
               {sourceLength > (searchActive ? 0 : 3) && renderPagination(safePage, totalPages, setPage, listLength, 'siswa', searchActive)}
