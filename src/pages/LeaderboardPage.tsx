@@ -47,7 +47,7 @@ type LeaderEntry = {
 };
 
 const MAX_RANK = 100;
-const PER_PAGE = 10;
+const PER_PAGE = 7;
 
 const PERIODS: Array<{ key: PublicLeaderboardPeriod; label: string }> = [
   { key: 'weekly', label: 'Mingguan' },
@@ -271,6 +271,24 @@ const LEADERBOARD_STYLES = String.raw`
 @media (prefers-reduced-motion: reduce) {
  .syka-leaderboard *, .syka-leaderboard *::before, .syka-leaderboard *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+.lb-podium.is-empty { cursor: default; }
+.lb-podium.is-empty .lb-podium-tower { box-shadow: none; border: 1px dashed rgba(148,163,184,.34); filter: saturate(.68); }
+.lb-podium.rank-1.is-empty .lb-podium-tower { background: linear-gradient(180deg,rgba(245,158,11,.13),rgba(124,45,18,.045)); }
+.lb-podium.rank-2.is-empty .lb-podium-tower { background: linear-gradient(180deg,rgba(37,99,235,.16),rgba(23,37,84,.045)); }
+.lb-podium.rank-3.is-empty .lb-podium-tower { background: linear-gradient(180deg,rgba(99,102,241,.16),rgba(17,24,39,.045)); }
+.lb-podium.is-empty .lb-podium-badge { opacity: .68; }
+.lb-podium.is-empty .lb-avatar-wrap { background: rgba(148,163,184,.07); border: 1px dashed rgba(148,163,184,.38); box-shadow: none; color: var(--lb-muted); }
+.lb-podium.is-empty .lb-podium-name { color: var(--lb-muted); }
+.lb-podium.is-empty .lb-podium-user, .lb-podium.is-empty .lb-podium-school { color: var(--lb-muted); opacity: .8; }
+.lb-podium.is-empty .lb-podium-score { background: rgba(2,6,23,.19); border: 1px dashed rgba(148,163,184,.22); }
+.lb-podium.is-empty .lb-podium-score span, .lb-podium.is-empty .lb-podium-score strong { color: var(--lb-muted); }
+.lb-podium.is-empty .lb-podium-score strong { font-size: 14px; }
+.lb-podium.is-empty .lb-podium-metrics { opacity: .43; }
+.lb-empty-row td { background: color-mix(in srgb, var(--lb-panel) 42%, transparent); border-top-style: dashed; border-bottom-style: dashed; border-color: color-mix(in srgb, var(--lb-border) 85%, #94a3b8 15%); }
+.lb-empty-row .lb-person-name { color: var(--lb-muted); font-weight: 750; }
+.lb-empty-row .lb-person-handle { opacity: .8; }
+.lb-empty-avatar { display: inline-flex; align-items: center; justify-content: center; width: 35px; height: 35px; flex-shrink: 0; color: var(--lb-muted); background: rgba(148,163,184,.065); border: 1px dashed rgba(148,163,184,.3); border-radius: 50%; }
+.lb-empty-score { color: var(--lb-muted) !important; font-size: 10px !important; font-weight: 750; }
 @media (max-width: 1000px) {
  .lb-podium-tower { padding-left: 12px; padding-right: 12px; }
  .lb-table { min-width: 730px; }
@@ -449,14 +467,20 @@ export function LeaderboardPage() {
   const totalPages = Math.max(1, Math.ceil(listLength / PER_PAGE));
   const safePage = Math.min(page, totalPages);
 
-  const podiumPeople = !searchActive && category !== 'school' ? filteredEntries.slice(0, 3) : [];
-  const podiumSchools = !searchActive && category === 'school' ? schoolEntries.slice(0, 3) : [];
-  const podiumItems = podiumPeople.length >= 3
-    ? [podiumPeople[1], podiumPeople[0], podiumPeople[2]]
-    : podiumPeople;
-  const podiumSchoolItems = podiumSchools.length >= 3
-    ? [podiumSchools[1], podiumSchools[0], podiumSchools[2]]
-    : podiumSchools;
+  const podiumItems = !searchActive && category !== 'school'
+    ? [
+        { place: 2 as const, entry: filteredEntries[1] ?? null },
+        { place: 1 as const, entry: filteredEntries[0] ?? null },
+        { place: 3 as const, entry: filteredEntries[2] ?? null },
+      ]
+    : [];
+  const podiumSchoolItems = !searchActive && category === 'school'
+    ? [
+        { place: 2 as const, school: schoolEntries[1] ?? null },
+        { place: 1 as const, school: schoolEntries[0] ?? null },
+        { place: 3 as const, school: schoolEntries[2] ?? null },
+      ]
+    : [];
 
   const pagedPeople = searchActive
     ? activeRows.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
@@ -607,32 +631,29 @@ export function LeaderboardPage() {
 
           {category === 'school' ? (
             <>
-              {!searchActive && podiumSchoolItems.length > 0 && (
+              {!searchActive && (
                 <div className="lb-podium-area">
-                  {podiumSchoolItems.map((school, index) => {
-                    const place = (podiumSchoolItems.length >= 3 ? [2, 1, 3][index] : school.rank) as 1 | 2 | 3;
-                    return <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />;
-                  })}
+                  {podiumSchoolItems.map(({ school, place }) => school
+                    ? <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />
+                    : <EmptyPodiumCard key={'empty-school-' + place} place={place} kind="school" mode="xp" />)}
                 </div>
               )}
               {categoryNavigation}
-              <SchoolRankingTable schools={pagedSchools} onPickSchool={onPickSchool} />
-              {!sourceLength && <div className="lb-empty">Belum ada data sekolah yang dapat diperingkat.</div>}
+              <SchoolRankingTable schools={pagedSchools} placeholderRanks={searchActive ? [] : Array.from({ length: Math.max(0, PER_PAGE - pagedSchools.length) }, (_, index) => 4 + (safePage - 1) * PER_PAGE + pagedSchools.length + index)} onPickSchool={onPickSchool} />
               {sourceLength > 3 && renderPagination(safePage, totalPages, setPage, listLength, 'sekolah', searchActive)}
               <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedSchools.length : 3 + pagedSchools.length)} dari {sourceLength} sekolah</p>
             </>
           ) : (
             <>
-              {!searchActive && podiumItems.length > 0 && (
+              {!searchActive && (
                 <div className="lb-podium-area">
-                  {podiumItems.map((entry) => (
-                    <PersonPodiumCard key={entry.user_id} entry={entry} place={entry.displayRank as 1 | 2 | 3} mode={mode} />
-                  ))}
+                  {podiumItems.map(({ entry, place }) => entry
+                    ? <PersonPodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} />
+                    : <EmptyPodiumCard key={'empty-student-' + place} place={place} kind="student" mode={mode} />)}
                 </div>
               )}
               {categoryNavigation}
-              <PersonRankingTable rows={pagedPeople} mode={mode} currentUserId={user?.id} onPickSchool={onPickSchool} />
-              {!sourceLength && <div className="lb-empty">Belum ada data peringkat untuk filter ini.</div>}
+              <PersonRankingTable rows={pagedPeople} placeholderRanks={searchActive ? [] : Array.from({ length: Math.max(0, PER_PAGE - pagedPeople.length) }, (_, index) => 4 + (safePage - 1) * PER_PAGE + pagedPeople.length + index)} mode={mode} currentUserId={user?.id} onPickSchool={onPickSchool} />
               {sourceLength > (searchActive ? 0 : 3) && renderPagination(safePage, totalPages, setPage, listLength, 'siswa', searchActive)}
               <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedPeople.length : 3 + pagedPeople.length)} dari {sourceLength} siswa</p>
               {userRank && (
@@ -698,6 +719,36 @@ function scoreFor(entry: LeaderEntry, mode: Mode): number {
   return mode === 'xp' ? entry.xp : Number(entry.edu_coin ?? 0);
 }
 
+function EmptyPodiumCard({ place, kind, mode }: { place: 1 | 2 | 3; kind: 'student' | 'school'; mode: Mode }) {
+  const label = place === 1 ? '1st' : place === 2 ? '2nd' : '3rd';
+  const scoreLabel = kind === 'school' ? 'Total XP' : mode === 'xp' ? 'XP' : 'Edu Coin';
+  return (
+    <article className={'lb-podium is-empty rank-' + place} aria-label={'Slot peringkat ' + place + ' belum terisi'}>
+      <div className={'lb-podium-badge rank-' + place}>
+        {place === 1 ? <Crown size={14} /> : <Medal size={14} />}
+        {label}
+      </div>
+      <div className="lb-podium-tower">
+        <div className="lb-avatar-wrap">
+          {kind === 'school' ? <School size={place === 1 ? 42 : 36} /> : <Trophy size={place === 1 ? 38 : 32} />}
+        </div>
+        <span className="lb-podium-name">Belum terisi</span>
+        <span className="lb-podium-user">{kind === 'school' ? 'Menunggu sekolah' : 'Menunggu peserta'}</span>
+        <div className="lb-podium-score">
+          <span>{scoreLabel}</span>
+          <strong>—</strong>
+        </div>
+        {kind === 'student' && mode === 'xp' && (
+          <div className="lb-podium-metrics">
+            <div><span>—</span><small>Rata-rata</small></div>
+            <div><span>—</span><small>Lomba</small></div>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function PersonPodiumCard({ entry, place, mode }: { entry: LeaderEntry; place: 1 | 2 | 3; mode: Mode }) {
   const label = place === 1 ? '1st' : place === 2 ? '2nd' : '3rd';
   const average = entry.average_score == null ? '—' : formatAverage(entry.average_score);
@@ -751,7 +802,7 @@ function SchoolPodiumCard({ school, place, onClick }: { school: PublicSchoolLead
   );
 }
 
-function PersonRankingTable({ rows, mode, currentUserId }: { rows: LeaderEntry[]; mode: Mode; currentUserId?: string; onPickSchool: (key: string) => void }) {
+function PersonRankingTable({ rows, placeholderRanks, mode, currentUserId }: { rows: LeaderEntry[]; placeholderRanks: number[]; mode: Mode; currentUserId?: string; onPickSchool: (key: string) => void }) {
   return (
     <div className="lb-table-wrap">
       <table className="lb-table">
@@ -791,14 +842,15 @@ function PersonRankingTable({ rows, mode, currentUserId }: { rows: LeaderEntry[]
               </tr>
             );
           })}
+          {placeholderRanks.map((rank) => <RankingPlaceholderRow key={'empty-student-' + rank} rank={rank} kind="student" />)}
         </tbody>
       </table>
-      {!rows.length && <div className="lb-empty">Tidak ada siswa yang cocok dengan pencarian atau filter ini.</div>}
+      {!rows.length && !placeholderRanks.length && <div className="lb-empty">Tidak ada siswa yang cocok dengan pencarian atau filter ini.</div>}
     </div>
   );
 }
 
-function SchoolRankingTable({ schools, onPickSchool }: { schools: PublicSchoolLeaderboardRow[]; onPickSchool: (key: string) => void }) {
+function SchoolRankingTable({ schools, placeholderRanks, onPickSchool }: { schools: PublicSchoolLeaderboardRow[]; placeholderRanks: number[]; onPickSchool: (key: string) => void }) {
   return (
     <div className="lb-table-wrap">
       <table className="lb-table">
@@ -833,10 +885,33 @@ function SchoolRankingTable({ schools, onPickSchool }: { schools: PublicSchoolLe
               <td className="lb-score-cell">{formatNumber(school.xp)}<small>XP</small></td>
             </tr>
           ))}
+          {placeholderRanks.map((rank) => <RankingPlaceholderRow key={'empty-school-' + rank} rank={rank} kind="school" />)}
         </tbody>
       </table>
-      {!schools.length && <div className="lb-empty">Belum ada data sekolah yang cocok.</div>}
+      {!schools.length && !placeholderRanks.length && <div className="lb-empty">Belum ada data sekolah yang cocok.</div>}
     </div>
+  );
+}
+
+function RankingPlaceholderRow({ rank, kind }: { rank: number; kind: 'student' | 'school' }) {
+  return (
+    <tr className="lb-empty-row" aria-label={'Peringkat ' + rank + ' belum terisi'}>
+      <td><span className="lb-rank-number">{rank}</span></td>
+      <td>
+        <div className="lb-person">
+          <span className="lb-empty-avatar">{kind === 'school' ? <School size={15} /> : <Users size={15} />}</span>
+          <div className="lb-person-meta">
+            <span className="lb-person-name">Belum terisi</span>
+            <span className="lb-person-handle">Slot peringkat kosong</span>
+          </div>
+        </div>
+      </td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td className="lb-empty-score">—</td>
+    </tr>
   );
 }
 
