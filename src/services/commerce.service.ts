@@ -92,7 +92,7 @@ export async function createProductOrderWithProof(input: {
   quantity: number;
   whatsapp: string;
   paymentMethod: string;
-  proofUrl: string;
+  proofUrl?: string | null;
   proofPublicId?: string;
   proofWidth?: number;
   proofHeight?: number;
@@ -106,7 +106,7 @@ export async function createProductOrderWithProof(input: {
     p_quantity: input.quantity,
     p_whatsapp: input.whatsapp.trim(),
     p_payment_method: input.paymentMethod,
-    p_proof_url: input.proofUrl,
+    p_proof_url: input.proofUrl ?? null,
     p_proof_public_id: input.proofPublicId ?? null,
     p_proof_width: input.proofWidth ?? null,
     p_proof_height: input.proofHeight ?? null,
@@ -127,7 +127,7 @@ export async function createProductOrderWithProof(input: {
 export async function createCollectiveCertificateOrderWithProof(input: {
   certificateId: string;
   paymentMethod: string;
-  proofUrl: string;
+  proofUrl?: string | null;
   whatsapp?: string;
   proofPublicId?: string;
   proofWidth?: number;
@@ -138,7 +138,7 @@ export async function createCollectiveCertificateOrderWithProof(input: {
   const { data, error } = await supabase.rpc('create_collective_certificate_order_with_proof', {
     p_certificate_id: input.certificateId,
     p_payment_method: input.paymentMethod,
-    p_proof_url: input.proofUrl,
+    p_proof_url: input.proofUrl ?? null,
     p_proof_public_id: input.proofPublicId ?? null,
     p_proof_width: input.proofWidth ?? null,
     p_proof_height: input.proofHeight ?? null,
