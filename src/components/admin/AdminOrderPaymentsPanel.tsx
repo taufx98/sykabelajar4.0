@@ -140,14 +140,14 @@ export function AdminOrderPaymentsPanel() {
       const selection = 'id,user_id,status,total,currency,created_at,updated_at,payment_method,payment_provider,payment_method_id,payment_proof_url,payment_proof_status,admin_review_note,reviewed_at,contact_name,contact_email,contact_whatsapp,contact_note,contact_fields,order_items(id,name,product_type,product_ref,quantity,unit_price,line_total,metadata)';
       let request = supabase.from('orders').select(selection, { count: 'exact' }).order('created_at', { ascending: false }).order('id', { ascending: false });
 
-      if (filter === 'PENDING') request = request.in('status', ['PENDING_PAYMENT', 'PENDING']);
+      if (filter === 'PENDING') request = request.eq('status', 'PENDING_PAYMENT');
       if (filter === 'MANUAL_REVIEW') {
-        request = request.in('status', ['PENDING_PAYMENT', 'PENDING'])
+        request = request.eq('status', 'PENDING_PAYMENT')
           .eq('payment_proof_status', 'SUBMITTED')
           .not('payment_provider', 'in', '(GLOBAL,MIDTRANS,XENITHPAY)');
       }
       if (filter === 'PAID') request = request.in('status', ['PAID', 'COMPLETED', 'PROCESSING', 'SHIPPED']);
-      if (filter === 'CANCELLED') request = request.in('status', ['CANCELLED', 'CANCELED', 'REFUNDED']);
+      if (filter === 'CANCELLED') request = request.in('status', ['CANCELLED', 'REFUNDED']);
 
       if (escapedSearch) {
         if (isUuid(escapedSearch)) {
@@ -169,10 +169,10 @@ export function AdminOrderPaymentsPanel() {
       const [{ data, error, count }, allCount, pendingCount, manualCount, paidCount, cancelledCount] = await Promise.all([
         request.range(from, from + pageSize - 1),
         supabase.from('orders').select('id', { count: 'exact', head: true }),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['PENDING_PAYMENT', 'PENDING']),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['PENDING_PAYMENT', 'PENDING']).eq('payment_proof_status', 'SUBMITTED').not('payment_provider', 'in', '(GLOBAL,MIDTRANS,XENITHPAY)'),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'PENDING_PAYMENT'),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'PENDING_PAYMENT').eq('payment_proof_status', 'SUBMITTED').not('payment_provider', 'in', '(GLOBAL,MIDTRANS,XENITHPAY)'),
         supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['PAID', 'COMPLETED', 'PROCESSING', 'SHIPPED']),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['CANCELLED', 'CANCELED', 'REFUNDED']),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ['CANCELLED', 'REFUNDED']),
       ]);
       if (error) throw error;
 
