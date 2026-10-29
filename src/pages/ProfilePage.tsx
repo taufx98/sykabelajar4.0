@@ -13,6 +13,7 @@ import { getProfileBadges, getProfileBadgeVisibility } from '@/services/badge.se
 import { CATEGORY_LABELS, GRADE_OPTIONS } from '@/data/catalog';
 import { initials, avatarGradient } from '@/lib/utils';
 import { optimizedCloudinaryUrl } from '@/services/cloudinary.service';
+import { useLanguage } from '@/lib/LanguageContext';
 
 type Tab = 'tentang' | 'prestasi' | 'lomba' | 'statistik' | 'badge' | 'kategori' | 'admin';
 type Social = 'following' | 'followers';
@@ -57,6 +58,7 @@ export function ProfilePage() {
   const { username: rawUsername } = useParams();
   const username = useMemo(() => normalizeUsername(rawUsername), [rawUsername]);
   const { user, toast } = useApp();
+  const { t } = useLanguage();
   const [profile, setProfile] = useState<any>(null);
   const [isAdminProfile, setIsAdminProfile] = useState(false);
   const [awards, setAwards] = useState<any[]>([]);
@@ -77,6 +79,7 @@ export function ProfilePage() {
   const own = user?.username === username;
   const ownerView = own && !previewGuest;
   const isAdminOwner = isAdminProfile && user?.role === 'admin' && user?.id === profile?.id;
+  const adminOwnerView = isAdminOwner && ownerView;
 
   useEffect(() => {
     let alive = true;
@@ -102,9 +105,29 @@ export function ProfilePage() {
           setIsAdminProfile(isAdminTarget);
         }
 
-        // Skip participant-only queries for administrator profiles for every visitor.
+        // Keep the administrator profile minimal for visitors. The owner can still
+        // see their own profile statistics and activity in the private owner view.
         if (isAdminTarget) {
-          if (alive) {
+          if (user?.id === p.data.id) {
+            const [a, s, b, v, registrations] = await Promise.all([
+              supabase.from('awards').select('id,title,subtitle,rank_code,issued_at').eq('user_id', p.data.id).order('issued_at', { ascending: false }).limit(50),
+              supabase.rpc('get_public_profile_social', { p_profile_id: p.data.id }),
+              getProfileBadges(p.data.id).catch(() => [] as ProfileBadge[]),
+              getProfileBadgeVisibility(p.data.id).catch(() => ({ showBadges: true, showBadgeCollection: true })),
+              supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('user_id', p.data.id).in('status', ['APPROVED', 'ACTIVE']),
+            ]);
+            const sr = s.error ? null : (Array.isArray(s.data) ? s.data[0] : s.data);
+            if (alive) {
+              setAwards(a.error ? [] : (a.data || []));
+              setBadges(b);
+              setBadgeVisibility(v);
+              setFollowers(Number(sr?.follower_count || 0));
+              setFollowing(Number(sr?.following_count || 0));
+              setCompetitionCount(registrations.error ? 0 : (registrations.count ?? 0));
+              setShowSocial(true);
+              setShowFollowing(true);
+            }
+          } else if (alive) {
             setAwards([]);
             setBadges([]);
             setBadgeVisibility({ showBadges: false, showBadgeCollection: false });
@@ -178,8 +201,10 @@ export function ProfilePage() {
     { to: '/admin/orders/review', label: 'Verifikasi Pesanan', description: 'Periksa pesanan yang menunggu verifikasi.', icon: Store },
   ];
   const tabs: Array<[Tab, string]> = isAdminProfile
-    ? (isAdminOwner ? [['tentang', 'Tentang'], ['admin', 'Akses Admin']] : [['tentang', 'Tentang']])
-    : [['tentang', 'Tentang'], ['prestasi', 'Prestasi'], ['lomba', 'Lomba'], ['statistik', 'Statistik'], ['badge', 'Badge'], ['kategori', 'Kategori Favorit']];
+    ? (adminOwnerView
+      ? [['tentang', t('profile.about')], ['prestasi', t('profile.achievements')], ['lomba', t('profile.competitions')], ['statistik', t('profile.statistics')], ['badge', t('profile.badges')], ['kategori', t('profile.favoriteCategories')], ['admin', t('profile.adminAccess')]]
+      : [['tentang', t('profile.about')]])
+    : [['tentang', t('profile.about')], ['prestasi', t('profile.achievements')], ['lomba', t('profile.competitions')], ['statistik', t('profile.statistics')], ['badge', t('profile.badges')], ['kategori', t('profile.favoriteCategories')]];
 
   return <div className="min-h-screen bg-slate-50/40 pb-12 dark:bg-slate-950/20">
     <div className="px-3 pt-4 sm:px-5 md:px-8">
@@ -200,18 +225,18 @@ export function ProfilePage() {
 
               </div>
                             <div className="flex shrink-0 flex-wrap justify-center gap-2 pb-1 md:justify-end">
-                {own ? previewGuest ? <Button size="sm" variant="outline" icon={<EyeOff size={14}/>} onClick={() => setPreviewGuest(false)}>Kembali ke Pemilik</Button> : <>
+                {own ? previewGuest ? <Button size="sm" variant="outline" icon={<EyeOff size={14}/>} onClick={() => setPreviewGuest(false)}>{t('profile.backToOwner')}</Button> : <>
                   <Link to="/profile/edit"><Button size="sm" variant="primary">Edit Profil</Button></Link>
                   {isAdminOwner
-                    ? <Link to="/admin"><Button size="sm" variant="outline" icon={<LayoutDashboard size={14}/>}>Pusat Admin</Button></Link>
+                    ? <><Link to="/admin"><Button size="sm" variant="outline" icon={<LayoutDashboard size={14}/>}>Pusat Admin</Button></Link><Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>{t('profile.viewAsVisitor')}</Button></>
                     : isAdminProfile
                       ? null
-                      : <Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>Tampilan Tamu</Button>}
+                      : <Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>{t('profile.viewAsVisitor')}</Button>}
                 </> : user && !isAdminProfile && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button>{(follow === 'approved' || follow === 'auto') && <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="outline" icon={<MessageCircle size={14}/>}>Kirim Pesan</Button></Link>}</>}
               </div>
             </div>
           </div>
-          {!isAdminProfile && (
+          {(!isAdminProfile || adminOwnerView) && (
           <div className="mt-5 grid gap-4 border-t surface-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.58fr)]">
             <div className="min-w-0 py-1">
               <p className="text-sm leading-relaxed text-fg">{profile.bio || 'Belum ada bio.'}</p>
@@ -228,35 +253,60 @@ export function ProfilePage() {
             </div>
           </div>
           )}
-          {!isAdminProfile && canShowBadges && resolvedShowcase.length > 0 && <div className="mt-3 flex flex-wrap items-center justify-center gap-2 md:justify-start">{resolvedShowcase.map((badge) => <div key={badge.id} className="inline-flex items-center gap-2 rounded-full border surface-border surface-elevated px-2.5 py-1.5"><div className="flex h-7 w-7 items-center justify-center">{badge.icon_url ? <img src={optimizedCloudinaryUrl(badge.icon_url, { width: 64 })} alt="" className="h-7 w-7 object-contain"/> : <span className="text-lg" role="img" aria-label={badge.name}>{badge.icon_emoji || '🏅'}</span>}</div><div className="min-w-0"><p className="max-w-[150px] truncate text-xs font-semibold text-fg">{badge.name}</p><p className="text-[10px] text-fg-muted">{badge.rarity}</p></div></div>)}</div>}
+          {(!isAdminProfile || adminOwnerView) && canShowBadges && resolvedShowcase.length > 0 && <div className="mt-3 flex flex-wrap items-center justify-center gap-2 md:justify-start">{resolvedShowcase.map((badge) => <div key={badge.id} className="inline-flex items-center gap-2 rounded-full border surface-border surface-elevated px-2.5 py-1.5"><div className="flex h-7 w-7 items-center justify-center">{badge.icon_url ? <img src={optimizedCloudinaryUrl(badge.icon_url, { width: 64 })} alt="" className="h-7 w-7 object-contain"/> : <span className="text-lg" role="img" aria-label={badge.name}>{badge.icon_emoji || '🏅'}</span>}</div><div className="min-w-0"><p className="max-w-[150px] truncate text-xs font-semibold text-fg">{badge.name}</p><p className="text-[10px] text-fg-muted">{badge.rarity}</p></div></div>)}</div>}
         </div>
       </div>
     </div>
     <div className="px-3 sm:px-5 md:px-8"><div className="mx-auto mt-4 max-w-6xl overflow-x-auto border-b surface-border"><div className="flex min-w-max justify-start gap-1">{tabs.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={`border-b-2 px-4 py-3 text-sm font-semibold whitespace-nowrap transition ${tab === value ? 'border-accent bg-accent/5 text-accent' : 'border-transparent text-fg-muted hover:bg-slate-500/5 hover:text-fg'}`}>{label}</button>)}</div></div>
       <Card className="mx-auto mt-4 max-w-6xl p-4 sm:p-5 md:p-6">
         {tab === 'tentang' && (isAdminProfile ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl surface-elevated p-4">
-              <p className="text-xs font-medium text-fg-muted">Identitas Akun</p>
-              <p className="mt-1 text-sm font-semibold text-fg">{profile.full_name || 'Nama belum diatur'}</p>
-              <p className="mt-1 text-xs text-fg-muted">@{profile.username}</p>
-            </div>
-            <div className="rounded-2xl surface-elevated p-4">
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={16} className="text-accent" />
-                <p className="text-xs font-medium text-fg-muted">Peran & Akses</p>
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl surface-elevated p-4">
+                <p className="text-xs font-medium text-fg-muted">{t('profile.identity')}</p>
+                <p className="mt-1 text-sm font-semibold text-fg">{profile.full_name || 'Nama belum diatur'}</p>
+                <p className="mt-1 text-xs text-fg-muted">@{profile.username}</p>
               </div>
-              <p className="mt-1 text-sm font-semibold text-fg">Administrator SYKABELAJAR</p>
-              <p className="mt-1 text-xs leading-relaxed text-fg-muted">Akun untuk pengelolaan dan pengawasan platform.</p>
+              <div className="rounded-2xl surface-elevated p-4">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-accent" />
+                  <p className="text-xs font-medium text-fg-muted">{t('profile.roleAccess')}</p>
+                </div>
+                <p className="mt-1 text-sm font-semibold text-fg">{t('profile.adminTitle')}</p>
+                <p className="mt-1 text-xs leading-relaxed text-fg-muted">{t('profile.adminDescription')}</p>
+              </div>
             </div>
+            {adminOwnerView && <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl surface-elevated p-4">
+                <p className="text-xs font-medium text-fg-muted">Bio</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-fg">{profile.bio || 'Belum ada bio.'}</p>
+              </div>
+              <div className="rounded-2xl surface-elevated p-4">
+                <p className="text-xs font-medium text-fg-muted">Pendidikan & organisasi</p>
+                <p className="mt-1 text-sm text-fg">{profile.institution || 'Belum diisi'}</p>
+                <p className="mt-1 text-xs text-fg-muted">{grade || 'Jenjang belum diisi'}</p>
+                {profile.birth_date && <p className="mt-2 text-xs text-fg-muted">Tanggal lahir: {new Date(profile.birth_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>}
+              </div>
+              <div className="rounded-2xl surface-elevated p-4 md:col-span-2">
+                <p className="text-xs font-medium text-fg-muted">Kategori favorit</p>
+                <div className="mt-2 flex flex-wrap gap-2">{cats.map((category) => <span key={category} className="chip">{CATEGORY_LABELS[category] || category}</span>)}{!cats.length && <span className="text-sm text-fg-muted">Belum ada kategori favorit.</span>}</div>
+              </div>
+            </div>}
           </div>
         ) : (<div className="grid gap-3 md:grid-cols-2"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Bio</p><p className="mt-1 text-sm leading-relaxed text-fg">{profile.bio || 'Belum ada bio.'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Pendidikan</p><p className="mt-1 text-sm text-fg">{profile.institution || 'Belum diisi'}</p><p className="mt-1 text-xs text-fg-muted">{grade || 'Jenjang belum diisi'}</p></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs font-medium text-fg-muted">Identitas Akun</p><p className="mt-1 text-sm text-fg">{accountTypeLabel || 'Belum diisi'}</p><p className="mt-1 text-xs text-fg-muted">{profile.username ? `@${profile.username}` : 'Username belum diisi'}</p></div></div>))}
-        {!isAdminProfile && tab === 'prestasi' && <div className="space-y-2">{awards.slice(0, 10).map((a) => <div key={a.id} className="flex items-center gap-3 rounded-xl p-2"><Award size={18} className="text-accent"/><div><p className="font-semibold text-fg">{a.title}</p><p className="text-xs text-fg-muted">{a.subtitle || a.rank_code || 'Penghargaan'}</p></div></div>)}{!awards.length && <p className="text-sm text-fg-muted">Belum ada prestasi.</p>}</div>}
-        {!isAdminProfile && tab === 'lomba' && <div className="rounded-2xl surface-elevated p-5"><p className="text-sm font-semibold text-fg">Riwayat Lomba</p><p className="mt-1 text-sm text-fg-muted">{competitionCount} lomba tercatat untuk profil ini.</p></div>}
-        {!isAdminProfile && tab === 'statistik' && <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">XP</p><b className="text-lg text-fg">{Number(profile.total_xp || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">EduCoin</p><b className="text-lg text-fg">{Number(profile.edu_coin || 0).toLocaleString('id-ID')}</b></div><div className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">Prestasi</p><b className="text-lg text-fg">{awards.length}</b></div></div>}
-        {!isAdminProfile && tab === 'badge' && (canShowCollection ? <ProfileBadgeCollection badges={badges} own={own}/> : <div className="py-10 text-center"><Filter className="mx-auto text-fg-muted" size={28}/><p className="mt-2 text-sm font-semibold text-fg">Koleksi badge disembunyikan</p><p className="mt-1 text-xs text-fg-muted">Pemilik profil memilih untuk tidak menampilkan koleksi badge.</p></div>)}
-        {!isAdminProfile && tab === 'kategori' && <div className="flex flex-wrap gap-2">{cats.map((c) => <span key={c} className="chip">{CATEGORY_LABELS[c] || c}</span>)}{!cats.length && <p className="text-sm text-fg-muted">Belum ada kategori favorit.</p>}</div>}
-        {tab === 'admin' && isAdminOwner && (
+        {(!isAdminProfile || adminOwnerView) && tab === 'prestasi' && <div className="space-y-2">{awards.slice(0, 10).map((a) => <div key={a.id} className="flex items-center gap-3 rounded-xl p-2"><Award size={18} className="text-accent"/><div><p className="font-semibold text-fg">{a.title}</p><p className="text-xs text-fg-muted">{a.subtitle || a.rank_code || 'Penghargaan'}</p></div></div>)}{!awards.length && <p className="text-sm text-fg-muted">Belum ada prestasi.</p>}</div>}
+        {(!isAdminProfile || adminOwnerView) && tab === 'lomba' && <div className="rounded-2xl surface-elevated p-5"><p className="text-sm font-semibold text-fg">Riwayat Lomba</p><p className="mt-1 text-sm text-fg-muted">{competitionCount} lomba tercatat untuk profil ini.</p></div>}
+        {(!isAdminProfile || adminOwnerView) && tab === 'statistik' && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[
+          [t('profile.xp'), Number(profile.total_xp || 0).toLocaleString('id-ID')],
+          [t('profile.eduCoin'), Number(profile.edu_coin || 0).toLocaleString('id-ID')],
+          [t('profile.awards'), awards.length.toLocaleString('id-ID')],
+          [t('profile.followers'), followers.toLocaleString('id-ID')],
+          [t('profile.following'), following.toLocaleString('id-ID')],
+          [t('profile.competitions'), competitionCount.toLocaleString('id-ID')],
+        ].map(([label, value]) => <div key={label} className="rounded-2xl surface-elevated p-4"><p className="text-xs text-fg-muted">{label}</p><b className="mt-1 block text-lg text-fg">{value}</b></div>)}</div>}
+        {(!isAdminProfile || adminOwnerView) && tab === 'badge' && (canShowCollection ? <ProfileBadgeCollection badges={badges} own={own}/> : <div className="py-10 text-center"><Filter className="mx-auto text-fg-muted" size={28}/><p className="mt-2 text-sm font-semibold text-fg">Koleksi badge disembunyikan</p><p className="mt-1 text-xs text-fg-muted">Pemilik profil memilih untuk tidak menampilkan koleksi badge.</p></div>)}
+        {(!isAdminProfile || adminOwnerView) && tab === 'kategori' && <div className="flex flex-wrap gap-2">{cats.map((c) => <span key={c} className="chip">{CATEGORY_LABELS[c] || c}</span>)}{!cats.length && <p className="text-sm text-fg-muted">Belum ada kategori favorit.</p>}</div>}
+        {tab === 'admin' && adminOwnerView && (
           <div className="grid gap-3 sm:grid-cols-2">
             {adminLinks.map(({ to, label, description, icon: Icon, primary }) => (
               <Link key={to} to={to} className={`group flex min-h-24 items-start gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${primary ? 'border-accent/25 bg-accent/[0.06]' : 'surface-border surface-elevated hover:border-accent/40'}`}>
