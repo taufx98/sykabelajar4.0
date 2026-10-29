@@ -36,11 +36,11 @@ function paymentOutput(provider: Provider, result: Row) {
     ok: true,
     provider,
     token: str(result.token) || str(raw.token) || null,
-    redirect_url: str(result.redirect_url) || str(result.redirectUrl) || str(raw.redirect_url) || str(raw.redirectUrl) || str(raw.paymentUrl) || str(raw.payment_url) || str(raw.checkoutUrl) || str(raw.checkout_url) || null,
+    redirect_url: str(result.paymentLinkUrl) || str(result.payment_link_url) || str(raw.paymentLinkUrl) || str(raw.payment_link_url) || str(result.redirect_url) || str(result.redirectUrl) || str(raw.redirect_url) || str(raw.redirectUrl) || str(raw.paymentUrl) || str(raw.payment_url) || str(raw.checkoutUrl) || str(raw.checkout_url) || null,
     provider_reference: str(raw.id) || str(result.id) || null,
     payment_code: str(raw.paymentCode) || str(raw.payment_code) || str(raw.virtualAccountNumber) || str(raw.virtual_account_number) || null,
     payment_code_type: str(raw.paymentCodeType) || str(raw.payment_code_type) || str(raw.bankName) || str(raw.bank_name) || null,
-    expires_at: str(raw.expirationTime) || str(raw.expiresAt) || str(raw.expires_at) || null,
+    expires_at: str(raw.expiredTime) || str(raw.expirationTime) || str(raw.expiresAt) || str(raw.expires_at) || null,
   };
 }
 Deno.serve(async (req: Request) => {
@@ -62,7 +62,7 @@ Deno.serve(async (req: Request) => {
   if (authError || !authData.user) return response({ ok: false, error: "AUTH_REQUIRED" }, 401);
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: order, error: orderError } = await admin.from("orders")
-    .select("id,user_id,total,currency,status,payment_method_id,payment_provider,contact_name,contact_email,contact_whatsapp,contact_note")
+    .select("id,user_id,total,currency,status,payment_method_id,payment_provider,contact_name,contact_email,contact_whatsapp,contact_note,order_items(product_type,product_ref)")
     .eq("id", orderId).maybeSingle();
   if (orderError) return response({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
   if (!order || order.user_id !== authData.user.id) return response({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
@@ -140,26 +140,35 @@ Deno.serve(async (req: Request) => {
   } else {
     const apiKey = str(secrets.api_key);
     const apiSecret = str(secrets.api_secret);
-    const paymentMethod = str(publicConfig.payment_method);
-    const paymentChannel = str(publicConfig.payment_channel);
-    if (!apiKey || !apiSecret || !paymentMethod || !paymentChannel) return response({ ok: false, error: "XENITHPAY_NOT_CONFIGURED", message: "API Key, API Secret, Payment Method, dan Payment Channel XenithPay wajib diisi untuk environment ini." }, 503);
+    if (!apiKey || !apiSecret || !str(secrets.webhook_secret)) {
+      return response({ ok: false, error: "XENITHPAY_NOT_CONFIGURED", message: "API Key, API Secret, dan Webhook Signature Secret XenithPay wajib diisi untuk environment ini." }, 503);
+    }
     const { data: profile } = await admin.from("profiles").select("full_name,whatsapp").eq("id", order.user_id).maybeSingle();
     const customerName = (str(order.contact_name) || str(profile?.full_name) || "Pengguna SYKABELAJAR").slice(0, 100);
     const validCustomerName = customerName.length >= 5 ? customerName : "Pengguna SYKABELAJAR";
-    const path = "/v1/payins";
+    const path = "/v1/payment-links";
     const callbackUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/payment-gateway-webhook`;
+    const firstItem = Array.isArray(order.order_items) ? obj(order.order_items[0]) : obj(order.order_items);
+    const productType = str(firstItem.product_type).toUpperCase();
+    const shopProductTypes = new Set(["EDU_COIN_TOPUP", "BADGE", "CERTIFICATE_SERIALS", "COLLECTIVE_CERTIFICATE", "DIGITAL_ITEM", "DONATION"]);
+    const returnBase = shopProductTypes.has(productType)
+      ? "https://sykabelajar.my.id/orders"
+      : (str(publicConfig.return_url) || "https://sykabelajar.my.id/orders");
+    const returnUrl = new URL(returnBase);
+    returnUrl.searchParams.set("payment", "return");
+    returnUrl.searchParams.set("orderId", String(order.id));
+    // Payment Links API hosts the next checkout step on XenithPay. Omitting
+    // paymentChannels tells XenithPay to show the active channels configured
+    // for this merchant, instead of hardcoding a channel that may be disabled.
     const requestBody = {
-      initiatedAmount: amount,
+      amount,
       currency: str(order.currency) || "IDR",
-      paymentMethod,
-      paymentChannel,
       referenceCode: String(order.id),
       customerReference: String(order.user_id),
       customerName: validCustomerName,
       customerPhoneNumber: str(order.contact_whatsapp) || str(profile?.whatsapp) || undefined,
-      description: `Pembayaran SYKABELAJAR ${String(order.id).slice(0, 8)}`,
-      callbackUrl,
-      redirectUrl: str(publicConfig.return_url) || "https://sykabelajar.my.id/organizer/plan",
+      redirectUrl: returnUrl.toString(),
+      payinCallbackUrl: callbackUrl,
     };
     const rawBody = JSON.stringify(requestBody);
     const timestamp = new Date().toISOString();
@@ -174,7 +183,7 @@ Deno.serve(async (req: Request) => {
           "Xenith-Api-Key": apiKey,
           "Xenith-Request-Timestamp": timestamp,
           "Xenith-Request-Signature": signature,
-          "X-Idempotency-Key": `syka-order-${order.id}`.slice(0, 100),
+          "X-Idempotency-Key": `syka-link-${order.id}`.slice(0, 100),
         },
         body: rawBody,
       });
@@ -182,7 +191,7 @@ Deno.serve(async (req: Request) => {
       return response({
         ok: false,
         error: "XENITHPAY_NETWORK_ERROR",
-        message: "SYKABELAJAR tidak menerima respons dari XenithPay saat membuat sesi pembayaran. Pesanan tetap tersimpan dan belum lunas. Coba lanjutkan pembayaran dari riwayat pesanan; jangan membuat pesanan baru.",
+        message: "SYKABELAJAR tidak menerima respons dari XenithPay saat membuat halaman pembayaran. Pesanan tetap tersimpan dan belum lunas. Coba lanjutkan pembayaran dari riwayat pesanan; jangan membuat pesanan baru.",
         details: { cause: networkError instanceof Error ? networkError.name : "FETCH_FAILED" },
       }, 502);
     }
@@ -196,7 +205,7 @@ Deno.serve(async (req: Request) => {
       return response({
         ok: false,
         error: "XENITHPAY_CREATE_FAILED",
-        message: `XenithPay menolak pembuatan transaksi (HTTP ${xenithResponse.status}${providerCode ? `, kode ${providerCode}` : ""})${providerReason}. Periksa kanal pembayaran dan batas transaksi; pesanan belum dinyatakan lunas.`,
+        message: `XenithPay menolak pembuatan halaman pembayaran (HTTP ${xenithResponse.status}${providerCode ? `, kode ${providerCode}` : ""})${providerReason}. Periksa status kanal Pay In pada dashboard XenithPay; pesanan belum dinyatakan lunas.`,
         details: { status: xenithResponse.status, code: providerCode || null },
       }, 502);
     }
