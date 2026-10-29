@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { formatRupiah, formatShortDate } from '@/lib/utils';
 import { createCollectiveCertificateOrderWithProof, createProductOrderWithEduCoin, createProductOrderWithProof, listActiveProducts, listOrganizerPaymentMethods, type CommerceProduct, type OrganizerPaymentMethod } from '@/services/commerce.service';
 import { useApp } from '@/store/AppContext';
+import { useLanguage } from '@/lib/LanguageContext';
 import { uploadImage } from '@/services/cloudinary.service';
 import { createCheckoutPayment, getPublicPaymentGatewayStatus, reconcileGatewayPaymentReturn } from '@/services/payment.service';
 import { supabase } from '@/lib/supabase';
@@ -80,6 +81,7 @@ function statusLabel(status: string) {
 
 export function OrdersPage() {
   const { user } = useApp();
+  const { t, language } = useLanguage();
   const [products, setProducts] = useState<CommerceProduct[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [orderIntentsById, setOrderIntentsById] = useState<Record<string, any>>({});
@@ -653,7 +655,7 @@ export function OrdersPage() {
 
   return <div>
     <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
-      <h2 className="font-display font-bold text-lg text-fg">Shop & Pesanan</h2>
+      <h2 className="font-display font-bold text-lg text-fg">{language === 'en' ? 'Shop & Orders' : 'Shop & Pesanan'}</h2>
       <p className="text-xs text-slate-500">Produk dan layanan penunjang lomba SYKABELAJAR. Pembayaran manual menunggu verifikasi admin; Gateway Global diperbarui otomatis setelah callback tervalidasi. Pembelian Edu Coin diproses otomatis.</p>
     </div>
     <div className="p-4 space-y-6">
@@ -698,7 +700,7 @@ export function OrdersPage() {
       )}{gatewayPaymentError && <Card className="border-amber-500/20 bg-amber-500/5 p-4"><div className="flex items-start gap-3"><CreditCard size={18} className="mt-0.5 text-amber-300"/><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Sesi pembayaran otomatis belum siap</p><p className="mt-1 break-words text-xs leading-5 text-fg-muted">{gatewayPaymentError}</p><Button size="sm" className="mt-3" loading={submitting} disabled={submitting||!pendingGatewayOrderId} onClick={()=>void retryGatewayPayment()}>Coba buat sesi lagi</Button></div></div></Card>}{gatewayPaymentResult && !gatewayPaymentResult.redirect_url && <Card className="border-accent/20 p-4"><div className="flex items-start gap-3"><CreditCard size={18} className="mt-0.5 text-accent"/><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Instruksi pembayaran · {gatewayStatus?.providerName||gatewayPaymentResult.provider}</p><p className="mt-1 text-xs leading-5 text-fg-muted">Status pesanan akan diperbarui otomatis setelah webhook provider tervalidasi.</p>{gatewayPaymentResult.payment_code&&<div className="mt-3 rounded-xl border border-surface-border bg-surface-elevated/25 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">{gatewayPaymentResult.payment_code_type||'Kode pembayaran'}</p><div className="mt-1 flex items-center justify-between gap-2"><p className="break-all font-mono text-lg font-bold text-fg">{gatewayPaymentResult.payment_code}</p><button type="button" className="rounded-lg border border-surface-border p-2 text-fg-muted hover:text-fg" onClick={()=>{void navigator.clipboard?.writeText(String(gatewayPaymentResult.payment_code));setMessage('Kode pembayaran disalin.')}} aria-label="Salin kode pembayaran"><Copy size={14}/></button></div></div>}</div></div></Card>}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <div><p className="text-xs text-accent font-semibold">SHOP SYKABELAJAR</p><h3 className="font-display text-xl font-bold text-fg">Manfaat dan layanan</h3></div>
+          <div><p className="text-xs text-accent font-semibold">SHOP SYKABELAJAR</p><h3 className="font-display text-xl font-bold text-fg">{language === 'en' ? 'Benefits and services' : 'Manfaat dan layanan'}</h3></div>
           {loading && <Loader2 size={16} className="animate-spin text-slate-500"/>}
         </div>
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -728,13 +730,13 @@ export function OrdersPage() {
               </div>
             </Card>;
           })}
-          {!loading && !products.length && <Card className="p-8 text-center col-span-full text-sm text-slate-500">Belum ada manfaat lomba aktif di Shop. Produk baru akan tampil di sini setelah admin mengaktifkannya.</Card>}
+          {!loading && !products.length && <Card className="p-8 text-center col-span-full text-sm text-slate-500">{language === 'en' ? 'No active competition benefits in the Shop yet. Products appear here after an admin activates them.' : 'Belum ada manfaat lomba aktif di Shop. Produk baru akan tampil di sini setelah admin mengaktifkannya.'}</Card>}
         </div>
       </section>
 
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2"><ShoppingBag size={17} className="text-accent"/><div><h3 className="font-display text-xl font-bold text-fg">Riwayat pesanan</h3><p className="text-xs text-fg-muted mt-0.5">Lihat detail, lanjutkan pembayaran, atau bersihkan riwayat tanpa menghapus catatan transaksi admin.</p></div></div>
+          <div className="flex items-center gap-2"><ShoppingBag size={17} className="text-accent"/><div><h3 className="font-display text-xl font-bold text-fg">{t('orders.history')}</h3><p className="text-xs text-fg-muted mt-0.5">{language === 'en' ? 'View details, continue payment, or clear the list without deleting the admin transaction record.' : 'Lihat detail, lanjutkan pembayaran, atau bersihkan riwayat tanpa menghapus catatan transaksi admin.'}</p></div></div>
           <Button size="sm" variant="outline" disabled={loading} onClick={() => void load()}><RefreshCw size={13} className={loading ? 'mr-1 animate-spin' : 'mr-1'}/> Segarkan</Button>
         </div>
         <div className="space-y-2">
@@ -757,7 +759,7 @@ export function OrdersPage() {
               </div>
             </div>
           </Card>)}
-          {!loading && !orders.length && <Card className="p-6 text-center text-sm text-slate-500">Belum ada pesanan di riwayat. Pesanan baru akan muncul di sini dan dapat dibuka kembali selama belum dibayar.</Card>}
+          {!loading && !orders.length && <Card className="p-6 text-center text-sm text-slate-500">{language === 'en' ? 'No orders in history yet. New orders will appear here and can be resumed while unpaid.' : 'Belum ada pesanan di riwayat. Pesanan baru akan muncul di sini dan dapat dibuka kembali selama belum dibayar.'}</Card>}
         </div>
       </section>
     </div>
@@ -770,14 +772,14 @@ export function OrdersPage() {
           const detailIntent = orderIntentsById[String(detailOrder.id)] ?? null;
           return <>
             <div className="flex items-start justify-between gap-3">
-              <div><p className="text-[10px] font-bold uppercase tracking-wider text-accent">Detail transaksi</p><h3 className="mt-1 font-display text-xl font-bold text-fg">{itemTitle(detailOrder)}</h3><p className="mt-1 text-xs text-fg-muted">Pesanan #{String(detailOrder.id).slice(0, 8)} · {formatShortDate(detailOrder.created_at)}</p></div>
+              <div><p className="text-[10px] font-bold uppercase tracking-wider text-accent">{language === 'en' ? 'Transaction details' : 'Detail transaksi'}</p><h3 className="mt-1 font-display text-xl font-bold text-fg">{itemTitle(detailOrder)}</h3><p className="mt-1 text-xs text-fg-muted">Pesanan #{String(detailOrder.id).slice(0, 8)} · {formatShortDate(detailOrder.created_at)}</p></div>
               <button type="button" onClick={() => setSelectedOrderForDetails(null)} className="rounded-lg p-2 text-fg-muted hover:bg-surface-elevated" aria-label="Tutup detail"><X size={17}/></button>
             </div>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">Total</p><p className="mt-1 text-lg font-bold text-fg">{formatProductPrice(Number(detailOrder.total ?? 0), String(detailOrder.currency ?? 'IDR'))}</p></div>
-              <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">Status pesanan</p><p className="mt-1 font-semibold text-fg">{statusLabelForOrder(detailOrder)}</p><p className="mt-1 text-xs text-fg-muted">Status sistem: {String(detailOrder.status ?? '-')}</p></div>
+              <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">{t('orders.status')}</p><p className="mt-1 font-semibold text-fg">{statusLabelForOrder(detailOrder)}</p><p className="mt-1 text-xs text-fg-muted">Status sistem: {String(detailOrder.status ?? '-')}</p></div>
               <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">Metode pembayaran</p><p className="mt-1 text-sm font-semibold text-fg">{String(detailOrder.payment_method ?? 'Belum ditentukan')}</p><p className="mt-1 text-xs text-fg-muted">{String(detailOrder.payment_provider ?? 'Provider belum tercatat')}</p></div>
-              <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">Bukti pembayaran</p>{detailOrder.payment_proof_url ? <a className="mt-1 inline-block text-sm font-semibold text-accent underline" href={String(detailOrder.payment_proof_url)} target="_blank" rel="noreferrer">Lihat bukti pembayaran</a> : <p className="mt-1 text-sm text-fg-muted">Belum ada bukti transfer manual.</p>}<p className="mt-1 text-xs text-fg-muted">Status bukti: {String(detailOrder.payment_proof_status ?? 'NOT_SUBMITTED')}</p></div>
+              <div className="rounded-xl border surface-border p-3"><p className="text-xs text-fg-muted">{language === 'en' ? 'Payment proof' : 'Bukti pembayaran'}</p>{detailOrder.payment_proof_url ? <a className="mt-1 inline-block text-sm font-semibold text-accent underline" href={String(detailOrder.payment_proof_url)} target="_blank" rel="noreferrer">Lihat bukti pembayaran</a> : <p className="mt-1 text-sm text-fg-muted">Belum ada bukti transfer manual.</p>}<p className="mt-1 text-xs text-fg-muted">Status bukti: {String(detailOrder.payment_proof_status ?? 'NOT_SUBMITTED')}</p></div>
             </div>
             <div className="mt-4 rounded-xl border surface-border p-3">
               <p className="text-xs font-semibold text-fg">Ringkasan barang</p>
