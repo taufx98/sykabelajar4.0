@@ -497,3 +497,70 @@ begin
 end;
 $function$
 
+
+
+-- Bring the original Guru workspace certificate-order flow onto the global gateway.
+CREATE OR REPLACE FUNCTION public.create_collective_certificate_order(p_certificate_id uuid)
+ RETURNS orders
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_cert public.collective_certificates%rowtype;
+  v_cp public.collective_participants%rowtype;
+  v_order public.orders%rowtype;
+  v_price numeric := public.get_collective_certificate_price();
+  v_gateway_method public.organizer_payment_methods%rowtype;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if v_price <= 0 then raise exception 'CERTIFICATE_PRICE_NOT_CONFIGURED'; end if;
+  if not exists(select 1 from public.payment_gateway_state s where s.id=true and s.automatic_payments_enabled=true and s.active_provider in ('MIDTRANS','XENITHPAY')) then raise exception 'GLOBAL_GATEWAY_NOT_ACTIVE'; end if;
+  select * into v_gateway_method from public.organizer_payment_methods where is_active=true and details->>'global_gateway'='true' limit 1;
+  if not found then raise exception 'GLOBAL_PAYMENT_METHOD_NOT_CONFIGURED'; end if;
+  select * into v_cert from public.collective_certificates where id=p_certificate_id for update;
+  if not found then raise exception 'CERTIFICATE_NOT_FOUND'; end if;
+  if v_cert.status not in ('ELIGIBLE','DRAFT') then raise exception 'CERTIFICATE_NOT_ORDERABLE'; end if;
+  select * into v_cp from public.collective_participants where id=v_cert.collective_participant_id;
+  if not found then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+  if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or exists(select 1 from public.user_roles ur where ur.user_id=v_uid and ur.role='admin' and ur.is_active=true)) then raise exception 'FORBIDDEN'; end if;
+  select o.* into v_order
+    from public.collective_certificate_orders cco
+    join public.orders o on o.id=cco.order_id
+    where cco.collective_certificate_id=v_cert.id
+      and o.status not in ('CANCELLED','REFUNDED')
+    order by o.created_at desc limit 1
+    for update of o;
+  if found then
+    if v_order.status='PAID' then return v_order; end if;
+    if v_order.status='PENDING_PAYMENT' and v_order.payment_method_id is null then
+      if exists(select 1 from public.payment_intents pi where pi.order_id=v_order.id) then
+        raise exception 'PAYMENT_SESSION_ALREADY_EXISTS';
+      end if;
+      update public.orders
+        set payment_method=v_gateway_method.name,
+            payment_provider='GLOBAL',
+            payment_method_id=v_gateway_method.id,
+            payment_proof_url=null,
+            payment_proof_status='NOT_SUBMITTED',
+            updated_at=now()
+        where id=v_order.id
+        returning * into v_order;
+      return v_order;
+    end if;
+    if v_order.payment_method_id=v_gateway_method.id then return v_order; end if;
+    raise exception 'PAYMENT_METHOD_LOCKED';
+  end if;
+  insert into public.orders(user_id,status,subtotal,discount,shipping_cost,total,currency,payment_method,payment_provider,payment_method_id,contact_name,contact_email,contact_note,contact_fields,payment_proof_status)
+  values(v_uid,'PENDING_PAYMENT',v_price,0,0,v_price,'IDR',v_gateway_method.name,'GLOBAL',v_gateway_method.id,v_cp.full_name,null,'Kolektif certificate: '||v_cp.participant_code,jsonb_build_object('collective_certificate_id',v_cert.id,'participant_code',v_cp.participant_code),'NOT_SUBMITTED')
+  returning * into v_order;
+  insert into public.order_items(order_id,product_type,product_ref,name,quantity,unit_price,line_total,metadata)
+  values(v_order.id,'DIGITAL_ITEM','COLLECTIVE_CERTIFICATE','Sertifikat Peserta Kolektif — '||v_cp.full_name,1,v_price,v_price,jsonb_build_object('collective_certificate_id',v_cert.id,'participant_id',v_cp.id));
+  insert into public.collective_certificate_orders(collective_certificate_id,order_id,payer_user_id,amount,status)
+  values(v_cert.id,v_order.id,v_uid,v_price,'PENDING');
+  update public.collective_certificates set status='ELIGIBLE',updated_at=now() where id=v_cert.id;
+  return v_order;
+end;
+$function$
+
