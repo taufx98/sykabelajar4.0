@@ -535,7 +535,7 @@ export function LeaderboardPage() {
   }, [selectedSchool]);
 
   const categoryNavigation = (
-<nav className="lb-category-area" aria-label="Kategori papan peringkat">
+<nav className="lb-category-area" aria-label={text('Kategori papan peringkat','Leaderboard categories')}>
   <div className="lb-category-tabs">
     {CATEGORIES.map((item) => {
       const isDisabled = item.key === 'school' && mode === 'coin';
@@ -545,17 +545,17 @@ export function LeaderboardPage() {
           type="button"
           className={'lb-category-tab ' + (category === item.key ? 'active' : '')}
           disabled={isDisabled}
-          title={isDisabled ? 'Peringkat sekolah menggunakan akumulasi XP.' : undefined}
+          title={isDisabled ? text('Peringkat sekolah menggunakan akumulasi XP.','School rankings use accumulated XP.') : undefined}
           onClick={() => changeCategory(item.key)}
         >
           {item.key === 'school' && <School size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }} />}
-          {item.label}
+          {language === 'en' ? ({ all: 'All levels', sd: 'Elementary', smp: 'Junior high', sma: 'Senior high', school: 'School rankings' } as Record<string, string>)[item.key] : item.label}
         </button>
       );
     })}
   </div>
   {category !== 'all' && category !== 'school' && (
-    <div className="lb-subgrades" aria-label="Filter kelas">
+    <div className="lb-subgrades" aria-label={text('Filter kelas','Grade filter')}>
       <button type="button" className={'lb-subgrade ' + (!subGrade ? 'active' : '')} onClick={() => { setSubGrade(null); setPage(1); }}>
         Semua {category === 'sd' ? 'SD' : category === 'smp' ? 'SMP' : 'SMA/SMK'}
       </button>
@@ -594,7 +594,7 @@ export function LeaderboardPage() {
           <div className="lb-segment" role="group" aria-label={text("Periode peringkat","Ranking period")}>
             {PERIODS.map((item) => (
               <button key={item.key} type="button" className={period === item.key ? 'active' : ''} onClick={() => changePeriod(item.key)}>
-                {item.label}
+                {language === 'en' ? ({ weekly: 'Weekly', monthly: 'Monthly', all: 'All time' } as Record<string, string>)[item.key] : item.label}
               </button>
             ))}
           </div>
