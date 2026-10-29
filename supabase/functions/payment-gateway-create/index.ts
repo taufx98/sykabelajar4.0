@@ -165,20 +165,40 @@ Deno.serve(async (req: Request) => {
     const timestamp = new Date().toISOString();
     const signature = await hmacBase64(apiSecret, `POST\n${path}\n${timestamp}\n${rawBody}`);
     const endpoint = envFromConfig === "production" ? "https://openapi.xenithpay.com" : "https://openapi.sandbox.xenithpay.com";
-    const xenithResponse = await fetch(`${endpoint}${path}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Xenith-Api-Key": apiKey,
-        "Xenith-Request-Timestamp": timestamp,
-        "Xenith-Request-Signature": signature,
-        "X-Idempotency-Key": `syka-order-${order.id}`.slice(0, 100),
-      },
-      body: rawBody,
-    });
+    let xenithResponse: Response;
+    try {
+      xenithResponse = await fetch(`${endpoint}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Xenith-Api-Key": apiKey,
+          "Xenith-Request-Timestamp": timestamp,
+          "Xenith-Request-Signature": signature,
+          "X-Idempotency-Key": `syka-order-${order.id}`.slice(0, 100),
+        },
+        body: rawBody,
+      });
+    } catch (networkError) {
+      return response({
+        ok: false,
+        error: "XENITHPAY_NETWORK_ERROR",
+        message: "SYKABELAJAR tidak menerima respons dari XenithPay saat membuat sesi pembayaran. Pesanan tetap tersimpan dan belum lunas. Coba lanjutkan pembayaran dari riwayat pesanan; jangan membuat pesanan baru.",
+        details: { cause: networkError instanceof Error ? networkError.name : "FETCH_FAILED" },
+      }, 502);
+    }
     result = await xenithResponse.json().catch(() => ({}));
     if (!xenithResponse.ok) {
-      return response({ ok: false, error: "XENITHPAY_CREATE_FAILED", message: "XenithPay menolak pembuatan transaksi. Periksa credential, payment channel, dan batas nominal.", details: { status: xenithResponse.status, code: obj(result).code ?? obj(result.data).code ?? null } }, 502);
+      const providerData = obj(result);
+      const nestedProviderData = obj(providerData.data);
+      const providerCode = str(providerData.code ?? providerData.errorCode ?? providerData.error_code ?? nestedProviderData.code);
+      const providerMessage = str(providerData.message ?? providerData.error_description ?? providerData.errorMessage ?? nestedProviderData.message ?? providerData.error);
+      const providerReason = providerMessage ? `: ${providerMessage.slice(0, 220)}` : "";
+      return response({
+        ok: false,
+        error: "XENITHPAY_CREATE_FAILED",
+        message: `XenithPay menolak pembuatan transaksi (HTTP ${xenithResponse.status}${providerCode ? `, kode ${providerCode}` : ""})${providerReason}. Periksa kanal pembayaran dan batas transaksi; pesanan belum dinyatakan lunas.`,
+        details: { status: xenithResponse.status, code: providerCode || null },
+      }, 502);
     }
   }
 
