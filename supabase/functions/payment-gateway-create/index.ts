@@ -40,7 +40,7 @@ function paymentOutput(provider: Provider, result: Row) {
     provider_reference: str(raw.id) || str(result.id) || null,
     payment_code: str(raw.paymentCode) || str(raw.payment_code) || str(raw.virtualAccountNumber) || str(raw.virtual_account_number) || null,
     payment_code_type: str(raw.paymentCodeType) || str(raw.payment_code_type) || str(raw.bankName) || str(raw.bank_name) || null,
-    expires_at: str(raw.expiresAt) || str(raw.expires_at) || null,
+    expires_at: str(raw.expirationTime) || str(raw.expiresAt) || str(raw.expires_at) || null,
   };
 }
 Deno.serve(async (req: Request) => {
@@ -156,6 +156,7 @@ Deno.serve(async (req: Request) => {
       referenceCode: String(order.id),
       customerReference: String(order.user_id),
       customerName: validCustomerName,
+      customerPhoneNumber: str(order.contact_whatsapp) || str(profile?.whatsapp) || undefined,
       description: `Pembayaran SYKABELAJAR ${String(order.id).slice(0, 8)}`,
       callbackUrl,
       redirectUrl: str(publicConfig.return_url) || "https://sykabelajar.my.id/organizer/plan",
