@@ -119,6 +119,7 @@ SELECT
   r.school_id
 FROM ranked r
 WHERE r.position <= greatest(1, least(coalesce(p_limit, 100), 1000))
+  AND (lower(trim(coalesce(p_period, 'all'))) NOT IN ('weekly', 'monthly') OR r.period_xp > 0)
 ORDER BY r.position;
 $function$;
 
@@ -292,6 +293,7 @@ SELECT
   ), '[]'::jsonb) AS top_students
 FROM ranked_schools rs
 WHERE rs.position <= greatest(1, least(coalesce(p_limit, 100), 1000))
+  AND (lower(trim(coalesce(p_period, 'all'))) NOT IN ('weekly', 'monthly') OR rs.xp > 0)
 ORDER BY rs.position;
 $function$;
 
