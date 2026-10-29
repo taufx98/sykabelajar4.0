@@ -220,8 +220,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Awards are secondary to authentication. Fetch them after the shell can render.
   useEffect(() => {
-    const userId = authUser?.id;
-    if (!userId || isGuest || loadedAwardsFor.current === userId) return;
+    const userId = user?.id;
+    if (!userId || isGuest || authUser?.id !== userId || loadedAwardsFor.current === userId) return;
 
     loadedAwardsFor.current = userId;
     void loadAwards(userId).then(() => {
@@ -232,7 +232,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (loadedAwardsFor.current === userId) loadedAwardsFor.current = null;
       if (aliveRef.current && authUserRef.current?.id === userId) setAwards([]);
     });
-  }, [authUser?.id, isGuest]);
+  }, [authUser?.id, user?.id, isGuest]);
 
   useEffect(() => {
     if (!authUser?.id || isGuest) return;
