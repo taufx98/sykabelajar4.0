@@ -344,6 +344,7 @@ export function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRealtime, setIsRealtime] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const [selectedSchool, setSelectedSchool] = useState<PublicSchoolLeaderboardRow | null>(null);
 
   useEffect(() => {
@@ -372,8 +373,8 @@ export function LeaderboardPage() {
         setSchoolEntries(schools);
       } catch (cause) {
         if (!active || currentRequest !== requestVersion) return;
-        setError(cause instanceof Error ? cause.message : 'Gagal memuat papan peringkat.');
         if (!silent) {
+          setError(cause instanceof Error ? cause.message : 'Gagal memuat papan peringkat.');
           setEntries([]);
           setSchoolEntries([]);
         }
@@ -404,7 +405,7 @@ export function LeaderboardPage() {
       window.clearInterval(refreshTimer);
       void supabase.removeChannel(channel);
     };
-  }, [mode, period]);
+  }, [mode, period, refreshNonce]);
 
   const filteredEntries = useMemo(() => {
     const levelFiltered = entries.filter((entry) => {
@@ -587,7 +588,7 @@ export function LeaderboardPage() {
         <div className="lb-empty" role="alert">
           <strong>Belum bisa memuat peringkat.</strong>
           <p style={{ margin: '7px 0 12px' }}>{error}</p>
-          <button type="button" className="lb-subgrade active" onClick={() => { invalidateLeaderboardMemory(); setPeriod((value) => value); }}>Coba segarkan</button>
+          <button type="button" className="lb-subgrade active" onClick={() => { invalidateLeaderboardMemory(); setRefreshNonce((value) => value + 1); }}>Coba segarkan</button>
         </div>
       )}
 
