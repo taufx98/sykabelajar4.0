@@ -109,10 +109,20 @@ Deno.serve(async (req: Request) => {
     const signaturePayload = `POST\\n${path}\\n${rawBody}\\n${timestamp}`;
     const expected = await hmacBase64(webhookSecret, signaturePayload);
     if (!constantTimeEqual(expected, supplied)) return json({ ok: false, error: "INVALID_SIGNATURE" }, 401);
-    const normalizedReportedAmount = normalizeAmount(reportedAmount);
+    // XenithPay may encode money as a scalar or as { value, currency }.
+    const reportedMoney = obj(reportedAmount);
+    const amountValue = reportedMoney.value ?? reportedMoney.amount ?? reportedAmount;
+    const normalizedReportedAmount = normalizeAmount(amountValue);
     const expectedAmount = normalizeAmount(intent.amount);
+    const reportedCurrency = str(reportedMoney.currency || data.currency || payload.currency);
     if (reportedAmount !== null && reportedAmount !== undefined && (normalizedReportedAmount === null || normalizedReportedAmount !== expectedAmount)) {
       return json({ ok: false, error: "AMOUNT_MISMATCH" }, 422);
+    }
+    if (reportedCurrency) {
+      const { data: orderCurrency, error: currencyLookupError } = await admin.from("orders").select("currency").eq("id", orderId).maybeSingle();
+      if (currencyLookupError) return json({ ok: false, error: "ORDER_CURRENCY_LOOKUP_FAILED" }, 500);
+      const expectedCurrency = str(orderCurrency?.currency).toUpperCase();
+      if (expectedCurrency && reportedCurrency.toUpperCase() !== expectedCurrency) return json({ ok: false, error: "CURRENCY_MISMATCH" }, 422);
     }
     const eventType = str(payload.eventType || payload.event_type || payload.type);
     providerEventId = `XENITHPAY:${referenceId || orderId}:${rawStatus.toUpperCase()}:${eventType}`;
