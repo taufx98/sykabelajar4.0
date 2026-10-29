@@ -10,10 +10,12 @@ import { OrganizerShell } from '@/components/layout/OrganizerShell';
 import { LandingPage } from '@/pages/LandingPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { LoginPage } from '@/pages/LoginPage';
-import { HomePage } from '@/pages/HomePage';
+
 import { VerifyPage } from '@/pages/VerifyPage';
 import { ToastContainer } from '@/components/ui/ToastContainer';
+import { RouteMetadata } from '@/components/seo/RouteMetadata';
 
+const HomePage = lazy(() => import('@/pages/HomePage').then((module) => ({ default: module.HomePage })));
 const CompetitionDetailPage = lazy(() => import('@/pages/CompetitionDetailPage').then((module) => ({ default: module.CompetitionDetailPage })));
 const CompetitionWorkPage = lazy(() => import('@/pages/CompetitionWorkPage').then((module) => ({ default: module.CompetitionWorkPage })));
 const DailyTasksPage = lazy(() => import('@/pages/DailyTasksPage').then((module) => ({ default: module.DailyTasksPage })));
@@ -230,7 +232,7 @@ function AppRoutes() {
 }
 
 function ChatAwareApp() {
-  return <><AppRoutes /><ChatUXBridge /></>;
+  return <><RouteMetadata /><AppRoutes /><ChatUXBridge /></>;
 }
 
 export default function App() {
