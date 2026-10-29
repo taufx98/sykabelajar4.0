@@ -7,12 +7,13 @@ import { formatRupiah, formatShortDate } from '@/lib/utils';
 import { createCollectiveCertificateOrderWithProof, createProductOrderWithEduCoin, createProductOrderWithProof, listActiveProducts, listOrganizerPaymentMethods, type CommerceProduct, type OrganizerPaymentMethod } from '@/services/commerce.service';
 import { useApp } from '@/store/AppContext';
 import { uploadImage } from '@/services/cloudinary.service';
-import { createCheckoutPayment, getPublicPaymentGatewayStatus } from '@/services/payment.service';
+import { createCheckoutPayment, getPublicPaymentGatewayStatus, reconcileGatewayPaymentReturn } from '@/services/payment.service';
 import { supabase } from '@/lib/supabase';
 import { listCurrentUserOrganizers, type CurrentOrganizer } from '@/services/organizerAuth.service';
 import { getCollectiveCertificatePrice, listTeacherCollectiveParticipants, prepareCollectiveCertificate, type CollectiveParticipant } from '@/services/collectiveParticipant.service';
 
 type BadgeOption = { id: string; name: string; icon_emoji: string | null; rarity: string };
+type GatewayReturnCheck = { orderId: string; status: 'checking' | 'paid' | 'pending' | 'cancelled' };
 
 function productTypeLabel(type: string) {
   const labels: Record<string, string> = {
@@ -96,6 +97,7 @@ export function OrdersPage() {
   const [gatewayStatus, setGatewayStatus] = useState<Awaited<ReturnType<typeof getPublicPaymentGatewayStatus>> | null>(null);
   const [gatewayPaymentResult, setGatewayPaymentResult] = useState<Awaited<ReturnType<typeof createCheckoutPayment>> | null>(null);
   const [gatewayPaymentError, setGatewayPaymentError] = useState('');
+  const [gatewayReturnCheck, setGatewayReturnCheck] = useState<GatewayReturnCheck | null>(null);
   const [pendingGatewayOrderId, setPendingGatewayOrderId] = useState('');
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState('');
@@ -234,6 +236,90 @@ export function OrdersPage() {
   useEffect(() => {
     void load();
   }, [user?.role]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const returnedOrderId = String(params.get('orderId') ?? '').trim();
+    const transactionId = String(params.get('transactionId') ?? '').trim();
+    if (params.get('payment') !== 'return' || !returnedOrderId || !user?.id) return;
+
+    let active = true;
+    let timer: number | undefined;
+    let checks = 0;
+    let reconcileAttempts = 0;
+    const maxChecks = 18;
+
+    setGatewayReturnCheck({ orderId: returnedOrderId, status: 'checking' });
+
+    const verifyReturn = async () => {
+      checks += 1;
+
+      // The return URL is not evidence of payment. Ask our server to query XenithPay
+      // with stored credentials, and let the server fulfill only a matching SUCCESS transaction.
+      if (reconcileAttempts < 3) {
+        reconcileAttempts += 1;
+        try {
+          await reconcileGatewayPaymentReturn(returnedOrderId, transactionId || null);
+        } catch {
+          // Keep the status pending; the authenticated webhook may still arrive later.
+        }
+      }
+
+      if (!active) return;
+      try {
+        const [{ data: order, error: orderError }, { data: intentRows, error: intentError }] = await Promise.all([
+          supabase.from('orders')
+            .select('id,user_id,status,total,currency,updated_at,payment_provider,payment_proof_status')
+            .eq('id', returnedOrderId)
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase.from('payment_intents')
+            .select('id,order_id,provider,status,amount,provider_reference,updated_at')
+            .eq('order_id', returnedOrderId)
+            .order('updated_at', { ascending: false })
+            .limit(1),
+        ]);
+        if (!active) return;
+
+        const intent = Array.isArray(intentRows) ? intentRows[0] : null;
+        if (!orderError && !intentError && order) {
+          setOrders((current) => current.map((row) => String(row.id) === returnedOrderId ? { ...row, ...order } : row));
+          if (intent) {
+            setOrderIntentsById((current) => ({ ...current, [returnedOrderId]: intent }));
+          }
+
+          const orderStatus = String(order.status ?? '').toUpperCase();
+          const intentStatus = String(intent?.status ?? '').toUpperCase();
+          if (orderStatus === 'PAID' && intentStatus === 'PAID') {
+            setGatewayReturnCheck({ orderId: returnedOrderId, status: 'paid' });
+            void load();
+            return;
+          }
+
+          if (['CANCELLED', 'CANCELED', 'REFUNDED'].includes(orderStatus)
+            || ['CANCELLED', 'CANCELED', 'EXPIRED', 'FAILED', 'REFUNDED'].includes(intentStatus)) {
+            setGatewayReturnCheck({ orderId: returnedOrderId, status: 'cancelled' });
+            return;
+          }
+        }
+      } catch {
+        // A temporary read issue should not be interpreted as either a successful or failed payment.
+      }
+
+      if (checks >= maxChecks) {
+        setGatewayReturnCheck({ orderId: returnedOrderId, status: 'pending' });
+        return;
+      }
+      timer = window.setTimeout(verifyReturn, 5000);
+    };
+
+    void verifyReturn();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [user?.id]);
+
 
   const isQuantityPackage = selected ? ['EDU_COIN_TOPUP', 'DIGITAL_ITEM', 'DONATION'].includes(selected.product_type) : false;
   const displayPrice = (product: CommerceProduct) => product.product_type === 'COLLECTIVE_CERTIFICATE'
@@ -572,7 +658,44 @@ export function OrdersPage() {
     </div>
     <div className="p-4 space-y-6">
       {error && <Card className="p-3 border-red-500/20 text-sm text-red-300">{error}</Card>}
-      {message && <Card className="p-3 border-moss-500/20 text-sm text-accent">{message}</Card>}{gatewayPaymentError && <Card className="border-amber-500/20 bg-amber-500/5 p-4"><div className="flex items-start gap-3"><CreditCard size={18} className="mt-0.5 text-amber-300"/><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Sesi pembayaran otomatis belum siap</p><p className="mt-1 break-words text-xs leading-5 text-fg-muted">{gatewayPaymentError}</p><Button size="sm" className="mt-3" loading={submitting} disabled={submitting||!pendingGatewayOrderId} onClick={()=>void retryGatewayPayment()}>Coba buat sesi lagi</Button></div></div></Card>}{gatewayPaymentResult && !gatewayPaymentResult.redirect_url && <Card className="border-accent/20 p-4"><div className="flex items-start gap-3"><CreditCard size={18} className="mt-0.5 text-accent"/><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Instruksi pembayaran · {gatewayStatus?.providerName||gatewayPaymentResult.provider}</p><p className="mt-1 text-xs leading-5 text-fg-muted">Status pesanan akan diperbarui otomatis setelah webhook provider tervalidasi.</p>{gatewayPaymentResult.payment_code&&<div className="mt-3 rounded-xl border border-surface-border bg-surface-elevated/25 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">{gatewayPaymentResult.payment_code_type||'Kode pembayaran'}</p><div className="mt-1 flex items-center justify-between gap-2"><p className="break-all font-mono text-lg font-bold text-fg">{gatewayPaymentResult.payment_code}</p><button type="button" className="rounded-lg border border-surface-border p-2 text-fg-muted hover:text-fg" onClick={()=>{void navigator.clipboard?.writeText(String(gatewayPaymentResult.payment_code));setMessage('Kode pembayaran disalin.')}} aria-label="Salin kode pembayaran"><Copy size={14}/></button></div></div>}</div></div></Card>}
+      {message && <Card className="p-3 border-moss-500/20 text-sm text-accent">{message}</Card>}
+      {gatewayReturnCheck?.status === 'checking' && (
+        <Card className="flex items-start gap-3 border-blue-500/20 bg-blue-500/5 p-4">
+          <Loader2 size={18} className="mt-0.5 animate-spin text-blue-400" />
+          <div>
+            <p className="text-sm font-semibold text-fg">Memverifikasi pembayaran</p>
+            <p className="mt-1 text-xs leading-5 text-fg-muted">Kami sedang mencocokkan transaksi dengan data XenithPay. Pesanan baru dinyatakan selesai setelah status dan nominal terverifikasi oleh server.</p>
+          </div>
+        </Card>
+      )}
+      {gatewayReturnCheck?.status === 'paid' && (
+        <Card className="flex items-start gap-3 border-emerald-500/20 bg-emerald-500/5 p-4">
+          <CreditCard size={18} className="mt-0.5 text-emerald-400" />
+          <div>
+            <p className="text-sm font-semibold text-fg">Pembayaran terverifikasi</p>
+            <p className="mt-1 text-xs leading-5 text-fg-muted">Pesanan #{gatewayReturnCheck.orderId.slice(0, 8)} telah diperbarui menjadi selesai berdasarkan konfirmasi gateway.</p>
+          </div>
+        </Card>
+      )}
+      {gatewayReturnCheck?.status === 'pending' && (
+        <Card className="flex items-start gap-3 border-amber-500/20 bg-amber-500/5 p-4">
+          <RefreshCw size={18} className="mt-0.5 text-amber-300" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-fg">Konfirmasi pembayaran belum diterima</p>
+            <p className="mt-1 text-xs leading-5 text-fg-muted">Status pesanan masih menunggu konfirmasi resmi dari XenithPay. Jangan membuat pesanan baru atau membayar ulang dulu. Coba muat ulang untuk memeriksa status terbaru.</p>
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => window.location.reload()}>Periksa lagi</Button>
+          </div>
+        </Card>
+      )}
+      {gatewayReturnCheck?.status === 'cancelled' && (
+        <Card className="flex items-start gap-3 border-red-500/20 bg-red-500/5 p-4">
+          <XCircle size={18} className="mt-0.5 text-red-400" />
+          <div>
+            <p className="text-sm font-semibold text-fg">Transaksi belum berhasil</p>
+            <p className="mt-1 text-xs leading-5 text-fg-muted">Gateway melaporkan transaksi dibatalkan atau kedaluwarsa. Pesanan tidak ditandai lunas.</p>
+          </div>
+        </Card>
+      )}{gatewayPaymentError && <Card className="border-amber-500/20 bg-amber-500/5 p-4"><div className="flex items-start gap-3"><CreditCard size={18} className="mt-0.5 text-amber-300"/><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Sesi pembayaran otomatis belum siap</p><p className="mt-1 break-words text-xs leading-5 text-fg-muted">{gatewayPaymentError}</p><Button size="sm" className="mt-3" loading={submitting} disabled={submitting||!pendingGatewayOrderId} onClick={()=>void retryGatewayPayment()}>Coba buat sesi lagi</Button></div></div></Card>}{gatewayPaymentResult && !gatewayPaymentResult.redirect_url && <Card className="border-accent/20 p-4"><div className="flex items-start gap-3"><CreditCard size={18} className="mt-0.5 text-accent"/><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Instruksi pembayaran · {gatewayStatus?.providerName||gatewayPaymentResult.provider}</p><p className="mt-1 text-xs leading-5 text-fg-muted">Status pesanan akan diperbarui otomatis setelah webhook provider tervalidasi.</p>{gatewayPaymentResult.payment_code&&<div className="mt-3 rounded-xl border border-surface-border bg-surface-elevated/25 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">{gatewayPaymentResult.payment_code_type||'Kode pembayaran'}</p><div className="mt-1 flex items-center justify-between gap-2"><p className="break-all font-mono text-lg font-bold text-fg">{gatewayPaymentResult.payment_code}</p><button type="button" className="rounded-lg border border-surface-border p-2 text-fg-muted hover:text-fg" onClick={()=>{void navigator.clipboard?.writeText(String(gatewayPaymentResult.payment_code));setMessage('Kode pembayaran disalin.')}} aria-label="Salin kode pembayaran"><Copy size={14}/></button></div></div>}</div></div></Card>}
       <section>
         <div className="flex items-center justify-between mb-3">
           <div><p className="text-xs text-accent font-semibold">SHOP SYKABELAJAR</p><h3 className="font-display text-xl font-bold text-fg">Manfaat dan layanan</h3></div>

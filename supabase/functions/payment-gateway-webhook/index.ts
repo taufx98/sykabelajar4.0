@@ -1,4 +1,3 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type, x-xenith-timestamp, x-xenith-signature", "Access-Control-Allow-Methods": "POST, OPTIONS", "Content-Type": "application/json" };
@@ -105,15 +104,25 @@ Deno.serve(async (req: Request) => {
     const environment: Env = isEnv(obj(intent.raw_meta).environment) ? obj(intent.raw_meta).environment : "sandbox";
     const { data: providerRow, error: configError } = await admin.from("payment_gateway_configs").select("secret_config").eq("provider", provider).maybeSingle();
     if (configError) return json({ ok: false, error: "PROVIDER_CONFIG_LOOKUP_FAILED" }, 500);
-    const webhookSecret = str(obj(obj(obj(providerRow?.secret_config)[environment]).webhook_secret));
+    const webhookSecret = str(obj(obj(providerRow?.secret_config)[environment]).webhook_secret);
     if (!webhookSecret) return json({ ok: false, error: "WEBHOOK_SECRET_MISSING" }, 503);
     const signaturePayload = `POST\\n${path}\\n${rawBody}\\n${timestamp}`;
     const expected = await hmacBase64(webhookSecret, signaturePayload);
     if (!constantTimeEqual(expected, supplied)) return json({ ok: false, error: "INVALID_SIGNATURE" }, 401);
-    const normalizedReportedAmount = normalizeAmount(reportedAmount);
+    // XenithPay may encode money as a scalar or as { value, currency }.
+    const reportedMoney = obj(reportedAmount);
+    const amountValue = reportedMoney.value ?? reportedMoney.amount ?? reportedAmount;
+    const normalizedReportedAmount = normalizeAmount(amountValue);
     const expectedAmount = normalizeAmount(intent.amount);
+    const reportedCurrency = str(reportedMoney.currency || data.currency || payload.currency);
     if (reportedAmount !== null && reportedAmount !== undefined && (normalizedReportedAmount === null || normalizedReportedAmount !== expectedAmount)) {
       return json({ ok: false, error: "AMOUNT_MISMATCH" }, 422);
+    }
+    if (reportedCurrency) {
+      const { data: orderCurrency, error: currencyLookupError } = await admin.from("orders").select("currency").eq("id", orderId).maybeSingle();
+      if (currencyLookupError) return json({ ok: false, error: "ORDER_CURRENCY_LOOKUP_FAILED" }, 500);
+      const expectedCurrency = str(orderCurrency?.currency).toUpperCase();
+      if (expectedCurrency && reportedCurrency.toUpperCase() !== expectedCurrency) return json({ ok: false, error: "CURRENCY_MISMATCH" }, 422);
     }
     const eventType = str(payload.eventType || payload.event_type || payload.type);
     providerEventId = `XENITHPAY:${referenceId || orderId}:${rawStatus.toUpperCase()}:${eventType}`;

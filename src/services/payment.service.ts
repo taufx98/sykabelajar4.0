@@ -85,3 +85,42 @@ export async function getPublicPaymentGatewayStatus() {
     checkoutEnabled: Boolean(data.checkoutEnabled),
   };
 }
+
+
+export type GatewayReturnReconciliation = {
+  ok: true;
+  status: string;
+  order_id: string;
+  verified?: boolean;
+  already_paid?: boolean;
+  reason?: string;
+};
+
+/**
+ * Verifies a gateway return against the provider API on the server.
+ * The browser return URL is never accepted as proof of payment.
+ */
+export async function reconcileGatewayPaymentReturn(
+  orderId: string,
+  transactionId?: string | null,
+): Promise<GatewayReturnReconciliation> {
+  if (!orderId) throw new Error('Order ID wajib diisi untuk verifikasi pembayaran.');
+  const body: Record<string, string> = { order_id: orderId };
+  if (transactionId) body.transaction_id = transactionId;
+
+  const { data, error } = await supabase.functions.invoke('payment-gateway-reconcile', { body });
+  if (error) {
+    const context = (error as { context?: Response }).context;
+    if (context && typeof context.json === 'function') {
+      try {
+        const details = await context.clone().json();
+        throw new Error(String(details?.message || details?.error || error.message || 'Verifikasi pembayaran gagal.'));
+      } catch (parseError) {
+        if (parseError instanceof Error && parseError.message !== 'Unexpected end of JSON input') throw parseError;
+      }
+    }
+    throw error;
+  }
+  if (!data?.ok) throw new Error(String(data?.message || data?.error || 'Verifikasi pembayaran belum berhasil.'));
+  return data as GatewayReturnReconciliation;
+}

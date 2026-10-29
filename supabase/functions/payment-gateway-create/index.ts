@@ -1,4 +1,3 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -168,6 +167,7 @@ Deno.serve(async (req: Request) => {
       customerName: validCustomerName,
       customerPhoneNumber: str(order.contact_whatsapp) || str(profile?.whatsapp) || undefined,
       redirectUrl: returnUrl.toString(),
+      paymentLinkCallbackUrl: callbackUrl,
       payinCallbackUrl: callbackUrl,
     };
     const rawBody = JSON.stringify(requestBody);
