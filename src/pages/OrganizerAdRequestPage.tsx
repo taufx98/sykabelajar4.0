@@ -27,7 +27,6 @@ import { supabase } from '@/lib/supabase';
 
 /* ─── Constants ─── */
 const BASE_PRICE = 50000;
-const MULTIPLIER = 0.95;
 const getBannerRatio = (placement: BannerPlacement, widthSlots = 1): string => {
   if (placement === 'home_sidebar') return '600/500';
   return widthSlots > 1 ? '2400/512' : '1200/512';
@@ -66,14 +65,15 @@ function isAllowedUrl(url: string): boolean {
 }
 
 /* ─── Pricing ─── */
-function calcPricePerSlot(slots: number): number[] {
-  const prices: number[] = [];
-  for (let i = 0; i < slots; i++) prices.push(BASE_PRICE * Math.pow(MULTIPLIER, i));
-  return prices;
-}
-function calcTotalPrice(slots: number, days: number): number {
-  const total = calcPricePerSlot(slots).reduce((a, b) => a + b, 0);
-  return Math.round(total / 50000) * 50000 * days;
+function calcTotalPrice(slots: number, days: number, settings?: AdBannerSettings | null, singleImage = false): number {
+  const configuredPerLot = Number(settings?.price_per_lot_daily ?? 0);
+  const perLot = Number.isFinite(configuredPerLot) && configuredPerLot > 0 ? configuredPerLot : BASE_PRICE;
+  let perDay = perLot * Math.max(1, slots);
+  if (singleImage && slots === 2) {
+    const configuredBundle = Number(settings?.single_image_2slots_price ?? 0);
+    if (Number.isFinite(configuredBundle) && configuredBundle > 0) perDay = configuredBundle;
+  }
+  return Math.round(perDay * days);
 }
 function uniqueCode(): number {
   return Math.floor(100 + Math.random() * 900);
@@ -118,7 +118,7 @@ export function OrganizerAdRequestPage() {
   const [totalWithUnique, setTotalWithUnique] = useState(0);
 
   const durationDays = showCustom ? customDays : DURATION_OPTIONS[durationPreset]?.days || 7;
-  const basePrice = calcTotalPrice(slots, durationDays);
+  const basePrice = calcTotalPrice(slots, durationDays, settings, groupMode !== 'none');
   const selectablePaymentMethods = paymentMethods.filter((method) => method.details?.global_gateway === true || ['BANK_TRANSFER', 'MANUAL_TRANSFER', 'QRIS', 'EWALLET'].includes(String(method.payment_type).trim().toUpperCase()));
   const selectedPaymentMethod = paymentMethods.find((method) => method.id === selectedPaymentMethodId) ?? null;
   const isGlobalAdPayment = selectedPaymentMethod?.details?.global_gateway === true;
