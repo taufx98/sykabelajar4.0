@@ -50,7 +50,7 @@ function getPageMetadata(pathname: string): PageMetadata {
     return { title: 'Daftar Akun SYKABELAJAR', description: 'Buat akun SYKABELAJAR untuk mengikuti kompetisi, tantangan harian, dan aktivitas belajar.', robots: 'index,follow' };
   }
   if (path === '/leaderboard') {
-    return { title: 'Papan Peringkat — SYKABELAJAR', description: 'Lihat papan peringkat dan pencapaian komunitas SYKABELAJAR.', robots: 'index,follow' };
+    return { title: 'Papan Peringkat — SYKABELAJAR', description: 'Lihat papan peringkat dan pencapaian komunitas SYKABELAJAR.', robots: 'noindex,nofollow' };
   }
 
   if (path.startsWith('/lomba/')) {
@@ -61,7 +61,7 @@ function getPageMetadata(pathname: string): PageMetadata {
     return {
       title: competitionName ? `${competitionName} — Kompetisi SYKABELAJAR` : 'Kompetisi SYKABELAJAR',
       description: 'Temukan informasi kompetisi, pendaftaran, jadwal, dan penghargaan di SYKABELAJAR.',
-      robots: 'index,follow',
+      robots: 'noindex,nofollow',
     };
   }
 
@@ -73,7 +73,7 @@ function getPageMetadata(pathname: string): PageMetadata {
     return {
       title: username ? `Profil ${username} — SYKABELAJAR` : 'Profil Pengguna — SYKABELAJAR',
       description: 'Lihat profil dan pencapaian pengguna di SYKABELAJAR.',
-      robots: 'index,follow',
+      robots: 'noindex,nofollow',
     };
   }
 
