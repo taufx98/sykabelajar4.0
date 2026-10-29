@@ -1,165 +1,860 @@
-import { useEffect, useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Crown } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Crown,
+  Medal,
+  Search,
+  School,
+  Sparkles,
+  Trophy,
+  Users,
+  X,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
-import { getPublicLeaderboard, getPublicCoinLeaderboard, type PublicLeaderboardRow, type PublicCoinLeaderboardRow } from '@/services/platform.service';
 import { useApp } from '@/store/AppContext';
+import { supabase } from '@/lib/supabase';
+import {
+  getPublicCoinLeaderboard,
+  getPublicLeaderboardEnriched,
+  getPublicSchoolLeaderboard,
+  invalidateLeaderboardMemory,
+  type PublicCoinLeaderboardRow,
+  type PublicEnrichedLeaderboardRow,
+  type PublicLeaderboardPeriod,
+  type PublicSchoolLeaderboardRow,
+} from '@/services/platform.service';
 
 type Mode = 'xp' | 'coin';
-type LeaderRow = (PublicLeaderboardRow & { grade?: string | null }) | (PublicCoinLeaderboardRow & { xp?: number; grade?: string | null });
+type Category = 'all' | 'sd' | 'smp' | 'sma' | 'school';
+type LeaderEntry = {
+  user_id: string;
+  username: string;
+  display_name: string;
+  institution: string | null;
+  avatar_url: string | null;
+  grade: string | null;
+  xp: number;
+  edu_coin?: number;
+  rank: number;
+  average_score: number | null;
+  competitions_count: number;
+  school_id: string | null;
+  displayRank: number;
+};
 
-const GRADES = [
-  { key: 'all', label: 'Semua', children: [] as string[] },
-  { key: 'sd', label: 'SD', children: ['1','2','3','4','5','6'] },
-  { key: 'smp', label: 'SMP', children: ['7','8','9'] },
-  { key: 'sma', label: 'SMA', children: ['10','11','12'] },
+const MAX_RANK = 100;
+const PER_PAGE = 10;
+
+const PERIODS: Array<{ key: PublicLeaderboardPeriod; label: string }> = [
+  { key: 'weekly', label: 'Mingguan' },
+  { key: 'monthly', label: 'Bulanan' },
+  { key: 'all', label: 'Semua' },
 ];
 
-const PER_PAGE = 10;
-const MAX_RANK = 100;
+const CATEGORIES: Array<{ key: Category; label: string }> = [
+  { key: 'all', label: 'Semua Jenjang' },
+  { key: 'sd', label: 'SD Sederajat' },
+  { key: 'smp', label: 'SMP Sederajat' },
+  { key: 'sma', label: 'SMA/SMK Sederajat' },
+  { key: 'school', label: 'Peringkat Sekolah' },
+];
 
-const RANK_STYLES = {
-  1: { ring: 'ring-4 ring-amber-400/80', crown: 'text-amber-400', crownBg: 'bg-amber-500/20', card: 'border-amber-400/40', cardBg: 'bg-gradient-to-b from-amber-500/8 to-surface-card', glow: 'shadow-[0_0_20px_rgba(245,158,11,0.15)]', nameColor: 'text-fg', scoreBg: 'bg-amber-500', scoreText: 'text-white', label: '🥇' },
-  2: { ring: 'ring-4 ring-slate-300/50', crown: 'text-fg-secondary', crownBg: 'bg-slate-400/15', card: 'border-slate-300/25', cardBg: 'bg-surface-card', glow: '', nameColor: 'text-fg', scoreBg: 'bg-slate-400/20', scoreText: 'text-fg', label: '🥈' },
-  3: { ring: 'ring-4 ring-orange-400/50', crown: 'text-orange-400', crownBg: 'bg-orange-500/15', card: 'border-orange-400/25', cardBg: 'bg-surface-card', glow: '', nameColor: 'text-fg', scoreBg: 'bg-orange-500/15', scoreText: 'text-fg', label: '🥉' },
-} as const;
+const SUB_GRADES: Record<Exclude<Category, 'all' | 'school'>, string[]> = {
+  sd: ['1', '2', '3', '4', '5', '6'],
+  smp: ['7', '8', '9'],
+  sma: ['10', '11', '12'],
+};
 
 const normalizeGrade = (value: unknown) => String(value ?? '').toLowerCase().trim();
-const gradeGroup = (value: unknown) => {
-  const g = normalizeGrade(value);
-  if (!g) return '';
-  if (g === 'sd' || g.startsWith('sd_') || /^sd\s*[1-6]$/.test(g)) return 'sd';
-  if (g === 'smp' || g.startsWith('smp_') || /^smp\s*(7|8|9)$/.test(g)) return 'smp';
-  if (g === 'sma' || g === 'smk' || g.startsWith('sma_') || /^sma\s*(10|11|12)$/.test(g)) return 'sma';
-  if (g === 'alumni') return 'sma';
+
+function gradeGroup(value: unknown): '' | 'sd' | 'smp' | 'sma' {
+  const grade = normalizeGrade(value).replace(/[_ -]/g, '');
+  if (grade.startsWith('sd')) return 'sd';
+  if (grade.startsWith('smp')) return 'smp';
+  if (grade.startsWith('sma') || grade.startsWith('smk') || grade === 'alumni') return 'sma';
   return '';
-};
-const gradeClass = (value: unknown) => {
-  const g = normalizeGrade(value);
-  const m = g.match(/(?:sd[_\s-]?|smp[_\s-]?|sma[_\s-]?)(1|2|3|4|5|6|7|8|9|10|11|12)$/);
-  return m?.[1] ?? '';
-};
+}
+
+function gradeClass(value: unknown): string {
+  const grade = normalizeGrade(value).replace(/[_ -]/g, '');
+  const match = grade.match(/^(?:sd|smp|sma|smk)(1[0-2]|[1-9])$/);
+  return match?.[1] ?? '';
+}
+
+function gradeLabel(value: unknown): string {
+  const group = gradeGroup(value);
+  const level = group === 'sd' ? 'SD' : group === 'smp' ? 'SMP' : group === 'sma' ? 'SMA/SMK' : '';
+  const classNumber = gradeClass(value);
+  if (level && classNumber) return 'Kelas ' + classNumber + ' ' + (group === 'sma' ? 'SMA/SMK' : level);
+  if (level) return level + ' Sederajat';
+  return String(value ?? '').trim() || '—';
+}
+
+function formatNumber(value: number | null | undefined): string {
+  return Number(value ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 1 });
+}
+
+function formatAverage(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(Number(value))) return '—';
+  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(Number(value));
+}
+
+function normalizeCoinRow(row: PublicCoinLeaderboardRow): LeaderEntry {
+  return {
+    user_id: row.user_id,
+    username: row.username,
+    display_name: row.display_name,
+    institution: row.institution,
+    avatar_url: row.avatar_url,
+    grade: row.grade,
+    xp: 0,
+    edu_coin: row.edu_coin,
+    rank: row.rank,
+    average_score: null,
+    competitions_count: 0,
+    school_id: null,
+    displayRank: row.rank,
+  };
+}
+
+function normalizeXPRows(rows: PublicEnrichedLeaderboardRow[]): LeaderEntry[] {
+  return rows.map((row) => ({ ...row, displayRank: row.rank }));
+}
+
+const LEADERBOARD_STYLES = String.raw`
+.syka-leaderboard {
+  --lb-panel: var(--surface-card);
+  --lb-elevated: var(--surface-elevated);
+  --lb-border: var(--surface-border);
+  --lb-fg: var(--fg);
+  --lb-muted: var(--fg-muted);
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: clamp(14px, 2.1vw, 32px);
+  color: var(--lb-fg);
+}
+.syka-leaderboard * { box-sizing: border-box; }
+.lb-heading { text-align: center; margin: 0 auto 22px; }
+.lb-eyebrow { color: #60a5fa; display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .13em; }
+.lb-heading h1 { margin: 6px 0 3px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; font-size: clamp(25px, 3vw, 34px); line-height: 1.2; font-weight: 850; letter-spacing: -.04em; color: var(--lb-fg); }
+.lb-heading p { margin: 0; font-size: 13px; color: var(--lb-muted); }
+.lb-live { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; border: 1px solid rgba(16,185,129,.24); padding: 5px 10px; color: #34d399; background: rgba(16,185,129,.08); font-size: 10px; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
+.lb-live-dot { width: 7px; height: 7px; background: #10b981; border-radius: 50%; animation: lb-pulse 1.8s ease-in-out infinite; }
+.lb-live.is-polling { color: #93c5fd; background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.24); }
+.lb-live.is-polling .lb-live-dot { background: #60a5fa; }
+.lb-control-line { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin: 20px auto 26px; }
+.lb-segment { display: inline-flex; align-items: center; gap: 3px; padding: 4px; border: 1px solid var(--lb-border); border-radius: 15px; background: color-mix(in srgb, var(--lb-panel) 86%, transparent); }
+.lb-segment button { border: 0; cursor: pointer; border-radius: 11px; padding: 9px 15px; min-height: 36px; font-size: 11px; font-weight: 700; color: var(--lb-muted); background: transparent; transition: color .2s ease, background .2s ease, transform .2s ease, box-shadow .2s ease; }
+.lb-segment button:hover { color: var(--lb-fg); }
+.lb-segment button:active { transform: scale(.97); }
+.lb-segment button.active { color: white; background: #2563eb; box-shadow: 0 4px 14px rgba(37,99,235,.28); }
+.lb-mode { margin-right: 1px; }
+.lb-mode button.active { background: linear-gradient(135deg,#2563eb,#3b82f6); }
+.lb-search { display: flex; align-items: center; gap: 9px; min-width: min(100%, 280px); width: 280px; max-width: 100%; padding: 0 12px; min-height: 42px; border: 1px solid var(--lb-border); border-radius: 14px; background: var(--lb-panel); color: var(--lb-muted); transition: border-color .2s ease, box-shadow .2s ease; }
+.lb-search:focus-within { border-color: rgba(59,130,246,.62); box-shadow: 0 0 0 3px rgba(59,130,246,.11); }
+.lb-search input { flex: 1; min-width: 0; width: 100%; outline: none; border: 0; background: transparent; color: var(--lb-fg); font-size: 11px; }
+.lb-search input::placeholder { color: var(--lb-muted); }
+.lb-search button { display: inline-flex; border: 0; padding: 3px; border-radius: 6px; background: transparent; color: var(--lb-muted); cursor: pointer; }
+.lb-search button:hover { color: var(--lb-fg); background: var(--lb-elevated); }
+.lb-category-area { max-width: 1040px; margin: 0 auto 22px; border-bottom: 1px solid var(--lb-border); }
+.lb-category-tabs { display: flex; justify-content: center; align-items: stretch; gap: 3px; overflow-x: auto; scrollbar-width: none; padding: 0 2px; }
+.lb-category-tabs::-webkit-scrollbar { display: none; }
+.lb-category-tab { flex: 0 0 auto; position: relative; border: 0; background: transparent; color: var(--lb-muted); font-size: 11px; font-weight: 800; padding: 12px 15px 15px; white-space: nowrap; cursor: pointer; transition: color .2s ease; }
+.lb-category-tab:hover { color: var(--lb-fg); }
+.lb-category-tab.active { color: #facc15; }
+.lb-category-tab.active::after { content: ''; position: absolute; height: 3px; width: 66%; left: 17%; bottom: -1px; border-radius: 999px; background: #facc15; box-shadow: 0 0 10px rgba(250,204,21,.45); }
+.lb-category-tab:disabled { opacity: .38; cursor: not-allowed; }
+.lb-subgrades { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; padding: 13px 0 15px; }
+.lb-subgrade { border: 1px solid var(--lb-border); border-radius: 999px; background: var(--lb-panel); color: var(--lb-muted); padding: 6px 12px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all .18s ease; }
+.lb-subgrade:hover { border-color: rgba(59,130,246,.4); color: var(--lb-fg); }
+.lb-subgrade.active { background: rgba(59,130,246,.14); border-color: rgba(59,130,246,.42); color: #60a5fa; }
+.lb-main-content { animation: lb-fade-in-up .6s cubic-bezier(.6,1,.3,1) both; }
+.lb-podium { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 280px; min-width: 0; }
+.lb-podium.rank-1 { max-width: 300px; }
+.lb-podium-badge { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 12px; margin-bottom: 7px; border-radius: 999px; font-size: 10px; font-weight: 850; z-index: 1; }
+.lb-podium-badge.rank-1 { background: rgba(245,158,11,.14); color: #fbbf24; border: 1px solid rgba(245,158,11,.3); }
+.lb-podium-badge.rank-2 { background: rgba(6,182,212,.12); color: #67e8f9; border: 1px solid rgba(34,211,238,.24); }
+.lb-podium-badge.rank-3 { background: rgba(99,102,241,.14); color: #a5b4fc; border: 1px solid rgba(129,140,248,.28); }
+.lb-podium-tower { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; padding: 27px 16px 36px; clip-path: polygon(0 0,100% 0,100% 91%,50% 100%,0 91%); transition: transform .28s ease, filter .28s ease; }
+.lb-podium:hover .lb-podium-tower { transform: translateY(-4px); }
+.lb-podium.rank-1 .lb-podium-tower { padding-top: 32px; padding-bottom: 43px; background: linear-gradient(180deg,#f59e0b 0%,#ea580c 62%,#7c2d12 100%); box-shadow: 0 0 35px -5px rgba(245,158,11,.45); }
+.lb-podium.rank-2 .lb-podium-tower { background: linear-gradient(180deg,#2563eb 0%,#3730a3 68%,#172554 100%); box-shadow: 0 0 25px -5px rgba(6,182,212,.3); }
+.lb-podium.rank-3 .lb-podium-tower { background: linear-gradient(180deg,#4338ca 0%,#3730a3 68%,#111827 100%); box-shadow: 0 0 25px -5px rgba(99,102,241,.3); }
+.lb-podium.rank-1 .lb-podium-tower { min-height: 330px; }
+.lb-podium.rank-2 .lb-podium-tower { min-height: 286px; }
+.lb-podium.rank-3 .lb-podium-tower { min-height: 277px; }
+.lb-avatar-wrap { display: flex; align-items: center; justify-content: center; width: 86px; height: 86px; padding: 3px; border-radius: 50%; margin: 0 0 12px; background: rgba(255,255,255,.78); border: 2px solid rgba(255,255,255,.7); box-shadow: 0 6px 18px rgba(0,0,0,.16); }
+.lb-podium.rank-1 .lb-avatar-wrap { width: 96px; height: 96px; background: #fcd34d; border-color: #fcd34d; }
+.lb-podium.rank-2 .lb-avatar-wrap { background: #67e8f9; border-color: #67e8f9; }
+.lb-podium.rank-3 .lb-avatar-wrap { background: #c7d2fe; border-color: #c7d2fe; }
+.lb-avatar-wrap img, .lb-avatar-wrap > div { border-radius: 50%; }
+.lb-podium-name { display: block; width: 100%; text-align: center; color: #fff; font-size: 13px; font-weight: 850; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-podium-user { color: rgba(255,255,255,.82); font-size: 10px; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-podium-school { color: rgba(255,255,255,.72); font-size: 10px; text-align: center; margin-top: 7px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-podium-score { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-top: 15px; padding: 11px 8px; border-radius: 11px; background: rgba(15,23,42,.42); color: white; }
+.lb-podium.rank-1 .lb-podium-score { background: rgba(124,45,18,.54); }
+.lb-podium-score strong { font-size: clamp(17px, 2vw, 23px); font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.lb-podium-score span { color: rgba(255,255,255,.7); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.lb-podium-metrics { display: grid; grid-template-columns: 1fr 1fr; width: 100%; margin-top: 9px; border-radius: 11px; padding: 9px 4px; background: rgba(2,6,23,.64); color: white; }
+.lb-podium-metrics > div { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 850; }
+.lb-podium-metrics > div + div { border-left: 1px solid rgba(255,255,255,.1); }
+.lb-podium-metrics small { font-size: 8px; font-weight: 700; color: rgba(255,255,255,.56); text-transform: uppercase; letter-spacing: .03em; }
+.lb-podium-metrics .good { color: #6ee7b7; }
+.lb-podium-medal { position: absolute; top: -1px; right: 6px; color: #fcd34d; opacity: .9; }
+.lb-podium-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; width: 100%; margin: 0 auto; padding: 10px 4px 20px; }
+.lb-podium-area .lb-podium { flex: 1 1 0; }
+.lb-podium-area .lb-podium.rank-1 { flex: 1.1 1 0; }
+.lb-search-note { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; color: var(--lb-muted); background: var(--lb-panel); border: 1px solid var(--lb-border); font-size: 11px; }
+.lb-search-note strong { color: var(--lb-fg); }
+.lb-table-wrap { width: 100%; overflow-x: auto; scrollbar-width: thin; scrollbar-color: rgba(148,163,184,.3) transparent; }
+.lb-table { min-width: 780px; width: 100%; border-collapse: separate; border-spacing: 0 7px; table-layout: fixed; }
+.lb-table th { color: var(--lb-muted); background: var(--lb-panel); font-size: 9px; text-align: left; letter-spacing: .04em; text-transform: uppercase; font-weight: 850; padding: 10px 12px; }
+.lb-table th:first-child { border-radius: 12px 0 0 12px; }
+.lb-table th:last-child { border-radius: 0 12px 12px 0; text-align: right; }
+.lb-table td { background: color-mix(in srgb, var(--lb-panel) 82%, transparent); border-top: 1px solid var(--lb-border); border-bottom: 1px solid var(--lb-border); padding: 11px 12px; font-size: 10px; color: var(--lb-muted); vertical-align: middle; }
+.lb-table td:first-child { border-left: 1px solid var(--lb-border); border-radius: 12px 0 0 12px; }
+.lb-table td:last-child { border-right: 1px solid var(--lb-border); border-radius: 0 12px 12px 0; text-align: right; }
+.lb-table tbody tr { cursor: default; transition: transform .18s ease, filter .18s ease; }
+.lb-table tbody tr.lb-clickable { cursor: pointer; }
+.lb-table tbody tr:hover td { filter: brightness(1.06); }
+.lb-table tbody tr:hover { transform: translateY(-1px); }
+.lb-rank-number { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 27px; border-radius: 8px; color: var(--lb-muted); background: rgba(2,6,23,.6); border: 1px solid var(--lb-border); font-size: 11px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.lb-person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lb-person > a { display: flex; flex-shrink: 0; }
+.lb-person img, .lb-person > a > div { border-radius: 50%; }
+.lb-person-meta { min-width: 0; }
+.lb-person-name { color: var(--lb-fg); display: block; font-size: 11px; font-weight: 850; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.lb-person-handle { color: var(--lb-muted); display: block; font-size: 9px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-school-cell { color: var(--lb-muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-score-cell { color: #fbbf24 !important; font-size: 12px !important; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lb-score-cell small { font-size: 8px; margin-left: 3px; color: #fbbf24; }
+.lb-you { color: #60a5fa; font-size: 9px; margin-left: 5px; font-weight: 800; }
+.lb-user-rank { display: flex; align-items: center; gap: 12px; margin-top: 17px; padding: 13px 15px; border: 1px solid rgba(59,130,246,.26); border-radius: 15px; background: linear-gradient(100deg,rgba(37,99,235,.1),rgba(59,130,246,.035)); animation: lb-fade-in-up .42s ease both; }
+.lb-user-rank .lb-user-place { color: #60a5fa; font-size: 20px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.lb-user-rank .lb-user-details { flex: 1; min-width: 0; }
+.lb-user-rank .lb-user-label { color: #60a5fa; font-size: 9px; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+.lb-user-rank .lb-user-name { color: var(--lb-fg); font-size: 11px; font-weight: 850; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-user-rank .lb-user-school { color: var(--lb-muted); font-size: 9px; margin-top: 3px; }
+.lb-user-rank .lb-user-score { color: #fbbf24; font-size: 14px; font-weight: 900; text-align: right; white-space: nowrap; }
+.lb-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; margin: 18px 0 8px; }
+.lb-pagination button { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; border: 1px solid var(--lb-border); border-radius: 9px; background: var(--lb-panel); color: var(--lb-muted); font-size: 11px; font-weight: 800; cursor: pointer; transition: all .18s ease; }
+.lb-pagination button:hover:not(:disabled) { border-color: rgba(59,130,246,.4); color: var(--lb-fg); }
+.lb-pagination button.active { color: #fff; border-color: #2563eb; background: #2563eb; }
+.lb-pagination button:disabled { opacity: .3; cursor: not-allowed; }
+.lb-pagination-info { text-align: center; color: var(--lb-muted); font-size: 10px; margin: 5px 0 0; }
+.lb-period-note { display: flex; align-items: flex-start; gap: 7px; max-width: 820px; margin: 12px auto 0; color: var(--lb-muted); font-size: 9px; line-height: 1.6; text-align: center; justify-content: center; }
+.lb-empty { padding: 34px 20px; text-align: center; background: var(--lb-panel); border: 1px dashed var(--lb-border); border-radius: 16px; color: var(--lb-muted); font-size: 12px; }
+.lb-loading { padding: 36px 20px; text-align: center; color: var(--lb-muted); font-size: 12px; }
+.lb-spinner { width: 17px; height: 17px; border: 2px solid var(--lb-border); border-top-color: #60a5fa; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 8px; animation: lb-spin .8s linear infinite; }
+.lb-school-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; background: rgba(245,158,11,.12); color: #fbbf24; }
+.lb-modal-backdrop { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(2,6,23,.76); backdrop-filter: blur(8px); animation: lb-backdrop .18s ease both; }
+.lb-modal { width: min(100%, 520px); max-height: min(82vh, 720px); overflow: auto; padding: 20px; border: 1px solid var(--lb-border); border-radius: 20px; background: var(--surface-card); color: var(--lb-fg); box-shadow: 0 28px 90px rgba(0,0,0,.35); animation: lb-fade-in-up .25s ease both; }
+.lb-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+.lb-modal-header h2 { margin: 0; font-size: 18px; font-weight: 850; }
+.lb-modal-header p { margin: 4px 0 0; font-size: 11px; color: var(--lb-muted); }
+.lb-modal-close { display: inline-flex; align-items: center; justify-content: center; padding: 7px; border: 1px solid var(--lb-border); border-radius: 9px; background: var(--lb-panel); color: var(--lb-muted); cursor: pointer; }
+.lb-modal-student { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--lb-border); border-radius: 12px; background: var(--lb-panel); margin-top: 8px; }
+.lb-modal-student-main { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.lb-modal-student-main > div:last-child { min-width: 0; }
+.lb-modal-student-name { font-size: 11px; font-weight: 850; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-modal-student-meta { font-size: 9px; color: var(--lb-muted); margin-top: 3px; }
+.lb-modal-student-score { font-size: 11px; font-weight: 900; color: #fbbf24; white-space: nowrap; }
+@keyframes lb-fade-in-up { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes lb-pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,.25); } 50% { opacity: .7; box-shadow: 0 0 0 4px rgba(16,185,129,0); } }
+@keyframes lb-spin { to { transform: rotate(360deg); } }
+@keyframes lb-backdrop { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+ .syka-leaderboard *, .syka-leaderboard *::before, .syka-leaderboard *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+@media (max-width: 1000px) {
+ .lb-podium-tower { padding-left: 12px; padding-right: 12px; }
+ .lb-table { min-width: 730px; }
+ .lb-category-tab { padding-left: 11px; padding-right: 11px; }
+}
+@media (max-width: 640px) {
+ .syka-leaderboard { padding: 14px 10px 24px; }
+ .lb-heading { margin-bottom: 16px; }
+ .lb-heading h1 { font-size: 25px; }
+ .lb-heading p { font-size: 11px; line-height: 1.6; }
+ .lb-control-line { align-items: stretch; gap: 9px; margin: 16px auto 20px; }
+ .lb-mode { width: 100%; }
+ .lb-mode button { flex: 1; padding: 9px 7px; }
+ .lb-segment:not(.lb-mode) { flex: 1; justify-content: space-between; }
+ .lb-segment:not(.lb-mode) button { flex: 1; padding: 8px 8px; }
+ .lb-search { width: 100%; min-width: 100%; }
+ .lb-category-tabs { justify-content: flex-start; }
+ .lb-category-tab { padding: 12px 11px 14px; font-size: 10px; }
+ .lb-subgrades { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; }
+ .lb-podium-area { gap: 5px; padding-left: 0; padding-right: 0; }
+ .lb-podium { max-width: 33.333% !important; }
+ .lb-podium.rank-1 { max-width: 35% !important; }
+ .lb-podium-badge { padding: 5px 7px; font-size: 9px; gap: 4px; margin-bottom: 6px; }
+ .lb-podium-tower { padding: 18px 6px 27px; min-height: 225px !important; }
+ .lb-podium.rank-1 .lb-podium-tower { min-height: 254px !important; padding-top: 23px; padding-bottom: 32px; }
+ .lb-avatar-wrap { width: 55px; height: 55px; padding: 2px; margin-bottom: 8px; }
+ .lb-podium.rank-1 .lb-avatar-wrap { width: 64px; height: 64px; }
+ .lb-podium-name { font-size: 9px; }
+ .lb-podium-user { font-size: 8px; }
+ .lb-podium-school { display: none; }
+ .lb-podium-score { margin-top: 10px; padding: 8px 3px; border-radius: 8px; }
+ .lb-podium-score strong { font-size: clamp(12px, 3.7vw, 17px); }
+ .lb-podium-score span { font-size: 7px; letter-spacing: 0; }
+ .lb-podium-metrics { padding: 7px 2px; margin-top: 6px; border-radius: 8px; }
+ .lb-podium-metrics > div { font-size: 9px; }
+ .lb-podium-metrics small { font-size: 6px; letter-spacing: 0; }
+ .lb-table { min-width: 0; table-layout: auto; border-spacing: 0 6px; }
+ .lb-table thead th { padding: 9px 6px; font-size: 8px; }
+ .lb-table th:nth-child(3), .lb-table td:nth-child(3),
+ .lb-table th:nth-child(4), .lb-table td:nth-child(4),
+ .lb-table th:nth-child(5), .lb-table td:nth-child(5) { display: none; }
+ .lb-table th:first-child { width: 37px; }
+ .lb-table th:nth-child(2) { min-width: 160px; }
+ .lb-table th:last-child { min-width: 92px; }
+ .lb-table td { padding: 9px 6px; font-size: 9px; }
+ .lb-rank-number { width: 25px; height: 25px; font-size: 10px; }
+ .lb-person { gap: 7px; }
+ .lb-person-name { font-size: 10px; }
+ .lb-person-handle { font-size: 8px; }
+ .lb-score-cell { font-size: 11px !important; }
+ .lb-user-rank { gap: 8px; padding: 11px 9px; }
+ .lb-user-rank .lb-user-place { font-size: 16px; }
+ .lb-user-rank .lb-user-score { font-size: 11px; }
+ .lb-pagination { gap: 4px; }
+ .lb-pagination button { min-width: 29px; height: 29px; }
+ .lb-period-note { font-size: 8px; text-align: left; justify-content: flex-start; }
+ .lb-modal { padding: 15px; }
+}
+`;
 
 export function LeaderboardPage() {
   const { user } = useApp();
   const [mode, setMode] = useState<Mode>('xp');
-  const [grade, setGrade] = useState('all');
+  const [period, setPeriod] = useState<PublicLeaderboardPeriod>('weekly');
+  const [category, setCategory] = useState<Category>('all');
   const [subGrade, setSubGrade] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
-  const [entries, setEntries] = useState<LeaderRow[]>([]);
+  const [entries, setEntries] = useState<LeaderEntry[]>([]);
+  const [schoolEntries, setSchoolEntries] = useState<PublicSchoolLeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isRealtime, setIsRealtime] = useState(false);
+  const [selectedSchool, setSelectedSchool] = useState<PublicSchoolLeaderboardRow | null>(null);
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      setLoading(true); setError('');
+    let requestVersion = 0;
+
+    const load = async (silent: boolean) => {
+      const currentRequest = ++requestVersion;
+      if (!silent) setLoading(true);
+      setError('');
       try {
-        const rows = mode === 'xp' ? await getPublicLeaderboard(MAX_RANK) : await getPublicCoinLeaderboard(MAX_RANK);
-        if (active) setEntries(rows as LeaderRow[]);
-      } catch (e: any) {
-        if (active) { setError(e?.message ?? 'Gagal memuat.'); setEntries([]); }
-      } finally { if (active) setLoading(false); }
-    })();
-    return () => { active = false; };
-  }, [mode]);
+        const dataPeriod = mode === 'xp' ? period : 'all';
+        const [people, schools] = await Promise.all([
+          mode === 'xp'
+            ? getPublicLeaderboardEnriched(dataPeriod, MAX_RANK)
+            : getPublicCoinLeaderboard(MAX_RANK),
+          mode === 'xp'
+            ? getPublicSchoolLeaderboard(dataPeriod, MAX_RANK)
+            : Promise.resolve([] as PublicSchoolLeaderboardRow[]),
+        ]);
 
-  const allRows = useMemo(() => {
-    if (grade === 'all' && !subGrade) return entries;
-    return entries.filter((row) => {
-      const group = gradeGroup(row.grade);
-      if (subGrade) return group === grade && gradeClass(row.grade) === subGrade;
-      return group === grade;
+        if (!active || currentRequest !== requestVersion) return;
+        setEntries(mode === 'xp'
+          ? normalizeXPRows(people as PublicEnrichedLeaderboardRow[])
+          : (people as PublicCoinLeaderboardRow[]).map(normalizeCoinRow));
+        setSchoolEntries(schools);
+      } catch (cause) {
+        if (!active || currentRequest !== requestVersion) return;
+        setError(cause instanceof Error ? cause.message : 'Gagal memuat papan peringkat.');
+        if (!silent) {
+          setEntries([]);
+          setSchoolEntries([]);
+        }
+      } finally {
+        if (active && currentRequest === requestVersion && !silent) setLoading(false);
+      }
+    };
+
+    void load(false);
+
+    const channel = supabase
+      .channel('public-leaderboard-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        invalidateLeaderboardMemory();
+        void load(true);
+      })
+      .subscribe((status) => {
+        if (active) setIsRealtime(status === 'SUBSCRIBED');
+      });
+
+    const refreshTimer = window.setInterval(() => {
+      invalidateLeaderboardMemory();
+      void load(true);
+    }, 60_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [mode, period]);
+
+  const filteredEntries = useMemo(() => {
+    const levelFiltered = entries.filter((entry) => {
+      if (category === 'all' || category === 'school') return true;
+      if (gradeGroup(entry.grade) !== category) return false;
+      if (subGrade && gradeClass(entry.grade) !== subGrade) return false;
+      return true;
     });
-  }, [entries, grade, subGrade]);
 
-  const totalPages = Math.max(1, Math.ceil(allRows.length / PER_PAGE));
+    return levelFiltered.map((entry, index) => ({
+      ...entry,
+      displayRank: category === 'all' ? entry.rank : index + 1,
+    }));
+  }, [entries, category, subGrade]);
+
+  const query = searchInput.trim().toLocaleLowerCase('id-ID');
+  const searchActive = query.length > 0;
+
+  const searchedEntries = useMemo(() => {
+    if (!query) return filteredEntries;
+    return filteredEntries.filter((entry) => [
+      entry.display_name,
+      entry.username,
+      entry.institution ?? '',
+      gradeLabel(entry.grade),
+      entry.grade ?? '',
+    ].some((value) => value.toLocaleLowerCase('id-ID').includes(query)));
+  }, [filteredEntries, query]);
+
+  const filteredSchools = useMemo(() => {
+    if (!query) return schoolEntries;
+    return schoolEntries.filter((school) =>
+      (school.school_name + ' ' + school.levels).toLocaleLowerCase('id-ID').includes(query),
+    );
+  }, [schoolEntries, query]);
+
+  const activeRows = category === 'school' ? [] : searchedEntries;
+  const activeSchools = category === 'school' ? filteredSchools : [];
+  const sourceLength = category === 'school' ? activeSchools.length : activeRows.length;
+  const listLength = searchActive ? sourceLength : Math.max(0, sourceLength - 3);
+  const totalPages = Math.max(1, Math.ceil(listLength / PER_PAGE));
   const safePage = Math.min(page, totalPages);
-  const top3 = allRows.slice(0, 3);
-  const paged = allRows.slice(3 + (safePage - 1) * PER_PAGE, 3 + safePage * PER_PAGE);
-  const activeGradeConfig = GRADES.find((g) => g.key === grade);
-  const podiumDesktop = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
+
+  const podiumPeople = !searchActive && category !== 'school' ? filteredEntries.slice(0, 3) : [];
+  const podiumSchools = !searchActive && category === 'school' ? schoolEntries.slice(0, 3) : [];
+  const podiumItems = podiumPeople.length >= 3
+    ? [podiumPeople[1], podiumPeople[0], podiumPeople[2]]
+    : podiumPeople;
+  const podiumSchoolItems = podiumSchools.length >= 3
+    ? [podiumSchools[1], podiumSchools[0], podiumSchools[2]]
+    : podiumSchools;
+
+  const pagedPeople = searchActive
+    ? activeRows.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
+    : activeRows.slice(3 + (safePage - 1) * PER_PAGE, 3 + safePage * PER_PAGE);
+  const pagedSchools = searchActive
+    ? activeSchools.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
+    : activeSchools.slice(3 + (safePage - 1) * PER_PAGE, 3 + safePage * PER_PAGE);
+
+  const userRank = category !== 'school' && user?.id
+    ? filteredEntries.find((entry) => entry.user_id === user.id) ?? null
+    : null;
+
+  const changeMode = (next: Mode) => {
+    setMode(next);
+    setPage(1);
+    setSearchInput('');
+    if (next === 'coin' && category === 'school') setCategory('all');
+  };
+
+  const changeCategory = (next: Category) => {
+    if (next === 'school' && mode === 'coin') return;
+    setCategory(next);
+    setSubGrade(null);
+    setPage(1);
+  };
+
+  const changePeriod = (next: PublicLeaderboardPeriod) => {
+    setPeriod(next);
+    setPage(1);
+  };
+
+  const changeSearch = (value: string) => {
+    setSearchInput(value);
+    setPage(1);
+  };
+
+  const onPickSchool = (key: string) => {
+    const school = schoolEntries.find((entry) => entry.school_key === key);
+    if (school) setSelectedSchool(school);
+  };
+
+  useEffect(() => {
+    if (!selectedSchool) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedSchool(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedSchool]);
 
   return (
-    <div className="min-h-screen">
-      <div className="p-4 pb-0">
-        <div className="surface-card-bg surface-border border rounded-2xl p-2.5 md:p-3">
-          <div className="flex items-center justify-between gap-3 mb-2.5 px-1">
-            <span className="text-xs font-medium text-fg-muted">Mode peringkat</span>
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-accent"><span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />Live</span>
-          </div>
-          <div className="flex gap-1 surface-elevated rounded-lg p-1 mb-2.5">
-            {([['xp', 'XP Global'], ['coin', 'Edu Coin']] as const).map(([key, label]) => (
-              <button key={key} onClick={() => { setMode(key); setPage(1); }} className={`flex-1 py-1.5 rounded-md text-xs font-medium transition ${mode === key ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:text-fg-secondary'}`}>{label}</button>
+    <main className="syka-leaderboard">
+      <style>{LEADERBOARD_STYLES}</style>
+
+      <header className="lb-heading">
+        <div className="lb-eyebrow"><Activity size={14} /> Pencapaian Siswa</div>
+        <h1>
+          Peringkat Juara
+          <span className={'lb-live ' + (isRealtime ? '' : 'is-polling')} title={isRealtime ? 'Berlangganan perubahan profil realtime, dengan penyegaran berkala sebagai cadangan.' : 'Data disegarkan otomatis setiap 60 detik.'}>
+            <span className="lb-live-dot" />
+            {isRealtime ? 'Update Realtime' : 'Update Otomatis'}
+          </span>
+        </h1>
+        <p>Pantau pemuncak klasemen XP global dan tingkatkan prestasimu!</p>
+      </header>
+
+      <div className="lb-control-line">
+        <div className="lb-segment lb-mode" role="group" aria-label="Mode peringkat">
+          <button type="button" className={mode === 'xp' ? 'active' : ''} onClick={() => changeMode('xp')}>XP Global</button>
+          <button type="button" className={mode === 'coin' ? 'active' : ''} onClick={() => changeMode('coin')}>Edu Coin</button>
+        </div>
+        {mode === 'xp' && (
+          <div className="lb-segment" role="group" aria-label="Periode peringkat">
+            {PERIODS.map((item) => (
+              <button key={item.key} type="button" className={period === item.key ? 'active' : ''} onClick={() => changePeriod(item.key)}>
+                {item.label}
+              </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-0.5 shrink-0">
-              {GRADES.map((g) => (
-                <button key={g.key} onClick={() => { setGrade(g.key); setSubGrade(null); setPage(1); }} className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition ${grade === g.key && !subGrade ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:bg-white/5 hover:text-fg-secondary'}`}>
-                  {g.label}
-                </button>
-              ))}
-            </div>
-            {grade !== 'all' && <label className="relative shrink-0">
-              <select value={subGrade ?? ''} onChange={(e) => { setSubGrade(e.target.value || null); setPage(1); }} className="input appearance-none pr-9 py-2 text-xs min-w-[128px]">
-                <option value="">Semua {activeGradeConfig?.label ?? grade.toUpperCase()}</option>
-                {(activeGradeConfig?.children ?? []).map((lvl) => <option key={lvl} value={lvl}>Kelas {lvl}</option>)}
-              </select>
-              <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none text-fg-muted" />
-            </label>}
+        )}
+        <label className="lb-search">
+          <Search size={15} aria-hidden="true" />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(event) => changeSearch(event.target.value)}
+            placeholder={category === 'school' ? 'Cari nama sekolah...' : 'Cari nama atau sekolah...'}
+            aria-label={category === 'school' ? 'Cari peringkat sekolah' : 'Cari siswa atau sekolah'}
+          />
+          {searchInput && <button type="button" aria-label="Hapus pencarian" onClick={() => changeSearch('')}><X size={14} /></button>}
+        </label>
+      </div>
+
+      <nav className="lb-category-area" aria-label="Kategori papan peringkat">
+        <div className="lb-category-tabs">
+          {CATEGORIES.map((item) => {
+            const isDisabled = item.key === 'school' && mode === 'coin';
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={'lb-category-tab ' + (category === item.key ? 'active' : '')}
+                disabled={isDisabled}
+                title={isDisabled ? 'Peringkat sekolah menggunakan akumulasi XP.' : undefined}
+                onClick={() => changeCategory(item.key)}
+              >
+                {item.key === 'school' && <School size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }} />}
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+        {category !== 'all' && category !== 'school' && (
+          <div className="lb-subgrades" aria-label="Filter kelas">
+            <button type="button" className={'lb-subgrade ' + (!subGrade ? 'active' : '')} onClick={() => { setSubGrade(null); setPage(1); }}>
+              Semua {category === 'sd' ? 'SD' : category === 'smp' ? 'SMP' : 'SMA/SMK'}
+            </button>
+            {SUB_GRADES[category].map((level) => (
+              <button key={level} type="button" className={'lb-subgrade ' + (subGrade === level ? 'active' : '')} onClick={() => { setSubGrade(level); setPage(1); }}>
+                Kelas {level}
+              </button>
+            ))}
           </div>
+        )}
+      </nav>
+
+      {loading && <div className="lb-loading"><span className="lb-spinner" />Memuat peringkat...</div>}
+      {!loading && error && (
+        <div className="lb-empty" role="alert">
+          <strong>Belum bisa memuat peringkat.</strong>
+          <p style={{ margin: '7px 0 12px' }}>{error}</p>
+          <button type="button" className="lb-subgrade active" onClick={() => { invalidateLeaderboardMemory(); setPeriod((value) => value); }}>Coba segarkan</button>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div key={mode + '-' + period + '-' + category + '-' + (subGrade ?? 'all') + '-' + (searchActive ? 'search' : 'browse')} className="lb-main-content">
+          {searchActive && (
+            <div className="lb-search-note">
+              <span>Hasil pencarian untuk <strong>“{searchInput.trim()}”</strong> · {sourceLength} ditemukan</span>
+              <button type="button" className="lb-subgrade" onClick={() => changeSearch('')}>Hapus pencarian</button>
+            </div>
+          )}
+
+          {category === 'school' ? (
+            <>
+              {!searchActive && podiumSchoolItems.length > 0 && (
+                <div className="lb-podium-area">
+                  {podiumSchoolItems.map((school, index) => {
+                    const place = (podiumSchoolItems.length >= 3 ? [2, 1, 3][index] : school.rank) as 1 | 2 | 3;
+                    return <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />;
+                  })}
+                </div>
+              )}
+              <SchoolRankingTable schools={pagedSchools} onPickSchool={onPickSchool} />
+              {!sourceLength && <div className="lb-empty">Belum ada data sekolah yang dapat diperingkat.</div>}
+              {sourceLength > 3 && renderPagination(safePage, totalPages, setPage, listLength, 'sekolah', searchActive)}
+              <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedSchools.length : 3 + pagedSchools.length)} dari {sourceLength} sekolah</p>
+            </>
+          ) : (
+            <>
+              {!searchActive && podiumItems.length > 0 && (
+                <div className="lb-podium-area">
+                  {podiumItems.map((entry) => (
+                    <PersonPodiumCard key={entry.user_id} entry={entry} place={entry.displayRank as 1 | 2 | 3} mode={mode} />
+                  ))}
+                </div>
+              )}
+              <PersonRankingTable rows={pagedPeople} mode={mode} currentUserId={user?.id} onPickSchool={onPickSchool} />
+              {!sourceLength && <div className="lb-empty">Belum ada data peringkat untuk filter ini.</div>}
+              {sourceLength > (searchActive ? 0 : 3) && renderPagination(safePage, totalPages, setPage, listLength, 'siswa', searchActive)}
+              <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedPeople.length : 3 + pagedPeople.length)} dari {sourceLength} siswa</p>
+              {userRank && (
+                <div className="lb-user-rank">
+                  <div className="lb-user-place">#{userRank.displayRank}</div>
+                  <Avatar name={userRank.display_name} id={userRank.user_id} size={42} src={userRank.avatar_url ?? undefined} />
+                  <div className="lb-user-details">
+                    <div className="lb-user-label">Peringkat kamu</div>
+                    <div className="lb-user-name">{userRank.display_name} <span className="lb-you">KAMU</span></div>
+                    <div className="lb-user-school">{userRank.institution || 'Sekolah belum diisi'} · {gradeLabel(userRank.grade)}</div>
+                  </div>
+                  <div className="lb-user-score">{formatNumber(scoreFor(userRank, mode))}<div style={{ fontSize: 9, fontWeight: 700, opacity: .75 }}>{mode === 'xp' ? 'XP' : 'Edu Coin'}</div></div>
+                </div>
+              )}
+              {mode === 'xp' && period !== 'all' && (
+                <p className="lb-period-note">
+                  <CalendarDays size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                  Peringkat periode menggunakan transaksi XP yang tercatat pada jurnal XP selama {period === 'weekly' ? 'minggu berjalan (Senin–Minggu)' : 'bulan berjalan'}. XP lama yang tidak memiliki catatan transaksi periode tidak direkonstruksi dari saldo total.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {selectedSchool && (
+        <div className="lb-modal-backdrop" role="presentation" onClick={() => setSelectedSchool(null)}>
+          <section className="lb-modal" role="dialog" aria-modal="true" aria-labelledby="lb-school-title" onClick={(event) => event.stopPropagation()}>
+            <div className="lb-modal-header">
+              <div>
+                <h2 id="lb-school-title">{selectedSchool.school_name}</h2>
+                <p>5 siswa penyumbang XP terbanyak · {formatNumber(selectedSchool.student_count)} siswa terdaftar di peringkat</p>
+              </div>
+              <button type="button" className="lb-modal-close" aria-label="Tutup detail sekolah" onClick={() => setSelectedSchool(null)}><X size={17} /></button>
+            </div>
+            {selectedSchool.top_students.length === 0 && <div className="lb-empty">Belum ada siswa publik pada sekolah ini.</div>}
+            {selectedSchool.top_students.map((student, index) => (
+              <div className="lb-modal-student" key={student.user_id}>
+                <div className="lb-modal-student-main">
+                  <span className={'lb-rank-number rank-' + (index + 1)}>#{index + 1}</span>
+                  <Link to={'/profile/' + student.username} onClick={() => setSelectedSchool(null)}>
+                    <Avatar name={student.display_name} id={student.user_id} size={37} src={student.avatar_url ?? undefined} />
+                  </Link>
+                  <div>
+                    <Link to={'/profile/' + student.username} className="lb-modal-student-name" onClick={() => setSelectedSchool(null)}>{student.display_name}</Link>
+                    <div className="lb-modal-student-meta">@{student.username} · {gradeLabel(student.grade)}</div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="lb-modal-student-score">{formatNumber(student.xp)} XP</div>
+                  <div className="lb-modal-student-meta">Rata-rata {formatAverage(student.average_score)}</div>
+                </div>
+              </div>
+            ))}
+          </section>
+        </div>
+      )}
+    </main>
+  );
+}
+
+function scoreFor(entry: LeaderEntry, mode: Mode): number {
+  return mode === 'xp' ? entry.xp : Number(entry.edu_coin ?? 0);
+}
+
+function PersonPodiumCard({ entry, place, mode }: { entry: LeaderEntry; place: 1 | 2 | 3; mode: Mode }) {
+  const label = place === 1 ? '1st' : place === 2 ? '2nd' : '3rd';
+  const average = entry.average_score == null ? '—' : formatAverage(entry.average_score);
+  return (
+    <article className={'lb-podium rank-' + place}>
+      <div className={'lb-podium-badge rank-' + place}>
+        {place === 1 ? <Crown size={14} /> : <Medal size={14} />}
+        {label}
+      </div>
+      <div className="lb-podium-tower">
+        {place === 1 && <Crown size={21} className="lb-podium-medal" />}
+        <div className="lb-avatar-wrap">
+          <Avatar name={entry.display_name} id={entry.user_id} size={place === 1 ? 88 : 78} src={entry.avatar_url ?? undefined} />
+        </div>
+        <Link to={'/profile/' + entry.username} className="lb-podium-name" title={entry.display_name}>{entry.display_name}</Link>
+        <div className="lb-podium-user">@{entry.username}</div>
+        <div className="lb-podium-school">{entry.institution || 'Sekolah belum diisi'}</div>
+        <div className="lb-podium-score">
+          <span>{mode === 'xp' ? 'XP' : 'Edu Coin'}</span>
+          <strong>{formatNumber(scoreFor(entry, mode))}</strong>
+        </div>
+        {mode === 'xp' && (
+          <div className="lb-podium-metrics">
+            <div><span className={entry.average_score == null ? '' : 'good'}>{average}</span><small>Rata-rata</small></div>
+            <div><span>{formatNumber(entry.competitions_count)}</span><small>Lomba</small></div>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function SchoolPodiumCard({ school, place, onClick }: { school: PublicSchoolLeaderboardRow; place: 1 | 2 | 3; onClick: () => void }) {
+  const label = place === 1 ? '1st' : place === 2 ? '2nd' : '3rd';
+  return (
+    <button type="button" className={'lb-podium rank-' + place} onClick={onClick} style={{ border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'inherit', padding: 0 }}>
+      <div className={'lb-podium-badge rank-' + place}>{place === 1 ? <Crown size={14} /> : <Medal size={14} />}{label}</div>
+      <div className="lb-podium-tower">
+        <div className="lb-avatar-wrap" style={{ borderRadius: 20 }}>
+          <School size={place === 1 ? 48 : 40} color={place === 1 ? '#92400e' : '#1d4ed8'} />
+        </div>
+        <span className="lb-podium-name" title={school.school_name}>{school.school_name}</span>
+        <span className="lb-podium-user">{school.student_count} siswa · {school.levels}</span>
+        <div className="lb-podium-score"><span>Total XP</span><strong>{formatNumber(school.xp)}</strong></div>
+        <div className="lb-podium-metrics">
+          <div><span>{formatAverage(school.average_score)}</span><small>Rata-rata</small></div>
+          <div><span>{formatNumber(school.competitions_count)}</span><small>Partisipasi</small></div>
         </div>
       </div>
+    </button>
+  );
+}
 
-      <div className="p-4 space-y-4">
-        {loading && <Card className="p-8 text-center text-sm text-fg-muted animate-pulse">Memuat peringkat…</Card>}
-        {error && <Card className="p-8 text-center text-sm text-red-400">{error}</Card>}
-
-        {!loading && !error && podiumDesktop.length >= 3 && <>
-          <div className="hidden sm:flex items-end justify-center gap-4 lg:gap-6 px-2 pt-6 pb-2">
-            {podiumDesktop.map((entry, idx) => { const place = (idx === 0 ? 2 : idx === 1 ? 1 : 3) as 1 | 2 | 3; return <PodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} compact={false} />; })}
-          </div>
-          <div className="sm:hidden flex items-end justify-center gap-2 px-1 pt-5 pb-2 w-full overflow-hidden">
-            {top3.map((entry, idx) => { const place = (idx + 1) as 1 | 2 | 3; return <div key={entry.user_id} className="w-[31%] max-w-[130px] flex justify-center"><PodiumCard entry={entry} place={place} mode={mode} compact /></div>; })}
-          </div>
-        </>}
-
-        {!loading && !error && podiumDesktop.length >= 3 && <div className="border-t surface-border" />}
-        {!loading && !error && <div className="space-y-2">{paged.map((entry) => <RankRow key={entry.user_id} entry={entry} currentUserId={user?.id} mode={mode} />)}</div>}
-        {!loading && !error && !allRows.length && <Card className="p-8 text-center text-sm text-fg-muted">Belum ada data peringkat.</Card>}
-
-        {!loading && totalPages > 1 && <div className="flex items-center justify-center gap-1 pt-2">
-          <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1} className="p-1.5 rounded-lg text-fg-muted hover:bg-white/5 disabled:opacity-30 transition"><ChevronLeft size={16} /></button>
-          {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => { let pageNum: number; if (totalPages <= 7) pageNum = i + 1; else if (safePage <= 4) pageNum = i + 1; else if (safePage >= totalPages - 3) pageNum = totalPages - 6 + i; else pageNum = safePage - 3 + i; return <button key={pageNum} onClick={() => setPage(pageNum)} className={`w-8 h-8 rounded-lg text-xs font-medium transition ${pageNum === safePage ? 'bg-accent-muted-strong text-accent' : 'text-fg-muted hover:bg-white/5'}`}>{pageNum}</button>; })}
-          <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages} className="p-1.5 rounded-lg text-fg-muted hover:bg-white/5 disabled:opacity-30 transition"><ChevronRight size={16} /></button>
-        </div>}
-        <p className="text-center text-xs text-fg-muted pt-1">Menampilkan {allRows.length} dari max {MAX_RANK} peringkat</p>
-      </div>
+function PersonRankingTable({ rows, mode, currentUserId }: { rows: LeaderEntry[]; mode: Mode; currentUserId?: string; onPickSchool: (key: string) => void }) {
+  return (
+    <div className="lb-table-wrap">
+      <table className="lb-table">
+        <thead>
+          <tr>
+            <th style={{ width: 78 }}>Peringkat</th>
+            <th style={{ width: '29%' }}>Nama & Username</th>
+            <th style={{ width: '22%' }}>Sekolah</th>
+            <th style={{ width: 120 }}>Kelas</th>
+            <th style={{ width: 92 }}>Rata-rata</th>
+            <th style={{ width: 80 }}>Lomba</th>
+            <th style={{ width: 130, textAlign: 'right' }}>{mode === 'xp' ? 'Total XP' : 'Total Edu Coin'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((entry) => {
+            const isMe = currentUserId === entry.user_id;
+            return (
+              <tr key={entry.user_id}>
+                <td><span className="lb-rank-number">{entry.displayRank}</span></td>
+                <td>
+                  <div className="lb-person">
+                    <Link to={'/profile/' + entry.username}>
+                      <Avatar name={entry.display_name} id={entry.user_id} size={35} src={entry.avatar_url ?? undefined} />
+                    </Link>
+                    <div className="lb-person-meta">
+                      <Link to={'/profile/' + entry.username} className="lb-person-name">{entry.display_name}{isMe && <span className="lb-you">KAMU</span>}</Link>
+                      <span className="lb-person-handle">@{entry.username}</span>
+                    </div>
+                  </div>
+                </td>
+                <td><div className="lb-school-cell" title={entry.institution ?? ''}>{entry.institution || '—'}</div></td>
+                <td>{gradeLabel(entry.grade)}</td>
+                <td>{mode === 'xp' ? formatAverage(entry.average_score) : '—'}</td>
+                <td>{mode === 'xp' ? formatNumber(entry.competitions_count) : '—'}</td>
+                <td className="lb-score-cell">{formatNumber(scoreFor(entry, mode))}<small>{mode === 'xp' ? 'XP' : 'Coin'}</small></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {!rows.length && <div className="lb-empty">Tidak ada siswa yang cocok dengan pencarian atau filter ini.</div>}
     </div>
   );
 }
 
-function PodiumCard({ entry, place, mode, compact }: { entry: LeaderRow; place: 1 | 2 | 3; mode: Mode; compact: boolean }) {
-  const s = RANK_STYLES[place]; const is1st = place === 1; const score = Number(mode === 'xp' ? (entry as any).xp : (entry as any).edu_coin).toLocaleString('id-ID'); const avatarSize = is1st ? (compact ? 72 : 96) : (compact ? 56 : 72);
-  return <div className={`flex-1 ${is1st ? 'max-w-[280px]' : 'max-w-[240px]'} ${!compact ? (is1st ? '-mt-4' : place === 2 ? 'mt-4' : 'mt-6') : ''}`}>
-    <div className="flex justify-center mb-2"><div className={`${s.crownBg} rounded-full px-3 py-1 flex items-center gap-1.5`}><span className="text-base">{s.label}</span><span className={`text-[11px] font-bold ${s.crown}`}>Rank {place}</span></div></div>
-    <div className={`${s.cardBg} ${s.card} border-2 rounded-2xl p-4 flex flex-col items-center ${s.glow} transition-all duration-300`}>
-      <div className="relative mb-3"><div className={`${s.ring} rounded-full overflow-hidden`}><Avatar name={entry.display_name} id={entry.user_id} size={avatarSize} src={entry.avatar_url ?? undefined} /></div>{is1st && <div className="absolute -top-2 left-1/2 -translate-x-1/2"><Crown size={20} className="text-amber-400 drop-shadow-lg" /></div>}</div>
-      <Link to={`/profile/${entry.username}`} className="text-center group"><p className={`font-bold text-sm ${s.nameColor} group-hover:text-accent transition truncate max-w-full`}>{entry.display_name}</p><p className="text-[11px] text-fg-muted truncate">@{entry.username}</p></Link>
-      <p className="text-[10px] text-fg-muted mt-1 truncate max-w-full">{entry.institution || '—'}</p>
-      <div className={`${s.scoreBg} ${is1st ? 'text-white' : s.scoreText} rounded-xl px-4 py-2 mt-3 text-center w-full`}><p className="text-lg font-bold tabular-nums">{score}</p><p className={`text-[10px] ${is1st ? 'text-white/70' : 'text-fg-muted'}`}>{mode === 'xp' ? 'Total XP' : 'Edu Coin'}</p></div>
+function SchoolRankingTable({ schools, onPickSchool }: { schools: PublicSchoolLeaderboardRow[]; onPickSchool: (key: string) => void }) {
+  return (
+    <div className="lb-table-wrap">
+      <table className="lb-table">
+        <thead>
+          <tr>
+            <th style={{ width: 78 }}>Peringkat</th>
+            <th style={{ width: '32%' }}>Nama Sekolah</th>
+            <th style={{ width: '13%' }}>Jumlah Siswa</th>
+            <th style={{ width: '16%' }}>Jenjang</th>
+            <th style={{ width: 110 }}>Rata-rata</th>
+            <th style={{ width: 105 }}>Partisipasi</th>
+            <th style={{ width: 130, textAlign: 'right' }}>Total XP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schools.map((school) => (
+            <tr key={school.school_key} className="lb-clickable" onClick={() => onPickSchool(school.school_key)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onPickSchool(school.school_key); }} tabIndex={0} aria-label={'Lihat siswa dari ' + school.school_name}>
+              <td><span className="lb-rank-number">{school.rank}</span></td>
+              <td>
+                <div className="lb-person">
+                  <span className="lb-school-icon"><School size={16} /></span>
+                  <div className="lb-person-meta">
+                    <span className="lb-person-name">{school.school_name}</span>
+                    <span className="lb-person-handle">Klik untuk melihat 5 kontributor XP teratas</span>
+                  </div>
+                </div>
+              </td>
+              <td>{formatNumber(school.student_count)}</td>
+              <td>{school.levels}</td>
+              <td>{formatAverage(school.average_score)}</td>
+              <td>{formatNumber(school.competitions_count)}</td>
+              <td className="lb-score-cell">{formatNumber(school.xp)}<small>XP</small></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!schools.length && <div className="lb-empty">Belum ada data sekolah yang cocok.</div>}
     </div>
-  </div>;
+  );
 }
 
-function RankRow({ entry, currentUserId, mode }: { entry: LeaderRow; currentUserId?: string; mode: Mode }) {
-  const isMe = currentUserId === entry.user_id; const score = Number(mode === 'xp' ? (entry as any).xp : (entry as any).edu_coin).toLocaleString('id-ID');
-  return <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-150 ${isMe ? 'border-accent/40 bg-accent-muted' : 'surface-border surface-card-bg hover:border-accent/20 hover:bg-surface-elevated'}`}>
-    <div className="w-8 text-center shrink-0"><span className={`text-sm font-bold ${isMe ? 'text-accent' : 'text-fg-muted'}`}>{entry.rank}</span></div>
-    <Link to={`/profile/${entry.username}`} className="shrink-0"><Avatar name={entry.display_name} id={entry.user_id} size={36} src={entry.avatar_url ?? undefined} /></Link>
-    <div className="flex-1 min-w-0"><Link to={`/profile/${entry.username}`}><p className={`text-sm font-semibold truncate ${isMe ? 'text-accent' : 'text-fg'}`}>{entry.display_name}{isMe && <span className="text-fg-muted font-normal ml-1">(Kamu)</span>}</p><p className="text-[11px] text-fg-muted truncate">{entry.institution || '—'}</p></Link></div>
-    <div className="text-right shrink-0"><p className={`text-sm font-bold tabular-nums ${mode === 'xp' ? 'text-accent' : 'text-amber-400'}`}>{score}</p><p className="text-[10px] text-fg-muted">{mode === 'xp' ? 'XP' : 'Coin'}</p></div>
-  </div>;
+function renderPagination(
+  page: number,
+  totalPages: number,
+  setPage: (page: number) => void,
+  count: number,
+  label: string,
+  searchActive: boolean,
+) {
+  if (count <= PER_PAGE) return null;
+  const pageButtons = Array.from({ length: Math.min(totalPages, 7) }, (_, index) => {
+    if (totalPages <= 7) return index + 1;
+    if (page <= 4) return index + 1;
+    if (page >= totalPages - 3) return totalPages - 6 + index;
+    return page - 3 + index;
+  });
+  return (
+    <nav className="lb-pagination" aria-label={'Halaman peringkat ' + label}>
+      <button type="button" aria-label="Halaman sebelumnya" disabled={page <= 1} onClick={() => setPage(Math.max(1, page - 1))}><ChevronLeft size={15} /></button>
+      {pageButtons.map((pageNumber) => (
+        <button key={pageNumber} type="button" className={pageNumber === page ? 'active' : ''} aria-current={pageNumber === page ? 'page' : undefined} onClick={() => setPage(pageNumber)}>{pageNumber}</button>
+      ))}
+      <button type="button" aria-label="Halaman berikutnya" disabled={page >= totalPages} onClick={() => setPage(Math.min(totalPages, page + 1))}><ChevronRight size={15} /></button>
+    </nav>
+  );
 }
