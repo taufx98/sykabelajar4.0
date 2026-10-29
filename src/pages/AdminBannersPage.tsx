@@ -103,6 +103,11 @@ export function AdminBannersPage() {
   // ── Approve / Reject ──
   const handleApprove = async (id: string) => {
     if (!settings) return toast('Settings belum tersedia.', 'error');
+    const request = requests.find((item) => item.id === id);
+    if (!request) return toast('Permintaan iklan tidak ditemukan. Muat ulang halaman.', 'error');
+    if (!['PAID', 'LEGACY_REVIEW'].includes(String(request.payment_status ?? 'UNPAID'))) {
+      return toast('Iklan belum bisa disetujui: pembayaran harus lunas melalui Pesanan atau bukti transfer lama harus ditinjau.', 'error');
+    }
     setBusy(id);
     try {
       await approveBannerRequest(id, settings);
