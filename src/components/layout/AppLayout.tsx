@@ -92,7 +92,7 @@ export function AppLayout() {
       if (event.type === 'chat-message' || event.type === 'chat-unread' || event.type === 'chat-read' || event.type === 'chat-hidden' || event.type === 'chat-thread-updated') {
         // A new durable chat signal invalidates any unread snapshot that started before the event.
         // Bursts are debounced below, then reconciled with one fresh server count.
-        invalidateUnreadChatCount();
+        invalidateUnreadChatCount(user.id);
         scheduleChatBadgeRefresh();
         return;
       }
