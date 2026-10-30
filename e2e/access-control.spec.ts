@@ -1082,7 +1082,7 @@ test.describe('chat network request reuse', () => {
       unreadCountReads += 1;
       // Both pre-event and post-event reads are delayed so the test proves the stale snapshot is replaced.
       await new Promise((resolve) => setTimeout(resolve, 500));
-      await route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: '0' });
+      await route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: unreadCountReads === 1 ? '0' : '5' });
     });
 
     await page.goto('/login?redirect=%2Fpesan');
@@ -1098,8 +1098,9 @@ test.describe('chat network request reuse', () => {
         detail: { type: 'chat-message', message: { id: 'test-message', thread_id: 'test-thread', sender_id: 'other-user' } },
       }));
     });
-    await page.waitForTimeout(700);
-    // One old snapshot plus exactly one post-event snapshot; no request storm from the event.
+    await expect(page.locator('aside a[href="/pesan"] .bg-red-500')).toHaveText('5');
+    await page.waitForTimeout(250);
+    // One old snapshot plus exactly one fresh post-event snapshot; no stale badge or request storm.
     expect(unreadCountReads).toBe(2);
   });
 
