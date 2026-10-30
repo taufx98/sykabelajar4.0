@@ -4,7 +4,6 @@ import { AppProvider, useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { MobileNavigationOverride } from '@/components/layout/MobileNavigationOverride';
 import { ChatUXBridge } from '@/components/chat/ChatUXBridge';
 import { OrganizerShell } from '@/components/layout/OrganizerShell';
 import { LandingPage } from '@/pages/LandingPage';
@@ -94,10 +93,6 @@ function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member' | 't
 
 function OrganizerShellRoute({ children }: { children: ReactNode }) {
   return <RoleRoute role="organizer_member"><OrganizerShell>{children}</OrganizerShell></RoleRoute>;
-}
-
-function RuntimeGlobals() {
-  return <MobileNavigationOverride />;
 }
 
 function ChatSessionIsolation() {
@@ -236,5 +231,5 @@ function ChatAwareApp() {
 }
 
 export default function App() {
-  return <AppProvider><BrowserRouter><RuntimeGlobals /><ChatSessionIsolation /><ChatAwareApp /><ToastContainer /></BrowserRouter></AppProvider>;
+  return <AppProvider><BrowserRouter><ChatSessionIsolation /><ChatAwareApp /><ToastContainer /></BrowserRouter></AppProvider>;
 }

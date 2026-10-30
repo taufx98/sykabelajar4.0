@@ -67,7 +67,8 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
     return location.search === `?${search}`;
   };
 
-  const isExamRoom = /^\/organizer\/competition\/[^/]+\/simulation\/[^/]+$/.test(location.pathname);
+  const normalizedPathname = location.pathname.replace(/\/+$/, '') || '/';
+  const isExamRoom = /^\/organizer\/competition\/[^/]+\/simulation\/[^/]+$/.test(normalizedPathname);
   if (isExamRoom) return <main className="min-h-screen w-full surface-bg">{children}</main>;
 
   return (

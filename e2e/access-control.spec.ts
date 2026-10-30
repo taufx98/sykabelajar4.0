@@ -872,3 +872,132 @@ test.describe('unauthenticated access control', () => {
     });
   }
 });
+
+
+async function signInForMobileNavigation(page: import('@playwright/test').Page, roles: string[], mobileNav?: string[]) {
+  await mockSupabaseLogin(page, roles);
+  if (mobileNav) {
+    await page.route('**/rest/v1/profile_ui_settings*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'access-control-allow-origin': '*', 'content-range': '0-0/1' },
+        contentType: 'application/json',
+        body: JSON.stringify({ mobile_nav: mobileNav }),
+      });
+    });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/login?redirect=%2Fhome');
+  await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+  await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+  await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe('/home');
+}
+
+test.describe('mobile navigation single source and immersive exam routes', () => {
+  test('renders exactly one bottom navigation in the authenticated app', async ({ page }) => {
+    await signInForMobileNavigation(page, ['student']);
+    await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(1);
+    await expect(page.getByRole('navigation', { name: 'Navigasi bawah mobile' })).toBeVisible();
+  });
+
+  for (const scenario of [
+    { label: 'student', roles: ['student'], href: '/daily-tasks' },
+    { label: 'teacher', roles: ['teacher'], href: '/guru' },
+    { label: 'organizer', roles: ['organizer_member'], href: '/organizer' },
+    { label: 'admin', roles: ['admin'], href: '/admin' },
+  ]) {
+    test(`routes the workspace shortcut to the correct destination for a ${scenario.label}`, async ({ page }) => {
+      await signInForMobileNavigation(page, scenario.roles, ['workspace']);
+      const navigation = page.getByRole('navigation', { name: 'Navigasi bawah mobile' });
+      await expect(navigation.locator('a')).toHaveAttribute('href', scenario.href);
+    });
+  }
+
+  test('preserves portal and chat shortcuts for a collective participant session', async ({ page }) => {
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
+    const accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NDQ0NDQ0NC00NDQ0LTQ0NDQtODQ0NC00NDQ0NDQ0NDQ0NDQiLCJyb2xlIjoiYXV0aGVudGljYXRlZCIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjQxMDI0NDQ4MDB9.test-signature';
+    const expiresAt = 4102444800;
+    const anonymousUser = {
+      id: '44444444-4444-4444-8444-444444444444',
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: '',
+      app_metadata: { provider: 'anonymous', providers: ['anonymous'] },
+      user_metadata: { is_anonymous: true },
+      created_at: '2026-01-01T00:00:00.000Z',
+    };
+
+    await page.route('**/auth/v1/**', async (route) => {
+      const url = new URL(route.request().url());
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      if (url.pathname.endsWith('/signup')) {
+        await route.fulfill({
+          status: 200,
+          headers: corsHeaders,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            access_token: accessToken,
+            token_type: 'bearer',
+            expires_in: 3600,
+            expires_at: expiresAt,
+            refresh_token: 'collective-test-refresh',
+            user: anonymousUser,
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await page.route('**/rest/v1/rpc/list_collective_chat_groups', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: '[]' });
+    });
+    await page.addInitScript(() => {
+      window.sessionStorage.setItem('syka_collective_access_token', 'collective-navigation-test');
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/pesan');
+
+    const navigation = page.getByRole('navigation', { name: 'Navigasi bawah mobile' });
+    await expect(navigation).toBeVisible();
+    await expect(navigation.getByRole('link')).toHaveCount(2);
+    await expect(navigation.getByRole('link', { name: 'Portal' })).toHaveAttribute('href', '/peserta-kolektif');
+    await expect(navigation.getByRole('link', { name: 'Pesan' })).toHaveAttribute('href', '/pesan');
+  });
+
+  test('keeps bottom navigation off public entry routes even with an authenticated session', async ({ page }) => {
+    await signInForMobileNavigation(page, ['student']);
+    for (const route of ['/', '/login', '/register']) {
+      await page.goto(route);
+      await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(0);
+    }
+  });
+
+  test('hides bottom navigation while a participant is taking an exam', async ({ page }) => {
+    await signInForMobileNavigation(page, ['student']);
+    for (const route of ['/lomba/ujian-uji/kerja', '/lomba/ujian-uji/kerja/']) {
+      await page.goto(route);
+      await expect(page).toHaveURL(/\/lomba\/ujian-uji\/kerja\/?$/);
+      await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(0);
+    }
+  });
+
+  test('hides bottom navigation during an organizer exam simulation', async ({ page }) => {
+    await signInForMobileNavigation(page, ['organizer_member']);
+    await page.goto('/organizer/competition/11111111-1111-4111-8111-111111111111/simulation/22222222-2222-4222-8222-222222222222/');
+    await expect(page).toHaveURL(/\/organizer\/competition\/[^/]+\/simulation\/[^/]+\/?$/);
+    await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Navigasi Penyelenggara' })).toHaveCount(0);
+  });
+});
