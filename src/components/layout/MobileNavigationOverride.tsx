@@ -35,8 +35,14 @@ type MobileNavigationItem = {
   icon: LucideIcon;
 };
 
-export function MobileNavigationOverride({ unreadCount = 0 }: { unreadCount?: number }) {
-  const { user, isGuest, unreadNotificationCount } = useApp();
+export function MobileNavigationOverride({
+  unreadChatCount = 0,
+  unreadNotificationCount = 0,
+}: {
+  unreadChatCount?: number;
+  unreadNotificationCount?: number;
+}) {
+  const { user, isGuest } = useApp();
   const { t } = useLanguage();
   const location = useLocation();
   const [items, setItems] = useState<string[]>(DEFAULT_MOBILE_NAV);
@@ -74,14 +80,18 @@ export function MobileNavigationOverride({ unreadCount = 0 }: { unreadCount?: nu
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'profile_ui_settings',
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          if (payload.eventType === 'DELETE') {
+            setItems([...DEFAULT_MOBILE_NAV]);
+            return;
+          }
           const savedItems = (payload.new as { mobile_nav?: unknown }).mobile_nav;
-          if (Array.isArray(savedItems)) setItems(normalizeMobileNav(savedItems));
+          setItems(normalizeMobileNav(savedItems));
         },
       )
       .subscribe();
@@ -132,7 +142,7 @@ export function MobileNavigationOverride({ unreadCount = 0 }: { unreadCount?: nu
           location.pathname === item.to ||
           (item.to === '/home' && location.pathname === '/') ||
           (item.to !== '/home' && location.pathname.startsWith(`${item.to}/`));
-        const badge = key === 'chat' ? unreadCount : key === 'notifications' ? unreadNotificationCount : 0;
+        const badge = key === 'chat' ? unreadChatCount : key === 'notifications' ? unreadNotificationCount : 0;
 
         return (
           <Link
