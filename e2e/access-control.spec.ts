@@ -877,10 +877,19 @@ test.describe('unauthenticated access control', () => {
 async function signInForMobileNavigation(page: import('@playwright/test').Page, roles: string[], mobileNav?: string[]) {
   await mockSupabaseLogin(page, roles);
   if (mobileNav) {
+    const settingsCorsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
     await page.route('**/rest/v1/profile_ui_settings*', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: settingsCorsHeaders });
+        return;
+      }
       await route.fulfill({
         status: 200,
-        headers: { 'access-control-allow-origin': '*', 'content-range': '0-0/1' },
+        headers: { ...settingsCorsHeaders, 'content-range': '0-0/1' },
         contentType: 'application/json',
         body: JSON.stringify({ mobile_nav: mobileNav }),
       });
@@ -910,7 +919,12 @@ test.describe('mobile navigation single source and immersive exam routes', () =>
     test(`routes the workspace shortcut to the correct destination for a ${scenario.label}`, async ({ page }) => {
       await signInForMobileNavigation(page, scenario.roles, ['workspace']);
       const navigation = page.getByRole('navigation', { name: 'Navigasi bawah mobile' });
-      await expect(navigation.locator('a')).toHaveAttribute('href', scenario.href);
+      // The navigation preferences load asynchronously after the authenticated shell mounts.
+      // Target the expected destination directly so Playwright waits for this specific shortcut,
+      // rather than applying a single-element assertion to every link in the bottom navigation.
+      const workspaceShortcut = navigation.locator(`a[href="${scenario.href}"]`);
+      await expect(workspaceShortcut).toHaveCount(1);
+      await expect(workspaceShortcut).toHaveAttribute('href', scenario.href);
     });
   }
 
