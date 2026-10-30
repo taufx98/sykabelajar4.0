@@ -44,10 +44,87 @@ export async function uploadRawFile(file: File, folder?: string): Promise<Cloudi
 
 export async function uploadProfileImage(file: File, kind: 'profile' | 'cover', username: string, existingPublicId?: string | null): Promise<CloudinaryUploadResult> { return uploadProfileImageSigned(file, existingPublicId || `sykabelajar/${username}/${kind}`); }
 
-export function optimizedCloudinaryUrl(url?: string | null, options: { width?: number; version?: string | number | null } = {}): string | undefined {
-  if (!url) return undefined; const value = String(url); let parsed: URL; try { parsed = new URL(value); } catch { return value; } if (!parsed.hostname.toLowerCase().endsWith('.cloudinary.com')) return value;
-  const marker = '/image/upload/'; const index = parsed.pathname.indexOf(marker); if (index < 0) return value;
-  const width = Number.isFinite(options.width) && Number(options.width) > 0 ? Math.round(Number(options.width)) : undefined; const transforms = ['f_auto', 'q_auto', ...(width ? [`w_${width}`] : [])]; parsed.pathname = `${parsed.pathname.slice(0, index + marker.length)}${transforms.join(',')}/${parsed.pathname.slice(index + marker.length)}`; if (options.version != null && String(options.version)) parsed.searchParams.set('v', String(options.version)); return parsed.toString();
+function optimizeCloudinaryResourceUrl(url: string | null | undefined, resourceType: 'image' | 'video', width?: number, version?: string | number | null): string | undefined {
+  if (!url) return undefined;
+
+  const value = String(url);
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return value;
+  }
+
+  if (!parsed.hostname.toLowerCase().endsWith('.cloudinary.com')) return value;
+
+  const marker = `/${resourceType}/upload/`;
+  const markerIndex = parsed.pathname.indexOf(marker);
+  if (markerIndex < 0) return value;
+
+  const normalizedWidth = Number.isFinite(width) && Number(width) > 0
+    ? Math.round(Number(width))
+    : undefined;
+  const suffix = parsed.pathname.slice(markerIndex + marker.length);
+  const segments = suffix.split('/');
+  const firstSegment = segments[0] ?? '';
+  const firstSegmentTokens = firstSegment.split(',');
+  const isExistingTransformation = firstSegmentTokens.length > 0
+    && firstSegmentTokens.every((token) => /^(?:a|b|c|d|e|f|g|h|l|o|p|q|r|s|t|u|w|x|ar|bg|bo|br|cs|dpr|du|fl|fn|if|ki|pg|so|sp|vc)_[^,]+$/i.test(token));
+
+  if (isExistingTransformation) {
+    const tokens = firstSegmentTokens.filter((token) => !normalizedWidth || !/^w_/i.test(token));
+    if (!tokens.some((token) => /^f_/i.test(token))) tokens.unshift('f_auto');
+    if (!tokens.some((token) => /^q_/i.test(token))) tokens.push('q_auto');
+    if (normalizedWidth) tokens.push(`w_${normalizedWidth}`);
+    segments[0] = tokens.join(',');
+  } else {
+    segments.unshift([
+      'f_auto',
+      'q_auto',
+      ...(normalizedWidth ? [`w_${normalizedWidth}`] : []),
+    ].join(','));
+  }
+
+  parsed.pathname = `${parsed.pathname.slice(0, markerIndex + marker.length)}${segments.join('/')}`;
+  if (version != null && String(version)) parsed.searchParams.set('v', String(version));
+  return parsed.toString();
 }
-export function versionedCloudinaryUrl(url?: string | null, version?: string | number | null): string | undefined { return optimizedCloudinaryUrl(url, { version }); }
+
+export function optimizedCloudinaryUrl(url?: string | null, options: { width?: number; version?: string | number | null } = {}): string | undefined {
+  return optimizeCloudinaryResourceUrl(url, 'image', options.width, options.version);
+}
+
+export function optimizedCloudinaryVideoUrl(url?: string | null, options: { width?: number } = {}): string | undefined {
+  return optimizeCloudinaryResourceUrl(url, 'video', options.width);
+}
+
+export function cloudinaryVideoPosterUrl(url?: string | null, options: { width?: number } = {}): string | undefined {
+  const optimizedUrl = optimizeCloudinaryResourceUrl(url, 'video', options.width);
+  if (!optimizedUrl) return undefined;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(optimizedUrl);
+  } catch {
+    return undefined;
+  }
+
+  const marker = '/video/upload/';
+  const markerIndex = parsed.pathname.indexOf(marker);
+  if (markerIndex < 0) return undefined;
+
+  const suffix = parsed.pathname.slice(markerIndex + marker.length);
+  const segments = suffix.split('/');
+  const tokens = (segments[0] ?? '').split(',').filter((token) => !/^f_/i.test(token));
+  tokens.unshift('so_0', 'f_jpg');
+  segments[0] = tokens.join(',');
+  const lastIndex = segments.length - 1;
+  segments[lastIndex] = segments[lastIndex].replace(/\.(?:mp4|webm|mov|m4v)$/i, '.jpg');
+  parsed.pathname = `${parsed.pathname.slice(0, markerIndex + marker.length)}${segments.join('/')}`;
+  return parsed.toString();
+}
+
+export function versionedCloudinaryUrl(url?: string | null, version?: string | number | null): string | undefined {
+  return optimizedCloudinaryUrl(url, { version });
+}
 export async function deleteImage(publicId: string, resourceType = 'image'): Promise<boolean> { if (!publicId) return false; const { error } = await supabase.functions.invoke('cloudinary-delete-profile', { body: { public_id: publicId, resource_type: resourceType } }); if (error) { reportUploadError('edge_function', error, { function: 'cloudinary-delete-profile' }); return false; } return true; }

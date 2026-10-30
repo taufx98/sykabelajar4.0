@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Megaphone } from 'lucide-react';
-import { loadPublicBanners, loadPublicBannerSlideDuration, type PublicBanner } from '@/services/public-banner.service';
+import { loadPublicBanners, type PublicBanner } from '@/services/public-banner.service';
 import { useApp } from '@/store/AppContext';
-import { optimizedCloudinaryUrl } from '@/services/cloudinary.service';
+import { optimizedCloudinaryUrl, optimizedCloudinaryVideoUrl } from '@/services/cloudinary.service';
 import type { BannerPlacement } from '@/services/ad.service';
 
 const TOP_ASPECT_RATIO = '1200 / 512';
@@ -54,23 +54,86 @@ function EmptySlot({ placement, visible }: { placement: BannerPlacement; visible
   );
 }
 
-function BannerMedia({ banner, className }: { banner: PublicBanner; className?: string }) {
+function BannerMedia({
+  banner,
+  className,
+  isActive,
+  widthSlots,
+  prioritizeImage,
+  prefersReducedMotion,
+}: {
+  banner: PublicBanner;
+  className?: string;
+  isActive: boolean;
+  widthSlots: number;
+  prioritizeImage: boolean;
+  prefersReducedMotion: boolean;
+}) {
   const width = banner.placement === 'home_sidebar'
     ? 600
-    : Number(banner.image_width_slots ?? 1) > 1 ? 2400 : 1200;
-  const src = banner.media_type === 'video'
-    ? banner.image_url
+    : widthSlots > 1 ? 2400 : 1200;
+  const isVideo = banner.media_type === 'video';
+  const src = isVideo
+    ? optimizedCloudinaryVideoUrl(banner.image_url, { width })
     : optimizedCloudinaryUrl(banner.image_url, { width });
-  if (banner.media_type === 'video') {
-    return <video src={src} className={className} muted playsInline autoPlay loop preload="metadata" />;
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isInViewport, setIsInViewport] = useState(false);
+  const shouldLoadVideo = isVideo && isActive && isInViewport;
+  const shouldPlayVideo = shouldLoadVideo && !prefersReducedMotion;
+  const shouldPrioritizeImage = !isVideo && isActive && prioritizeImage;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!isVideo || !video) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsInViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsInViewport(Boolean(entry?.isIntersecting && entry.intersectionRatio >= 0.25));
+    }, { threshold: [0, 0.25] });
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [isVideo, src]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (shouldPlayVideo) {
+      void video.play().catch(() => undefined);
+    } else {
+      video.pause();
+    }
+  }, [shouldPlayVideo, src]);
+
+  if (isVideo) {
+    return (
+      <video
+        ref={videoRef}
+        src={src}
+        className={className}
+        muted
+        playsInline
+        autoPlay={shouldPlayVideo}
+        loop
+        preload={shouldLoadVideo ? 'metadata' : 'none'}
+      />
+    );
   }
+
+  const aspectRatio = banner.placement === 'home_sidebar' ? 600 / 500 : width === 2400 ? 2400 / 512 : 1200 / 512;
   return (
     <img
       src={src}
       alt={banner.title || 'Banner'}
       className={className}
-      loading="lazy"
+      loading={shouldPrioritizeImage ? 'eager' : 'lazy'}
+      fetchPriority={shouldPrioritizeImage ? 'high' : 'auto'}
       decoding="async"
+      width={width}
+      height={Math.round(width / aspectRatio)}
     />
   );
 }
@@ -80,7 +143,7 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
   const [banners, setBanners] = useState<PublicBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [slideDurationSeconds, setSlideDurationSeconds] = useState(45);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => typeof window !== 'undefined' && (window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.classList.contains('reduce-motion')));
   // Two top slots on a sufficiently wide content area; one card on narrow
   // screens. The sidebar remains one slot at all breakpoints.
   const [topSlotCount, setTopSlotCount] = useState(2);
@@ -130,18 +193,25 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
         onBannersLoaded?.([]);
       }
     });
-    const refreshSlideDuration = () => {
-      void loadPublicBannerSlideDuration().then((seconds) => {
-        if (alive) setSlideDurationSeconds(seconds);
-      });
-    };
-    refreshSlideDuration();
-    const durationRefreshTimer = window.setInterval(refreshSlideDuration, 30_000);
     return () => {
       alive = false;
-      window.clearInterval(durationRefreshTimer);
     };
   }, [placement, onBannersLoaded]);
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setPrefersReducedMotion(
+      query.matches || document.documentElement.classList.contains('reduce-motion')
+    );
+    update();
+    query.addEventListener('change', update);
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => {
+      query.removeEventListener('change', update);
+      observer.disconnect();
+    };
+  }, []);
 
   const groups = useMemo<BannerGroup[]>(() => {
     const result: BannerGroup[] = [];
@@ -165,17 +235,17 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
   // multiple banners together, use the longest configured interval so neither
   // creative is replaced before its display time has elapsed. The admin setting
   // supplies the default when banners are created/approved.
-  const configuredDurations = groups[safeCurrentGroup]?.items.map(({ banner }) => Number(banner.slide_duration_seconds) || slideDurationSeconds) ?? [slideDurationSeconds];
+  const configuredDurations = groups[safeCurrentGroup]?.items.map(({ banner }) => Number(banner.slide_duration_seconds) || 45) ?? [45];
   const slideDurationMs = Math.max(5, Math.min(120, Math.max(...configuredDurations))) * 1000;
   const advance = useCallback(() => setCurrentGroup((g) => (g + 1) % totalGroups), [totalGroups]);
   const previous = useCallback(() => setCurrentGroup((g) => (g - 1 + totalGroups) % totalGroups), [totalGroups]);
 
   useEffect(() => {
     if (!needsSlide || banners.length === 0) return;
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (prefersReducedMotion) return;
     const timer = window.setInterval(advance, slideDurationMs);
     return () => window.clearInterval(timer);
-  }, [needsSlide, banners.length, advance, slideDurationMs, safeCurrentGroup]);
+  }, [needsSlide, banners.length, advance, slideDurationMs, safeCurrentGroup, prefersReducedMotion]);
 
   useEffect(() => {
     setCurrentGroup((group) => Math.min(group, Math.max(0, totalGroups - 1)));
@@ -258,6 +328,10 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
                     <BannerMedia
                       banner={banner}
                       className="w-full h-full object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
+                      isActive={groupIndex === safeCurrentGroup}
+                      widthSlots={widthSlots}
+                      prioritizeImage={placement === 'home_top' || showArrows}
+                      prefersReducedMotion={prefersReducedMotion}
                     />
                   </a>
                 ))}

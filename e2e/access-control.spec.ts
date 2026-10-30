@@ -1213,3 +1213,87 @@ test.describe('chat network request reuse', () => {
   });
 });
 
+
+
+test.describe('banner media delivery', () => {
+  test('prioritizes the first home banner and only activates the visible slide media', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
+    const banners = [
+      {
+        id: 'banner-image-first',
+        title: 'Banner utama',
+        image_url: 'https://res.cloudinary.com/demo/image/upload/v1/hero.jpg',
+        link_url: 'https://example.test/hero',
+        is_active: true,
+        slot_number: 1,
+        sort_order: 1,
+        created_at: '2026-10-31T00:00:00.000Z',
+        placement: 'home_top',
+        image_width_slots: 1,
+        single_image: true,
+        slide_duration_seconds: 45,
+        media_type: 'image',
+      },
+      {
+        id: 'banner-video-second',
+        title: 'Banner video',
+        image_url: 'https://res.cloudinary.com/demo/video/upload/v1/second.mp4',
+        link_url: 'https://example.test/video',
+        is_active: true,
+        slot_number: 2,
+        sort_order: 2,
+        created_at: '2026-10-31T00:01:00.000Z',
+        placement: 'home_top',
+        image_width_slots: 1,
+        single_image: true,
+        slide_duration_seconds: 45,
+        media_type: 'video',
+      },
+    ];
+
+    await page.route('**/rest/v1/ad_banners**', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      const url = new URL(route.request().url());
+      const rows = url.searchParams.get('placement') === 'eq.home_top' ? banners : [];
+      await route.fulfill({
+        status: 200,
+        headers: { ...corsHeaders, 'content-range': `0-${Math.max(0, rows.length - 1)}/${rows.length}` },
+        contentType: 'application/json',
+        body: JSON.stringify(rows),
+      });
+    });
+
+    await page.goto('/login?redirect=%2Fhome');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/home');
+
+    const bannerRegion = page.getByRole('region', { name: 'Iklan utama' });
+    const heroImage = bannerRegion.locator('img');
+    await expect(heroImage).toBeVisible();
+    await expect(heroImage).toHaveAttribute('loading', 'eager');
+    await expect(heroImage).toHaveAttribute('fetchpriority', 'high');
+    await expect(heroImage).toHaveAttribute('src', /image\/upload\/f_auto,q_auto,w_1200\/v1\/hero\.jpg/);
+
+    const video = bannerRegion.locator('video');
+    await expect(video).toHaveCount(1);
+    await expect(video).not.toHaveAttribute('autoplay', '');
+    await expect(video).toHaveAttribute('preload', 'none');
+    await expect(video).toHaveAttribute('src', /video\/upload\/f_auto,q_auto,w_1200\/v1\/second\.mp4/);
+
+    await bannerRegion.getByRole('button', { name: 'Tampilkan grup iklan 2' }).click();
+    await expect(video).toHaveAttribute('autoplay', '');
+    await expect(video).toHaveAttribute('preload', 'metadata');
+  });
+});
