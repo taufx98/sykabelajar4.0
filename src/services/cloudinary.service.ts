@@ -69,10 +69,10 @@ function optimizeCloudinaryResourceUrl(url: string | null | undefined, resourceT
   const firstSegment = segments[0] ?? '';
   const firstSegmentTokens = firstSegment.split(',');
   const isExistingTransformation = firstSegmentTokens.length > 0
-    && firstSegmentTokens.every((token) => /^[a-z]{1,2}_[^,]+$/i.test(token));
+    && firstSegmentTokens.every((token) => /^(?:a|b|c|d|e|f|g|h|l|o|p|q|r|s|t|u|w|x|ar|bg|bo|br|cs|dpr|du|fl|fn|if|ki|pg|so|sp|vc)_[^,]+$/i.test(token));
 
   if (isExistingTransformation) {
-    const tokens = firstSegmentTokens.filter((token) => !normalizedWidth || !/^w_\d+$/i.test(token));
+    const tokens = firstSegmentTokens.filter((token) => !normalizedWidth || !/^w_/i.test(token));
     if (!tokens.some((token) => /^f_/i.test(token))) tokens.unshift('f_auto');
     if (!tokens.some((token) => /^q_/i.test(token))) tokens.push('q_auto');
     if (normalizedWidth) tokens.push(`w_${normalizedWidth}`);
