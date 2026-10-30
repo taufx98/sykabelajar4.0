@@ -17,7 +17,7 @@ export async function reconcileAfterRealtimeReconnect(scope: ReconcileScope, use
   inFlightUser = (async () => {
     try {
       // Drop any pre-disconnect unread request before taking the authoritative snapshot.
-      invalidateUnreadChatCount();
+      invalidateUnreadChatCount(userId);
       await Promise.all([
         loadMyThreads(true),
         getUnreadChatCount(true),
