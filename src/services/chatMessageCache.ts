@@ -70,6 +70,7 @@ function toChatMessage(value: StoredMessage): ChatMessage {
     sender_id: value.sender_id,
     body: value.body,
     created_at: value.created_at,
+    deleted_at: value.deleted_at ?? null,
   };
 }
 
