@@ -882,7 +882,7 @@ async function signInForMobileNavigation(page: import('@playwright/test').Page, 
         status: 200,
         headers: { 'access-control-allow-origin': '*', 'content-range': '0-0/1' },
         contentType: 'application/json',
-        body: JSON.stringify([{ mobile_nav: mobileNav }]),
+        body: JSON.stringify({ mobile_nav: mobileNav }),
       });
     });
   }
