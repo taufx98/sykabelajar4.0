@@ -136,6 +136,8 @@ export function MessagesPage() {
    const text=[nameOf(thread,me,admin),usernameOf(thread,me,admin),thread.last_message||'',thread.subject||'',thread.description||''].join(' ').toLocaleLowerCase();
    return (!query||text.includes(query))&&(!pinnedOnly||pinnedIds.includes(thread.id));
  }).sort((a,b)=>Number(pinnedIds.includes(b.id))-Number(pinnedIds.includes(a.id))),[threadSearch,me,admin,pinnedOnly,pinnedIds]);
+ const visibleOpen=useMemo(()=>filterThreadRows(open),[filterThreadRows,open]);
+ const visiblePendingRating=useMemo(()=>filterThreadRows(pendingRating),[filterThreadRows,pendingRating]);
  const visibleGroups=useMemo(()=>{const query=threadSearch.trim().toLocaleLowerCase();return groups.filter(group=>!query||`${group.name} ${group.last_message||''}`.toLocaleLowerCase().includes(query));},[groups,threadSearch]);
  const messageMatches=useMemo(()=>{const query=messageSearch.trim().toLocaleLowerCase();return query?messages.filter(isCachedMessage).filter(message=>message.body.toLocaleLowerCase().includes(query)):[]},[messages,messageSearch]);
  const jumpToMessageMatch=(direction:number)=>{if(!messageMatches.length)return;const current=messageSearchIndex<0?(direction>0?-1:0):messageSearchIndex;const next=(current+direction+messageMatches.length)%messageMatches.length;setMessageSearchIndex(next);window.requestAnimationFrame(()=>document.getElementById(`chat-message-${messageMatches[next].id}`)?.scrollIntoView({behavior:'smooth',block:'center'}));};
