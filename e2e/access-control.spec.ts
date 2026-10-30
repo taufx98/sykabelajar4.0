@@ -1015,3 +1015,154 @@ test.describe('mobile navigation single source and immersive exam routes', () =>
     await expect(page.getByRole('navigation', { name: 'Navigasi Penyelenggara' })).toHaveCount(0);
   });
 });
+
+test.describe('chat network request reuse', () => {
+  test('shares the initial spam status read between the chat page and its moderation gate', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
+    let spamStatusReads = 0;
+
+    await page.route('**/rest/v1/rpc/get_chat_spam_status', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      spamStatusReads += 1;
+      // Keep the first response open long enough for both consumers to request the same status.
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          warning_level: 0,
+          strike_count: 0,
+          blocked_until: null,
+          reset_at: '2026-11-07T00:00:00.000Z',
+        }),
+      });
+    });
+
+    await page.goto('/login?redirect=%2Fpesan');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/pesan');
+    await expect(page.getByRole('button', { name: 'Chat Grup', exact: true })).toBeVisible();
+    await expect.poll(() => spamStatusReads).toBe(1);
+    await page.waitForTimeout(250);
+    expect(spamStatusReads).toBe(1);
+  });
+
+  test('uses the saved group-message response without fetching the latest page again', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
+    const groupId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const userId = '11111111-1111-4111-8111-111111111111';
+    const group = {
+      id: groupId,
+      name: 'Grup Uji Tahap 2',
+      description: null,
+      group_type: 'general',
+      competition_id: null,
+      owner_user_id: userId,
+      join_mode: 'invite_only',
+      member_count: 2,
+      last_message: null,
+      last_message_at: null,
+      my_role: 'OWNER',
+      unread_count: 0,
+    };
+    const savedMessage = {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      group_id: groupId,
+      sender_user_id: userId,
+      sender_collective_participant_id: null,
+      sender_name: 'Akun Uji',
+      sender_role: 'MEMBER',
+      body: 'Pesan grup tersimpan',
+      created_at: '2026-10-31T00:00:00.000Z',
+    };
+    let groupHistoryReads = 0;
+    let groupMessageWrites = 0;
+
+    const registerRpc = async (
+      rpcName: string,
+      handler: (route: import('@playwright/test').Route) => Promise<void>,
+    ) => {
+      await page.route(`**/rest/v1/rpc/${rpcName}`, handler);
+    };
+    const jsonRpc = async (route: import('@playwright/test').Route, body: unknown) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        contentType: 'application/json',
+        body: JSON.stringify(body),
+      });
+    };
+
+    await registerRpc('list_my_chat_groups', (route) => jsonRpc(route, [group]));
+    await registerRpc('get_chat_group_messages', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      groupHistoryReads += 1;
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+    await registerRpc('get_chat_group_members', (route) => jsonRpc(route, []));
+    await registerRpc('mark_chat_group_read', (route) => jsonRpc(route, true));
+    await registerRpc('send_chat_group_message', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      groupMessageWrites += 1;
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        contentType: 'application/json',
+        body: JSON.stringify(savedMessage),
+      });
+    });
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/login?redirect=%2Fpesan');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/pesan');
+
+    await page.getByRole('button', { name: 'Chat Grup', exact: true }).click();
+    const groupRow = page.getByRole('button', { name: /Grup Uji Tahap 2/ });
+    await expect(groupRow).toBeVisible();
+    await groupRow.click();
+    await expect(page.getByPlaceholder('Tulis pesan ke grup…')).toBeVisible();
+    await expect.poll(() => groupHistoryReads).toBe(1);
+
+    await page.getByPlaceholder('Tulis pesan ke grup…').fill('Pesan grup tersimpan');
+    await page.getByTitle('Kirim pesan').click();
+    await expect(page.getByText('Pesan grup tersimpan', { exact: true })).toBeVisible();
+    await expect.poll(() => groupMessageWrites).toBe(1);
+    await page.waitForTimeout(250);
+    expect(groupHistoryReads).toBe(1);
+  });
+});
+
