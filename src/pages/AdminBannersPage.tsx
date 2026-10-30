@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
 import { invalidatePublicBannerCache } from '@/services/public-banner.service';
+import { cloudinaryVideoPosterUrl, optimizedCloudinaryUrl, optimizedCloudinaryVideoUrl } from '@/services/cloudinary.service';
 import {
   loadAllBannerRequests, loadBannerSettings, loadActiveBanners,
   approveBannerRequest, rejectBannerRequest, updateBannerSettings,
@@ -366,9 +367,13 @@ export function AdminBannersPage() {
                         {/* Preview */}
                         <div className="w-28 h-18 rounded-lg overflow-hidden surface-elevated shrink-0 flex">
                           {b.media_type === 'video' ? (
-                            <video src={b.image_url} className="w-full h-full object-cover" muted preload="metadata" />
+                            cloudinaryVideoPosterUrl(b.image_url, { width: 224 }) ? (
+                              <img src={cloudinaryVideoPosterUrl(b.image_url, { width: 224 })} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                            ) : (
+                              <video src={optimizedCloudinaryVideoUrl(b.image_url, { width: 224 }) || b.image_url} className="w-full h-full object-cover" muted preload="metadata" />
+                            )
                           ) : (
-                            <img src={b.image_url} alt="" className="w-full h-full object-cover" />
+                            <img src={optimizedCloudinaryUrl(b.image_url, { width: 224 }) || b.image_url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                           )}
                         </div>
 
