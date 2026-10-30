@@ -31,6 +31,7 @@ import {
 
 type Mode = 'xp' | 'coin';
 type Category = 'all' | 'sd' | 'smp' | 'sma' | 'school';
+type SchoolLevelFilter = 'all' | 'sd' | 'smp' | 'sma';
 type LeaderEntry = {
   user_id: string;
   username: string;
@@ -78,6 +79,14 @@ function gradeGroup(value: unknown): '' | 'sd' | 'smp' | 'sma' {
   if (grade.startsWith('smp')) return 'smp';
   if (grade.startsWith('sma') || grade.startsWith('smk') || grade === 'alumni') return 'sma';
   return '';
+}
+
+function matchesSchoolLevel(levels: string, filter: SchoolLevelFilter): boolean {
+  if (filter === 'all') return true;
+  const normalizedLevels = levels.split('·').map((level) => level.trim().toUpperCase());
+  if (filter === 'sd') return normalizedLevels.includes('SD');
+  if (filter === 'smp') return normalizedLevels.includes('SMP');
+  return normalizedLevels.some((level) => level === 'SMA/SMK' || level === 'SMA' || level === 'SMK');
 }
 
 function gradeClass(value: unknown): string {
@@ -165,16 +174,16 @@ const LEADERBOARD_STYLES = String.raw`
 .lb-category-area { max-width: 1040px; margin: 0 auto 22px; border-bottom: 1px solid var(--lb-border); }
 .lb-category-tabs { display: flex; justify-content: center; align-items: stretch; gap: 3px; overflow-x: auto; scrollbar-width: none; padding: 0 2px; }
 .lb-category-tabs::-webkit-scrollbar { display: none; }
-.lb-category-tab { flex: 0 0 auto; position: relative; border: 0; background: transparent; color: var(--lb-muted); font-size: 11px; font-weight: 800; padding: 12px 15px 15px; white-space: nowrap; cursor: pointer; transition: color .2s ease; }
+.lb-category-tab { flex: 0 0 auto; position: relative; border: 0; background: transparent; color: var(--lb-muted); font-size: 11px; font-weight: 800; padding: 12px 15px 15px; white-space: nowrap; cursor: pointer; transition: none; }
 .lb-category-tab:hover { color: var(--lb-fg); }
 .lb-category-tab.active { color: #facc15; }
 .lb-category-tab.active::after { content: ''; position: absolute; height: 3px; width: 66%; left: 17%; bottom: -1px; border-radius: 999px; background: #facc15; box-shadow: 0 0 10px rgba(250,204,21,.45); }
 .lb-category-tab:disabled { opacity: .38; cursor: not-allowed; }
 .lb-subgrades { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; padding: 13px 0 15px; }
-.lb-subgrade { border: 1px solid var(--lb-border); border-radius: 999px; background: var(--lb-panel); color: var(--lb-muted); padding: 6px 12px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all .18s ease; }
+.lb-subgrade { border: 1px solid var(--lb-border); border-radius: 999px; background: var(--lb-panel); color: var(--lb-muted); padding: 6px 12px; font-size: 10px; font-weight: 700; cursor: pointer; transition: none; }
 .lb-subgrade:hover { border-color: rgba(59,130,246,.4); color: var(--lb-fg); }
 .lb-subgrade.active { background: rgba(59,130,246,.14); border-color: rgba(59,130,246,.42); color: #60a5fa; }
-.lb-main-content { animation: lb-fade-in-up .6s cubic-bezier(.6,1,.3,1) both; }
+.lb-main-content { animation: none; }
 .lb-podium { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 280px; min-width: 0; }
 .lb-podium.rank-1 { max-width: 300px; }
 .lb-podium-badge { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 12px; margin-bottom: 7px; border-radius: 999px; font-size: 10px; font-weight: 850; z-index: 1; }
@@ -207,12 +216,13 @@ const LEADERBOARD_STYLES = String.raw`
 .lb-podium-metrics small { font-size: 8px; font-weight: 700; color: rgba(255,255,255,.56); text-transform: uppercase; letter-spacing: .03em; }
 .lb-podium-metrics .good { color: #6ee7b7; }
 .lb-podium-medal { position: absolute; top: -1px; right: 6px; color: #fcd34d; opacity: .9; }
-.lb-podium-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; width: 100%; margin: 0 auto; padding: 10px 4px 20px; }
+.lb-podium-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; width: 100%; margin: 0 auto; padding: 10px 4px 20px; animation: lb-fade-in-up .6s cubic-bezier(.6,1,.3,1) both; }
+.lb-podium-area:not(.lb-school-podium-area) { padding-top: 46px; }
 .lb-podium-area .lb-podium { flex: 1 1 0; }
 .lb-podium-area .lb-podium.rank-1 { flex: 1.1 1 0; }
 .lb-search-note { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; color: var(--lb-muted); background: var(--lb-panel); border: 1px solid var(--lb-border); font-size: 11px; }
 .lb-search-note strong { color: var(--lb-fg); }
-.lb-table-wrap { width: 100%; overflow-x: auto; scrollbar-width: thin; scrollbar-color: rgba(148,163,184,.3) transparent; }
+.lb-table-wrap { width: 100%; overflow-x: auto; scrollbar-width: thin; scrollbar-color: rgba(148,163,184,.3) transparent; animation: lb-fade-in-up .6s cubic-bezier(.6,1,.3,1) both; }
 .lb-table { min-width: 780px; width: 100%; border-collapse: separate; border-spacing: 0 7px; table-layout: fixed; }
 .lb-table th { color: var(--lb-muted); background: var(--lb-panel); font-size: 9px; text-align: left; letter-spacing: .04em; text-transform: uppercase; font-weight: 850; padding: 10px 12px; }
 .lb-table th:first-child { border-radius: 12px 0 0 12px; }
@@ -421,6 +431,8 @@ const LEADERBOARD_STYLES = String.raw`
   background: linear-gradient(180deg,#4338ca 0%,#3730a3 58%,#172344 100%);
   box-shadow: 0 17px 34px rgba(67,56,202,.18);
 }
+.lb-person-podium { position: relative; overflow: visible; }
+.lb-person-rank-badge { top: -31px; }
 .lb-school-rank-badge {
   position: absolute;
   z-index: 2;
@@ -675,6 +687,14 @@ const LEADERBOARD_STYLES = String.raw`
   padding-top: 14px;
   padding-bottom: 16px;
 }
+.lb-school-level-label {
+  flex: 0 0 auto;
+  color: var(--lb-muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
 .lb-subgrade {
   padding: 7px 13px;
   font-size: 11px;
@@ -695,6 +715,24 @@ const LEADERBOARD_STYLES = String.raw`
 }
 .lb-school-table-wrap .lb-table tbody tr:not(.lb-empty-row) .lb-person-handle {
   font-size: 10px;
+}
+.lb-school-table-wrap .lb-school-name-cell {
+  padding-left: 10px !important;
+  padding-right: 18px !important;
+  text-align: left;
+}
+.lb-school-table-wrap .lb-school-name-cell .lb-person {
+  justify-content: flex-start;
+  gap: 10px;
+  margin-left: 0;
+}
+.lb-school-table-wrap .lb-school-name-cell .lb-person-meta {
+  min-width: 0;
+  text-align: left;
+}
+.lb-table .lb-student-school-cell {
+  padding-left: 10px;
+  text-align: left;
 }
 .lb-school-table-wrap .lb-table tbody tr:not(.lb-empty-row) .lb-score-cell {
   font-size: 14px !important;
@@ -756,6 +794,7 @@ const LEADERBOARD_STYLES = String.raw`
   .lb-school-rank-badge { top: -28px; width: 56px; height: 56px; border-radius: 16px; }
   .lb-school-rank-badge > span { font-size: 18px; }
   .lb-category-tab { padding-left: 12px; padding-right: 12px; font-size: 10px; }
+  .lb-podium-area:not(.lb-school-podium-area) { padding-top: 42px; }
   .lb-school-table-wrap .lb-table { min-width: 760px; }
 }
 `;
@@ -768,6 +807,7 @@ export function LeaderboardPage() {
   const [period, setPeriod] = useState<PublicLeaderboardPeriod>('weekly');
   const [category, setCategory] = useState<Category>('all');
   const [subGrade, setSubGrade] = useState<string | null>(null);
+  const [schoolLevelFilter, setSchoolLevelFilter] = useState<SchoolLevelFilter>('all');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [entries, setEntries] = useState<LeaderEntry[]>([]);
@@ -867,11 +907,15 @@ export function LeaderboardPage() {
   }, [filteredEntries, query]);
 
   const filteredSchools = useMemo(() => {
-    if (!query) return schoolEntries;
-    return schoolEntries.filter((school) =>
-      (school.school_name + ' ' + school.levels).toLocaleLowerCase('id-ID').includes(query),
-    );
-  }, [schoolEntries, query]);
+    const matches = schoolEntries.filter((school) => {
+      const matchesQuery = !query
+        || (school.school_name + ' ' + school.levels).toLocaleLowerCase('id-ID').includes(query);
+      return matchesQuery && matchesSchoolLevel(school.levels, schoolLevelFilter);
+    });
+    return schoolLevelFilter === 'all'
+      ? matches
+      : matches.map((school, index) => ({ ...school, rank: index + 1 }));
+  }, [schoolEntries, query, schoolLevelFilter]);
 
   const activeRows = category === 'school' ? [] : searchedEntries;
   const activeSchools = category === 'school' ? filteredSchools : [];
@@ -889,9 +933,9 @@ export function LeaderboardPage() {
     : [];
   const podiumSchoolItems = !searchActive && category === 'school'
     ? [
-        { place: 2 as const, school: schoolEntries[1] ?? null },
-        { place: 1 as const, school: schoolEntries[0] ?? null },
-        { place: 3 as const, school: schoolEntries[2] ?? null },
+        { place: 2 as const, school: filteredSchools[1] ?? null },
+        { place: 1 as const, school: filteredSchools[0] ?? null },
+        { place: 3 as const, school: filteredSchools[2] ?? null },
       ]
     : [];
 
@@ -910,6 +954,7 @@ export function LeaderboardPage() {
     setMode(next);
     setPage(1);
     setSearchInput('');
+    setSchoolLevelFilter('all');
     if (next === 'coin' && category === 'school') setCategory('all');
   };
 
@@ -917,6 +962,12 @@ export function LeaderboardPage() {
     if (next === 'school' && mode === 'coin') return;
     setCategory(next);
     setSubGrade(null);
+    setSchoolLevelFilter('all');
+    setPage(1);
+  };
+
+  const changeSchoolLevel = (next: SchoolLevelFilter) => {
+    setSchoolLevelFilter(next);
     setPage(1);
   };
 
@@ -964,7 +1015,23 @@ export function LeaderboardPage() {
       );
     })}
   </div>
-  {category !== 'all' && category !== 'school' && (
+  {category === 'school' ? (
+    <div className="lb-subgrades lb-school-level-filters" aria-label={text('Filter jenjang sekolah','School level filter')}>
+      <span className="lb-school-level-label">{text('Jenjang Sekolah:','School Level:')}</span>
+      <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'all' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'all'} onClick={() => changeSchoolLevel('all')}>
+        {text('Semua Sekolah','All schools')}
+      </button>
+      <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'sd' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'sd'} onClick={() => changeSchoolLevel('sd')}>
+        {text('SD Sederajat','Elementary')}
+      </button>
+      <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'smp' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'smp'} onClick={() => changeSchoolLevel('smp')}>
+        {text('SMP Sederajat','Junior high')}
+      </button>
+      <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'sma' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'sma'} onClick={() => changeSchoolLevel('sma')}>
+        {text('SMA/SMK Sederajat','Senior high')}
+      </button>
+    </div>
+  ) : category !== 'all' && (
     <div className="lb-subgrades" aria-label={text('Filter kelas','Grade filter')}>
       <button type="button" className={'lb-subgrade ' + (!subGrade ? 'active' : '')} onClick={() => { setSubGrade(null); setPage(1); }}>
         Semua {category === 'sd' ? 'SD' : category === 'smp' ? 'SMP' : 'SMA/SMK'}
@@ -1034,7 +1101,7 @@ export function LeaderboardPage() {
       )}
 
       {!loading && !error && (
-        <div key={mode + '-' + period + '-' + category + '-' + (subGrade ?? 'all') + '-' + (searchActive ? 'search' : 'browse')} className="lb-main-content">
+        <div key={mode + '-' + period + '-' + category + '-' + (subGrade ?? 'all') + '-' + schoolLevelFilter + '-' + (searchActive ? 'search' : 'browse')} className="lb-main-content">
           {searchActive && (
             <div className="lb-search-note">
               <span>Hasil pencarian untuk <strong>“{searchInput.trim()}”</strong> · {sourceLength} ditemukan</span>
@@ -1166,11 +1233,8 @@ function PersonPodiumCard({ entry, place, mode }: { entry: LeaderEntry; place: 1
   const label = place === 1 ? '1st' : place === 2 ? '2nd' : '3rd';
   const average = entry.average_score == null ? '—' : formatAverage(entry.average_score);
   return (
-    <article className={'lb-podium rank-' + place}>
-      <div className={'lb-podium-badge rank-' + place}>
-        {place === 1 ? <Crown size={14} /> : <Medal size={14} />}
-        {label}
-      </div>
+    <article className={'lb-podium lb-person-podium rank-' + place}>
+      <span className={'lb-school-rank-badge lb-person-rank-badge rank-' + place}><span>{label}</span></span>
       <div className="lb-podium-tower">
         {place === 1 && <Crown size={21} className="lb-podium-medal" />}
         <div className="lb-avatar-wrap">
@@ -1274,7 +1338,7 @@ function PersonRankingTable({ rows, placeholderRanks, mode, currentUserId }: { r
                     </div>
                   </div>
                 </td>
-                <td><div className="lb-school-cell" title={entry.institution ?? ''}>{entry.institution || '—'}</div></td>
+                <td className="lb-student-school-cell"><div className="lb-school-cell" title={entry.institution ?? ''}>{entry.institution || '—'}</div></td>
                 <td>{gradeLabel(entry.grade)}</td>
                 <td>{mode === 'xp' ? formatAverage(entry.average_score) : '—'}</td>
                 <td>{mode === 'xp' ? formatNumber(entry.competitions_count) : '—'}</td>
@@ -1294,6 +1358,15 @@ function SchoolRankingTable({ schools, placeholderRanks, onPickSchool }: { schoo
   return (
     <div className="lb-table-wrap lb-school-table-wrap">
       <table className="lb-table">
+        <colgroup>
+          <col style={{ width: 58 }} />
+          <col style={{ width: '30%' }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '14%' }} />
+          <col style={{ width: 92 }} />
+          <col style={{ width: 100 }} />
+          <col style={{ width: 115 }} />
+        </colgroup>
         <thead>
           <tr>
             <th colSpan={2} style={{ width: '36%' }}>Peringkat & Nama</th>
@@ -1308,7 +1381,7 @@ function SchoolRankingTable({ schools, placeholderRanks, onPickSchool }: { schoo
           {schools.map((school) => (
             <tr key={school.school_key} className="lb-clickable" onClick={() => onPickSchool(school.school_key)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onPickSchool(school.school_key); }} tabIndex={0} aria-label={'Lihat siswa dari ' + school.school_name}>
               <td><span className="lb-rank-number">{school.rank}</span></td>
-              <td>
+              <td className="lb-school-name-cell">
                 <div className="lb-person">
                   <span className="lb-school-icon"><School size={16} /></span>
                   <div className="lb-person-meta">
