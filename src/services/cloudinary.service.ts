@@ -98,6 +98,32 @@ export function optimizedCloudinaryVideoUrl(url?: string | null, options: { widt
   return optimizeCloudinaryResourceUrl(url, 'video', options.width);
 }
 
+export function cloudinaryVideoPosterUrl(url?: string | null, options: { width?: number } = {}): string | undefined {
+  const optimizedUrl = optimizeCloudinaryResourceUrl(url, 'video', options.width);
+  if (!optimizedUrl) return undefined;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(optimizedUrl);
+  } catch {
+    return undefined;
+  }
+
+  const marker = '/video/upload/';
+  const markerIndex = parsed.pathname.indexOf(marker);
+  if (markerIndex < 0) return undefined;
+
+  const suffix = parsed.pathname.slice(markerIndex + marker.length);
+  const segments = suffix.split('/');
+  const tokens = (segments[0] ?? '').split(',').filter((token) => !/^f_/i.test(token));
+  tokens.unshift('so_0', 'f_jpg');
+  segments[0] = tokens.join(',');
+  const lastIndex = segments.length - 1;
+  segments[lastIndex] = segments[lastIndex].replace(/\\.(?:mp4|webm|mov|m4v)$/i, '.jpg');
+  parsed.pathname = `${parsed.pathname.slice(0, markerIndex + marker.length)}${segments.join('/')}`;
+  return parsed.toString();
+}
+
 export function versionedCloudinaryUrl(url?: string | null, version?: string | number | null): string | undefined {
   return optimizedCloudinaryUrl(url, { version });
 }
