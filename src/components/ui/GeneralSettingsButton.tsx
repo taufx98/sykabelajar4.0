@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Accessibility, Check, Languages, Moon, Settings2, Sun, UserRound, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
@@ -62,8 +63,8 @@ export function GeneralSettingsButton({ className = '', showLabel = false }: { c
         {showLabel && <span>{t('settings.open')}</span>}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/65 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+      {open && createPortal(
+        <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/65 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
           <section
             role="dialog"
             aria-modal="true"
@@ -164,7 +165,8 @@ export function GeneralSettingsButton({ className = '', showLabel = false }: { c
               <p className="text-center text-[11px] text-fg-muted">{t('settings.autoSave')}</p>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
