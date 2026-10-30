@@ -706,7 +706,7 @@ test.describe('leaderboard school podium presentation', () => {
     const settingsDialog = page.getByRole('dialog', { name: 'Pengaturan umum' });
     await expect(settingsDialog).toBeVisible();
     await expect(settingsDialog.locator('xpath=..')).toHaveCSS('z-index', '9990');
-    await settingsDialog.getByRole('button', { name: 'Tutup pengaturan' }).click();
+    await settingsDialog.getByRole('button', { name: 'Tutup', exact: true }).click();
 
     await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
 
@@ -722,16 +722,18 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-school-table-wrap .lb-table th[colspan="2"]')).toContainText('Peringkat & Nama');
     await expect(page.getByText('SDN 3 Bandung', { exact: true })).toBeVisible();
     await expect(page.getByText('SDN 5 Surabaya', { exact: true })).toBeVisible();
+    await expect(page.locator('.lb-school-name-cell .lb-person')).toHaveCSS('justify-content', 'flex-start');
+    await expect(page.locator('.lb-school-table-wrap')).toContainText('SMP 8 Bandung');
 
     await page.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SMP 8 Bandung');
     await expect(page.locator('.lb-school-podium.rank-1')).not.toContainText('SDN 1 Jakarta');
-    await expect(page.locator('.lb-school-table-wrap')).toContainText('SMP 8 Bandung');
     await expect(page.locator('.lb-school-table-wrap')).not.toContainText('SDN 1 Jakarta');
+    await expect(page.locator('.lb-school-podium.rank-1')).toContainText('1st');
 
     await page.getByRole('button', { name: 'SMA/SMK Sederajat', exact: true }).click();
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SMA 2 Yogyakarta');
-    await expect(page.locator('.lb-school-table-wrap')).toContainText('SMA 2 Yogyakarta');
+    await expect(page.locator('.lb-school-podium.rank-1')).toContainText('1st');
 
     await page.getByRole('button', { name: 'Semua Jenjang', exact: true }).click();
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
