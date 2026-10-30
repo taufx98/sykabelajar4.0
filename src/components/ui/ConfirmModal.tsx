@@ -33,7 +33,7 @@ export function ConfirmModal({
   if (!open) return null;
 
   return (
-    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-description">
       <div aria-hidden="true" className="absolute inset-0 cursor-default" onClick={onCancel} />
       <div className="relative w-full max-w-md rounded-2xl border border-surface-border bg-surface-elevated p-6 shadow-2xl">
         <button type="button" aria-label="Tutup" className="absolute right-3 top-3 rounded-lg p-2 text-fg-muted hover:bg-white/5 hover:text-fg" onClick={onCancel} disabled={busy}>
@@ -45,7 +45,7 @@ export function ConfirmModal({
           </div>
           <div>
             <h2 id="confirm-modal-title" className="text-base font-bold text-fg">{title}</h2>
-            <p className="mt-1 text-sm leading-6 text-fg-muted">{description}</p>
+            <p id="confirm-modal-description" className="mt-1 text-sm leading-6 text-fg-muted">{description}</p>
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-2">
