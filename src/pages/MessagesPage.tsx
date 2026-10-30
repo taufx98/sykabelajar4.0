@@ -355,10 +355,13 @@ export function MessagesPage() {
     setGroupInput('');
     setGroupBusy(true);
     try{
-      await sendChatGroupMessage(selectedGroup.id,text);
-      const rows=await loadChatGroupMessages(selectedGroup.id,PAGE);
-      setGroupMessages(rows);
-      setGroups(current=>current.map(group=>group.id===selectedGroup.id?{...group,last_message:text,last_message_at:new Date().toISOString()}:group));
+      const saved=await sendChatGroupMessage(selectedGroup.id,text);
+      setGroupMessages(current=>{
+        const next=current.filter(message=>message.id!==saved.id);
+        next.push(saved);
+        return next.sort((a,b)=>a.created_at.localeCompare(b.created_at));
+      });
+      setGroups(current=>current.map(group=>group.id===selectedGroup.id?{...group,last_message:saved.body,last_message_at:saved.created_at}:group));
     }catch(error:unknown){
       toast(error instanceof Error?error.message:'Gagal mengirim pesan group.','error');
     }finally{
