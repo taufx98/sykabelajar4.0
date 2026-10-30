@@ -156,7 +156,40 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
       return;
     }
     let rows: unknown[] = [];
-    if (url.pathname.endsWith('/rpc/is_public_profile_admin')) {
+    if (url.pathname.endsWith('/rpc/load_my_threads')) {
+      rows = [
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          thread_type: 'dm',
+          user_id: userId,
+          participant_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          status: 'open',
+          created_at: '2026-10-01T00:00:00.000Z',
+          last_message_at: '2026-10-30T00:00:00.000Z',
+          last_message: 'Pesan terbaru',
+          unread_count: 0,
+          user_name: 'Akun Uji',
+          username: 'akun_uji',
+          other_user_name: 'Percakapan Aktif',
+          other_username: 'chat_aktif',
+        },
+        {
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          thread_type: 'dm',
+          user_id: userId,
+          participant_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          status: 'closed',
+          created_at: '2026-09-04T00:00:00.000Z',
+          last_message_at: '2026-09-04T00:00:00.000Z',
+          last_message: 'Pesan lama',
+          unread_count: 0,
+          user_name: 'Akun Uji',
+          username: 'akun_uji',
+          other_user_name: 'Percakapan Lama',
+          other_username: 'chat_lama',
+        },
+      ];
+    } else if (url.pathname.endsWith('/rpc/is_public_profile_admin')) {
       const payload = route.request().postDataJSON();
       const targetId = String(payload.p_profile_id ?? '');
       const isAdmin = targetId === adminProfileId || (targetId === userId && roles.includes('admin'));
@@ -238,6 +271,21 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
 
   return { roleLookupCount: () => roleLookupCount };
 }
+
+test.describe('chat inbox history visibility', () => {
+  test('closed direct-message history is not listed in the private inbox', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    await page.goto('/login?redirect=%2Fpesan');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+
+    await expect(page).toHaveURL(/\\/pesan(?:\\?.*)?$/, { timeout: 15_000 });
+    await expect(page.getByText('Percakapan Aktif', { exact: true })).toBeVisible();
+    await expect(page.getByText('Percakapan Lama', { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/History\\s*·\\s*1/)).toHaveCount(0);
+  });
+});
 
 test.describe('backend-authoritative login flow', () => {
   test('active teacher role from Supabase allows the teacher route without a login role picker', async ({ page }) => {
