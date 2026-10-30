@@ -19,6 +19,15 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { notifyHomeNavigationClick } from '@/lib/homeNavigation';
 
 const DEFAULT_MOBILE_NAV = ['home', 'leaderboard', 'awards', 'chat'];
+const MOBILE_NAV_KEYS = new Set([
+  'home', 'workspace', 'leaderboard', 'awards', 'chat', 'notifications', 'profile', 'admin', 'organizer', 'teacher', 'portal',
+]);
+
+function normalizeMobileNav(value: unknown): string[] {
+  if (!Array.isArray(value)) return [...DEFAULT_MOBILE_NAV];
+  const savedItems = value.map(String).filter((key) => MOBILE_NAV_KEYS.has(key)).slice(0, 5);
+  return savedItems.length ? savedItems : [...DEFAULT_MOBILE_NAV];
+}
 
 type MobileNavigationItem = {
   label: string;
@@ -48,8 +57,7 @@ export function MobileNavigationOverride({ unreadCount = 0 }: { unreadCount?: nu
       .maybeSingle()
       .then(({ data }) => {
         if (!active || !Array.isArray(data?.mobile_nav)) return;
-        const savedItems = data.mobile_nav.map(String).slice(0, 5);
-        setItems(savedItems.length ? savedItems : DEFAULT_MOBILE_NAV);
+        setItems(normalizeMobileNav(data.mobile_nav));
       })
       .catch(() => undefined);
 
@@ -73,7 +81,7 @@ export function MobileNavigationOverride({ unreadCount = 0 }: { unreadCount?: nu
         },
         (payload) => {
           const savedItems = (payload.new as { mobile_nav?: unknown }).mobile_nav;
-          if (Array.isArray(savedItems)) setItems(savedItems.map(String).slice(0, 5));
+          if (Array.isArray(savedItems)) setItems(normalizeMobileNav(savedItems));
         },
       )
       .subscribe();
