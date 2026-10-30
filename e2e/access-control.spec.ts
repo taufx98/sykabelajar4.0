@@ -665,7 +665,11 @@ test.describe('leaderboard school podium presentation', () => {
       });
     });
 
-    await page.goto('/leaderboard');
+    await page.goto('/login?redirect=%2Fleaderboard');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/leaderboard');
     await expect(page.getByRole('heading', { name: 'Peringkat Juara' })).toBeVisible();
     await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
 
