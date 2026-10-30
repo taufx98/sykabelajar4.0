@@ -58,18 +58,20 @@ function BannerMedia({
   banner,
   className,
   isActive,
+  widthSlots,
   prioritizeImage,
   prefersReducedMotion,
 }: {
   banner: PublicBanner;
   className?: string;
   isActive: boolean;
+  widthSlots: number;
   prioritizeImage: boolean;
   prefersReducedMotion: boolean;
 }) {
   const width = banner.placement === 'home_sidebar'
     ? 600
-    : Number(banner.image_width_slots ?? 1) > 1 ? 2400 : 1200;
+    : widthSlots > 1 ? 2400 : 1200;
   const isVideo = banner.media_type === 'video';
   const src = isVideo
     ? optimizedCloudinaryVideoUrl(banner.image_url, { width })
@@ -140,7 +142,7 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
   const [banners, setBanners] = useState<PublicBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => typeof window !== 'undefined' && (window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.classList.contains('reduce-motion')));
   // Two top slots on a sufficiently wide content area; one card on narrow
   // screens. The sidebar remains one slot at all breakpoints.
   const [topSlotCount, setTopSlotCount] = useState(2);
@@ -326,6 +328,7 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
                       banner={banner}
                       className="w-full h-full object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
                       isActive={groupIndex === safeCurrentGroup}
+                      widthSlots={widthSlots}
                       prioritizeImage={placement === 'home_top' || showArrows}
                       prefersReducedMotion={prefersReducedMotion}
                     />
