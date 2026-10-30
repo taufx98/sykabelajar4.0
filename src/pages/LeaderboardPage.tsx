@@ -898,11 +898,16 @@ export function LeaderboardPage() {
     ].some((value) => value.toLocaleLowerCase('id-ID').includes(query)));
   }, [filteredEntries, query]);
 
-  const filteredSchools = useMemo(() => schoolEntries.filter((school) => {
-    const matchesQuery = !query
-      || (school.school_name + ' ' + school.levels).toLocaleLowerCase('id-ID').includes(query);
-    return matchesQuery && matchesSchoolLevel(school.levels, schoolLevelFilter);
-  }), [schoolEntries, query, schoolLevelFilter]);
+  const filteredSchools = useMemo(() => {
+    const matches = schoolEntries.filter((school) => {
+      const matchesQuery = !query
+        || (school.school_name + ' ' + school.levels).toLocaleLowerCase('id-ID').includes(query);
+      return matchesQuery && matchesSchoolLevel(school.levels, schoolLevelFilter);
+    });
+    return schoolLevelFilter === 'all'
+      ? matches
+      : matches.map((school, index) => ({ ...school, rank: index + 1 }));
+  }, [schoolEntries, query, schoolLevelFilter]);
 
   const activeRows = category === 'school' ? [] : searchedEntries;
   const activeSchools = category === 'school' ? filteredSchools : [];
