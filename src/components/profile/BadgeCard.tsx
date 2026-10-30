@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { Award, X } from 'lucide-react';
 import { optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 
@@ -44,14 +45,7 @@ export function BadgeIcon({ badge, size = 60 }: { badge: Pick<ProfileBadge, 'nam
 export function BadgeCard({ badge, compact = false }: { badge: ProfileBadge; compact?: boolean }) {
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open]);
+  const dialogRef = useDialogAccessibility({ open, onEscape: () => setOpen(false) });
 
   return <>
     <button
@@ -67,13 +61,13 @@ export function BadgeCard({ badge, compact = false }: { badge: ProfileBadge; com
 
     {open && <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
       <button type="button" className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)} aria-label="Tutup detail badge" />
-      <div role="dialog" aria-modal="true" aria-labelledby={`badge-title-${badge.id}`} className="relative w-full max-w-md overflow-hidden rounded-3xl border surface-border surface-card-bg shadow-2xl">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={`badge-title-${badge.id}`} className="relative w-full max-w-md overflow-hidden rounded-3xl border surface-border surface-card-bg shadow-2xl">
         <div className="flex items-start justify-between border-b surface-border p-5">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-muted">Detail Badge</p>
             <h3 id={`badge-title-${badge.id}`} className="mt-1 text-xl font-bold text-fg">{badge.name}</h3>
           </div>
-          <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-fg-muted hover:bg-slate-500/10 hover:text-fg" aria-label="Tutup"><X size={18}/></button>
+          <button type="button" onClick={() => setOpen(false)} data-dialog-initial-focus className="rounded-full p-2 text-fg-muted hover:bg-slate-500/10 hover:text-fg" aria-label="Tutup"><X size={18}/></button>
         </div>
 
         <div className="p-5">

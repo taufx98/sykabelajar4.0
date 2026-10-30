@@ -1297,3 +1297,112 @@ test.describe('banner media delivery', () => {
     await expect(video).toHaveAttribute('preload', 'metadata');
   });
 });
+
+
+test.describe('shared dialog keyboard experience', () => {
+  test('keeps focus inside confirmation dialog and restores it to the invoking control', async ({ page }) => {
+    await mockSupabaseLogin(page, ['admin']);
+
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
+    const organizerId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const ownerId = '22222222-2222-4222-8222-222222222222';
+    const memberId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const memberUserId = '33333333-3333-4333-8333-333333333333';
+
+    await page.route('**/rest/v1/organizers**', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: { ...corsHeaders, 'content-range': '0-0/1' },
+        contentType: 'application/json',
+        body: JSON.stringify([{
+          id: organizerId,
+          name: 'Organisasi Uji Aksesibilitas',
+          slug: 'organisasi-uji-aksesibilitas',
+          owner_user_id: ownerId,
+          status: 'ACTIVE',
+          access_code: null,
+          created_at: '2026-10-31T00:00:00.000Z',
+        }]),
+      });
+    });
+    await page.route('**/rest/v1/organizer_members**', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: { ...corsHeaders, 'content-range': '0-0/1' },
+        contentType: 'application/json',
+        body: JSON.stringify([{
+          id: memberId,
+          organizer_id: organizerId,
+          user_id: memberUserId,
+          role: 'editor',
+        }]),
+      });
+    });
+    await page.route('**/rest/v1/competitions**', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({ status: 200, headers: { ...corsHeaders, 'content-range': '0-0/0' }, body: '' });
+    });
+    await page.route('**/rest/v1/profiles**', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      const url = new URL(route.request().url());
+      const idFilter = url.searchParams.get('id') ?? '';
+      const rows = idFilter.includes(ownerId)
+        ? [{ id: ownerId, username: 'pemilik_uji', full_name: 'Pemilik Uji', avatar_url: null }]
+        : [{ id: memberUserId, username: 'editor_uji', full_name: 'Editor Uji', avatar_url: null }];
+      await route.fulfill({
+        status: 200,
+        headers: { ...corsHeaders, 'content-range': `0-${rows.length - 1}/${rows.length}` },
+        contentType: 'application/json',
+        body: JSON.stringify(rows),
+      });
+    });
+
+    await page.goto('/login?redirect=%2Fadmin%2Forganizers');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/admin/organizers');
+
+    await page.getByRole('button', { name: /Organisasi Uji Aksesibilitas/ }).click();
+    const removeMember = page.getByRole('button', { name: 'Hapus Editor Uji' });
+    await expect(removeMember).toBeVisible();
+    await removeMember.click();
+
+    const dialog = page.getByRole('dialog', { name: 'Hapus anggota?' });
+    await expect(dialog).toBeVisible();
+    const cancel = dialog.getByRole('button', { name: 'Batal' });
+    const confirm = dialog.getByRole('button', { name: 'Hapus anggota' });
+    await expect(cancel).toBeFocused();
+
+    const close = dialog.getByRole('button', { name: 'Tutup' });
+    await page.keyboard.press('Shift+Tab');
+    await expect(close).toBeFocused();
+    await expect.poll(() => close.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid');
+    await page.keyboard.press('Shift+Tab');
+    await expect(confirm).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(close).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(removeMember).toBeFocused();
+  });
+});
