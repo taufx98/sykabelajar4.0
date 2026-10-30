@@ -78,7 +78,8 @@ function BannerMedia({
     : optimizedCloudinaryUrl(banner.image_url, { width });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isInViewport, setIsInViewport] = useState(false);
-  const shouldPlayVideo = isVideo && isActive && isInViewport && !prefersReducedMotion;
+  const shouldLoadVideo = isVideo && isActive && isInViewport;
+  const shouldPlayVideo = shouldLoadVideo && !prefersReducedMotion;
   const shouldPrioritizeImage = !isVideo && isActive && prioritizeImage;
 
   useEffect(() => {
@@ -117,7 +118,7 @@ function BannerMedia({
         playsInline
         autoPlay={shouldPlayVideo}
         loop
-        preload={shouldPlayVideo ? 'metadata' : 'none'}
+        preload={shouldLoadVideo ? 'metadata' : 'none'}
       />
     );
   }
