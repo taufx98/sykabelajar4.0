@@ -758,6 +758,7 @@ const LEADERBOARD_STYLES = String.raw`
   .lb-category-tab { padding-left: 12px; padding-right: 12px; font-size: 10px; }
   .lb-school-table-wrap .lb-table { min-width: 760px; }
 }
+`;
 
 export function LeaderboardPage() {
   const { user } = useApp();
