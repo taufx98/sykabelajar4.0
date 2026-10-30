@@ -678,7 +678,7 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('Aldo Lestari');
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('140.425 XP');
-    await expect(page.locator('.lb-school-table th[colspan="2"]')).toContainText('Peringkat & Nama');
+    await expect(page.locator('.lb-school-table-wrap .lb-table th[colspan="2"]')).toContainText('Peringkat & Nama');
     await expect(page.getByText('SDN 3 Bandung', { exact: true })).toBeVisible();
     await expect(page.getByText('SDN 5 Surabaya', { exact: true })).toBeVisible();
   });
