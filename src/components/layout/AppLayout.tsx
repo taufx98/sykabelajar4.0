@@ -149,8 +149,9 @@ export function AppLayout() {
   const isAdminRoute = isAdmin && location.pathname.startsWith('/admin');
   const isHomeRoute = location.pathname === '/' || location.pathname === '/home';
   const homePath = collectiveMode ? '/peserta-kolektif' : '/home';
-  const isLinearExamRoom = /^\/lomba\/[^/]+\/kerja$/.test(location.pathname)
-    || /^\/organizer\/competition\/[^/]+\/simulation\/[^/]+$/.test(location.pathname);
+  const normalizedPathname = location.pathname.replace(/\/+$/, '') || '/';
+  const isLinearExamRoom = /^\/lomba\/[^/]+\/kerja$/.test(normalizedPathname)
+    || /^\/organizer\/competition\/[^/]+\/simulation\/[^/]+$/.test(normalizedPathname);
 
   if (isLinearExamRoom) {
     return <div className="min-h-screen w-full surface-bg"><Outlet /></div>;
