@@ -1,5 +1,5 @@
 import { emitSykaEvent } from '@/lib/realtimeBus';
-import { getUnreadChatCount, loadMyThreads } from '@/services/chat.service';
+import { getUnreadChatCount, invalidateUnreadChatCount, loadMyThreads } from '@/services/chat.service';
 
 type ReconcileScope = 'user';
 
@@ -16,6 +16,8 @@ export async function reconcileAfterRealtimeReconnect(scope: ReconcileScope, use
 
   inFlightUser = (async () => {
     try {
+      // Drop any pre-disconnect unread request before taking the authoritative snapshot.
+      invalidateUnreadChatCount();
       await Promise.all([
         loadMyThreads(true),
         getUnreadChatCount(true),
