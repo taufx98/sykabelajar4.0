@@ -1395,6 +1395,7 @@ test.describe('shared dialog keyboard experience', () => {
     const close = dialog.getByRole('button', { name: 'Tutup' });
     await page.keyboard.press('Shift+Tab');
     await expect(close).toBeFocused();
+    await expect.poll(() => close.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid');
     await page.keyboard.press('Shift+Tab');
     await expect(confirm).toBeFocused();
     await page.keyboard.press('Tab');
