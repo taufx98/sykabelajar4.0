@@ -11,7 +11,7 @@ import { subscribeSykaEvents } from '@/lib/realtimeBus';
 import { blockChatUser, claimChatTicket, closeThread, createTicketThread, getChatSpamStatus, getOrCreateDmThread, hideChatThread, loadChatMessagesPage, loadMyThreads, markThreadRead, sendMessage, unblockChatUser, type ChatMessage, type ChatSpamStatus, type ChatThread, listChatGroups, createChatGroup, loadChatGroupMessages, sendChatGroupMessage, listChatGroupMembers, addChatGroupMember, removeChatGroupMember, renameChatGroup, markChatGroupRead, createChatGroupInvite, joinChatGroup, type ChatGroup, type ChatGroupMessage, type ChatGroupMember, searchUsersForChat } from '@/services/chat.service';
 import { listCollectiveCompetitions } from '@/services/collectiveParticipant.service';
 import { attachChatMedia, isAudioUrl, isDocumentUrl, isHttpUrl, isImageUrl, uploadChatAttachment, validateChatFile } from '@/services/chatMedia.service';
-import { mergeChatMessageCache, readChatMessageCache } from '@/services/chatMessageCache';
+import { mergeChatMessageCache, readChatMessageCache, readOlderChatMessageCache } from '@/services/chatMessageCache';
 
 const PAGE = 50;
 const INITIAL_MESSAGE_PAGE = 20;
@@ -170,25 +170,30 @@ export function MessagesPage() {
     const threadId = selected.id;
     const token = ++loadToken.current;
     let live = true;
-    const legacyCached = cacheGet(threadId);
-    setMessages(legacyCached);
-    setHasOlder(legacyCached.length > 0);
+    const allLegacyMessages = cacheGet(threadId).sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const legacyLatest = allLegacyMessages.slice(-INITIAL_MESSAGE_PAGE);
+    setMessages(legacyLatest);
+    setHasOlder(allLegacyMessages.length > INITIAL_MESSAGE_PAGE);
+    setOlderBusy(false);
     olderRequestRef.current = null;
 
     (async () => {
       try {
-        const cached = await readChatMessageCache(me, threadId);
+        const cached = await readChatMessageCache(me, threadId, INITIAL_MESSAGE_PAGE);
         if (!live || token !== loadToken.current) return;
 
-        const cachedMessages = cached?.messages ?? legacyCached;
+        const cachedMessages = cached?.messages ?? legacyLatest;
+        const hasLocalOrRemoteOlder = cached
+          ? cached.hasCachedOlder || cached.hasOlder
+          : allLegacyMessages.length > INITIAL_MESSAGE_PAGE;
         if (cachedMessages.length) {
           setMessages(cachedMessages);
-          setHasOlder(cached?.hasOlder ?? true);
+          setHasOlder(hasLocalOrRemoteOlder);
           requestAnimationFrame(() => {
             if (live && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
           });
-          if (!cached && legacyCached.length) {
-            await mergeChatMessageCache(me, threadId, legacyCached, { hasOlder: true });
+          if (!cached && allLegacyMessages.length) {
+            await mergeChatMessageCache(me, threadId, allLegacyMessages, { hasOlder: true });
           }
         }
 
@@ -198,11 +203,11 @@ export function MessagesPage() {
           const rows = await loadChatMessagesPage(threadId, INITIAL_MESSAGE_PAGE);
           if (!live || token !== loadToken.current) return;
           const validRows = rows.filter(isCachedMessage);
-          const merged = mergeMessageRows(cachedMessages, validRows);
-          const nextHasOlder = cached?.hasOlder === false ? false : rows.length >= INITIAL_MESSAGE_PAGE;
-          setMessages(merged);
-          setHasOlder(nextHasOlder);
-          await mergeChatMessageCache(me, threadId, merged, {
+          const latestMessages = mergeMessageRows(cachedMessages, validRows).slice(-INITIAL_MESSAGE_PAGE);
+          const nextHasOlder = cached ? cached.hasOlder : rows.length >= INITIAL_MESSAGE_PAGE;
+          setMessages(latestMessages);
+          setHasOlder(cached ? (cached.hasCachedOlder || nextHasOlder) : nextHasOlder);
+          await mergeChatMessageCache(me, threadId, validRows, {
             hasOlder: nextHasOlder,
             lastSyncedAt: Date.now(),
           });
@@ -218,7 +223,7 @@ export function MessagesPage() {
           thread.id === threadId ? { ...thread, unread_count: 0 } : thread
         )));
       } catch (error: unknown) {
-        if (live && !legacyCached.length) {
+        if (live && !legacyLatest.length) {
           toast(error instanceof Error ? error.message : 'Gagal memuat pesan.', 'error');
         }
       }
@@ -268,6 +273,7 @@ export function MessagesPage() {
  const loadOlder = useCallback(async () => {
     if (!selected || olderBusy || !hasOlder || !messages.length || !scrollRef.current) return;
     const threadId = selected.id;
+    const loadVersion = loadToken.current;
     if (olderRequestRef.current === threadId) return;
     olderRequestRef.current = threadId;
     setOlderBusy(true);
@@ -275,25 +281,52 @@ export function MessagesPage() {
     const previousHeight = element.scrollHeight;
     const before = messages[0].created_at;
     try {
+      const cachedRows = await readOlderChatMessageCache(me, threadId, before, PAGE);
+      if (loadVersion !== loadToken.current) return;
+
+      if (cachedRows.length) {
+        const meta = await readChatMessageCache(me, threadId, 1);
+        if (loadVersion !== loadToken.current) return;
+        const stillHasCachedOlder = !!meta?.oldestCachedAt
+          && meta.oldestCachedAt < cachedRows[0].created_at;
+        const nextHasOlder = cachedRows.length >= PAGE || stillHasCachedOlder || !!meta?.hasOlder;
+        setMessages(current => mergeMessageRows(current, cachedRows));
+        setHasOlder(nextHasOlder);
+        requestAnimationFrame(() => {
+          if (scrollRef.current === element) element.scrollTop = element.scrollHeight - previousHeight;
+        });
+        return;
+      }
+
+      const meta = await readChatMessageCache(me, threadId, 1);
+      if (loadVersion !== loadToken.current) return;
+      if (!meta?.hasOlder) {
+        setHasOlder(false);
+        return;
+      }
+
       const rows = await loadChatMessagesPage(threadId, PAGE, before);
+      if (loadVersion !== loadToken.current) return;
       if (!rows.length) {
         setHasOlder(false);
         await mergeChatMessageCache(me, threadId, [], { hasOlder: false });
         return;
       }
       const validRows = rows.filter(isCachedMessage);
-      setMessages(current => mergeMessageRows(current, validRows));
       const nextHasOlder = rows.length >= PAGE;
+      setMessages(current => mergeMessageRows(current, validRows));
       setHasOlder(nextHasOlder);
       await mergeChatMessageCache(me, threadId, validRows, { hasOlder: nextHasOlder });
       requestAnimationFrame(() => {
         if (scrollRef.current === element) element.scrollTop = element.scrollHeight - previousHeight;
       });
     } catch (error: unknown) {
-      toast(error instanceof Error ? error.message : 'Gagal memuat pesan sebelumnya.', 'error');
+      if (loadVersion === loadToken.current) {
+        toast(error instanceof Error ? error.message : 'Gagal memuat pesan sebelumnya.', 'error');
+      }
     } finally {
       if (olderRequestRef.current === threadId) olderRequestRef.current = null;
-      setOlderBusy(false);
+      if (loadVersion === loadToken.current) setOlderBusy(false);
     }
   }, [selected?.id, me, olderBusy, hasOlder, messages, toast]);
  const choose=useCallback(async(thread:ChatThread)=>{setMode('private');setSelectedGroup(null);if(selected?.id===thread.id){setMobileList(false);return}setSelected(thread);setMessages(cacheGet(thread.id));setRating(0);setRatingOpen(false);setNewMessages(0);setMessageHidden(false);setMobileList(false);await markThreadRead(thread.id).catch(()=>undefined);setThreads(current=>current.map(item=>item.id===thread.id?{...item,unread_count:0}:item))},[selected?.id]);
