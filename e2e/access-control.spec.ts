@@ -363,7 +363,7 @@ test.describe('chat composer and 24-hour message deletion', () => {
     await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe('/pesan');
-    await page.getByText('Percakapan Aktif', { exact: true }).click();
+    await page.getByText('Percakapan Aktif', { exact: true }).last().click();
 
     const chat = page.getByTestId('chat-message-list');
     await expect(chat.getByText('Pesan milikku yang baru', { exact: true })).toBeVisible();
