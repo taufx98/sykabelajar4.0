@@ -12,11 +12,30 @@ export interface ChatSpamStatus{warning_level:number;strike_count:number;blocked
 function err(error:unknown){const m=String((error as any)?.message??error??'Terjadi kesalahan.');const map:Record<string,string>={ACTIVE_TICKET_EXISTS:'Anda masih memiliki laporan yang sedang berjalan. Tunggu hingga laporan diselesaikan oleh Admin.',FOLLOW_REQUIRED:'Anda harus mengikuti pengguna tersebut dan menunggu persetujuan sebelum dapat mengirim pesan.',THREAD_CLOSED:'Percakapan ini sudah ditutup.',ACCESS_DENIED:'Anda tidak memiliki akses ke percakapan ini.',MESSAGE_REQUIRED:'Pesan tidak boleh kosong.',CHAT_BLOCKED:'Anda tidak dapat mengirim pesan karena hubungan chat diblokir.',TICKET_NOT_OPEN:'Ticket sudah tidak aktif.',TICKET_ALREADY_CLAIMED:'Ticket sudah diambil oleh petugas lain.',INVALID_RATING:'Rating harus 1-5.',INVALID_RECIPIENT:'Penerima chat tidak valid.',SPAM_COOLDOWN:'Pesan sementara dibatasi karena terdeteksi spam.'};const key=Object.keys(map).find(k=>m.includes(k));if(key==='SPAM_COOLDOWN'){const parts=m.split(':');const level=Number(parts[1])||1;const until=parts.slice(2).join(':');const e=new Error(`Peringatan ${level}: terlalu banyak pesan dalam waktu singkat. Kamu tidak dapat mengirim chat sampai ${until}.`);e.name='ChatSpamCooldown';return e;}return new Error(key?map[key]:m)}
 const dmLookupInFlight = new Map<string, Promise<ChatThread>>();
 let threadsCache:ChatThread[]|null=null;let threadsCacheAt=0;let threadsInFlight:Promise<ChatThread[]>|null=null;let threadsInFlightUserId:string|null=null;let threadsRealtimePatchedAt=0;const THREADS_CACHE_MS=20_000;const THREADS_REALTIME_CACHE_MS=10_000;const THREADS_PERSIST_TTL=24*60*60_000;const THREADS_SERVER_LIMIT=50;
-const unreadCountCache=new Map<string,{value:number;at:number}>();const unreadCountInFlight=new Map<string,Promise<number>>();let unreadCountGeneration=0;const UNREAD_COUNT_CACHE_MS=15_000;const UNREAD_COUNT_PERSIST_TTL=30*60_000;
+const unreadCountCache=new Map<string,{value:number;at:number}>();const unreadCountInFlight=new Map<string,Promise<number>>();const unreadCountGeneration=new Map<string,number>();const UNREAD_COUNT_CACHE_MS=15_000;const UNREAD_COUNT_PERSIST_TTL=30*60_000;
 const chatSpamStatusCache=new Map<string,{value:ChatSpamStatus;at:number}>();const chatSpamStatusInFlight=new Map<string,Promise<ChatSpamStatus>>();const forcedChatSpamStatusInFlight=new Map<string,Promise<ChatSpamStatus>>();const chatSpamStatusGeneration=new Map<string,number>();const CHAT_SPAM_STATUS_CACHE_MS=5_000;
 let historyCache=new Map<string,{at:number;rows:ChatHistoryRow[]}>();let historyTimer:number|undefined;let historyPending:Array<{opts:{search?:string;rating?:number|null;handledBy?:string|null;sortDesc?:boolean;limit?:number};resolve:(rows:ChatHistoryRow[])=>void;reject:(error:unknown)=>void}>=[];const HISTORY_CACHE_MS=15_000;const HISTORY_DEBOUNCE_MS=400;
 function cacheKeyForUser(kind:string,userId:string){return `chat.${kind}.${userId}`}
-export function invalidateUnreadChatCount(userId?:string){unreadCountGeneration+=1;if(userId){unreadCountCache.delete(userId);unreadCountInFlight.delete(userId);removePersistentCache(cacheKeyForUser('unread',userId));return;}unreadCountCache.clear();unreadCountInFlight.clear();clearPersistentCache('chat.unread.')}
+export function invalidateUnreadChatCount(userId?:string){
+  if(userId){
+    unreadCountGeneration.set(userId,(unreadCountGeneration.get(userId)??0)+1);
+    unreadCountCache.delete(userId);
+    unreadCountInFlight.delete(userId);
+    removePersistentCache(cacheKeyForUser('unread',userId));
+    return;
+  }
+  const knownUsers=new Set([
+    ...unreadCountGeneration.keys(),
+    ...unreadCountCache.keys(),
+    ...[...unreadCountInFlight.keys()].filter(key=>key!=='anonymous'),
+  ]);
+  for(const knownUser of knownUsers){
+    unreadCountGeneration.set(knownUser,(unreadCountGeneration.get(knownUser)??0)+1);
+  }
+  unreadCountCache.clear();
+  unreadCountInFlight.clear();
+  clearPersistentCache('chat.unread.');
+}
 function invalidateChatCaches(){threadsCache=null;threadsCacheAt=0;threadsRealtimePatchedAt=0;invalidateUnreadChatCount()}
 function patchCachedThread(thread:ChatThread){if(!thread?.id)return;const next=threadsCache?[...threadsCache]:[];const index=next.findIndex(t=>t.id===thread.id);if(index>=0)next[index]={...next[index],...thread};else next.push(thread);threadsCache=next;threadsCacheAt=Date.now();threadsRealtimePatchedAt=threadsCacheAt;}
 export function applyChatRealtimeThread(thread:ChatThread){patchCachedThread(thread);}
@@ -102,13 +121,13 @@ export async function getUnreadChatCount(force=false){
   }
   const inFlight=unreadCountInFlight.get(requestKey);
   if(inFlight)return inFlight;
-  const generation=unreadCountGeneration;
+  const generation=userId?(unreadCountGeneration.get(userId)??0):0;
   let request:Promise<number>;
   request=(async()=>{
     const{data,error}=await supabase.rpc('get_my_unread_chat_count');
     if(error)throw error;
     const value=Number(data??0);
-    if(userId&&generation!==unreadCountGeneration){
+    if(userId&&generation!==(unreadCountGeneration.get(userId)??0)){
       // This request predates a Realtime mutation. Never surface its stale count;
       // join the newer snapshot or start one if the debounce has not fired yet.
       const newerRequest=unreadCountInFlight.get(requestKey);
