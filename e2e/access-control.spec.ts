@@ -615,6 +615,75 @@ test.describe('Shop editor', () => {
   });
 });
 
+test.describe('leaderboard school podium presentation', () => {
+  test('shows top XP contributors on the school podium without changing the table data', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    const schoolRows = [
+      {
+        school_key: 'sdn-1-jakarta', school_id: null, school_name: 'SDN 1 Jakarta', student_count: 5,
+        levels: 'SD', average_score: 96.2, competitions_count: 110, xp: 659152, rank: 1,
+        top_students: [
+          { user_id: '11111111-1111-4111-8111-111111111111', username: 'aldo', display_name: 'Aldo Lestari', avatar_url: null, grade: 'SD6', xp: 140425, average_score: 98.1, competitions_count: 22 },
+          { user_id: '22222222-2222-4222-8222-222222222222', username: 'eko', display_name: 'Eko Permana', avatar_url: null, grade: 'SD6', xp: 135519, average_score: 97.8, competitions_count: 21 },
+          { user_id: '33333333-3333-4333-8333-333333333333', username: 'putri', display_name: 'Putri Saputra', avatar_url: null, grade: 'SD5', xp: 131580, average_score: 96.9, competitions_count: 20 },
+        ],
+      },
+      {
+        school_key: 'sdn-3-bandung', school_id: null, school_name: 'SDN 3 Bandung', student_count: 5,
+        levels: 'SD', average_score: 95.4, competitions_count: 105, xp: 620459, rank: 2,
+        top_students: [
+          { user_id: '44444444-4444-4444-8444-444444444444', username: 'kiki', display_name: 'Kiki Wicaksono', avatar_url: null, grade: 'SD6', xp: 134086, average_score: 97.2, competitions_count: 19 },
+          { user_id: '55555555-5555-4555-8555-555555555555', username: 'eko-pradipta', display_name: 'Eko Pradipta', avatar_url: null, grade: 'SD6', xp: 127851, average_score: 96.8, competitions_count: 18 },
+          { user_id: '66666666-6666-4666-8666-666666666666', username: 'wawan', display_name: 'Wawan Wibowo', avatar_url: null, grade: 'SD5', xp: 123214, average_score: 96.1, competitions_count: 17 },
+        ],
+      },
+      {
+        school_key: 'sdn-5-surabaya', school_id: null, school_name: 'SDN 5 Surabaya', student_count: 5,
+        levels: 'SD', average_score: 94, competitions_count: 95, xp: 580319, rank: 3,
+        top_students: [
+          { user_id: '77777777-7777-4777-8777-777777777777', username: 'hendra', display_name: 'Hendra Pratama', avatar_url: null, grade: 'SD6', xp: 125259, average_score: 96, competitions_count: 17 },
+          { user_id: '88888888-8888-4888-8888-888888888881', username: 'aditya', display_name: 'Aditya Kusuma', avatar_url: null, grade: 'SD5', xp: 120504, average_score: 95.5, competitions_count: 16 },
+          { user_id: '99999999-9999-4999-8999-999999999999', username: 'fajar', display_name: 'Fajar Firmansyah', avatar_url: null, grade: 'SD5', xp: 115792, average_score: 95, competitions_count: 15 },
+        ],
+      },
+    ];
+
+    await page.route('**/rest/v1/rpc/get_public_leaderboard_enriched', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'access-control-allow-origin': '*', 'content-range': '0-0/0' },
+        contentType: 'application/json',
+        body: '[]',
+      });
+    });
+    await page.route('**/rest/v1/rpc/get_public_school_leaderboard', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'access-control-allow-origin': '*', 'content-range': '0-2/3' },
+        contentType: 'application/json',
+        body: JSON.stringify(schoolRows),
+      });
+    });
+
+    await page.goto('/login?redirect=%2Fleaderboard');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/leaderboard');
+    await expect(page.getByRole('heading', { name: 'Peringkat Juara' })).toBeVisible();
+    await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
+
+    await expect(page.locator('.lb-school-podium')).toHaveCount(3);
+    await expect(page.locator('.lb-school-contributor-row')).toHaveCount(9);
+    await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
+    await expect(page.locator('.lb-school-podium.rank-1')).toContainText('Aldo Lestari');
+    await expect(page.locator('.lb-school-podium.rank-1')).toContainText('140.425 XP');
+    await expect(page.locator('.lb-school-table-wrap .lb-table th[colspan="2"]')).toContainText('Peringkat & Nama');
+    await expect(page.getByText('SDN 3 Bandung', { exact: true })).toBeVisible();
+    await expect(page.getByText('SDN 5 Surabaya', { exact: true })).toBeVisible();
+  });
+});
+
 test.describe('public entry points', () => {
   test('landing page renders', async ({ page }) => {
     await page.goto('/');
