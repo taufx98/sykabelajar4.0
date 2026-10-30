@@ -723,7 +723,7 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-school-table-wrap .lb-table th[colspan="2"]')).toContainText('Peringkat & Nama');
     await expect(page.getByText('SDN 3 Bandung', { exact: true })).toBeVisible();
     await expect(page.getByText('SDN 5 Surabaya', { exact: true })).toBeVisible();
-    await expect(page.locator('.lb-school-name-cell .lb-person')).toHaveCSS('justify-content', 'flex-start');
+    await expect(page.locator('.lb-school-name-cell .lb-person').first()).toHaveCSS('justify-content', 'flex-start');
     await expect(page.locator('.lb-school-table-wrap')).toContainText('SMP 8 Bandung');
 
     await schoolLevelFilters.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
