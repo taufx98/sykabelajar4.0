@@ -1058,6 +1058,50 @@ test.describe('chat network request reuse', () => {
     expect(spamStatusReads).toBe(1);
   });
 
+  test('reuses an in-flight unread-count request when Realtime asks for a refresh', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
+    let unreadCountReads = 0;
+
+    await page.route('**/rest/v1/rpc/load_my_threads', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: '[]' });
+    });
+    await page.route('**/rest/v1/rpc/get_my_unread_chat_count', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      unreadCountReads += 1;
+      // Keep the initial unread count in flight while the debounced Realtime refresh is scheduled.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: '0' });
+    });
+
+    await page.goto('/login?redirect=%2Fpesan');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/pesan');
+    await expect(page.getByRole('button', { name: 'Chat Grup', exact: true })).toBeVisible();
+    await expect.poll(() => unreadCountReads).toBe(1);
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('syka:realtime', {
+        detail: { type: 'chat-message', message: { id: 'test-message', thread_id: 'test-thread', sender_id: 'other-user' } },
+      }));
+    });
+    await page.waitForTimeout(700);
+    expect(unreadCountReads).toBe(1);
+  });
+
   test('uses the saved group-message response without fetching the latest page again', async ({ page }) => {
     await mockSupabaseLogin(page, ['student']);
     const corsHeaders = {
@@ -1124,7 +1168,8 @@ test.describe('chat network request reuse', () => {
         status: 200,
         headers: corsHeaders,
         contentType: 'application/json',
-        body: JSON.stringify([]),
+        // The post-send refetch returns the row created by the send RPC, as production does.
+        body: JSON.stringify(groupHistoryReads > 1 ? [savedMessage] : []),
       });
     });
     await registerRpc('get_chat_group_members', (route) => jsonRpc(route, []));
