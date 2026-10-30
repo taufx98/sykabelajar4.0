@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { createPortal } from 'react-dom';
 import { Accessibility, Check, Languages, Moon, Settings2, Sun, UserRound, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -23,18 +24,14 @@ export function GeneralSettingsButton({ className = '', showLabel = false }: { c
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const { user } = useApp();
+  const dialogRef = useDialogAccessibility({ open, onEscape: () => setOpen(false) });
 
   useEffect(() => {
     if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
 
@@ -66,6 +63,8 @@ export function GeneralSettingsButton({ className = '', showLabel = false }: { c
       {open && createPortal(
         <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/65 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
           <section
+            ref={dialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="general-settings-title"
@@ -79,7 +78,7 @@ export function GeneralSettingsButton({ className = '', showLabel = false }: { c
                 <h2 id="general-settings-title" className="font-display text-xl font-bold text-fg">{t('settings.title')}</h2>
                 <p className="mt-1 text-sm leading-relaxed text-fg-muted">{t('settings.subtitle')}</p>
               </div>
-              <button type="button" onClick={() => setOpen(false)} aria-label={t('settings.close')} className="rounded-xl p-2 text-fg-muted transition hover:bg-surface-elevated hover:text-fg">
+              <button type="button" onClick={() => setOpen(false)} aria-label={t('settings.close')} data-dialog-initial-focus className="rounded-xl p-2 text-fg-muted transition hover:bg-surface-elevated hover:text-fg">
                 <X size={18} />
               </button>
             </header>
