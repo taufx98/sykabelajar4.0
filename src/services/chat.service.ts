@@ -12,10 +12,12 @@ export interface ChatSpamStatus{warning_level:number;strike_count:number;blocked
 function err(error:unknown){const m=String((error as any)?.message??error??'Terjadi kesalahan.');const map:Record<string,string>={ACTIVE_TICKET_EXISTS:'Anda masih memiliki laporan yang sedang berjalan. Tunggu hingga laporan diselesaikan oleh Admin.',FOLLOW_REQUIRED:'Anda harus mengikuti pengguna tersebut dan menunggu persetujuan sebelum dapat mengirim pesan.',THREAD_CLOSED:'Percakapan ini sudah ditutup.',ACCESS_DENIED:'Anda tidak memiliki akses ke percakapan ini.',MESSAGE_REQUIRED:'Pesan tidak boleh kosong.',CHAT_BLOCKED:'Anda tidak dapat mengirim pesan karena hubungan chat diblokir.',TICKET_NOT_OPEN:'Ticket sudah tidak aktif.',TICKET_ALREADY_CLAIMED:'Ticket sudah diambil oleh petugas lain.',INVALID_RATING:'Rating harus 1-5.',INVALID_RECIPIENT:'Penerima chat tidak valid.',SPAM_COOLDOWN:'Pesan sementara dibatasi karena terdeteksi spam.'};const key=Object.keys(map).find(k=>m.includes(k));if(key==='SPAM_COOLDOWN'){const parts=m.split(':');const level=Number(parts[1])||1;const until=parts.slice(2).join(':');const e=new Error(`Peringatan ${level}: terlalu banyak pesan dalam waktu singkat. Kamu tidak dapat mengirim chat sampai ${until}.`);e.name='ChatSpamCooldown';return e;}return new Error(key?map[key]:m)}
 const dmLookupInFlight = new Map<string, Promise<ChatThread>>();
 let threadsCache:ChatThread[]|null=null;let threadsCacheAt=0;let threadsInFlight:Promise<ChatThread[]>|null=null;let threadsInFlightUserId:string|null=null;let threadsRealtimePatchedAt=0;const THREADS_CACHE_MS=20_000;const THREADS_REALTIME_CACHE_MS=10_000;const THREADS_PERSIST_TTL=24*60*60_000;const THREADS_SERVER_LIMIT=50;
-let unreadCountCache:number|null=null;let unreadCountCacheAt=0;let unreadCountInFlight:Promise<number>|null=null;const UNREAD_COUNT_CACHE_MS=15_000;const UNREAD_COUNT_PERSIST_TTL=30*60_000;
+const unreadCountCache=new Map<string,{value:number;at:number}>();const unreadCountInFlight=new Map<string,Promise<number>>();let unreadCountGeneration=0;const UNREAD_COUNT_CACHE_MS=15_000;const UNREAD_COUNT_PERSIST_TTL=30*60_000;
+const chatSpamStatusCache=new Map<string,{value:ChatSpamStatus;at:number}>();const chatSpamStatusInFlight=new Map<string,Promise<ChatSpamStatus>>();const forcedChatSpamStatusInFlight=new Map<string,Promise<ChatSpamStatus>>();const chatSpamStatusGeneration=new Map<string,number>();const CHAT_SPAM_STATUS_CACHE_MS=5_000;
 let historyCache=new Map<string,{at:number;rows:ChatHistoryRow[]}>();let historyTimer:number|undefined;let historyPending:Array<{opts:{search?:string;rating?:number|null;handledBy?:string|null;sortDesc?:boolean;limit?:number};resolve:(rows:ChatHistoryRow[])=>void;reject:(error:unknown)=>void}>=[];const HISTORY_CACHE_MS=15_000;const HISTORY_DEBOUNCE_MS=400;
 function cacheKeyForUser(kind:string,userId:string){return `chat.${kind}.${userId}`}
-function invalidateChatCaches(){threadsCache=null;threadsCacheAt=0;threadsRealtimePatchedAt=0;unreadCountCache=null;unreadCountCacheAt=0}
+function invalidateUnreadCache(){unreadCountGeneration+=1;unreadCountCache.clear();unreadCountInFlight.clear()}
+function invalidateChatCaches(){threadsCache=null;threadsCacheAt=0;threadsRealtimePatchedAt=0;invalidateUnreadCache()}
 function patchCachedThread(thread:ChatThread){if(!thread?.id)return;const next=threadsCache?[...threadsCache]:[];const index=next.findIndex(t=>t.id===thread.id);if(index>=0)next[index]={...next[index],...thread};else next.push(thread);threadsCache=next;threadsCacheAt=Date.now();threadsRealtimePatchedAt=threadsCacheAt;}
 export function applyChatRealtimeThread(thread:ChatThread){patchCachedThread(thread);}
 export function removeChatRealtimeThread(threadId:string){if(!threadsCache)return;const next=threadsCache.filter(t=>t.id!==threadId);if(next.length===threadsCache.length)return;threadsCache=next;threadsCacheAt=Date.now();threadsRealtimePatchedAt=threadsCacheAt;}
@@ -48,13 +50,73 @@ export async function getOrCreateDmThread(otherUserId:string){
 }
 async function loadMyThreadsInternal(force=false,allowRealtimeCache=true){const now=Date.now();if(!force&&threadsCache&&now-threadsCacheAt<THREADS_CACHE_MS)return threadsCache;if(force&&allowRealtimeCache&&threadsCache&&threadsRealtimePatchedAt>0&&now-threadsRealtimePatchedAt<THREADS_REALTIME_CACHE_MS)return threadsCache;const uid=await currentSessionUserId();if(threadsInFlight&&threadsInFlightUserId===uid)return threadsInFlight;const key=uid?cacheKeyForUser('threads',uid):null;if(!force&&key){const cached=getPersistentCache<ChatThread[]>(key);if(cached){threadsCache=cached.data;threadsCacheAt=now;threadsRealtimePatchedAt=0;return cached.data}}const request=(async()=>{const{data,error}=await supabase.rpc('load_my_threads',{p_limit:THREADS_SERVER_LIMIT});if(error)throw error;const rows=(data??[])as ChatThread[];for(const row of rows){if(!row.user_name)row.user_name='User';if(!row.username)row.username='user';if(!row.other_user_name)row.other_user_name='User';}threadsCache=rows;threadsCacheAt=Date.now();threadsRealtimePatchedAt=0;if(key)setPersistentCache(key,rows,{ttlMs:THREADS_PERSIST_TTL});return rows})();threadsInFlight=request;threadsInFlightUserId=uid;try{return await request}finally{if(threadsInFlight===request){threadsInFlight=null;threadsInFlightUserId=null}}}
 export async function loadMyThreads(force=false){return loadMyThreadsInternal(force,true)}
-async function throwPersistedSpamCooldown(){try{const status=await getChatSpamStatus();if(status.blocked_until){const e=new Error(`Peringatan ${Math.max(1,status.strike_count)}: terlalu banyak pesan dalam waktu singkat. Kamu tidak dapat mengirim chat sampai ${status.blocked_until}.`);e.name='ChatSpamCooldown';throw e;}}catch(error){if(error instanceof Error&&error.name==='ChatSpamCooldown')throw error;throw new Error('Pesan sementara dibatasi karena terdeteksi spam.')}}
+async function throwPersistedSpamCooldown(){try{const status=await getChatSpamStatus(true);if(status.blocked_until){const e=new Error(`Peringatan ${Math.max(1,status.strike_count)}: terlalu banyak pesan dalam waktu singkat. Kamu tidak dapat mengirim chat sampai ${status.blocked_until}.`);e.name='ChatSpamCooldown';throw e;}}catch(error){if(error instanceof Error&&error.name==='ChatSpamCooldown')throw error;throw new Error('Pesan sementara dibatasi karena terdeteksi spam.')}}
 export async function sendMessage(threadId:string,body:string){const text=body.trim();if(!text)throw new Error('MESSAGE_REQUIRED');const{data,error}=await supabase.rpc('send_chat_message',{p_thread_id:threadId,p_body:text});if(error)throw err(error);if(data===null){await throwPersistedSpamCooldown();throw new Error('Pesan sementara dibatasi karena terdeteksi spam.');}const saved=data as ChatMessage;applyChatRealtimeMessage(saved,saved.sender_id);invalidateUnreadCache();emitSykaEvent({type:'chat-unread',threadId});return saved}
-function invalidateUnreadCache(){unreadCountCache=null;unreadCountCacheAt=0}
-export async function getChatSpamStatus(){const{data,error}=await supabase.rpc('get_chat_spam_status');if(error)throw err(error);const row=(data??{})as Record<string,unknown>;return{warning_level:Number(row.warning_level??0),strike_count:Number(row.strike_count??0),blocked_until:row.blocked_until==null?null:String(row.blocked_until),reset_at:String(row.reset_at??new Date(Date.now()+7*86400000).toISOString())}as ChatSpamStatus}
+export async function getChatSpamStatus(force=false){
+  const userId=await currentSessionUserId();
+  if(!userId)throw new Error('UNAUTHORIZED');
+  const forcedInFlight=forcedChatSpamStatusInFlight.get(userId);
+  if(forcedInFlight)return forcedInFlight;
+  if(!force){
+    const cached=chatSpamStatusCache.get(userId);
+    if(cached&&Date.now()-cached.at<CHAT_SPAM_STATUS_CACHE_MS)return cached.value;
+    const inFlight=chatSpamStatusInFlight.get(userId);
+    if(inFlight)return inFlight;
+  }
+  const generation=force?(chatSpamStatusGeneration.get(userId)??0)+1:(chatSpamStatusGeneration.get(userId)??0);
+  if(force){
+    chatSpamStatusGeneration.set(userId,generation);
+    chatSpamStatusCache.delete(userId);
+    chatSpamStatusInFlight.delete(userId);
+  }
+  const request=(async()=>{
+    const{data,error}=await supabase.rpc('get_chat_spam_status');
+    if(error)throw err(error);
+    const row=(data??{})as Record<string,unknown>;
+    const status={warning_level:Number(row.warning_level??0),strike_count:Number(row.strike_count??0),blocked_until:row.blocked_until==null?null:String(row.blocked_until),reset_at:String(row.reset_at??new Date(Date.now()+7*86400000).toISOString())}as ChatSpamStatus;
+    if((chatSpamStatusGeneration.get(userId)??0)===generation)chatSpamStatusCache.set(userId,{value:status,at:Date.now()});
+    return status;
+  })();
+  const target=force?forcedChatSpamStatusInFlight:chatSpamStatusInFlight;
+  target.set(userId,request);
+  try{return await request}
+  finally{if(target.get(userId)===request)target.delete(userId)}
+}
 export async function loadChatMessagesPage(threadId:string,limit=50,before?:string|null){const{data,error}=await supabase.rpc('get_chat_messages_page',{p_thread_id:threadId,p_limit:Math.min(Math.max(limit,1),100),p_before:before??null});if(error)throw err(error);return[...(data??[])].reverse()as ChatMessage[]}
 export async function markThreadRead(threadId:string){const{error}=await supabase.rpc('mark_chat_thread_read',{p_thread_id:threadId});if(error)throw err(error);applyChatRealtimeRead(threadId);invalidateUnreadCache();emitSykaEvent({type:'chat-read',threadId})}
-export async function getUnreadChatCount(force=false){const now=Date.now();if(!force&&unreadCountCache!==null&&now-unreadCountCacheAt<UNREAD_COUNT_CACHE_MS)return unreadCountCache;const uid=await currentSessionUserId();const key=uid?cacheKeyForUser('unread',uid):null;if(!force&&key){const cached=getPersistentCache<number>(key);if(cached){unreadCountCache=cached.data;unreadCountCacheAt=now;return cached.data}}if(!force&&unreadCountInFlight)return unreadCountInFlight;const request=(async()=>{const{data,error}=await supabase.rpc('get_my_unread_chat_count');if(error)throw error;const value=Number(data??0);unreadCountCache=value;unreadCountCacheAt=Date.now();if(key)setPersistentCache(key,value,{ttlMs:UNREAD_COUNT_PERSIST_TTL});return value})();unreadCountInFlight=request;try{return await request}finally{if(unreadCountInFlight===request)unreadCountInFlight=null}}
+export async function getUnreadChatCount(force=false){
+  const userId=await currentSessionUserId();
+  const requestKey=userId??'anonymous';
+  const cacheKey=userId?cacheKeyForUser('unread',userId):null;
+  const now=Date.now();
+  if(!force&&userId){
+    const memory=unreadCountCache.get(userId);
+    if(memory&&now-memory.at<UNREAD_COUNT_CACHE_MS)return memory.value;
+    if(cacheKey){
+      const cached=getPersistentCache<number>(cacheKey);
+      if(cached){
+        unreadCountCache.set(userId,{value:cached.data,at:now});
+        return cached.data;
+      }
+    }
+  }
+  const inFlight=unreadCountInFlight.get(requestKey);
+  if(inFlight)return inFlight;
+  const generation=unreadCountGeneration;
+  const request=(async()=>{
+    const{data,error}=await supabase.rpc('get_my_unread_chat_count');
+    if(error)throw error;
+    const value=Number(data??0);
+    if(userId&&generation===unreadCountGeneration){
+      unreadCountCache.set(userId,{value,at:Date.now()});
+      if(cacheKey)setPersistentCache(cacheKey,value,{ttlMs:UNREAD_COUNT_PERSIST_TTL});
+    }
+    return value;
+  })();
+  unreadCountInFlight.set(requestKey,request);
+  try{return await request}
+  finally{if(unreadCountInFlight.get(requestKey)===request)unreadCountInFlight.delete(requestKey)}
+}
 export async function closeThread(threadId:string,rating?:number){if(rating!==undefined&&(!Number.isInteger(rating)||rating<1||rating>5))throw new Error('INVALID_RATING');const{data,error}=await supabase.rpc('close_chat_thread',{p_thread_id:threadId,p_rating:rating??null});if(error)throw err(error);const thread=data as ChatThread;patchCachedThread(thread);invalidateUnreadCache();return thread}
 export async function claimChatTicket(threadId:string){const{data,error}=await supabase.rpc('claim_chat_ticket',{p_thread_id:threadId});if(error)throw err(error);const thread=data as ChatThread;patchCachedThread(thread);return thread}
 function scheduleHistoryRequest(){if(historyTimer)window.clearTimeout(historyTimer);historyTimer=window.setTimeout(async()=>{const pending=historyPending.splice(0);if(!pending.length)return;const last=pending[pending.length-1].opts;const normalized={search:last.search?.trim()||null,rating:last.rating??null,handledBy:last.handledBy??null,sortDesc:last.sortDesc!==false,limit:Math.min(Math.max(last.limit??100,1),5000)};const key=JSON.stringify(normalized);const cached=historyCache.get(key);if(cached&&Date.now()-cached.at<HISTORY_CACHE_MS){pending.forEach(item=>item.resolve(cached.rows));return;}try{const{data,error}=await supabase.rpc('get_admin_chat_history',{p_search:normalized.search,p_rating:normalized.rating,p_handled_by:normalized.handledBy,p_sort_desc:normalized.sortDesc,p_limit:normalized.limit});if(error)throw error;const rows=(data??[])as ChatHistoryRow[];historyCache.set(key,{at:Date.now(),rows});if(historyCache.size>20)historyCache.delete(historyCache.keys().next().value as string);pending.forEach(item=>item.resolve(rows));}catch(error){pending.forEach(item=>item.reject(err(error)));}finally{historyTimer=undefined;}},HISTORY_DEBOUNCE_MS)}
