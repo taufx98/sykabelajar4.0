@@ -874,8 +874,18 @@ test.describe('unauthenticated access control', () => {
 });
 
 
-async function signInForMobileNavigation(page: import('@playwright/test').Page, roles: string[]) {
+async function signInForMobileNavigation(page: import('@playwright/test').Page, roles: string[], mobileNav?: string[]) {
   await mockSupabaseLogin(page, roles);
+  if (mobileNav) {
+    await page.route('**/rest/v1/profile_ui_settings*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'access-control-allow-origin': '*', 'content-range': '0-0/1' },
+        contentType: 'application/json',
+        body: JSON.stringify([{ mobile_nav: mobileNav }]),
+      });
+    });
+  }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/login?redirect=%2Fhome');
   await page.locator('input[autocomplete="email"]').fill('guru@example.test');
@@ -889,6 +899,12 @@ test.describe('mobile navigation single source and immersive exam routes', () =>
     await signInForMobileNavigation(page, ['student']);
     await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(1);
     await expect(page.getByRole('navigation', { name: 'Navigasi bawah mobile' })).toBeVisible();
+  });
+
+  test('routes the configurable workspace shortcut according to the signed-in role', async ({ page }) => {
+    await signInForMobileNavigation(page, ['organizer_member'], ['workspace']);
+    const navigation = page.getByRole('navigation', { name: 'Navigasi bawah mobile' });
+    await expect(navigation.locator('a')).toHaveAttribute('href', '/organizer');
   });
 
   test('keeps bottom navigation off public entry routes even with an authenticated session', async ({ page }) => {
