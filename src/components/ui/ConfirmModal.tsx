@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 import { AlertTriangle, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -27,11 +28,13 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const dialogRef = useDialogAccessibility({ open, onEscape: busy ? undefined : onCancel });
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
-      <button type="button" aria-label="Tutup" className="absolute inset-0 cursor-default" onClick={onCancel} />
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+      <div aria-hidden="true" className="absolute inset-0 cursor-default" onClick={onCancel} />
       <div className="relative w-full max-w-md rounded-2xl border border-surface-border bg-surface-elevated p-6 shadow-2xl">
         <button type="button" aria-label="Tutup" className="absolute right-3 top-3 rounded-lg p-2 text-fg-muted hover:bg-white/5 hover:text-fg" onClick={onCancel} disabled={busy}>
           <X size={16} />
@@ -46,7 +49,7 @@ export function ConfirmModal({
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>{cancelLabel}</Button>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={busy} data-dialog-initial-focus>{cancelLabel}</Button>
           <Button type="button" variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={busy}>{confirmLabel}</Button>
         </div>
       </div>
