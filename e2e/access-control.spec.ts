@@ -646,20 +646,41 @@ test.describe('leaderboard school podium presentation', () => {
           { user_id: '99999999-9999-4999-8999-999999999999', username: 'fajar', display_name: 'Fajar Firmansyah', avatar_url: null, grade: 'SD5', xp: 115792, average_score: 95, competitions_count: 15 },
         ],
       },
+      {
+        school_key: 'smp-8-bandung', school_id: null, school_name: 'SMP 8 Bandung', student_count: 4,
+        levels: 'SMP', average_score: 93.5, competitions_count: 72, xp: 410250, rank: 4,
+        top_students: [
+          { user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', username: 'nabila', display_name: 'Nabila Putri', avatar_url: null, grade: 'SMP9', xp: 104250, average_score: 96.4, competitions_count: 18 },
+        ],
+      },
+      {
+        school_key: 'sma-2-jogja', school_id: null, school_name: 'SMA 2 Yogyakarta', student_count: 6,
+        levels: 'SMA/SMK', average_score: 92.8, competitions_count: 88, xp: 380175, rank: 5,
+        top_students: [
+          { user_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', username: 'rangga', display_name: 'Rangga Saputra', avatar_url: null, grade: 'SMA12', xp: 98500, average_score: 95.2, competitions_count: 17 },
+        ],
+      },
+    ];
+
+    const peopleRows = [
+      { user_id: 'aaaaaaaa-1111-4111-8111-111111111111', username: 'juara_satu', display_name: 'Juara Pertama', institution: 'SDN 1 Jakarta', avatar_url: null, grade: 'SD6', xp: 659152, rank: 1, rank_change: 'up', point_change: 100, average_score: 96.2, competitions_count: 110, school_id: null },
+      { user_id: 'bbbbbbbb-2222-4222-8222-222222222222', username: 'juara_dua', display_name: 'Juara Kedua', institution: 'SDN 3 Bandung', avatar_url: null, grade: 'SD6', xp: 620459, rank: 2, rank_change: 'same', point_change: 0, average_score: 95.4, competitions_count: 105, school_id: null },
+      { user_id: 'cccccccc-3333-4333-8333-333333333333', username: 'juara_tiga', display_name: 'Juara Ketiga', institution: 'SDN 5 Surabaya', avatar_url: null, grade: 'SD6', xp: 580319, rank: 3, rank_change: 'down', point_change: 20, average_score: 94, competitions_count: 95, school_id: null },
+      { user_id: 'dddddddd-4444-4444-8444-444444444444', username: 'juara_empat', display_name: 'Juara Keempat', institution: 'SMP 8 Bandung', avatar_url: null, grade: 'SMP9', xp: 410250, rank: 4, rank_change: 'same', point_change: 0, average_score: 93.5, competitions_count: 72, school_id: null },
     ];
 
     await page.route('**/rest/v1/rpc/get_public_leaderboard_enriched', async (route) => {
       await route.fulfill({
         status: 200,
-        headers: { 'access-control-allow-origin': '*', 'content-range': '0-0/0' },
+        headers: { 'access-control-allow-origin': '*', 'content-range': '0-3/4' },
         contentType: 'application/json',
-        body: '[]',
+        body: JSON.stringify(peopleRows),
       });
     });
     await page.route('**/rest/v1/rpc/get_public_school_leaderboard', async (route) => {
       await route.fulfill({
         status: 200,
-        headers: { 'access-control-allow-origin': '*', 'content-range': '0-2/3' },
+        headers: { 'access-control-allow-origin': '*', 'content-range': '0-4/5' },
         contentType: 'application/json',
         body: JSON.stringify(schoolRows),
       });
@@ -671,9 +692,29 @@ test.describe('leaderboard school podium presentation', () => {
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe('/leaderboard');
     await expect(page.getByRole('heading', { name: 'Peringkat Juara' })).toBeVisible();
+
+    // Student podium uses the same diamond rank badges while keeping profile photos.
+    await expect(page.locator('.lb-person-podium')).toHaveCount(3);
+    await expect(page.locator('.lb-person-rank-badge')).toHaveCount(3);
+    await expect(page.locator('.lb-person-podium.rank-1 .lb-avatar-wrap')).toBeVisible();
+    await expect(page.locator('.lb-main-content')).toHaveCSS('animation-name', 'none');
+    await expect(page.locator('.lb-podium-area').first()).toHaveCSS('animation-name', 'lb-fade-in-up');
+    await expect(page.locator('.lb-category-tab').first()).toHaveCSS('transition-duration', '0s');
+
+    // The settings dialog is mounted above the application stacking contexts.
+    await page.getByRole('button', { name: 'Pengaturan', exact: true }).click();
+    const settingsDialog = page.getByRole('dialog', { name: 'Pengaturan umum' });
+    await expect(settingsDialog).toBeVisible();
+    await expect(settingsDialog.locator('xpath=..')).toHaveCSS('z-index', '9990');
+    await settingsDialog.getByRole('button', { name: 'Tutup pengaturan' }).click();
+
     await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
 
     await expect(page.locator('.lb-school-podium')).toHaveCount(3);
+    await expect(page.getByRole('button', { name: 'Semua Jenjang', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'SD Sederajat', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'SMP Sederajat', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'SMA/SMK Sederajat', exact: true })).toBeVisible();
     await expect(page.locator('.lb-school-contributor-row')).toHaveCount(9);
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('Aldo Lestari');
@@ -681,6 +722,19 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-school-table-wrap .lb-table th[colspan="2"]')).toContainText('Peringkat & Nama');
     await expect(page.getByText('SDN 3 Bandung', { exact: true })).toBeVisible();
     await expect(page.getByText('SDN 5 Surabaya', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
+    await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SMP 8 Bandung');
+    await expect(page.locator('.lb-school-podium.rank-1')).not.toContainText('SDN 1 Jakarta');
+    await expect(page.locator('.lb-school-table-wrap')).toContainText('SMP 8 Bandung');
+    await expect(page.locator('.lb-school-table-wrap')).not.toContainText('SDN 1 Jakarta');
+
+    await page.getByRole('button', { name: 'SMA/SMK Sederajat', exact: true }).click();
+    await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SMA 2 Yogyakarta');
+    await expect(page.locator('.lb-school-table-wrap')).toContainText('SMA 2 Yogyakarta');
+
+    await page.getByRole('button', { name: 'Semua Jenjang', exact: true }).click();
+    await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
   });
 });
 
