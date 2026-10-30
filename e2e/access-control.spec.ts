@@ -877,10 +877,19 @@ test.describe('unauthenticated access control', () => {
 async function signInForMobileNavigation(page: import('@playwright/test').Page, roles: string[], mobileNav?: string[]) {
   await mockSupabaseLogin(page, roles);
   if (mobileNav) {
+    const settingsCorsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
     await page.route('**/rest/v1/profile_ui_settings*', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: settingsCorsHeaders });
+        return;
+      }
       await route.fulfill({
         status: 200,
-        headers: { 'access-control-allow-origin': '*', 'content-range': '0-0/1' },
+        headers: { ...settingsCorsHeaders, 'content-range': '0-0/1' },
         contentType: 'application/json',
         body: JSON.stringify({ mobile_nav: mobileNav }),
       });
