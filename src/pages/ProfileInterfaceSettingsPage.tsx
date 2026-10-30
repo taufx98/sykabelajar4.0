@@ -15,6 +15,7 @@ import type { ProfileBadge } from '@/components/profile/BadgeCard';
 const DEFAULT_MOBILE_NAV = ['home', 'leaderboard', 'awards', 'chat'];
 const MOBILE_ITEMS = [
   ['home', 'Beranda'],
+  ['workspace', 'Ruang Kerja'],
   ['leaderboard', 'Peringkat'],
   ['awards', 'Piagam'],
   ['chat', 'Pesan'],
