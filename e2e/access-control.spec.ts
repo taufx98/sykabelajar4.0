@@ -1392,10 +1392,13 @@ test.describe('shared dialog keyboard experience', () => {
     const confirm = dialog.getByRole('button', { name: 'Hapus anggota' });
     await expect(cancel).toBeFocused();
 
+    const close = dialog.getByRole('button', { name: 'Tutup' });
+    await page.keyboard.press('Shift+Tab');
+    await expect(close).toBeFocused();
     await page.keyboard.press('Shift+Tab');
     await expect(confirm).toBeFocused();
     await page.keyboard.press('Tab');
-    await expect(dialog.getByRole('button', { name: 'Tutup' })).toBeFocused();
+    await expect(close).toBeFocused();
 
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
