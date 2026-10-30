@@ -910,7 +910,12 @@ test.describe('mobile navigation single source and immersive exam routes', () =>
     test(`routes the workspace shortcut to the correct destination for a ${scenario.label}`, async ({ page }) => {
       await signInForMobileNavigation(page, scenario.roles, ['workspace']);
       const navigation = page.getByRole('navigation', { name: 'Navigasi bawah mobile' });
-      await expect(navigation.locator('a')).toHaveAttribute('href', scenario.href);
+      // The navigation preferences load asynchronously after the authenticated shell mounts.
+      // Target the expected destination directly so Playwright waits for this specific shortcut,
+      // rather than applying a single-element assertion to every link in the bottom navigation.
+      const workspaceShortcut = navigation.locator(`a[href="${scenario.href}"]`);
+      await expect(workspaceShortcut).toHaveCount(1);
+      await expect(workspaceShortcut).toHaveAttribute('href', scenario.href);
     });
   }
 
