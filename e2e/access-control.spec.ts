@@ -915,6 +915,54 @@ test.describe('mobile navigation single source and immersive exam routes', () =>
   }
 
   test('preserves portal and chat shortcuts for a collective participant session', async ({ page }) => {
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
+    const accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NDQ0NDQ0NC00NDQ0LTQ0NDQtODQ0NC00NDQ0NDQ0NDQ0NDQiLCJyb2xlIjoiYXV0aGVudGljYXRlZCIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjQxMDI0NDQ4MDB9.test-signature';
+    const expiresAt = 4102444800;
+    const anonymousUser = {
+      id: '44444444-4444-4444-8444-444444444444',
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: '',
+      app_metadata: { provider: 'anonymous', providers: ['anonymous'] },
+      user_metadata: { is_anonymous: true },
+      created_at: '2026-01-01T00:00:00.000Z',
+    };
+
+    await page.route('**/auth/v1/**', async (route) => {
+      const url = new URL(route.request().url());
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      if (url.pathname.endsWith('/signup')) {
+        await route.fulfill({
+          status: 200,
+          headers: corsHeaders,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            access_token: accessToken,
+            token_type: 'bearer',
+            expires_in: 3600,
+            expires_at: expiresAt,
+            refresh_token: 'collective-test-refresh',
+            user: anonymousUser,
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await page.route('**/rest/v1/rpc/list_collective_chat_groups', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: '[]' });
+    });
     await page.addInitScript(() => {
       window.sessionStorage.setItem('syka_collective_access_token', 'collective-navigation-test');
     });
