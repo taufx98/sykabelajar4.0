@@ -711,10 +711,11 @@ test.describe('leaderboard school podium presentation', () => {
     await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
 
     await expect(page.locator('.lb-school-podium')).toHaveCount(3);
-    await expect(page.getByRole('button', { name: 'Semua Jenjang', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'SD Sederajat', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'SMP Sederajat', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'SMA/SMK Sederajat', exact: true })).toBeVisible();
+    const schoolLevelFilters = page.locator('.lb-school-level-filters');
+    await expect(schoolLevelFilters.getByRole('button', { name: 'Semua Sekolah', exact: true })).toBeVisible();
+    await expect(schoolLevelFilters.getByRole('button', { name: 'SD Sederajat', exact: true })).toBeVisible();
+    await expect(schoolLevelFilters.getByRole('button', { name: 'SMP Sederajat', exact: true })).toBeVisible();
+    await expect(schoolLevelFilters.getByRole('button', { name: 'SMA/SMK Sederajat', exact: true })).toBeVisible();
     await expect(page.locator('.lb-school-contributor-row')).toHaveCount(9);
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('Aldo Lestari');
@@ -725,17 +726,17 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-school-name-cell .lb-person')).toHaveCSS('justify-content', 'flex-start');
     await expect(page.locator('.lb-school-table-wrap')).toContainText('SMP 8 Bandung');
 
-    await page.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
+    await schoolLevelFilters.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SMP 8 Bandung');
     await expect(page.locator('.lb-school-podium.rank-1')).not.toContainText('SDN 1 Jakarta');
     await expect(page.locator('.lb-school-table-wrap')).not.toContainText('SDN 1 Jakarta');
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('1st');
 
-    await page.getByRole('button', { name: 'SMA/SMK Sederajat', exact: true }).click();
+    await schoolLevelFilters.getByRole('button', { name: 'SMA/SMK Sederajat', exact: true }).click();
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SMA 2 Yogyakarta');
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('1st');
 
-    await page.getByRole('button', { name: 'Semua Sekolah', exact: true }).click();
+    await schoolLevelFilters.getByRole('button', { name: 'Semua Sekolah', exact: true }).click();
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
   });
 });
