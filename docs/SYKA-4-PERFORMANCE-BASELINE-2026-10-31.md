@@ -2,7 +2,7 @@
 
 Date: 31 October 2026 (Asia/Jakarta)  
 Baseline source: GitHub Actions CI build on 30 October 2026 UTC  
-Main commit: \`8f654625fa34f18da56f126ddf07056888ec1187\`  
+Main commit: `8f654625fa34f18da56f126ddf07056888ec1187`  
 CI run: [#1699](https://github.com/taufx98/sykabelajar4.0/actions/runs/41118860765)
 
 ## Scope and safeguards
@@ -38,19 +38,19 @@ The limits preserve reasonable headroom over the measured baseline while catchin
 
 Run locally with:
 
-\`\`\`sh
+```sh
 npm run test:performance-budget
 npm run build
 npm run check:performance
-\`\`\`
+```
 
 ## Opt-in browser diagnostics
 
-Append \`?sykaPerf=1\` to a page URL, for example:
+Append `?sykaPerf=1` to a page URL, for example:
 
-\`\`\`
+```
 https://sykabelajar.my.id/?sykaPerf=1
-\`\`\`
+```
 
 Open the browser developer console, use the page normally, then switch away from the tab or leave/reload the page to flush the diagnostic report.
 
