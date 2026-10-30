@@ -6,7 +6,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { RankBadge } from '@/components/ui/Badge';
 import { supabase } from '@/lib/supabase';
-import { getUnreadChatCount } from '@/services/chat.service';
+import { getUnreadChatCount, invalidateUnreadChatCount } from '@/services/chat.service';
 import { getPersistentCache, setPersistentCache } from '@/lib/persistentCache';
 import { GeneralSettingsButton } from '@/components/ui/GeneralSettingsButton';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -89,7 +89,15 @@ export function AppLayout() {
       if (event.type === 'notification-inserted') { setLiveUnreadNotifications((value) => value + 1); return; }
       if (event.type === 'notification-read') { setLiveUnreadNotifications((value) => Math.max(0, value - 1)); return; }
       if (event.type === 'notification-all-read') { setLiveUnreadNotifications(0); return; }
-      if (event.type === 'chat-message' || event.type === 'chat-unread' || event.type === 'chat-read' || event.type === 'chat-hidden' || event.type === 'chat-thread-updated' || event.type === 'chat-reconciled' || (event.type === 'realtime-status' && event.scope === 'user' && event.reconnected)) { scheduleChatBadgeRefresh(); return; }
+      if (event.type === 'chat-message' || event.type === 'chat-unread' || event.type === 'chat-read' || event.type === 'chat-hidden' || event.type === 'chat-thread-updated') {
+        // A new durable chat signal invalidates any unread snapshot that started before the event.
+        // Bursts are debounced below, then reconciled with one fresh server count.
+        invalidateUnreadChatCount(user.id);
+        scheduleChatBadgeRefresh();
+        return;
+      }
+      // Reconnect reconciliation already fetches the authoritative unread count.
+      if (event.type === 'chat-reconciled' || (event.type === 'realtime-status' && event.scope === 'user' && event.reconnected)) return;
       if (event.type === 'order-changed' && isAdmin) {
         const order = event.order;
         if (String(order.payment_proof_status ?? '') !== 'SUBMITTED') return;
