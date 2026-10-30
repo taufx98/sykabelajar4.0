@@ -687,6 +687,14 @@ const LEADERBOARD_STYLES = String.raw`
   padding-top: 14px;
   padding-bottom: 16px;
 }
+.lb-school-level-label {
+  flex: 0 0 auto;
+  color: var(--lb-muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
 .lb-subgrade {
   padding: 7px 13px;
   font-size: 11px;
@@ -1009,8 +1017,9 @@ export function LeaderboardPage() {
   </div>
   {category === 'school' ? (
     <div className="lb-subgrades lb-school-level-filters" aria-label={text('Filter jenjang sekolah','School level filter')}>
+      <span className="lb-school-level-label">{text('Jenjang Sekolah:','School Level:')}</span>
       <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'all' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'all'} onClick={() => changeSchoolLevel('all')}>
-        {text('Semua Jenjang','All levels')}
+        {text('Semua Sekolah','All schools')}
       </button>
       <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'sd' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'sd'} onClick={() => changeSchoolLevel('sd')}>
         {text('SD Sederajat','Elementary')}
