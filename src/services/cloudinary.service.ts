@@ -119,7 +119,7 @@ export function cloudinaryVideoPosterUrl(url?: string | null, options: { width?:
   tokens.unshift('so_0', 'f_jpg');
   segments[0] = tokens.join(',');
   const lastIndex = segments.length - 1;
-  segments[lastIndex] = segments[lastIndex].replace(/\\.(?:mp4|webm|mov|m4v)$/i, '.jpg');
+  segments[lastIndex] = segments[lastIndex].replace(/\.(?:mp4|webm|mov|m4v)$/i, '.jpg');
   parsed.pathname = `${parsed.pathname.slice(0, markerIndex + marker.length)}${segments.join('/')}`;
   return parsed.toString();
 }
