@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { emitSykaEvent } from '@/lib/realtimeBus';
-import { clearPersistentCache, getPersistentCache, setPersistentCache } from '@/lib/persistentCache';
+import { clearPersistentCache, getPersistentCache, removePersistentCache, setPersistentCache } from '@/lib/persistentCache';
 export type ChatThreadType='dm'|'ticket'|string;
 export type FollowStatus='none'|'pending'|'approved'|'auto';
 export interface ChatThread{id:string;user_id:string;participant_id?:string|null;status:'open'|'closed';rating:number|null;closed_at:string|null;created_at:string;thread_type?:ChatThreadType;subject?:string|null;description?:string|null;handled_by?:string|null;handled_at?:string|null;user_name?:string;username?:string|null;avatar_url?:string;other_user_name?:string;other_username?:string|null;other_avatar_url?:string;last_message?:string;last_message_at?:string;unread_count?:number;}
@@ -16,7 +16,7 @@ const unreadCountCache=new Map<string,{value:number;at:number}>();const unreadCo
 const chatSpamStatusCache=new Map<string,{value:ChatSpamStatus;at:number}>();const chatSpamStatusInFlight=new Map<string,Promise<ChatSpamStatus>>();const forcedChatSpamStatusInFlight=new Map<string,Promise<ChatSpamStatus>>();const chatSpamStatusGeneration=new Map<string,number>();const CHAT_SPAM_STATUS_CACHE_MS=5_000;
 let historyCache=new Map<string,{at:number;rows:ChatHistoryRow[]}>();let historyTimer:number|undefined;let historyPending:Array<{opts:{search?:string;rating?:number|null;handledBy?:string|null;sortDesc?:boolean;limit?:number};resolve:(rows:ChatHistoryRow[])=>void;reject:(error:unknown)=>void}>=[];const HISTORY_CACHE_MS=15_000;const HISTORY_DEBOUNCE_MS=400;
 function cacheKeyForUser(kind:string,userId:string){return `chat.${kind}.${userId}`}
-export function invalidateUnreadChatCount(){unreadCountGeneration+=1;unreadCountCache.clear();unreadCountInFlight.clear();clearPersistentCache('chat.unread.')}
+export function invalidateUnreadChatCount(userId?:string){unreadCountGeneration+=1;if(userId){unreadCountCache.delete(userId);unreadCountInFlight.delete(userId);removePersistentCache(cacheKeyForUser('unread',userId));return;}unreadCountCache.clear();unreadCountInFlight.clear();clearPersistentCache('chat.unread.')}
 function invalidateChatCaches(){threadsCache=null;threadsCacheAt=0;threadsRealtimePatchedAt=0;invalidateUnreadChatCount()}
 function patchCachedThread(thread:ChatThread){if(!thread?.id)return;const next=threadsCache?[...threadsCache]:[];const index=next.findIndex(t=>t.id===thread.id);if(index>=0)next[index]={...next[index],...thread};else next.push(thread);threadsCache=next;threadsCacheAt=Date.now();threadsRealtimePatchedAt=threadsCacheAt;}
 export function applyChatRealtimeThread(thread:ChatThread){patchCachedThread(thread);}
