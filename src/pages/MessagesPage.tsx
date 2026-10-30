@@ -11,13 +11,21 @@ import { subscribeSykaEvents } from '@/lib/realtimeBus';
 import { blockChatUser, claimChatTicket, closeThread, createTicketThread, getChatSpamStatus, getOrCreateDmThread, hideChatThread, loadChatMessagesPage, loadMyThreads, markThreadRead, sendMessage, unblockChatUser, type ChatMessage, type ChatSpamStatus, type ChatThread, listChatGroups, createChatGroup, loadChatGroupMessages, sendChatGroupMessage, listChatGroupMembers, addChatGroupMember, removeChatGroupMember, renameChatGroup, markChatGroupRead, createChatGroupInvite, joinChatGroup, type ChatGroup, type ChatGroupMessage, type ChatGroupMember, searchUsersForChat } from '@/services/chat.service';
 import { listCollectiveCompetitions } from '@/services/collectiveParticipant.service';
 import { attachChatMedia, isAudioUrl, isDocumentUrl, isHttpUrl, isImageUrl, uploadChatAttachment, validateChatFile } from '@/services/chatMedia.service';
+import { mergeChatMessageCache, readChatMessageCache } from '@/services/chatMessageCache';
 
 const PAGE = 50;
+const INITIAL_MESSAGE_PAGE = 20;
+const MESSAGE_CACHE_REVALIDATE_MS = 60_000;
 const KEY = 'syka.chat.stable.';
 const isTicket = (t: ChatThread) => t.thread_type === 'ticket';
 const isCachedMessage = (value: unknown): value is ChatMessage => { if (!value || typeof value !== 'object') return false; const item = value as Partial<ChatMessage>; return typeof item.id === 'string' && item.id.length > 0 && typeof item.thread_id === 'string' && item.thread_id.length > 0 && typeof item.sender_id === 'string' && item.sender_id.length > 0 && typeof item.body === 'string' && typeof item.created_at === 'string' && item.created_at.length > 0; };
 const cacheGet = (id: string): ChatMessage[] => { try { const value = JSON.parse(localStorage.getItem(KEY + id) || '[]'); return Array.isArray(value) ? value.filter(isCachedMessage) : []; } catch { return []; } };
-const cacheSet = (id: string, value: ChatMessage[]) => { try { localStorage.setItem(KEY + id, JSON.stringify(value.slice(-200))); } catch { /* ignore cache errors */ } };
+const mergeMessageRows = (current: ChatMessage[], incoming: ChatMessage[]) => {
+  const byId = new Map<string, ChatMessage>();
+  for (const message of current.filter(isCachedMessage)) byId.set(message.id, message);
+  for (const message of incoming.filter(isCachedMessage)) byId.set(message.id, message);
+  return [...byId.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
+};
 const nameOf = (t: ChatThread, me: string, admin: boolean) => isTicket(t) ? (admin ? t.user_name || t.username || 'User' : 'Admin Sykabelajar') : (t.user_id === me ? t.other_user_name || t.other_username || 'User' : t.user_name || t.username || 'User');
 function dedupeInboxThreads(items: ChatThread[]): ChatThread[] {
   const byId = new Map<string, ChatThread>();
@@ -157,16 +165,143 @@ export function MessagesPage() {
  const directMessageTarget=params.get('user_id')?.trim()||'';
  useEffect(()=>{const target=directMessageTarget;if(!target||!user||target===user.id)return;let live=true;(async()=>{try{const existingThreads=await loadMyThreads(true);let thread=existingThreads.find(x=>x.participant_id&&((x.user_id===user.id&&x.participant_id===target)||(x.user_id===target&&x.participant_id===user.id))&&x.status==='open');if(!thread)thread=await getOrCreateDmThread(target);if(!live)return;setMode('private');setSelectedGroup(null);setSelected(thread);setRating(0);setRatingOpen(false);setMobileList(false)}catch(error:unknown){if(live)toast(error instanceof Error?error.message:'Chat tidak tersedia.','error')}finally{if(live){const next=new URLSearchParams(window.location.search);next.delete('user_id');setParams(next,{replace:true})}}})();return()=>{live=false}},[directMessageTarget,user?.id,setParams,toast]);
  useEffect(()=>{const token=params.get('join_group')?.trim();if(!token||!user)return;let live=true;(async()=>{try{const result=await joinChatGroup(token);if(result.ok){await loadGroups();setMode('group');setSelected(null);setMobileList(true);setGroupInvite(null);toast('Berhasil bergabung ke group.','success')}}catch(error:unknown){if(live)toast(error instanceof Error?error.message:'Link group tidak valid.','error')}finally{if(live){const next=new URLSearchParams(params);next.delete('join_group');setParams(next,{replace:true})}}})();return()=>{live=false}},[params,user?.id,setParams,toast,loadGroups]);
- useEffect(()=>{if(!selected)return;const token=++loadToken.current;let live=true;const cached=cacheGet(selected.id);setMessages(cached);setHasOlder(cached.length>=PAGE);(async()=>{try{const rows=await loadChatMessagesPage(selected.id,PAGE);if(!live||token!==loadToken.current)return;setMessages(current=>{const byId=new Map(current.filter(isCachedMessage).filter(x=>!x.id.startsWith('local-')).map(x=>[x.id,x]));for(const item of rows)if(isCachedMessage(item))byId.set(item.id,item);const merged=[...byId.values()].sort((a,b)=>a.created_at.localeCompare(b.created_at));cacheSet(selected.id,merged);return merged});setHasOlder(rows.length>=PAGE);requestAnimationFrame(()=>{if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight});await markThreadRead(selected.id);setThreads(current=>current.map(t=>t.id===selected.id?{...t,unread_count:0}:t))}catch(error:unknown){if(live&&!cached.length)toast(error instanceof Error?error.message:'Gagal memuat pesan.','error')}})();const channel=supabase.channel(`chat-active-${selected.id}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:`thread_id=eq.${selected.id}`},payload=>{const message=payload.new as ChatMessage;if(!live||!isCachedMessage(message))return;const element=scrollRef.current;const nearBottom=!element||element.scrollHeight-element.scrollTop-element.clientHeight<120;const mine=message.sender_id===me;const shouldStick=mine||nearBottom;setMessages(current=>{if(current.some(x=>x.id===message.id))return current;const next=[...current.filter(isCachedMessage).filter(x=>!(x.id.startsWith('local-')&&x.sender_id===message.sender_id&&x.body===message.body)),message];cacheSet(selected.id,next);return next});setThreads(current=>current.map(t=>t.id===selected.id?{...t,last_message:message.body,last_message_at:message.created_at,unread_count:shouldStick?0:Math.min(99,(t.unread_count??0)+1)}:t));if(shouldStick){setNewMessages(0);requestAnimationFrame(()=>{if(scrollRef.current)scrollRef.current.scrollTo({top:scrollRef.current.scrollHeight,behavior:'smooth'})});if(!mine)void markThreadRead(selected.id).catch(()=>undefined)}else if(!mine)setNewMessages(value=>Math.min(99,value+1))}).on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_threads',filter:`id=eq.${selected.id}`},payload=>{if(live)setSelected(current=>current?{...current,...(payload.new as ChatThread)}:current)}).subscribe();return()=>{live=false;void supabase.removeChannel(channel)}},[selected?.id,toast,me]);
+ useEffect(() => {
+    if (!selected || !me) return;
+    const threadId = selected.id;
+    const token = ++loadToken.current;
+    let live = true;
+    const legacyCached = cacheGet(threadId);
+    setMessages(legacyCached);
+    setHasOlder(legacyCached.length > 0);
+    olderRequestRef.current = null;
+
+    (async () => {
+      try {
+        const cached = await readChatMessageCache(me, threadId);
+        if (!live || token !== loadToken.current) return;
+
+        const cachedMessages = cached?.messages ?? legacyCached;
+        if (cachedMessages.length) {
+          setMessages(cachedMessages);
+          setHasOlder(cached?.hasOlder ?? true);
+          requestAnimationFrame(() => {
+            if (live && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          });
+          if (!cached && legacyCached.length) {
+            await mergeChatMessageCache(me, threadId, legacyCached, { hasOlder: true });
+          }
+        }
+
+        const cacheIsFresh = !!cached?.lastSyncedAt
+          && Date.now() - cached.lastSyncedAt < MESSAGE_CACHE_REVALIDATE_MS;
+        if (!cacheIsFresh) {
+          const rows = await loadChatMessagesPage(threadId, INITIAL_MESSAGE_PAGE);
+          if (!live || token !== loadToken.current) return;
+          const validRows = rows.filter(isCachedMessage);
+          const merged = mergeMessageRows(cachedMessages, validRows);
+          const nextHasOlder = cached?.hasOlder === false ? false : rows.length >= INITIAL_MESSAGE_PAGE;
+          setMessages(merged);
+          setHasOlder(nextHasOlder);
+          await mergeChatMessageCache(me, threadId, merged, {
+            hasOlder: nextHasOlder,
+            lastSyncedAt: Date.now(),
+          });
+          if (!cachedMessages.length) {
+            requestAnimationFrame(() => {
+              if (live && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            });
+          }
+        }
+
+        await markThreadRead(threadId);
+        if (live) setThreads(current => current.map(thread => (
+          thread.id === threadId ? { ...thread, unread_count: 0 } : thread
+        )));
+      } catch (error: unknown) {
+        if (live && !legacyCached.length) {
+          toast(error instanceof Error ? error.message : 'Gagal memuat pesan.', 'error');
+        }
+      }
+    })();
+
+    const channel = supabase.channel(`chat-active-${threadId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` }, payload => {
+        const message = payload.new as ChatMessage;
+        if (!live || !isCachedMessage(message)) return;
+        const element = scrollRef.current;
+        const nearBottom = !element || element.scrollHeight - element.scrollTop - element.clientHeight < 120;
+        const mine = message.sender_id === me;
+        const shouldStick = mine || nearBottom;
+        setMessages(current => mergeMessageRows(
+          current.filter(item => !(item.id.startsWith('local-') && item.sender_id === message.sender_id && item.body === message.body)),
+          [message],
+        ));
+        void mergeChatMessageCache(me, threadId, [message]);
+        setThreads(current => current.map(thread => thread.id === threadId ? {
+          ...thread,
+          last_message: message.body,
+          last_message_at: message.created_at,
+          unread_count: shouldStick ? 0 : Math.min(99, (thread.unread_count ?? 0) + 1),
+        } : thread));
+        if (shouldStick) {
+          setNewMessages(0);
+          requestAnimationFrame(() => {
+            if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+          });
+          if (!mine) void markThreadRead(threadId).catch(() => undefined);
+        } else if (!mine) {
+          setNewMessages(value => Math.min(99, value + 1));
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_threads', filter: `id=eq.${threadId}` }, payload => {
+        if (live) setSelected(current => current ? { ...current, ...(payload.new as ChatThread) } : current);
+      })
+      .subscribe();
+
+    return () => {
+      live = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [selected?.id, toast, me]);
  useEffect(()=>{if(!selectedGroup)return;let live=true;(async()=>{try{const rows=await loadChatGroupMessages(selectedGroup.id,PAGE);setGroupMessages(rows);setGroupHasOlder(rows.length>=PAGE);await markChatGroupRead(selectedGroup.id);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,unread_count:0}:g))}catch(error:unknown){if(live)toast(error instanceof Error?error.message:'Gagal memuat group.','error')}})();void listChatGroupMembers(selectedGroup.id).then(setGroupMembers).catch(()=>undefined);const channel=supabase.channel(`chat-group-${selectedGroup.id}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_group_messages',filter:`group_id=eq.${selectedGroup.id}`},payload=>{const row=payload.new as ChatGroupMessage;if(!live)return;const element=groupScrollRef.current;const nearBottom=!element||element.scrollHeight-element.scrollTop-element.clientHeight<120;const mine=row.sender_user_id===me;const shouldStick=mine||nearBottom;setGroupMessages(current=>current.some(m=>m.id===row.id)?current:[...current,row]);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,last_message:row.body,last_message_at:row.created_at,unread_count:shouldStick?0:Math.min(99,(g.unread_count??0)+1)}:g));if(shouldStick){setNewMessages(0);requestAnimationFrame(()=>{if(groupScrollRef.current)groupScrollRef.current.scrollTo({top:groupScrollRef.current.scrollHeight,behavior:'smooth'})});if(!mine)void markChatGroupRead(selectedGroup.id).catch(()=>undefined)}else if(!mine)setNewMessages(value=>Math.min(99,value+1))}).subscribe();return()=>{live=false;void supabase.removeChannel(channel)}},[selectedGroup?.id,toast,me]);
  const loadGroupOlder=useCallback(async()=>{if(!selectedGroup||groupOlderBusy||!groupHasOlder||!groupMessages.length||!groupScrollRef.current)return;setGroupOlderBusy(true);const element=groupScrollRef.current;const height=element.scrollHeight;try{const rows=await loadChatGroupMessages(selectedGroup.id,PAGE,groupMessages[0].created_at);if(!rows.length){setGroupHasOlder(false);return}setGroupMessages(current=>[...rows,...current].filter((m,i,a)=>a.findIndex(x=>x.id===m.id)===i).sort((a,b)=>a.created_at.localeCompare(b.created_at)));requestAnimationFrame(()=>{element.scrollTop=element.scrollHeight-height})}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal memuat pesan lama.','error')}finally{setGroupOlderBusy(false)}},[selectedGroup?.id,groupOlderBusy,groupHasOlder,groupMessages,toast]);
- const loadOlder=useCallback(async()=>{if(!selected||olderBusy||!hasOlder||!messages.length||!scrollRef.current)return;setOlderBusy(true);const element=scrollRef.current;const height=element.scrollHeight;try{const rows=await loadChatMessagesPage(selected.id,PAGE,messages[0].created_at);if(!rows.length){setHasOlder(false);return}setMessages(current=>{const validRows=rows.filter(isCachedMessage);const next=[...validRows,...current.filter(isCachedMessage).filter(item=>!validRows.some(row=>row.id===item.id))].sort((a,b)=>a.created_at.localeCompare(b.created_at));cacheSet(selected.id,next);return next});requestAnimationFrame(()=>{element.scrollTop=element.scrollHeight-height})}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal memuat pesan sebelumnya.','error')}finally{setOlderBusy(false)}},[selected?.id,olderBusy,hasOlder,messages,toast]);
+ const loadOlder = useCallback(async () => {
+    if (!selected || olderBusy || !hasOlder || !messages.length || !scrollRef.current) return;
+    const threadId = selected.id;
+    if (olderRequestRef.current === threadId) return;
+    olderRequestRef.current = threadId;
+    setOlderBusy(true);
+    const element = scrollRef.current;
+    const previousHeight = element.scrollHeight;
+    const before = messages[0].created_at;
+    try {
+      const rows = await loadChatMessagesPage(threadId, PAGE, before);
+      if (!rows.length) {
+        setHasOlder(false);
+        await mergeChatMessageCache(me, threadId, [], { hasOlder: false });
+        return;
+      }
+      const validRows = rows.filter(isCachedMessage);
+      setMessages(current => mergeMessageRows(current, validRows));
+      const nextHasOlder = rows.length >= PAGE;
+      setHasOlder(nextHasOlder);
+      await mergeChatMessageCache(me, threadId, validRows, { hasOlder: nextHasOlder });
+      requestAnimationFrame(() => {
+        if (scrollRef.current === element) element.scrollTop = element.scrollHeight - previousHeight;
+      });
+    } catch (error: unknown) {
+      toast(error instanceof Error ? error.message : 'Gagal memuat pesan sebelumnya.', 'error');
+    } finally {
+      if (olderRequestRef.current === threadId) olderRequestRef.current = null;
+      setOlderBusy(false);
+    }
+  }, [selected?.id, me, olderBusy, hasOlder, messages, toast]);
  const choose=useCallback(async(thread:ChatThread)=>{setMode('private');setSelectedGroup(null);if(selected?.id===thread.id){setMobileList(false);return}setSelected(thread);setMessages(cacheGet(thread.id));setRating(0);setRatingOpen(false);setNewMessages(0);setMessageHidden(false);setMobileList(false);await markThreadRead(thread.id).catch(()=>undefined);setThreads(current=>current.map(item=>item.id===thread.id?{...item,unread_count:0}:item))},[selected?.id]);
  const chooseGroup=useCallback(async(group:ChatGroup)=>{setMode('group');setSelected(null);setSelectedGroup(group);setGroupInput('');setNewMessages(0);setMessageHidden(false);setMobileList(false);await markChatGroupRead(group.id).catch(()=>undefined);setGroups(current=>current.map(item=>item.id===group.id?{...item,unread_count:0}:item))},[]);
  const parseCooldown=(error:unknown)=>{const message=error instanceof Error?error.message:'';const match=message.match(/Peringatan\s+(\d+).*?(\d{4}-\d{2}-\d{2}T[^\s.]+)/i);if(!match)return false;const level=Number(match[1]);const until=new Date(match[2]);if(Number.isNaN(until.getTime()))return false;setSpam({warning_level:level,strike_count:level,blocked_until:until.toISOString(),reset_at:spam?.reset_at||new Date(Date.now()+7*86400000).toISOString()});setSpamLevel(level);setNow(Date.now());toast(`Peringatan ${level}: chat dibatasi sementara karena spam.`,'error');return true};
- const sendText=async()=>{if(!selected||selected.status!=='open'||blocked||!input.trim()||busy||(admin&&isTicket(selected)&&!selected.handled_by))return;const cooldownMs=spam?.blocked_until?Math.max(0,new Date(spam.blocked_until).getTime()-Date.now()):0;if(cooldownMs>0)return;const text=input.trim();const optimistic:ChatMessage={id:`local-${crypto.randomUUID()}`,thread_id:selected.id,sender_id:me,body:text,created_at:new Date().toISOString()};setMessages(current=>[...current.filter(isCachedMessage),optimistic]);setInput('');setBusy(true);try{const saved=await sendMessage(selected.id,text);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');setMessages(current=>{const next=current.map(x=>x.id===optimistic.id?saved:x).filter(isCachedMessage);cacheSet(selected.id,next);return next});setThreads(current=>current.map(t=>t.id===selected.id?{...t,last_message:saved.body,last_message_at:saved.created_at}:t))}catch(error:unknown){setMessages(current=>current.filter(isCachedMessage).filter(x=>x.id!==optimistic.id));if(!parseCooldown(error))toast(error instanceof Error?error.message:'Gagal mengirim pesan.','error')}finally{setBusy(false)}};
+ const sendText=async()=>{if(!selected||selected.status!=='open'||blocked||!input.trim()||busy||(admin&&isTicket(selected)&&!selected.handled_by))return;const cooldownMs=spam?.blocked_until?Math.max(0,new Date(spam.blocked_until).getTime()-Date.now()):0;if(cooldownMs>0)return;const text=input.trim();const optimistic:ChatMessage={id:`local-${crypto.randomUUID()}`,thread_id:selected.id,sender_id:me,body:text,created_at:new Date().toISOString()};setMessages(current=>[...current.filter(isCachedMessage),optimistic]);setInput('');setBusy(true);try{const saved=await sendMessage(selected.id,text);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');setMessages(current=>mergeMessageRows(current.map(item=>item.id===optimistic.id?saved:item),[]));void mergeChatMessageCache(me,selected.id,[saved]);setThreads(current=>current.map(t=>t.id===selected.id?{...t,last_message:saved.body,last_message_at:saved.created_at}:t))}catch(error:unknown){setMessages(current=>current.filter(isCachedMessage).filter(x=>x.id!==optimistic.id));if(!parseCooldown(error))toast(error instanceof Error?error.message:'Gagal mengirim pesan.','error')}finally{setBusy(false)}};
  const sendGroupText=async()=>{if(!selectedGroup||!groupInput.trim()||groupBusy)return;const text=groupInput.trim();setGroupBusy(true);try{await sendChatGroupMessage(selectedGroup.id,text);setGroupInput('');const rows=await loadChatGroupMessages(selectedGroup.id,PAGE);setGroupMessages(rows);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,last_message:text,last_message_at:new Date().toISOString()}:g))}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal mengirim pesan group.','error')}finally{setGroupBusy(false)}};
- const upload=async(file:File)=>{if(!selected||selected.status!=='open'||blocked||busy)return;try{validateChatFile(file);setBusy(true);const uploadResult=await uploadChatAttachment(file,selected.id,me);const saved=await sendMessage(selected.id,uploadResult.secure_url);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');await attachChatMedia(uploadResult.media_id,saved.id);setMessages(current=>{const next=[...current.filter(isCachedMessage),saved];cacheSet(selected.id,next);return next});toast('Lampiran berhasil dikirim.','success')}catch(error:unknown){if(!parseCooldown(error))toast(error instanceof Error?error.message:'Lampiran gagal dikirim.','error')}finally{setBusy(false)}};
+ const upload=async(file:File)=>{if(!selected||selected.status!=='open'||blocked||busy)return;try{validateChatFile(file);setBusy(true);const uploadResult=await uploadChatAttachment(file,selected.id,me);const saved=await sendMessage(selected.id,uploadResult.secure_url);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');await attachChatMedia(uploadResult.media_id,saved.id);setMessages(current=>mergeMessageRows(current,[saved]));void mergeChatMessageCache(me,selected.id,[saved]);toast('Lampiran berhasil dikirim.','success')}catch(error:unknown){if(!parseCooldown(error))toast(error instanceof Error?error.message:'Lampiran gagal dikirim.','error')}finally{setBusy(false)}};
  const toggleVoiceRecording=async()=>{
    if(recordingRef.current){mediaRecorderRef.current?.stop();return;}
    if(!selected||selected.status!=='open'||blocked||busy||cooldownMs>0)return;
@@ -259,7 +394,7 @@ export function MessagesPage() {
          {isTicket(selected)&&selected.status==='open'&&admin&&!selected.handled_by&&<div className="flex shrink-0 justify-end border-b border-slate-200 bg-amber-500/5 px-4 py-2 dark:border-slate-800"><Button size="sm" onClick={()=>void claimChatTicket(selected.id).then(thread=>{setSelected(thread);setThreads(current=>current.map(item=>item.id===thread.id?thread:item));toast('Tiket berhasil diambil alih.','success')}).catch(error=>toast(error instanceof Error?error.message:'Tiket gagal diambil.','error'))}>Ambil Tiket</Button></div>}
          {isTicket(selected)&&selected.status==='open'&&admin&&!!selected.handled_by&&<div className="flex shrink-0 justify-end border-b border-slate-200 bg-amber-500/5 px-4 py-2 dark:border-slate-800"><Button size="sm" variant="outline" disabled={selected.handled_by!==me||ticketBusy} onClick={finish}>{ticketBusy?'Menyimpan…':'Selesaikan Tiket'}</Button></div>}
          {selected.status==='closed'&&<div className="flex shrink-0 items-start gap-2.5 border-b border-slate-200 bg-slate-100/80 px-4 py-2.5 text-[11px] text-slate-600 dark:border-slate-800/80 dark:bg-slate-900/55 dark:text-slate-300"><Lock size={14} className="mt-0.5 shrink-0 text-slate-400"/><div><p className="font-semibold text-fg">Percakapan telah ditutup</p><p className="mt-0.5 leading-relaxed">Pesan sebelumnya tetap dapat dibaca, tetapi pesan baru tidak bisa dikirim dari percakapan ini.</p></div></div>}
-         <div ref={scrollRef} onScroll={event=>{const element=event.currentTarget;if(element.scrollTop<=30)void loadOlder();if(element.scrollHeight-element.scrollTop-element.clientHeight<80&&newMessages>0){setNewMessages(0);void markThreadRead(selected.id).catch(()=>undefined);setThreads(current=>current.map(item=>item.id===selected.id?{...item,unread_count:0}:item));}}} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
+         <div data-testid="chat-message-list" ref={scrollRef} onScroll={event=>{const element=event.currentTarget;if(element.scrollTop<=30)void loadOlder();if(element.scrollHeight-element.scrollTop-element.clientHeight<80&&newMessages>0){setNewMessages(0);void markThreadRead(selected.id).catch(()=>undefined);setThreads(current=>current.map(item=>item.id===selected.id?{...item,unread_count:0}:item));}}} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
            {olderBusy&&<p className="text-center text-[10px] text-fg-muted">Memuat pesan sebelumnya…</p>}
            {messages.filter(isCachedMessage).length===0?<div className="py-12 text-center"><MessageCircle size={24} className="mx-auto text-slate-400"/><p className="mt-3 text-xs text-fg-muted">Belum ada pesan di percakapan ini.</p></div>:messages.filter(isCachedMessage).map((message,index,all)=>{
              const mine=message.sender_id===me;
@@ -268,7 +403,7 @@ export function MessagesPage() {
              const dateLabel=new Date(message.created_at).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
              const firstTicket=isTicket(selected)&&message.sender_id===selected.user_id&&index===0;
              const matches=!!messageSearch.trim()&&message.body.toLocaleLowerCase().includes(messageSearch.trim().toLocaleLowerCase());
-             return <div key={message.id} className="space-y-2">
+             return <div key={message.id} data-testid="chat-message" className="space-y-2">
                {showDate&&<div className="my-4 flex items-center gap-3"><span className="h-px flex-1 bg-slate-200 dark:bg-slate-800"/><span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-[#0b0f19] dark:text-slate-500">{dateLabel}</span><span className="h-px flex-1 bg-slate-200 dark:bg-slate-800"/></div>}
                <div id={'chat-message-'+message.id} className={'scroll-mt-16 flex '+(mine?'justify-end':'justify-start')}>
                  {!mine&&<div className="mr-2 mt-1 shrink-0"><Avatar name={nameOf(selected,me,admin)} id={selected.user_id===me?(selected.participant_id||selected.id):selected.user_id} size={30} src={avatarOf(selected,me)}/></div>}
