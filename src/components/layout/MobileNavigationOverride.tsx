@@ -61,11 +61,13 @@ export function MobileNavigationOverride({
       .select('mobile_nav')
       .eq('user_id', user.id)
       .maybeSingle()
-      .then(({ data }) => {
-        if (!active || !Array.isArray(data?.mobile_nav)) return;
-        setItems(normalizeMobileNav(data.mobile_nav));
-      })
-      .catch(() => undefined);
+      .then(
+        ({ data }) => {
+          if (!active || !Array.isArray(data?.mobile_nav)) return;
+          setItems(normalizeMobileNav(data.mobile_nav));
+        },
+        () => undefined,
+      );
 
     return () => {
       active = false;
