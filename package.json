@@ -8,7 +8,9 @@
     "build": "node scripts/verify-build-env.mjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test:performance-budget": "node --test scripts/performance-budget.test.mjs",
+    "check:performance": "node scripts/check-performance-budget.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
