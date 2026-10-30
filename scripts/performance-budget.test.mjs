@@ -46,13 +46,13 @@ test("rejects CSS above its limit", () => {
 
 test("rejects a combined initial payload above its limit", () => {
   const result = evaluatePerformanceBudget({
-    entryJsGzipBytes: 150_000,
-    cssGzipBytes: 70_001,
+    entryJsGzipBytes: 180_000,
+    cssGzipBytes: 45_001,
   });
 
   assert.equal(result.passed, false);
   assert.equal(result.checks[0].passed, true);
-  assert.equal(result.checks[1].passed, false);
+  assert.equal(result.checks[1].passed, true);
   assert.equal(result.checks[2].passed, false);
 });
 
