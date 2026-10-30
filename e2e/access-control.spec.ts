@@ -901,10 +901,31 @@ test.describe('mobile navigation single source and immersive exam routes', () =>
     await expect(page.getByRole('navigation', { name: 'Navigasi bawah mobile' })).toBeVisible();
   });
 
-  test('routes the configurable workspace shortcut according to the signed-in role', async ({ page }) => {
-    await signInForMobileNavigation(page, ['organizer_member'], ['workspace']);
+  for (const scenario of [
+    { label: 'student', roles: ['student'], href: '/daily-tasks' },
+    { label: 'teacher', roles: ['teacher'], href: '/guru' },
+    { label: 'organizer', roles: ['organizer_member'], href: '/organizer' },
+    { label: 'admin', roles: ['admin'], href: '/admin' },
+  ]) {
+    test(`routes the workspace shortcut to the correct destination for a ${scenario.label}`, async ({ page }) => {
+      await signInForMobileNavigation(page, scenario.roles, ['workspace']);
+      const navigation = page.getByRole('navigation', { name: 'Navigasi bawah mobile' });
+      await expect(navigation.locator('a')).toHaveAttribute('href', scenario.href);
+    });
+  }
+
+  test('preserves portal and chat shortcuts for a collective participant session', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.sessionStorage.setItem('syka_collective_access_token', 'collective-navigation-test');
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/pesan');
+
     const navigation = page.getByRole('navigation', { name: 'Navigasi bawah mobile' });
-    await expect(navigation.locator('a')).toHaveAttribute('href', '/organizer');
+    await expect(navigation).toBeVisible();
+    await expect(navigation.getByRole('link')).toHaveCount(2);
+    await expect(navigation.getByRole('link', { name: 'Portal' })).toHaveAttribute('href', '/peserta-kolektif');
+    await expect(navigation.getByRole('link', { name: 'Pesan' })).toHaveAttribute('href', '/pesan');
   });
 
   test('keeps bottom navigation off public entry routes even with an authenticated session', async ({ page }) => {
