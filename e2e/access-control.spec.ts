@@ -280,10 +280,10 @@ test.describe('chat inbox history visibility', () => {
     await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
 
-    await expect(page).toHaveURL(/\\/pesan(?:\\?.*)?$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/pesan(?:\?.*)?$/, { timeout: 15_000 });
     await expect(page.getByText('Percakapan Aktif', { exact: true })).toBeVisible();
     await expect(page.getByText('Percakapan Lama', { exact: true })).toHaveCount(0);
-    await expect(page.getByText(/History\\s*·\\s*1/)).toHaveCount(0);
+    await expect(page.getByText(/History\s*·\s*1/)).toHaveCount(0);
   });
 });
 
