@@ -287,61 +287,39 @@ test.describe('chat inbox history visibility', () => {
   });
 });
 
-test.describe('chat composer and 24-hour message deletion', () => {
-  test('removes emoji and voice controls, deletes only own messages within 24 hours, and restores composer focus', async ({ page }) => {
+test.describe('chat composer controls, focus and viewport', () => {
+  test('keeps emoji and voice controls removed, offers no message-delete action, and restores composer focus', async ({ page }) => {
     await mockSupabaseLogin(page, ['student']);
     await page.setViewportSize({ width: 390, height: 540 });
 
     const userId = '11111111-1111-4111-8111-111111111111';
     const otherId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     const threadId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    const recentMessage = {
-      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-      thread_id: threadId,
-      sender_id: userId,
-      body: 'Pesan milikku yang baru',
-      created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-      deleted_at: null,
-    };
-    const oldMessage = {
-      id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
-      thread_id: threadId,
-      sender_id: userId,
-      body: 'Pesan milikku yang lama',
-      created_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
-      deleted_at: null,
-    };
-    const otherMessage = {
-      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-      thread_id: threadId,
-      sender_id: otherId,
-      body: 'Pesan dari lawan bicara',
-      created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      deleted_at: null,
-    };
-    const messages = [recentMessage, oldMessage, otherMessage];
-    const deleteRequests: string[] = [];
+    const messages = [
+      {
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        thread_id: threadId,
+        sender_id: userId,
+        body: 'Pesan milikku',
+        created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        thread_id: threadId,
+        sender_id: otherId,
+        body: 'Pesan dari lawan bicara',
+        created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      },
+    ];
     let sendCount = 0;
 
     await page.route('**/rest/v1/rpc/get_chat_messages_page', async (route) => {
       await route.fulfill({
         status: 200,
-        headers: { 'access-control-allow-origin': '*', 'content-range': '0-2/3' },
+        headers: { 'access-control-allow-origin': '*', 'content-range': '0-1/2' },
         contentType: 'application/json',
         body: JSON.stringify([...messages].sort((a, b) => b.created_at.localeCompare(a.created_at))),
       });
-    });
-    await page.route('**/rest/v1/rpc/delete_chat_message', async (route) => {
-      const payload = route.request().postDataJSON() as { p_message_id: string };
-      deleteRequests.push(payload.p_message_id);
-      const target = messages.find((message) => message.id === payload.p_message_id);
-      if (!target || target.sender_id !== userId) {
-        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'MESSAGE_OWNER_ONLY' }) });
-        return;
-      }
-      target.body = 'Pesan ini telah dihapus.';
-      target.deleted_at = new Date().toISOString();
-      await route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify(target) });
     });
     await page.route('**/rest/v1/rpc/send_chat_message', async (route) => {
       const payload = route.request().postDataJSON() as { p_thread_id: string; p_body: string };
@@ -352,10 +330,14 @@ test.describe('chat composer and 24-hour message deletion', () => {
         sender_id: userId,
         body: payload.p_body,
         created_at: new Date().toISOString(),
-        deleted_at: null,
       };
       messages.push(row);
-      await route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify(row) });
+      await route.fulfill({
+        status: 200,
+        headers: { 'access-control-allow-origin': '*' },
+        contentType: 'application/json',
+        body: JSON.stringify(row),
+      });
     });
 
     await page.goto('/login?redirect=%2Fpesan');
@@ -366,26 +348,12 @@ test.describe('chat composer and 24-hour message deletion', () => {
     await page.locator('aside').getByRole('button').filter({ hasText: 'Percakapan Aktif' }).click();
 
     const chat = page.getByTestId('chat-message-list');
-    await expect(chat.getByText('Pesan milikku yang baru', { exact: true })).toBeVisible();
-    await expect(chat.getByText('Pesan milikku yang lama', { exact: true })).toBeVisible();
+    await expect(chat.getByText('Pesan milikku', { exact: true })).toBeVisible();
     await expect(chat.getByText('Pesan dari lawan bicara', { exact: true })).toBeVisible();
     await expect(page.getByTitle('Pilih emoji')).toHaveCount(0);
     await expect(page.getByTitle(/Rekam pesan suara|Hentikan dan kirim pesan suara/)).toHaveCount(0);
-
-    const recentMessageRow = chat.getByTestId('chat-message').filter({ hasText: 'Pesan milikku yang baru' });
-    const oldMessageRow = chat.getByTestId('chat-message').filter({ hasText: 'Pesan milikku yang lama' });
-    const incomingMessageRow = chat.getByTestId('chat-message').filter({ hasText: 'Pesan dari lawan bicara' });
-    await expect(recentMessageRow.getByRole('button', { name: 'Hapus pesan' })).toBeVisible();
-    await expect(oldMessageRow.getByRole('button', { name: 'Hapus pesan' })).toHaveCount(0);
-    await expect(incomingMessageRow.getByRole('button', { name: 'Hapus pesan' })).toHaveCount(0);
-
-    await recentMessageRow.getByRole('button', { name: 'Hapus pesan' }).click();
-    await expect(page.getByText('Hapus pesan ini untuk semua orang?')).toBeVisible();
-    await page.getByRole('button', { name: 'Konfirmasi hapus' }).click();
-    await expect(chat.getByText('Pesan ini telah dihapus.', { exact: true })).toBeVisible();
-    expect(deleteRequests).toEqual([recentMessage.id]);
-    await expect(chat.getByText('Pesan milikku yang baru', { exact: true })).toHaveCount(0);
-    await expect(chat.getByTestId('chat-message').filter({ hasText: 'Pesan ini telah dihapus.' }).getByRole('button', { name: 'Hapus pesan' })).toHaveCount(0);
+    await expect(chat.getByRole('button', { name: 'Hapus pesan' })).toHaveCount(0);
+    await expect(page.getByText('Hapus pesan ini untuk semua orang?', { exact: true })).toHaveCount(0);
 
     const composer = page.getByPlaceholder('Tulis pesan…');
     await composer.fill('Pesan pertama setelah fokus');
