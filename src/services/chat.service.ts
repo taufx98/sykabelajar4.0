@@ -103,11 +103,19 @@ export async function getUnreadChatCount(force=false){
   const inFlight=unreadCountInFlight.get(requestKey);
   if(inFlight)return inFlight;
   const generation=unreadCountGeneration;
-  const request=(async()=>{
+  let request:Promise<number>;
+  request=(async()=>{
     const{data,error}=await supabase.rpc('get_my_unread_chat_count');
     if(error)throw error;
     const value=Number(data??0);
-    if(userId&&generation===unreadCountGeneration){
+    if(userId&&generation!==unreadCountGeneration){
+      // This request predates a Realtime mutation. Never surface its stale count;
+      // join the newer snapshot or start one if the debounce has not fired yet.
+      const newerRequest=unreadCountInFlight.get(requestKey);
+      if(newerRequest&&newerRequest!==request)return newerRequest;
+      return getUnreadChatCount(true);
+    }
+    if(userId){
       unreadCountCache.set(userId,{value,at:Date.now()});
       if(cacheKey)setPersistentCache(cacheKey,value,{ttlMs:UNREAD_COUNT_PERSIST_TTL});
     }
