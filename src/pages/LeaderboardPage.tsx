@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/lib/LanguageContext';
 import {
   getPublicCoinLeaderboard,
   getPublicLeaderboardEnriched,
@@ -351,6 +352,8 @@ const LEADERBOARD_STYLES = String.raw`
 
 export function LeaderboardPage() {
   const { user } = useApp();
+  const { language } = useLanguage();
+  const text = (id: string, en: string) => language === 'en' ? en : id;
   const [mode, setMode] = useState<Mode>('xp');
   const [period, setPeriod] = useState<PublicLeaderboardPeriod>('weekly');
   const [category, setCategory] = useState<Category>('all');
@@ -532,7 +535,7 @@ export function LeaderboardPage() {
   }, [selectedSchool]);
 
   const categoryNavigation = (
-<nav className="lb-category-area" aria-label="Kategori papan peringkat">
+<nav className="lb-category-area" aria-label={text('Kategori papan peringkat','Leaderboard categories')}>
   <div className="lb-category-tabs">
     {CATEGORIES.map((item) => {
       const isDisabled = item.key === 'school' && mode === 'coin';
@@ -542,17 +545,17 @@ export function LeaderboardPage() {
           type="button"
           className={'lb-category-tab ' + (category === item.key ? 'active' : '')}
           disabled={isDisabled}
-          title={isDisabled ? 'Peringkat sekolah menggunakan akumulasi XP.' : undefined}
+          title={isDisabled ? text('Peringkat sekolah menggunakan akumulasi XP.','School rankings use accumulated XP.') : undefined}
           onClick={() => changeCategory(item.key)}
         >
           {item.key === 'school' && <School size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }} />}
-          {item.label}
+          {language === 'en' ? ({ all: 'All levels', sd: 'Elementary', smp: 'Junior high', sma: 'Senior high', school: 'School rankings' } as Record<string, string>)[item.key] : item.label}
         </button>
       );
     })}
   </div>
   {category !== 'all' && category !== 'school' && (
-    <div className="lb-subgrades" aria-label="Filter kelas">
+    <div className="lb-subgrades" aria-label={text('Filter kelas','Grade filter')}>
       <button type="button" className={'lb-subgrade ' + (!subGrade ? 'active' : '')} onClick={() => { setSubGrade(null); setPage(1); }}>
         Semua {category === 'sd' ? 'SD' : category === 'smp' ? 'SMP' : 'SMA/SMK'}
       </button>
@@ -571,27 +574,27 @@ export function LeaderboardPage() {
       <style>{LEADERBOARD_STYLES}</style>
 
       <header className="lb-heading">
-        <div className="lb-eyebrow"><Activity size={14} /> Pencapaian Siswa</div>
+        <div className="lb-eyebrow"><Activity size={14} /> {text('Pencapaian Siswa','Student Achievements')}</div>
         <h1>
-          Peringkat Juara
-          <span className={'lb-live ' + (isRealtime ? '' : 'is-polling')} title={isRealtime ? 'Berlangganan perubahan profil realtime, dengan penyegaran berkala sebagai cadangan.' : 'Data disegarkan otomatis setiap 60 detik.'}>
+          {text('Peringkat Juara','Leaderboard')}
+          <span className={'lb-live ' + (isRealtime ? '' : 'is-polling')} title={isRealtime ? text('Berlangganan perubahan profil realtime, dengan penyegaran berkala sebagai cadangan.','Subscribed to realtime profile updates with periodic refresh as fallback.') : text('Data disegarkan otomatis setiap 60 detik.','Data refreshes automatically every 60 seconds.')}>
             <span className="lb-live-dot" />
-            {isRealtime ? 'Update Realtime' : 'Update Otomatis'}
+            {isRealtime ? text('Update Realtime','Realtime Updates') : text('Update Otomatis','Auto Updates')}
           </span>
         </h1>
-        <p>Pantau pemuncak klasemen XP global dan tingkatkan prestasimu!</p>
+        <p>{text('Pantau pemuncak klasemen XP global dan tingkatkan prestasimu!','Track the global XP leaders and improve your achievements!')}</p>
       </header>
 
       <div className="lb-control-line">
-        <div className="lb-segment lb-mode" role="group" aria-label="Mode peringkat">
-          <button type="button" className={mode === 'xp' ? 'active' : ''} onClick={() => changeMode('xp')}>XP Global</button>
+        <div className="lb-segment lb-mode" role="group" aria-label={text("Mode peringkat","Leaderboard mode")}>
+          <button type="button" className={mode === 'xp' ? 'active' : ''} onClick={() => changeMode('xp')}>{text('XP Global','Global XP')}</button>
           <button type="button" className={mode === 'coin' ? 'active' : ''} onClick={() => changeMode('coin')}>Edu Coin</button>
         </div>
         {mode === 'xp' && (
-          <div className="lb-segment" role="group" aria-label="Periode peringkat">
+          <div className="lb-segment" role="group" aria-label={text("Periode peringkat","Ranking period")}>
             {PERIODS.map((item) => (
               <button key={item.key} type="button" className={period === item.key ? 'active' : ''} onClick={() => changePeriod(item.key)}>
-                {item.label}
+                {language === 'en' ? ({ weekly: 'Weekly', monthly: 'Monthly', all: 'All time' } as Record<string, string>)[item.key] : item.label}
               </button>
             ))}
           </div>
@@ -602,21 +605,21 @@ export function LeaderboardPage() {
             type="search"
             value={searchInput}
             onChange={(event) => changeSearch(event.target.value)}
-            placeholder={category === 'school' ? 'Cari nama sekolah...' : 'Cari nama atau sekolah...'}
-            aria-label={category === 'school' ? 'Cari peringkat sekolah' : 'Cari siswa atau sekolah'}
+            placeholder={category === 'school' ? text('Cari nama sekolah...','Search school name...') : text('Cari nama atau sekolah...','Search name or school...')}
+            aria-label={category === 'school' ? text('Cari peringkat sekolah','Search school rankings') : text('Cari siswa atau sekolah','Search students or schools')}
           />
-          {searchInput && <button type="button" aria-label="Hapus pencarian" onClick={() => changeSearch('')}><X size={14} /></button>}
+          {searchInput && <button type="button" aria-label={text("Hapus pencarian","Clear search")} onClick={() => changeSearch('')}><X size={14} /></button>}
         </label>
       </div>
 
 
 
-      {loading && <div className="lb-loading"><span className="lb-spinner" />Memuat peringkat...</div>}
+      {loading && <div className="lb-loading"><span className="lb-spinner" />{text('Memuat peringkat...','Loading rankings...')}</div>}
       {!loading && error && (
         <div className="lb-empty" role="alert">
-          <strong>Belum bisa memuat peringkat.</strong>
+          <strong>{text('Belum bisa memuat peringkat.','Could not load rankings.')}</strong>
           <p style={{ margin: '7px 0 12px' }}>{error}</p>
-          <button type="button" className="lb-subgrade active" onClick={() => { invalidateLeaderboardMemory(); setRefreshNonce((value) => value + 1); }}>Coba segarkan</button>
+          <button type="button" className="lb-subgrade active" onClick={() => { invalidateLeaderboardMemory(); setRefreshNonce((value) => value + 1); }}>{text('Coba segarkan','Try again')}</button>
         </div>
       )}
 
@@ -661,7 +664,7 @@ export function LeaderboardPage() {
                   <div className="lb-user-place">#{userRank.displayRank}</div>
                   <Avatar name={userRank.display_name} id={userRank.user_id} size={42} src={userRank.avatar_url ?? undefined} />
                   <div className="lb-user-details">
-                    <div className="lb-user-label">Peringkat kamu</div>
+                    <div className="lb-user-label">{text('Peringkat kamu','Your rank')}</div>
                     <div className="lb-user-name">{userRank.display_name} <span className="lb-you">KAMU</span></div>
                     <div className="lb-user-school">{userRank.institution || 'Sekolah belum diisi'} · {gradeLabel(userRank.grade)}</div>
                   </div>
@@ -689,7 +692,7 @@ export function LeaderboardPage() {
               </div>
               <button type="button" className="lb-modal-close" aria-label="Tutup detail sekolah" onClick={() => setSelectedSchool(null)}><X size={17} /></button>
             </div>
-            {selectedSchool.top_students.length === 0 && <div className="lb-empty">Belum ada siswa publik pada sekolah ini.</div>}
+            {selectedSchool.top_students.length === 0 && <div className="lb-empty">{text('Belum ada siswa publik pada sekolah ini.','No public students at this school yet.')}</div>}
             {selectedSchool.top_students.map((student, index) => (
               <div className="lb-modal-student" key={student.user_id}>
                 <div className="lb-modal-student-main">

@@ -4,11 +4,13 @@ import { ArrowLeft, Eye, SlidersHorizontal, UserRound, type LucideIcon } from 'l
 import { useApp } from '@/store/AppContext';
 import { EditProfilePage } from '@/pages/EditProfilePage';
 import { ProfileInterfaceSettingsPage } from '@/pages/ProfileInterfaceSettingsPage';
+import { useLanguage } from '@/lib/LanguageContext';
 
 type SettingsTab = 'profile' | 'appearance';
 
 export function ProfileSettingsPage() {
   const { user } = useApp();
+  const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab: SettingsTab = searchParams.get('tab') === 'appearance' ? 'appearance' : 'profile';
   const [visitedTabs, setVisitedTabs] = useState<SettingsTab[]>([activeTab]);
@@ -28,8 +30,8 @@ export function ProfileSettingsPage() {
   };
 
   const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: LucideIcon }> = [
-    { id: 'profile', label: 'Informasi Profil', description: 'Identitas, pendidikan, foto, dan minat', icon: UserRound },
-    { id: 'appearance', label: 'Tampilan & Privasi', description: 'Badge, akses sosial, keamanan, dan navigasi', icon: SlidersHorizontal },
+    { id: 'profile', label: t('settings.profileInformation'), description: t('settings.profileInformationDesc'), icon: UserRound },
+    { id: 'appearance', label: t('settings.profileAppearance'), description: t('settings.profileAppearanceDesc'), icon: SlidersHorizontal },
   ];
 
   return (
@@ -37,11 +39,11 @@ export function ProfileSettingsPage() {
       <div className="mx-auto max-w-6xl space-y-5 px-3 py-4 sm:px-5 md:px-7 md:py-6">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Akun / Pengaturan</p>
-            <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-fg sm:text-3xl">Pengaturan Profil</h1>
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-fg-muted">Semua pengaturan profil dalam satu tempat. Pilih bagian yang ingin kamu kelola.</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t('settings.accountSection')}</p>
+            <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-fg sm:text-3xl">{t('settings.profileTitle')}</h1>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-fg-muted">{t('settings.profileSubtitle')}</p>
           </div>
-          <Link to={`/profile/@${user.username}`} className="inline-flex w-fit items-center gap-2 rounded-xl border surface-border surface-card-bg px-3 py-2 text-xs font-semibold text-fg-muted transition hover:border-accent/30 hover:text-accent"><ArrowLeft size={14}/> Kembali ke Profil</Link>
+          <Link to={`/profile/@${user.username}`} className="inline-flex w-fit items-center gap-2 rounded-xl border surface-border surface-card-bg px-3 py-2 text-xs font-semibold text-fg-muted transition hover:border-accent/30 hover:text-accent"><ArrowLeft size={14}/> {t('settings.backToProfile')}</Link>
         </header>
 
         <nav aria-label="Bagian pengaturan profil" role="tablist" className="grid gap-2 rounded-2xl border surface-border surface-card-bg p-2 sm:grid-cols-2">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Megaphone } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Megaphone } from 'lucide-react';
 import { loadPublicBanners, loadPublicBannerSlideDuration, type PublicBanner } from '@/services/public-banner.service';
 import { useApp } from '@/store/AppContext';
 import { optimizedCloudinaryUrl } from '@/services/cloudinary.service';
@@ -17,6 +17,10 @@ type BannerGroup = {
 interface BannerCarouselProps {
   /** Defaults to the existing Home-top placement for callers outside Home. */
   placement?: BannerPlacement;
+  /** Add explicit previous/next controls, e.g. for the mobile ad popup. */
+  showArrows?: boolean;
+  /** Notify a wrapper after this placement has loaded its active banners. */
+  onBannersLoaded?: (banners: PublicBanner[]) => void;
 }
 
 function aspectRatioFor(placement: BannerPlacement, widthSlots = 1, visibleSlots = 1) {
@@ -71,7 +75,7 @@ function BannerMedia({ banner, className }: { banner: PublicBanner; className?: 
   );
 }
 
-export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) {
+export function BannerCarousel({ placement = 'home_top', showArrows = false, onBannersLoaded }: BannerCarouselProps) {
   const { user } = useApp();
   const [banners, setBanners] = useState<PublicBanner[]>([]);
   const [currentGroup, setCurrentGroup] = useState(0);
@@ -119,8 +123,12 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
       setBanners(items);
       setCurrentGroup(0);
       setLoading(false);
+      onBannersLoaded?.(items);
     }).catch(() => {
-      if (alive) setLoading(false);
+      if (alive) {
+        setLoading(false);
+        onBannersLoaded?.([]);
+      }
     });
     const refreshSlideDuration = () => {
       void loadPublicBannerSlideDuration().then((seconds) => {
@@ -133,7 +141,7 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
       alive = false;
       window.clearInterval(durationRefreshTimer);
     };
-  }, [placement]);
+  }, [placement, onBannersLoaded]);
 
   const groups = useMemo<BannerGroup[]>(() => {
     const result: BannerGroup[] = [];
@@ -269,6 +277,16 @@ export function BannerCarousel({ placement = 'home_top' }: BannerCarouselProps) 
                 />
               ))}
             </div>
+          )}
+          {showArrows && needsSlide && (
+            <>
+              <button type="button" onClick={previous} aria-label="Iklan sebelumnya" className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-white/25 bg-black/55 p-2 text-white shadow-lg transition hover:bg-black/75">
+                <ChevronLeft size={19} />
+              </button>
+              <button type="button" onClick={advance} aria-label="Iklan berikutnya" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-white/25 bg-black/55 p-2 text-white shadow-lg transition hover:bg-black/75">
+                <ChevronRight size={19} />
+              </button>
+            </>
           )}
         </>
       )}

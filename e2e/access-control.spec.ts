@@ -265,7 +265,7 @@ test.describe('backend-authoritative login flow', () => {
     await expect(page.locator('aside').getByText('Umum', { exact: true })).toHaveCount(0);
   });
 
-  test('administrator profile keeps standard profile visuals while hiding participant-only sections', async ({ page }) => {
+  test('administrator profile shows full details to its owner and a minimal visitor preview', async ({ page }) => {
     await mockSupabaseLogin(page, ['admin']);
     await page.goto('/login?redirect=%2Fprofile%2Fakun_uji');
     await page.locator('input[autocomplete="email"]').fill('guru@example.test');
@@ -276,11 +276,26 @@ test.describe('backend-authoritative login flow', () => {
     await expect(page.getByRole('heading', { name: 'Akun Uji' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Tentang', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Akses Admin', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Prestasi', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Lomba', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Statistik', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Pusat Admin/ })).toBeVisible();
+    await page.getByRole('tab', { name: 'Statistik', exact: true }).click();
+    await expect(page.getByText('Edu Coin', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Tampilan Pengunjung', exact: true }).click();
+    await expect(page.getByRole('tab', { name: 'Tentang', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Akses Admin', exact: true })).toHaveCount(0);
     await expect(page.getByRole('tab', { name: 'Prestasi', exact: true })).toHaveCount(0);
     await expect(page.getByRole('tab', { name: 'Lomba', exact: true })).toHaveCount(0);
     await expect(page.getByRole('tab', { name: 'Statistik', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Pusat Admin/ })).toHaveCount(0);
     await expect(page.getByText('Pendidikan', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Kategori Favorit', { exact: true })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Kembali ke Tampilan Pemilik', exact: true }).click();
+    await expect(page.getByRole('tab', { name: 'Akses Admin', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Prestasi', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: /Pusat Admin/ })).toBeVisible();
 
     await page.getByRole('tab', { name: 'Akses Admin', exact: true }).click();

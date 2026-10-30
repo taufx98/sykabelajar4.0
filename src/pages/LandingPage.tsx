@@ -8,6 +8,7 @@ import { getPlatformStats, getPublicCompetitions, getPublicLeaderboard, type Pla
 import { CATEGORY_LABELS } from '@/data/live';
 import { RankBadge } from '@/components/ui/Badge';
 import type { Competition } from '@/types';
+import { useLanguage } from '@/lib/LanguageContext';
 
 function mapPublicCompetition(row: Record<string, unknown>): Competition {
   const status = String(row.status ?? 'PUBLISHED');
@@ -28,6 +29,7 @@ function mapPublicCompetition(row: Record<string, unknown>): Competition {
 export function LandingPage() {
   const navigate = useNavigate();
   const { user, isAuthenticated, authLoading, isGuest, loginAsGuest, toast, certificates } = useApp();
+  const { t, language } = useLanguage();
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<PublicLeaderboardRow[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -49,7 +51,7 @@ export function LandingPage() {
 
   const handleGuest = () => {
     loginAsGuest();
-    toast('Mode tamu aktif. Daftar untuk interaksi penuh.', 'info');
+    toast(language === 'en' ? 'Guest mode is active. Sign up for full interaction.' : 'Mode tamu aktif. Daftar untuk interaksi penuh.', 'info');
     navigate('/home');
   };
 
@@ -81,18 +83,18 @@ export function LandingPage() {
                   <Avatar name={user.displayName} id={user.id} size={28} src={user.profilePhoto || undefined} />
                   <span className="text-sm text-white font-medium group-hover:text-accent transition hidden sm:inline">{user.displayName}</span>
                 </Link>
-                <Link to="/home"><Button size="sm" icon={<ArrowRight size={15} />}>Masuk ke Dashboard</Button></Link>
+                <Link to="/home"><Button size="sm" icon={<ArrowRight size={15} />}>{t('landing.dashboard')}</Button></Link>
               </>
             ) : showAuthButtons ? (
               <>
-                <Link to="/login"><Button variant="ghost" size="sm" icon={<LogIn size={15} />}>Masuk</Button></Link>
-                <Link to="/register"><Button size="sm" icon={<UserPlus size={15} />}>Daftar Gratis</Button></Link>
+                <Link to="/login"><Button variant="ghost" size="sm" icon={<LogIn size={15} />}>{t('landing.login')}</Button></Link>
+                <Link to="/register"><Button size="sm" icon={<UserPlus size={15} />}>{t('landing.register')}</Button></Link>
               </>
             ) : (
               <>
-                <span className="text-sm text-slate-400 px-2">Mode Tamu</span>
-                <Link to="/home"><Button size="sm" icon={<ArrowRight size={15} />}>Lanjutkan</Button></Link>
-                <Button variant="ghost" size="sm" onClick={handleGuest} icon={<Eye size={15} />}>Ganti Tamu</Button>
+                <span className="text-sm text-slate-400 px-2">{t('landing.guestMode')}</span>
+                <Link to="/home"><Button size="sm" icon={<ArrowRight size={15} />}>{t('landing.resume')}</Button></Link>
+                <Button variant="ghost" size="sm" onClick={handleGuest} icon={<Eye size={15} />}>{t('landing.changeGuest')}</Button>
               </>
             )}
           </div>
@@ -104,14 +106,14 @@ export function LandingPage() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="animate-slide-up">
               <div className="inline-flex items-center gap-2 chip bg-moss-500/10 text-accent border border-moss-500/20 mb-6">
-                <Sparkles size={14} /> Platform Uji Kompetensi Nasional Non-Formal
+                <Sparkles size={14} /> {t('landing.tagline')}
               </div>
               <h1 className="font-display font-extrabold text-4xl md:text-6xl text-white leading-[1.1] mb-6">
-                Belajar Jadi Seru,<br />
-                <span className="gradient-text">Uji Kompetensi Setiap Hari</span>
+                {t('landing.headingOne')}<br />
+                <span className="gradient-text">{t('landing.headingTwo')}</span>
               </h1>
               <p className="text-slate-400 text-lg leading-relaxed mb-8 max-w-md">
-                Ikuti uji kompetensi, kerjakan tantangan, bangun rekam prestasi, dan dapatkan sertifikat yang dapat diverifikasi publik.
+                {t('landing.description')}
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 {authLoading ? (
@@ -120,23 +122,23 @@ export function LandingPage() {
                     <div className="w-40 h-12 bg-white/5 rounded-xl animate-pulse" />
                   </>
                 ) : loggedIn ? (
-                  <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>Ikuti Lomba Sekarang</Button></Link>
+                  <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>{t('landing.joinCompetition')}</Button></Link>
                 ) : showAuthButtons ? (
                   <>
-                    <Link to="/register"><Button size="lg" icon={<ArrowRight size={18} />}>Mulai Sekarang — Gratis</Button></Link>
-                    <Button variant="outline" size="lg" onClick={handleGuest} icon={<Eye size={18} />}>Lihat Sebagai Tamu</Button>
+                    <Link to="/register"><Button size="lg" icon={<ArrowRight size={18} />}>{t('landing.getStartedFree')}</Button></Link>
+                    <Button variant="outline" size="lg" onClick={handleGuest} icon={<Eye size={18} />}>{t('landing.viewAsGuest')}</Button>
                   </>
                 ) : (
-                  <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>Mulai Menjelajahi</Button></Link>
+                  <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>{t('landing.explore')}</Button></Link>
                 )}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-8">
-                <Stat icon={<School size={18} />} value={statValue(stats?.total_schools)} label="Sekolah Terdaftar" />
-                <Stat icon={<UserRound size={18} />} value={statValue(stats?.total_users)} label="User Terdaftar" />
-                <Stat icon={<GraduationCap size={18} />} value={statValue(stats?.total_students)} label="Pelajar Terdaftar" />
-                <Stat icon={<Trophy size={18} />} value={statValue(stats?.total_competitions)} label="Lomba Terdaftar" />
-                <Stat icon={<Trophy size={18} />} value={statValue(stats?.total_public_competitions)} label="Lomba Publik" />
-                <Stat icon={<Award size={18} />} value={statValue(stats?.total_certificates ?? certificates.length)} label="Sertifikat Terbit" />
+                <Stat icon={<School size={18} />} value={statValue(stats?.total_schools)} label={t('landing.registeredSchools')} />
+                <Stat icon={<UserRound size={18} />} value={statValue(stats?.total_users)} label={t('landing.registeredUsers')} />
+                <Stat icon={<GraduationCap size={18} />} value={statValue(stats?.total_students)} label={t('landing.registeredStudents')} />
+                <Stat icon={<Trophy size={18} />} value={statValue(stats?.total_competitions)} label={t('landing.registeredCompetitions')} />
+                <Stat icon={<Trophy size={18} />} value={statValue(stats?.total_public_competitions)} label={t('landing.publicCompetitions')} />
+                <Stat icon={<Award size={18} />} value={statValue(stats?.total_certificates ?? certificates.length)} label={t('landing.publishedCertificates')} />
               </div>
             </div>
 
@@ -145,7 +147,7 @@ export function LandingPage() {
               <div className="relative card p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <BarChart3 size={18} className="text-accent" />
-                  <h3 className="font-display font-semibold text-white">Papan Peringkat</h3>
+                  <h3 className="font-display font-semibold text-white">{t('landing.leaderboard')}</h3>
                   <span className="ml-auto chip bg-moss-500/10 text-accent text-[10px]">Live</span>
                 </div>
                 <div className="space-y-3">
@@ -156,13 +158,13 @@ export function LandingPage() {
                       <div className="flex-1 min-w-0"><p className="text-sm text-white truncate">{u.display_name}</p><p className="text-xs text-slate-500 truncate">{u.institution || '—'}</p></div>
                       <span className="text-sm font-semibold text-accent">{u.xp.toLocaleString('id-ID')}</span>
                     </div>
-                  )) : <p className="text-sm text-slate-500 text-center py-8">Belum ada XP tercatat.</p>}
+                  )) : <p className="text-sm text-slate-500 text-center py-8">{t('landing.noXp')}</p>}
                 </div>
               </div>
               <div className="absolute -bottom-6 -left-6 card p-3 animate-float">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center"><Trophy size={18} className="text-amber-400" /></div>
-                  <div><p className="text-xs text-slate-400">Prestasi</p><p className="text-sm font-semibold text-white">Data live</p></div>
+                  <div><p className="text-xs text-slate-400">{t('landing.achievements')}</p><p className="text-sm font-semibold text-white">{t('landing.liveData')}</p></div>
                 </div>
               </div>
             </div>
@@ -171,7 +173,7 @@ export function LandingPage() {
       </section>
 
       <section className="max-w-6xl mx-auto px-4 py-16">
-        <div className="flex items-end justify-between mb-8"><div><h2 className="font-display font-bold text-2xl md:text-3xl text-white mb-2">Uji Kompetensi Unggulan</h2><p className="text-slate-400">Lomba yang saat ini tersedia dari database.</p></div></div>
+        <div className="flex items-end justify-between mb-8"><div><h2 className="font-display font-bold text-2xl md:text-3xl text-white mb-2">{t('landing.featuredCompetitions')}</h2><p className="text-slate-400">{t('landing.availableCompetitions')}</p></div></div>
         <div className="grid md:grid-cols-2 gap-5">
           {competitions.length ? competitions.slice(0, 6).map((c) => (
             <Link key={c.id} to={`/lomba/${c.slug}`} className="card card-hover p-0 overflow-hidden group">
@@ -188,13 +190,13 @@ export function LandingPage() {
               </div>
             </Link>
           )) : (
-            <div className="md:col-span-2 card p-8 text-center"><Trophy size={28} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-500">{loadingData ? 'Memuat data lomba...' : 'Belum ada lomba publik yang tersedia.'}</p></div>
+            <div className="md:col-span-2 card p-8 text-center"><Trophy size={28} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-500">{loadingData ? t('landing.loadingCompetitions') : (language === 'en' ? 'No public competitions are available yet.' : 'Belum ada lomba publik yang tersedia.')}</p></div>
           )}
         </div>
       </section>
 
       <section className="max-w-6xl mx-auto px-4 py-16">
-        <h2 className="font-display font-bold text-2xl md:text-3xl text-white text-center mb-12">Kenapa sykabelajar?</h2>
+        <h2 className="font-display font-bold text-2xl md:text-3xl text-white text-center mb-12">{t('landing.why')}</h2>
         <div className="grid md:grid-cols-3 gap-5">
           {[
             { icon: Trophy, title: 'Uji Kompetensi', desc: 'Discovery lomba dan kompetisi berdasarkan data yang dipublikasikan penyelenggara.' },
@@ -214,13 +216,13 @@ export function LandingPage() {
             <h2 className="font-display font-bold text-2xl md:text-4xl text-white mb-4">Siap Beruji Kompetensi?</h2>
             <p className="text-slate-400 mb-8 max-w-lg mx-auto">Buat akun dan mulai menggunakan data, lomba, serta rekam prestasi yang tersimpan secara nyata.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              {loggedIn ? <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>Ikuti Lomba Sekarang</Button></Link> : showAuthButtons ? <><Link to="/register"><Button size="lg" icon={<ArrowRight size={18} />}>Daftar Sekarang</Button></Link><Button variant="outline" size="lg" onClick={handleGuest} icon={<Eye size={18} />}>Lihat sebagai Tamu</Button></> : <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>Mulai Menjelajahi</Button></Link>}
+              {loggedIn ? <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>{t('landing.joinCompetition')}</Button></Link> : showAuthButtons ? <><Link to="/register"><Button size="lg" icon={<ArrowRight size={18} />}>Daftar Sekarang</Button></Link><Button variant="outline" size="lg" onClick={handleGuest} icon={<Eye size={18} />}>Lihat sebagai Tamu</Button></> : <Link to="/home"><Button size="lg" icon={<ArrowRight size={18} />}>{t('landing.explore')}</Button></Link>}
             </div>
           </div>
         </div>
       </section>
 
-      <footer className="border-t surface-border py-8"><div className="max-w-6xl mx-auto px-4 text-center text-sm text-slate-600">sykabelajar © 2026 — Platform Uji Kompetensi Nasional Non-Formal</div></footer>
+      <footer className="border-t surface-border py-8"><div className="max-w-6xl mx-auto px-4 text-center text-sm text-slate-600">sykabelajar © 2026 — {t('landing.tagline')}</div></footer>
     </div>
   );
 }
