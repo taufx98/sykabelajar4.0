@@ -132,7 +132,7 @@ export function MobileNavigationOverride({
     <nav
       aria-label="Navigasi bawah mobile"
       data-testid="mobile-bottom-navigation"
-      className="fixed bottom-0 left-0 right-0 z-[80] flex md:hidden glass border-t surface-border px-2 py-1.5 justify-around safe-area-bottom-syka"
+      className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden glass border-t surface-border px-2 py-1.5 justify-around safe-area-bottom-syka"
     >
       {visibleKeys.map((key) => {
         const item = navigationItems[key];
