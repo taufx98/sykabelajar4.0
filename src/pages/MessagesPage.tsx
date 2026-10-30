@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
-import { ArrowLeft, CheckCheck, ChevronDown, ChevronUp, FileText, Headphones, Link2, Lock, MessageCircle, Mic, MoreVertical, Paperclip, Pin, PinOff, Plus, Search, Send, Settings2, Shield, Smile, Square, Star, Trash2, Unlock, UserMinus, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, CheckCheck, ChevronDown, ChevronUp, FileText, Headphones, Link2, Lock, MessageCircle, Mic, MoreVertical, Paperclip, Pin, PinOff, Plus, Search, Send, Settings2, Shield, Star, Trash2, Unlock, UserMinus, UserPlus, Users, X } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
 import { subscribeSykaEvents } from '@/lib/realtimeBus';
-import { blockChatUser, claimChatTicket, closeThread, createTicketThread, getChatSpamStatus, getOrCreateDmThread, hideChatThread, loadChatMessagesPage, loadMyThreads, markThreadRead, sendMessage, unblockChatUser, type ChatMessage, type ChatSpamStatus, type ChatThread, listChatGroups, createChatGroup, loadChatGroupMessages, sendChatGroupMessage, listChatGroupMembers, addChatGroupMember, removeChatGroupMember, renameChatGroup, markChatGroupRead, createChatGroupInvite, joinChatGroup, type ChatGroup, type ChatGroupMessage, type ChatGroupMember, searchUsersForChat } from '@/services/chat.service';
+import { blockChatUser, claimChatTicket, closeThread, createTicketThread, getChatSpamStatus, getOrCreateDmThread, hideChatThread, loadChatMessagesPage, loadMyThreads, markThreadRead, sendMessage, deleteChatMessage, deleteChatGroupMessage, DELETED_CHAT_MESSAGE_BODY, isChatMessageWithinDeleteWindow, unblockChatUser, type ChatMessage, type ChatSpamStatus, type ChatThread, listChatGroups, createChatGroup, loadChatGroupMessages, sendChatGroupMessage, listChatGroupMembers, addChatGroupMember, removeChatGroupMember, renameChatGroup, markChatGroupRead, createChatGroupInvite, joinChatGroup, type ChatGroup, type ChatGroupMessage, type ChatGroupMember, searchUsersForChat } from '@/services/chat.service';
 import { listCollectiveCompetitions } from '@/services/collectiveParticipant.service';
 import { attachChatMedia, isAudioUrl, isDocumentUrl, isHttpUrl, isImageUrl, uploadChatAttachment, validateChatFile } from '@/services/chatMedia.service';
 import { mergeChatMessageCache, readChatMessageCache, readOlderChatMessageCache } from '@/services/chatMessageCache';
@@ -26,6 +26,13 @@ const mergeMessageRows = (current: ChatMessage[], incoming: ChatMessage[]) => {
   for (const message of incoming.filter(isCachedMessage)) byId.set(message.id, message);
   return [...byId.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
 };
+const canDeletePrivateMessage = (message: ChatMessage, userId: string, now: number) =>
+  message.sender_id === userId && !message.id.startsWith('local-') && !message.deleted_at
+  && message.body !== DELETED_CHAT_MESSAGE_BODY && isChatMessageWithinDeleteWindow(message.created_at, now);
+const canDeleteGroupMessage = (message: ChatGroupMessage, userId: string, now: number) =>
+  message.sender_user_id === userId && message.sender_collective_participant_id == null
+  && !message.deleted_at && message.body !== DELETED_CHAT_MESSAGE_BODY
+  && isChatMessageWithinDeleteWindow(message.created_at, now);
 const nameOf = (t: ChatThread, me: string, admin: boolean) => isTicket(t) ? (admin ? t.user_name || t.username || 'User' : 'Admin Sykabelajar') : (t.user_id === me ? t.other_user_name || t.other_username || 'User' : t.user_name || t.username || 'User');
 function dedupeInboxThreads(items: ChatThread[]): ChatThread[] {
   const byId = new Map<string, ChatThread>();
@@ -69,7 +76,7 @@ function Body({ body, preview }: { body: string; preview: (url: string) => void 
       if (isHttpUrl(url.toString())) return <a href={url.toString()} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-2">{url.toString()}</a>;
     }
   } catch { /* plain message body */ }
-  return <p className="whitespace-pre-wrap break-words">{body}</p>;
+  return <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{body}</p>;
 }
 function Modal({ children, onClose }: { children: ReactNode; onClose: () => void }) { return <div className="fixed inset-0 z-[170] flex items-center justify-center p-4"><button className="absolute inset-0 bg-black/70" onClick={onClose} /><div className="relative w-full max-w-md card p-5">{children}</div></div>; }
 function TicketForm({ busy, onClose, onSubmit }: { busy: boolean; onClose: () => void; onSubmit: (subject: string, description: string) => void }) { const [subject,setSubject]=useState(''); const [description,setDescription]=useState(''); return <Modal onClose={onClose}><div className="flex justify-between"><h3 className="font-semibold text-fg">Hubungi Admin</h3><button onClick={onClose}><X size={18}/></button></div><input className="input w-full mt-4" value={subject} onChange={e=>setSubject(e.target.value)} placeholder="Subjek kendala *"/><textarea className="input w-full mt-3 min-h-32" value={description} onChange={e=>setDescription(e.target.value)} placeholder="Deskripsi kendala *"/><div className="flex justify-end gap-2 mt-4"><Button variant="ghost" onClick={onClose}>Batal</Button><Button disabled={busy||!subject.trim()||!description.trim()} onClick={()=>onSubmit(subject.trim(),description.trim())}>{busy?'Mengirim…':'Kirim Laporan'}</Button></div></Modal>; }
@@ -122,17 +129,14 @@ export function MessagesPage() {
  const [newMessages,setNewMessages]=useState(0);
  const [moreOpen,setMoreOpen]=useState(false);
  const [securityInfoOpen,setSecurityInfoOpen]=useState(false);
- const [emojiOpen,setEmojiOpen]=useState(false);
  const [attachmentMenuOpen,setAttachmentMenuOpen]=useState(false);
- const [recording,setRecording]=useState(false);
- const [recordingSeconds,setRecordingSeconds]=useState(0);
- const recordingRef=useRef(false);
- const mediaRecorderRef=useRef<MediaRecorder|null>(null);
- const mediaStreamRef=useRef<MediaStream|null>(null);
- const recordedPartsRef=useRef<Blob[]>([]);
  const scrollRef=useRef<HTMLDivElement|null>(null);
  const groupScrollRef=useRef<HTMLDivElement|null>(null);
  const fileRef=useRef<HTMLInputElement|null>(null);
+  const inputRef=useRef<HTMLTextAreaElement|null>(null);
+  const groupInputRef=useRef<HTMLTextAreaElement|null>(null);
+  const [deleteConfirmId,setDeleteConfirmId]=useState<string|null>(null);
+  const [deletingMessageId,setDeletingMessageId]=useState<string|null>(null);
  const loadToken=useRef(0);
  const refreshToken=useRef(0);
  const olderRequestRef=useRef<string|null>(null);
@@ -155,13 +159,12 @@ export function MessagesPage() {
 
  const refresh=useCallback(async(force=false)=>{if(!user)return;const token=++refreshToken.current;try{const rows=await loadMyThreads(force);if(token!==refreshToken.current)return;const normalized=dedupeInboxThreads(rows.map(t=>({...t,user_name:t.user_name||'User',username:t.username||'user',other_user_name:t.other_user_name||'User',other_username:t.other_username||'user'})));setThreads(normalized);if(selected){const next=normalized.find(t=>t.id===selected.id);if(next)setSelected(next);}else{const initial=normalized.find(t=>t.thread_type==='dm'&&t.status==='open')||normalized.find(t=>t.status==='open')||normalized.find(t=>isTicket(t)&&t.status==='closed'&&t.rating==null);if(initial)setSelected(initial);}}catch(error:unknown){if(token===refreshToken.current)toast(error instanceof Error?error.message:'Gagal memuat chat.','error')}finally{if(token===refreshToken.current)setLoading(false)}},[user?.id,selected?.id,toast]);
  useEffect(()=>{if(!me){setPinnedIds([]);return;}try{const parsed=JSON.parse(localStorage.getItem(`syka.chat.pinned.${me}`)||'[]');setPinnedIds(Array.isArray(parsed)?parsed.filter((value):value is string=>typeof value==='string'):[]);}catch{setPinnedIds([])}},[me]);
- useEffect(()=>{if(!recording)return;const timer=window.setInterval(()=>setRecordingSeconds(value=>{if(value>=59){window.setTimeout(()=>mediaRecorderRef.current?.stop(),0);return 60;}return value+1}),1000);return()=>window.clearInterval(timer)},[recording]);
- useEffect(()=>()=>{if(mediaRecorderRef.current?.state==='recording')mediaRecorderRef.current.stop();mediaStreamRef.current?.getTracks().forEach(track=>track.stop())},[]);
- useEffect(()=>{setMessageHidden(false);setMessageSearchOpen(false);setMessageSearch('');setMessageSearchIndex(-1);setMoreOpen(false);setSecurityInfoOpen(false);setEmojiOpen(false)},[selected?.id]);
+ useEffect(()=>{setMessageHidden(false);setMessageSearchOpen(false);setMessageSearch('');setMessageSearchIndex(-1);setMoreOpen(false);setSecurityInfoOpen(false);setDeleteConfirmId(null);setDeletingMessageId(null)},[selected?.id]);
  const loadGroups=useCallback(async():Promise<ChatGroup[]>=>{if(!user)return[];try{const rows=await listChatGroups();setGroups(rows);return rows}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal memuat group.','error');return[]}},[user?.id,toast]);
  useEffect(()=>{void refresh(true);void loadGroups();if(teacher)void listCollectiveCompetitions().then(v=>setCompetitions(v.map(x=>({id:String(x.id),title:String(x.title)})))).catch(()=>undefined)},[refresh,loadGroups,teacher]);
  useEffect(()=>{if(admin||!user)return;let live=true;void getChatSpamStatus().then(v=>{if(live){setSpam(v);setSpamLevel(v.warning_level)}}).catch(()=>undefined);return()=>{live=false}},[admin,user?.id]);
  useEffect(()=>{if(!spam?.blocked_until)return;const id=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(id)},[spam?.blocked_until]);
+ useEffect(()=>{const id=window.setInterval(()=>setNow(Date.now()),30_000);return()=>window.clearInterval(id)},[]);
  useEffect(()=>{if(!user)return;let timer:number|undefined;const schedule=()=>{if(timer)window.clearTimeout(timer);timer=window.setTimeout(()=>void refresh(true),250)};const unsubscribe=subscribeSykaEvents(event=>{if(event.type==='chat-thread-updated'&&selected?.id===String(event.thread.id??''))setSelected(current=>current?{...current,...(event.thread as unknown as ChatThread)}:current);if(['chat-thread-updated','chat-read','chat-hidden','chat-message','chat-reconciled'].includes(event.type))schedule()});return()=>{if(timer)window.clearTimeout(timer);unsubscribe()}},[user?.id,refresh,selected?.id]);
  const directMessageTarget=params.get('user_id')?.trim()||'';
  useEffect(()=>{const target=directMessageTarget;if(!target||!user||target===user.id)return;let live=true;(async()=>{try{const existingThreads=await loadMyThreads(true);let thread=existingThreads.find(x=>x.participant_id&&((x.user_id===user.id&&x.participant_id===target)||(x.user_id===target&&x.participant_id===user.id))&&x.status==='open');if(!thread)thread=await getOrCreateDmThread(target);if(!live)return;setMode('private');setSelectedGroup(null);setSelected(thread);setRating(0);setRatingOpen(false);setMobileList(false)}catch(error:unknown){if(live)toast(error instanceof Error?error.message:'Chat tidak tersedia.','error')}finally{if(live){const next=new URLSearchParams(window.location.search);next.delete('user_id');setParams(next,{replace:true})}}})();return()=>{live=false}},[directMessageTarget,user?.id,setParams,toast]);
@@ -259,6 +262,13 @@ export function MessagesPage() {
           setNewMessages(value => Math.min(99, value + 1));
         }
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` }, payload => {
+        const message = payload.new as ChatMessage;
+        if (!live || !isCachedMessage(message)) return;
+        setMessages(current => mergeMessageRows(current, [message]));
+        void mergeChatMessageCache(me, threadId, [message]);
+        setThreads(current => current.map(thread => thread.id === threadId ? { ...thread, last_message: message.body, last_message_at: message.created_at } : thread));
+      })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_threads', filter: `id=eq.${threadId}` }, payload => {
         if (live) setSelected(current => current ? { ...current, ...(payload.new as ChatThread) } : current);
       })
@@ -269,7 +279,7 @@ export function MessagesPage() {
       void supabase.removeChannel(channel);
     };
   }, [selected?.id, toast, me]);
- useEffect(()=>{if(!selectedGroup)return;let live=true;(async()=>{try{const rows=await loadChatGroupMessages(selectedGroup.id,PAGE);setGroupMessages(rows);setGroupHasOlder(rows.length>=PAGE);await markChatGroupRead(selectedGroup.id);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,unread_count:0}:g))}catch(error:unknown){if(live)toast(error instanceof Error?error.message:'Gagal memuat group.','error')}})();void listChatGroupMembers(selectedGroup.id).then(setGroupMembers).catch(()=>undefined);const channel=supabase.channel(`chat-group-${selectedGroup.id}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_group_messages',filter:`group_id=eq.${selectedGroup.id}`},payload=>{const row=payload.new as ChatGroupMessage;if(!live)return;const element=groupScrollRef.current;const nearBottom=!element||element.scrollHeight-element.scrollTop-element.clientHeight<120;const mine=row.sender_user_id===me;const shouldStick=mine||nearBottom;setGroupMessages(current=>current.some(m=>m.id===row.id)?current:[...current,row]);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,last_message:row.body,last_message_at:row.created_at,unread_count:shouldStick?0:Math.min(99,(g.unread_count??0)+1)}:g));if(shouldStick){setNewMessages(0);requestAnimationFrame(()=>{if(groupScrollRef.current)groupScrollRef.current.scrollTo({top:groupScrollRef.current.scrollHeight,behavior:'smooth'})});if(!mine)void markChatGroupRead(selectedGroup.id).catch(()=>undefined)}else if(!mine)setNewMessages(value=>Math.min(99,value+1))}).subscribe();return()=>{live=false;void supabase.removeChannel(channel)}},[selectedGroup?.id,toast,me]);
+ useEffect(()=>{if(!selectedGroup)return;let live=true;(async()=>{try{const rows=await loadChatGroupMessages(selectedGroup.id,PAGE);setGroupMessages(rows);setGroupHasOlder(rows.length>=PAGE);await markChatGroupRead(selectedGroup.id);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,unread_count:0}:g))}catch(error:unknown){if(live)toast(error instanceof Error?error.message:'Gagal memuat group.','error')}})();void listChatGroupMembers(selectedGroup.id).then(setGroupMembers).catch(()=>undefined);const channel=supabase.channel(`chat-group-${selectedGroup.id}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_group_messages',filter:`group_id=eq.${selectedGroup.id}`},payload=>{const row=payload.new as ChatGroupMessage;if(!live)return;const element=groupScrollRef.current;const nearBottom=!element||element.scrollHeight-element.scrollTop-element.clientHeight<120;const mine=row.sender_user_id===me;const shouldStick=mine||nearBottom;setGroupMessages(current=>current.some(m=>m.id===row.id)?current:[...current,row]);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,last_message:row.body,last_message_at:row.created_at,unread_count:shouldStick?0:Math.min(99,(g.unread_count??0)+1)}:g));if(shouldStick){setNewMessages(0);requestAnimationFrame(()=>{if(groupScrollRef.current)groupScrollRef.current.scrollTo({top:groupScrollRef.current.scrollHeight,behavior:'smooth'})});if(!mine)void markChatGroupRead(selectedGroup.id).catch(()=>undefined)}else if(!mine)setNewMessages(value=>Math.min(99,value+1))}).on('postgres_changes',{event:'UPDATE',schema:'public',table:'chat_group_messages',filter:`group_id=eq.${selectedGroup.id}`},payload=>{const row=payload.new as ChatGroupMessage;if(!live)return;setGroupMessages(current=>current.map(message=>message.id===row.id?row:message));setGroups(current=>current.map(group=>group.id===selectedGroup.id?{...group,last_message:row.body,last_message_at:row.created_at}:group))}).subscribe();return()=>{live=false;void supabase.removeChannel(channel)}},[selectedGroup?.id,toast,me]);
  const loadGroupOlder=useCallback(async()=>{if(!selectedGroup||groupOlderBusy||!groupHasOlder||!groupMessages.length||!groupScrollRef.current)return;setGroupOlderBusy(true);const element=groupScrollRef.current;const height=element.scrollHeight;try{const rows=await loadChatGroupMessages(selectedGroup.id,PAGE,groupMessages[0].created_at);if(!rows.length){setGroupHasOlder(false);return}setGroupMessages(current=>[...rows,...current].filter((m,i,a)=>a.findIndex(x=>x.id===m.id)===i).sort((a,b)=>a.created_at.localeCompare(b.created_at)));requestAnimationFrame(()=>{element.scrollTop=element.scrollHeight-height})}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal memuat pesan lama.','error')}finally{setGroupOlderBusy(false)}},[selectedGroup?.id,groupOlderBusy,groupHasOlder,groupMessages,toast]);
  const loadOlder = useCallback(async () => {
     if (!selected || olderBusy || !hasOlder || !messages.length || !scrollRef.current) return;
@@ -333,35 +343,73 @@ export function MessagesPage() {
  const choose=useCallback(async(thread:ChatThread)=>{setMode('private');setSelectedGroup(null);if(selected?.id===thread.id){setMobileList(false);return}setSelected(thread);setMessages(cacheGet(thread.id).slice(-INITIAL_MESSAGE_PAGE));setRating(0);setRatingOpen(false);setNewMessages(0);setMessageHidden(false);setMobileList(false);await markThreadRead(thread.id).catch(()=>undefined);setThreads(current=>current.map(item=>item.id===thread.id?{...item,unread_count:0}:item))},[selected?.id]);
  const chooseGroup=useCallback(async(group:ChatGroup)=>{setMode('group');setSelected(null);setSelectedGroup(group);setGroupInput('');setNewMessages(0);setMessageHidden(false);setMobileList(false);await markChatGroupRead(group.id).catch(()=>undefined);setGroups(current=>current.map(item=>item.id===group.id?{...item,unread_count:0}:item))},[]);
  const parseCooldown=(error:unknown)=>{const message=error instanceof Error?error.message:'';const match=message.match(/Peringatan\s+(\d+).*?(\d{4}-\d{2}-\d{2}T[^\s.]+)/i);if(!match)return false;const level=Number(match[1]);const until=new Date(match[2]);if(Number.isNaN(until.getTime()))return false;setSpam({warning_level:level,strike_count:level,blocked_until:until.toISOString(),reset_at:spam?.reset_at||new Date(Date.now()+7*86400000).toISOString()});setSpamLevel(level);setNow(Date.now());toast(`Peringatan ${level}: chat dibatasi sementara karena spam.`,'error');return true};
- const sendText=async()=>{if(!selected||selected.status!=='open'||blocked||!input.trim()||busy||(admin&&isTicket(selected)&&!selected.handled_by))return;const cooldownMs=spam?.blocked_until?Math.max(0,new Date(spam.blocked_until).getTime()-Date.now()):0;if(cooldownMs>0)return;const text=input.trim();const optimistic:ChatMessage={id:`local-${crypto.randomUUID()}`,thread_id:selected.id,sender_id:me,body:text,created_at:new Date().toISOString()};setMessages(current=>[...current.filter(isCachedMessage),optimistic]);setInput('');setBusy(true);try{const saved=await sendMessage(selected.id,text);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');setMessages(current=>mergeMessageRows(current.map(item=>item.id===optimistic.id?saved:item),[]));void mergeChatMessageCache(me,selected.id,[saved]);setThreads(current=>current.map(t=>t.id===selected.id?{...t,last_message:saved.body,last_message_at:saved.created_at}:t))}catch(error:unknown){setMessages(current=>current.filter(isCachedMessage).filter(x=>x.id!==optimistic.id));if(!parseCooldown(error))toast(error instanceof Error?error.message:'Gagal mengirim pesan.','error')}finally{setBusy(false)}};
- const sendGroupText=async()=>{if(!selectedGroup||!groupInput.trim()||groupBusy)return;const text=groupInput.trim();setGroupBusy(true);try{await sendChatGroupMessage(selectedGroup.id,text);setGroupInput('');const rows=await loadChatGroupMessages(selectedGroup.id,PAGE);setGroupMessages(rows);setGroups(current=>current.map(g=>g.id===selectedGroup.id?{...g,last_message:text,last_message_at:new Date().toISOString()}:g))}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal mengirim pesan group.','error')}finally{setGroupBusy(false)}};
- const upload=async(file:File)=>{if(!selected||selected.status!=='open'||blocked||busy)return;try{validateChatFile(file);setBusy(true);const uploadResult=await uploadChatAttachment(file,selected.id,me);const saved=await sendMessage(selected.id,uploadResult.secure_url);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');await attachChatMedia(uploadResult.media_id,saved.id);setMessages(current=>mergeMessageRows(current,[saved]));void mergeChatMessageCache(me,selected.id,[saved]);toast('Lampiran berhasil dikirim.','success')}catch(error:unknown){if(!parseCooldown(error))toast(error instanceof Error?error.message:'Lampiran gagal dikirim.','error')}finally{setBusy(false)}};
- const toggleVoiceRecording=async()=>{
-   if(recordingRef.current){mediaRecorderRef.current?.stop();return;}
-   if(!selected||selected.status!=='open'||blocked||busy||cooldownMs>0)return;
-   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){toast('Browser ini belum mendukung perekaman pesan suara.','error');return;}
-   try{
-     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-     const preferred=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'].find(type=>MediaRecorder.isTypeSupported(type));
-     const recorder=preferred?new MediaRecorder(stream,{mimeType:preferred}):new MediaRecorder(stream);
-     recordedPartsRef.current=[];mediaStreamRef.current=stream;mediaRecorderRef.current=recorder;recordingRef.current=true;setRecording(true);setRecordingSeconds(0);
-     recorder.ondataavailable=event=>{if(event.data.size)recordedPartsRef.current.push(event.data)};
-     recorder.onerror=()=>toast('Perekaman pesan suara mengalami kendala.','error');
-     recorder.onstop=async()=>{
-       const type=(recorder.mimeType||recordedPartsRef.current[0]?.type||'audio/webm').split(';')[0];
-       const blob=new Blob(recordedPartsRef.current,{type});
-       stream.getTracks().forEach(track=>track.stop());mediaStreamRef.current=null;mediaRecorderRef.current=null;recordingRef.current=false;setRecording(false);setRecordingSeconds(0);
-       if(!blob.size){toast('Pesan suara kosong. Coba rekam lagi.','error');return;}
-       const ext=type==='audio/mp4'?'m4a':type==='audio/ogg'?'ogg':type==='audio/mpeg'?'mp3':type==='audio/wav'?'wav':'webm';
-       const file=new File([blob],`pesan-suara-${Date.now()}.${ext}`,{type});
-       if(file.size>2*1024*1024){toast('Pesan suara melebihi batas 2MB. Rekam dengan durasi lebih pendek.','error');return;}
-       await upload(file);
-     };
-     recorder.start();
-     toast('Perekaman dimulai. Maksimal 60 detik. Tekan tombol stop untuk mengirim.','info');
-   }catch(error:unknown){recordingRef.current=false;setRecording(false);mediaStreamRef.current?.getTracks().forEach(track=>track.stop());mediaStreamRef.current=null;toast(error instanceof Error?error.message:'Mikrofon tidak dapat diakses. Izinkan akses mikrofon di browser.','error');}
- };
- const onPaste=(event:ClipboardEvent)=>{const item=Array.from(event.clipboardData.items).find(entry=>entry.kind==='file'&&entry.type.startsWith('image/'));const file=item?.getAsFile();if(file){event.preventDefault();void upload(file)}};const onDrop=(event:DragEvent)=>{event.preventDefault();setDrop(false);const file=event.dataTransfer.files?.[0];if(file)void upload(file)};
+ const focusComposer=(element:HTMLTextAreaElement|null)=>{window.requestAnimationFrame(()=>window.requestAnimationFrame(()=>element?.focus({preventScroll:true})))};
+  const sendText=async()=>{
+    if(!selected||selected.status!=='open'||blocked||!input.trim()||busy||(admin&&isTicket(selected)&&!selected.handled_by))return;
+    const cooldownMs=spam?.blocked_until?Math.max(0,new Date(spam.blocked_until).getTime()-Date.now()):0;
+    if(cooldownMs>0)return;
+    const text=input.trim();
+    const optimistic:ChatMessage={id:`local-${crypto.randomUUID()}`,thread_id:selected.id,sender_id:me,body:text,created_at:new Date().toISOString()};
+    setMessages(current=>[...current.filter(isCachedMessage),optimistic]);
+    setInput('');
+    setBusy(true);
+    try{
+      const saved=await sendMessage(selected.id,text);
+      if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');
+      setMessages(current=>mergeMessageRows(current.map(item=>item.id===optimistic.id?saved:item),[]));
+      void mergeChatMessageCache(me,selected.id,[saved]);
+      setThreads(current=>current.map(thread=>thread.id===selected.id?{...thread,last_message:saved.body,last_message_at:saved.created_at}:thread));
+    }catch(error:unknown){
+      setMessages(current=>current.filter(isCachedMessage).filter(item=>item.id!==optimistic.id));
+      if(!parseCooldown(error))toast(error instanceof Error?error.message:'Gagal mengirim pesan.','error');
+    }finally{
+      setBusy(false);
+      focusComposer(inputRef.current);
+    }
+  };
+  const sendGroupText=async()=>{
+    if(!selectedGroup||!groupInput.trim()||groupBusy)return;
+    const text=groupInput.trim();
+    setGroupInput('');
+    setGroupBusy(true);
+    try{
+      await sendChatGroupMessage(selectedGroup.id,text);
+      const rows=await loadChatGroupMessages(selectedGroup.id,PAGE);
+      setGroupMessages(rows);
+      setGroups(current=>current.map(group=>group.id===selectedGroup.id?{...group,last_message:text,last_message_at:new Date().toISOString()}:group));
+    }catch(error:unknown){
+      toast(error instanceof Error?error.message:'Gagal mengirim pesan group.','error');
+    }finally{
+      setGroupBusy(false);
+      focusComposer(groupInputRef.current);
+    }
+  };
+  const upload=async(file:File)=>{if(!selected||selected.status!=='open'||blocked||busy)return;try{validateChatFile(file);setBusy(true);const uploadResult=await uploadChatAttachment(file,selected.id,me);const saved=await sendMessage(selected.id,uploadResult.secure_url);if(!isCachedMessage(saved))throw new Error('CHAT_SEND_INVALID_RESPONSE');await attachChatMedia(uploadResult.media_id,saved.id);setMessages(current=>mergeMessageRows(current,[saved]));void mergeChatMessageCache(me,selected.id,[saved]);toast('Lampiran berhasil dikirim.','success')}catch(error:unknown){if(!parseCooldown(error))toast(error instanceof Error?error.message:'Lampiran gagal dikirim.','error')}finally{setBusy(false);focusComposer(inputRef.current)}};
+ const confirmDeleteMessage=async(scope:'private'|'group',messageId:string)=>{
+    if(deletingMessageId)return;
+    setDeletingMessageId(messageId);
+    try{
+      if(scope==='private'){
+        if(!selected)return;
+        const deleted=await deleteChatMessage(messageId);
+        setMessages(current=>mergeMessageRows(current,[deleted]));
+        void mergeChatMessageCache(me,selected.id,[deleted]);
+        setThreads(current=>current.map(thread=>thread.id===selected.id?{...thread,last_message:deleted.body,last_message_at:deleted.created_at}:thread));
+      }else{
+        if(!selectedGroup)return;
+        const deleted=await deleteChatGroupMessage(messageId);
+        setGroupMessages(current=>current.map(message=>message.id===messageId?deleted:message));
+        setGroups(current=>current.map(group=>group.id===selectedGroup.id?{...group,last_message:deleted.body,last_message_at:deleted.created_at}:group));
+      }
+      toast('Pesan dihapus untuk semua orang.','success');
+    }catch(error:unknown){
+      toast(error instanceof Error?error.message:'Pesan gagal dihapus.','error');
+    }finally{
+      setDeleteConfirmId(null);
+      setDeletingMessageId(null);
+    }
+  };
+  const onPaste=(event:ClipboardEvent)=>{const item=Array.from(event.clipboardData.items).find(entry=>entry.kind==='file'&&entry.type.startsWith('image/'));const file=item?.getAsFile();if(file){event.preventDefault();void upload(file)}};const onDrop=(event:DragEvent)=>{event.preventDefault();setDrop(false);const file=event.dataTransfer.files?.[0];if(file)void upload(file)};
  const hide=async(thread:ChatThread)=>{setThreads(current=>current.filter(item=>item.id!==thread.id));if(selected?.id===thread.id){setSelected(null);setMessages([]);setRating(0);setRatingOpen(false);setMobileList(true)}try{await hideChatThread(thread.id);toast('Percakapan disembunyikan.','success')}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal menghapus chat.','error');void refresh(true)}};
  const toggleBlock=async()=>{if(!counterpart||blockBusy)return;const old=blocked;setBlockBusy(true);setBlocked(!old);try{if(old)await unblockChatUser(counterpart);else await blockChatUser(counterpart);toast(old?'Blokir dibuka.':'Pengguna diblokir.','success')}catch(error:unknown){setBlocked(old);toast(error instanceof Error?error.message:'Gagal mengubah blokir.','error')}finally{setBlockBusy(false)}};
  const createTicket=async(subject:string,description:string)=>{setTicketBusy(true);try{const thread=await createTicketThread(subject,description);setTicketOpen(false);setSelected(thread);setMessages([]);setRating(0);setRatingOpen(false);setMobileList(false);setThreads(current=>[thread,...current.filter(item=>item.id!==thread.id)]);toast('Laporan berhasil dikirim.','success')}catch(error:unknown){toast(error instanceof Error?error.message:'Gagal membuat laporan.','error')}finally{setTicketBusy(false)}};
@@ -378,7 +426,7 @@ export function MessagesPage() {
  const joinGroupFromInput=async()=>{const value=joinGroupValue.trim();if(!value){toast('Tempel link atau token undangan terlebih dahulu.','error');return;}let token=value;try{const url=new URL(value);token=url.searchParams.get('join_group')||value;}catch{/* Input may be a raw invitation token. */}if(!token||token.length<12){toast('Link atau token undangan tidak valid.','error');return;}setGroupBusy(true);try{const result=await joinChatGroup(token);if(!result.ok)throw new Error('Undangan tidak dapat digunakan.');setGroupInvite(null);setJoinGroupValue('');setMode('group');setSelected(null);setMobileList(true);await loadGroups();toast('Berhasil bergabung ke group.','success')}catch(error:unknown){toast(error instanceof Error?error.message:'Undangan tidak valid atau sudah kedaluwarsa.','error')}finally{setGroupBusy(false)}};
  const isSelectedPinned=!!selected&&pinnedIds.includes(selected.id);
  const cooldownMs=spam?.blocked_until?Math.max(0,new Date(spam.blocked_until).getTime()-now):0;const canSend=!cooldownMs&&!blocked;const canManageGroup=!!selectedGroup&&['OWNER','ADMIN'].includes(selectedGroup.my_role);
- return <div className="flex h-[calc(100dvh-176px)] min-h-[420px] flex-col overflow-hidden surface-bg text-fg-secondary md:h-[calc(100dvh-60px)]">
+ return <div className="flex h-[calc(100dvh-184px)] min-h-0 max-h-[calc(100dvh-184px)] flex-col overflow-hidden surface-bg text-fg-secondary md:h-[calc(100dvh-60px)] md:max-h-[calc(100dvh-60px)]">
 
    <div className="relative flex min-h-0 flex-1 overflow-hidden border-b surface-border bg-white dark:bg-[#0f172a]">
      <aside className={(mobileList?'flex':'hidden')+' w-full shrink-0 flex-col border-r surface-border bg-slate-50 dark:bg-[#111827] md:flex md:w-[320px] lg:w-[340px] xl:w-[365px]'}>
@@ -441,9 +489,10 @@ export function MessagesPage() {
                {showDate&&<div className="my-4 flex items-center gap-3"><span className="h-px flex-1 bg-slate-200 dark:bg-slate-800"/><span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-[#0b0f19] dark:text-slate-500">{dateLabel}</span><span className="h-px flex-1 bg-slate-200 dark:bg-slate-800"/></div>}
                <div id={'chat-message-'+message.id} className={'scroll-mt-16 flex '+(mine?'justify-end':'justify-start')}>
                  {!mine&&<div className="mr-2 mt-1 shrink-0"><Avatar name={nameOf(selected,me,admin)} id={selected.user_id===me?(selected.participant_id||selected.id):selected.user_id} size={30} src={avatarOf(selected,me)}/></div>}
-                 <div className={'max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[76%] sm:px-4 '+(mine?'rounded-br-md bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-950/10':'rounded-bl-md border border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700/70 dark:bg-slate-800/90 dark:text-slate-200')+(matches?' ring-2 ring-amber-400/70':'')}>
-                   {messageHidden?<div className="flex items-center gap-2 py-1 text-xs opacity-80"><Lock size={14}/> Isi pesan disembunyikan untuk privasi.</div>:firstTicket?<TicketIntro subject={selected.subject} description={selected.description}/>:<Body body={message.body} preview={url=>setPreview(url)}/>}
-                   <div className="mt-1.5 flex items-center justify-end gap-1.5 text-[9px] opacity-60"><span>{formatChatTime(message.created_at)}</span>{mine&&<span title={message.id.startsWith('local-')?'Mengirim pesan':'Terkirim' }><CheckCheck size={12}/></span>}</div>
+                 <div className={'min-w-0 max-w-[88%] [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[76%] sm:px-4 '+(mine?'rounded-br-md bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-950/10':'rounded-bl-md border border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700/70 dark:bg-slate-800/90 dark:text-slate-200')+(matches?' ring-2 ring-amber-400/70':'')}>
+                   {message.deleted_at||message.body===DELETED_CHAT_MESSAGE_BODY?<p className="py-1 text-xs italic opacity-70">Pesan ini telah dihapus.</p>:messageHidden?<div className="flex items-center gap-2 py-1 text-xs opacity-80"><Lock size={14}/> Isi pesan disembunyikan untuk privasi.</div>:firstTicket?<TicketIntro subject={selected.subject} description={selected.description}/>:<Body body={message.body} preview={url=>setPreview(url)}/>}
+                    <div className="mt-1.5 flex items-center justify-end gap-1.5 text-[9px] opacity-70"><span>{formatChatTime(message.created_at)}</span>{mine&&<span title={message.id.startsWith('local-')?'Mengirim pesan':'Terkirim'}><CheckCheck size={12}/></span>}{!messageHidden&&canDeletePrivateMessage(message,me,now)&&<button type="button" aria-label="Hapus pesan" title="Hapus pesan (tersedia 24 jam)" onClick={()=>setDeleteConfirmId(message.id)} className="ml-1 rounded p-1 text-white/75 transition hover:bg-white/15 hover:text-white"><Trash2 size={12}/></button>}</div>
+                    {deleteConfirmId===message.id&&<div className="mt-2 flex flex-wrap items-center justify-end gap-2 rounded-lg bg-black/15 px-2 py-2 text-[10px]"><span className="mr-auto opacity-80">Hapus pesan ini untuk semua orang?</span><button type="button" disabled={deletingMessageId===message.id} onClick={()=>void confirmDeleteMessage('private',message.id)} className="rounded-md bg-white/15 px-2.5 py-1.5 font-semibold hover:bg-white/25 disabled:opacity-50">{deletingMessageId===message.id?'Menghapus…':'Konfirmasi hapus'}</button><button type="button" disabled={deletingMessageId===message.id} onClick={()=>setDeleteConfirmId(null)} className="rounded-md px-2 py-1.5 opacity-75 hover:bg-white/10">Batal</button></div>}
                  </div>
                </div>
              </div>;
@@ -451,13 +500,10 @@ export function MessagesPage() {
          </div>
          {newMessages>0&&<button type="button" onClick={()=>{setNewMessages(0);if(scrollRef.current)scrollRef.current.scrollTo({top:scrollRef.current.scrollHeight,behavior:'smooth'});void markThreadRead(selected.id).catch(()=>undefined)}} className="absolute bottom-[94px] left-1/2 z-20 -translate-x-1/2 rounded-full border border-blue-500/30 bg-blue-600 px-4 py-2 text-[11px] font-semibold text-white shadow-lg shadow-blue-950/25">↓ {newMessages} pesan baru</button>}
          {selected.status==='open'&&<div onDragOver={event=>{event.preventDefault();setDrop(true)}} onDragLeave={()=>setDrop(false)} onDrop={onDrop} className={'relative z-10 shrink-0 border-t border-slate-200 bg-white/90 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-[#111827]/90 sm:p-4 '+(drop?'bg-blue-500/10':'')}>
-           {recording&&<div className="mb-2 flex items-center justify-between rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-500 dark:text-rose-300"><span className="flex items-center gap-2"><span className="h-2 w-2 animate-pulse rounded-full bg-rose-500"/> Merekam pesan suara · {String(Math.floor(recordingSeconds/60)).padStart(2,'0')}:{String(recordingSeconds%60).padStart(2,'0')}</span><span>Maks. 01:00</span></div>}
            <div className="flex items-end gap-2">
              <input ref={fileRef} type="file" accept="image/jpeg,image/png,application/pdf,audio/webm,audio/ogg,audio/mp4,audio/mpeg,audio/wav" className="hidden" onChange={event=>{const file=event.target.files?.[0];if(file)void upload(file);event.currentTarget.value=''}}/>
              <button type="button" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-fg disabled:opacity-40 dark:border-slate-700/60 dark:bg-slate-800/70 dark:text-slate-400 dark:hover:bg-slate-700" disabled={!canSend||busy} onClick={()=>setAttachmentMenuOpen(true)} title="Lampirkan file"><Paperclip size={17}/></button>
-             <div className="relative hidden shrink-0 sm:block"><button type="button" className={'flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:text-amber-500 dark:border-slate-700/60 dark:bg-slate-800/70 dark:text-slate-400 '+(emojiOpen?'text-amber-500':'')} onClick={()=>setEmojiOpen(value=>!value)} title="Pilih emoji"><Smile size={17}/></button>{emojiOpen&&<div className="absolute bottom-12 left-0 z-40 grid grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">{['👍','🔥','❤️','🎉','💡','😂','🙏','😊','✅','✨'].map(emoji=><button key={emoji} type="button" onClick={()=>{setInput(value=>value+emoji);setEmojiOpen(false)}} className="rounded-lg p-2 text-lg transition hover:bg-slate-100 dark:hover:bg-slate-800">{emoji}</button>)}</div>}</div>
-             <div className="min-w-0 flex-1"><textarea value={input} onChange={event=>setInput(event.target.value)} onPaste={onPaste} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void sendText()}}} disabled={!canSend||busy||(admin&&isTicket(selected)&&!selected.handled_by)} placeholder={cooldownMs>0?'Chat dibatasi karena spam…':'Tulis pesan…'} className="min-h-[42px] max-h-32 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:bg-[#0b0f19] dark:text-slate-100 dark:placeholder:text-slate-500" rows={1}/></div>
-             <button type="button" onClick={toggleVoiceRecording} disabled={!canSend||busy||(admin&&isTicket(selected)&&!selected.handled_by)} title={recording?'Hentikan dan kirim pesan suara':'Rekam pesan suara'} className={'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 '+(recording?'border-rose-500/40 bg-rose-500/10 text-rose-500':'border-slate-200 bg-slate-100 text-slate-500 hover:text-rose-500 dark:border-slate-700/60 dark:bg-slate-800/70 dark:text-slate-400')} >{recording?<Square size={15} fill="currentColor"/>:<Mic size={17}/>}</button>
+             <div className="min-w-0 flex-1"><textarea ref={inputRef} value={input} onChange={event=>setInput(event.target.value)} onPaste={onPaste} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void sendText()}}} disabled={!canSend||(admin&&isTicket(selected)&&!selected.handled_by)} placeholder={cooldownMs>0?'Chat dibatasi karena spam…':'Tulis pesan…'} className="min-h-[42px] max-h-32 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:bg-[#0b0f19] dark:text-slate-100 dark:placeholder:text-slate-500" rows={1}/></div>
              <button type="button" disabled={!canSend||busy||!input.trim()||(admin&&isTicket(selected)&&!selected.handled_by)} onClick={()=>void sendText()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-950/20 transition hover:from-blue-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-35" title="Kirim pesan"><Send size={17}/></button>
            </div>
            <p className="mt-2 hidden px-1 text-[9px] text-slate-400 sm:block">Enter untuk mengirim · Shift + Enter untuk baris baru · Lampiran maks. 2 MB</p>
@@ -484,15 +530,14 @@ export function MessagesPage() {
              const dateLabel=new Date(message.created_at).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
              return <div key={message.id} className="space-y-2">
                {showDate&&<div className="my-4 flex items-center gap-3"><span className="h-px flex-1 bg-slate-200 dark:bg-slate-800"/><span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-[#0b0f19] dark:text-slate-500">{dateLabel}</span><span className="h-px flex-1 bg-slate-200 dark:bg-slate-800"/></div>}
-               <div className={'flex '+(mine?'justify-end':'justify-start')}><div className={'max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[76%] sm:px-4 '+(mine?'rounded-br-md bg-gradient-to-r from-blue-600 to-blue-500 text-white':'rounded-bl-md border border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700/70 dark:bg-slate-800/90 dark:text-slate-200')}><div className="mb-1.5 flex items-center gap-2"><span className="text-[10px] font-semibold opacity-75">{mine?'Kamu':message.sender_name}</span><Badge color="moss">{message.sender_role}</Badge></div>{messageHidden?<p className="text-xs opacity-70">Isi pesan disembunyikan untuk privasi.</p>:<Body body={message.body} preview={url=>setPreview(url)}/>}<div className="mt-1.5 flex items-center justify-end gap-1.5 text-[9px] opacity-60"><span>{formatChatTime(message.created_at)}</span>{mine&&<span title="Terkirim"><CheckCheck size={12}/></span>}</div></div></div>
+                <div className={'flex min-w-0 '+(mine?'justify-end':'justify-start')}><div className={'min-w-0 max-w-[88%] [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[76%] sm:px-4 '+(mine?'rounded-br-md bg-gradient-to-r from-blue-600 to-blue-500 text-white':'rounded-bl-md border border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700/70 dark:bg-slate-800/90 dark:text-slate-200')}><div className="mb-1.5 flex items-center gap-2"><span className="text-[10px] font-semibold opacity-75">{mine?'Kamu':message.sender_name}</span><Badge color="moss">{message.sender_role}</Badge></div>{message.deleted_at||message.body===DELETED_CHAT_MESSAGE_BODY?<p className="text-xs italic opacity-70">Pesan ini telah dihapus.</p>:messageHidden?<p className="text-xs opacity-70">Isi pesan disembunyikan untuk privasi.</p>:<Body body={message.body} preview={url=>setPreview(url)}/>}<div className="mt-1.5 flex items-center justify-end gap-1.5 text-[9px] opacity-70"><span>{formatChatTime(message.created_at)}</span>{mine&&<span title="Terkirim"><CheckCheck size={12}/></span>}{!messageHidden&&canDeleteGroupMessage(message,me,now)&&<button type="button" aria-label="Hapus pesan" title="Hapus pesan (tersedia 24 jam)" onClick={()=>setDeleteConfirmId(message.id)} className="ml-1 rounded p-1 text-white/75 transition hover:bg-white/15 hover:text-white"><Trash2 size={12}/></button>}</div>{deleteConfirmId===message.id&&<div className="mt-2 flex flex-wrap items-center justify-end gap-2 rounded-lg bg-black/15 px-2 py-2 text-[10px]"><span className="mr-auto opacity-80">Hapus pesan ini untuk semua orang?</span><button type="button" disabled={deletingMessageId===message.id} onClick={()=>void confirmDeleteMessage('group',message.id)} className="rounded-md bg-white/15 px-2.5 py-1.5 font-semibold hover:bg-white/25 disabled:opacity-50">{deletingMessageId===message.id?'Menghapus…':'Konfirmasi hapus'}</button><button type="button" disabled={deletingMessageId===message.id} onClick={()=>setDeleteConfirmId(null)} className="rounded-md px-2 py-1.5 opacity-75 hover:bg-white/10">Batal</button></div>}</div></div>
              </div>;
            })}
          </div>
          {newMessages>0&&<button type="button" onClick={()=>{setNewMessages(0);if(groupScrollRef.current)groupScrollRef.current.scrollTo({top:groupScrollRef.current.scrollHeight,behavior:'smooth'});if(selectedGroup)void markChatGroupRead(selectedGroup.id).catch(()=>undefined)}} className="absolute bottom-[88px] left-1/2 z-20 -translate-x-1/2 rounded-full border border-blue-500/30 bg-blue-600 px-4 py-2 text-[11px] font-semibold text-white shadow-lg">↓ {newMessages} pesan baru</button>}
          <div className="relative z-10 shrink-0 border-t border-slate-200 bg-white/90 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-[#111827]/90 sm:p-4">
            <div className="flex items-end gap-2">
-             <div className="relative hidden shrink-0 sm:block"><button type="button" className={'flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:text-amber-500 dark:border-slate-700/60 dark:bg-slate-800/70 dark:text-slate-400 '+(emojiOpen?'text-amber-500':'')} onClick={()=>setEmojiOpen(value=>!value)} title="Pilih emoji"><Smile size={17}/></button>{emojiOpen&&<div className="absolute bottom-12 left-0 z-40 grid grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">{['👍','🔥','❤️','🎉','💡','😂','🙏','😊','✅','✨'].map(emoji=><button key={emoji} type="button" onClick={()=>{setGroupInput(value=>value+emoji);setEmojiOpen(false)}} className="rounded-lg p-2 text-lg transition hover:bg-slate-100 dark:hover:bg-slate-800">{emoji}</button>)}</div>}</div>
-             <textarea value={groupInput} onChange={event=>setGroupInput(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void sendGroupText()}}} placeholder="Tulis pesan ke grup…" className="min-h-[42px] max-h-32 min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-fg outline-none focus:border-blue-500/60 dark:border-slate-800 dark:bg-[#0b0f19]" rows={1}/>
+             <textarea ref={groupInputRef} value={groupInput} onChange={event=>setGroupInput(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void sendGroupText()}}} placeholder="Tulis pesan ke grup…" className="min-h-[42px] max-h-32 min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-fg outline-none focus:border-blue-500/60 dark:border-slate-800 dark:bg-[#0b0f19]" rows={1}/>
              <button type="button" disabled={groupBusy||!groupInput.trim()} onClick={()=>void sendGroupText()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md disabled:opacity-35" title="Kirim pesan"><Send size={17}/></button>
            </div>
          </div>
