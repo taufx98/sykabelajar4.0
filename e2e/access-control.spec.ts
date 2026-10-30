@@ -1058,7 +1058,7 @@ test.describe('chat network request reuse', () => {
     expect(spamStatusReads).toBe(1);
   });
 
-  test('reuses an in-flight unread-count request when Realtime asks for a refresh', async ({ page }) => {
+  test('refreshes unread count once when Realtime invalidates an in-flight snapshot', async ({ page }) => {
     await mockSupabaseLogin(page, ['student']);
     const corsHeaders = {
       'access-control-allow-origin': '*',
@@ -1080,7 +1080,7 @@ test.describe('chat network request reuse', () => {
         return;
       }
       unreadCountReads += 1;
-      // Keep the initial unread count in flight while the debounced Realtime refresh is scheduled.
+      // Both pre-event and post-event reads are delayed so the test proves the stale snapshot is replaced.
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: '0' });
     });
@@ -1099,7 +1099,8 @@ test.describe('chat network request reuse', () => {
       }));
     });
     await page.waitForTimeout(700);
-    expect(unreadCountReads).toBe(1);
+    // One old snapshot plus exactly one post-event snapshot; no request storm from the event.
+    expect(unreadCountReads).toBe(2);
   });
 
   test('uses the saved group-message response without fetching the latest page again', async ({ page }) => {
