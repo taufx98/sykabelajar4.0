@@ -448,7 +448,7 @@ export function MessagesPage() {
                <div id={'chat-message-'+message.id} className={'scroll-mt-16 flex '+(mine?'justify-end':'justify-start')}>
                  {!mine&&<div className="mr-2 mt-1 shrink-0"><Avatar name={nameOf(selected,me,admin)} id={selected.user_id===me?(selected.participant_id||selected.id):selected.user_id} size={30} src={avatarOf(selected,me)}/></div>}
                  <div className={'min-w-0 max-w-[88%] [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[76%] sm:px-4 '+(mine?'rounded-br-md bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-950/10':'rounded-bl-md border border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700/70 dark:bg-slate-800/90 dark:text-slate-200')+(matches?' ring-2 ring-amber-400/70':'')}>
-                   {messageHidden?<div className="flex items-center gap-2 py-1 text-xs opacity-80"><Lock size={14}/> Isi pesan disembunyikan untuk privasi.</div>:firstTicket?<TicketIntro subject={selected.subject} description={selected.description}/>:<Body body={message.body} preview={url=>setPreview(url)}/}}
+                   {messageHidden?<div className="flex items-center gap-2 py-1 text-xs opacity-80"><Lock size={14}/> Isi pesan disembunyikan untuk privasi.</div>:firstTicket?<TicketIntro subject={selected.subject} description={selected.description}/>:<Body body={message.body} preview={url=>setPreview(url)}/}
                     <div className="mt-1.5 flex items-center justify-end gap-1.5 text-[9px] opacity-70"><span>{formatChatTime(message.created_at)}</span>{mine&&<span title={message.id.startsWith('local-')?'Mengirim pesan':'Terkirim'}><CheckCheck size={12}/></span>}</div>
                  </div>
                </div>
