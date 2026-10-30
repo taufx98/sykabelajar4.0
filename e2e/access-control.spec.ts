@@ -368,9 +368,6 @@ test.describe('chat message history pagination and cache', () => {
       await expect(cachedMessages).toHaveCount(expectedCount);
     }
     expect(pageRequests).toHaveLength(4);
-    });
-    await page.waitForTimeout(300);
-    expect(pageRequests).toHaveLength(4);
   });
 });
 
