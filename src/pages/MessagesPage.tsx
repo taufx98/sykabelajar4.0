@@ -135,6 +135,7 @@ export function MessagesPage() {
  const fileRef=useRef<HTMLInputElement|null>(null);
  const loadToken=useRef(0);
  const refreshToken=useRef(0);
+ const olderRequestRef=useRef<string|null>(null);
  const open=useMemo(()=>threads.filter(t=>t.status==='open'),[threads]);
  const pendingRating=useMemo(()=>threads.filter(t=>t.status==='closed'&&isTicket(t)&&t.rating==null),[threads]);
  const activeTicket=!admin?(open.find(isTicket)||null):null;
