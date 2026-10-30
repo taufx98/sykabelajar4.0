@@ -103,6 +103,28 @@ export async function getChatSpamStatus(force=false){
 }
 export async function loadChatMessagesPage(threadId:string,limit=50,before?:string|null){const{data,error}=await supabase.rpc('get_chat_messages_page',{p_thread_id:threadId,p_limit:Math.min(Math.max(limit,1),100),p_before:before??null});if(error)throw err(error);return[...(data??[])].reverse()as ChatMessage[]}
 export async function markThreadRead(threadId:string){const{error}=await supabase.rpc('mark_chat_thread_read',{p_thread_id:threadId});if(error)throw err(error);applyChatRealtimeRead(threadId);invalidateUnreadChatCount();emitSykaEvent({type:'chat-read',threadId})}
+async function fetchUnreadChatCount(
+  userId:string|null,
+  requestKey:string,
+  cacheKey:string|null,
+  generation:number,
+):Promise<number>{
+  const{data,error}=await supabase.rpc('get_my_unread_chat_count');
+  if(error)throw error;
+  const value=Number(data??0);
+  if(userId&&generation!==(unreadCountGeneration.get(userId)??0)){
+    // This request predates a Realtime mutation. Never surface its stale count;
+    // join the newer snapshot or start one if the debounce has not fired yet.
+    const newerRequest=unreadCountInFlight.get(requestKey);
+    if(newerRequest)return newerRequest;
+    return getUnreadChatCount(true);
+  }
+  if(userId){
+    unreadCountCache.set(userId,{value,at:Date.now()});
+    if(cacheKey)setPersistentCache(cacheKey,value,{ttlMs:UNREAD_COUNT_PERSIST_TTL});
+  }
+  return value;
+}
 export async function getUnreadChatCount(force=false){
   const userId=await currentSessionUserId();
   const requestKey=userId??'anonymous';
@@ -122,24 +144,7 @@ export async function getUnreadChatCount(force=false){
   const inFlight=unreadCountInFlight.get(requestKey);
   if(inFlight)return inFlight;
   const generation=userId?(unreadCountGeneration.get(userId)??0):0;
-  let request:Promise<number>;
-  request=(async()=>{
-    const{data,error}=await supabase.rpc('get_my_unread_chat_count');
-    if(error)throw error;
-    const value=Number(data??0);
-    if(userId&&generation!==(unreadCountGeneration.get(userId)??0)){
-      // This request predates a Realtime mutation. Never surface its stale count;
-      // join the newer snapshot or start one if the debounce has not fired yet.
-      const newerRequest=unreadCountInFlight.get(requestKey);
-      if(newerRequest&&newerRequest!==request)return newerRequest;
-      return getUnreadChatCount(true);
-    }
-    if(userId){
-      unreadCountCache.set(userId,{value,at:Date.now()});
-      if(cacheKey)setPersistentCache(cacheKey,value,{ttlMs:UNREAD_COUNT_PERSIST_TTL});
-    }
-    return value;
-  })();
+  const request=fetchUnreadChatCount(userId,requestKey,cacheKey,generation);
   unreadCountInFlight.set(requestKey,request);
   try{return await request}
   finally{if(unreadCountInFlight.get(requestKey)===request)unreadCountInFlight.delete(requestKey)}
