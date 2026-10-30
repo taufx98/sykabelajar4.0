@@ -356,6 +356,14 @@ test.describe('chat composer controls, focus and viewport', () => {
     await expect(page.getByText('Hapus pesan ini untuk semua orang?', { exact: true })).toHaveCount(0);
 
     const composer = page.getByPlaceholder('Tulis pesan…');
+    const attachmentButton = page.getByTitle('Lampirkan file');
+    const sendButton = page.getByTitle('Kirim pesan');
+    const composerControlHeights = await Promise.all(
+      [attachmentButton, composer, sendButton].map((locator) =>
+        locator.evaluate((element) => Math.round(element.getBoundingClientRect().height)),
+      ),
+    );
+    expect(composerControlHeights).toEqual([42, 42, 42]);
     await composer.fill('Pesan pertama setelah fokus');
     await page.getByTitle('Kirim pesan').click();
     await expect.poll(() => sendCount).toBe(1);
