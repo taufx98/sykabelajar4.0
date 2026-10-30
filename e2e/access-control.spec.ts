@@ -938,15 +938,17 @@ test.describe('mobile navigation single source and immersive exam routes', () =>
 
   test('hides bottom navigation while a participant is taking an exam', async ({ page }) => {
     await signInForMobileNavigation(page, ['student']);
-    await page.goto('/lomba/ujian-uji/kerja');
-    await expect(page).toHaveURL(/\/lomba\/ujian-uji\/kerja$/);
-    await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(0);
+    for (const route of ['/lomba/ujian-uji/kerja', '/lomba/ujian-uji/kerja/']) {
+      await page.goto(route);
+      await expect(page).toHaveURL(/\/lomba\/ujian-uji\/kerja\/?$/);
+      await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(0);
+    }
   });
 
   test('hides bottom navigation during an organizer exam simulation', async ({ page }) => {
     await signInForMobileNavigation(page, ['organizer_member']);
-    await page.goto('/organizer/competition/11111111-1111-4111-8111-111111111111/simulation/22222222-2222-4222-8222-222222222222');
-    await expect(page).toHaveURL(/\/organizer\/competition\/[^/]+\/simulation\/[^/]+$/);
+    await page.goto('/organizer/competition/11111111-1111-4111-8111-111111111111/simulation/22222222-2222-4222-8222-222222222222/');
+    await expect(page).toHaveURL(/\/organizer\/competition\/[^/]+\/simulation\/[^/]+\/?$/);
     await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(0);
     await expect(page.getByRole('navigation', { name: 'Navigasi Penyelenggara' })).toHaveCount(0);
   });
