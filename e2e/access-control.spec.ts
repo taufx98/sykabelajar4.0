@@ -735,7 +735,7 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SMA 2 Yogyakarta');
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('1st');
 
-    await page.getByRole('button', { name: 'Semua Jenjang', exact: true }).click();
+    await page.getByRole('button', { name: 'Semua Sekolah', exact: true }).click();
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
   });
 });
