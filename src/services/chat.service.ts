@@ -4,14 +4,7 @@ import { getPersistentCache, setPersistentCache } from '@/lib/persistentCache';
 export type ChatThreadType='dm'|'ticket'|string;
 export type FollowStatus='none'|'pending'|'approved'|'auto';
 export interface ChatThread{id:string;user_id:string;participant_id?:string|null;status:'open'|'closed';rating:number|null;closed_at:string|null;created_at:string;thread_type?:ChatThreadType;subject?:string|null;description?:string|null;handled_by?:string|null;handled_at?:string|null;user_name?:string;username?:string|null;avatar_url?:string;other_user_name?:string;other_username?:string|null;other_avatar_url?:string;last_message?:string;last_message_at?:string;unread_count?:number;}
-export interface ChatMessage{id:string;thread_id:string;sender_id:string;body:string;created_at:string;deleted_at?:string|null;}
-export const DELETED_CHAT_MESSAGE_BODY='Pesan ini telah dihapus.';
-const CHAT_MESSAGE_DELETE_WINDOW_MS=24*60*60*1000;
-export function isChatMessageWithinDeleteWindow(createdAt:string,now=Date.now()){
- const timestamp=Date.parse(createdAt);
- const age=now-timestamp;
- return Number.isFinite(timestamp)&&age>=0&&age<CHAT_MESSAGE_DELETE_WINDOW_MS;
-}
+export interface ChatMessage{id:string;thread_id:string;sender_id:string;body:string;created_at:string;}
 
 export interface ChatHistoryRow{thread_id:string;user_id:string;user_name:string;username:string|null;status:string;rating:number|null;handled_by:string|null;handled_name:string|null;handled_username:string|null;created_at:string;closed_at:string|null;subject:string|null;description:string|null;message_count:number;}
 export interface SearchUserResult{id:string;username:string;full_name:string;avatar_url:string|null;}
@@ -56,12 +49,6 @@ export async function getOrCreateDmThread(otherUserId:string){
 async function loadMyThreadsInternal(force=false,allowRealtimeCache=true){const now=Date.now();if(!force&&threadsCache&&now-threadsCacheAt<THREADS_CACHE_MS)return threadsCache;if(force&&allowRealtimeCache&&threadsCache&&threadsRealtimePatchedAt>0&&now-threadsRealtimePatchedAt<THREADS_REALTIME_CACHE_MS)return threadsCache;const uid=await currentSessionUserId();if(threadsInFlight&&threadsInFlightUserId===uid)return threadsInFlight;const key=uid?cacheKeyForUser('threads',uid):null;if(!force&&key){const cached=getPersistentCache<ChatThread[]>(key);if(cached){threadsCache=cached.data;threadsCacheAt=now;threadsRealtimePatchedAt=0;return cached.data}}const request=(async()=>{const{data,error}=await supabase.rpc('load_my_threads',{p_limit:THREADS_SERVER_LIMIT});if(error)throw error;const rows=(data??[])as ChatThread[];for(const row of rows){if(!row.user_name)row.user_name='User';if(!row.username)row.username='user';if(!row.other_user_name)row.other_user_name='User';}threadsCache=rows;threadsCacheAt=Date.now();threadsRealtimePatchedAt=0;if(key)setPersistentCache(key,rows,{ttlMs:THREADS_PERSIST_TTL});return rows})();threadsInFlight=request;threadsInFlightUserId=uid;try{return await request}finally{if(threadsInFlight===request){threadsInFlight=null;threadsInFlightUserId=null}}}
 export async function loadMyThreads(force=false){return loadMyThreadsInternal(force,true)}
 async function throwPersistedSpamCooldown(){try{const status=await getChatSpamStatus();if(status.blocked_until){const e=new Error(`Peringatan ${Math.max(1,status.strike_count)}: terlalu banyak pesan dalam waktu singkat. Kamu tidak dapat mengirim chat sampai ${status.blocked_until}.`);e.name='ChatSpamCooldown';throw e;}}catch(error){if(error instanceof Error&&error.name==='ChatSpamCooldown')throw error;throw new Error('Pesan sementara dibatasi karena terdeteksi spam.')}}
-export async function deleteChatMessage(messageId:string){
- if(!messageId)throw new Error('MESSAGE_ID_REQUIRED');
- const{data,error}=await supabase.rpc('delete_chat_message',{p_message_id:messageId});
- if(error)throw err(error);
- return data as ChatMessage;
-}
 export async function sendMessage(threadId:string,body:string){const text=body.trim();if(!text)throw new Error('MESSAGE_REQUIRED');const{data,error}=await supabase.rpc('send_chat_message',{p_thread_id:threadId,p_body:text});if(error)throw err(error);if(data===null){await throwPersistedSpamCooldown();throw new Error('Pesan sementara dibatasi karena terdeteksi spam.');}const saved=data as ChatMessage;applyChatRealtimeMessage(saved,saved.sender_id);invalidateUnreadCache();emitSykaEvent({type:'chat-unread',threadId});return saved}
 function invalidateUnreadCache(){unreadCountCache=null;unreadCountCacheAt=0}
 export async function getChatSpamStatus(){const{data,error}=await supabase.rpc('get_chat_spam_status');if(error)throw err(error);const row=(data??{})as Record<string,unknown>;return{warning_level:Number(row.warning_level??0),strike_count:Number(row.strike_count??0),blocked_until:row.blocked_until==null?null:String(row.blocked_until),reset_at:String(row.reset_at??new Date(Date.now()+7*86400000).toISOString())}as ChatSpamStatus}
@@ -92,18 +79,12 @@ export async function acceptFollow(followerId:string,_followingId:string){return
 export async function rejectFollow(followerId:string,_followingId:string){return respondFollowRequest(followerId,false)}
 
 export type ChatGroup={id:string;name:string;description:string|null;group_type:'general'|'event'|'class';competition_id:string|null;owner_user_id:string;join_mode:'invite_only'|'link';member_count:number;last_message:string|null;last_message_at:string|null;my_role:'OWNER'|'ADMIN'|'MEMBER';unread_count:number};
-export type ChatGroupMessage={id:string;group_id:string;sender_user_id:string|null;sender_collective_participant_id:string|null;sender_name:string;sender_role:string;body:string;created_at:string;deleted_at?:string|null};
+export type ChatGroupMessage={id:string;group_id:string;sender_user_id:string|null;sender_collective_participant_id:string|null;sender_name:string;sender_role:string;body:string;created_at:string};
 export type ChatGroupMember={id:string;user_id:string|null;collective_participant_id:string|null;display_name:string;username:string|null;avatar_url:string|null;member_role:string;member_status:string;joined_at:string};
 
 export async function listChatGroups(){const{data,error}=await supabase.rpc('list_my_chat_groups');if(error)throw err(error);return(data??[])as ChatGroup[]}
 export async function createChatGroup(input:{name:string;description?:string;groupType?:'general'|'event'|'class';competitionId?:string|null;joinMode?:'invite_only'|'link'}){const{data,error}=await supabase.rpc('create_chat_group',{p_name:input.name,p_description:input.description??null,p_group_type:input.groupType??'general',p_competition_id:input.competitionId??null,p_join_mode:input.joinMode??'invite_only'});if(error)throw err(error);return data as {id:string;name:string;description:string|null;group_type:string;competition_id:string|null;join_mode:string;invite_token:string}}
 export async function loadChatGroupMessages(groupId:string,limit=50,before?:string|null){const{data,error}=await supabase.rpc('get_chat_group_messages',{p_group_id:groupId,p_limit:limit,p_before:before??null});if(error)throw err(error);return[...(data??[])].reverse()as ChatGroupMessage[]}
-export async function deleteChatGroupMessage(messageId:string){
- if(!messageId)throw new Error('MESSAGE_ID_REQUIRED');
- const{data,error}=await supabase.rpc('delete_chat_group_message',{p_message_id:messageId});
- if(error)throw err(error);
- return data as ChatGroupMessage;
-}
 export async function sendChatGroupMessage(groupId:string,body:string){const text=body.trim();if(!text)throw new Error('MESSAGE_REQUIRED');const{data,error}=await supabase.rpc('send_chat_group_message',{p_group_id:groupId,p_body:text});if(error)throw err(error);return data as ChatGroupMessage}
 export async function listChatGroupMembers(groupId:string){const{data,error}=await supabase.rpc('get_chat_group_members',{p_group_id:groupId});if(error)throw err(error);return(data??[])as ChatGroupMember[]}
 export async function addChatGroupMember(groupId:string,input:{userId?:string|null;collectiveParticipantId?:string|null}){const{data,error}=await supabase.rpc('add_chat_group_member',{p_group_id:groupId,p_user_id:input.userId??null,p_collective_participant_id:input.collectiveParticipantId??null});if(error)throw err(error);return data as ChatGroupMember}
