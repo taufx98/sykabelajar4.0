@@ -358,10 +358,16 @@ test.describe('chat message history pagination and cache', () => {
 
     await page.reload();
     const cachedContainer = page.getByTestId('chat-message-list');
-    await expect(cachedContainer.getByTestId('chat-message')).toHaveCount(120);
-    await cachedContainer.evaluate((element) => {
-      element.scrollTop = 0;
-      element.dispatchEvent(new Event('scroll', { bubbles: true }));
+    const cachedMessages = cachedContainer.getByTestId('chat-message');
+    await expect(cachedMessages).toHaveCount(20);
+    for (const expectedCount of [70, 120, 120]) {
+      await cachedContainer.evaluate((element) => {
+        element.scrollTop = 0;
+        element.dispatchEvent(new Event('scroll', { bubbles: true }));
+      });
+      await expect(cachedMessages).toHaveCount(expectedCount);
+    }
+    expect(pageRequests).toHaveLength(4);
     });
     await page.waitForTimeout(300);
     expect(pageRequests).toHaveLength(4);
