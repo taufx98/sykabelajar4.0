@@ -348,7 +348,416 @@ const LEADERBOARD_STYLES = String.raw`
  .lb-period-note { font-size: 8px; text-align: left; justify-content: flex-start; }
  .lb-modal { padding: 15px; }
 }
-`;
+
+/* Reference-matched school leaderboard podium. These selectors are deliberately
+   separate from the empty podium placeholders so their existing skeleton state
+   keeps its original structure and appearance. */
+.lb-school-podium-area {
+  max-width: 960px;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 46px 4px 28px;
+  margin-bottom: 30px;
+}
+.lb-school-podium-area .lb-school-podium {
+  position: relative;
+  display: block;
+  flex: 1 1 0;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  align-self: stretch;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  text-align: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.lb-school-podium-area .lb-school-podium.rank-1 {
+  flex: 1.08 1 0;
+  margin-bottom: 24px;
+}
+.lb-school-podium-area .lb-school-podium:focus-visible {
+  border-radius: 16px;
+  outline: 3px solid rgba(96,165,250,.85);
+  outline-offset: 7px;
+}
+.lb-school-podium-tower {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 370px;
+  flex-direction: column;
+  align-items: center;
+  padding: 49px 16px 43px;
+  overflow: hidden;
+  clip-path: polygon(0 0,100% 0,100% 91%,50% 100%,0 91%);
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 18px 36px rgba(2,6,23,.25);
+  transition: filter .22s ease, transform .22s ease;
+}
+.lb-school-podium-area .lb-school-podium:hover .lb-school-podium-tower {
+  filter: brightness(1.055);
+  transform: translateY(-4px);
+}
+.lb-school-podium-area .lb-school-podium.rank-1 .lb-school-podium-tower {
+  min-height: 425px;
+  padding-top: 49px;
+  padding-bottom: 45px;
+  background: linear-gradient(180deg,#f59e0b 0%,#ea580c 60%,#8b3514 100%);
+  box-shadow: 0 18px 42px rgba(234,88,12,.2), 0 0 34px rgba(245,158,11,.13);
+}
+.lb-school-podium-area .lb-school-podium.rank-2 .lb-school-podium-tower {
+  background: linear-gradient(180deg,#2563eb 0%,#2845bd 52%,#29327f 100%);
+  box-shadow: 0 17px 34px rgba(37,99,235,.18);
+}
+.lb-school-podium-area .lb-school-podium.rank-3 .lb-school-podium-tower {
+  background: linear-gradient(180deg,#4338ca 0%,#3730a3 58%,#172344 100%);
+  box-shadow: 0 17px 34px rgba(67,56,202,.18);
+}
+.lb-school-rank-badge {
+  position: absolute;
+  z-index: 2;
+  top: -31px;
+  left: 50%;
+  display: flex;
+  width: 65px;
+  height: 65px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255,255,255,.86);
+  border-radius: 19px;
+  box-shadow: 0 7px 18px rgba(2,6,23,.25), inset 0 1px 0 rgba(255,255,255,.32);
+  transform: translateX(-50%) rotate(45deg);
+}
+.lb-school-rank-badge > span {
+  display: block;
+  transform: rotate(-45deg);
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1;
+}
+.lb-school-rank-badge.rank-1 {
+  border-color: #fff3c4;
+  background: linear-gradient(145deg,#facc15,#f59e0b 75%);
+  color: #111827;
+}
+.lb-school-rank-badge.rank-2 {
+  border-color: #d7fbff;
+  background: linear-gradient(145deg,#22d3ee,#2563eb);
+  color: #fff;
+}
+.lb-school-rank-badge.rank-3 {
+  border-color: #e0e7ff;
+  background: linear-gradient(145deg,#818cf8,#4338ca);
+  color: #fff;
+}
+.lb-school-name {
+  display: block;
+  width: 100%;
+  margin-top: 1px;
+  color: #fff;
+  font-size: clamp(19px,2vw,25px);
+  font-weight: 850;
+  letter-spacing: -.035em;
+  line-height: 1.17;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.lb-school-podium.rank-1 .lb-school-name {
+  font-size: clamp(23px,2.35vw,31px);
+}
+.lb-school-meta {
+  display: block;
+  margin-top: 5px;
+  color: rgba(255,255,255,.88);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-align: center;
+}
+.lb-school-score {
+  display: flex;
+  width: 100%;
+  min-height: 58px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 13px;
+  padding: 10px 9px;
+  border-radius: 13px;
+  background: rgba(70,26,7,.38);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.lb-school-podium.rank-1 .lb-school-score {
+  min-height: 60px;
+  background: rgba(124,45,18,.58);
+}
+.lb-school-podium.rank-2 .lb-school-score {
+  background: rgba(18,48,126,.65);
+}
+.lb-school-podium.rank-3 .lb-school-score {
+  background: rgba(25,24,91,.62);
+}
+.lb-school-score > span {
+  color: #fcd34d;
+  font-size: 14px;
+  font-weight: 850;
+}
+.lb-school-score > strong {
+  color: #fff;
+  font-size: clamp(20px,2.15vw,26px);
+  font-weight: 900;
+  letter-spacing: -.035em;
+  line-height: 1.1;
+}
+.lb-school-metrics {
+  display: grid;
+  width: 100%;
+  min-height: 62px;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  margin-top: 10px;
+  padding: 8px 4px;
+  border-radius: 14px;
+  background: #fff8e9;
+  color: #101827;
+}
+.lb-school-metrics > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.lb-school-metrics > span + span {
+  border-left: 1px solid rgba(245,158,11,.28);
+}
+.lb-school-metrics strong {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.lb-school-metrics small {
+  color: #536176;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.lb-school-contributors {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255,255,255,.15);
+}
+.lb-school-contributors-title {
+  display: block;
+  margin-bottom: 1px;
+  color: rgba(255,255,255,.8);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .055em;
+  line-height: 1.4;
+  text-align: center;
+  text-transform: uppercase;
+}
+.lb-school-contributor-row {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 16px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: rgba(4,12,39,.47);
+  color: #f8fafc;
+  font-size: 10px;
+  line-height: 1.25;
+  text-align: left;
+}
+.lb-school-podium.rank-1 .lb-school-contributor-row {
+  background: rgba(82,29,12,.57);
+}
+.lb-school-podium.rank-2 .lb-school-contributor-row {
+  background: rgba(12,31,94,.58);
+}
+.lb-school-podium.rank-3 .lb-school-contributor-row {
+  background: rgba(15,19,75,.57);
+}
+.lb-school-contributor-rank {
+  color: #38bdf8;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.lb-school-podium.rank-1 .lb-school-contributor-rank {
+  color: #fbbf24;
+}
+.lb-school-podium.rank-3 .lb-school-contributor-rank {
+  color: #a5b4fc;
+}
+.lb-school-contributor-name {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255,255,255,.94);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-school-contributor-score {
+  color: #fcd34d;
+  font-size: 9px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.lb-school-contributors-empty {
+  padding: 9px 7px;
+  border-radius: 7px;
+  background: rgba(4,12,39,.35);
+  color: rgba(255,255,255,.65);
+  font-size: 10px;
+  text-align: center;
+}
+
+/* Small refinements around the existing controls, category navigation and table. */
+.lb-heading h1 {
+  font-size: clamp(28px,2.8vw,35px);
+  letter-spacing: -.045em;
+}
+.lb-heading p {
+  font-size: 14px;
+  line-height: 1.55;
+}
+.lb-control-line {
+  gap: 10px;
+  margin-top: 19px;
+  margin-bottom: 23px;
+}
+.lb-segment {
+  border-radius: 16px;
+  padding: 4px;
+}
+.lb-segment button {
+  min-height: 38px;
+  padding: 9px 16px;
+  font-size: 12px;
+}
+.lb-search {
+  width: 264px;
+  min-height: 42px;
+  border-radius: 15px;
+}
+.lb-search input {
+  font-size: 12px;
+}
+.lb-category-area {
+  max-width: 960px;
+  margin-top: 8px;
+  margin-bottom: 24px;
+}
+.lb-category-tab {
+  padding: 13px 17px 15px;
+  font-size: 12px;
+}
+.lb-subgrades {
+  padding-top: 14px;
+  padding-bottom: 16px;
+}
+.lb-subgrade {
+  padding: 7px 13px;
+  font-size: 11px;
+}
+.lb-school-table-wrap .lb-table {
+  min-width: 880px;
+}
+.lb-school-table-wrap .lb-table th {
+  padding: 12px 14px;
+  font-size: 10px;
+}
+.lb-school-table-wrap .lb-table tbody tr:not(.lb-empty-row) td {
+  padding: 14px 14px;
+  font-size: 12px;
+}
+.lb-school-table-wrap .lb-table tbody tr:not(.lb-empty-row) .lb-person-name {
+  font-size: 13px;
+}
+.lb-school-table-wrap .lb-table tbody tr:not(.lb-empty-row) .lb-person-handle {
+  font-size: 10px;
+}
+.lb-school-table-wrap .lb-table tbody tr:not(.lb-empty-row) .lb-score-cell {
+  font-size: 14px !important;
+}
+.lb-pagination-info {
+  font-size: 11px;
+}
+@media (max-width: 1000px) {
+  .lb-school-podium-area { max-width: 860px; gap: 8px; }
+  .lb-school-podium-tower { padding-left: 12px; padding-right: 12px; }
+}
+@media (max-width: 640px) {
+  .lb-school-podium-area {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    align-items: stretch;
+    gap: 10px 7px;
+    padding: 42px 0 20px;
+  }
+  .lb-school-podium-area .lb-school-podium {
+    width: 100%;
+    max-width: none !important;
+    min-width: 0;
+  }
+  .lb-school-podium-area .lb-school-podium.rank-1 {
+    grid-column: 1 / -1;
+    order: -1;
+    margin-bottom: 0;
+  }
+  .lb-school-podium-area .lb-school-podium-tower {
+    min-height: 0;
+    padding: 43px 9px 34px;
+  }
+  .lb-school-podium-area .lb-school-podium.rank-1 .lb-school-podium-tower {
+    min-height: 0;
+    padding: 44px 13px 39px;
+  }
+  .lb-school-podium-area .lb-school-name { font-size: 16px; }
+  .lb-school-podium-area .lb-school-podium.rank-1 .lb-school-name { font-size: 22px; }
+  .lb-school-podium-area .lb-school-meta { font-size: 10px; }
+  .lb-school-podium-area .lb-school-score { min-height: 48px; gap: 6px; }
+  .lb-school-podium-area .lb-school-score > span { font-size: 11px; }
+  .lb-school-podium-area .lb-school-score > strong { font-size: 18px; }
+  .lb-school-podium-area .lb-school-metrics { min-height: 54px; }
+  .lb-school-podium-area .lb-school-metrics strong { font-size: 14px; }
+  .lb-school-podium-area .lb-school-metrics small { font-size: 7px; }
+  .lb-school-podium-area .lb-school-contributors { gap: 4px; margin-top: 9px; padding-top: 8px; }
+  .lb-school-podium-area .lb-school-contributors-title { font-size: 8px; }
+  .lb-school-podium-area .lb-school-contributor-row {
+    grid-template-columns: 13px minmax(0,1fr);
+    gap: 3px;
+    padding: 5px;
+    font-size: 8px;
+  }
+  .lb-school-podium-area .lb-school-contributor-score {
+    grid-column: 2;
+    font-size: 8px;
+  }
+  .lb-school-rank-badge { top: -28px; width: 56px; height: 56px; border-radius: 16px; }
+  .lb-school-rank-badge > span { font-size: 18px; }
+  .lb-category-tab { padding-left: 12px; padding-right: 12px; font-size: 10px; }
+  .lb-school-table-wrap .lb-table { min-width: 760px; }
+}
 
 export function LeaderboardPage() {
   const { user } = useApp();
@@ -635,7 +1044,7 @@ export function LeaderboardPage() {
           {category === 'school' ? (
             <>
               {!searchActive && (
-                <div className="lb-podium-area">
+                <div className="lb-podium-area lb-school-podium-area">
                   {podiumSchoolItems.map(({ school, place }) => school
                     ? <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />
                     : <EmptyPodiumCard key={'empty-school-' + place} place={place} kind="school" mode="xp" />)}
@@ -786,25 +1195,52 @@ function PersonPodiumCard({ entry, place, mode }: { entry: LeaderEntry; place: 1
 
 function SchoolPodiumCard({ school, place, onClick }: { school: PublicSchoolLeaderboardRow; place: 1 | 2 | 3; onClick: () => void }) {
   const label = place === 1 ? '1st' : place === 2 ? '2nd' : '3rd';
+  const topStudents = school.top_students.slice(0, 3);
+
   return (
-    <button type="button" className={'lb-podium rank-' + place} onClick={onClick} style={{ border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'inherit', padding: 0 }}>
-      <div className={'lb-podium-badge rank-' + place}>{place === 1 ? <Crown size={14} /> : <Medal size={14} />}{label}</div>
-      <div className="lb-podium-tower">
-        <div className="lb-avatar-wrap" style={{ borderRadius: 20 }}>
-          <School size={place === 1 ? 48 : 40} color={place === 1 ? '#92400e' : '#1d4ed8'} />
-        </div>
-        <span className="lb-podium-name" title={school.school_name}>{school.school_name}</span>
-        <span className="lb-podium-user">{school.student_count} siswa · {school.levels}</span>
-        <div className="lb-podium-score"><span>Total XP</span><strong>{formatNumber(school.xp)}</strong></div>
-        <div className="lb-podium-metrics">
-          <div><span>{formatAverage(school.average_score)}</span><small>Rata-rata</small></div>
-          <div><span>{formatNumber(school.competitions_count)}</span><small>Partisipasi</small></div>
-        </div>
-      </div>
+    <button
+      type="button"
+      className={'lb-podium lb-school-podium rank-' + place}
+      onClick={onClick}
+      aria-label={'Lihat peringkat sekolah ' + school.school_name}
+    >
+      <span className={'lb-school-rank-badge rank-' + place}><span>{label}</span></span>
+      <span className="lb-school-podium-tower">
+        <span className="lb-school-name" title={school.school_name}>{school.school_name}</span>
+        <span className="lb-school-meta">{formatNumber(school.student_count)} Siswa Aktif</span>
+
+        <span className="lb-school-score">
+          <span>XP</span>
+          <strong>{formatNumber(school.xp)}</strong>
+        </span>
+
+        <span className="lb-school-metrics">
+          <span>
+            <strong>{formatAverage(school.average_score)}</strong>
+            <small>Rata-rata</small>
+          </span>
+          <span>
+            <strong>{formatNumber(school.competitions_count)}</strong>
+            <small>Tot. Lomba</small>
+          </span>
+        </span>
+
+        <span className="lb-school-contributors">
+          <span className="lb-school-contributors-title">Top Penyumbang XP:</span>
+          {topStudents.length > 0 ? topStudents.map((student, index) => (
+            <span className="lb-school-contributor-row" key={student.user_id}>
+              <span className="lb-school-contributor-rank">{index + 1}.</span>
+              <span className="lb-school-contributor-name">{student.display_name}</span>
+              <strong className="lb-school-contributor-score">{formatNumber(student.xp)} XP</strong>
+            </span>
+          )) : (
+            <span className="lb-school-contributors-empty">Belum ada kontributor XP.</span>
+          )}
+        </span>
+      </span>
     </button>
   );
 }
-
 function PersonRankingTable({ rows, placeholderRanks, mode, currentUserId }: { rows: LeaderEntry[]; placeholderRanks: number[]; mode: Mode; currentUserId?: string; onPickSchool: (key: string) => void }) {
   return (
     <div className="lb-table-wrap">
@@ -855,16 +1291,15 @@ function PersonRankingTable({ rows, placeholderRanks, mode, currentUserId }: { r
 
 function SchoolRankingTable({ schools, placeholderRanks, onPickSchool }: { schools: PublicSchoolLeaderboardRow[]; placeholderRanks: number[]; onPickSchool: (key: string) => void }) {
   return (
-    <div className="lb-table-wrap">
+    <div className="lb-table-wrap lb-school-table-wrap">
       <table className="lb-table">
         <thead>
           <tr>
-            <th style={{ width: 78 }}>Peringkat</th>
-            <th style={{ width: '32%' }}>Nama Sekolah</th>
+            <th colSpan={2} style={{ width: '36%' }}>Peringkat & Nama</th>
             <th style={{ width: '13%' }}>Jumlah Siswa</th>
-            <th style={{ width: '16%' }}>Jenjang</th>
+            <th style={{ width: '14%' }}>Jenjang</th>
             <th style={{ width: 110 }}>Rata-rata</th>
-            <th style={{ width: 105 }}>Partisipasi</th>
+            <th style={{ width: 105 }}>Lomba</th>
             <th style={{ width: 130, textAlign: 'right' }}>Total XP</th>
           </tr>
         </thead>
