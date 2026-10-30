@@ -184,7 +184,7 @@ function readDatabasePage(
       const lower: IDBValidKey = [userId, threadId, '', ''];
       const upper: IDBValidKey = before
         ? [userId, threadId, before, '']
-        : [userId, threadId, '\\uffff', '\\uffff'];
+        : [userId, threadId, '9999-12-31T23:59:59.999Z', '~'];
       const range = IDBKeyRange.bound(lower, upper, false, !!before);
       const request = index.openCursor(range, 'prev');
       const rows: ChatMessage[] = [];
