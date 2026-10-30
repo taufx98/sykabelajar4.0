@@ -156,7 +156,40 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
       return;
     }
     let rows: unknown[] = [];
-    if (url.pathname.endsWith('/rpc/is_public_profile_admin')) {
+    if (url.pathname.endsWith('/rpc/load_my_threads')) {
+      rows = [
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          thread_type: 'dm',
+          user_id: userId,
+          participant_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          status: 'open',
+          created_at: '2026-10-01T00:00:00.000Z',
+          last_message_at: '2026-10-30T00:00:00.000Z',
+          last_message: 'Pesan terbaru',
+          unread_count: 0,
+          user_name: 'Akun Uji',
+          username: 'akun_uji',
+          other_user_name: 'Percakapan Aktif',
+          other_username: 'chat_aktif',
+        },
+        {
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          thread_type: 'dm',
+          user_id: userId,
+          participant_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          status: 'closed',
+          created_at: '2026-09-04T00:00:00.000Z',
+          last_message_at: '2026-09-04T00:00:00.000Z',
+          last_message: 'Pesan lama',
+          unread_count: 0,
+          user_name: 'Akun Uji',
+          username: 'akun_uji',
+          other_user_name: 'Percakapan Lama',
+          other_username: 'chat_lama',
+        },
+      ];
+    } else if (url.pathname.endsWith('/rpc/is_public_profile_admin')) {
       const payload = route.request().postDataJSON();
       const targetId = String(payload.p_profile_id ?? '');
       const isAdmin = targetId === adminProfileId || (targetId === userId && roles.includes('admin'));
@@ -238,6 +271,105 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
 
   return { roleLookupCount: () => roleLookupCount };
 }
+
+test.describe('chat inbox history visibility', () => {
+  test('closed direct-message history is not listed in the private inbox', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    await page.goto('/login?redirect=%2Fpesan');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/pesan');
+    await expect(page.locator('aside').getByText('Percakapan Aktif', { exact: true })).toBeVisible();
+    await expect(page.getByText('Percakapan Lama', { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/History\s*·\s*1/)).toHaveCount(0);
+  });
+});
+
+test.describe('chat message history pagination and cache', () => {
+  test('loads 20 recent messages, fetches older messages in 50-message pages, and reuses the complete local cache', async ({ page }) => {
+    await mockSupabaseLogin(page, ['student']);
+    const userId = '11111111-1111-4111-8111-111111111111';
+    const otherId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const threadId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const allMessages = Array.from({ length: 120 }, (_, index) => ({
+      id: 'eeeeeeee-eeee-4eee-8eee-' + String(index + 1).padStart(12, '0'),
+      thread_id: threadId,
+      sender_id: index % 2 === 0 ? otherId : userId,
+      body: 'Isi pesan ' + String(index + 1).padStart(3, '0'),
+      created_at: new Date(Date.UTC(2026, 9, 1, 0, index)).toISOString(),
+    }));
+    const pageRequests: Array<{ limit: number; before: string | null }> = [];
+
+    await page.route('**/rest/v1/rpc/get_chat_messages_page', async (route) => {
+      const payload = route.request().postDataJSON() as { p_limit?: number; p_before?: string | null };
+      const limit = Number(payload.p_limit ?? 50);
+      const before = payload.p_before ?? null;
+      pageRequests.push({ limit, before });
+      const rows = allMessages
+        .filter((message) => !before || message.created_at < before)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, limit);
+      await route.fulfill({
+        status: 200,
+        headers: { 'access-control-allow-origin': '*', 'content-range': rows.length ? '0-' + (rows.length - 1) + '/' + rows.length : '0-0/0' },
+        contentType: 'application/json',
+        body: JSON.stringify(rows),
+      });
+    });
+
+    await page.goto('/login?redirect=%2Fpesan');
+    await page.locator('input[autocomplete="email"]').fill('guru@example.test');
+    await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
+    await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/pesan');
+
+    const chatContainer = page.getByTestId('chat-message-list');
+    const renderedMessages = chatContainer.getByTestId('chat-message');
+    await expect(chatContainer).toBeVisible();
+    await expect.poll(() => pageRequests.length).toBe(1);
+    expect(pageRequests[0].limit).toBe(20);
+    await expect(renderedMessages).toHaveCount(20);
+
+    await chatContainer.evaluate((element) => {
+      element.scrollTop = 0;
+      element.dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    await expect.poll(() => pageRequests.length).toBe(2);
+    expect(pageRequests[1].limit).toBe(50);
+    await expect(renderedMessages).toHaveCount(70);
+
+    await chatContainer.evaluate((element) => {
+      element.scrollTop = 0;
+      element.dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    await expect.poll(() => pageRequests.length).toBe(3);
+    expect(pageRequests[2].limit).toBe(50);
+    await expect(renderedMessages).toHaveCount(120);
+
+    await chatContainer.evaluate((element) => {
+      element.scrollTop = 0;
+      element.dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    await expect.poll(() => pageRequests.length).toBe(4);
+    expect(pageRequests[3].limit).toBe(50);
+    await expect.poll(() => page.getByTestId('chat-message-list').getByTestId('chat-message').count()).toBe(120);
+
+    await page.reload();
+    const cachedContainer = page.getByTestId('chat-message-list');
+    const cachedMessages = cachedContainer.getByTestId('chat-message');
+    await expect(cachedMessages).toHaveCount(20);
+    for (const expectedCount of [70, 120, 120]) {
+      await cachedContainer.evaluate((element) => {
+        element.scrollTop = 0;
+        element.dispatchEvent(new Event('scroll', { bubbles: true }));
+      });
+      await expect(cachedMessages).toHaveCount(expectedCount);
+    }
+    expect(pageRequests).toHaveLength(4);
+  });
+});
 
 test.describe('backend-authoritative login flow', () => {
   test('active teacher role from Supabase allows the teacher route without a login role picker', async ({ page }) => {
