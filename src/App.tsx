@@ -67,6 +67,7 @@ const OrganizerPlanPage = lazy(() => import('@/pages/OrganizerPlanPage').then((m
 const OrganizerSerialsPage = lazy(() => import('@/pages/OrganizerSerialsPage').then((module) => ({ default: module.OrganizerSerialsPage })));
 const OrganizerAdRequestPage = lazy(() => import('@/pages/OrganizerAdRequestPage').then((module) => ({ default: module.OrganizerAdRequestPage })));
 const GuruCollectivePage = lazy(() => import('@/pages/GuruCollectivePage').then((module) => ({ default: module.GuruCollectivePage })));
+const GuruAchievementPage = lazy(() => import('@/pages/GuruAchievementPage').then((module) => ({ default: module.GuruAchievementPage })));
 const GuruAccessCardsPage = lazy(() => import('@/pages/GuruAccessCardsPage').then((module) => ({ default: module.GuruAccessCardsPage })));
 const GuruCollectiveMonitoringPage = lazy(() => import('@/pages/GuruCollectiveMonitoringPage').then((module) => ({ default: module.GuruCollectiveMonitoringPage })));
 const GuruCollectiveRegistrationWizardPage = lazy(() => import('@/pages/GuruCollectiveRegistrationWizardPage').then((module) => ({ default: module.GuruCollectiveRegistrationWizardPage })));
@@ -190,6 +191,7 @@ function AppRoutes() {
           <Route path="/claim-peserta-kolektif" element={<CollectiveParticipantClaimPage />} />
           <Route path="/profile/collective-history" element={<CollectiveHistoryPage />} />
           <Route path="/guru" element={<RoleRoute role="teacher"><GuruCollectivePage /></RoleRoute>} />
+          <Route path="/guru/prestasi" element={<RoleRoute role="teacher"><GuruAchievementPage /></RoleRoute>} />
           <Route path="/guru/daftar" element={<RoleRoute role="teacher"><GuruCollectiveRegistrationWizardPage /></RoleRoute>} />
           <Route path="/guru/kartu" element={<RoleRoute role="teacher"><GuruAccessCardsPage /></RoleRoute>} />
           <Route path="/guru/monitoring" element={<RoleRoute role="teacher"><GuruCollectiveMonitoringPage /></RoleRoute>} />
