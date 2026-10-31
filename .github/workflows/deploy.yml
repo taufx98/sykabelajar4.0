@@ -60,6 +60,9 @@ jobs:
       - name: Organizer registration contract tests
         run: npm run test:organizer-registration-contract
 
+      - name: Teacher achievement contract tests
+        run: npm run test:teacher-achievement-contract
+
       - name: Lint
         run: npm run lint
 
