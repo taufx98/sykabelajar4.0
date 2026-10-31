@@ -102,7 +102,7 @@ export function OrganizerMembersPage() {
 
   const rotateInviteCode = async () => {
     if (!org || !canManageMembers || rotatingCode) return;
-    if (generatedAccessCode && !confirm('Membuat kode baru akan menonaktifkan kode yang baru saja ditampilkan. Lanjutkan?')) return;
+    if (!confirm('Membuat kode baru akan langsung menonaktifkan kode undangan sebelumnya, termasuk kode yang sudah dibagikan. Lanjutkan?')) return;
     setRotatingCode(true);
     try {
       const code = await rotateOrganizerAccessCode(org.id);
