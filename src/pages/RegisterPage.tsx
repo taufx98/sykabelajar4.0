@@ -16,7 +16,12 @@ const ROLE_OPTIONS: { value: Exclude<Role,'admin'>; label:string; icon:typeof Us
 export function RegisterPage(){
  const { language } = useLanguage();
  const text = (id: string, en: string) => language === 'en' ? en : id;
- const navigate=useNavigate(); const [searchParams]=useSearchParams(); const requestedRedirect=searchParams.get('redirect')||'/home'; const redirectTo=requestedRedirect.startsWith('/')&&!requestedRedirect.startsWith('//')?requestedRedirect:'/home'; const loginTo=redirectTo==='/home'?'/login':`/login?redirect=${encodeURIComponent(redirectTo)}`; const {register,toast}=useApp(); const fileRef=useRef<HTMLInputElement>(null); const [step,setStep]=useState(1); const [loading,setLoading]=useState(false); const [photoFile,setPhotoFile]=useState<File|null>(null); const [photoPreview,setPhotoPreview]=useState<string>('');
+ const navigate = useNavigate();
+ const [searchParams] = useSearchParams();
+ const requestedRedirect = searchParams.get('redirect') || '/home';
+ const redirectTo = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/home';
+ const loginTo = redirectTo === '/home' ? '/login' : `/login?redirect=${encodeURIComponent(redirectTo)}`;
+ const { register, toast } = useApp(); const fileRef=useRef<HTMLInputElement>(null); const [step,setStep]=useState(1); const [loading,setLoading]=useState(false); const [photoFile,setPhotoFile]=useState<File|null>(null); const [photoPreview,setPhotoPreview]=useState<string>('');
  const [showPw,setShowPw]=useState(false);const [showConfirmPw,setShowConfirmPw]=useState(false);const [form,setForm]=useState({email:'',password:'',confirmPassword:'',role:'pelajar' as Exclude<Role,'admin'>,displayName:'',username:'',birthDate:'',school:'',educationLevel:'' as EducationLevel|'',favoriteCategories:[] as CompetitionCategory[]});
  useEffect(()=>{return()=>{if(photoPreview)URL.revokeObjectURL(photoPreview)}},[photoPreview]);
  const set=(k:keyof typeof form,v:any)=>setForm(f=>({...f,[k]:v}));
