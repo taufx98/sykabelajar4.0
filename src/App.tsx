@@ -52,6 +52,7 @@ const AdminPaymentSettingsPage = lazy(() => import('@/pages/AdminPaymentSettings
 const AdminDailyTaskPage = lazy(() => import('@/pages/AdminDailyTaskPage').then((module) => ({ default: module.AdminDailyTaskPage })));
 const AdminCollectiveCertificateSettingsPage = lazy(() => import('@/pages/AdminCollectiveCertificateSettingsPage').then((module) => ({ default: module.AdminCollectiveCertificateSettingsPage })));
 const OrganizerControlCenterPage = lazy(() => import('@/pages/OrganizerControlCenterPage').then((module) => ({ default: module.OrganizerControlCenterPage })));
+const OrganizerInviteJoinPage = lazy(() => import('@/pages/OrganizerInviteJoinPage').then((module) => ({ default: module.OrganizerInviteJoinPage })));
 const OrganizerQuestionEditorPage = lazy(() => import('@/pages/OrganizerQuestionEditorPage').then((module) => ({ default: module.OrganizerQuestionEditorPage })));
 const OrganizerRegistrationsPage = lazy(() => import('@/pages/OrganizerRegistrationsPage').then((module) => ({ default: module.OrganizerRegistrationsPage })));
 const OrganizerMembersPage = lazy(() => import('@/pages/OrganizerMembersPage').then((module) => ({ default: module.OrganizerMembersPage })));
@@ -82,7 +83,7 @@ function AuthGuard({ children }: { children: ReactNode }) {
   const collectiveChatSession = location.pathname === '/pesan' && typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token'));
   if (authLoading) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-fg-muted">Memuat sesi...</p></div>;
   if (isAuthenticated || isGuest || collectiveChatSession) return <>{children}</>;
-  return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
+  return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
 }
 
 function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member' | 'teacher'; children: ReactNode }) {
@@ -167,6 +168,7 @@ function AppRoutes() {
         <Route path="/peserta-kolektif" element={<CollectiveParticipantPortalPage />} />
         <Route path="/peserta-kolektif/kerja" element={<CollectiveParticipantWorkPage />} />
         <Route path="/lomba/:slug/hasil" element={<CompetitionResultsPage />} />
+        <Route path="/organizer/join" element={<AuthGuard><OrganizerInviteJoinPage /></AuthGuard>} />
         <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
           <Route path="/home" element={<HomePage />} />
           <Route path="/lomba-saya" element={<MyCompetitionsPage />} />

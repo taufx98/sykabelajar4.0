@@ -1,12 +1,13 @@
 import { toast } from "@/lib/toast";
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Users, UserPlus, Shield, Trash2 } from 'lucide-react';
+import { ArrowLeft, Users, UserPlus, Shield, Trash2, KeyRound, Copy, Link2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { supabase } from '@/lib/supabase';
 import { resolveCurrentUserOrganizer } from '@/services/organizerAuth.service';
+import { rotateOrganizerAccessCode } from '@/services/organizer.service';
 
 const ROLE_OPTIONS = ['owner', 'editor', 'reviewer', 'finance', 'viewer'] as const;
 type OrganizerRole = typeof ROLE_OPTIONS[number];
@@ -27,6 +28,8 @@ export function OrganizerMembersPage() {
   const [username, setUsername] = useState('');
   const [role, setRole] = useState<OrganizerRole>('editor');
   const [busy, setBusy] = useState(false);
+  const [generatedAccessCode, setGeneratedAccessCode] = useState('');
+  const [rotatingCode, setRotatingCode] = useState(false);
 
   const currentRole = useMemo<OrganizerRole>(() => {
     const value = String(org?._memberRole || 'viewer');
@@ -94,6 +97,42 @@ export function OrganizerMembersPage() {
       toast.error(e?.message ?? 'Gagal menambahkan member.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const rotateInviteCode = async () => {
+    if (!org || !canManageMembers || rotatingCode) return;
+    if (!confirm('Membuat kode baru akan langsung menonaktifkan kode undangan sebelumnya, termasuk kode yang sudah dibagikan. Lanjutkan?')) return;
+    setRotatingCode(true);
+    try {
+      const code = await rotateOrganizerAccessCode(org.id);
+      setGeneratedAccessCode(code);
+      toast.success('Kode undangan baru berhasil dibuat. Salin dan bagikan kepada calon anggota.');
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Gagal membuat kode undangan.');
+    } finally {
+      setRotatingCode(false);
+    }
+  };
+
+  const copyInviteCode = async () => {
+    if (!generatedAccessCode) return;
+    try {
+      await navigator.clipboard.writeText(generatedAccessCode);
+      toast.success('Kode undangan berhasil disalin.');
+    } catch {
+      toast.warning('Salin kode undangan secara manual dari layar.');
+    }
+  };
+
+  const copyInviteLink = async () => {
+    if (!org?.slug) return;
+    const url = window.location.origin + '/organizer/join?slug=' + encodeURIComponent(org.slug);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Tautan undangan berhasil disalin.');
+    } catch {
+      toast.warning('Browser tidak mengizinkan penyalinan tautan.');
     }
   };
 
@@ -184,6 +223,34 @@ export function OrganizerMembersPage() {
           </Card>
         ) : (
           <Card className="p-4 mb-5 text-sm text-slate-500">Role <strong className="text-fg">{currentRole}</strong> hanya dapat melihat anggota. Hubungi Owner untuk perubahan akses.</Card>
+        )}
+
+        {canManageMembers && (
+          <Card className="mb-5 p-4 md:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><KeyRound size={18}/></div>
+                <div>
+                  <p className="font-semibold text-fg">Undang anggota organisasi</p>
+                  <p className="mt-1 text-xs leading-5 text-fg-muted">Bagikan tautan dan kode kepada orang yang ingin bergabung. Kode lama akan langsung tidak berlaku setelah dirotasi.</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => void copyInviteLink()} icon={<Link2 size={14}/>}>Salin tautan</Button>
+                <Button size="sm" loading={rotatingCode} disabled={rotatingCode || busy} onClick={() => void rotateInviteCode()} icon={<KeyRound size={14}/>}>Buat kode undangan</Button>
+              </div>
+            </div>
+            {generatedAccessCode && (
+              <div className="mt-4 rounded-xl border surface-border surface-elevated p-3">
+                <p className="text-[11px] text-fg-muted">Kode undangan untuk {org.name}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <code className="min-w-0 flex-1 break-all font-mono text-base tracking-widest text-fg">{generatedAccessCode}</code>
+                  <Button size="sm" variant="outline" onClick={() => void copyInviteCode()} icon={<Copy size={14}/>}>Salin kode</Button>
+                </div>
+                <p className="mt-2 text-[10px] text-fg-muted">Kode ini hanya ditampilkan saat dibuat. Simpan sebelum meninggalkan halaman dan jangan bagikan di tempat publik.</p>
+              </div>
+            )}
+          </Card>
         )}
 
         <div className="space-y-2">

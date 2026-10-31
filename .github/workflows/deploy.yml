@@ -57,6 +57,9 @@ jobs:
       - name: Competition results contract tests
         run: npm run test:results-contract
 
+      - name: Organizer registration contract tests
+        run: npm run test:organizer-registration-contract
+
       - name: Lint
         run: npm run lint
 
