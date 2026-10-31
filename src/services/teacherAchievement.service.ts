@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 
 export type TeacherAchievementRow = {
   collective_participant_id: string;
+  roster_student_id: string;
   canonical_participant_id: string;
   competition_id: string;
   competition_title: string;
