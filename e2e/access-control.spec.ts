@@ -838,6 +838,11 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(matchingStudentRows).toHaveCount(4);
     await expect(matchingStudentRows.first()).toContainText('Juara Pertama');
     await expect(matchingStudentRows.last()).toContainText('Juara Keempat');
+    // Search mode focuses on matches directly below the search controls.
+    // The empty podium spacer and category/grade controls must disappear.
+    await expect(page.locator('.lb-podium-slot')).toHaveCount(0);
+    await expect(page.locator('.lb-category-area')).toHaveCount(0);
+    await expect(page.locator('.lb-person-podium')).toHaveCount(0);
     await expect(page.locator('.lb-search button[aria-label="Hapus pencarian"]')).toHaveCount(1);
     const searchInputAppearance = await leaderboardSearch.evaluate((element) =>
       getComputedStyle(element).appearance
@@ -846,6 +851,10 @@ test.describe('leaderboard school podium presentation', () => {
 
     await page.locator('.lb-search button[aria-label="Hapus pencarian"]').click();
     await expect(leaderboardSearch).toHaveValue('');
+    // Clearing search restores the normal podium and category controls.
+    await expect(page.locator('.lb-podium-slot')).toHaveCount(1);
+    await expect(page.locator('.lb-category-area')).toHaveCount(1);
+    await expect(page.locator('.lb-person-podium')).toHaveCount(3);
     // The default browse view returns the Top 3 to the podium and leaves rank 4 in the table.
     await expect(page.locator('.lb-table tbody tr:not(.lb-empty-row)')).toHaveCount(1);
     await expect(page.locator('.lb-table tbody tr:not(.lb-empty-row)').first()).toContainText('Juara Keempat');
