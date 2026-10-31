@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION public.list_teacher_achievement_report(
 )
 RETURNS TABLE (
   collective_participant_id uuid,
+  roster_student_id uuid,
   canonical_participant_id uuid,
   competition_id uuid,
   competition_title text,
@@ -49,6 +50,7 @@ BEGIN
   RETURN QUERY
   SELECT
     cp.id,
+    cp.roster_student_id,
     p.id,
     cp.competition_id,
     c.title,
