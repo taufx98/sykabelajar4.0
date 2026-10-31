@@ -7,6 +7,8 @@ const migration = await readFile(
   'utf8',
 );
 const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const loginPage = await readFile(new URL('../src/pages/LoginPage.tsx', import.meta.url), 'utf8');
+const registerPage = await readFile(new URL('../src/pages/RegisterPage.tsx', import.meta.url), 'utf8');
 const invitePage = await readFile(new URL('../src/pages/OrganizerInviteJoinPage.tsx', import.meta.url), 'utf8');
 const adminPage = await readFile(new URL('../src/pages/AdminOrganizersPage.tsx', import.meta.url), 'utf8');
 const memberPage = await readFile(new URL('../src/pages/OrganizerMembersPage.tsx', import.meta.url), 'utf8');
@@ -36,6 +38,15 @@ test('organizer invite join is reachable to signed-in users before they have the
   assert.match(invitePage, /setSelectedOrganizerId/);
   assert.match(invitePage, /navigate\('\/organizer'/);
   assert.match(invitePage, /p_slug:[\s\S]*p_access_code:/);
+});
+
+test('invitation context survives login and account registration', () => {
+  assert.match(loginPage, /const registerTo = redirectTo === '\/home' \? '\/register' :/);
+  assert.match(loginPage, /<Link to=\{registerTo\}/);
+  assert.match(registerPage, /useSearchParams/);
+  assert.match(registerPage, /const loginTo = redirectTo === '\/home' \? '\/login' :/);
+  assert.match(registerPage, /<Link to=\{loginTo\}/);
+  assert.match(registerPage, /navigate\(loginTo\)/);
 });
 
 test('owner and admin invitation controls rotate server-hashed codes instead of writing the legacy plaintext column', () => {
