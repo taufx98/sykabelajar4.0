@@ -168,6 +168,15 @@ const LEADERBOARD_STYLES = String.raw`
 .lb-search { display: flex; align-items: center; gap: 9px; min-width: min(100%, 280px); width: 280px; max-width: 100%; padding: 0 12px; min-height: 42px; border: 1px solid var(--lb-border); border-radius: 14px; background: var(--lb-panel); color: var(--lb-muted); transition: border-color .2s ease, box-shadow .2s ease; }
 .lb-search:focus-within { border-color: rgba(59,130,246,.62); box-shadow: 0 0 0 3px rgba(59,130,246,.11); }
 .lb-search input { flex: 1; min-width: 0; width: 100%; outline: none; border: 0; background: transparent; color: var(--lb-fg); font-size: 11px; }
+.lb-search input[type="search"] { -webkit-appearance: none; appearance: none; }
+.lb-search input[type="search"]::-webkit-search-cancel-button,
+.lb-search input[type="search"]::-webkit-search-decoration,
+.lb-search input[type="search"]::-webkit-search-results-button,
+.lb-search input[type="search"]::-webkit-search-results-decoration {
+  display: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
 .lb-search input::placeholder { color: var(--lb-muted); }
 .lb-search button { display: inline-flex; border: 0; padding: 3px; border-radius: 6px; background: transparent; color: var(--lb-muted); cursor: pointer; }
 .lb-search button:hover { color: var(--lb-fg); background: var(--lb-elevated); }
@@ -220,8 +229,6 @@ const LEADERBOARD_STYLES = String.raw`
 .lb-podium-area:not(.lb-school-podium-area) { padding-top: 46px; }
 .lb-podium-area .lb-podium { flex: 1 1 0; }
 .lb-podium-area .lb-podium.rank-1 { flex: 1.1 1 0; }
-.lb-search-note { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; color: var(--lb-muted); background: var(--lb-panel); border: 1px solid var(--lb-border); font-size: 11px; }
-.lb-search-note strong { color: var(--lb-fg); }
 .lb-table-wrap { width: 100%; overflow-x: auto; scrollbar-width: thin; scrollbar-color: rgba(148,163,184,.3) transparent; animation: lb-fade-in-up .6s cubic-bezier(.6,1,.3,1) both; }
 .lb-table { min-width: 780px; width: 100%; border-collapse: separate; border-spacing: 0 7px; table-layout: fixed; }
 .lb-table th { color: var(--lb-muted); background: var(--lb-panel); font-size: 9px; text-align: left; letter-spacing: .04em; text-transform: uppercase; font-weight: 850; padding: 10px 12px; }
@@ -1190,13 +1197,6 @@ export function LeaderboardPage() {
       {!loading && !error && (
         <div key={mode + '-' + period + '-' + category + '-' + (subGrade ?? 'all') + '-' + schoolLevelFilter + '-' + (searchActive ? 'search' : 'browse')} className="lb-main-content">
           {categoryNavigation}
-          {searchActive && (
-            <div className="lb-search-note">
-              <span>Hasil pencarian untuk <strong>“{searchInput.trim()}”</strong> · {sourceLength} ditemukan</span>
-              <button type="button" className="lb-subgrade" onClick={() => changeSearch('')}>Hapus pencarian</button>
-            </div>
-          )}
-
           {category === 'school' ? (
             <>
               {!searchActive && (
