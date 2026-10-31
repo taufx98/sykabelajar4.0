@@ -890,15 +890,45 @@ const LEADERBOARD_STYLES = String.raw`
   align-items: flex-end;
   justify-content: center;
 }
-.lb-podium-slot > .lb-podium-area {
-  flex: 0 0 auto;
-  margin-top: auto;
+.lb-podium-slot > .lb-podium-area { flex: 0 0 auto; }
+.lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 {
+  margin-bottom: 24px;
+}
+.lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 .lb-podium-tower {
+  min-height: 425px;
 }
 
 @media (max-width: 640px) {
-  /* School podiums use a two-row mobile layout, so reserve its full height
-     for student podiums as well instead of moving the navigation upward. */
-  .lb-podium-slot { height: 920px; }
+  /* Both modes use the same two-tier podium on mobile: first place above,
+     second and third place side by side. Matching tower heights keep the
+     category controls directly below the podium without vertical jumps. */
+  .lb-podium-slot { height: 880px; }
+  .lb-podium-area:not(.lb-school-podium-area) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 10px 7px;
+    padding: 42px 0 20px;
+  }
+  .lb-podium-area:not(.lb-school-podium-area) .lb-podium {
+    width: 100%;
+    max-width: none !important;
+  }
+  .lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 {
+    grid-column: 1 / -1;
+    order: -1;
+    margin-bottom: 0;
+  }
+  .lb-podium-area:not(.lb-school-podium-area) .lb-podium-tower {
+    min-height: 370px !important;
+    padding: 43px 9px 34px;
+  }
+  .lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 .lb-podium-tower {
+    min-height: 425px !important;
+    padding: 44px 13px 39px;
+  }
+  .lb-school-podium-area .lb-school-podium-tower { min-height: 370px; }
+  .lb-school-podium-area .lb-school-podium.rank-1 .lb-school-podium-tower { min-height: 425px; }
 }
 `;
 
