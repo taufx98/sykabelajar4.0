@@ -57,11 +57,12 @@ export type PublicCompetitionResults = {
 
 export async function getOrganizerCompetitionResults(
   competitionId: string,
+  offset = 0,
 ): Promise<OrganizerCompetitionResultsOverview> {
   const { data, error } = await supabase.rpc('get_organizer_competition_result_overview', {
     p_competition_id: competitionId,
     p_limit: 500,
-    p_offset: 0,
+    p_offset: Math.max(0, Math.floor(offset)),
   });
   if (error) throw error;
   return data as OrganizerCompetitionResultsOverview;

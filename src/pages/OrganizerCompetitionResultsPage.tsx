@@ -57,6 +57,7 @@ export function OrganizerCompetitionResultsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async (quiet = false) => {
@@ -112,6 +113,21 @@ export function OrganizerCompetitionResultsPage() {
       await load(true);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!id || !overview || loadingMore || overview.results.length >= overview.readiness.result_count) return;
+    setLoadingMore(true);
+    try {
+      const next = await getOrganizerCompetitionResults(id, overview.results.length);
+      setOverview((current) => current
+        ? { ...current, results: current.results.concat(next.results), result_offset: next.result_offset }
+        : current);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : 'Gagal memuat peringkat berikutnya.');
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -173,10 +189,15 @@ export function OrganizerCompetitionResultsPage() {
               Terbitkan Hasil Resmi
             </Button>
           )}
-          {isPublished && (
+          {isPublished && competition.visibility === 'PUBLIC' && (
             <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil'}>
               <Button variant="outline" icon={<ExternalLink size={15}/>}>Lihat Hasil Publik</Button>
             </Link>
+          )}
+          {isPublished && competition.visibility !== 'PUBLIC' && (
+            <span className="self-center text-xs text-fg-muted">
+              Hasil resmi tersedia melalui dashboard peserta karena lomba ini bersifat privat.
+            </span>
           )}
           {competition.status === 'GRADING' && !readiness.can_publish && (
             <span className="self-center text-xs text-fg-muted">
@@ -259,6 +280,16 @@ export function OrganizerCompetitionResultsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {overview.results.length < readiness.result_count && (
+          <div className="space-y-2 border-t border-border px-4 py-4 text-center">
+            <p className="text-[10px] text-fg-muted">
+              Menampilkan {overview.results.length.toLocaleString('id-ID')} dari {readiness.result_count.toLocaleString('id-ID')} hasil final
+            </p>
+            <Button size="sm" variant="outline" loading={loadingMore} onClick={() => void loadMore()}>
+              Muat lebih banyak peringkat
+            </Button>
           </div>
         )}
       </Card>

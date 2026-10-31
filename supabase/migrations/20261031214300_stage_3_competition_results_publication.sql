@@ -7,10 +7,16 @@ ALTER TABLE public.grading_items
 -- Preserve the score originally awarded by automatic essay similarity grading.
 -- Manual overrides can then be applied as a delta without double-counting the
 -- automatic points already included in attempts.score.
-UPDATE public.grading_items
-SET automatic_score = score
-WHERE automatic_score IS NULL
-  AND feedback LIKE 'AI Similarity Grade:%';
+UPDATE public.grading_items gi
+SET automatic_score = gi.score
+WHERE gi.automatic_score IS NULL
+  AND gi.grader_id IS NULL
+  AND gi.feedback LIKE 'AI Similarity Grade:%'
+  AND EXISTS (
+    SELECT 1
+    FROM public.exam_attempt_runtime runtime
+    WHERE runtime.attempt_id = gi.attempt_id
+  );
 
 CREATE OR REPLACE FUNCTION private.capture_automatic_grading_score()
 RETURNS trigger
@@ -19,20 +25,32 @@ SET search_path TO ''
 AS $function$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    IF NEW.automatic_score IS NULL
-       AND coalesce(NEW.feedback, '') LIKE 'AI Similarity Grade:%' THEN
+    -- The only trusted creator is the SECURITY DEFINER linear completion
+    -- routine (owned by postgres). Authenticated clients must not be able to
+    -- forge an automatic-score marker by inserting an AI-looking feedback.
+    IF current_user = 'postgres'
+       AND NEW.grader_id IS NULL
+       AND coalesce(NEW.feedback, '') LIKE 'AI Similarity Grade:%'
+       AND EXISTS (
+         SELECT 1
+         FROM public.exam_attempt_runtime runtime
+         WHERE runtime.attempt_id = NEW.attempt_id
+       ) THEN
       NEW.automatic_score := NEW.score;
+    ELSE
+      NEW.automatic_score := NULL;
     END IF;
   ELSE
-    IF NEW.grader_id IS NULL
-       AND coalesce(NEW.feedback, '') LIKE 'AI Similarity Grade:%' THEN
-      NEW.automatic_score := NEW.score;
-    ELSIF OLD.automatic_score IS NOT NULL THEN
+    -- Only trusted database functions may alter the bookkeeping column.
+    IF current_user <> 'postgres'
+       AND NEW.automatic_score IS DISTINCT FROM OLD.automatic_score THEN
+      RAISE EXCEPTION 'AUTOMATIC_SCORE_IS_SERVER_MANAGED';
+    END IF;
+
+    -- Keep the original linear-AI contribution immutable when a grader
+    -- changes the visible score. Non-linear/post-submit AI remains NULL.
+    IF OLD.automatic_score IS NOT NULL THEN
       NEW.automatic_score := OLD.automatic_score;
-    ELSIF NEW.grader_id IS NULL
-       AND NEW.automatic_score IS NULL
-       AND coalesce(NEW.feedback, '') LIKE 'AI Similarity Grade:%' THEN
-      NEW.automatic_score := NEW.score;
     END IF;
   END IF;
   RETURN NEW;
@@ -45,10 +63,18 @@ REVOKE ALL ON FUNCTION private.capture_automatic_grading_score()
 DROP TRIGGER IF EXISTS trg_capture_automatic_grading_score
   ON public.grading_items;
 CREATE TRIGGER trg_capture_automatic_grading_score
-BEFORE INSERT OR UPDATE OF score, feedback
+BEFORE INSERT OR UPDATE OF score, feedback, automatic_score
 ON public.grading_items
 FOR EACH ROW
 EXECUTE FUNCTION private.capture_automatic_grading_score();
+
+-- The organizer UI reads grading rows and writes exclusively through the
+-- authorization-checked grading RPCs. Do not permit direct row insertion,
+-- updates or deletes from PostgREST roles; this also protects automatic_score.
+REVOKE ALL ON TABLE public.grading_items
+  FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.grading_items
+  TO authenticated;
 
 -- Manual grade limits must use the exact question snapshot for linear exams.
 -- The source question may be edited after an attempt has already started.
@@ -283,6 +309,7 @@ DECLARE
   v_answer_key text;
   v_answer text;
   v_question_points numeric;
+  v_ai_enabled boolean := false;
   v_similarity numeric;
   v_score numeric;
 BEGIN
@@ -345,8 +372,13 @@ BEGIN
       WHEN eq.question_snapshot IS NOT NULL
         THEN coalesce(eq.points_snapshot, (eq.question_snapshot->>'points')::numeric, 0)
       ELSE coalesce(q.points, 0)
+    END,
+    CASE
+      WHEN eq.question_snapshot IS NOT NULL
+        THEN coalesce((eq.answer_key_snapshot->>'ai_assessment_enabled')::boolean, false)
+      ELSE coalesce((q.config->'ai_assessment'->>'enabled')::boolean, false)
     END
-  INTO v_answer_key, v_answer, v_question_points
+  INTO v_answer_key, v_answer, v_question_points, v_ai_enabled
   FROM public.questions q
   LEFT JOIN public.exam_attempt_questions eq
     ON eq.attempt_id = v_attempt.id
@@ -356,10 +388,30 @@ BEGIN
    AND a.attempt_id = v_attempt.id
   WHERE q.id = p_question_id
     AND lower(replace(coalesce(eq.question_snapshot->>'type', q.type::text), '-', '_'))
-      IN ('essay', 'long_answer');
+      IN ('essay', 'long_answer')
+    AND (
+      eq.attempt_id = v_attempt.id
+      OR (
+        NOT EXISTS (
+          SELECT 1
+          FROM public.exam_attempt_runtime runtime
+          WHERE runtime.attempt_id = v_attempt.id
+        )
+        AND (
+          q.competition_id = v_attempt.competition_id
+          OR (
+            q.question_bank_id = v_comp.question_bank_id
+            AND q.competition_id IS NULL
+          )
+        )
+      )
+    );
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ESSAY_QUESTION_NOT_FOUND';
+  END IF;
+  IF NOT v_ai_enabled THEN
+    RAISE EXCEPTION 'AI_ASSESSMENT_DISABLED';
   END IF;
   IF v_answer_key = '' THEN
     RETURN 0;
@@ -417,7 +469,6 @@ DECLARE
   v_uid uuid := auth.uid();
   v_attempt public.attempts%rowtype;
   v_comp public.competitions%rowtype;
-  v_item_count integer;
   v_pending_manual_count integer;
   v_invalid_score_count integer;
   v_base_score numeric;
@@ -470,7 +521,6 @@ BEGIN
   END IF;
 
   SELECT
-    count(*)::integer,
     count(*) FILTER (
       WHERE gi.grader_id IS NULL
         AND gi.automatic_score IS NULL
@@ -484,16 +534,12 @@ BEGIN
         AND gi.grader_id IS NOT NULL
     ), 0)
   INTO
-    v_item_count,
     v_pending_manual_count,
     v_manual_score,
     v_ai_adjustment
   FROM public.grading_items gi
   WHERE gi.attempt_id = v_attempt.id;
 
-  IF v_item_count = 0 THEN
-    RAISE EXCEPTION 'MANUAL_GRADING_ITEMS_NOT_FOUND';
-  END IF;
   IF v_pending_manual_count > 0 THEN
     RAISE EXCEPTION 'MANUAL_GRADING_INCOMPLETE:%', v_pending_manual_count;
   END IF;
@@ -792,6 +838,10 @@ DECLARE
   v_uid uuid := auth.uid();
   v_comp public.competitions%rowtype;
   v_attempt_id uuid;
+  v_runtime_phase text;
+  v_previous_phase text;
+  v_runtime_position integer;
+  v_previous_position integer;
   v_pending_count integer;
   v_missing_canonical_count integer;
   v_manual_pending_count integer;
@@ -849,10 +899,33 @@ BEGIN
       AND runtime.global_deadline <= clock_timestamp()
     ORDER BY a.created_at, a.id
   LOOP
+    SELECT runtime.phase::text, runtime.current_position
+    INTO v_previous_phase, v_previous_position
+    FROM public.exam_attempt_runtime runtime
+    WHERE runtime.attempt_id = v_attempt_id;
+
+    IF NOT FOUND OR v_previous_phase = 'COMPLETED' THEN
+      EXIT;
+    END IF;
+
     PERFORM private.resolve_linear_exam_timeouts(
       v_attempt_id,
       clock_timestamp()
     );
+
+    SELECT runtime.phase::text, runtime.current_position
+    INTO v_runtime_phase, v_runtime_position
+    FROM public.exam_attempt_runtime runtime
+    WHERE runtime.attempt_id = v_attempt_id;
+
+    IF NOT FOUND OR v_runtime_phase = 'COMPLETED' THEN
+      EXIT;
+    END IF;
+
+    IF v_runtime_phase = v_previous_phase
+       AND v_runtime_position = v_previous_position THEN
+      RAISE EXCEPTION 'LINEAR_TIMEOUT_RECONCILIATION_STALLED:%', v_attempt_id;
+    END IF;
   END LOOP;
 
   SELECT count(*)::integer

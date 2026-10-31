@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ClipboardCheck, Loader2, Save, Sparkles } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -44,7 +44,7 @@ export function OrganizerGradingPage() {
   const [autoGrading, setAutoGrading] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setMessage('');
     try {
@@ -53,19 +53,23 @@ export function OrganizerGradingPage() {
       const competitions = await listOrganizerCompetitions(org.id);
       const rows = await listGradableAttempts(competitions.map((competition: any) => competition.id));
       setAttempts(rows);
-      if (!selectedId && rows[0]?.id) setSelectedId(String(rows[0].id));
+      setSelectedId((current) => (
+        current && rows.some((row: any) => String(row.id) === current)
+          ? current
+          : rows[0]?.id ? String(rows[0].id) : ''
+      ));
     } catch (cause: any) {
       setMessage(cause?.message ?? 'Gagal memuat attempt.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
-  const hydrate = (value: GradingDetail) => {
+  const hydrate = useCallback((value: GradingDetail) => {
     setDetail(value);
     const nextScores: Record<string, string> = {};
     const nextFeedback: Record<string, string> = {};
@@ -75,7 +79,7 @@ export function OrganizerGradingPage() {
     });
     setScores(nextScores);
     setFeedback(nextFeedback);
-  };
+  }, []);
 
   useEffect(() => {
     if (!selectedId) {
@@ -87,12 +91,12 @@ export function OrganizerGradingPage() {
       .then((value) => { if (active) hydrate(value as GradingDetail); })
       .catch((cause: any) => { if (active) setMessage(cause?.message ?? 'Gagal memuat grading.'); });
     return () => { active = false; };
-  }, [selectedId]);
+  }, [selectedId, hydrate]);
 
-  const reloadDetail = async () => {
+  const reloadDetail = useCallback(async () => {
     if (!selectedId) return;
     hydrate(await getAttemptForGrading(selectedId) as GradingDetail);
-  };
+  }, [selectedId, hydrate]);
 
   const total = useMemo(() => {
     const baseScore = Number(detail?.attempt?.score ?? 0);
@@ -106,7 +110,8 @@ export function OrganizerGradingPage() {
   }, [detail, scores]);
 
   const canFinalize = useMemo(() => {
-    if (!detail || detail.items.length === 0) return false;
+    if (!detail) return false;
+    if (detail.items.length === 0) return ['SUBMITTED', 'GRADING'].includes(detail.attempt.status);
     return detail.items.every((item) => {
       const scoreIsSaved = String(scores[item.id] ?? '') === String(item.score ?? 0);
       const feedbackIsSaved = (feedback[item.id] ?? '') === (item.feedback ?? '');
@@ -228,7 +233,7 @@ export function OrganizerGradingPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="whitespace-pre-wrap text-sm font-medium text-fg">{item.question?.prompt || 'Soal'}</p>
-                            {item.question?.type === 'essay' && item.question?.config?.ai_assessment?.enabled && <Badge color="moss"><Sparkles size={10}/> AI</Badge>}
+                            {['essay', 'long_answer'].includes(String(item.question?.type ?? '').toLowerCase().replace('-', '_')) && item.question?.config?.ai_assessment?.enabled && <Badge color="moss"><Sparkles size={10}/> AI</Badge>}
                             {item.automatic_score != null && <Badge color="default">Skor otomatis</Badge>}
                           </div>
                           <p className="mt-1 text-xs text-fg-muted">{item.question?.type} · maksimal {item.question?.points ?? 0} poin</p>
@@ -236,7 +241,7 @@ export function OrganizerGradingPage() {
                             {item.answer?.value ?? (item.answer ? JSON.stringify(item.answer) : 'Belum ada jawaban')}
                           </div>
 
-                          {item.question?.type === 'essay' && item.question?.config?.ai_assessment?.enabled && (
+                          {['essay', 'long_answer'].includes(String(item.question?.type ?? '').toLowerCase().replace('-', '_')) && item.question?.config?.ai_assessment?.enabled && (
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               <Button size="sm" variant="outline" loading={autoGrading === item.id} disabled={autoGrading !== null} onClick={() => void autoGradeEssay(item)} icon={<Sparkles size={14}/>}>Cek Otomatis</Button>
                               <span className="text-[11px] text-fg-muted">Similarity dibulatkan 2 desimal.</span>

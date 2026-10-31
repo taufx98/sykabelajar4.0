@@ -14,54 +14,71 @@ test('canonical results use one latest finalized non-preview attempt per partici
   assert.match(sql, /rank\(\) OVER \(ORDER BY lf\.score DESC NULLS LAST\)/);
 });
 
-test('manual finalization preserves automatic base points and applies manual deltas on the server', () => {
-  assert.match(sql, /ADD COLUMN IF NOT EXISTS automatic_score numeric/);
-  assert.match(sql, /coalesce\(v_attempt\.score, 0\)/);
-  assert.match(sql, /gi\.score - gi\.automatic_score/);
-  assert.match(sql, /MANUAL_GRADING_INCOMPLETE/);
-  assert.match(sql, /SET score = v_final_score/);
-  assert.doesNotMatch(sql, /SET score = p_score/);
+test('manual finalization preserves the automatic base and applies manual/AI adjustments server-side', () => {
+  const start = sql.indexOf('CREATE OR REPLACE FUNCTION public.finalize_attempt_manual');
+  const end = sql.indexOf('CREATE OR REPLACE FUNCTION private.canonical_competition_results', start);
+  const finalizeSql = sql.slice(start, end);
+  assert.match(finalizeSql, /coalesce\(v_attempt\.score, 0\)/);
+  assert.match(finalizeSql, /coalesce\(v_manual_score, 0\)/);
+  assert.match(finalizeSql, /coalesce\(v_ai_adjustment, 0\)/);
+  assert.match(finalizeSql, /gi\.score - gi\.automatic_score/);
+  assert.match(finalizeSql, /MANUAL_GRADING_INCOMPLETE/);
+  assert.doesNotMatch(finalizeSql, /MANUAL_GRADING_ITEMS_NOT_FOUND/);
+  assert.match(finalizeSql, /SET score = v_final_score/);
+  assert.doesNotMatch(finalizeSql, /SET score = p_score/);
 });
 
-test('AI scoring snapshot refreshes on automatic grading but survives a manual override', () => {
-  assert.match(sql, /CREATE OR REPLACE FUNCTION private\.capture_automatic_grading_score/);
-  assert.match(sql, /NEW\.grader_id IS NULL/);
-  assert.match(sql, /OLD\.automatic_score IS NOT NULL/);
-  assert.match(sql, /AI Similarity Grade:/);
+test('automatic_score only marks built-in linear AI scores already included in attempts.score', () => {
+  const backfill = sql.slice(0, sql.indexOf('CREATE OR REPLACE FUNCTION private.capture_automatic_grading_score'));
+  assert.match(backfill, /gi\.grader_id IS NULL/);
+  assert.match(backfill, /FROM public\.exam_attempt_runtime runtime/);
+  const start = sql.indexOf('CREATE OR REPLACE FUNCTION private.capture_automatic_grading_score');
+  const end = sql.indexOf('CREATE OR REPLACE FUNCTION public.save_manual_grading_item', start);
+  const triggerSql = sql.slice(start, end);
+  assert.match(triggerSql, /current_user = 'postgres'/);
+  assert.match(triggerSql, /exam_attempt_runtime runtime/);
+  assert.match(triggerSql, /OLD\.automatic_score IS NOT NULL/);
+  assert.match(triggerSql, /AUTOMATIC_SCORE_IS_SERVER_MANAGED/);
+  assert.doesNotMatch(triggerSql, /ELSIF NEW\.grader_id IS NULL/);
+  assert.match(sql, /REVOKE ALL ON TABLE public\.grading_items\s+FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /GRANT SELECT ON TABLE public\.grading_items\s+TO authenticated/);
+  assert.match(sql, /UPDATE OF score, feedback, automatic_score/);
 });
 
-test('grading UI receives snapshot score limits only through an authorized RPC', () => {
-  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.get_attempt_grading_limits/);
-  assert.match(sql, /exam_attempt_questions/);
-  assert.match(sql, /points_snapshot/);
-  assert.match(sql, /question_snapshot jsonb/);
-  assert.match(sql, /eq\.question_snapshot/);
-  assert.match(sql, /private\.current_user_can_edit_competition/);
-  assert.match(sql, /REVOKE ALL ON FUNCTION public\.get_attempt_grading_limits\(uuid\)\s+FROM PUBLIC, anon/);
-  const limitsStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.get_attempt_grading_limits');
-  const aiStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.grade_essay_similarity', limitsStart);
-  const limitsSql = sql.slice(limitsStart, aiStart);
-  assert.doesNotMatch(limitsSql, /answer_key_snapshot->>'answer_key'/);
+test('grading UI receives safe question snapshot data only through an authorized RPC', () => {
+  const start = sql.indexOf('CREATE OR REPLACE FUNCTION public.get_attempt_grading_limits');
+  const end = sql.indexOf('CREATE OR REPLACE FUNCTION public.grade_essay_similarity', start);
+  const limitsSql = sql.slice(start, end);
+  assert.match(limitsSql, /exam_attempt_questions/);
+  assert.match(limitsSql, /points_snapshot/);
+  assert.match(limitsSql, /question_snapshot jsonb/);
   assert.match(limitsSql, /ai_assessment_enabled/);
-});
-
-test('manual grading service reads question data through the authorized snapshot RPC', () => {
-  assert.match(manualService, /get_attempt_grading_limits/);
+  assert.doesNotMatch(limitsSql, /answer_key_snapshot->>'answer_key'/);
+  assert.match(limitsSql, /private\.current_user_can_edit_competition/);
+  assert.match(limitsSql, /REVOKE ALL ON FUNCTION public\.get_attempt_grading_limits\(uuid\)\s+FROM PUBLIC, anon/);
   assert.doesNotMatch(manualService, /\.from\('questions'\)/);
+  assert.match(manualService, /get_attempt_grading_limits/);
 });
 
-test('AI essay grading uses the attempt answer-key snapshot and stores weighted points', () => {
-  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.grade_essay_similarity/);
-  assert.match(sql, /eq\.answer_key_snapshot->>'answer_key'/);
-  assert.match(sql, /eq\.question_snapshot->>'type'/);
-  assert.match(sql, /v_question_points/);
-  assert.match(sql, /v_similarity := public\.calculate_text_similarity/);
-  assert.match(sql, /RETURN v_similarity/);
+test('AI essay grading uses snapshot answer keys, enforces enablement and scores only questions in this attempt', () => {
+  const start = sql.indexOf('CREATE OR REPLACE FUNCTION public.grade_essay_similarity');
+  const end = sql.indexOf('CREATE OR REPLACE FUNCTION public.finalize_attempt_manual', start);
+  const aiSql = sql.slice(start, end);
+  assert.match(aiSql, /eq\.answer_key_snapshot->>'answer_key'/);
+  assert.match(aiSql, /v_question_points/);
+  assert.match(aiSql, /v_ai_enabled/);
+  assert.match(aiSql, /AI_ASSESSMENT_DISABLED/);
+  assert.match(aiSql, /question_bank_id/);
+  assert.match(aiSql, /exam_attempt_runtime/);
+  assert.match(aiSql, /v_similarity := public\.calculate_text_similarity/);
+  assert.match(aiSql, /RETURN v_similarity/);
 });
 
-test('result publication reconciles expired linear sessions and blocks unfinished official attempts', () => {
+test('publication reconciles timed-out linear sessions and blocks unfinished official attempts', () => {
   assert.match(sql, /private\.resolve_linear_exam_timeouts/);
   assert.match(sql, /runtime\.global_deadline <= clock_timestamp\(\)/);
+  assert.match(sql, /LINEAR_TIMEOUT_RECONCILIATION_STALLED/);
+  assert.match(sql, /v_runtime_position = v_previous_position/);
   assert.match(sql, /NOT_STARTED', 'IN_PROGRESS', 'SUBMITTED', 'GRADING/);
   assert.match(sql, /MISSING_CANONICAL_IDENTITY/);
   assert.match(sql, /NO_FINALIZED_OFFICIAL_ATTEMPTS/);

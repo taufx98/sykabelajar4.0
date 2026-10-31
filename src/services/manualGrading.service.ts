@@ -46,7 +46,6 @@ export async function getAttemptForGrading(attemptId: string) {
   }
 
   const answerMap = new Map((answers ?? []).map((item) => [String(item.question_id), item.answer_json] as const));
-  const limitMap = new Map(limits.map((item) => [String(item.question_id), Number(item.max_score)] as const));
   const questionMap = new Map(limits.map((item) => [
     String(item.question_id),
     {

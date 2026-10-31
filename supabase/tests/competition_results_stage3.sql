@@ -10,6 +10,7 @@ DECLARE
   v_limits_definition text;
   v_trigger_definition text;
   v_ai_definition text;
+  v_canonical_rank_definition text;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -37,8 +38,29 @@ BEGIN
 
   IF position('automatic_score' IN v_trigger_definition) = 0
      OR position('grader_id' IN v_trigger_definition) = 0
-     OR position('AI Similarity Grade:' IN v_trigger_definition) = 0 THEN
-    RAISE EXCEPTION 'Automatic AI score snapshot trigger is incomplete';
+     OR position('AI Similarity Grade:' IN v_trigger_definition) = 0
+     OR position('current_user = ''postgres''' IN v_trigger_definition) = 0
+     OR position('exam_attempt_runtime runtime' IN v_trigger_definition) = 0
+     OR position('AUTOMATIC_SCORE_IS_SERVER_MANAGED' IN v_trigger_definition) = 0
+     OR position('ELSIF NEW.grader_id IS NULL' IN v_trigger_definition) > 0 THEN
+    RAISE EXCEPTION 'Automatic AI score snapshot trigger is incomplete or not server-controlled';
+  END IF;
+
+  IF has_table_privilege('authenticated', 'public.grading_items', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.grading_items', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.grading_items', 'DELETE')
+     OR has_table_privilege('authenticated', 'public.grading_items', 'TRUNCATE')
+     OR has_table_privilege('authenticated', 'public.grading_items', 'TRIGGER')
+     OR has_table_privilege('anon', 'public.grading_items', 'SELECT')
+     OR has_table_privilege('anon', 'public.grading_items', 'INSERT')
+     OR has_table_privilege('anon', 'public.grading_items', 'UPDATE')
+     OR has_table_privilege('anon', 'public.grading_items', 'DELETE')
+     OR has_table_privilege('anon', 'public.grading_items', 'TRUNCATE')
+     OR has_table_privilege('anon', 'public.grading_items', 'TRIGGER') THEN
+    RAISE EXCEPTION 'PostgREST roles must use authorized grading RPCs, not direct table access';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.grading_items', 'SELECT') THEN
+    RAISE EXCEPTION 'Organizer grading UI needs read access to grading items';
   END IF;
 
   SELECT pg_get_functiondef(
@@ -71,6 +93,10 @@ BEGIN
   IF position('answer_key_snapshot' IN v_ai_definition) = 0
      OR position('v_question_points' IN v_ai_definition) = 0
      OR position('v_similarity' IN v_ai_definition) = 0
+     OR position('v_ai_enabled' IN v_ai_definition) = 0
+     OR position('AI_ASSESSMENT_DISABLED' IN v_ai_definition) = 0
+     OR position('question_bank_id' IN v_ai_definition) = 0
+     OR position('exam_attempt_runtime' IN v_ai_definition) = 0
      OR position('RETURN v_similarity' IN v_ai_definition) = 0 THEN
     RAISE EXCEPTION 'AI essay grading must use answer-key snapshots and save weighted points';
   END IF;
@@ -82,6 +108,8 @@ BEGIN
   IF position('private.resolve_linear_exam_timeouts' IN v_publish_definition) = 0
      OR position('runtime.global_deadline <= clock_timestamp()' IN v_publish_definition) = 0
      OR position('PENDING_ATTEMPTS' IN v_publish_definition) = 0
+     OR position('LINEAR_TIMEOUT_RECONCILIATION_STALLED' IN v_publish_definition) = 0
+     OR position('v_runtime_position = v_previous_position' IN v_publish_definition) = 0
      OR position('MISSING_CANONICAL_IDENTITY' IN v_publish_definition) = 0
      OR position('RESULT_PUBLISHED' IN v_publish_definition) = 0
      OR position('a.status::text IN (''SUBMITTED'', ''GRADING'')' IN v_publish_definition) = 0 THEN
@@ -97,6 +125,17 @@ BEGIN
      OR position('ARCHIVED' IN v_public_definition) = 0
      OR position('private.canonical_competition_results' IN v_public_definition) = 0 THEN
     RAISE EXCEPTION 'Public results are not gated by visibility/publication status or canonical ranking';
+  END IF;
+
+  SELECT pg_get_functiondef(
+    'private.canonical_competition_rank(uuid,uuid)'::regprocedure
+  ) INTO v_canonical_rank_definition;
+
+  IF position('distinct on (a.canonical_participant_id)' IN lower(v_canonical_rank_definition)) = 0
+     OR position('finalized' IN lower(v_canonical_rank_definition)) = 0
+     OR position('is_preview = false' IN lower(v_canonical_rank_definition)) = 0
+     OR position('rank() over' IN lower(v_canonical_rank_definition)) = 0 THEN
+    RAISE EXCEPTION 'Stage 1 participant rank lookup must keep canonical latest-finalized tie ranking';
   END IF;
 
   SELECT pg_get_functiondef(
@@ -117,7 +156,8 @@ BEGIN
      OR position('automatic_score' IN v_finalize_definition) = 0
      OR position('MANUAL_GRADING_INCOMPLETE' IN v_finalize_definition) = 0
      OR position('SET score = v_final_score' IN v_finalize_definition) = 0
-     OR position('SET score = p_score' IN v_finalize_definition) > 0 THEN
+     OR position('SET score = p_score' IN v_finalize_definition) > 0
+     OR position('MANUAL_GRADING_ITEMS_NOT_FOUND' IN v_finalize_definition) > 0 THEN
     RAISE EXCEPTION 'Manual finalization must preserve automatic base points and calculate final score server-side';
   END IF;
 

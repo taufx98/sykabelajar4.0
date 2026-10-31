@@ -1709,8 +1709,8 @@ test.describe('public competition results', () => {
 
     await page.goto('/lomba/hasil-kompetisi-uji/hasil');
     await expect(page.getByRole('heading', { name: 'Kompetisi Hasil Uji Nasional' })).toBeVisible();
-    await expect(page.getByText('Dina Juara')).toBeVisible();
-    await expect(page.getByText('Ari Peserta')).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'Dina Juara' })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'Ari Peserta' })).toBeVisible();
     await expect(page.getByText('Hasil Resmi Diumumkan')).toBeVisible();
   });
 });
