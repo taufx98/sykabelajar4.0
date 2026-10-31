@@ -37,4 +37,14 @@ Read-only SQL contract: `supabase/tests/teacher_achievement_stage5.sql`.
 
 Frontend contract: `npm run test:teacher-achievement-contract`.
 
-The migration must be reviewed and applied only after CI and the SQL contract pass. This PR does not apply the migration to production Supabase. No production data is created or modified by the frontend report.
+## Rollout status — 1 November 2026
+
+- Implementation merged into `main` in PR #151 (merge commit `865933dda96a5ef24d6714db685a97f96796058e`).
+- Production migration `stage_5_teacher_achievement_report` is applied and recorded in Supabase migration history.
+- Read-only database contract passed after migration.
+- Function metadata confirms `SECURITY DEFINER` with an empty `search_path`.
+- Execute grants verified: `authenticated = true`, `anon = false`.
+- PR CI passed: frontend contract tests, lint, typecheck, Vite build, performance asset budget, browser E2E access-control test, and production smoke test.
+- Post-merge CI on `main` is tracked separately and must finish successfully before the stage is considered fully closed.
+
+No participant, attempt, score, rank, or certificate data was written or modified by this stage.
