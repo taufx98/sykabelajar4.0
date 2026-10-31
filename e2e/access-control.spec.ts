@@ -943,14 +943,68 @@ test.describe('leaderboard school podium presentation', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const mobileCategoryArea = await readCategoryArea();
     const categoryTabs = categoryArea.locator('.lb-category-tabs');
-    await categoryTabs.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
-    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
-    await categoryArea.getByRole('button', { name: 'Kelas 1', exact: true }).click();
-    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
-    await categoryTabs.getByRole('button', { name: 'Semua Jenjang', exact: true }).click();
-    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
-    await categoryTabs.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
-    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
+    const mobileCategorySwitcher = categoryArea.locator('.lb-mobile-category-switcher');
+    const previousCategory = mobileCategorySwitcher.getByRole('button', { name: 'Kategori sebelumnya' });
+    const nextCategory = mobileCategorySwitcher.getByRole('button', { name: 'Kategori berikutnya' });
+
+    await expect(categoryTabs).toBeHidden();
+    await expect(mobileCategorySwitcher).toBeVisible();
+    await expect(mobileCategorySwitcher).toContainText('Peringkat Sekolah');
+    await expect(nextCategory).toBeDisabled();
+
+    const expectMobilePodiumRow = async (containerSelector: string, cardSelector: string) => {
+      const layout = await page.locator(containerSelector).evaluate((container, selector) => {
+        const style = getComputedStyle(container);
+        const cards = Array.from(container.querySelectorAll(selector)).map((card) => {
+          const rect = card.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, width: rect.width };
+        });
+        return { display: style.display, flexWrap: style.flexWrap, cards };
+      }, cardSelector);
+
+      expect(layout.display).toBe('flex');
+      expect(layout.flexWrap).toBe('nowrap');
+      expect(layout.cards).toHaveLength(3);
+      expect(layout.cards[0].width).toBeGreaterThan(0);
+      expect(layout.cards[1].width).toBeGreaterThan(0);
+      expect(layout.cards[2].width).toBeGreaterThan(0);
+      expect(layout.cards[0].right).toBeLessThanOrEqual(layout.cards[1].left + 1);
+      expect(layout.cards[1].right).toBeLessThanOrEqual(layout.cards[2].left + 1);
+    };
+
+    await expect(schoolLevelFilters.getByRole('button', { name: 'Semua Sekolah', exact: true })).toBeVisible();
+    await expect(schoolLevelFilters.getByRole('button', { name: 'SD Sederajat', exact: true })).toBeVisible();
+
+    await previousCategory.click();
+    await expect(mobileCategorySwitcher).toContainText('SMA/SMK Sederajat');
+    await expect(categoryArea.getByRole('button', { name: 'Kelas 10', exact: true })).toBeVisible();
+    const mobileStudentCategoryArea = await readCategoryArea();
+    await previousCategory.click();
+    await expect(mobileCategorySwitcher).toContainText('SMP Sederajat');
+    await expect(categoryArea.getByRole('button', { name: 'Kelas 7', exact: true })).toBeVisible();
+    expect(await readCategoryArea()).toEqual(mobileStudentCategoryArea);
+    await previousCategory.click();
+    await expect(mobileCategorySwitcher).toContainText('SD Sederajat');
+    await expect(categoryArea.getByRole('button', { name: 'Semua SD', exact: true })).toBeVisible();
+    await expect(categoryArea.getByRole('button', { name: 'Kelas 1', exact: true })).toBeVisible();
+    await expect(categoryArea.getByRole('button', { name: 'Kelas 6', exact: true })).toBeVisible();
+    expect(await readCategoryArea()).toEqual(mobileStudentCategoryArea);
+
+    await previousCategory.click();
+    await expect(mobileCategorySwitcher).toContainText('Semua Jenjang');
+    await expect(previousCategory).toBeDisabled();
+    await expectMobilePodiumRow('.lb-podium-area:not(.lb-school-podium-area)', '.lb-person-podium');
+
+    await nextCategory.click();
+    await expect(mobileCategorySwitcher).toContainText('SD Sederajat');
+    await nextCategory.click();
+    await expect(mobileCategorySwitcher).toContainText('SMP Sederajat');
+    await nextCategory.click();
+    await expect(mobileCategorySwitcher).toContainText('SMA/SMK Sederajat');
+    await nextCategory.click();
+    await expect(mobileCategorySwitcher).toContainText('Peringkat Sekolah');
+    await expect(nextCategory).toBeDisabled();
+
     await schoolLevelFilters.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
     expect(await readCategoryArea()).toEqual(mobileCategoryArea);
   });
