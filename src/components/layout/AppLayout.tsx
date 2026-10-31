@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Home, CalendarCheck, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Megaphone, MessageCircle, SlidersHorizontal, School, AlertTriangle, ClipboardList, FileCheck2, Users2, WalletCards } from 'lucide-react';
+import { Home, CalendarCheck, Activity, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Megaphone, MessageCircle, SlidersHorizontal, School, AlertTriangle, ClipboardList, FileCheck2, Users2, WalletCards } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -134,12 +134,12 @@ export function AppLayout() {
   if (isTeacher) userNav.push(['/guru', t('nav.teacher'), School, undefined], ['/guru/daftar', t('nav.collectiveRegister'), UserPlus, undefined], ['/guru/kartu', t('nav.accessCards'), ShieldCheck, undefined], ['/guru/monitoring', t('nav.monitoring'), BarChart3, undefined]);
   if (isOrganizer) userNav.push(['/organizer', t('nav.organizer'), Building2, undefined], ['/organizer/competition/new', t('nav.newCompetition'), Award, undefined], ['/organizer/registrations', t('nav.registrations'), ClipboardList, undefined], ['/organizer/members', t('nav.members'), Users2, undefined], ['/organizer/grading', t('nav.grading'), FileCheck2, undefined], ['/organizer/plan', t('nav.planUsage'), WalletCards, undefined], ['/organizer/serials', t('nav.serials'), ShieldCheck, undefined], ['/organizer/ads', t('nav.ads'), Megaphone, undefined]);
   userNav.push([chatPath, t('nav.messages'), MessageCircle, unreadMessages > 0 ? unreadMessages : undefined]);
-  if (isAdmin) userNav.push(['/admin', t('nav.admin'), ShieldCheck, undefined], ['/admin/error-intelligence', t('nav.errorIntelligence'), AlertTriangle, undefined], ['/admin/plan-usage', t('nav.planUsage'), SlidersHorizontal, undefined], ['/admin/organizers', t('nav.organizations'), Building2, undefined]);
+  if (isAdmin) userNav.push(['/admin', t('nav.admin'), ShieldCheck, undefined], ['/admin/monitoring', 'Monitoring & Investigasi', Activity, undefined], ['/admin/error-intelligence', t('nav.errorIntelligence'), AlertTriangle, undefined], ['/admin/plan-usage', t('nav.planUsage'), SlidersHorizontal, undefined], ['/admin/organizers', t('nav.organizations'), Building2, undefined]);
   userNav.push([profilePath, t('nav.profile'), UserIcon, undefined]);
   const collectiveNav: NavItem[] = [['/peserta-kolektif', t('nav.portal'), School, undefined], ['/pesan', t('nav.messages'), MessageCircle, undefined]];
   const nav: NavItem[] = isGuest ? guestNav : collectiveMode ? collectiveNav : userNav;
   const specialFeaturePaths = new Set<string>(isAdmin
-    ? ['/admin', '/admin/error-intelligence', '/admin/plan-usage', '/admin/organizers']
+    ? ['/admin', '/admin/monitoring', '/admin/error-intelligence', '/admin/plan-usage', '/admin/organizers']
     : isOrganizer
       ? ['/organizer', '/organizer/competition/new', '/organizer/registrations', '/organizer/members', '/organizer/grading', '/organizer/plan', '/organizer/serials', '/organizer/ads']
       : isTeacher
