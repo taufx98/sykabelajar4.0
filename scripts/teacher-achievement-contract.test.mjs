@@ -29,8 +29,8 @@ test('teacher report reads canonical participant and official attempt records on
 test('unpublished results never expose score, rank, or certificate details', () => {
   assert.match(migration, /RESULT_PUBLISHED/);
   assert.match(migration, /ARCHIVED/);
-  assert.match(migration, /CASE WHEN[\s\S]*RESULT_PUBLISHED[\s\S]*THEN[\s\S]*score/i);
-  assert.match(migration, /CASE WHEN[\s\S]*RESULT_PUBLISHED[\s\S]*THEN[\s\S]*canonical_competition_rank/i);
+  assert.match(migration, /CASE\\s+WHEN[\s\S]*RESULT_PUBLISHED[\s\S]*THEN[\s\S]*score/i);
+  assert.match(migration, /CASE\\s+WHEN[\s\S]*RESULT_PUBLISHED[\s\S]*THEN[\s\S]*canonical_competition_rank/i);
 });
 
 test('frontend uses the scoped report RPC and exposes the teacher route', () => {
