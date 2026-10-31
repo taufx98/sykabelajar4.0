@@ -905,13 +905,14 @@ test.describe('leaderboard school podium presentation', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     const mobileCategoryArea = await readCategoryArea();
-    await page.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
+    const categoryTabs = categoryArea.locator('.lb-category-tabs');
+    await categoryTabs.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
     expect(await readCategoryArea()).toEqual(mobileCategoryArea);
-    await page.getByRole('button', { name: 'Kelas 1', exact: true }).click();
+    await categoryArea.getByRole('button', { name: 'Kelas 1', exact: true }).click();
     expect(await readCategoryArea()).toEqual(mobileCategoryArea);
-    await page.getByRole('button', { name: 'Semua Jenjang', exact: true }).click();
+    await categoryTabs.getByRole('button', { name: 'Semua Jenjang', exact: true }).click();
     expect(await readCategoryArea()).toEqual(mobileCategoryArea);
-    await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
+    await categoryTabs.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
     expect(await readCategoryArea()).toEqual(mobileCategoryArea);
     await schoolLevelFilters.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
     expect(await readCategoryArea()).toEqual(mobileCategoryArea);
