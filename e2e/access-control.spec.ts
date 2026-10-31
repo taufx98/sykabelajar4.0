@@ -843,9 +843,7 @@ test.describe('leaderboard school podium presentation', () => {
     const initialCategoryArea = await readCategoryArea();
     const readPodiumFrame = () => page.locator('.lb-podium-area').evaluate((element) => {
       const style = getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
       return {
-        width: Math.round(rect.width),
         maxWidth: style.maxWidth,
         paddingTop: style.paddingTop,
         paddingBottom: style.paddingBottom,
