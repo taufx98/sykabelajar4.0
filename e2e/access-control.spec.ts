@@ -858,6 +858,13 @@ test.describe('leaderboard school podium presentation', () => {
         (podium.compareDocumentPosition(navigation) & Node.DOCUMENT_POSITION_FOLLOWING));
     });
     expect(podiumPrecedesNavigation).toBe(true);
+    const podiumIsVisuallyAboveNavigation = () => page.locator('.lb-main-content').evaluate((root) => {
+      const podium = root.querySelector('.lb-podium-area');
+      const navigation = root.querySelector('.lb-category-area');
+      return Boolean(podium && navigation &&
+        podium.getBoundingClientRect().bottom <= navigation.getBoundingClientRect().top);
+    });
+    expect(await podiumIsVisuallyAboveNavigation()).toBe(true);
 
     await page.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
     expect(await readCategoryArea()).toEqual(initialCategoryArea);
@@ -869,6 +876,7 @@ test.describe('leaderboard school podium presentation', () => {
     await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
     expect(await readCategoryArea()).toEqual(initialCategoryArea);
     expect(await readPodiumFrame()).toEqual(studentPodiumFrame);
+    expect(await podiumIsVisuallyAboveNavigation()).toBe(true);
 
     await expect(page.locator('.lb-school-podium')).toHaveCount(3);
     const schoolLevelFilters = page.locator('.lb-school-level-filters');
