@@ -39,6 +39,6 @@ The migration has **not** been applied to Supabase production. It is included fo
 
 ## Verification
 
-The PR adds `npm run test:organizer-registration-contract` and executes it in CI alongside the normal lint, typecheck, build, performance budget, browser access-control E2E, and production smoke tests.
+The PR adds `npm run test:organizer-registration-contract` and executes it in CI alongside the normal lint, typecheck, build, performance budget, browser access-control E2E, and production smoke tests. The read-only SQL regression script is `supabase/tests/organizer_registration_stage4.sql` and should be run immediately after the migration is approved and applied.
 
 Production rollout requires an explicit approval to apply the migration, followed by SQL regression checks, function privilege checks, and a verified deployment. Do not test by creating fake organizer or participant records in production.
