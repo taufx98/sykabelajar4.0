@@ -851,13 +851,13 @@ test.describe('leaderboard school podium presentation', () => {
       };
     });
     const studentPodiumFrame = await readPodiumFrame();
-    const navigationPrecedesPodium = await page.locator('.lb-main-content').evaluate((root) => {
+    const podiumPrecedesNavigation = await page.locator('.lb-main-content').evaluate((root) => {
       const navigation = root.querySelector('.lb-category-area');
       const podium = root.querySelector('.lb-podium-area');
       return Boolean(navigation && podium &&
-        (navigation.compareDocumentPosition(podium) & Node.DOCUMENT_POSITION_FOLLOWING));
+        (podium.compareDocumentPosition(navigation) & Node.DOCUMENT_POSITION_FOLLOWING));
     });
-    expect(navigationPrecedesPodium).toBe(true);
+    expect(podiumPrecedesNavigation).toBe(true);
 
     await page.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
     expect(await readCategoryArea()).toEqual(initialCategoryArea);
