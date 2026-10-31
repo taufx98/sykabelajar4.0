@@ -835,7 +835,22 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(settingsDialog.locator('xpath=..')).toHaveCSS('z-index', '9990');
     await settingsDialog.getByRole('button', { name: 'Tutup', exact: true }).click();
 
+    const categoryArea = page.locator('.lb-category-area');
+    const readCategoryArea = () => categoryArea.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: Math.round(rect.top), height: Math.round(rect.height) };
+    });
+    const initialCategoryArea = await readCategoryArea();
+
+    await page.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(initialCategoryArea);
+    await page.getByRole('button', { name: 'Kelas 1', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(initialCategoryArea);
+    await page.getByRole('button', { name: 'Semua Jenjang', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(initialCategoryArea);
+
     await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(initialCategoryArea);
 
     await expect(page.locator('.lb-school-podium')).toHaveCount(3);
     const schoolLevelFilters = page.locator('.lb-school-level-filters');
