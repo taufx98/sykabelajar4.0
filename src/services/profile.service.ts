@@ -1,12 +1,12 @@
 import { supabase } from '@/lib/supabase';
 import { CACHE_TTL, CACHE_VERSION, userCacheKey } from '@/lib/cacheRegistry';
-import { getPersistentCache, removePersistentCache, setPersistentCache } from '@/lib/persistentCache';
+import { getFreshPersistentCache, removePersistentCache, setPersistentCache } from '@/lib/persistentCache';
 
 const AUTH_PROFILE_FIELDS = 'id,username,full_name,account_type,bio,institution,grade,birth_date,subjects,avatar_url,cover_url,status,created_at,pembina,badge_showcase,badge_showcase_manual';
 
 export async function getProfileById(userId: string) {
   const key = userCacheKey('profile', userId);
-  const cached = getPersistentCache<Record<string, unknown>>(key, CACHE_VERSION);
+  const cached = getFreshPersistentCache<Record<string, unknown>>(key, CACHE_VERSION);
   if (cached?.data) return cached.data;
   const { data, error } = await supabase
     .from('profiles')
