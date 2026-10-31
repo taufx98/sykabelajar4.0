@@ -52,6 +52,7 @@ const AdminPaymentSettingsPage = lazy(() => import('@/pages/AdminPaymentSettings
 const AdminDailyTaskPage = lazy(() => import('@/pages/AdminDailyTaskPage').then((module) => ({ default: module.AdminDailyTaskPage })));
 const AdminCollectiveCertificateSettingsPage = lazy(() => import('@/pages/AdminCollectiveCertificateSettingsPage').then((module) => ({ default: module.AdminCollectiveCertificateSettingsPage })));
 const OrganizerControlCenterPage = lazy(() => import('@/pages/OrganizerControlCenterPage').then((module) => ({ default: module.OrganizerControlCenterPage })));
+const OrganizerInviteJoinPage = lazy(() => import('@/pages/OrganizerInviteJoinPage').then((module) => ({ default: module.OrganizerInviteJoinPage })));
 const OrganizerQuestionEditorPage = lazy(() => import('@/pages/OrganizerQuestionEditorPage').then((module) => ({ default: module.OrganizerQuestionEditorPage })));
 const OrganizerRegistrationsPage = lazy(() => import('@/pages/OrganizerRegistrationsPage').then((module) => ({ default: module.OrganizerRegistrationsPage })));
 const OrganizerMembersPage = lazy(() => import('@/pages/OrganizerMembersPage').then((module) => ({ default: module.OrganizerMembersPage })));
@@ -167,6 +168,7 @@ function AppRoutes() {
         <Route path="/peserta-kolektif" element={<CollectiveParticipantPortalPage />} />
         <Route path="/peserta-kolektif/kerja" element={<CollectiveParticipantWorkPage />} />
         <Route path="/lomba/:slug/hasil" element={<CompetitionResultsPage />} />
+        <Route path="/organizer/join" element={<AuthGuard><OrganizerInviteJoinPage /></AuthGuard>} />
         <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
           <Route path="/home" element={<HomePage />} />
           <Route path="/lomba-saya" element={<MyCompetitionsPage />} />
