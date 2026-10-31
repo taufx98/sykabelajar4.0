@@ -45,6 +45,7 @@ Frontend contract: `npm run test:teacher-achievement-contract`.
 - Function metadata confirms `SECURITY DEFINER` with an empty `search_path`.
 - Execute grants verified: `authenticated = true`, `anon = false`.
 - PR CI passed: frontend contract tests, lint, typecheck, Vite build, performance asset budget, browser E2E access-control test, and production smoke test.
-- Post-merge CI on `main` is tracked separately and must finish successfully before the stage is considered fully closed.
+- Final post-merge `main` CI run `#41228716348` completed successfully on 1 November 2026, including contract tests, lint, TypeScript, Vite build, performance asset budget, browser E2E access-control, and production smoke test.
+- Cloudflare Pages trigger marker commit `249aabeea2b0c2dfeefa42b40546c1b6ff34a18e` was added. The actual Cloudflare Pages deployment was not independently verified from this environment.
 
 No participant, attempt, score, rank, or certificate data was written or modified by this stage.
