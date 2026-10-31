@@ -8,6 +8,7 @@ const messages = {
   id: {
     'nav.home': 'Beranda',
     'nav.dailyTasks': 'Daily Tasks',
+    'nav.myCompetitions': 'Lomba Saya',
     'nav.leaderboard': 'Peringkat',
     'nav.awards': 'Piagam',
     'nav.notifications': 'Notifikasi',
@@ -161,6 +162,7 @@ const messages = {
   en: {
     'nav.home': 'Home',
     'nav.dailyTasks': 'Daily Tasks',
+    'nav.myCompetitions': 'My Competitions',
     'nav.leaderboard': 'Leaderboard',
     'nav.awards': 'Awards',
     'nav.notifications': 'Notifications',
