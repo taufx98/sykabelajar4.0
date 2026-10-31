@@ -17,7 +17,7 @@ Create one personal dashboard for an authenticated account to track its own comp
 
 ## Data and access
 
-Migration: \`20261031140000_stage_2_my_competitions_dashboard.sql\`
+Migration: \`20261031134017_stage_2_my_competitions_dashboard.sql\`
 
 The authenticated RPC \`public.list_my_competition_dashboard()\` is server-authoritative and returns only:
 - individual registrations where \`registrations.user_id = auth.uid()\`;
@@ -58,3 +58,11 @@ Safe rollout order:
 4. Apply the Stage 2 migration and run `supabase/tests/competition_dashboard_stage2.sql`.
 
 Do not enable the Stage 2 dashboard in production before the Stage 1 migration and regression checks succeed. Cloudflare branch deployments are previews and do not replace the database rollout.
+
+
+## Production rollout status (31 October 2026)
+
+- Stage 1 is applied in Supabase as migration version `20261031134002`; its canonical identity regression SQL passed.
+- Stage 2 is applied as migration version `20261031134017`; its dashboard contract regression SQL passed.
+- The authenticated dashboard RPC returned an empty array for a fabricated, non-existent user during a transaction that was rolled back.
+- Final verification confirmed three canonical participant rows, no missing canonical links for official attempts/certificates, and no direct `anon` execution of the dashboard RPC.
