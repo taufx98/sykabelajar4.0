@@ -52,6 +52,7 @@ test('invitation context survives login and account registration', () => {
 test('owner and admin invitation controls rotate server-hashed codes instead of writing the legacy plaintext column', () => {
   assert.match(organizerService, /rpc\('rotate_organizer_access_code'/);
   assert.match(memberPage, /rotateOrganizerAccessCode/);
+  assert.match(memberPage, /if \(!confirm\('Membuat kode baru akan langsung menonaktifkan kode undangan sebelumnya/);
   assert.match(memberPage, /\/organizer\/join/);
   assert.match(adminPage, /rotateOrganizerAccessCode/);
   assert.doesNotMatch(adminPage, /from\('organizers'\)\.update\(\{\s*access_code/);
