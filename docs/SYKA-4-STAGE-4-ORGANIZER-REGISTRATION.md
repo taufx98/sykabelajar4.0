@@ -26,9 +26,9 @@ Harden the existing organizer onboarding and invitation flow without introducing
 
 ## Migration
 
-File: `supabase/migrations/20261031170000_stage_4_organizer_invitation_membership.sql`
+File: `supabase/migrations/20261031171605_stage_4_organizer_invitation_membership.sql`
 
-The migration has **not** been applied to Supabase production. It is included for review and CI only. It does not create organizers, members, plans, participants, competitions, attempts, scores, payment rows, or certificates.
+Applied to Supabase production as migration version `20261031171605`. It reconciles the existing active membership role and updates invitation rotation authorization. It does not create organizers, members, plans, participants, competitions, attempts, scores, payment rows, or certificates.
 
 ## Security notes
 
@@ -41,4 +41,4 @@ The migration has **not** been applied to Supabase production. It is included fo
 
 The PR adds `npm run test:organizer-registration-contract` and executes it in CI alongside the normal lint, typecheck, build, performance budget, browser access-control E2E, and production smoke tests. The read-only SQL regression script is `supabase/tests/organizer_registration_stage4.sql` and should be run immediately after the migration is approved and applied.
 
-Production rollout requires an explicit approval to apply the migration, followed by SQL regression checks, function privilege checks, and a verified deployment. Do not test by creating fake organizer or participant records in production.
+Production rollout was approved and the migration was applied. The SQL regression script passed, private role-sync helpers are not executable by API roles, only authenticated users can invoke the invitation rotation RPC, and the existing private hash table remains inaccessible through the Data API. Do not test by creating fake organizer or participant records in production.
