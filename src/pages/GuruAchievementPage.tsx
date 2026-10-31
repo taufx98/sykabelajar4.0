@@ -77,7 +77,7 @@ export function GuruAchievementPage() {
       ? published.reduce((total, row) => total + Number(row.score), 0) / published.length
       : null;
     return {
-      students: new Set(visibleRows.map((row) => row.roster_student_id)).size,
+      students: new Set(visibleRows.map((row) => row.roster_student_id ?? row.collective_participant_id)).size,
       competitions: new Set(visibleRows.map((row) => row.competition_id)).size,
       published: published.length,
       certificates: certificates.length,
