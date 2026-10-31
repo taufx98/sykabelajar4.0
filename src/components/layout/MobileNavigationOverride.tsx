@@ -5,6 +5,7 @@ import {
   Bell,
   Building2,
   CalendarCheck,
+  ClipboardList,
   Home,
   MessageCircle,
   School,
@@ -18,9 +19,9 @@ import { useApp } from '@/store/AppContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { notifyHomeNavigationClick } from '@/lib/homeNavigation';
 
-const DEFAULT_MOBILE_NAV = ['home', 'leaderboard', 'awards', 'chat'];
+const DEFAULT_MOBILE_NAV = ['home', 'myCompetitions', 'leaderboard', 'awards', 'chat'];
 const MOBILE_NAV_KEYS = new Set([
-  'home', 'workspace', 'leaderboard', 'awards', 'chat', 'notifications', 'profile', 'admin', 'organizer', 'teacher', 'portal',
+  'home', 'myCompetitions', 'workspace', 'leaderboard', 'awards', 'chat', 'notifications', 'profile', 'admin', 'organizer', 'teacher', 'portal',
 ]);
 
 function normalizeMobileNav(value: unknown): string[] {
@@ -117,6 +118,7 @@ export function MobileNavigationOverride({
   const profilePath = user?.username ? `/profile/@${user.username}` : '/profile';
   const navigationItems: Record<string, MobileNavigationItem> = {
     home: { label: t('nav.home'), to: '/home', icon: Home },
+    myCompetitions: { label: t('nav.myCompetitions'), to: '/lomba-saya', icon: ClipboardList },
     workspace: workspaceItem,
     leaderboard: { label: t('nav.leaderboard'), to: '/leaderboard', icon: BarChart3 },
     awards: { label: t('nav.awards'), to: '/awards', icon: Award },

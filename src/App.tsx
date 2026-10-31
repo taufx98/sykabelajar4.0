@@ -15,6 +15,7 @@ import { ToastContainer } from '@/components/ui/ToastContainer';
 import { RouteMetadata } from '@/components/seo/RouteMetadata';
 
 const HomePage = lazy(() => import('@/pages/HomePage').then((module) => ({ default: module.HomePage })));
+const MyCompetitionsPage = lazy(() => import('@/pages/MyCompetitionsPage').then((module) => ({ default: module.MyCompetitionsPage })));
 const CompetitionDetailPage = lazy(() => import('@/pages/CompetitionDetailPage').then((module) => ({ default: module.CompetitionDetailPage })));
 const CompetitionWorkPage = lazy(() => import('@/pages/CompetitionWorkPage').then((module) => ({ default: module.CompetitionWorkPage })));
 const DailyTasksPage = lazy(() => import('@/pages/DailyTasksPage').then((module) => ({ default: module.DailyTasksPage })));
@@ -165,6 +166,7 @@ function AppRoutes() {
         <Route path="/peserta-kolektif/kerja" element={<CollectiveParticipantWorkPage />} />
         <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
           <Route path="/home" element={<HomePage />} />
+          <Route path="/lomba-saya" element={<MyCompetitionsPage />} />
           <Route path="/feed" element={<SocialFeedPage />} />
           <Route path="/lomba/:slug" element={<CompetitionDetailPage />} />
           <Route path="/lomba/:slug/kerja" element={<CompetitionWorkPage />} />

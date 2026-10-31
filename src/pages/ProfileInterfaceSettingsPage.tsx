@@ -12,9 +12,10 @@ import { getProfileBadges } from '@/services/badge.service';
 import { updateProfile as updateProfileRecord } from '@/services/profile.service';
 import type { ProfileBadge } from '@/components/profile/BadgeCard';
 
-const DEFAULT_MOBILE_NAV = ['home', 'leaderboard', 'awards', 'chat'];
+const DEFAULT_MOBILE_NAV = ['home', 'myCompetitions', 'leaderboard', 'awards', 'chat'];
 const MOBILE_ITEMS = [
   ['home', 'Beranda'],
+  ['myCompetitions', 'Lomba Saya'],
   ['workspace', 'Ruang Kerja'],
   ['leaderboard', 'Peringkat'],
   ['awards', 'Piagam'],
