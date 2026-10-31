@@ -49,4 +49,12 @@ The Stage 2 RPC and SQL contract test were also executed against the production 
 
 ## Rollout dependencies
 
-Stage 2 depends on Stage 1's canonical identity and ranking migration. This branch is stacked on \`feat/stage-1-canonical-participant-identity\`; do not merge or deploy it independently before Stage 1 has been reviewed and applied.
+This pull request is based on `main` so its frontend and CI can be reviewed independently; it does not include Stage 1 commits. Its RPC intentionally calls `private.canonical_competition_rank`, so the Stage 1 schema and canonical backfill must already be present.
+
+Safe rollout order:
+1. Merge Stage 1.
+2. Apply the Stage 1 migration to the production Supabase project and run `supabase/tests/canonical_participant_stage1.sql`.
+3. Merge Stage 2 only after those checks pass.
+4. Apply the Stage 2 migration and run `supabase/tests/competition_dashboard_stage2.sql`.
+
+Do not enable the Stage 2 dashboard in production before the Stage 1 migration and regression checks succeed. Cloudflare branch deployments are previews and do not replace the database rollout.
