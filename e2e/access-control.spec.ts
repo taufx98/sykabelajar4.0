@@ -828,6 +828,26 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-podium-area').first()).toHaveCSS('animation-name', 'lb-fade-in-up');
     await expect(page.locator('.lb-category-tab').first()).toHaveCSS('transition-duration', '0s');
 
+    // Searching should replace the podium with the matching live leaderboard rows,
+    // not an intermediate result banner. The app owns one clear button; hide the
+    // browser-native search cancel control so the X is never duplicated.
+    const leaderboardSearch = page.getByRole('searchbox', { name: 'Cari siswa atau sekolah' });
+    await leaderboardSearch.fill('juara');
+    await expect(page.locator('.lb-search-note')).toHaveCount(0);
+    const matchingStudentRows = page.locator('.lb-table tbody tr:not(.lb-empty-row)');
+    await expect(matchingStudentRows).toHaveCount(4);
+    await expect(matchingStudentRows.first()).toContainText('Juara Pertama');
+    await expect(matchingStudentRows.last()).toContainText('Juara Keempat');
+    await expect(page.locator('.lb-search button[aria-label="Hapus pencarian"]')).toHaveCount(1);
+    const nativeSearchClearDisplay = await leaderboardSearch.evaluate((element) =>
+      getComputedStyle(element, '::-webkit-search-cancel-button').display
+    );
+    expect(nativeSearchClearDisplay).toBe('none');
+
+    await page.locator('.lb-search button[aria-label="Hapus pencarian"]').click();
+    await expect(leaderboardSearch).toHaveValue('');
+    await expect(page.locator('.lb-table tbody tr:not(.lb-empty-row)')).toHaveCount(4);
+
     // The settings dialog is mounted above the application stacking contexts.
     await page.getByRole('button', { name: 'Pengaturan', exact: true }).click();
     const settingsDialog = page.getByRole('dialog', { name: 'Pengaturan umum' });
