@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { CACHE_VERSION } from '@/lib/cacheRegistry';
-import { getPersistentCache, setPersistentCache, removePersistentCache } from '@/lib/persistentCache';
+import { getFreshPersistentCache, setPersistentCache, removePersistentCache } from '@/lib/persistentCache';
 
 export interface PlatformStats {
   total_users: number;
@@ -56,7 +56,7 @@ const COMPETITIONS_CACHE_LIMIT = 20;
 type RealtimeChange = 'INSERT' | 'UPDATE' | 'DELETE';
 
 function readCache<T>(key: string): T | null {
-  return getPersistentCache<T>(`public.${key}`, CACHE_VERSION)?.data ?? null;
+  return getFreshPersistentCache<T>(`public.${key}`, CACHE_VERSION)?.data ?? null;
 }
 
 function writeCache<T>(key: string, data: T, ttl: number) {

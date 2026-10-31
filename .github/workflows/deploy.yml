@@ -51,6 +51,9 @@ jobs:
       - name: Canonical source report
         run: node scripts/check-canonical-architecture.mjs
 
+      - name: Persistent cache TTL tests
+        run: npm run test:cache
+
       - name: Lint
         run: npm run lint
 

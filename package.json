@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test:performance-budget": "node --test scripts/performance-budget.test.mjs",
-    "check:performance": "node scripts/check-performance-budget.mjs"
+    "check:performance": "node scripts/check-performance-budget.mjs",
+    "test:cache": "node --test scripts/persistent-cache.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

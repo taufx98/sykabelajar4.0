@@ -1,5 +1,9 @@
 const PREFIX = 'syka.cache.v1.';
 
+// Keep stale data available for one additional original TTL while a
+// stale-while-revalidate request runs. After that grace period it is discarded.
+const MAX_STALE_GRACE_MULTIPLIER = 1;
+
 export interface CacheEnvelope<T> {
   data: T;
   savedAt: number;
@@ -13,26 +17,49 @@ export interface CacheOptions {
 }
 
 /**
- * Read cache regardless of TTL. This is the primitive required for
- * stale-while-revalidate: stale data remains useful for fast render.
+ * Read a cache entry while it is fresh or inside its bounded stale grace period.
+ * Stale-aware consumers can render the stale value while revalidating it.
  */
 export function getPersistentCache<T>(key: string, version?: string | number | null): CacheEnvelope<T> | null {
   try {
-    const raw = localStorage.getItem(PREFIX + key);
+    const storageKey = PREFIX + key;
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return null;
     const envelope = JSON.parse(raw) as CacheEnvelope<T>;
-    if (!envelope || typeof envelope.savedAt !== 'number' || typeof envelope.expiresAt !== 'number') {
-      localStorage.removeItem(PREFIX + key);
+    if (
+      !envelope ||
+      !Number.isFinite(envelope.savedAt) ||
+      !Number.isFinite(envelope.expiresAt) ||
+      envelope.savedAt < 0 ||
+      envelope.expiresAt <= envelope.savedAt ||
+      !Object.prototype.hasOwnProperty.call(envelope, 'data')
+    ) {
+      localStorage.removeItem(storageKey);
       return null;
     }
     if (version != null && envelope.version !== version) {
-      localStorage.removeItem(PREFIX + key);
+      localStorage.removeItem(storageKey);
       return null;
     }
+
+    const originalTtl = envelope.expiresAt - envelope.savedAt;
+    const staleDeadline = envelope.expiresAt + originalTtl * MAX_STALE_GRACE_MULTIPLIER;
+    if (Date.now() >= staleDeadline) {
+      localStorage.removeItem(storageKey);
+      return null;
+    }
+
     return envelope;
   } catch {
     return null;
   }
+}
+
+/** Read only cache entries whose original TTL has not expired. */
+export function getFreshPersistentCache<T>(key: string, version?: string | number | null): CacheEnvelope<T> | null {
+  const envelope = getPersistentCache<T>(key, version);
+  if (!envelope || envelope.expiresAt <= Date.now()) return null;
+  return envelope;
 }
 
 export function getPersistentCacheState<T>(key: string, version?: string | number | null): {

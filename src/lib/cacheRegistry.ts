@@ -1,4 +1,4 @@
-import { getPersistentCache, removePersistentCache, clearPersistentCache } from '@/lib/persistentCache';
+import { getFreshPersistentCache, removePersistentCache, clearPersistentCache } from '@/lib/persistentCache';
 
 const LEGACY_PUBLIC_PREFIX = 'syka.public.v4.';
 const SHARED_PUBLIC_LIMITS = [6, 10, 20, 50, 100];
@@ -45,7 +45,7 @@ export function clearPublicCache(resources?: Array<'home' | 'stats' | 'leaderboa
 }
 
 export function hasCachedValue<T>(key: string): boolean {
-  return getPersistentCache<T>(key, CACHE_VERSION) !== null;
+  return getFreshPersistentCache<T>(key, CACHE_VERSION) !== null;
 }
 
 export function invalidateForRealtime(resource: string, userId?: string): void {
