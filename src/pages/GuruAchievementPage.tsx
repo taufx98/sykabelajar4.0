@@ -13,7 +13,7 @@ function formatDate(value: string | null) {
 
 function csvCell(value: unknown) {
   const raw = value == null ? '' : String(value);
-  const text = /^[\s]*[=+\-@]/.test(raw) ? \`'\${raw}\` : raw;
+  const text = /^[\s]*[=+\-@]/.test(raw) ? "'" + raw : raw;
   return `"${text.replaceAll('"', '""')}"`;
 }
 
