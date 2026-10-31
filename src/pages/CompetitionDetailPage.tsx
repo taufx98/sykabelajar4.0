@@ -3,7 +3,7 @@ import {
   ArrowLeft, CalendarDays, CheckCircle2, Clock3, FileText,
   Info, Landmark, Medal, ShieldCheck, Trophy, Users, X,
 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { CommentsSection } from '@/components/ui/Comments';
@@ -342,6 +342,7 @@ export function CompetitionDetailPage() {
                 <Button fullWidth size="lg" variant="outline" className="border-indigo-400/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20" onClick={() => setJuknisOpen(true)} icon={<FileText size={15}/>}>Petunjuk Teknis (Juknis)</Button>
                 {joinable && <Button fullWidth size="lg" className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/20 hover:opacity-95" onClick={() => setRegistrationOpen(true)} icon={<ArrowLeft className="rotate-180" size={16}/>}>{isGuest || !user ? 'Masuk untuk Daftar' : 'Daftar Sekarang'}</Button>}
                 {isExamLive && questionCount > 0 && <Button fullWidth size="lg" onClick={() => navigate('/lomba/' + competition.slug + '/kerja')} disabled={!user || isGuest}>Kerjakan Uji Kompetensi</Button>}
+                {isCompleted && competition.visibility === 'PUBLIC' && <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil'}><Button fullWidth size="lg" variant="outline" icon={<Trophy size={15}/>}>Lihat Hasil Resmi</Button></Link>}
               </div>
 
               <div className="mt-5 space-y-3 border-t border-slate-700/80 pt-4">

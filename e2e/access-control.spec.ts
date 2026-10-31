@@ -1646,3 +1646,71 @@ test.describe('shared dialog keyboard experience', () => {
     await expect(removeMember).toBeFocused();
   });
 });
+
+
+test.describe('public competition results', () => {
+  test('published results can be opened without signing in', async ({ page }) => {
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+    };
+
+    await page.route('**/rest/v1/rpc/get_public_competition_results', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          competition: {
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            slug: 'hasil-kompetisi-uji',
+            title: 'Kompetisi Hasil Uji Nasional',
+            category: 'Sains',
+            status: 'RESULT_PUBLISHED',
+            poster_url: null,
+            announcement_at: '2026-10-31T12:00:00.000Z',
+            published_at: '2026-10-31T12:00:00.000Z',
+          },
+          result_count: 2,
+          results: [
+            {
+              rank: 1,
+              full_name: 'Dina Juara',
+              participant_type: 'INDIVIDUAL',
+              participant_code: 'SYK-001',
+              class_name: 'Kelas 6',
+              grade: 'SD',
+              school_name: 'Sekolah Uji',
+              score: 100,
+              finalized_at: '2026-10-31T11:00:00.000Z',
+            },
+            {
+              rank: 2,
+              full_name: 'Ari Peserta',
+              participant_type: 'COLLECTIVE',
+              participant_code: 'SYK-002',
+              class_name: 'Kelas 7',
+              grade: 'SMP',
+              school_name: 'Sekolah Uji 2',
+              score: 90,
+              finalized_at: '2026-10-31T11:00:00.000Z',
+            },
+          ],
+          result_limit: 500,
+          result_offset: 0,
+        }),
+      });
+    });
+
+    await page.goto('/lomba/hasil-kompetisi-uji/hasil');
+    await expect(page.getByRole('heading', { name: 'Kompetisi Hasil Uji Nasional' })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'Dina Juara' })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'Ari Peserta' })).toBeVisible();
+    await expect(page.getByText('Hasil Resmi Diumumkan')).toBeVisible();
+  });
+});

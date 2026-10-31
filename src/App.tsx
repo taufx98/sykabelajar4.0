@@ -18,6 +18,7 @@ const HomePage = lazy(() => import('@/pages/HomePage').then((module) => ({ defau
 const MyCompetitionsPage = lazy(() => import('@/pages/MyCompetitionsPage').then((module) => ({ default: module.MyCompetitionsPage })));
 const CompetitionDetailPage = lazy(() => import('@/pages/CompetitionDetailPage').then((module) => ({ default: module.CompetitionDetailPage })));
 const CompetitionWorkPage = lazy(() => import('@/pages/CompetitionWorkPage').then((module) => ({ default: module.CompetitionWorkPage })));
+const CompetitionResultsPage = lazy(() => import('@/pages/CompetitionResultsPage').then((module) => ({ default: module.CompetitionResultsPage })));
 const DailyTasksPage = lazy(() => import('@/pages/DailyTasksPage').then((module) => ({ default: module.DailyTasksPage })));
 const LeaderboardPage = lazy(() => import('@/pages/LeaderboardPage').then((module) => ({ default: module.LeaderboardPage })));
 const AwardsPage = lazy(() => import('@/pages/AwardsPage').then((module) => ({ default: module.AwardsPage })));
@@ -55,6 +56,7 @@ const OrganizerQuestionEditorPage = lazy(() => import('@/pages/OrganizerQuestion
 const OrganizerRegistrationsPage = lazy(() => import('@/pages/OrganizerRegistrationsPage').then((module) => ({ default: module.OrganizerRegistrationsPage })));
 const OrganizerMembersPage = lazy(() => import('@/pages/OrganizerMembersPage').then((module) => ({ default: module.OrganizerMembersPage })));
 const OrganizerCompetitionConfigPage = lazy(() => import('@/pages/OrganizerCompetitionConfigPage').then((module) => ({ default: module.OrganizerCompetitionConfigPage })));
+const OrganizerCompetitionResultsPage = lazy(() => import('@/pages/OrganizerCompetitionResultsPage').then((module) => ({ default: module.OrganizerCompetitionResultsPage })));
 const OrganizerExamPreviewPage = lazy(() => import('@/pages/OrganizerExamPreviewPage').then((module) => ({ default: module.OrganizerExamPreviewPage })));
 const OrganizerExamPreviewReportPage = lazy(() => import('@/pages/OrganizerExamPreviewReportPage').then((module) => ({ default: module.OrganizerExamPreviewReportPage })));
 const OrganizerExamMonitoringPage = lazy(() => import('@/pages/OrganizerExamMonitoringPage').then((module) => ({ default: module.OrganizerExamMonitoringPage })));
@@ -164,6 +166,7 @@ function AppRoutes() {
         <Route path="/peserta-kolektif/login" element={<CollectiveParticipantLoginPage />} />
         <Route path="/peserta-kolektif" element={<CollectiveParticipantPortalPage />} />
         <Route path="/peserta-kolektif/kerja" element={<CollectiveParticipantWorkPage />} />
+        <Route path="/lomba/:slug/hasil" element={<CompetitionResultsPage />} />
         <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
           <Route path="/home" element={<HomePage />} />
           <Route path="/lomba-saya" element={<MyCompetitionsPage />} />
@@ -194,6 +197,7 @@ function AppRoutes() {
           <Route path="/organizer/registrations" element={<OrganizerShellRoute><OrganizerRegistrationsPage /></OrganizerShellRoute>} />
           <Route path="/organizer/members" element={<OrganizerShellRoute><OrganizerMembersPage /></OrganizerShellRoute>} />
           <Route path="/organizer/competition/:id/config" element={<OrganizerShellRoute><OrganizerCompetitionConfigPage /></OrganizerShellRoute>} />
+          <Route path="/organizer/competition/:id/results" element={<OrganizerShellRoute><OrganizerCompetitionResultsPage /></OrganizerShellRoute>} />
           <Route path="/organizer/competition/:id/simulation/:attemptId" element={<OrganizerShellRoute><OrganizerExamPreviewPage /></OrganizerShellRoute>} />
           <Route path="/organizer/competition/:id/simulation/:attemptId/report" element={<OrganizerShellRoute><OrganizerExamPreviewReportPage /></OrganizerShellRoute>} />
           <Route path="/organizer/competition/:id/exam-monitor" element={<OrganizerShellRoute><OrganizerExamMonitoringPage /></OrganizerShellRoute>} />
