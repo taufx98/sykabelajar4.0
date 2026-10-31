@@ -18,24 +18,23 @@ function loadCacheModule(now = 1_000_000) {
     key: (index) => [...values.keys()][index] ?? null,
     get length() { return values.size; },
   };
+  let clock = now;
   class FakeDate extends Date {
-    static now() { return now; }
+    static now() { return clock; }
   }
   const exports = {};
   vm.runInNewContext(compiled, { exports, localStorage: storage, Date: FakeDate, Object, Number, JSON });
-  return { api: exports, storage, values };
+  return { api: exports, storage, values, advance: (ms) => { clock += ms; } };
 }
 
 test('fresh-only reads reject expired entries while stale-aware reads retain them', () => {
-  const { api } = loadCacheModule();
+  const { api, advance } = loadCacheModule();
   api.setPersistentCache('sample', { value: 42 }, { ttlMs: 5_000 });
-  assert.deepEqual(api.getFreshPersistentCache('sample')?.data, { value: 42 });
-
-  const { api: expiredApi } = loadCacheModule(1_006_000);
-  expiredApi.setPersistentCache('sample', { value: 42 }, { ttlMs: 5_000 });
-  assert.equal(expiredApi.getFreshPersistentCache('sample'), null);
-  assert.equal(expiredApi.getPersistentCache('sample')?.data.value, 42);
-  assert.equal(expiredApi.getPersistentCacheState('sample')?.stale, true);
+  assert.equal(api.getFreshPersistentCache('sample')?.data.value, 42);
+  advance(6_000);
+  assert.equal(api.getFreshPersistentCache('sample'), null);
+  assert.equal(api.getPersistentCache('sample')?.data.value, 42);
+  assert.equal(api.getPersistentCacheState('sample')?.stale, true);
 });
 
 test('malformed timestamps and missing data are rejected', () => {
