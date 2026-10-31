@@ -37,7 +37,7 @@ export type ParticipantCoreItem = {
     expires_at: string | null;
     submitted_at: string | null;
     finalized_at: string | null;
-    score: number;
+    score: number | null;
   } | null;
   certificate_count: number;
 };
