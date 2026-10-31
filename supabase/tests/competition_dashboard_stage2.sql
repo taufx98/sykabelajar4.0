@@ -70,6 +70,8 @@ BEGIN
         WHEN result_published = true AND attempt_status = 'FINALIZED' THEN 'RESULT_PUBLISHED'
         WHEN attempt_status IN ('IN_PROGRESS', 'RUNNING') THEN 'IN_PROGRESS'
         WHEN attempt_status IN ('SUBMITTED', 'GRADING', 'EXPIRED') THEN 'WAITING_RESULT'
+        WHEN attempt_status = 'FINALIZED' AND competition_status IN ('SUBMISSION_CLOSED', 'GRADING') THEN 'WAITING_RESULT'
+        WHEN competition_status IN ('SUBMISSION_CLOSED', 'GRADING') THEN 'WAITING_RESULT'
         WHEN competition_status = 'LIVE' THEN 'IN_PROGRESS'
         ELSE 'REGISTERED'
       END AS status,
@@ -95,7 +97,7 @@ BEGIN
   IF v_statuses IS DISTINCT FROM ARRAY[
     'PENDING',
     'REJECTED',
-    'REGISTERED',
+    'WAITING_RESULT',
     'RESULT_PUBLISHED',
     'IN_PROGRESS',
     'IN_PROGRESS'
