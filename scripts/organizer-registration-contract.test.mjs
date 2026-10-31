@@ -31,6 +31,7 @@ test('existing active memberships are reconciled without deactivating organizer 
 test('organizer invite join is reachable to signed-in users before they have the organizer role', () => {
   assert.match(app, /path="\/organizer\/join" element=\{<AuthGuard><OrganizerInviteJoinPage \/><\/AuthGuard>\}/);
   assert.match(invitePage, /rpc\('join_organizer'/);
+  assert.match(app, /encodeURIComponent\(location\.pathname \+ location\.search\)/);
   assert.match(invitePage, /await refreshUser\(\)/);
   assert.match(invitePage, /setSelectedOrganizerId/);
   assert.match(invitePage, /navigate\('\/organizer'/);
