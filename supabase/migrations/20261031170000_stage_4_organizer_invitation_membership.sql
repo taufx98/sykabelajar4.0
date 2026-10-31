@@ -97,3 +97,50 @@ WHERE om.status = 'ACTIVE'
   AND om.is_active = true
 ON CONFLICT (user_id, role) DO UPDATE
   SET is_active = true;
+
+-- Administrators manage every organization from the admin console; workspace
+-- owners may rotate only their own invitation code. The legacy function was
+-- owner-only, which prevented admins from managing hashed invite codes.
+CREATE OR REPLACE FUNCTION public.rotate_organizer_access_code(p_organizer_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_code text := encode(extensions.gen_random_bytes(5), 'hex');
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'UNAUTHORIZED';
+  END IF;
+
+  IF NOT (
+    private.current_user_is_admin()
+    OR private.current_user_can_manage_organizer(p_organizer_id)
+  ) THEN
+    RAISE EXCEPTION 'ACCESS_DENIED';
+  END IF;
+
+  INSERT INTO private.organizer_access_codes (
+    organizer_id, code_hash, rotated_by
+  )
+  VALUES (
+    p_organizer_id,
+    extensions.crypt(v_code, extensions.gen_salt('bf', 10)),
+    v_uid
+  )
+  ON CONFLICT (organizer_id) DO UPDATE
+    SET code_hash = EXCLUDED.code_hash,
+        rotated_at = now(),
+        rotated_by = v_uid;
+
+  RETURN v_code;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.rotate_organizer_access_code(uuid)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.rotate_organizer_access_code(uuid)
+  TO authenticated;
+
