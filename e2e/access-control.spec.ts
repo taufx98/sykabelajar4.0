@@ -841,6 +841,13 @@ test.describe('leaderboard school podium presentation', () => {
       return { top: Math.round(rect.top), height: Math.round(rect.height) };
     });
     const initialCategoryArea = await readCategoryArea();
+    const navigationPrecedesPodium = await page.locator('.lb-main-content').evaluate((root) => {
+      const navigation = root.querySelector('.lb-category-area');
+      const podium = root.querySelector('.lb-podium-area');
+      return Boolean(navigation && podium &&
+        (navigation.compareDocumentPosition(podium) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+    expect(navigationPrecedesPodium).toBe(true);
 
     await page.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
     expect(await readCategoryArea()).toEqual(initialCategoryArea);
@@ -869,6 +876,7 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-school-table-wrap')).toContainText('SMP 8 Bandung');
 
     await schoolLevelFilters.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(initialCategoryArea);
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SMP 8 Bandung');
     await expect(page.locator('.lb-school-podium.rank-1')).not.toContainText('SDN 1 Jakarta');
     await expect(page.locator('.lb-school-table-wrap')).not.toContainText('SDN 1 Jakarta');
@@ -879,7 +887,21 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('1st');
 
     await schoolLevelFilters.getByRole('button', { name: 'Semua Sekolah', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(initialCategoryArea);
     await expect(page.locator('.lb-school-podium.rank-1')).toContainText('SDN 1 Jakarta');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileCategoryArea = await readCategoryArea();
+    await page.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
+    await page.getByRole('button', { name: 'Kelas 1', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
+    await page.getByRole('button', { name: 'Semua Jenjang', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
+    await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
+    await schoolLevelFilters.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
+    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
   });
 });
 
