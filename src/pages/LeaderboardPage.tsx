@@ -948,7 +948,7 @@ const LEADERBOARD_STYLES = String.raw`
   /* Keep the student Top 3 in one compact row. Flexible columns preserve the
      familiar second / first / third arrangement without stacking cards. */
   .lb-podium-slot { height: auto; min-height: 0; }
-  .lb-student-podium-slot { height: 420px; min-height: 420px; }
+  .lb-student-podium-slot { height: 360px; min-height: 360px; }
   .lb-school-podium-slot { height: 880px; min-height: 880px; }
   .lb-podium-area:not(.lb-school-podium-area) {
     display: flex;
