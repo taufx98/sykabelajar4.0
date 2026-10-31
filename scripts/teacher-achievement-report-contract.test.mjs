@@ -36,7 +36,7 @@ test('only official finalized non-preview attempts contribute to published score
   assert.match(migration, /DISTINCT ON\s*\(a\.canonical_participant_id\)/i);
   assert.match(migration, /rank\(\)\s+OVER\s*\(PARTITION BY lf\.competition_id ORDER BY lf\.score DESC NULLS LAST\)/i);
   assert.match(migration, /c\.status::text\s+IN\s*\('RESULT_PUBLISHED',\s*'ARCHIVED'\)/i);
-  assert.match(migration, /CASE WHEN sc\.competition_status\s+IN\s*\('RESULT_PUBLISHED',\s*'ARCHIVED'\) THEN rr\.score/i);
+  assert.match(migration, /CASE\s+WHEN sc\.competition_status\s+IN\s*\('RESULT_PUBLISHED',\s*'ARCHIVED'\) THEN rr\.score/i);
 });
 
 test('report exposes only published certificates and publicly visible linked awards', () => {

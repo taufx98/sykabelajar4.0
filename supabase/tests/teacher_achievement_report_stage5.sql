@@ -28,7 +28,8 @@ BEGIN
      OR position('DISTINCT ON (a.canonical_participant_id)' IN v_definition) = 0
      OR position('RESULT_PUBLISHED' IN v_definition) = 0
      OR position('ARCHIVED' IN v_definition) = 0
-     OR position('rank() OVER (PARTITION BY lf.competition_id' IN v_definition) = 0 THEN
+     OR position('rank() over (' IN lower(v_definition)) = 0
+     OR position('partition by lf.competition_id' IN lower(v_definition)) = 0 THEN
     RAISE EXCEPTION 'Teacher report does not follow the official canonical result/ranking contract';
   END IF;
 
