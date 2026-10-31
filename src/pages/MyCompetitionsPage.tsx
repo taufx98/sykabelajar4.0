@@ -210,6 +210,11 @@ function CompetitionCard({ item }: { item: ParticipantDashboardItem }) {
                 <Award size={14} />Piagam
               </Link>
             )}
+            {status === 'result_published' && (
+              <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil'} className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-fg-secondary transition hover:border-accent/40 hover:text-accent">
+                <Trophy size={14} />Hasil resmi
+              </Link>
+            )}
             <Link to={href} className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-110">
               {actionLabel}<ChevronRight size={14} />
             </Link>

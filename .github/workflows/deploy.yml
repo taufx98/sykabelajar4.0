@@ -54,6 +54,9 @@ jobs:
       - name: Persistent cache TTL tests
         run: npm run test:cache
 
+      - name: Competition results contract tests
+        run: npm run test:results-contract
+
       - name: Lint
         run: npm run lint
 

@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 
 const migrationPath = new URL('../supabase/migrations/20261031214300_stage_3_competition_results_publication.sql', import.meta.url);
 const sql = await readFile(migrationPath, 'utf8');
+const manualServicePath = new URL('../src/services/manualGrading.service.ts', import.meta.url);
+const manualService = await readFile(manualServicePath, 'utf8');
 
 test('canonical results use one latest finalized non-preview attempt per participant and rank ties', () => {
   assert.match(sql, /DISTINCT ON \(a\.canonical_participant_id\)/);
@@ -18,7 +20,43 @@ test('manual finalization preserves automatic base points and applies manual del
   assert.match(sql, /gi\.score - gi\.automatic_score/);
   assert.match(sql, /MANUAL_GRADING_INCOMPLETE/);
   assert.match(sql, /SET score = v_final_score/);
-  assert.match(sql, /p_score remains in the function signature|Never trust a score submitted by the browser/);
+  assert.doesNotMatch(sql, /SET score = p_score/);
+});
+
+test('AI scoring snapshot refreshes on automatic grading but survives a manual override', () => {
+  assert.match(sql, /CREATE OR REPLACE FUNCTION private\.capture_automatic_grading_score/);
+  assert.match(sql, /NEW\.grader_id IS NULL/);
+  assert.match(sql, /OLD\.automatic_score IS NOT NULL/);
+  assert.match(sql, /AI Similarity Grade:/);
+});
+
+test('grading UI receives snapshot score limits only through an authorized RPC', () => {
+  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.get_attempt_grading_limits/);
+  assert.match(sql, /exam_attempt_questions/);
+  assert.match(sql, /points_snapshot/);
+  assert.match(sql, /question_snapshot jsonb/);
+  assert.match(sql, /eq\.question_snapshot/);
+  assert.match(sql, /private\.current_user_can_edit_competition/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.get_attempt_grading_limits\(uuid\)\s+FROM PUBLIC, anon/);
+  const limitsStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.get_attempt_grading_limits');
+  const aiStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.grade_essay_similarity', limitsStart);
+  const limitsSql = sql.slice(limitsStart, aiStart);
+  assert.doesNotMatch(limitsSql, /answer_key_snapshot->>'answer_key'/);
+  assert.match(limitsSql, /ai_assessment_enabled/);
+});
+
+test('manual grading service reads question data through the authorized snapshot RPC', () => {
+  assert.match(manualService, /get_attempt_grading_limits/);
+  assert.doesNotMatch(manualService, /\.from\('questions'\)/);
+});
+
+test('AI essay grading uses the attempt answer-key snapshot and stores weighted points', () => {
+  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.grade_essay_similarity/);
+  assert.match(sql, /eq\.answer_key_snapshot->>'answer_key'/);
+  assert.match(sql, /eq\.question_snapshot->>'type'/);
+  assert.match(sql, /v_question_points/);
+  assert.match(sql, /v_similarity := public\.calculate_text_similarity/);
+  assert.match(sql, /RETURN v_similarity/);
 });
 
 test('result publication reconciles expired linear sessions and blocks unfinished official attempts', () => {

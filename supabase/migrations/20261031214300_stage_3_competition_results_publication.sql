@@ -24,9 +24,13 @@ BEGIN
       NEW.automatic_score := NEW.score;
     END IF;
   ELSE
-    IF OLD.automatic_score IS NOT NULL THEN
+    IF NEW.grader_id IS NULL
+       AND coalesce(NEW.feedback, '') LIKE 'AI Similarity Grade:%' THEN
+      NEW.automatic_score := NEW.score;
+    ELSIF OLD.automatic_score IS NOT NULL THEN
       NEW.automatic_score := OLD.automatic_score;
-    ELSIF NEW.automatic_score IS NULL
+    ELSIF NEW.grader_id IS NULL
+       AND NEW.automatic_score IS NULL
        AND coalesce(NEW.feedback, '') LIKE 'AI Similarity Grade:%' THEN
       NEW.automatic_score := NEW.score;
     END IF;
@@ -159,6 +163,243 @@ REVOKE ALL ON FUNCTION public.save_manual_grading_item(uuid, numeric, text)
 GRANT EXECUTE ON FUNCTION public.save_manual_grading_item(uuid, numeric, text)
   TO authenticated, service_role;
 
+
+
+-- Expose only per-question score ceilings to the authorized organizer UI.
+-- The underlying exam snapshot table remains inaccessible to authenticated
+-- clients and is read only inside this SECURITY DEFINER projection.
+CREATE OR REPLACE FUNCTION public.get_attempt_grading_limits(
+  p_attempt_id uuid
+)
+RETURNS TABLE (
+  question_id uuid,
+  max_score numeric,
+  question_snapshot jsonb
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_attempt public.attempts%rowtype;
+  v_comp public.competitions%rowtype;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  SELECT * INTO v_attempt
+  FROM public.attempts
+  WHERE id = p_attempt_id;
+
+  IF NOT FOUND OR v_attempt.is_preview THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = v_attempt.competition_id;
+
+  IF NOT FOUND OR NOT (
+    private.current_user_is_admin()
+    OR (
+      v_comp.organizer_id IS NOT NULL
+      AND private.current_user_can_edit_competition(v_comp.organizer_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'ACCESS_DENIED';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    gi.question_id,
+    coalesce(snapshot.points, q.points, 0)::numeric,
+    CASE
+      WHEN snapshot.question_snapshot IS NULL AND q.id IS NULL THEN NULL::jsonb
+      ELSE coalesce(
+        snapshot.question_snapshot,
+        jsonb_build_object(
+          'id', q.id::text,
+          'prompt', q.prompt,
+          'type', q.type::text,
+          'points', q.points,
+          'display_order', q.display_order
+        )
+      ) || jsonb_build_object(
+        'config',
+        jsonb_build_object(
+          'ai_assessment',
+          jsonb_build_object(
+            'enabled',
+            coalesce(
+              snapshot.ai_assessment_enabled,
+              (q.config->'ai_assessment'->>'enabled')::boolean,
+              false
+            )
+          )
+        )
+      )
+    END
+  FROM public.grading_items gi
+  LEFT JOIN public.questions q ON q.id = gi.question_id
+  LEFT JOIN LATERAL (
+    SELECT
+      eq.points_snapshot AS points,
+      eq.question_snapshot,
+      (eq.answer_key_snapshot->>'ai_assessment_enabled')::boolean
+        AS ai_assessment_enabled
+    FROM public.exam_attempt_questions eq
+    WHERE eq.attempt_id = gi.attempt_id
+      AND eq.question_id = gi.question_id
+    LIMIT 1
+  ) snapshot ON true
+  WHERE gi.attempt_id = v_attempt.id;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.get_attempt_grading_limits(uuid)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_attempt_grading_limits(uuid)
+  TO authenticated, service_role;
+
+
+
+-- AI essay assessment reads the attempt's immutable answer-key snapshot first.
+-- Only legacy attempts without a linear snapshot fall back to the source question.
+CREATE OR REPLACE FUNCTION public.grade_essay_similarity(
+  p_attempt_id uuid,
+  p_question_id uuid
+)
+RETURNS numeric
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_attempt public.attempts%rowtype;
+  v_comp public.competitions%rowtype;
+  v_plan_code text;
+  v_answer_key text;
+  v_answer text;
+  v_question_points numeric;
+  v_similarity numeric;
+  v_score numeric;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  SELECT * INTO v_attempt
+  FROM public.attempts
+  WHERE id = p_attempt_id;
+
+  IF NOT FOUND OR v_attempt.is_preview THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+  IF v_attempt.status::text NOT IN ('SUBMITTED', 'GRADING') THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_GRADABLE';
+  END IF;
+
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = v_attempt.competition_id;
+
+  IF NOT FOUND OR NOT (
+    private.current_user_is_admin()
+    OR (
+      v_comp.organizer_id IS NOT NULL
+      AND private.current_user_can_edit_competition(v_comp.organizer_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  SELECT op.plan_code INTO v_plan_code
+  FROM public.organizer_plans op
+  WHERE op.organizer_id = v_comp.organizer_id
+    AND op.is_active = true
+    AND op.starts_at <= clock_timestamp()
+    AND (op.ends_at IS NULL OR op.ends_at > clock_timestamp())
+  ORDER BY op.starts_at DESC, op.created_at DESC
+  LIMIT 1;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.plan_entitlements pe
+    WHERE pe.plan_code = v_plan_code
+      AND pe.capability = 'essay_ai_assessment'
+      AND coalesce(pe.limit_value, 0) > 0
+  ) THEN
+    RAISE EXCEPTION 'PREMIUM_REQUIRED';
+  END IF;
+
+  SELECT
+    CASE
+      WHEN eq.question_snapshot IS NOT NULL
+        THEN coalesce(eq.answer_key_snapshot->>'answer_key', '')
+      ELSE coalesce(q.config->>'answer_key', '')
+    END,
+    coalesce(a.answer_json->>'value', a.answer_json->>'answer', ''),
+    CASE
+      WHEN eq.question_snapshot IS NOT NULL
+        THEN coalesce(eq.points_snapshot, (eq.question_snapshot->>'points')::numeric, 0)
+      ELSE coalesce(q.points, 0)
+    END
+  INTO v_answer_key, v_answer, v_question_points
+  FROM public.questions q
+  LEFT JOIN public.exam_attempt_questions eq
+    ON eq.attempt_id = v_attempt.id
+   AND eq.question_id = q.id
+  LEFT JOIN public.answers a
+    ON a.question_id = q.id
+   AND a.attempt_id = v_attempt.id
+  WHERE q.id = p_question_id
+    AND lower(replace(coalesce(eq.question_snapshot->>'type', q.type::text), '-', '_'))
+      IN ('essay', 'long_answer');
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ESSAY_QUESTION_NOT_FOUND';
+  END IF;
+  IF v_answer_key = '' THEN
+    RETURN 0;
+  END IF;
+
+  v_similarity := public.calculate_text_similarity(v_answer_key, v_answer);
+  -- Similarity is a percentage; the saved grading value is weighted by the
+  -- immutable maximum points for this exact question.
+  v_score := round(
+    coalesce(v_question_points, 0)
+      * greatest(0, least(100, coalesce(v_similarity, 0))) / 100,
+    2
+  );
+
+  INSERT INTO public.grading_items(
+    attempt_id, question_id, score, feedback, grader_id
+  )
+  VALUES (
+    v_attempt.id,
+    p_question_id,
+    v_score,
+    'AI Similarity: ' || to_char(v_similarity, 'FM990.00') || '%',
+    v_uid
+  )
+  ON CONFLICT (attempt_id, question_id)
+  DO UPDATE SET
+    score = EXCLUDED.score,
+    feedback = EXCLUDED.feedback,
+    grader_id = EXCLUDED.grader_id,
+    updated_at = clock_timestamp();
+
+  RETURN v_similarity;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.grade_essay_similarity(uuid, uuid)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.grade_essay_similarity(uuid, uuid)
+  TO authenticated, service_role;
+
 -- Never trust a score submitted by the browser. attempts.score is the
 -- server-calculated objective/automatic base. Manual items are added to that
 -- base; an edited automatic-AI item contributes only its delta.
@@ -179,6 +420,7 @@ DECLARE
   v_item_count integer;
   v_pending_manual_count integer;
   v_invalid_score_count integer;
+  v_base_score numeric;
   v_manual_score numeric;
   v_ai_adjustment numeric;
   v_final_score numeric;
@@ -278,9 +520,10 @@ BEGIN
       v_invalid_score_count;
   END IF;
 
+  v_base_score := coalesce(v_attempt.score, 0);
   v_final_score := greatest(
     0,
-    coalesce(v_attempt.score, 0)
+    v_base_score
       + coalesce(v_manual_score, 0)
       + coalesce(v_ai_adjustment, 0)
   );
@@ -302,7 +545,9 @@ BEGIN
     jsonb_build_object(
       'score', v_attempt.score,
       'status', v_attempt.status,
-      'automatic_base_score', coalesce(v_attempt.score, 0)
+      'automatic_base_score', v_base_score,
+      'manual_score', coalesce(v_manual_score, 0),
+      'automatic_ai_override_delta', coalesce(v_ai_adjustment, 0)
     ),
     NULL
   );
@@ -627,6 +872,7 @@ BEGIN
   JOIN public.attempts a ON a.id = gi.attempt_id
   WHERE a.competition_id = v_comp.id
     AND a.is_preview = false
+    AND a.status::text IN ('SUBMITTED', 'GRADING')
     AND gi.grader_id IS NULL
     AND gi.automatic_score IS NULL;
 

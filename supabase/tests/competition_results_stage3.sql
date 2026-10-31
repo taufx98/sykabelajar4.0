@@ -1,5 +1,5 @@
 -- Stage 3 result/publication contract regression checks.
--- This file is intentionally read-only and safe to run against production.
+-- This file is intentionally read-only and safe to run after the migration.
 DO $stage3$
 DECLARE
   v_rank_definition text;
@@ -7,6 +7,9 @@ DECLARE
   v_public_definition text;
   v_finalize_definition text;
   v_overview_definition text;
+  v_limits_definition text;
+  v_trigger_definition text;
+  v_ai_definition text;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -25,7 +28,51 @@ BEGIN
      OR position('FINALIZED' IN v_rank_definition) = 0
      OR position('is_preview = false' IN v_rank_definition) = 0
      OR position('rank() OVER' IN v_rank_definition) = 0 THEN
-    RAISE EXCEPTION 'Canonical result helper does not preserve latest-finalized, non-preview, tie ranking';
+    RAISE EXCEPTION 'Canonical results must use latest finalized non-preview attempts and tie-aware ranking';
+  END IF;
+
+  SELECT pg_get_functiondef(
+    'private.capture_automatic_grading_score()'::regprocedure
+  ) INTO v_trigger_definition;
+
+  IF position('automatic_score' IN v_trigger_definition) = 0
+     OR position('grader_id' IN v_trigger_definition) = 0
+     OR position('AI Similarity Grade:' IN v_trigger_definition) = 0 THEN
+    RAISE EXCEPTION 'Automatic AI score snapshot trigger is incomplete';
+  END IF;
+
+  SELECT pg_get_functiondef(
+    'public.get_attempt_grading_limits(uuid)'::regprocedure
+  ) INTO v_limits_definition;
+
+  IF position('exam_attempt_questions' IN v_limits_definition) = 0
+     OR position('points_snapshot' IN v_limits_definition) = 0
+     OR position('question_snapshot' IN v_limits_definition) = 0
+     OR position('ai_assessment_enabled' IN v_limits_definition) = 0
+     OR position('answer_key_snapshot->>''answer_key''' IN v_limits_definition) > 0
+     OR position('private.current_user_can_edit_competition' IN v_limits_definition) = 0 THEN
+    RAISE EXCEPTION 'Grading-limit RPC does not use attempt snapshots or organizer authorization';
+  END IF;
+
+  IF has_table_privilege('authenticated', 'public.exam_attempt_questions', 'SELECT') THEN
+    RAISE EXCEPTION 'Authenticated clients must not read exam attempt snapshots directly';
+  END IF;
+  IF has_function_privilege('anon', 'public.get_attempt_grading_limits(uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon must not execute grading-limit RPC';
+  END IF;
+  IF NOT has_function_privilege('authenticated', 'public.get_attempt_grading_limits(uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated organizer UI needs grading-limit RPC';
+  END IF;
+
+  SELECT pg_get_functiondef(
+    'public.grade_essay_similarity(uuid,uuid)'::regprocedure
+  ) INTO v_ai_definition;
+
+  IF position('answer_key_snapshot' IN v_ai_definition) = 0
+     OR position('v_question_points' IN v_ai_definition) = 0
+     OR position('v_similarity' IN v_ai_definition) = 0
+     OR position('RETURN v_similarity' IN v_ai_definition) = 0 THEN
+    RAISE EXCEPTION 'AI essay grading must use answer-key snapshots and save weighted points';
   END IF;
 
   SELECT pg_get_functiondef(
@@ -36,7 +83,8 @@ BEGIN
      OR position('runtime.global_deadline <= clock_timestamp()' IN v_publish_definition) = 0
      OR position('PENDING_ATTEMPTS' IN v_publish_definition) = 0
      OR position('MISSING_CANONICAL_IDENTITY' IN v_publish_definition) = 0
-     OR position('RESULT_PUBLISHED' IN v_publish_definition) = 0 THEN
+     OR position('RESULT_PUBLISHED' IN v_publish_definition) = 0
+     OR position('a.status::text IN (''SUBMITTED'', ''GRADING'')' IN v_publish_definition) = 0 THEN
     RAISE EXCEPTION 'Publication does not reconcile expired linear attempts and enforce readiness';
   END IF;
 
@@ -56,8 +104,9 @@ BEGIN
   ) INTO v_overview_definition;
 
   IF position('private.current_user_can_edit_competition' IN v_overview_definition) = 0
-     OR position('can_publish' IN v_overview_definition) = 0 THEN
-    RAISE EXCEPTION 'Organizer overview lacks authorization or readiness summary';
+     OR position('can_publish' IN v_overview_definition) = 0
+     OR position('a.status::text IN (''SUBMITTED'', ''GRADING'')' IN v_overview_definition) = 0 THEN
+    RAISE EXCEPTION 'Organizer overview lacks authorization, readiness summary or manual grading scope';
   END IF;
 
   SELECT pg_get_functiondef(
@@ -67,17 +116,9 @@ BEGIN
   IF position('v_attempt.score' IN v_finalize_definition) = 0
      OR position('automatic_score' IN v_finalize_definition) = 0
      OR position('MANUAL_GRADING_INCOMPLETE' IN v_finalize_definition) = 0
-     OR position('p_score' IN v_finalize_definition) > 0 THEN
-    -- p_score remains in the function signature for backward compatibility.
-    -- It must not determine the persisted score.
-    IF position('p_score' IN v_finalize_definition) > 0
-       AND position('SET score = v_final_score' IN v_finalize_definition) > 0
-       AND position('v_attempt.score' IN v_finalize_definition) > 0
-       AND position('MANUAL_GRADING_INCOMPLETE' IN v_finalize_definition) > 0 THEN
-      NULL;
-    ELSE
-      RAISE EXCEPTION 'Manual finalization is not server-calculated or does not require completed manual items';
-    END IF;
+     OR position('SET score = v_final_score' IN v_finalize_definition) = 0
+     OR position('SET score = p_score' IN v_finalize_definition) > 0 THEN
+    RAISE EXCEPTION 'Manual finalization must preserve automatic base points and calculate final score server-side';
   END IF;
 
   IF has_function_privilege(
