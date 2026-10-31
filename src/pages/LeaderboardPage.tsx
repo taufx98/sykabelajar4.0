@@ -183,7 +183,8 @@ const LEADERBOARD_STYLES = String.raw`
 .lb-category-area { max-width: 1040px; margin: 0 auto 22px; border-bottom: 1px solid var(--lb-border); }
 .lb-category-tabs { display: flex; justify-content: center; align-items: stretch; gap: 3px; overflow-x: auto; scrollbar-width: none; padding: 0 2px; }
 .lb-category-tabs::-webkit-scrollbar { display: none; }
-.lb-mobile-category-switcher { display: none; }
+.lb-mobile-category-switcher,
+.lb-mobile-subfilter-switcher { display: none; }
 .lb-category-tab { flex: 0 0 auto; position: relative; border: 0; background: transparent; color: var(--lb-muted); font-size: 11px; font-weight: 800; padding: 12px 15px 15px; white-space: nowrap; cursor: pointer; transition: none; }
 .lb-category-tab:hover { color: var(--lb-fg); }
 .lb-category-tab.active { color: #facc15; }
@@ -908,7 +909,8 @@ const LEADERBOARD_STYLES = String.raw`
     opacity: .32;
     cursor: not-allowed;
   }
-  .lb-mobile-category-current {
+  .lb-mobile-category-current,
+  .lb-mobile-subfilter-current {
     display: flex;
     min-width: 0;
     align-items: center;
@@ -920,7 +922,19 @@ const LEADERBOARD_STYLES = String.raw`
     text-align: center;
     white-space: nowrap;
   }
+  /* Desktop's full filter row stays intact above 640px. On mobile it becomes
+     a second, independent arrow stepper directly below the category stepper. */
   .lb-category-subnav { justify-content: flex-start; }
+  .lb-category-subnav > .lb-subgrades { display: none; }
+  .lb-mobile-subfilter-switcher {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 62px;
+    min-height: 62px;
+  }
   .lb-category-subnav > .lb-subgrades { justify-content: flex-start; }
   .lb-podium-area { gap: 5px; padding: 42px 0 20px; }
   .lb-podium-area:not(.lb-school-podium-area) { padding-top: 42px; }
@@ -1184,6 +1198,47 @@ export function LeaderboardPage() {
     if (nextCategory) changeCategory(nextCategory.key);
   };
 
+  const mobileSubfilters = category === 'school'
+    ? [
+        { key: 'all', label: text('Semua Sekolah', 'All schools') },
+        { key: 'sd', label: text('SD Sederajat', 'Elementary') },
+        { key: 'smp', label: text('SMP Sederajat', 'Junior high') },
+        { key: 'sma', label: text('SMA/SMK Sederajat', 'Senior high') },
+      ]
+    : category !== 'all'
+      ? [
+          {
+            key: 'all',
+            label: text(
+              category === 'sd' ? 'Semua SD' : category === 'smp' ? 'Semua SMP' : 'Semua SMA/SMK',
+              category === 'sd' ? 'All elementary' : category === 'smp' ? 'All junior high' : 'All senior high',
+            ),
+          },
+          ...SUB_GRADES[category].map((level) => ({
+            key: level,
+            label: text(`Kelas ${level}`, `Grade ${level}`),
+          })),
+        ]
+      : [];
+  const activeMobileSubfilterIndex = category === 'school'
+    ? Math.max(0, mobileSubfilters.findIndex((item) => item.key === schoolLevelFilter))
+    : subGrade
+      ? Math.max(0, mobileSubfilters.findIndex((item) => item.key === subGrade))
+      : 0;
+  const activeMobileSubfilter = mobileSubfilters[activeMobileSubfilterIndex];
+  const stepMobileSubfilter = (direction: -1 | 1) => {
+    const nextSubfilter = mobileSubfilters[activeMobileSubfilterIndex + direction];
+    if (!nextSubfilter) return;
+
+    if (category === 'school') {
+      changeSchoolLevel(nextSubfilter.key as SchoolLevelFilter);
+      return;
+    }
+
+    setSubGrade(nextSubfilter.key === 'all' ? null : nextSubfilter.key);
+    setPage(1);
+  };
+
   const categoryNavigation = (
 <nav className="lb-category-area" aria-label={text('Kategori papan peringkat','Leaderboard categories')}>
   <div className="lb-category-tabs">
@@ -1231,6 +1286,31 @@ export function LeaderboardPage() {
     </button>
   </div>
   <div className="lb-category-subnav">
+    {activeMobileSubfilter && (
+      <div className="lb-mobile-subfilter-switcher" aria-label={text('Navigasi filter kelas dan jenjang','Grade and school filter navigation')}>
+        <button
+          type="button"
+          className="lb-mobile-category-arrow"
+          aria-label={text('Filter sebelumnya','Previous filter')}
+          onClick={() => stepMobileSubfilter(-1)}
+          disabled={activeMobileSubfilterIndex <= 0}
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+        <span className="lb-mobile-subfilter-current" aria-live="polite">
+          {activeMobileSubfilter.label}
+        </span>
+        <button
+          type="button"
+          className="lb-mobile-category-arrow"
+          aria-label={text('Filter berikutnya','Next filter')}
+          onClick={() => stepMobileSubfilter(1)}
+          disabled={activeMobileSubfilterIndex >= mobileSubfilters.length - 1}
+        >
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </div>
+    )}
     {category === 'school' ? (
       <div className="lb-subgrades lb-school-level-filters" aria-label={text('Filter jenjang sekolah','School level filter')}>
         <span className="lb-school-level-label">{text('Jenjang Sekolah:','School Level:')}</span>
