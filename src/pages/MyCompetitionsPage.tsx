@@ -129,13 +129,15 @@ function CompetitionCard({ item }: { item: ParticipantDashboardItem }) {
   const canEnterExam = !isCollective
     && Boolean(item.participant?.id)
     && (competition.status === 'LIVE' || attemptStatus === 'IN_PROGRESS');
+  // Claimed collective entries belong to this account's history view.
+  // The token portal is reserved for the separate collective portal session.
   const href = isCollective
-    ? (item.result?.published || item.published_certificate_count > 0 ? '/profile/collective-history' : '/peserta-kolektif')
+    ? '/profile/collective-history'
     : canEnterExam
       ? '/lomba/' + encodeURIComponent(competition.slug) + '/kerja'
       : '/lomba/' + encodeURIComponent(competition.slug);
   const actionLabel = isCollective
-    ? (item.result?.published || item.published_certificate_count > 0 ? 'Lihat riwayat' : 'Buka portal kolektif')
+    ? 'Lihat riwayat'
     : canEnterExam
       ? attemptStatus === 'IN_PROGRESS' ? 'Lanjutkan ujian' : 'Masuk ruang ujian'
       : 'Detail lomba';
