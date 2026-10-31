@@ -36,5 +36,10 @@ The live database had no non-preview official attempts and no `LIVE` competition
 - Migration: `supabase/migrations/20261101100000_stage_6_admin_monitoring_investigations.sql`.
 - Read-only contract: `supabase/tests/admin_monitoring_stage6.sql`.
 - Frontend contract: `npm run test:admin-monitoring-contract`.
-- Migration syntax was validated in a production transaction and rolled back before rollout.
-- Apply the migration only after the PR CI is green; then run the SQL contract and verify grants/trigger metadata.
+- PR #152 merged to `main` in commit `d2d94bf9d878eb31f0af32095d79330c62ed9f31`.
+- Production migration applied successfully to Supabase project `mvdczyitbkxkldjughor` on 1 November 2026.
+- Read-only SQL contract passed. Both RPCs were verified as `SECURITY DEFINER`, pinned to an empty `search_path`, executable by `authenticated`, and not executable by `anon`. The result-audit trigger is enabled.
+- Authenticated-admin runtime smoke test passed: dashboard returned three competitions, three canonical participants, two organizer summaries, 18 open system incidents, and zero official attempts. The only attempt present in the production snapshot was a preview; its investigation request correctly returned `ATTEMPT_NOT_FOUND`.
+- PR CI run `#41231037820` and post-merge `main` CI run `#41231263003` both passed contract tests, lint, TypeScript, Vite build, performance asset budget, browser E2E access-control, and production smoke test.
+- No participant, attempt, answer, score, or ranking rows were inserted or changed during rollout. The audit trigger records future official result/status changes only; it does not backfill historical snapshots.
+- Cloudflare Pages production deployment is triggered separately; a trigger marker is added for this Stage 6 merge. The actual Cloudflare deployment state is not independently observable from the connected tools.
