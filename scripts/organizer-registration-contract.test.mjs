@@ -18,7 +18,7 @@ test('active organizer membership grants the backend organizer role through a pr
   assert.match(migration, /public\.organizer_members[\s\S]*status = 'ACTIVE'[\s\S]*is_active = true/);
   assert.match(migration, /public\.profiles[\s\S]*account_type = 'organizer'/);
   assert.match(migration, /'organizer_member'::public\.app_role/);
-  assert.match(migration, /CREATE TRIGGER trg_sync_organizer_member_user_role[\s\S]*AFTER INSERT OR UPDATE OR DELETE ON public\.organizer_members/);
+  assert.match(migration, /CREATE TRIGGER trg_sync_organizer_member_user_role[\s\S]*AFTER INSERT OR UPDATE OR DELETE\s+ON public\.organizer_members/);
   assert.match(migration, /REVOKE ALL ON FUNCTION private\.sync_organizer_member_role_for_user/);
   assert.match(migration, /REVOKE ALL ON FUNCTION private\.sync_organizer_member_user_role/);
 });
