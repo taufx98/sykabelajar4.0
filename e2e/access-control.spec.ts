@@ -972,27 +972,68 @@ test.describe('leaderboard school podium presentation', () => {
       expect(layout.cards[1].right).toBeLessThanOrEqual(layout.cards[2].left + 1);
     };
 
-    await expect(schoolLevelFilters.getByRole('button', { name: 'Semua Sekolah', exact: true })).toBeVisible();
-    await expect(schoolLevelFilters.getByRole('button', { name: 'SD Sederajat', exact: true })).toBeVisible();
+    const mobileSubfilterSwitcher = categoryArea.locator('.lb-mobile-subfilter-switcher');
+    const previousSubfilter = mobileSubfilterSwitcher.getByRole('button', { name: 'Filter sebelumnya' });
+    const nextSubfilter = mobileSubfilterSwitcher.getByRole('button', { name: 'Filter berikutnya' });
+    await expect(schoolLevelFilters).toBeHidden();
+    await expect(mobileSubfilterSwitcher).toBeVisible();
+    await expect(mobileSubfilterSwitcher).toContainText('Semua Sekolah');
+
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('SD Sederajat');
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('SMP Sederajat');
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('SMA/SMK Sederajat');
+    await expect(nextSubfilter).toBeDisabled();
+    await previousSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('SMP Sederajat');
+    await previousSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('SD Sederajat');
+    await previousSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Semua Sekolah');
+    await expect(previousSubfilter).toBeDisabled();
 
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('SMA/SMK Sederajat');
-    await expect(categoryArea.getByRole('button', { name: 'Kelas 10', exact: true })).toBeVisible();
+    await expect(mobileSubfilterSwitcher).toContainText('Semua SMA/SMK');
     const mobileStudentCategoryArea = await readCategoryArea();
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 10');
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 11');
+    await previousSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 10');
+    await previousSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Semua SMA/SMK');
+    await expect(previousSubfilter).toBeDisabled();
+
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('SMP Sederajat');
-    await expect(categoryArea.getByRole('button', { name: 'Kelas 7', exact: true })).toBeVisible();
+    await expect(mobileSubfilterSwitcher).toContainText('Semua SMP');
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 7');
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 9');
     expect(await readCategoryArea()).toEqual(mobileStudentCategoryArea);
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('SD Sederajat');
-    await expect(categoryArea.getByRole('button', { name: 'Semua SD', exact: true })).toBeVisible();
-    await expect(categoryArea.getByRole('button', { name: 'Kelas 1', exact: true })).toBeVisible();
-    await expect(categoryArea.getByRole('button', { name: 'Kelas 6', exact: true })).toBeVisible();
+    await expect(mobileSubfilterSwitcher).toContainText('Semua SD');
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 1');
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 6');
     expect(await readCategoryArea()).toEqual(mobileStudentCategoryArea);
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 1');
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 2');
+    await previousSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Kelas 1');
+    await previousSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('Semua SD');
+    await expect(previousSubfilter).toBeDisabled();
 
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('Semua Jenjang');
     await expect(previousCategory).toBeDisabled();
+    await expect(mobileSubfilterSwitcher).toBeHidden();
     await expectMobilePodiumRow('.lb-podium-area:not(.lb-school-podium-area)', '.lb-person-podium');
 
     await nextCategory.click();
@@ -1004,8 +1045,12 @@ test.describe('leaderboard school podium presentation', () => {
     await nextCategory.click();
     await expect(mobileCategorySwitcher).toContainText('Peringkat Sekolah');
     await expect(nextCategory).toBeDisabled();
+    await expect(mobileSubfilterSwitcher).toContainText('Semua Sekolah');
 
-    await schoolLevelFilters.getByRole('button', { name: 'SMP Sederajat', exact: true }).click();
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('SD Sederajat');
+    await nextSubfilter.click();
+    await expect(mobileSubfilterSwitcher).toContainText('SMP Sederajat');
     expect(await readCategoryArea()).toEqual(mobileCategoryArea);
   });
 });
