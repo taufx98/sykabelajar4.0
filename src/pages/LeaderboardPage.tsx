@@ -887,6 +887,56 @@ const LEADERBOARD_STYLES = String.raw`
   .lb-podium-area:not(.lb-school-podium-area) { padding-top: 42px; }
   .lb-school-podium-area { gap: 10px 7px; padding: 42px 0 20px; }
 }
+
+/* Reserve one shared podium frame so the category navigation remains below
+   the Top 3 at the same document position in both leaderboard modes. */
+.lb-podium-slot {
+  display: flex;
+  width: 100%;
+  height: 560px;
+  align-items: flex-end;
+  justify-content: center;
+}
+.lb-podium-slot > .lb-podium-area { flex: 0 0 auto; }
+.lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 {
+  margin-bottom: 24px;
+}
+.lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 .lb-podium-tower {
+  min-height: 425px;
+}
+
+@media (max-width: 640px) {
+  /* Both modes use the same two-tier podium on mobile: first place above,
+     second and third place side by side. Matching tower heights keep the
+     category controls directly below the podium without vertical jumps. */
+  .lb-podium-slot { height: 880px; }
+  .lb-podium-area:not(.lb-school-podium-area) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 10px 7px;
+    padding: 42px 0 20px;
+  }
+  .lb-podium-area:not(.lb-school-podium-area) .lb-podium {
+    width: 100%;
+    max-width: none !important;
+  }
+  .lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 {
+    grid-column: 1 / -1;
+    order: -1;
+    margin-bottom: 0;
+  }
+  .lb-podium-area:not(.lb-school-podium-area) .lb-podium-tower {
+    min-height: 370px !important;
+    padding: 43px 9px 34px;
+  }
+  .lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 .lb-podium-tower {
+    min-height: 425px !important;
+    padding: 44px 13px 39px;
+  }
+  .lb-school-podium-area .lb-school-podium-tower { min-height: 370px; }
+  .lb-school-podium-area .lb-school-podium.rank-1 .lb-school-podium-tower { min-height: 425px; }
+}
 `;
 
 export function LeaderboardPage() {
@@ -1196,29 +1246,34 @@ export function LeaderboardPage() {
 
       {!loading && !error && (
         <div key={mode + '-' + period + '-' + category + '-' + (subGrade ?? 'all') + '-' + schoolLevelFilter + '-' + (searchActive ? 'search' : 'browse')} className="lb-main-content">
-          {categoryNavigation}
           {category === 'school' ? (
             <>
-              {!searchActive && (
-                <div className="lb-podium-area lb-school-podium-area">
-                  {podiumSchoolItems.map(({ school, place }) => school
-                    ? <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />
-                    : <EmptyPodiumCard key={'empty-school-' + place} place={place} kind="school" mode="xp" />)}
-                </div>
-              )}
+              <div className="lb-podium-slot">
+                {!searchActive && (
+                  <div className="lb-podium-area lb-school-podium-area">
+                    {podiumSchoolItems.map(({ school, place }) => school
+                      ? <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />
+                      : <EmptyPodiumCard key={'empty-school-' + place} place={place} kind="school" mode="xp" />)}
+                  </div>
+                )}
+              </div>
+              {categoryNavigation}
               <SchoolRankingTable schools={pagedSchools} placeholderRanks={searchActive ? [] : Array.from({ length: Math.max(0, PER_PAGE - pagedSchools.length) }, (_, index) => 4 + (safePage - 1) * PER_PAGE + pagedSchools.length + index)} onPickSchool={onPickSchool} />
               {sourceLength > 3 && renderPagination(safePage, totalPages, setPage, listLength, 'sekolah', searchActive)}
               <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedSchools.length : 3 + pagedSchools.length)} dari {sourceLength} sekolah</p>
             </>
           ) : (
             <>
-              {!searchActive && (
-                <div className="lb-podium-area">
-                  {podiumItems.map(({ entry, place }) => entry
-                    ? <PersonPodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} />
-                    : <EmptyPodiumCard key={'empty-student-' + place} place={place} kind="student" mode={mode} />)}
-                </div>
-              )}
+              <div className="lb-podium-slot">
+                {!searchActive && (
+                  <div className="lb-podium-area">
+                    {podiumItems.map(({ entry, place }) => entry
+                      ? <PersonPodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} />
+                      : <EmptyPodiumCard key={'empty-student-' + place} place={place} kind="student" mode={mode} />)}
+                  </div>
+                )}
+              </div>
+              {categoryNavigation}
               <PersonRankingTable rows={pagedPeople} placeholderRanks={searchActive ? [] : Array.from({ length: Math.max(0, PER_PAGE - pagedPeople.length) }, (_, index) => 4 + (safePage - 1) * PER_PAGE + pagedPeople.length + index)} mode={mode} currentUserId={user?.id} onPickSchool={onPickSchool} />
               {sourceLength > (searchActive ? 0 : 3) && renderPagination(safePage, totalPages, setPage, listLength, 'siswa', searchActive)}
               <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedPeople.length : 3 + pagedPeople.length)} dari {sourceLength} siswa</p>
