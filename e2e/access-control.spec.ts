@@ -860,7 +860,7 @@ test.describe('leaderboard school podium presentation', () => {
     const categoryArea = page.locator('.lb-category-area');
     const readCategoryArea = () => categoryArea.evaluate((element) => {
       const rect = element.getBoundingClientRect();
-      return { top: Math.round(rect.top), height: Math.round(rect.height) };
+      return { top: Math.round(rect.top + window.scrollY), height: Math.round(rect.height) };
     });
     const initialCategoryArea = await readCategoryArea();
     const readPodiumFrame = () => page.locator('.lb-podium-area').evaluate((element) => {
@@ -873,13 +873,20 @@ test.describe('leaderboard school podium presentation', () => {
       };
     });
     const studentPodiumFrame = await readPodiumFrame();
-    const navigationPrecedesPodium = await page.locator('.lb-main-content').evaluate((root) => {
+    const podiumPrecedesNavigation = await page.locator('.lb-main-content').evaluate((root) => {
       const navigation = root.querySelector('.lb-category-area');
       const podium = root.querySelector('.lb-podium-area');
       return Boolean(navigation && podium &&
-        (navigation.compareDocumentPosition(podium) & Node.DOCUMENT_POSITION_FOLLOWING));
+        (podium.compareDocumentPosition(navigation) & Node.DOCUMENT_POSITION_FOLLOWING));
     });
-    expect(navigationPrecedesPodium).toBe(true);
+    expect(podiumPrecedesNavigation).toBe(true);
+    const podiumIsVisuallyAboveNavigation = () => page.locator('.lb-main-content').evaluate((root) => {
+      const podium = root.querySelector('.lb-podium-area');
+      const navigation = root.querySelector('.lb-category-area');
+      return Boolean(podium && navigation &&
+        podium.getBoundingClientRect().bottom <= navigation.getBoundingClientRect().top);
+    });
+    expect(await podiumIsVisuallyAboveNavigation()).toBe(true);
 
     await page.getByRole('button', { name: 'SD Sederajat', exact: true }).click();
     expect(await readCategoryArea()).toEqual(initialCategoryArea);
@@ -891,6 +898,7 @@ test.describe('leaderboard school podium presentation', () => {
     await page.getByRole('button', { name: 'Peringkat Sekolah', exact: true }).click();
     expect(await readCategoryArea()).toEqual(initialCategoryArea);
     expect(await readPodiumFrame()).toEqual(studentPodiumFrame);
+    expect(await podiumIsVisuallyAboveNavigation()).toBe(true);
 
     await expect(page.locator('.lb-school-podium')).toHaveCount(3);
     const schoolLevelFilters = page.locator('.lb-school-level-filters');
