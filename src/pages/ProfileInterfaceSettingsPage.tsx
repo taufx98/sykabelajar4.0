@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Bell, Check, ClipboardList, Eye, Grid2X2, KeyRound, Lock, RotateCcw, Save, ShieldCheck, UserRound, UsersRound, XCircle } from 'lucide-react';
+import { ArrowLeft, Bell, Check, Eye, Grid2X2, KeyRound, Lock, RotateCcw, Save, ShieldCheck, UserRound, UsersRound, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
