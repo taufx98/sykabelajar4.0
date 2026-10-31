@@ -220,23 +220,31 @@ BEGIN
   INTO v_organizers
   FROM (
     SELECT
-      c.organizer_id,
-      coalesce(nullif(trim(op.full_name), ''), op.username, 'Penyelenggara') AS organizer_name,
-      count(DISTINCT c.id)::integer AS competition_count,
-      coalesce(sum((SELECT count(*) FROM public.participants p WHERE p.competition_id = c.id)), 0)::bigint AS participant_count,
-      coalesce(sum((SELECT count(*) FROM public.attempts a WHERE a.competition_id = c.id AND coalesce(a.is_preview, false) = false)), 0)::bigint AS attempt_count,
+      organizer_id,
+      organizer_name,
+      count(*)::integer AS competition_count,
+      coalesce(sum(participant_count), 0)::bigint AS participant_count,
+      coalesce(sum(attempt_count), 0)::bigint AS attempt_count,
       jsonb_build_object(
-        'organizer_id', c.organizer_id,
-        'organizer_name', coalesce(nullif(trim(op.full_name), ''), op.username, 'Penyelenggara'),
-        'competition_count', count(DISTINCT c.id),
-        'participant_count', coalesce(sum((SELECT count(*) FROM public.participants p WHERE p.competition_id = c.id)), 0),
-        'attempt_count', coalesce(sum((SELECT count(*) FROM public.attempts a WHERE a.competition_id = c.id AND coalesce(a.is_preview, false) = false)), 0)
+        'organizer_id', organizer_id,
+        'organizer_name', organizer_name,
+        'competition_count', count(*),
+        'participant_count', coalesce(sum(participant_count), 0),
+        'attempt_count', coalesce(sum(attempt_count), 0)
       ) AS row_data
-    FROM public.competitions c
-    LEFT JOIN public.profiles op ON op.id = c.organizer_id
-    WHERE c.organizer_id IS NOT NULL
-    GROUP BY c.organizer_id, op.full_name, op.username
-    ORDER BY count(DISTINCT c.id) DESC, organizer_name
+    FROM (
+      SELECT
+        c.id,
+        c.organizer_id,
+        coalesce(nullif(trim(op.full_name), ''), op.username, 'Penyelenggara') AS organizer_name,
+        (SELECT count(*) FROM public.participants p WHERE p.competition_id = c.id) AS participant_count,
+        (SELECT count(*) FROM public.attempts a WHERE a.competition_id = c.id AND coalesce(a.is_preview, false) = false) AS attempt_count
+      FROM public.competitions c
+      LEFT JOIN public.profiles op ON op.id = c.organizer_id
+      WHERE c.organizer_id IS NOT NULL
+    ) organizer_competitions
+    GROUP BY organizer_id, organizer_name
+    ORDER BY count(*) DESC, organizer_name
     LIMIT 20
   ) organizer_rows;
 
