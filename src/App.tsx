@@ -83,7 +83,7 @@ function AuthGuard({ children }: { children: ReactNode }) {
   const collectiveChatSession = location.pathname === '/pesan' && typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token'));
   if (authLoading) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-fg-muted">Memuat sesi...</p></div>;
   if (isAuthenticated || isGuest || collectiveChatSession) return <>{children}</>;
-  return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
+  return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
 }
 
 function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member' | 'teacher'; children: ReactNode }) {
