@@ -48,10 +48,10 @@ test('owner and admin invitation controls rotate server-hashed codes instead of 
 });
 
 test('admin console can rotate invitations while workspace owners remain scoped to their own organization', () => {
-  assert.match(migration, /CREATE OR REPLACE FUNCTION public\\.rotate_organizer_access_code/);
-  assert.match(migration, /private\\.current_user_is_admin\\(\\)/);
-  assert.match(migration, /private\\.current_user_can_manage_organizer\\(p_organizer_id\\)/);
-  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\\.rotate_organizer_access_code\\(uuid\\)\\s+TO authenticated/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.rotate_organizer_access_code/);
+  assert.match(migration, /private\.current_user_is_admin\(\)/);
+  assert.match(migration, /private\.current_user_can_manage_organizer\(p_organizer_id\)/);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.rotate_organizer_access_code\(uuid\)\s+TO authenticated/);
 });
 
 test('invitation code is displayed only after a rotation and can be copied from the owner workspace', () => {
