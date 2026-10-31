@@ -47,7 +47,7 @@ export function GuruAchievementPage() {
   const [competitionId, setCompetitionId] = useState('ALL');
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async (query = appliedSearch) => {
+  const load = useCallback(async (query: string) => {
     setLoading(true);
     try {
       const data = await listTeacherAchievementReport({ search: query });
@@ -57,7 +57,7 @@ export function GuruAchievementPage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedSearch]);
+  }, []);
 
   useEffect(() => { void load(''); }, [load]);
 
@@ -97,7 +97,7 @@ export function GuruAchievementPage() {
             <ArrowLeft size={14} /> Kembali ke Workspace Guru
           </Link>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => void load()} loading={loading} icon={<RefreshCw size={14} />}>Perbarui</Button>
+            <Button size="sm" variant="outline" onClick={() => void load(appliedSearch)} loading={loading} icon={<RefreshCw size={14} />}>Perbarui</Button>
             <Button size="sm" onClick={() => exportReport(visibleRows)} disabled={!visibleRows.length} icon={<Download size={14} />}>Unduh laporan</Button>
           </div>
         </div>
