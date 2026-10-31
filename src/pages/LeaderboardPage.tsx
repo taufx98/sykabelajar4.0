@@ -797,6 +797,89 @@ const LEADERBOARD_STYLES = String.raw`
   .lb-podium-area:not(.lb-school-podium-area) { padding-top: 42px; }
   .lb-school-table-wrap .lb-table { min-width: 760px; }
 }
+
+/* Keep the category controls in a fixed two-row frame. The second row remains
+   reserved for subfilters even on "Semua Jenjang", so changing categories never
+   changes the navigation's height or vertical position. */
+.lb-category-area {
+  display: grid;
+  grid-template-rows: 46px 62px;
+  align-content: start;
+  margin-bottom: 24px;
+}
+.lb-category-tabs {
+  height: 46px;
+  min-height: 46px;
+  align-items: stretch;
+}
+.lb-category-tab {
+  display: inline-flex;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 17px;
+}
+.lb-category-subnav {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 62px;
+  min-height: 62px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.lb-category-subnav > .lb-subgrades {
+  display: flex;
+  width: 100%;
+  height: 62px;
+  min-height: 62px;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  overflow-x: auto;
+  margin: 0;
+  padding: 0 2px;
+  scrollbar-width: none;
+}
+.lb-category-subnav > .lb-subgrades::-webkit-scrollbar { display: none; }
+.lb-category-subnav .lb-subgrade { flex: 0 0 auto; white-space: nowrap; }
+.lb-category-subnav .lb-subgrades-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Both ranking modes share the same outer podium width, spacing and baseline.
+   Their inner cards retain their own content density and existing ghost states. */
+.lb-podium-area {
+  width: 100%;
+  max-width: 960px;
+  gap: 10px;
+  padding: 46px 4px 20px;
+}
+.lb-podium-area:not(.lb-school-podium-area) { padding-top: 46px; }
+.lb-school-podium-area {
+  max-width: 960px;
+  gap: 10px;
+  padding: 46px 4px 20px;
+  margin-bottom: 0;
+}
+.lb-school-podium-area .lb-school-podium.rank-1 { flex: 1.1 1 0; }
+
+@media (max-width: 1000px) {
+  .lb-category-tab { padding-left: 11px; padding-right: 11px; }
+}
+
+@media (max-width: 640px) {
+  .lb-category-tabs { justify-content: flex-start; }
+  .lb-category-tab { padding-left: 12px; padding-right: 12px; }
+  .lb-category-subnav { justify-content: flex-start; }
+  .lb-category-subnav > .lb-subgrades { justify-content: flex-start; }
+  .lb-podium-area { gap: 5px; padding: 42px 0 20px; }
+  .lb-podium-area:not(.lb-school-podium-area) { padding-top: 42px; }
+  .lb-school-podium-area { gap: 10px 7px; padding: 42px 0 20px; }
+}
 `;
 
 export function LeaderboardPage() {
@@ -1015,34 +1098,38 @@ export function LeaderboardPage() {
       );
     })}
   </div>
-  {category === 'school' ? (
-    <div className="lb-subgrades lb-school-level-filters" aria-label={text('Filter jenjang sekolah','School level filter')}>
-      <span className="lb-school-level-label">{text('Jenjang Sekolah:','School Level:')}</span>
-      <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'all' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'all'} onClick={() => changeSchoolLevel('all')}>
-        {text('Semua Sekolah','All schools')}
-      </button>
-      <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'sd' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'sd'} onClick={() => changeSchoolLevel('sd')}>
-        {text('SD Sederajat','Elementary')}
-      </button>
-      <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'smp' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'smp'} onClick={() => changeSchoolLevel('smp')}>
-        {text('SMP Sederajat','Junior high')}
-      </button>
-      <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'sma' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'sma'} onClick={() => changeSchoolLevel('sma')}>
-        {text('SMA/SMK Sederajat','Senior high')}
-      </button>
-    </div>
-  ) : category !== 'all' && (
-    <div className="lb-subgrades" aria-label={text('Filter kelas','Grade filter')}>
-      <button type="button" className={'lb-subgrade ' + (!subGrade ? 'active' : '')} onClick={() => { setSubGrade(null); setPage(1); }}>
-        Semua {category === 'sd' ? 'SD' : category === 'smp' ? 'SMP' : 'SMA/SMK'}
-      </button>
-      {SUB_GRADES[category].map((level) => (
-        <button key={level} type="button" className={'lb-subgrade ' + (subGrade === level ? 'active' : '')} onClick={() => { setSubGrade(level); setPage(1); }}>
-          Kelas {level}
+  <div className="lb-category-subnav">
+    {category === 'school' ? (
+      <div className="lb-subgrades lb-school-level-filters" aria-label={text('Filter jenjang sekolah','School level filter')}>
+        <span className="lb-school-level-label">{text('Jenjang Sekolah:','School Level:')}</span>
+        <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'all' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'all'} onClick={() => changeSchoolLevel('all')}>
+          {text('Semua Sekolah','All schools')}
         </button>
-      ))}
-    </div>
-  )}
+        <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'sd' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'sd'} onClick={() => changeSchoolLevel('sd')}>
+          {text('SD Sederajat','Elementary')}
+        </button>
+        <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'smp' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'smp'} onClick={() => changeSchoolLevel('smp')}>
+          {text('SMP Sederajat','Junior high')}
+        </button>
+        <button type="button" className={'lb-subgrade ' + (schoolLevelFilter === 'sma' ? 'active' : '')} aria-pressed={schoolLevelFilter === 'sma'} onClick={() => changeSchoolLevel('sma')}>
+          {text('SMA/SMK Sederajat','Senior high')}
+        </button>
+      </div>
+    ) : category !== 'all' ? (
+      <div className="lb-subgrades" aria-label={text('Filter kelas','Grade filter')}>
+        <button type="button" className={'lb-subgrade ' + (!subGrade ? 'active' : '')} onClick={() => { setSubGrade(null); setPage(1); }}>
+          Semua {category === 'sd' ? 'SD' : category === 'smp' ? 'SMP' : 'SMA/SMK'}
+        </button>
+        {SUB_GRADES[category].map((level) => (
+          <button key={level} type="button" className={'lb-subgrade ' + (subGrade === level ? 'active' : '')} onClick={() => { setSubGrade(level); setPage(1); }}>
+            Kelas {level}
+          </button>
+        ))}
+      </div>
+    ) : (
+      <div className="lb-subgrades lb-subgrades-placeholder" aria-hidden="true" />
+    )}
+  </div>
 </nav>
   );
 
@@ -1102,6 +1189,7 @@ export function LeaderboardPage() {
 
       {!loading && !error && (
         <div key={mode + '-' + period + '-' + category + '-' + (subGrade ?? 'all') + '-' + schoolLevelFilter + '-' + (searchActive ? 'search' : 'browse')} className="lb-main-content">
+          {categoryNavigation}
           {searchActive && (
             <div className="lb-search-note">
               <span>Hasil pencarian untuk <strong>“{searchInput.trim()}”</strong> · {sourceLength} ditemukan</span>
@@ -1118,7 +1206,6 @@ export function LeaderboardPage() {
                     : <EmptyPodiumCard key={'empty-school-' + place} place={place} kind="school" mode="xp" />)}
                 </div>
               )}
-              {categoryNavigation}
               <SchoolRankingTable schools={pagedSchools} placeholderRanks={searchActive ? [] : Array.from({ length: Math.max(0, PER_PAGE - pagedSchools.length) }, (_, index) => 4 + (safePage - 1) * PER_PAGE + pagedSchools.length + index)} onPickSchool={onPickSchool} />
               {sourceLength > 3 && renderPagination(safePage, totalPages, setPage, listLength, 'sekolah', searchActive)}
               <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedSchools.length : 3 + pagedSchools.length)} dari {sourceLength} sekolah</p>
@@ -1132,7 +1219,6 @@ export function LeaderboardPage() {
                     : <EmptyPodiumCard key={'empty-student-' + place} place={place} kind="student" mode={mode} />)}
                 </div>
               )}
-              {categoryNavigation}
               <PersonRankingTable rows={pagedPeople} placeholderRanks={searchActive ? [] : Array.from({ length: Math.max(0, PER_PAGE - pagedPeople.length) }, (_, index) => 4 + (safePage - 1) * PER_PAGE + pagedPeople.length + index)} mode={mode} currentUserId={user?.id} onPickSchool={onPickSchool} />
               {sourceLength > (searchActive ? 0 : 3) && renderPagination(safePage, totalPages, setPage, listLength, 'siswa', searchActive)}
               <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedPeople.length : 3 + pagedPeople.length)} dari {sourceLength} siswa</p>
