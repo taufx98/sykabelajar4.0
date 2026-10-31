@@ -846,7 +846,9 @@ test.describe('leaderboard school podium presentation', () => {
 
     await page.locator('.lb-search button[aria-label="Hapus pencarian"]').click();
     await expect(leaderboardSearch).toHaveValue('');
-    await expect(page.locator('.lb-table tbody tr:not(.lb-empty-row)')).toHaveCount(4);
+    // The default browse view returns the Top 3 to the podium and leaves rank 4 in the table.
+    await expect(page.locator('.lb-table tbody tr:not(.lb-empty-row)')).toHaveCount(1);
+    await expect(page.locator('.lb-table tbody tr:not(.lb-empty-row)').first()).toContainText('Juara Keempat');
 
     // The settings dialog is mounted above the application stacking contexts.
     await page.getByRole('button', { name: 'Pengaturan', exact: true }).click();
