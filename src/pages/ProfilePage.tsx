@@ -110,7 +110,7 @@ export function ProfilePage() {
         if (isAdminTarget) {
           if (user?.id === p.data.id) {
             const [a, s, b, v, registrations] = await Promise.all([
-              supabase.from('awards').select('id,title,subtitle,rank_code,issued_at').eq('user_id', p.data.id).order('issued_at', { ascending: false }).limit(50),
+              supabase.from('awards').select('id,title,rank_code,issued_at').eq('user_id', p.data.id).order('issued_at', { ascending: false }).limit(50),
               supabase.rpc('get_public_profile_social', { p_profile_id: p.data.id }),
               getProfileBadges(p.data.id).catch(() => [] as ProfileBadge[]),
               getProfileBadgeVisibility(p.data.id).catch(() => ({ showBadges: true, showBadgeCollection: true })),
@@ -142,7 +142,7 @@ export function ProfilePage() {
         }
 
         const [a, s, u, b, v, registrations] = await Promise.all([
-          supabase.from('awards').select('id,title,subtitle,rank_code,issued_at').eq('user_id', p.data.id).order('issued_at', { ascending: false }),
+          supabase.from('awards').select('id,title,rank_code,issued_at').eq('user_id', p.data.id).order('issued_at', { ascending: false }),
           supabase.rpc('get_public_profile_social', { p_profile_id: p.data.id }),
           supabase.rpc('get_public_profile_ui_settings', { p_profile_id: p.data.id }),
           getProfileBadges(p.data.id).catch(() => [] as ProfileBadge[]),
