@@ -224,7 +224,7 @@ end;
 $function$;
 
 revoke all on function private.sync_collective_participant_to_canonical_participant()
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 drop trigger if exists trg_collective_participant_canonical on public.collective_participants;
 create trigger trg_collective_participant_canonical
@@ -281,7 +281,7 @@ as $function$
 $function$;
 
 revoke all on function private.canonical_competition_rank(uuid, uuid)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 -- Canonical individual/collective result endpoint now uses one latest attempt
 -- per canonical participant when calculating a rank. Claimed collective
@@ -745,14 +745,16 @@ begin
   if exists (
     select 1
     from public.collective_participants cp
-    where cp.status::text = 'ACTIVE'
-       or exists (
-         select 1 from public.attempts a
-         where a.collective_participant_id = cp.id and a.is_preview = false
-       )
-       or exists (
-         select 1 from public.collective_certificates cc
-         where cc.collective_participant_id = cp.id
+    where (
+         cp.status::text = 'ACTIVE'
+         or exists (
+           select 1 from public.attempts a
+           where a.collective_participant_id = cp.id and a.is_preview = false
+         )
+         or exists (
+           select 1 from public.collective_certificates cc
+           where cc.collective_participant_id = cp.id
+         )
        )
       and not exists (
         select 1
