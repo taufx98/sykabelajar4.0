@@ -90,7 +90,7 @@ BEGIN
      OR position('question_snapshot' IN v_limits_definition) = 0
      OR position('ai_assessment_enabled' IN v_limits_definition) = 0
      OR position('answer_key_snapshot->>''answer_key''' IN v_limits_definition) > 0
-     OR position('private.current_user_can_edit_competition' IN v_limits_definition) = 0 THEN
+     OR position('private.current_user_is_organizer_for' IN v_limits_definition) = 0 THEN
     RAISE EXCEPTION 'Grading-limit RPC does not use attempt snapshots or organizer authorization';
   END IF;
 
@@ -111,6 +111,7 @@ BEGIN
   IF position('SELECT gi.attempt_id INTO v_attempt_id' IN v_save_definition) = 0
      OR position('require_organizer_entitlement' IN v_save_definition) = 0
      OR position('manual_grading' IN v_save_definition) = 0
+     OR position('private.current_user_is_organizer_for' IN v_save_definition) = 0
      OR position('FOR UPDATE' IN v_save_definition) = 0 THEN
     RAISE EXCEPTION 'Manual grade saving must serialize on attempt and preserve organizer entitlement';
   END IF;

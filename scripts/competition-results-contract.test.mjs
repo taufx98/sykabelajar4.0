@@ -20,6 +20,7 @@ test('manual and AI grading serialize against finalization on the same attempt r
   const saveSql = sql.slice(saveStart, limitsStart);
   assert.match(saveSql, /SELECT gi\.attempt_id INTO v_attempt_id[\s\S]*FROM public\.attempts[\s\S]*FOR UPDATE[\s\S]*FROM public\.grading_items[\s\S]*FOR UPDATE/);
   assert.match(saveSql, /require_organizer_entitlement\([\s\S]*'manual_grading'/);
+  assert.match(saveSql, /private\.current_user_is_organizer_for/);
 
   const aiStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.grade_essay_similarity');
   const finalizeStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.finalize_attempt_manual', aiStart);
@@ -72,7 +73,7 @@ test('grading UI receives safe question snapshot data only through an authorized
   assert.match(limitsSql, /question_snapshot jsonb/);
   assert.match(limitsSql, /ai_assessment_enabled/);
   assert.doesNotMatch(limitsSql, /answer_key_snapshot->>'answer_key'/);
-  assert.match(limitsSql, /private\.current_user_can_edit_competition/);
+  assert.match(limitsSql, /private\.current_user_is_organizer_for/);
   assert.match(limitsSql, /REVOKE ALL ON FUNCTION public\.get_attempt_grading_limits\(uuid\)\s+FROM PUBLIC, anon/);
   assert.doesNotMatch(manualService, /\.from\('questions'\)/);
   assert.match(manualService, /get_attempt_grading_limits/);

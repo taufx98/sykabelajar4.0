@@ -156,7 +156,7 @@ BEGIN
     private.current_user_is_admin()
     OR (
       v_comp.organizer_id IS NOT NULL
-      AND private.current_user_can_edit_competition(v_comp.organizer_id)
+      AND private.current_user_is_organizer_for(v_comp.organizer_id)
     )
   ) THEN
     RAISE EXCEPTION 'FORBIDDEN';
@@ -255,7 +255,7 @@ BEGIN
     private.current_user_is_admin()
     OR (
       v_comp.organizer_id IS NOT NULL
-      AND private.current_user_can_edit_competition(v_comp.organizer_id)
+      AND private.current_user_is_organizer_for(v_comp.organizer_id)
     )
   ) THEN
     RAISE EXCEPTION 'ACCESS_DENIED';
