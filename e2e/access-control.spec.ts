@@ -978,15 +978,17 @@ test.describe('leaderboard school podium presentation', () => {
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('SMA/SMK Sederajat');
     await expect(categoryArea.getByRole('button', { name: 'Kelas 10', exact: true })).toBeVisible();
+    const mobileStudentCategoryArea = await readCategoryArea();
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('SMP Sederajat');
     await expect(categoryArea.getByRole('button', { name: 'Kelas 7', exact: true })).toBeVisible();
+    expect(await readCategoryArea()).toEqual(mobileStudentCategoryArea);
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('SD Sederajat');
     await expect(categoryArea.getByRole('button', { name: 'Semua SD', exact: true })).toBeVisible();
     await expect(categoryArea.getByRole('button', { name: 'Kelas 1', exact: true })).toBeVisible();
     await expect(categoryArea.getByRole('button', { name: 'Kelas 6', exact: true })).toBeVisible();
-    expect(await readCategoryArea()).toEqual(mobileCategoryArea);
+    expect(await readCategoryArea()).toEqual(mobileStudentCategoryArea);
 
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('Semua Jenjang');
