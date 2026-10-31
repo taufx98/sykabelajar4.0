@@ -9,7 +9,9 @@ import { useLanguage } from '@/lib/LanguageContext';
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/home';
+  const requestedRedirect = searchParams.get('redirect') || '/home';
+  const redirectTo = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/home';
+  const registerTo = redirectTo === '/home' ? '/register' : `/register?redirect=${encodeURIComponent(redirectTo)}`;
   const { login, toast } = useApp();
   const { language } = useLanguage();
   const text = (id: string, en: string) => language === 'en' ? en : id;
@@ -53,7 +55,7 @@ export function LoginPage() {
     <div className="min-h-screen flex flex-col">
       <header className="px-4 h-16 flex items-center justify-between border-b surface-border">
         <Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white" /></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-accent">.id</span></span></Link>
-        <Link to="/register" className="text-sm text-slate-400 hover:text-fg">{text('Belum punya akun?','Don’t have an account?')} <span className="text-accent">{text('Daftar','Sign up')}</span></Link>
+        <Link to={registerTo} className="text-sm text-slate-400 hover:text-fg">{text('Belum punya akun?','Don’t have an account?')} <span className="text-accent">{text('Daftar','Sign up')}</span></Link>
       </header>
       <div className="flex-1 flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-md">
