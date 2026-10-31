@@ -11,3 +11,15 @@ export async function saveQuestion(input: { id?: string; questionBankId: string;
 export async function deleteQuestion(id: string) { const { error } = await supabase.from('questions').delete().eq('id', id); if (error) throw error; }
 export async function gradeAttempt(attemptId: string) { const { data, error } = await supabase.rpc('grade_competition_attempt', { p_attempt_id: attemptId }); if (error) throw error; return data; }
 export async function gradeEssaySimilarity(attemptId: string, questionId: string) { const { data, error } = await supabase.rpc('grade_essay_similarity', { p_attempt_id: attemptId, p_question_id: questionId }); if (error) throw error; return Number(data ?? 0); }
+
+export async function rotateOrganizerAccessCode(organizerId: string): Promise<string> {
+  if (!organizerId.trim()) throw new Error('ORGANIZER_REQUIRED');
+  const { data, error } = await supabase.rpc('rotate_organizer_access_code', {
+    p_organizer_id: organizerId,
+  });
+  if (error) throw error;
+  if (typeof data !== 'string' || !/^[a-f0-9]{10}$/i.test(data)) {
+    throw new Error('BACKEND_ACCESS_CODE_INVALID');
+  }
+  return data;
+}
