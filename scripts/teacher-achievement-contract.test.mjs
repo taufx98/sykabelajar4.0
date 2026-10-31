@@ -13,7 +13,7 @@ test('teacher report is a server-authoritative, authenticated RPC', () => {
   assert.match(migration, /auth\.uid\(\)/i);
   assert.match(migration, /user_roles/i);
   assert.match(migration, /role\s*=\s*'teacher'/i);
-  assert.match(migration, /managed_by_user_id\\s*=\\s*v_user_id/i);
+  assert.match(migration, /managed_by_user_id\s*=\s*v_user_id/i);
   assert.match(migration, /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, anon/i);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION[\s\S]*TO authenticated/i);
 });
