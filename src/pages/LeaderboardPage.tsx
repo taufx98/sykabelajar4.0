@@ -183,6 +183,7 @@ const LEADERBOARD_STYLES = String.raw`
 .lb-category-area { max-width: 1040px; margin: 0 auto 22px; border-bottom: 1px solid var(--lb-border); }
 .lb-category-tabs { display: flex; justify-content: center; align-items: stretch; gap: 3px; overflow-x: auto; scrollbar-width: none; padding: 0 2px; }
 .lb-category-tabs::-webkit-scrollbar { display: none; }
+.lb-mobile-category-switcher { display: none; }
 .lb-category-tab { flex: 0 0 auto; position: relative; border: 0; background: transparent; color: var(--lb-muted); font-size: 11px; font-weight: 800; padding: 12px 15px 15px; white-space: nowrap; cursor: pointer; transition: none; }
 .lb-category-tab:hover { color: var(--lb-fg); }
 .lb-category-tab.active { color: #facc15; }
@@ -879,8 +880,46 @@ const LEADERBOARD_STYLES = String.raw`
 }
 
 @media (max-width: 640px) {
-  .lb-category-tabs { justify-content: flex-start; }
-  .lb-category-tab { padding-left: 12px; padding-right: 12px; }
+  /* Mobile category navigation becomes a single-step carousel. The subfilter
+     row remains directly below it and keeps its existing horizontal scrolling. */
+  .lb-category-tabs { display: none; }
+  .lb-mobile-category-switcher {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 46px;
+    min-height: 46px;
+  }
+  .lb-mobile-category-arrow {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--lb-border);
+    border-radius: 11px;
+    background: var(--lb-panel);
+    color: var(--lb-fg);
+    cursor: pointer;
+  }
+  .lb-mobile-category-arrow:disabled {
+    opacity: .32;
+    cursor: not-allowed;
+  }
+  .lb-mobile-category-current {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    color: var(--lb-fg);
+    font-size: 11px;
+    font-weight: 850;
+    text-align: center;
+    white-space: nowrap;
+  }
   .lb-category-subnav { justify-content: flex-start; }
   .lb-category-subnav > .lb-subgrades { justify-content: flex-start; }
   .lb-podium-area { gap: 5px; padding: 42px 0 20px; }
@@ -906,36 +945,36 @@ const LEADERBOARD_STYLES = String.raw`
 }
 
 @media (max-width: 640px) {
-  /* Both modes use the same two-tier podium on mobile: first place above,
-     second and third place side by side. Matching tower heights keep the
-     category controls directly below the podium without vertical jumps. */
-  .lb-podium-slot { height: 880px; }
+  /* Keep the student Top 3 in one compact row. Flexible columns preserve the
+     familiar second / first / third arrangement without stacking cards. */
+  .lb-podium-slot { height: auto; min-height: 0; }
   .lb-podium-area:not(.lb-school-podium-area) {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
-    gap: 10px 7px;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 5px;
     padding: 42px 0 20px;
   }
   .lb-podium-area:not(.lb-school-podium-area) .lb-podium {
-    width: 100%;
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
     max-width: none !important;
   }
   .lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 {
-    grid-column: 1 / -1;
-    order: -1;
-    margin-bottom: 0;
+    flex: 1.1 1 0;
+    max-width: none !important;
   }
   .lb-podium-area:not(.lb-school-podium-area) .lb-podium-tower {
-    min-height: 370px !important;
-    padding: 43px 9px 34px;
+    min-height: 225px !important;
+    padding: 18px 6px 27px;
   }
   .lb-podium-area:not(.lb-school-podium-area) .lb-podium.rank-1 .lb-podium-tower {
-    min-height: 425px !important;
-    padding: 44px 13px 39px;
+    min-height: 254px !important;
+    padding-top: 23px;
+    padding-bottom: 32px;
   }
-  .lb-school-podium-area .lb-school-podium-tower { min-height: 370px; }
-  .lb-school-podium-area .lb-school-podium.rank-1 .lb-school-podium-tower { min-height: 425px; }
 }
 `;
 
@@ -1135,6 +1174,14 @@ export function LeaderboardPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedSchool]);
 
+  const mobileCategories = CATEGORIES.filter((item) => mode !== 'coin' || item.key !== 'school');
+  const mobileCategoryIndex = mobileCategories.findIndex((item) => item.key === category);
+  const activeMobileCategory = mobileCategories[mobileCategoryIndex] ?? mobileCategories[0];
+  const stepMobileCategory = (direction: -1 | 1) => {
+    const nextCategory = mobileCategories[mobileCategoryIndex + direction];
+    if (nextCategory) changeCategory(nextCategory.key);
+  };
+
   const categoryNavigation = (
 <nav className="lb-category-area" aria-label={text('Kategori papan peringkat','Leaderboard categories')}>
   <div className="lb-category-tabs">
@@ -1154,6 +1201,32 @@ export function LeaderboardPage() {
         </button>
       );
     })}
+  </div>
+  <div className="lb-mobile-category-switcher" aria-label={text('Navigasi kategori mobile','Mobile category navigation')}>
+    <button
+      type="button"
+      className="lb-mobile-category-arrow"
+      aria-label={text('Kategori sebelumnya','Previous category')}
+      onClick={() => stepMobileCategory(-1)}
+      disabled={mobileCategoryIndex <= 0}
+    >
+      <ChevronLeft size={18} aria-hidden="true" />
+    </button>
+    <span className="lb-mobile-category-current" aria-live="polite">
+      {category === 'school' && <School size={13} aria-hidden="true" />}
+      {language === 'en'
+        ? ({ all: 'All levels', sd: 'Elementary', smp: 'Junior high', sma: 'Senior high', school: 'School rankings' } as Record<Category, string>)[category]
+        : activeMobileCategory.label}
+    </span>
+    <button
+      type="button"
+      className="lb-mobile-category-arrow"
+      aria-label={text('Kategori berikutnya','Next category')}
+      onClick={() => stepMobileCategory(1)}
+      disabled={mobileCategoryIndex >= mobileCategories.length - 1}
+    >
+      <ChevronRight size={18} aria-hidden="true" />
+    </button>
   </div>
   <div className="lb-category-subnav">
     {category === 'school' ? (

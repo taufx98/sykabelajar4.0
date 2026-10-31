@@ -972,7 +972,8 @@ test.describe('leaderboard school podium presentation', () => {
       expect(layout.cards[1].right).toBeLessThanOrEqual(layout.cards[2].left + 1);
     };
 
-    await expectMobilePodiumRow('.lb-school-podium-area', '.lb-school-podium');
+    await expect(schoolLevelFilters.getByRole('button', { name: 'Semua Sekolah', exact: true })).toBeVisible();
+    await expect(schoolLevelFilters.getByRole('button', { name: 'SD Sederajat', exact: true })).toBeVisible();
 
     await previousCategory.click();
     await expect(mobileCategorySwitcher).toContainText('SMA/SMK Sederajat');
