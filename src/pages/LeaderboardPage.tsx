@@ -1248,32 +1248,36 @@ export function LeaderboardPage() {
         <div key={mode + '-' + period + '-' + category + '-' + (subGrade ?? 'all') + '-' + schoolLevelFilter + '-' + (searchActive ? 'search' : 'browse')} className="lb-main-content">
           {category === 'school' ? (
             <>
-              <div className="lb-podium-slot">
-                {!searchActive && (
-                  <div className="lb-podium-area lb-school-podium-area">
-                    {podiumSchoolItems.map(({ school, place }) => school
-                      ? <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />
-                      : <EmptyPodiumCard key={'empty-school-' + place} place={place} kind="school" mode="xp" />)}
+              {!searchActive && (
+                <>
+                  <div className="lb-podium-slot">
+                    <div className="lb-podium-area lb-school-podium-area">
+                      {podiumSchoolItems.map(({ school, place }) => school
+                        ? <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />
+                        : <EmptyPodiumCard key={'empty-school-' + place} place={place} kind="school" mode="xp" />)}
+                    </div>
                   </div>
-                )}
-              </div>
-              {categoryNavigation}
+                  {categoryNavigation}
+                </>
+              )}
               <SchoolRankingTable schools={pagedSchools} placeholderRanks={searchActive ? [] : Array.from({ length: Math.max(0, PER_PAGE - pagedSchools.length) }, (_, index) => 4 + (safePage - 1) * PER_PAGE + pagedSchools.length + index)} onPickSchool={onPickSchool} />
               {sourceLength > 3 && renderPagination(safePage, totalPages, setPage, listLength, 'sekolah', searchActive)}
               <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedSchools.length : 3 + pagedSchools.length)} dari {sourceLength} sekolah</p>
             </>
           ) : (
             <>
-              <div className="lb-podium-slot">
-                {!searchActive && (
-                  <div className="lb-podium-area">
-                    {podiumItems.map(({ entry, place }) => entry
-                      ? <PersonPodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} />
-                      : <EmptyPodiumCard key={'empty-student-' + place} place={place} kind="student" mode={mode} />)}
+              {!searchActive && (
+                <>
+                  <div className="lb-podium-slot">
+                    <div className="lb-podium-area">
+                      {podiumItems.map(({ entry, place }) => entry
+                        ? <PersonPodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} />
+                        : <EmptyPodiumCard key={'empty-student-' + place} place={place} kind="student" mode={mode} />)}
+                    </div>
                   </div>
-                )}
-              </div>
-              {categoryNavigation}
+                  {categoryNavigation}
+                </>
+              )}
               <PersonRankingTable rows={pagedPeople} placeholderRanks={searchActive ? [] : Array.from({ length: Math.max(0, PER_PAGE - pagedPeople.length) }, (_, index) => 4 + (safePage - 1) * PER_PAGE + pagedPeople.length + index)} mode={mode} currentUserId={user?.id} onPickSchool={onPickSchool} />
               {sourceLength > (searchActive ? 0 : 3) && renderPagination(safePage, totalPages, setPage, listLength, 'siswa', searchActive)}
               <p className="lb-pagination-info">Menampilkan {Math.min(sourceLength, searchActive ? pagedPeople.length : 3 + pagedPeople.length)} dari {sourceLength} siswa</p>
