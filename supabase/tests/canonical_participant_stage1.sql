@@ -1,5 +1,5 @@
 -- Stage 1 canonical participant regression checks.
--- Run after applying 20261031130000_stage_1_canonical_participant_identity.sql:
+-- Run after applying 20261031134002_stage_1_canonical_participant_identity.sql:
 -- psql -v ON_ERROR_STOP=1 -f supabase/tests/canonical_participant_stage1.sql "$DATABASE_URL"
 
 DO $integrity$
