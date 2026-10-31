@@ -52,7 +52,10 @@ BEGIN
     AND c.relname = 'organizer_members'
     AND t.tgname = 'trg_sync_organizer_member_user_role';
 
-  IF position('AFTER INSERT OR UPDATE OR DELETE' IN v_trigger_definition) = 0 THEN
+  IF position('AFTER' IN v_trigger_definition) = 0
+     OR position('INSERT' IN v_trigger_definition) = 0
+     OR position('UPDATE' IN v_trigger_definition) = 0
+     OR position('DELETE' IN v_trigger_definition) = 0 THEN
     RAISE EXCEPTION 'Role-sync trigger must cover insert, update, and delete';
   END IF;
 
