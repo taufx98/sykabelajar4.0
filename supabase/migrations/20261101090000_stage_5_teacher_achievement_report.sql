@@ -58,20 +58,20 @@ BEGIN
     cp.grade,
     cp.participant_code,
     cp.status,
-    latest_attempt.status::text,
+    latest_activity.status::text,
     CASE
       WHEN c.status::text IN ('RESULT_PUBLISHED', 'ARCHIVED')
-       AND latest_attempt.status::text = 'FINALIZED'
-      THEN latest_attempt.score
+       AND latest_finalized_attempt.status::text = 'FINALIZED'
+      THEN latest_finalized_attempt.score
       ELSE NULL
     END,
     CASE
       WHEN c.status::text IN ('RESULT_PUBLISHED', 'ARCHIVED')
-       AND latest_attempt.status::text = 'FINALIZED'
+       AND latest_finalized_attempt.status::text = 'FINALIZED'
       THEN private.canonical_competition_rank(cp.competition_id, p.id)
       ELSE NULL
     END,
-    latest_attempt.finalized_at,
+    latest_finalized_attempt.finalized_at,
     CASE
       WHEN c.status::text IN ('RESULT_PUBLISHED', 'ARCHIVED')
       THEN latest_certificate.status
@@ -100,13 +100,22 @@ BEGIN
    AND p.collective_participant_id = cp.id
    AND p.participant_type = 'COLLECTIVE'
   LEFT JOIN LATERAL (
-    SELECT a.status, a.score, a.finalized_at
+    SELECT a.status
     FROM public.attempts a
     WHERE a.canonical_participant_id = p.id
       AND a.is_preview = false
     ORDER BY a.created_at DESC, a.attempt_number DESC, a.id DESC
     LIMIT 1
-  ) latest_attempt ON true
+  ) latest_activity ON true
+  LEFT JOIN LATERAL (
+    SELECT a.status, a.score, a.finalized_at
+    FROM public.attempts a
+    WHERE a.canonical_participant_id = p.id
+      AND a.is_preview = false
+      AND a.status::text = 'FINALIZED'
+    ORDER BY a.created_at DESC, a.attempt_number DESC, a.id DESC
+    LIMIT 1
+  ) latest_finalized_attempt ON true
   LEFT JOIN LATERAL (
     SELECT cc.status, cc.serial_number, cc.certificate_url, cc.issued_at
     FROM public.collective_certificates cc
@@ -127,7 +136,7 @@ BEGIN
       OR cp.participant_code ILIKE '%' || trim(p_search) || '%'
     )
   ORDER BY
-    COALESCE(latest_certificate.issued_at, latest_attempt.finalized_at, cp.created_at) DESC,
+    COALESCE(latest_certificate.issued_at, latest_finalized_attempt.finalized_at, cp.created_at) DESC,
     cp.full_name ASC;
 END;
 $function$;
