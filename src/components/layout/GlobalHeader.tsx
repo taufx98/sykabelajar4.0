@@ -12,6 +12,7 @@ type GlobalHeaderProps = { navItems: GlobalHeaderNavItem[]; badgeLabel?: string 
 type HeaderMeta = { section: string; subtitle: string };
 
 const META: Record<string, HeaderMeta> = {
+  'Lomba Saya': { section: 'Peserta', subtitle: 'Pantau pendaftaran, pengerjaan, hasil, dan piagam lombamu' },
   'Daily Tasks': { section: 'Belajar', subtitle: 'Tugas dan aktivitas harian' },
   'Peringkat': { section: 'Pencapaian', subtitle: 'Lihat posisi dan perkembanganmu' },
   'Piagam': { section: 'Pencapaian', subtitle: 'Koleksi piagam dan penghargaan' },
@@ -35,6 +36,7 @@ const META: Record<string, HeaderMeta> = {
 };
 
 const META_EN: Record<string, HeaderMeta> = {
+  'My Competitions': { section: 'Participant', subtitle: 'Track registrations, exams, results, and certificates' },
   'Daily Tasks': { section: 'Learning', subtitle: 'Daily assignments and activities' },
   'Leaderboard': { section: 'Achievements', subtitle: 'Track your progress and ranking' },
   'Awards': { section: 'Achievements', subtitle: 'Your awards and certificates' },
