@@ -97,6 +97,16 @@ BEGIN
     RAISE EXCEPTION 'Collective participant canonical sync trigger is missing';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgrelid = 'public.registrations'::regclass
+      AND tgname = 'trg_registration_canonical_participant'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Individual registration canonical sync trigger is missing';
+  END IF;
+
   IF NOT has_function_privilege(
     'anon',
     'public.get_collective_participant_result(text)',
