@@ -838,7 +838,7 @@ test.describe('leaderboard school podium presentation', () => {
     const categoryArea = page.locator('.lb-category-area');
     const readCategoryArea = () => categoryArea.evaluate((element) => {
       const rect = element.getBoundingClientRect();
-      return { top: Math.round(rect.top), height: Math.round(rect.height) };
+      return { top: Math.round(rect.top + window.scrollY), height: Math.round(rect.height) };
     });
     const initialCategoryArea = await readCategoryArea();
     const readPodiumFrame = () => page.locator('.lb-podium-area').evaluate((element) => {
