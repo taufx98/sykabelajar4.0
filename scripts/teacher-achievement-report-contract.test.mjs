@@ -50,7 +50,7 @@ test('report RPC is security-definer with an empty search path and authenticated
   assert.match(migration, /SECURITY DEFINER[\s\S]*SET search_path TO ''/i);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.get_teacher_achievement_report\(integer, integer, text\)\s+FROM PUBLIC, anon, service_role/i);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.get_teacher_achievement_report\(integer, integer, text\)\s+TO authenticated/i);
-  assert.match(migration, /v_limit\s*:=\s*greatest\(1,\s*least\(coalesce\(p_limit,\s*50\),\s*100\)\)/i);
+  assert.match(migration, /v_limit\s+integer\s*:=\s*greatest\(1,\s*least\(coalesce\(p_limit,\s*50\),\s*100\)\)/i);
 });
 
 test('teacher report page uses the protected teacher route and appears in the teacher feature navigation', () => {
