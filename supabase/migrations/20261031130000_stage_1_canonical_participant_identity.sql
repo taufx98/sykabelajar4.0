@@ -22,6 +22,76 @@ create unique index if not exists participants_individual_competition_user_uidx
   on public.participants (competition_id, user_id)
   where participant_type = 'INDIVIDUAL' and user_id is not null;
 
+create or replace function private.sync_registration_to_canonical_participant()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_profile public.profiles%rowtype;
+begin
+  if new.user_id is null or new.status::text not in ('APPROVED', 'ACTIVE') then
+    return new;
+  end if;
+
+  select * into v_profile
+  from public.profiles
+  where id = new.user_id;
+
+  if not found then
+    return new;
+  end if;
+
+  insert into public.participants (
+    competition_id,
+    registration_id,
+    user_id,
+    participant_type,
+    participant_code,
+    full_name,
+    class_name,
+    grade,
+    school_id,
+    photo_url
+  )
+  values (
+    new.competition_id,
+    new.id,
+    new.user_id,
+    'INDIVIDUAL',
+    null,
+    coalesce(v_profile.full_name, v_profile.username, 'Participant'),
+    null,
+    v_profile.grade,
+    v_profile.school_id,
+    v_profile.avatar_url
+  )
+  on conflict (competition_id, user_id)
+    where participant_type = 'INDIVIDUAL' and user_id is not null
+  do update set
+    registration_id = excluded.registration_id,
+    full_name = excluded.full_name,
+    grade = excluded.grade,
+    school_id = excluded.school_id,
+    photo_url = excluded.photo_url,
+    updated_at = now();
+
+  return new;
+end;
+$function$;
+
+revoke all on function private.sync_registration_to_canonical_participant()
+  from public, anon, authenticated, service_role;
+
+drop trigger if exists trg_registration_canonical_participant on public.registrations;
+create trigger trg_registration_canonical_participant
+after insert or update of status
+on public.registrations
+for each row
+when (new.status::text in ('APPROVED', 'ACTIVE'))
+execute function private.sync_registration_to_canonical_participant();
+
 -- Backfill individual identities from active registrations and any legacy
 -- non-preview attempt/certificate records. DISTINCT identities prevent duplicate
 -- rows when one person has several legacy records in the same competition.
