@@ -33,7 +33,7 @@ export async function getAuthenticatedProfileById(userId: string) {
 export async function getProfileByUsername(username: string) {
   const normalized = username.trim().replace(/^@/, '').toLowerCase();
   const key = `public.profile.${normalized}`;
-  const cached = getPersistentCache<Record<string, unknown>>(key, CACHE_VERSION);
+  const cached = getFreshPersistentCache<Record<string, unknown>>(key, CACHE_VERSION);
   if (cached?.data) return cached.data;
   const { data, error } = await supabase
     .from('profiles')
