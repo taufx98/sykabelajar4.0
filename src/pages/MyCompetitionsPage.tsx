@@ -38,6 +38,7 @@ function classifyItem(item: ParticipantDashboardItem): DashboardStatus {
   const attemptStatus = String(item.latest_attempt?.status ?? '').toUpperCase();
   const hasParticipant = Boolean(item.participant?.id);
 
+  if (competitionStatus === 'CANCELLED') return 'cancelled';
   if (!hasParticipant && registrationStatus === 'PENDING') return 'pending';
   if (!hasParticipant && registrationStatus === 'REJECTED') return 'rejected';
   if (!hasParticipant && registrationStatus === 'CANCELLED') return 'cancelled';
@@ -75,7 +76,11 @@ function competitionDate(item: ParticipantDashboardItem) {
 function statusDescription(item: ParticipantDashboardItem, status: DashboardStatus) {
   if (status === 'pending') return 'Pendaftaran sudah dikirim dan sedang menunggu pemeriksaan penyelenggara.';
   if (status === 'rejected') return item.registration?.rejection_reason || 'Pendaftaran belum disetujui. Buka detail lomba untuk informasi lebih lanjut.';
-  if (status === 'cancelled') return 'Pendaftaran ini sudah dibatalkan.';
+  if (status === 'cancelled') {
+    return String(item.competition.status).toUpperCase() === 'CANCELLED'
+      ? 'Lomba ini telah dibatalkan oleh penyelenggara.'
+      : 'Pendaftaran ini sudah dibatalkan.';
+  }
   if (status === 'result_published') return 'Hasil resmi lomba sudah dapat dilihat.';
   if (status === 'waiting_result') {
     return item.latest_attempt?.status === 'FINALIZED'
@@ -125,12 +130,12 @@ function CompetitionCard({ item }: { item: ParticipantDashboardItem }) {
     && Boolean(item.participant?.id)
     && (competition.status === 'LIVE' || attemptStatus === 'IN_PROGRESS');
   const href = isCollective
-    ? '/profile/collective-history'
+    ? (item.result?.published || item.published_certificate_count > 0 ? '/profile/collective-history' : '/peserta-kolektif')
     : canEnterExam
       ? '/lomba/' + encodeURIComponent(competition.slug) + '/kerja'
       : '/lomba/' + encodeURIComponent(competition.slug);
   const actionLabel = isCollective
-    ? 'Lihat riwayat'
+    ? (item.result?.published || item.published_certificate_count > 0 ? 'Lihat riwayat' : 'Buka portal kolektif')
     : canEnterExam
       ? attemptStatus === 'IN_PROGRESS' ? 'Lanjutkan ujian' : 'Masuk ruang ujian'
       : 'Detail lomba';
