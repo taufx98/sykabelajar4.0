@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Bell, Check, Eye, Grid2X2, KeyRound, Lock, RotateCcw, Save, ShieldCheck, UserRound, UsersRound, XCircle } from 'lucide-react';
+import { ArrowLeft, Bell, Check, ClipboardList, Eye, Grid2X2, KeyRound, Lock, RotateCcw, Save, ShieldCheck, UserRound, UsersRound, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -12,9 +12,10 @@ import { getProfileBadges } from '@/services/badge.service';
 import { updateProfile as updateProfileRecord } from '@/services/profile.service';
 import type { ProfileBadge } from '@/components/profile/BadgeCard';
 
-const DEFAULT_MOBILE_NAV = ['home', 'leaderboard', 'awards', 'chat'];
+const DEFAULT_MOBILE_NAV = ['home', 'myCompetitions', 'leaderboard', 'awards', 'chat'];
 const MOBILE_ITEMS = [
   ['home', 'Beranda'],
+  ['myCompetitions', 'Lomba Saya'],
   ['workspace', 'Ruang Kerja'],
   ['leaderboard', 'Peringkat'],
   ['awards', 'Piagam'],
