@@ -241,7 +241,7 @@ BEGIN
   ) organizer_rows;
 
   RETURN jsonb_build_object(
-    'generated_at', clock_timestamp(),
+    'generated_at', now(),
     'summary', v_summary,
     'competitions', v_competitions,
     'attempts', v_attempts,
@@ -382,9 +382,21 @@ BEGIN
     'competition_title', v_comp.title,
     'competition_status', v_comp.status::text,
     'participant_id', v_attempt.canonical_participant_id,
-    'participant_name', coalesce(p.full_name, cp.full_name, pr.full_name, pr.username, 'Peserta'),
-    'participant_code', coalesce(p.participant_code, cp.participant_code),
-    'participant_type', coalesce(p.participant_type, CASE WHEN v_attempt.collective_participant_id IS NOT NULL THEN 'COLLECTIVE' ELSE 'INDIVIDUAL' END),
+    'participant_name', coalesce(
+      (SELECT p.full_name FROM public.participants p WHERE p.id = v_attempt.canonical_participant_id),
+      (SELECT cp.full_name FROM public.collective_participants cp WHERE cp.id = v_attempt.collective_participant_id),
+      (SELECT pr.full_name FROM public.profiles pr WHERE pr.id = v_attempt.participant_id),
+      (SELECT pr.username FROM public.profiles pr WHERE pr.id = v_attempt.participant_id),
+      'Peserta'
+    ),
+    'participant_code', coalesce(
+      (SELECT p.participant_code FROM public.participants p WHERE p.id = v_attempt.canonical_participant_id),
+      (SELECT cp.participant_code FROM public.collective_participants cp WHERE cp.id = v_attempt.collective_participant_id)
+    ),
+    'participant_type', coalesce(
+      (SELECT p.participant_type FROM public.participants p WHERE p.id = v_attempt.canonical_participant_id),
+      CASE WHEN v_attempt.collective_participant_id IS NOT NULL THEN 'COLLECTIVE' ELSE 'INDIVIDUAL' END
+    ),
     'attempt_status', v_attempt.status::text,
     'started_at', v_attempt.started_at,
     'submitted_at', v_attempt.submitted_at,
@@ -392,9 +404,9 @@ BEGIN
     'created_at', v_attempt.created_at,
     'updated_at', v_attempt.updated_at,
     'score', CASE WHEN v_comp.status::text IN ('RESULT_PUBLISHED', 'ARCHIVED') AND v_attempt.status::text = 'FINALIZED' THEN v_attempt.score ELSE NULL END,
-    'runtime_phase', runtime.phase,
-    'current_position', runtime.current_position,
-    'question_count', runtime.question_count,
+    'runtime_phase', (SELECT runtime.phase FROM public.exam_attempt_runtime runtime WHERE runtime.attempt_id = v_attempt.id),
+    'current_position', (SELECT runtime.current_position FROM public.exam_attempt_runtime runtime WHERE runtime.attempt_id = v_attempt.id),
+    'question_count', (SELECT runtime.question_count FROM public.exam_attempt_runtime runtime WHERE runtime.attempt_id = v_attempt.id),
     'answered_count', v_answered,
     'skipped_count', v_skipped,
     'timeout_count', v_timeouts,
@@ -403,53 +415,7 @@ BEGIN
     'review_note', 'Indikator skip/timeout hanya membantu pemeriksaan awal dan bukan bukti kecurangan.',
     'events', coalesce(v_events, '[]'::jsonb),
     'audit_events', coalesce(v_audit, '[]'::jsonb)
-  )
-  INTO v_result
-  FROM public.participants p
-  FULL JOIN public.collective_participants cp
-    ON cp.id = v_attempt.collective_participant_id
-  LEFT JOIN public.profiles pr
-    ON pr.id = v_attempt.participant_id
-  LEFT JOIN public.exam_attempt_runtime runtime
-    ON runtime.attempt_id = v_attempt.id
-  WHERE p.id = v_attempt.canonical_participant_id
-     OR (p.id IS NULL AND cp.id = v_attempt.collective_participant_id);
-
-  IF v_result IS NULL THEN
-    SELECT jsonb_build_object(
-      'attempt_id', v_attempt.id,
-      'competition_id', v_comp.id,
-      'competition_title', v_comp.title,
-      'competition_status', v_comp.status::text,
-      'participant_id', v_attempt.canonical_participant_id,
-      'participant_name', coalesce(pr.full_name, pr.username, 'Peserta'),
-      'participant_code', NULL,
-      'participant_type', 'INDIVIDUAL',
-      'attempt_status', v_attempt.status::text,
-      'started_at', v_attempt.started_at,
-      'submitted_at', v_attempt.submitted_at,
-      'finalized_at', v_attempt.finalized_at,
-      'created_at', v_attempt.created_at,
-      'updated_at', v_attempt.updated_at,
-      'score', CASE WHEN v_comp.status::text IN ('RESULT_PUBLISHED', 'ARCHIVED') AND v_attempt.status::text = 'FINALIZED' THEN v_attempt.score ELSE NULL END,
-      'runtime_phase', runtime.phase,
-      'current_position', runtime.current_position,
-      'question_count', runtime.question_count,
-      'answered_count', v_answered,
-      'skipped_count', v_skipped,
-      'timeout_count', v_timeouts,
-      'event_count', v_event_count,
-      'requires_review', v_skipped >= 3 OR v_timeouts >= 3,
-      'review_note', 'Indikator skip/timeout hanya membantu pemeriksaan awal dan bukan bukti kecurangan.',
-      'events', coalesce(v_events, '[]'::jsonb),
-      'audit_events', coalesce(v_audit, '[]'::jsonb)
-    )
-    INTO v_result
-    FROM public.profiles pr
-    LEFT JOIN public.exam_attempt_runtime runtime ON runtime.attempt_id = v_attempt.id
-    WHERE pr.id = v_attempt.participant_id;
-  END IF;
-
+  ) INTO v_result;
   RETURN coalesce(v_result, jsonb_build_object(
     'attempt_id', v_attempt.id,
     'competition_id', v_comp.id,
