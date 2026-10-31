@@ -1,12 +1,13 @@
 import { toast } from '@/lib/toast';
 import { useEffect, useState } from 'react';
-import { Building2, Users, Check, X, Key, Plus, Trash2, Shield, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Building2, Users, Check, X, Key, Plus, Trash2, Shield, Search, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { UserPicker, type PickedUser } from '@/components/ui/UserPicker';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { rotateOrganizerAccessCode } from '@/services/organizer.service';
 
 interface Organizer {
   id: string;
@@ -14,7 +15,6 @@ interface Organizer {
   slug: string;
   owner_user_id: string;
   status: string;
-  access_code: string | null;
   created_at: string;
   _members?: any[];
   _competitionCount?: number;
@@ -28,14 +28,15 @@ export function AdminOrganizersPage() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [newAccessCode, setNewAccessCode] = useState('');
+  const [generatedAccessCodes, setGeneratedAccessCodes] = useState<Record<string, string>>({});
+  const [rotateCodeTarget, setRotateCodeTarget] = useState<string | null>(null);
   const [pendingUsers, setPendingUsers] = useState<Record<string, PickedUser[]>>({});
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data: orgs, error } = await supabase.from('organizers').select('*').order('created_at', { ascending: false });
+      const { data: orgs, error } = await supabase.from('organizers').select('id,name,slug,owner_user_id,status,created_at').order('created_at', { ascending: false });
       if (error) throw error;
       const enriched = await Promise.all((orgs || []).map(async (org) => {
         const [membersRes, compRes, ownerRes] = await Promise.all([
@@ -74,16 +75,27 @@ export function AdminOrganizersPage() {
     } finally { setBusy(false); }
   };
 
-  const setAccessCode = async (orgId: string, code: string) => {
+  const rotateAccessCode = async (orgId: string) => {
     setBusy(true);
     try {
-      const { error } = await supabase.from('organizers').update({ access_code: code }).eq('id', orgId);
-      if (error) throw error;
-      toast.success('Kode akses berhasil diperbarui.');
-      await load();
+      const code = await rotateOrganizerAccessCode(orgId);
+      setGeneratedAccessCodes((current) => ({ ...current, [orgId]: code }));
+      setRotateCodeTarget(null);
+      toast.success('Kode undangan baru berhasil dibuat. Salin dan bagikan sekarang.');
     } catch (e: any) {
-      toast.error(e?.message ?? 'Gagal memperbarui kode akses.');
+      toast.error(e?.message ?? 'Gagal membuat kode undangan.');
     } finally { setBusy(false); }
+  };
+
+  const copyAccessCode = async (orgId: string) => {
+    const code = generatedAccessCodes[orgId];
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success('Kode undangan berhasil disalin.');
+    } catch {
+      toast.warning('Salin kode undangan secara manual dari layar.');
+    }
   };
 
   const addMembers = async (orgId: string) => {
@@ -150,17 +162,31 @@ export function AdminOrganizersPage() {
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-muted"><Building2 size={18} className="text-accent" /></div>
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{org.name}</p><p className="text-[11px] text-fg-muted">/{org.slug} · {org._members?.length || 0} anggota · {org._competitionCount || 0} lomba</p></div>
             <Badge color={statusColor(org.status) as any}>{statusLabel(org.status)}</Badge>
-            <Badge>{org.access_code ? `🔑 ${org.access_code}` : '🔑 Belum diatur'}</Badge>
+            <Badge>🔐 Kode undangan aman</Badge>
             {expandedId === org.id ? <ChevronUp size={16} className="text-fg-muted" /> : <ChevronDown size={16} className="text-fg-muted" />}
           </button>
           {expandedId === org.id && <div className="relative space-y-4 border-t surface-border p-4 animate-slide-down">
             <div className="flex flex-wrap gap-2"><Button size="sm" variant={org.status === 'ACTIVE' ? 'primary' : 'outline'} onClick={() => void toggleStatus(org, 'ACTIVE')} disabled={busy} icon={<Check size={14} />}>Aktifkan</Button><Button size="sm" variant={org.status === 'SUSPENDED' ? 'danger' : 'outline'} onClick={() => void toggleStatus(org, 'SUSPENDED')} disabled={busy} icon={<X size={14} />}>Tangguhkan</Button></div>
-            <div><p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg"><Key size={12} /> Kode akses organisasi</p><div className="flex gap-2"><input className="input flex-1" placeholder={org.access_code || 'Belum diatur'} value={newAccessCode} onChange={e => setNewAccessCode(e.target.value)} /><Button size="sm" onClick={() => { void setAccessCode(org.id, newAccessCode); setNewAccessCode(''); }} disabled={busy || !newAccessCode.trim()}>Simpan</Button><Button size="sm" variant="outline" onClick={() => void setAccessCode(org.id, '0')} disabled={busy}>Reset</Button></div></div>
+            <div className="rounded-xl border surface-border p-3">
+  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-fg"><Key size={12} /> Kode undangan organisasi</p>
+      <p className="mt-1 text-[11px] text-fg-muted">Kode disimpan dalam bentuk hash dan tidak dapat dibaca ulang. Rotasi akan menonaktifkan kode sebelumnya.</p>
+    </div>
+    <Button size="sm" variant="outline" onClick={() => setRotateCodeTarget(org.id)} disabled={busy}>Buat / rotasi kode</Button>
+  </div>
+  {generatedAccessCodes[org.id] && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg surface-elevated p-3">
+    <code className="min-w-0 flex-1 break-all text-sm text-fg">{generatedAccessCodes[org.id]}</code>
+    <Button size="sm" variant="outline" onClick={() => void copyAccessCode(org.id)} icon={<Copy size={14} />}>Salin</Button>
+    <p className="w-full text-[10px] text-fg-muted">Kode baru hanya ditampilkan pada sesi ini. Salin sebelum meninggalkan halaman.</p>
+  </div>}
+</div>
             <div><p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg"><Users size={12} /> Anggota</p><div className="mb-3 space-y-1.5"><div className="flex items-center gap-2 rounded-lg surface-elevated p-2"><Shield size={12} className="text-amber-400" /><span className="flex-1 text-xs text-fg">Pemilik: {org._ownerProfile ? `${org._ownerProfile.full_name || org._ownerProfile.username} · @${org._ownerProfile.username}` : 'Tidak tersedia'}</span><Badge color="moss">Pemilik</Badge></div>{(org._members || []).map((m: any) => { const mp = org._memberProfiles?.[m.user_id]; const displayName = mp ? `${mp.full_name || mp.username}` : 'Anggota'; const displayUsername = mp?.username || ''; return <div key={m.id} className="flex items-center gap-2 rounded-lg surface-elevated p-2">{mp ? <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-white">{String(displayName).slice(0, 1).toUpperCase()}</div> : <Users size={12} className="text-fg-muted" />}<span className="flex-1 truncate text-xs text-fg">{displayName}{displayUsername && <span className="ml-1 text-fg-muted">@{displayUsername}</span>}</span><Badge>{m.role === 'editor' ? 'Editor' : 'Anggota'}</Badge><button type="button" aria-label={`Hapus ${displayName}`} className="p-1 text-red-400 hover:text-red-300" onClick={() => setRemoveTarget(m.id)} disabled={busy}><Trash2 size={12} /></button></div>; })}</div><UserPicker excludedUserIds={getExcludedIds(org)} selected={pendingUsers[org.id] || []} onSelectionChange={users => setPendingUsers(prev => ({ ...prev, [org.id]: users }))} onAdd={() => void addMembers(org.id)} disabled={busy} placeholder="Cari nama atau username untuk ditambahkan..." /></div>
           </div>}
         </Card>)}</div>}
       </div>
       <ConfirmModal open={!!removeTarget} title="Hapus anggota?" description={removeMemberName ? 'Anggota ini akan dihapus dari organisasi dan tidak lagi memiliki akses ke organisasi tersebut.' : 'Anggota ini akan dihapus dari organisasi.'} confirmLabel="Hapus anggota" cancelLabel="Batal" tone="danger" busy={busy} onCancel={() => setRemoveTarget(null)} onConfirm={() => { if (removeTarget) void removeMember(removeTarget); }} />
+      <ConfirmModal open={!!rotateCodeTarget} title="Rotasi kode undangan?" description="Kode lama akan langsung tidak berlaku. Kode baru hanya ditampilkan sekali setelah dibuat; pastikan kamu dapat menyalinnya." confirmLabel="Buat kode baru" cancelLabel="Batal" tone="danger" busy={busy} onCancel={() => setRotateCodeTarget(null)} onConfirm={() => { if (rotateCodeTarget) void rotateAccessCode(rotateCodeTarget); }} />
     </div>
   );
 }
