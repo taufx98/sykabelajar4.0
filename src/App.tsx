@@ -69,6 +69,7 @@ const OrganizerAdRequestPage = lazy(() => import('@/pages/OrganizerAdRequestPage
 const GuruCollectivePage = lazy(() => import('@/pages/GuruCollectivePage').then((module) => ({ default: module.GuruCollectivePage })));
 const GuruAccessCardsPage = lazy(() => import('@/pages/GuruAccessCardsPage').then((module) => ({ default: module.GuruAccessCardsPage })));
 const GuruCollectiveMonitoringPage = lazy(() => import('@/pages/GuruCollectiveMonitoringPage').then((module) => ({ default: module.GuruCollectiveMonitoringPage })));
+const GuruAchievementReportPage = lazy(() => import('@/pages/GuruAchievementReportPage').then((module) => ({ default: module.GuruAchievementReportPage })));
 const GuruCollectiveRegistrationWizardPage = lazy(() => import('@/pages/GuruCollectiveRegistrationWizardPage').then((module) => ({ default: module.GuruCollectiveRegistrationWizardPage })));
 const CollectiveParticipantPortalPage = lazy(() => import('@/pages/CollectiveParticipantPortalPage').then((module) => ({ default: module.CollectiveParticipantPortalPage })));
 const CollectiveParticipantWorkPage = lazy(() => import('@/pages/CollectiveParticipantWorkPage').then((module) => ({ default: module.CollectiveParticipantWorkPage })));
@@ -193,6 +194,7 @@ function AppRoutes() {
           <Route path="/guru/daftar" element={<RoleRoute role="teacher"><GuruCollectiveRegistrationWizardPage /></RoleRoute>} />
           <Route path="/guru/kartu" element={<RoleRoute role="teacher"><GuruAccessCardsPage /></RoleRoute>} />
           <Route path="/guru/monitoring" element={<RoleRoute role="teacher"><GuruCollectiveMonitoringPage /></RoleRoute>} />
+          <Route path="/guru/laporan" element={<RoleRoute role="teacher"><GuruAchievementReportPage /></RoleRoute>} />
           <Route path="/organizer" element={<OrganizerShellRoute><OrganizerControlCenterPage /></OrganizerShellRoute>} />
           <Route path="/organizer/competition/new" element={<OrganizerShellRoute><OrganizerCompetitionCreatePage /></OrganizerShellRoute>} />
           <Route path="/organizer/question-bank/:bankId" element={<OrganizerShellRoute><OrganizerQuestionEditorPage /></OrganizerShellRoute>} />

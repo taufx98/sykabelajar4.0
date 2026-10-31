@@ -131,7 +131,7 @@ export function AppLayout() {
   const profilePath = user?.username ? `/profile/@${user.username}` : '/home';
   const guestNav: NavItem[] = [['/home', t('nav.home'), Home, undefined], ['/leaderboard', t('nav.leaderboard'), BarChart3, undefined], ['/awards', t('nav.awards'), Award, undefined]];
   const userNav: NavItem[] = [['/home', t('nav.home'), Home, undefined], ['/lomba-saya', t('nav.myCompetitions'), ClipboardList, undefined], ['/daily-tasks', t('nav.dailyTasks'), CalendarCheck, undefined], ['/leaderboard', t('nav.leaderboard'), BarChart3, undefined], ['/awards', t('nav.awards'), Award, undefined], ['/notifications', t('nav.notifications'), Bell, liveUnreadNotifications > 0 ? liveUnreadNotifications : undefined], ['/orders', t('nav.orders'), ShoppingBag, unreadOrders > 0 ? unreadOrders : undefined]];
-  if (isTeacher) userNav.push(['/guru', t('nav.teacher'), School, undefined], ['/guru/daftar', t('nav.collectiveRegister'), UserPlus, undefined], ['/guru/kartu', t('nav.accessCards'), ShieldCheck, undefined], ['/guru/monitoring', t('nav.monitoring'), BarChart3, undefined]);
+  if (isTeacher) userNav.push(['/guru', t('nav.teacher'), School, undefined], ['/guru/daftar', t('nav.collectiveRegister'), UserPlus, undefined], ['/guru/kartu', t('nav.accessCards'), ShieldCheck, undefined], ['/guru/monitoring', t('nav.monitoring'), BarChart3, undefined], ['/guru/laporan', t('nav.teacherReport'), FileCheck2, undefined]);
   if (isOrganizer) userNav.push(['/organizer', t('nav.organizer'), Building2, undefined], ['/organizer/competition/new', t('nav.newCompetition'), Award, undefined], ['/organizer/registrations', t('nav.registrations'), ClipboardList, undefined], ['/organizer/members', t('nav.members'), Users2, undefined], ['/organizer/grading', t('nav.grading'), FileCheck2, undefined], ['/organizer/plan', t('nav.planUsage'), WalletCards, undefined], ['/organizer/serials', t('nav.serials'), ShieldCheck, undefined], ['/organizer/ads', t('nav.ads'), Megaphone, undefined]);
   userNav.push([chatPath, t('nav.messages'), MessageCircle, unreadMessages > 0 ? unreadMessages : undefined]);
   if (isAdmin) userNav.push(['/admin', t('nav.admin'), ShieldCheck, undefined], ['/admin/error-intelligence', t('nav.errorIntelligence'), AlertTriangle, undefined], ['/admin/plan-usage', t('nav.planUsage'), SlidersHorizontal, undefined], ['/admin/organizers', t('nav.organizations'), Building2, undefined]);
@@ -143,7 +143,7 @@ export function AppLayout() {
     : isOrganizer
       ? ['/organizer', '/organizer/competition/new', '/organizer/registrations', '/organizer/members', '/organizer/grading', '/organizer/plan', '/organizer/serials', '/organizer/ads']
       : isTeacher
-        ? ['/guru', '/guru/daftar', '/guru/kartu', '/guru/monitoring']
+        ? ['/guru', '/guru/daftar', '/guru/kartu', '/guru/monitoring', '/guru/laporan']
         : []);
   const navGroups: NavGroup[] = specialFeaturePaths.size > 0
     ? [
