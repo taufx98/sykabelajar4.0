@@ -161,6 +161,8 @@ BEGIN
   SELECT coalesce(jsonb_agg(event_row ORDER BY created_at DESC), '[]'::jsonb)
   INTO v_audit
   FROM (
+    SELECT event_row, created_at
+    FROM (
     (
       SELECT
         al.created_at,
@@ -212,9 +214,10 @@ BEGIN
       ORDER BY h.created_at DESC
       LIMIT 50
     )
-  ) audit_rows
-  ORDER BY created_at DESC
-  LIMIT 50;
+    ) audit_rows
+    ORDER BY created_at DESC
+    LIMIT 50
+  ) audit_page;
 
   SELECT coalesce(jsonb_agg(row_data ORDER BY competition_count DESC, organizer_name), '[]'::jsonb)
   INTO v_organizers
