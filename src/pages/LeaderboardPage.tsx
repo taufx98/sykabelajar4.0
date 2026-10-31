@@ -948,6 +948,7 @@ const LEADERBOARD_STYLES = String.raw`
   /* Keep the student Top 3 in one compact row. Flexible columns preserve the
      familiar second / first / third arrangement without stacking cards. */
   .lb-podium-slot { height: auto; min-height: 0; }
+  .lb-student-podium-slot { height: 420px; min-height: 420px; }
   .lb-podium-area:not(.lb-school-podium-area) {
     display: flex;
     flex-wrap: nowrap;
@@ -1341,7 +1342,7 @@ export function LeaderboardPage() {
             <>
               {!searchActive && (
                 <>
-                  <div className="lb-podium-slot">
+                  <div className="lb-podium-slot lb-student-podium-slot">
                     <div className="lb-podium-area">
                       {podiumItems.map(({ entry, place }) => entry
                         ? <PersonPodiumCard key={entry.user_id} entry={entry} place={place} mode={mode} />
