@@ -21,7 +21,7 @@ export function getPersistentCache<T>(key: string, version?: string | number | n
     const raw = localStorage.getItem(PREFIX + key);
     if (!raw) return null;
     const envelope = JSON.parse(raw) as CacheEnvelope<T>;
-    if (!envelope || typeof envelope.savedAt !== 'number' || typeof envelope.expiresAt !== 'number') {
+    if (!envelope || !Number.isFinite(envelope.savedAt) || !Number.isFinite(envelope.expiresAt) || envelope.savedAt < 0 || envelope.expiresAt <= envelope.savedAt || !Object.prototype.hasOwnProperty.call(envelope, 'data')) {
       localStorage.removeItem(PREFIX + key);
       return null;
     }
@@ -33,6 +33,13 @@ export function getPersistentCache<T>(key: string, version?: string | number | n
   } catch {
     return null;
   }
+}
+
+/** Read only cache entries whose TTL has not expired. Stale-aware callers should use getPersistentCacheState/getPersistentCache. */
+export function getFreshPersistentCache<T>(key: string, version?: string | number | null): CacheEnvelope<T> | null {
+  const envelope = getPersistentCache<T>(key, version);
+  if (!envelope || envelope.expiresAt <= Date.now()) return null;
+  return envelope;
 }
 
 export function getPersistentCacheState<T>(key: string, version?: string | number | null): {
