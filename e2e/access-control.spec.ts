@@ -8,6 +8,29 @@ const protectedRoutes = [
   '/admin',
 ];
 
+// Access-control tests use fabricated Supabase Auth tokens. Never let those tokens
+// reach the real Supabase Realtime service through a browser WebSocket.
+const mockedRealtimeContexts = new WeakMap<
+  import('@playwright/test').BrowserContext,
+  { attempts: number }
+>();
+
+async function blockRealtimeForMockedAuth(page: import('@playwright/test').Page) {
+  const context = page.context();
+  if (mockedRealtimeContexts.has(context)) return;
+
+  const state = { attempts: 0 };
+  mockedRealtimeContexts.set(context, state);
+  await context.routeWebSocket('**/realtime/v1/websocket**', (socket) => {
+    state.attempts += 1;
+    socket.close({ code: 1000, reason: 'Realtime disabled for mocked-auth E2E tests' });
+  });
+}
+
+function getBlockedRealtimeAttemptCount(page: import('@playwright/test').Page) {
+  return mockedRealtimeContexts.get(page.context())?.attempts ?? 0;
+}
+
 async function completeRegistrationDetails(page: import('@playwright/test').Page, role: 'Pelajar' | 'Guru' | 'Penyelenggara') {
   await page.goto('/register');
   await page.locator('input[type="email"]').fill('registration-flow@example.test');
@@ -51,6 +74,7 @@ test.describe('registration role validation', () => {
 });
 
 async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: string[]) {
+  await blockRealtimeForMockedAuth(page);
   let roleLookupCount = 0;
   const userId = '11111111-1111-4111-8111-111111111111';
   const adminProfileId = '88888888-8888-4888-8888-888888888888';
@@ -269,18 +293,22 @@ async function mockSupabaseLogin(page: import('@playwright/test').Page, roles: s
     });
   });
 
-  return { roleLookupCount: () => roleLookupCount };
+  return {
+    roleLookupCount: () => roleLookupCount,
+    realtimeSocketAttemptCount: () => getBlockedRealtimeAttemptCount(page),
+  };
 }
 
 test.describe('chat inbox history visibility', () => {
-  test('closed direct-message history is not listed in the private inbox', async ({ page }) => {
-    await mockSupabaseLogin(page, ['student']);
+  test('closed direct-message history is not listed in the private inbox and keeps its mocked JWT away from production Realtime', async ({ page }) => {
+    const audit = await mockSupabaseLogin(page, ['student']);
     await page.goto('/login?redirect=%2Fpesan');
     await page.locator('input[autocomplete="email"]').fill('guru@example.test');
     await page.locator('input[autocomplete="current-password"]').fill('SafeTestPassword123!');
     await page.getByRole('button', { name: 'Masuk', exact: true }).click();
 
     await expect.poll(() => new URL(page.url()).pathname).toBe('/pesan');
+    await expect.poll(() => audit.realtimeSocketAttemptCount()).toBeGreaterThan(0);
     await expect(page.locator('aside').getByText('Percakapan Aktif', { exact: true })).toBeVisible();
     await expect(page.getByText('Percakapan Lama', { exact: true })).toHaveCount(0);
     await expect(page.getByText(/History\s*·\s*1/)).toHaveCount(0);
@@ -929,6 +957,7 @@ test.describe('mobile navigation single source and immersive exam routes', () =>
   }
 
   test('preserves portal and chat shortcuts for a collective participant session', async ({ page }) => {
+    await blockRealtimeForMockedAuth(page);
     const corsHeaders = {
       'access-control-allow-origin': '*',
       'access-control-allow-headers': 'apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile',
