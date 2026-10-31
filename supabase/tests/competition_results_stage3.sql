@@ -63,6 +63,23 @@ BEGIN
     RAISE EXCEPTION 'Organizer grading UI needs read access to grading items';
   END IF;
 
+  IF has_table_privilege('authenticated', 'public.attempts', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.attempts', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.attempts', 'DELETE')
+     OR has_table_privilege('authenticated', 'public.attempts', 'TRUNCATE')
+     OR has_table_privilege('authenticated', 'public.attempts', 'TRIGGER')
+     OR has_table_privilege('anon', 'public.attempts', 'SELECT')
+     OR has_table_privilege('anon', 'public.attempts', 'INSERT')
+     OR has_table_privilege('anon', 'public.attempts', 'UPDATE')
+     OR has_table_privilege('anon', 'public.attempts', 'DELETE')
+     OR has_table_privilege('anon', 'public.attempts', 'TRUNCATE')
+     OR has_table_privilege('anon', 'public.attempts', 'TRIGGER') THEN
+    RAISE EXCEPTION 'Attempt writes must be performed only through authoritative server RPCs';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.attempts', 'SELECT') THEN
+    RAISE EXCEPTION 'Authenticated participant and organizer views need read access to attempts';
+  END IF;
+
   SELECT pg_get_functiondef(
     'public.get_attempt_grading_limits(uuid)'::regprocedure
   ) INTO v_limits_definition;

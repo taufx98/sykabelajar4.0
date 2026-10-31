@@ -76,6 +76,14 @@ REVOKE ALL ON TABLE public.grading_items
 GRANT SELECT ON TABLE public.grading_items
   TO authenticated;
 
+-- Attempt creation, submission, timeout handling and finalization are already
+-- server-side RPCs. Keep authenticated clients read-only so they cannot alter
+-- the automatic score base, status, identity links or finalized timestamp.
+REVOKE ALL ON TABLE public.attempts
+  FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.attempts
+  TO authenticated;
+
 -- Manual grade limits must use the exact question snapshot for linear exams.
 -- The source question may be edited after an attempt has already started.
 CREATE OR REPLACE FUNCTION public.save_manual_grading_item(

@@ -33,7 +33,7 @@ AI essay grading reads `answer_key_snapshot` on the server for linear attempts, 
 
 Manual items must be saved by a grader before the attempt can be finalized. Score ceilings use the original attempt snapshot when available, not an edited source question.
 
-The browser role has read-only access to `grading_items`; all direct table writes (including truncate/trigger privileges) are revoked from `anon` and `authenticated`. The organizer UI uses the authorized grading RPCs for changes, and the database trigger only captures automatic scores from the trusted linear completion function.
+The browser role has read-only access to `grading_items` and `attempts`; all direct table writes (including truncate/trigger privileges) are revoked from `anon` and `authenticated`. Attempt creation, submission, timeout and score updates already run through server-authoritative RPCs, so the browser cannot alter the `attempts.score` base used for manual finalization. The organizer UI uses authorized grading RPCs for changes, and the database trigger only captures automatic scores from the trusted linear completion function.
 
 ## Routes and access
 

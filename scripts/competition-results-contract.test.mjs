@@ -42,6 +42,8 @@ test('automatic_score only marks built-in linear AI scores already included in a
   assert.doesNotMatch(triggerSql, /ELSIF NEW\.grader_id IS NULL/);
   assert.match(sql, /REVOKE ALL ON TABLE public\.grading_items\s+FROM PUBLIC, anon, authenticated/);
   assert.match(sql, /GRANT SELECT ON TABLE public\.grading_items\s+TO authenticated/);
+  assert.match(sql, /REVOKE ALL ON TABLE public\.attempts\s+FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /GRANT SELECT ON TABLE public\.attempts\s+TO authenticated/);
   assert.match(sql, /UPDATE OF score, feedback, automatic_score/);
 });
 
