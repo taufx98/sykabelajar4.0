@@ -949,6 +949,7 @@ const LEADERBOARD_STYLES = String.raw`
      familiar second / first / third arrangement without stacking cards. */
   .lb-podium-slot { height: auto; min-height: 0; }
   .lb-student-podium-slot { height: 420px; min-height: 420px; }
+  .lb-school-podium-slot { height: 880px; min-height: 880px; }
   .lb-podium-area:not(.lb-school-podium-area) {
     display: flex;
     flex-wrap: nowrap;
@@ -1324,7 +1325,7 @@ export function LeaderboardPage() {
             <>
               {!searchActive && (
                 <>
-                  <div className="lb-podium-slot">
+                  <div className="lb-podium-slot lb-school-podium-slot">
                     <div className="lb-podium-area lb-school-podium-area">
                       {podiumSchoolItems.map(({ school, place }) => school
                         ? <SchoolPodiumCard key={school.school_key} school={school} place={place} onClick={() => onPickSchool(school.school_key)} />
