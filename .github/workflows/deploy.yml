@@ -63,6 +63,9 @@ jobs:
       - name: Teacher achievement contract tests
         run: npm run test:teacher-achievement-contract
 
+      - name: Admin monitoring contract tests
+        run: npm run test:admin-monitoring-contract
+
       - name: Lint
         run: npm run lint
 
