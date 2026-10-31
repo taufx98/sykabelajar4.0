@@ -839,10 +839,10 @@ test.describe('leaderboard school podium presentation', () => {
     await expect(matchingStudentRows.first()).toContainText('Juara Pertama');
     await expect(matchingStudentRows.last()).toContainText('Juara Keempat');
     await expect(page.locator('.lb-search button[aria-label="Hapus pencarian"]')).toHaveCount(1);
-    const nativeSearchClearDisplay = await leaderboardSearch.evaluate((element) =>
-      getComputedStyle(element, '::-webkit-search-cancel-button').display
+    const searchInputAppearance = await leaderboardSearch.evaluate((element) =>
+      getComputedStyle(element).appearance
     );
-    expect(nativeSearchClearDisplay).toBe('none');
+    expect(searchInputAppearance).toBe('none');
 
     await page.locator('.lb-search button[aria-label="Hapus pencarian"]').click();
     await expect(leaderboardSearch).toHaveValue('');
