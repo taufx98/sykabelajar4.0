@@ -12,7 +12,7 @@ This stage hardens the canonical participant model already introduced by Phase 3
 
 ## Changes
 
-Migration: \`20261031130000_stage_1_canonical_participant_identity.sql\`
+Migration: \`20261031134002_stage_1_canonical_participant_identity.sql\`
 
 1. Enforces the relationship between \`participant_type\` and the populated identity column.
 2. Backfills approved/active individual registrations and historical official records.
@@ -43,6 +43,9 @@ The SQL check validates identity/backfill completeness, required trigger and RPC
 
 The repository CI also runs canonical-source checks, cache tests, lint, TypeScript typecheck, Vite build, performance budget checks, browser access-control E2E and production smoke checks on pull requests.
 
-## Rollout note
+## Production rollout status (31 October 2026)
 
-This is an additive, transactional migration. It is committed to source control first; it is not applied to the production database by this change. Apply it only after reviewing the pull request and checking its CI result.
+- The migration has been applied to the production Supabase project as version `20261031134002`.
+- The canonical participant regression SQL completed successfully after deployment.
+- Post-deployment integrity checks found no active individual registration missing a canonical participant, no participant identity mismatch, no official attempt missing its canonical link, and no preview attempt linked to a canonical participant.
+- The repository filename matches the version recorded in Supabase so future CLI migration checks do not attempt to reapply the same migration.
