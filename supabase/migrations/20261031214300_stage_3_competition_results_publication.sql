@@ -102,6 +102,7 @@ DECLARE
   v_q public.questions%rowtype;
   v_attempt public.attempts%rowtype;
   v_comp public.competitions%rowtype;
+  v_attempt_id uuid;
   v_snapshot_max numeric;
   v_max numeric;
 BEGIN
@@ -109,10 +110,11 @@ BEGIN
     RAISE EXCEPTION 'AUTH_REQUIRED';
   END IF;
 
-  SELECT * INTO v_row
-  FROM public.grading_items
-  WHERE id = p_grading_item_id
-  FOR UPDATE;
+  -- Resolve parent without locking it, then lock attempt -> grading item.
+  -- The finalization RPC uses the same order to prevent concurrent grade loss.
+  SELECT gi.attempt_id INTO v_attempt_id
+  FROM public.grading_items gi
+  WHERE gi.id = p_grading_item_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'GRADING_ITEM_NOT_FOUND';
@@ -120,7 +122,8 @@ BEGIN
 
   SELECT * INTO v_attempt
   FROM public.attempts
-  WHERE id = v_row.attempt_id;
+  WHERE id = v_attempt_id
+  FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
@@ -130,6 +133,16 @@ BEGIN
   END IF;
   IF v_attempt.status::text NOT IN ('SUBMITTED', 'GRADING') THEN
     RAISE EXCEPTION 'ATTEMPT_NOT_GRADABLE';
+  END IF;
+
+  SELECT * INTO v_row
+  FROM public.grading_items
+  WHERE id = p_grading_item_id
+    AND attempt_id = v_attempt_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'GRADING_ITEM_NOT_FOUND';
   END IF;
 
   SELECT * INTO v_comp
@@ -148,6 +161,10 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'FORBIDDEN';
   END IF;
+
+  PERFORM private.require_organizer_entitlement(
+    v_comp.organizer_id, 'manual_grading'
+  );
 
   SELECT eq.points_snapshot INTO v_snapshot_max
   FROM public.exam_attempt_questions eq
@@ -325,9 +342,11 @@ BEGIN
     RAISE EXCEPTION 'AUTH_REQUIRED';
   END IF;
 
+  -- Serialize AI grading with manual grading and attempt finalization.
   SELECT * INTO v_attempt
   FROM public.attempts
-  WHERE id = p_attempt_id;
+  WHERE id = p_attempt_id
+  FOR UPDATE;
 
   IF NOT FOUND OR v_attempt.is_preview THEN
     RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
@@ -907,33 +926,37 @@ BEGIN
       AND runtime.global_deadline <= clock_timestamp()
     ORDER BY a.created_at, a.id
   LOOP
-    SELECT runtime.phase::text, runtime.current_position
-    INTO v_previous_phase, v_previous_position
-    FROM public.exam_attempt_runtime runtime
-    WHERE runtime.attempt_id = v_attempt_id;
+    -- The resolver itself processes at most 200 question transitions per call.
+    -- Keep reconciling this same attempt until its runtime is completed.
+    LOOP
+      SELECT runtime.phase::text, runtime.current_position
+      INTO v_previous_phase, v_previous_position
+      FROM public.exam_attempt_runtime runtime
+      WHERE runtime.attempt_id = v_attempt_id;
 
-    IF NOT FOUND OR v_previous_phase = 'COMPLETED' THEN
-      EXIT;
-    END IF;
+      IF NOT FOUND OR v_previous_phase = 'COMPLETED' THEN
+        EXIT;
+      END IF;
 
-    PERFORM private.resolve_linear_exam_timeouts(
-      v_attempt_id,
-      clock_timestamp()
-    );
+      PERFORM private.resolve_linear_exam_timeouts(
+        v_attempt_id,
+        clock_timestamp()
+      );
 
-    SELECT runtime.phase::text, runtime.current_position
-    INTO v_runtime_phase, v_runtime_position
-    FROM public.exam_attempt_runtime runtime
-    WHERE runtime.attempt_id = v_attempt_id;
+      SELECT runtime.phase::text, runtime.current_position
+      INTO v_runtime_phase, v_runtime_position
+      FROM public.exam_attempt_runtime runtime
+      WHERE runtime.attempt_id = v_attempt_id;
 
-    IF NOT FOUND OR v_runtime_phase = 'COMPLETED' THEN
-      EXIT;
-    END IF;
+      IF NOT FOUND OR v_runtime_phase = 'COMPLETED' THEN
+        EXIT;
+      END IF;
 
-    IF v_runtime_phase = v_previous_phase
-       AND v_runtime_position = v_previous_position THEN
-      RAISE EXCEPTION 'LINEAR_TIMEOUT_RECONCILIATION_STALLED:%', v_attempt_id;
-    END IF;
+      IF v_runtime_phase = v_previous_phase
+         AND v_runtime_position = v_previous_position THEN
+        RAISE EXCEPTION 'LINEAR_TIMEOUT_RECONCILIATION_STALLED:%', v_attempt_id;
+      END IF;
+    END LOOP;
   END LOOP;
 
   SELECT count(*)::integer

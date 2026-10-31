@@ -14,6 +14,22 @@ test('canonical results use one latest finalized non-preview attempt per partici
   assert.match(sql, /rank\(\) OVER \(ORDER BY lf\.score DESC NULLS LAST\)/);
 });
 
+test('manual and AI grading serialize against finalization on the same attempt row', () => {
+  const saveStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.save_manual_grading_item');
+  const limitsStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.get_attempt_grading_limits', saveStart);
+  const saveSql = sql.slice(saveStart, limitsStart);
+  assert.match(saveSql, /SELECT gi\.attempt_id INTO v_attempt_id[\s\S]*FROM public\.attempts[\s\S]*FOR UPDATE[\s\S]*FROM public\.grading_items[\s\S]*FOR UPDATE/);
+  assert.match(saveSql, /require_organizer_entitlement\([\s\S]*'manual_grading'/);
+
+  const aiStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.grade_essay_similarity');
+  const finalizeStart = sql.indexOf('CREATE OR REPLACE FUNCTION public.finalize_attempt_manual', aiStart);
+  const aiSql = sql.slice(aiStart, finalizeStart);
+  assert.match(aiSql, /FROM public\.attempts\s+WHERE id = p_attempt_id\s+FOR UPDATE/);
+
+  const finalizeSql = sql.slice(finalizeStart, sql.indexOf('CREATE OR REPLACE FUNCTION private.canonical_competition_results', finalizeStart));
+  assert.match(finalizeSql, /FROM public\.attempts\s+WHERE id = p_attempt_id\s+FOR UPDATE/);
+});
+
 test('manual finalization preserves the automatic base and applies manual/AI adjustments server-side', () => {
   const start = sql.indexOf('CREATE OR REPLACE FUNCTION public.finalize_attempt_manual');
   const end = sql.indexOf('CREATE OR REPLACE FUNCTION private.canonical_competition_results', start);
@@ -81,6 +97,7 @@ test('publication reconciles timed-out linear sessions and blocks unfinished off
   assert.match(sql, /runtime\.global_deadline <= clock_timestamp\(\)/);
   assert.match(sql, /LINEAR_TIMEOUT_RECONCILIATION_STALLED/);
   assert.match(sql, /v_runtime_position = v_previous_position/);
+  assert.match(sql, /FOR v_attempt_id IN[\\s\\S]*?LOOP[\\s\\S]*?-- The resolver itself processes at most 200 question transitions per call\\.[\\s\\S]*?LOOP[\\s\\S]*?PERFORM private\\.resolve_linear_exam_timeouts[\\s\\S]*?END LOOP;\\s+END LOOP;/);
   assert.match(sql, /NOT_STARTED', 'IN_PROGRESS', 'SUBMITTED', 'GRADING/);
   assert.match(sql, /MISSING_CANONICAL_IDENTITY/);
   assert.match(sql, /NO_FINALIZED_OFFICIAL_ATTEMPTS/);

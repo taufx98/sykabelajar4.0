@@ -9,6 +9,7 @@ DECLARE
   v_overview_definition text;
   v_limits_definition text;
   v_trigger_definition text;
+  v_save_definition text;
   v_ai_definition text;
   v_canonical_rank_definition text;
 BEGIN
@@ -104,6 +105,17 @@ BEGIN
   END IF;
 
   SELECT pg_get_functiondef(
+    'public.save_manual_grading_item(uuid,numeric,text)'::regprocedure
+  ) INTO v_save_definition;
+
+  IF position('SELECT gi.attempt_id INTO v_attempt_id' IN v_save_definition) = 0
+     OR position('require_organizer_entitlement' IN v_save_definition) = 0
+     OR position('manual_grading' IN v_save_definition) = 0
+     OR position('FOR UPDATE' IN v_save_definition) = 0 THEN
+    RAISE EXCEPTION 'Manual grade saving must serialize on attempt and preserve organizer entitlement';
+  END IF;
+
+  SELECT pg_get_functiondef(
     'public.grade_essay_similarity(uuid,uuid)'::regprocedure
   ) INTO v_ai_definition;
 
@@ -112,6 +124,7 @@ BEGIN
      OR position('v_similarity' IN v_ai_definition) = 0
      OR position('v_ai_enabled' IN v_ai_definition) = 0
      OR position('AI_ASSESSMENT_DISABLED' IN v_ai_definition) = 0
+     OR position('FOR UPDATE' IN v_ai_definition) = 0
      OR position('question_bank_id' IN v_ai_definition) = 0
      OR position('exam_attempt_runtime' IN v_ai_definition) = 0
      OR position('RETURN v_similarity' IN v_ai_definition) = 0 THEN
@@ -127,6 +140,8 @@ BEGIN
      OR position('PENDING_ATTEMPTS' IN v_publish_definition) = 0
      OR position('LINEAR_TIMEOUT_RECONCILIATION_STALLED' IN v_publish_definition) = 0
      OR position('v_runtime_position = v_previous_position' IN v_publish_definition) = 0
+     OR position('    LOOP' || chr(10) || '      SELECT runtime.phase::text' IN v_publish_definition) = 0
+     OR position('END LOOP;' || chr(10) || '  END LOOP;' IN v_publish_definition) = 0
      OR position('MISSING_CANONICAL_IDENTITY' IN v_publish_definition) = 0
      OR position('RESULT_PUBLISHED' IN v_publish_definition) = 0
      OR position('a.status::text IN (''SUBMITTED'', ''GRADING'')' IN v_publish_definition) = 0 THEN
@@ -174,7 +189,8 @@ BEGIN
      OR position('MANUAL_GRADING_INCOMPLETE' IN v_finalize_definition) = 0
      OR position('SET score = v_final_score' IN v_finalize_definition) = 0
      OR position('SET score = p_score' IN v_finalize_definition) > 0
-     OR position('MANUAL_GRADING_ITEMS_NOT_FOUND' IN v_finalize_definition) > 0 THEN
+     OR position('MANUAL_GRADING_ITEMS_NOT_FOUND' IN v_finalize_definition) > 0
+     OR position('FOR UPDATE' IN v_finalize_definition) = 0 THEN
     RAISE EXCEPTION 'Manual finalization must preserve automatic base points and calculate final score server-side';
   END IF;
 
