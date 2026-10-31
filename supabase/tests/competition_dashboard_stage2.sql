@@ -1,5 +1,5 @@
 -- Stage 2 Lomba Saya dashboard contract checks.
--- Run after applying 20261031140000_stage_2_my_competitions_dashboard.sql.
+-- Run after applying 20261031134017_stage_2_my_competitions_dashboard.sql.
 
 DO $contract$
 DECLARE
