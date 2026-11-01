@@ -22,6 +22,7 @@ import { claimAndCompleteDailyTask, getDailyTasks, type LiveDailyTask } from '@/
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 import { getJakartaDateKey, getPreviousJakartaDateKey } from '@/lib/jakartaDate';
+import { subscribeSykaEvents } from '@/lib/realtimeBus';
 import { ReferralProgramPanel } from '@/components/referrals/ReferralProgramPanel';
 
 type CheckinRecord = {
@@ -40,7 +41,7 @@ type CheckinRewardDay = {
 };
 
 export function DailyTasksPage() {
-  const { toast, user } = useApp();
+  const { toast, user, refreshUser } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'referral' ? 'referral' : 'tasks';
   const [displayedTab, setDisplayedTab] = useState<'tasks' | 'referral'>(activeTab);
@@ -124,6 +125,22 @@ export function DailyTasksPage() {
   const switchTab = (tab: 'tasks' | 'referral') => {
     setSearchParams(tab === 'tasks' ? {} : { tab: 'referral' }, { replace: true });
   };
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    return subscribeSykaEvents((event) => {
+      if (event.type !== 'profile-updated' || event.userId !== user.id) return;
+      void supabase.from('profiles')
+        .select('edu_coin')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data, error: walletError }) => {
+          if (!walletError) setWalletCoin(Math.max(0, Number(data?.edu_coin) || 0));
+        });
+      void refreshUser();
+    });
+  }, [refreshUser, user?.id]);
 
   const load = useCallback(async () => {
     if (!user?.id) {
@@ -252,7 +269,7 @@ export function DailyTasksPage() {
         `Check-in hari ke-${streak} berhasil. +${reward} ${claimedType}${coin > 0 ? ` dan +${coin} Coin` : ''}.`,
         `Daily check-in #${streak} claimed. +${reward} ${claimedType}${coin > 0 ? ` and +${coin} Coins` : ''}.`,
       ), 'success');
-      await load();
+      await Promise.all([load(), refreshUser()]);
     } catch (claimError: unknown) {
       toast(claimError instanceof Error ? claimError.message : 'Check-in gagal.', 'error');
     } finally {
@@ -273,7 +290,7 @@ export function DailyTasksPage() {
           `Task completed. +${Number(result?.exp ?? 0)} XP and +${Number(result?.points ?? 0)} Edu Coins.`,
         ), 'success');
       }
-      await load();
+      await Promise.all([load(), refreshUser()]);
     } catch (claimError: unknown) {
       const message = claimError instanceof Error ? claimError.message : 'Task gagal diselesaikan.';
       toast(
