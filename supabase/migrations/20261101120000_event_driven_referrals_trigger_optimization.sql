@@ -875,6 +875,41 @@ $function$;
 REVOKE ALL ON FUNCTION public.get_my_referrals() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_referrals() TO authenticated;
 
+-- Allow a user to receive Realtime changes for their own moderation row only.
+-- Existing admin-only moderation read/write policies remain in force.
+DROP POLICY IF EXISTS chat_user_moderation_self_read ON public.chat_user_moderation;
+CREATE POLICY chat_user_moderation_self_read
+  ON public.chat_user_moderation
+  FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid());
+
+-- Realtime carries status changes to the affected user. Server RPCs still
+-- enforce every restriction when a message is sent.
+DO $chat_publication$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'chat_user_moderation'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_user_moderation;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'chat_spam_controls'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_spam_controls;
+  END IF;
+END;
+$chat_publication$;
+
 -- Both periodic workers are replaced by on-demand/event-driven execution:
 -- referral activity/email triggers above; competition status is synchronized
 -- on the competition detail request, eligibility check, and registration write.
