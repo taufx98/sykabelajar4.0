@@ -168,7 +168,7 @@ export function NotificationsPage() {
   const [referralPreview, setReferralPreview] = useState<ReferralPreview | null>(null);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!user?.id || activeTab === 'referral') {
       setReferralPreview(null);
       return;
     }
@@ -199,7 +199,7 @@ export function NotificationsPage() {
       document.removeEventListener('visibilitychange', onVisibility);
       void supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, activeTab]);
 
   useEffect(() => {
     let live = true;
