@@ -555,7 +555,7 @@ export function AdminDailyTaskPage() {
               </label>
               <label className="block text-xs text-fg-muted">Jenis hadiah
                 <select className="input mt-1" value={edit.reward_type} onChange={(e) => setEdit({ ...edit, reward_type: e.target.value })}>
-                  <option>XP</option><option>COIN</option><option>BADGE</option><option>FEATURE</option>
+                  <option>XP</option><option>COIN</option>
                 </select>
               </label>
               <label className="block text-xs text-fg-muted">Jumlah
