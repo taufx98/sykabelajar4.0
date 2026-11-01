@@ -85,6 +85,7 @@ const organizerAuth = await readFile(new URL('../src/services/organizerAuth.serv
 const organizerShell = await readFile(new URL('../src/components/layout/OrganizerShell.tsx', import.meta.url), 'utf8');
 const organizerControlCenter = await readFile(new URL('../src/pages/OrganizerControlCenterPage.tsx', import.meta.url), 'utf8');
 const competitionDetail = await readFile(new URL('../src/pages/CompetitionDetailPage.tsx', import.meta.url), 'utf8');
+const chatModerationGate = await readFile(new URL('../src/components/chat/ChatModerationGate.tsx', import.meta.url), 'utf8');
 
 test('referral qualification is event-driven and its hourly scanner is unscheduled', () => {
   assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION private\.apply_referral_qualification/i);
@@ -152,4 +153,15 @@ test('competition registration phase is reconciled on demand rather than by cron
   assert.doesNotMatch(competitionDetail, /setInterval\s*\(/);
   assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION public\.check_registration_eligibility[\s\S]*?PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
   assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION public\.validate_registration_insert[\s\S]*?PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
+});
+
+test('chat moderation refreshes from owner-scoped Realtime events without periodic API polling', () => {
+  assert.match(chatModerationGate, /table: 'chat_user_moderation'/);
+  assert.match(chatModerationGate, /table: 'chat_spam_controls'/);
+  assert.match(chatModerationGate, /filter: `user_id=eq\.\$\{user\.id\}`/);
+  assert.doesNotMatch(chatModerationGate, /setInterval\s*\(/);
+  assert.match(chatModerationGate, /visibilitychange/);
+  assert.match(efficiencyMigration, /CREATE POLICY chat_user_moderation_self_read[\s\S]*USING \(user_id = auth\.uid\(\)\)/i);
+  assert.match(efficiencyMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.chat_user_moderation/i);
+  assert.match(efficiencyMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.chat_spam_controls/i);
 });
