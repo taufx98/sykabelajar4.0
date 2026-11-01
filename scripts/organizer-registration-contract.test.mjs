@@ -198,7 +198,7 @@ test('chat moderation refreshes from owner-scoped Realtime events without period
 });
 
 test('chat moderation uses one SELECT policy and operation-specific admin write policies', () => {
-  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_read[\\s\\S]*FOR SELECT[\\s\\S]*public\\.is_active_admin\\(\\(SELECT auth\\.uid\\(\\)\\)\\)[\\s\\S]*user_id = \\(SELECT auth\\.uid\\(\\)\\)/i);
+  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_read[\s\S]*FOR SELECT[\s\S]*public\.is_active_admin\(\(SELECT auth\.uid\(\)\)\)[\s\S]*user_id = \(SELECT auth\.uid\(\)\)/i);
   assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_insert[\\s\\S]*FOR INSERT/i);
   assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_update[\\s\\S]*FOR UPDATE/i);
   assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_delete[\\s\\S]*FOR DELETE/i);
