@@ -127,7 +127,7 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   const notificationsHeader = globalHeader.slice(notificationsHeaderStart, notificationsHeaderEnd);
   assert.ok(notificationsHeaderStart >= 0 && notificationsHeaderEnd > notificationsHeaderStart);
   assert.doesNotMatch(notificationsHeader, /Program Referral/);
-  assert.match(globalHeader, /Daily Tasks &amp; Program Referral/);
+  assert.match(globalHeader, /Daily Tasks &amp; Referral/);
   assert.match(notificationsPage, /fa-users-rays/);
   assert.match(notificationsPage, /fa-coins/);
   assert.match(notificationsPage, /fa-award/);
@@ -327,7 +327,7 @@ test('Daily Tasks visual structure follows the supplied reference without changi
   assert.match(daily, /get_daily_checkin_streak_rewards/);
   assert.match(daily, /scheduledReward/);
   assert.match(daily, /historicalDateKey/);
-  assert.match(header, /Daily Tasks &(?:amp;)? Program Referral/);
+  assert.match(header, /Daily Tasks &(?:amp;)? Referral/);
   assert.match(admin, /from\('daily_tasks'\)\.insert/);
   assert.match(admin, /from\('daily_tasks'\)\.update/);
   assert.match(admin, /is_active/);
