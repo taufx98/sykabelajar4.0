@@ -117,7 +117,7 @@ export function OrganizerControlCenterPage() {
   const switchWorkspace = (id: string) => {
     if (!workspaces.some((x) => x.id === id)) return;
     setSelectedOrganizerId(id);
-    emitSykaEvent({ type: 'organizer-changed', organizerId: id });
+    emitSykaEvent({ type: 'organizer-selected', organizerId: id });
     void load(id);
   };
 
