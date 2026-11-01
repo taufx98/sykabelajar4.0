@@ -1055,7 +1055,7 @@ export function LeaderboardPage() {
       .channel('public-leaderboard-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         invalidateLeaderboardMemory();
-        void load(true);
+        if (document.visibilityState === 'visible') void load(true);
       })
       .subscribe((status) => {
         if (active) setIsRealtime(status === 'SUBSCRIBED');
