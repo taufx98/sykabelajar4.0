@@ -87,6 +87,7 @@ const organizerShell = await readFile(new URL('../src/components/layout/Organize
 const organizerControlCenter = await readFile(new URL('../src/pages/OrganizerControlCenterPage.tsx', import.meta.url), 'utf8');
 const realtimeBus = await readFile(new URL('../src/lib/realtimeBus.ts', import.meta.url), 'utf8');
 const competitionDetail = await readFile(new URL('../src/pages/CompetitionDetailPage.tsx', import.meta.url), 'utf8');
+const chatPolicyMigration = await readFile(new URL('../supabase/migrations/20261101034500_chat_moderation_policy_efficiency.sql', import.meta.url), 'utf8');
 const chatModerationGate = await readFile(new URL('../src/components/chat/ChatModerationGate.tsx', import.meta.url), 'utf8');
 
 test('referral qualification is event-driven and its hourly scanner is unscheduled', () => {
@@ -194,4 +195,14 @@ test('chat moderation refreshes from owner-scoped Realtime events without period
   assert.match(efficiencyMigration, /CREATE POLICY chat_user_moderation_self_read[\s\S]*USING \(user_id = auth\.uid\(\)\)/i);
   assert.match(efficiencyMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.chat_user_moderation/i);
   assert.match(efficiencyMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.chat_spam_controls/i);
+});
+
+test('chat moderation uses one SELECT policy and operation-specific admin write policies', () => {
+  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_read[\\s\\S]*FOR SELECT[\\s\\S]*public\\.is_active_admin\\(\\(SELECT auth\\.uid\\(\\)\\)\\)[\\s\\S]*user_id = \\(SELECT auth\\.uid\\(\\)\\)/i);
+  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_insert[\\s\\S]*FOR INSERT/i);
+  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_update[\\s\\S]*FOR UPDATE/i);
+  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_delete[\\s\\S]*FOR DELETE/i);
+  assert.doesNotMatch(chatPolicyMigration, /FOR ALL/i);
+  assert.match(chatPolicyMigration, /DROP INDEX IF EXISTS public\\.idx_follows_follower_created/i);
+  assert.match(chatPolicyMigration, /CREATE INDEX IF NOT EXISTS idx_chat_user_moderation_blocked_by/i);
 });
