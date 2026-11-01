@@ -126,6 +126,8 @@ test('referral accepts a shareable account UUID and preserves existing short ref
   assert.match(referralPage, /ensure_referral_code|user\.id/);
   assert.match(referralPage, /navigator\.clipboard\.writeText/);
   assert.match(referralPage, /row\.status === 'EXPIRED'/);
+  assert.match(efficiencyMigration, /WHEN re\.status IN \('VERIFIED', 'CREDITED'\)[\s\S]*THEN coalesce\(p\.full_name/i);
+  assert.match(efficiencyMigration, /WHEN re\.status IN \('VERIFIED', 'CREDITED'\) THEN p\.username/i);
   assert.match(efficiencyMigration, /re\.created_at \+ interval '24 hours' <= now\(\)/i);
   assert.match(referralPage, /postgres_changes/);
 });
