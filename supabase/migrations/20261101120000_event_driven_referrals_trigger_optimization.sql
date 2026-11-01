@@ -517,6 +517,9 @@ SET search_path TO ''
 AS $function$
 DECLARE
   v_referral public.referral_events%rowtype;
+  v_email_confirmed_at timestamptz;
+  v_activity text;
+  v_activity_at timestamptz;
 BEGIN
   IF p_referred_user_id IS NULL
      OR p_occurred_at IS NULL
@@ -524,26 +527,68 @@ BEGIN
     RETURN false;
   END IF;
 
+  -- p_occurred_at comes from clock_timestamp() in the database trigger,
+  -- never from a client-supplied created_at/completed_at column.
   SELECT re.*
     INTO v_referral
   FROM public.referral_events re
-  JOIN auth.users au ON au.id = re.referred_user_id
   WHERE re.referred_user_id = p_referred_user_id
     AND re.status = 'PENDING'
     AND re.verified_at IS NULL
-    AND au.email_confirmed_at IS NOT NULL
     AND p_occurred_at >= re.created_at
     AND p_occurred_at < re.created_at + interval '24 hours'
     AND clock_timestamp() < re.created_at + interval '24 hours'
-  FOR UPDATE OF re;
+  FOR UPDATE;
 
   IF NOT FOUND THEN
     RETURN false;
   END IF;
 
+  IF v_referral.verified_activity IS NOT NULL
+     AND v_referral.last_checked_at IS NOT NULL THEN
+    -- Preserve the first qualifying event if email confirmation and a
+    -- subsequent activity happen at nearly the same time.
+    v_activity := v_referral.verified_activity;
+    v_activity_at := v_referral.last_checked_at;
+  ELSE
+    v_activity := p_activity;
+    v_activity_at := p_occurred_at;
+  END IF;
+
+  IF v_activity_at < v_referral.created_at
+     OR v_activity_at >= v_referral.created_at + interval '24 hours'
+     OR clock_timestamp() >= v_referral.created_at + interval '24 hours' THEN
+    RETURN false;
+  END IF;
+
+  SELECT au.email_confirmed_at
+    INTO v_email_confirmed_at
+  FROM auth.users au
+  WHERE au.id = p_referred_user_id;
+
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  IF v_email_confirmed_at IS NULL THEN
+    -- Store one trusted server-side qualifying activity on the referral row.
+    -- The auth.users confirmation trigger will finalize it without rescanning
+    -- comments, follows, chat messages, or other activity tables.
+    IF v_referral.verified_activity IS NULL THEN
+      UPDATE public.referral_events
+      SET verified_activity = v_activity,
+          last_checked_at = v_activity_at
+      WHERE id = v_referral.id
+        AND status = 'PENDING'
+        AND verified_at IS NULL
+        AND verified_activity IS NULL;
+    END IF;
+    RETURN false;
+  END IF;
+
   UPDATE public.referral_events
-  SET verified_at = p_occurred_at,
-      verified_activity = p_activity,
+  SET verified_at = v_activity_at,
+      verified_activity = v_activity,
       status = 'VERIFIED',
       last_checked_at = clock_timestamp()
   WHERE id = v_referral.id
@@ -589,24 +634,19 @@ BEGIN
     WHEN 'daily_checkins' THEN
       v_user_id := NEW.user_id;
       v_activity := 'daily_checkin';
-      v_occurred_at := NEW.created_at;
     WHEN 'comments' THEN
       v_user_id := NEW.user_id;
       v_activity := 'comment';
-      v_occurred_at := NEW.created_at;
     WHEN 'follows' THEN
       v_user_id := NEW.follower_id;
       v_activity := 'follow';
-      v_occurred_at := NEW.created_at;
     WHEN 'chat_messages' THEN
       v_user_id := NEW.sender_id;
       v_activity := 'chat';
-      v_occurred_at := NEW.created_at;
     WHEN 'daily_task_claims' THEN
       IF NEW.status = 'COMPLETED' AND NEW.completed_at IS NOT NULL THEN
         v_user_id := NEW.user_id;
         v_activity := 'daily_task';
-        v_occurred_at := NEW.completed_at;
       END IF;
     ELSE
       RETURN NEW;
@@ -620,8 +660,8 @@ BEGIN
 END;
 $function$;
 
--- If the account was active before email confirmation, a one-user bounded
--- lookup preserves the original rule without restoring a global polling job.
+-- If activity occurs before email confirmation, its trusted event timestamp
+-- is already stored on referral_events. Confirmation only needs that one row.
 CREATE OR REPLACE FUNCTION private.process_referral_email_confirmation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -630,8 +670,6 @@ SET search_path TO ''
 AS $function$
 DECLARE
   v_referral public.referral_events%rowtype;
-  v_activity text;
-  v_occurred_at timestamptz;
 BEGIN
   IF OLD.email_confirmed_at IS NOT NULL OR NEW.email_confirmed_at IS NULL THEN
     RETURN NEW;
@@ -643,207 +681,24 @@ BEGIN
   WHERE re.referred_user_id = NEW.id
     AND re.status = 'PENDING'
     AND re.verified_at IS NULL
+    AND re.verified_activity IS NOT NULL
+    AND re.last_checked_at IS NOT NULL
+    AND re.last_checked_at >= re.created_at
+    AND re.last_checked_at < re.created_at + interval '24 hours'
     AND re.created_at >= clock_timestamp() - interval '24 hours'
   FOR UPDATE;
 
-  IF NOT FOUND THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT activity, occurred_at
-    INTO v_activity, v_occurred_at
-  FROM (
-    SELECT 'daily_checkin'::text AS activity, dc.created_at AS occurred_at
-    FROM public.daily_checkins dc
-    WHERE dc.user_id = NEW.id
-      AND dc.created_at >= v_referral.created_at
-      AND dc.created_at < v_referral.created_at + interval '24 hours'
-
-    UNION ALL
-
-    SELECT 'comment'::text, c.created_at
-    FROM public.comments c
-    WHERE c.user_id = NEW.id
-      AND c.created_at >= v_referral.created_at
-      AND c.created_at < v_referral.created_at + interval '24 hours'
-
-    UNION ALL
-
-    SELECT 'follow'::text, f.created_at
-    FROM public.follows f
-    WHERE f.follower_id = NEW.id
-      AND f.created_at >= v_referral.created_at
-      AND f.created_at < v_referral.created_at + interval '24 hours'
-
-    UNION ALL
-
-    SELECT 'chat'::text, cm.created_at
-    FROM public.chat_messages cm
-    WHERE cm.sender_id = NEW.id
-      AND cm.created_at >= v_referral.created_at
-      AND cm.created_at < v_referral.created_at + interval '24 hours'
-
-    UNION ALL
-
-    SELECT 'daily_task'::text, dtc.completed_at
-    FROM public.daily_task_claims dtc
-    WHERE dtc.user_id = NEW.id
-      AND dtc.status = 'COMPLETED'
-      AND dtc.completed_at IS NOT NULL
-      AND dtc.completed_at >= v_referral.created_at
-      AND dtc.completed_at < v_referral.created_at + interval '24 hours'
-  ) qualifying_activity
-  ORDER BY occurred_at ASC
-  LIMIT 1;
-
-  IF v_activity IS NOT NULL AND v_occurred_at IS NOT NULL THEN
-    PERFORM private.apply_referral_qualification(NEW.id, v_activity, v_occurred_at);
-  END IF;
-
-  RETURN NEW;
-END;
-$function$;
-
--- One-time catch-up for referrals still pending at deployment. This is bounded
--- to recent pending referral rows, not a recurring scan of all users or events.
-DO $referral_backfill$
-DECLARE
-  v_referral record;
-  v_activity text;
-  v_occurred_at timestamptz;
-BEGIN
-  FOR v_referral IN
-    SELECT re.referred_user_id, re.created_at
-    FROM public.referral_events re
-    JOIN auth.users au ON au.id = re.referred_user_id
-    WHERE re.status = 'PENDING'
-      AND re.verified_at IS NULL
-      AND au.email_confirmed_at IS NOT NULL
-      AND re.created_at >= clock_timestamp() - interval '24 hours'
-  LOOP
-    SELECT activity, occurred_at
-      INTO v_activity, v_occurred_at
-    FROM (
-      SELECT 'daily_checkin'::text AS activity, dc.created_at AS occurred_at
-      FROM public.daily_checkins dc
-      WHERE dc.user_id = v_referral.referred_user_id
-        AND dc.created_at >= v_referral.created_at
-        AND dc.created_at < v_referral.created_at + interval '24 hours'
-      UNION ALL
-      SELECT 'comment'::text, c.created_at
-      FROM public.comments c
-      WHERE c.user_id = v_referral.referred_user_id
-        AND c.created_at >= v_referral.created_at
-        AND c.created_at < v_referral.created_at + interval '24 hours'
-      UNION ALL
-      SELECT 'follow'::text, f.created_at
-      FROM public.follows f
-      WHERE f.follower_id = v_referral.referred_user_id
-        AND f.created_at >= v_referral.created_at
-        AND f.created_at < v_referral.created_at + interval '24 hours'
-      UNION ALL
-      SELECT 'chat'::text, cm.created_at
-      FROM public.chat_messages cm
-      WHERE cm.sender_id = v_referral.referred_user_id
-        AND cm.created_at >= v_referral.created_at
-        AND cm.created_at < v_referral.created_at + interval '24 hours'
-      UNION ALL
-      SELECT 'daily_task'::text, dtc.completed_at
-      FROM public.daily_task_claims dtc
-      WHERE dtc.user_id = v_referral.referred_user_id
-        AND dtc.status = 'COMPLETED'
-        AND dtc.completed_at IS NOT NULL
-        AND dtc.completed_at >= v_referral.created_at
-        AND dtc.completed_at < v_referral.created_at + interval '24 hours'
-    ) qualifying_activity
-    ORDER BY occurred_at ASC
-    LIMIT 1;
-
-    IF v_activity IS NOT NULL AND v_occurred_at IS NOT NULL THEN
-      PERFORM private.apply_referral_qualification(
-        v_referral.referred_user_id,
-        v_activity,
-        v_occurred_at
-      );
-    END IF;
-  END LOOP;
-END;
-$referral_backfill$;
-
--- Handle the other side of the event race: an eligible activity may commit
--- just before the referral row is inserted. Check only this one new referral.
-CREATE OR REPLACE FUNCTION private.process_new_referral_event()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO ''
-AS $function$
-DECLARE
-  v_activity text;
-  v_occurred_at timestamptz;
-BEGIN
-  IF NEW.status <> 'PENDING' OR NEW.verified_at IS NOT NULL THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT activity, occurred_at
-    INTO v_activity, v_occurred_at
-  FROM (
-    SELECT 'daily_checkin'::text AS activity, dc.created_at AS occurred_at
-    FROM public.daily_checkins dc
-    WHERE dc.user_id = NEW.referred_user_id
-      AND dc.created_at >= NEW.created_at
-      AND dc.created_at < NEW.created_at + interval '24 hours'
-    UNION ALL
-    SELECT 'comment'::text, c.created_at
-    FROM public.comments c
-    WHERE c.user_id = NEW.referred_user_id
-      AND c.created_at >= NEW.created_at
-      AND c.created_at < NEW.created_at + interval '24 hours'
-    UNION ALL
-    SELECT 'follow'::text, f.created_at
-    FROM public.follows f
-    WHERE f.follower_id = NEW.referred_user_id
-      AND f.created_at >= NEW.created_at
-      AND f.created_at < NEW.created_at + interval '24 hours'
-    UNION ALL
-    SELECT 'chat'::text, cm.created_at
-    FROM public.chat_messages cm
-    WHERE cm.sender_id = NEW.referred_user_id
-      AND cm.created_at >= NEW.created_at
-      AND cm.created_at < NEW.created_at + interval '24 hours'
-    UNION ALL
-    SELECT 'daily_task'::text, dtc.completed_at
-    FROM public.daily_task_claims dtc
-    WHERE dtc.user_id = NEW.referred_user_id
-      AND dtc.status = 'COMPLETED'
-      AND dtc.completed_at IS NOT NULL
-      AND dtc.completed_at >= NEW.created_at
-      AND dtc.completed_at < NEW.created_at + interval '24 hours'
-  ) qualifying_activity
-  ORDER BY occurred_at ASC
-  LIMIT 1;
-
-  IF v_activity IS NOT NULL AND v_occurred_at IS NOT NULL THEN
+  IF FOUND THEN
     PERFORM private.apply_referral_qualification(
-      NEW.referred_user_id,
-      v_activity,
-      v_occurred_at
+      NEW.id,
+      v_referral.verified_activity,
+      v_referral.last_checked_at
     );
   END IF;
 
   RETURN NEW;
 END;
 $function$;
-
-REVOKE ALL ON FUNCTION private.process_new_referral_event() FROM PUBLIC, anon, authenticated, service_role;
-
-DROP TRIGGER IF EXISTS trg_process_new_referral_event ON public.referral_events;
-CREATE TRIGGER trg_process_new_referral_event
-AFTER INSERT ON public.referral_events
-FOR EACH ROW
-WHEN (NEW.status = 'PENDING')
-EXECUTE FUNCTION private.process_new_referral_event();
 
 REVOKE ALL ON FUNCTION private.apply_referral_qualification(uuid, text, timestamptz) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.capture_referral_activity() FROM PUBLIC, anon, authenticated, service_role;
