@@ -114,7 +114,12 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.match(referralPanel, /fa-gift/);
   assert.match(referralPanel, /fa-coins/);
   assert.match(referralPanel, /text-\[#34D399\]/);
-  assert.match(appLayout, /location\.pathname === '\/notifications' \? 'w-full'/);
+  assert.match(appLayout, /max-w-\[1440px\] mx-auto flex surface-bg/);
+  assert.doesNotMatch(appLayout, /location\.pathname === '\/notifications' \? 'w-full'/);
+  assert.match(notificationsPage, /notification-modal-panel[^"]*max-w-lg/);
+  assert.doesNotMatch(notificationsPage, /notification-modal-backdrop/);
+  const styles = await readFile(new URL('../src/index.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(styles, /\.notifications-modal-backdrop/);
   assert.match(globalHeader, /location\.pathname === '\/notifications'/);
   assert.match(globalHeader, /Notifikasi &amp; Program Referral/);
   assert.match(notificationsPage, /fa-users-rays/);
