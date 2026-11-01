@@ -442,6 +442,7 @@ export function ReferralProgramPanel() {
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs dark:divide-slate-800/80">
                   {rows.map((row, index) => {
+                    const rewardCredited = row.status === 'VERIFIED' || row.status === 'CREDITED';
                     return (
                       <tr key={row.referred_user_id} className="transition hover:bg-slate-50 dark:hover:bg-slate-900/40">
                         <td className="px-4 py-3 text-slate-500">{index + 1}</td>
@@ -451,7 +452,7 @@ export function ReferralProgramPanel() {
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">{formatDate(row.joined_at)}</td>
                         <td className="px-4 py-3 text-right">
-                          {row.status === 'CREDITED' ? (
+                          {rewardCredited ? (
                             <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold text-emerald-500 dark:text-emerald-400">
                               +{Math.max(0, Number(row.reward_amount) || 0).toLocaleString('id-ID')} Edu Coin · Selesai
                             </span>
