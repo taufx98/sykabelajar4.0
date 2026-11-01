@@ -109,7 +109,7 @@ BEGIN
     'exp', coalesce(t.exp, 0)
   );
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.claim_daily_task(p_task_id uuid)
