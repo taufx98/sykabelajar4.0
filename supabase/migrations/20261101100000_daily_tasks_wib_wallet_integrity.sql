@@ -141,6 +141,10 @@ BEGIN
   amt := coalesce((r ->> 'reward_amount')::numeric, 0);
   v_coin_amount := coalesce((r ->> 'coin_amount')::numeric, 0);
 
+  IF typ NOT IN ('XP', 'COIN') THEN
+    RAISE EXCEPTION 'CHECKIN_REWARD_TYPE_NOT_SUPPORTED';
+  END IF;
+
   INSERT INTO public.daily_checkins (
     user_id, checkin_date, reward_type, reward_amount, streak_day, event_id
   )
