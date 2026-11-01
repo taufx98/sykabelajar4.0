@@ -45,15 +45,12 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
       timer = window.setTimeout(() => void reloadWorkspaces(), 250);
     };
     const unsubscribe = subscribeSykaEvents((event) => {
-      if (event.type !== 'organizer-changed') return;
-      const selectedWorkspace = event.organizerId
-        ? workspaces.find((workspace) => workspace.id === event.organizerId)
-        : null;
-      if (selectedWorkspace) {
-        setSelected(selectedWorkspace);
+      if (event.type === 'organizer-selected') {
+        const selectedWorkspace = workspaces.find((workspace) => workspace.id === event.organizerId);
+        if (selectedWorkspace) setSelected(selectedWorkspace);
         return;
       }
-      schedule();
+      if (event.type === 'organizer-changed') schedule();
     });
     return () => {
       if (timer) window.clearTimeout(timer);
