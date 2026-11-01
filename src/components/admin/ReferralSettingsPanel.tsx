@@ -286,6 +286,17 @@ export function ReferralSettingsPanel() {
         {saved && <Badge color={!saved.is_active ? 'warn' : saved.is_event_active ? 'moss' : 'info'}>{programStatus}</Badge>}
       </header>
 
+      {error && !loading && (
+        <Card className="flex items-start gap-3 border-red-500/25 bg-red-500/5 p-4">
+          <Info size={16} className="mt-0.5 shrink-0 text-red-400"/>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-red-400">Pengaturan referral belum berhasil dimuat</p>
+            <p className="mt-1 text-xs leading-relaxed text-fg-muted">{error}</p>
+            <button type="button" onClick={() => void load()} className="mt-2 text-xs font-bold text-[#3B82F6] underline" disabled={loading}>Coba lagi</button>
+          </div>
+        </Card>
+      )}
+
       <Card className="overflow-hidden border-[#3B82F6]/20 p-0">
         <div className="flex items-start gap-3 border-b surface-border bg-gradient-to-r from-[#1E3A8A]/10 via-transparent to-indigo-500/5 p-4 sm:p-5">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#3B82F6]/10 text-[#3B82F6]"><Gift size={21}/></span>
