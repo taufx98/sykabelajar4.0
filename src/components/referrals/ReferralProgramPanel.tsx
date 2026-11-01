@@ -98,6 +98,7 @@ export function ReferralProgramPanel() {
   useEffect(() => {
     if (!user?.id) {
       setRows([]);
+      setTierAwards([]);
       setProgram(null);
       setLoading(false);
       return;
