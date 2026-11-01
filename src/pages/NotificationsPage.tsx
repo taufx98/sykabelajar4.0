@@ -181,10 +181,6 @@ export function NotificationsPage() {
     stylesheet.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
     stylesheet.referrerPolicy = 'no-referrer';
     document.head.appendChild(stylesheet);
-
-    return () => {
-      stylesheet.remove();
-    };
   }, []);
 
   useEffect(() => {
