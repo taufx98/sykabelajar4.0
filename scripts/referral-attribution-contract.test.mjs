@@ -253,3 +253,64 @@ test('referral activity table preserves the reference four-column summary', asyn
   assert.match(panel, /row.status === 'VERIFIED' \|\| row.status === 'CREDITED'/);
   assert.match(panel, /Edu Coin · Selesai/);
 });
+
+
+test('Daily Tasks uses Jakarta calendar dates across the app clock boundary', async () => {
+  const helperSource = await readFile(new URL('../src/lib/jakartaDate.ts', import.meta.url), 'utf8');
+  const compiledDate = ts.transpileModule(helperSource, {
+    compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const dateModuleUrl = `data:text/javascript;base64,${Buffer.from(compiledDate).toString('base64')}`;
+  const { getJakartaDateKey, getPreviousJakartaDateKey } = await import(dateModuleUrl);
+
+  assert.equal(getJakartaDateKey(new Date('2026-10-31T16:59:59.000Z')), '2026-10-31');
+  assert.equal(getJakartaDateKey(new Date('2026-10-31T17:00:00.000Z')), '2026-11-01');
+  assert.equal(getPreviousJakartaDateKey('2026-11-01'), '2026-10-31');
+});
+
+test('Daily Tasks UI and service use the same WIB date key and backend wallet balance', async () => {
+  const daily = await readFile(new URL('../src/pages/DailyTasksPage.tsx', import.meta.url), 'utf8');
+  const service = await readFile(new URL('../src/services/daily-task.service.ts', import.meta.url), 'utf8');
+
+  assert.match(daily, /getJakartaDateKey/);
+  assert.match(daily, /getPreviousJakartaDateKey/);
+  assert.match(daily, /select\('edu_coin'\)/);
+  assert.doesNotMatch(daily, /toISOString\(\)\.slice\(0,\s*10\)/);
+  assert.match(service, /getJakartaDateKey/);
+  assert.doesNotMatch(service, /toISOString\(\)\.slice\(0,\s*10\)/);
+});
+
+test('daily reward claims update canonical profile balances only when ledger rows are newly inserted', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20261101100000_daily_tasks_wib_wallet_integrity.sql', import.meta.url), 'utf8');
+
+  assert.match(migration, /CREATE OR REPLACE FUNCTION private\.credit_profile_currency/i);
+  assert.match(migration, /UPDATE public\.profiles/i);
+  assert.match(migration, /total_xp\s*=\s*coalesce\(total_xp,\s*0\)/i);
+  assert.match(migration, /edu_coin\s*=\s*coalesce\(edu_coin,\s*0\)/i);
+  assert.match(migration, /RETURNING id INTO v_ledger_id/i);
+  assert.match(migration, /IF v_ledger_id IS NOT NULL THEN/i);
+  assert.match(migration, /REVOKE ALL ON FUNCTION private\.credit_profile_currency/i);
+  assert.match(migration, /p_date IS DISTINCT FROM v_today/i);
+  assert.match(migration, /Asia\/Jakarta/i);
+  assert.match(migration, /claim_date\s*=\s*v_claim_date/i);
+  assert.match(migration, /ON CONFLICT \(user_id, event_type, event_id\) DO NOTHING/i);
+  assert.doesNotMatch(migration, /CREATE TRIGGER[^;]+ON public\.edu_coin_ledger/i);
+});
+
+test('Daily Tasks visual structure follows the supplied reference without changing the sidebar', async () => {
+  const daily = await readFile(new URL('../src/pages/DailyTasksPage.tsx', import.meta.url), 'utf8');
+  const header = await readFile(new URL('../src/components/layout/GlobalHeader.tsx', import.meta.url), 'utf8');
+  const admin = await readFile(new URL('../src/pages/AdminDailyTaskPage.tsx', import.meta.url), 'utf8');
+  const layout = await readFile(new URL('../src/components/layout/AppLayout.tsx', import.meta.url), 'utf8');
+
+  assert.match(daily, /daily-tasks-page/);
+  assert.match(daily, /max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8/);
+  assert.match(daily, /#0B1120/);
+  assert.match(daily, /#151E32/);
+  assert.match(daily, /#1E293B/);
+  assert.match(header, /Daily Tasks & Program Referral/);
+  assert.match(admin, /from\('daily_tasks'\)\.insert/);
+  assert.match(admin, /from\('daily_tasks'\)\.update/);
+  assert.match(admin, /is_active/);
+  assert.match(layout, /max-w-\[1440px\] mx-auto flex surface-bg/);
+});
