@@ -101,7 +101,7 @@ test('referral qualification is event-driven and its hourly scanner is unschedul
   assert.match(efficiencyMigration, /ON CONFLICT \(user_id, event_type, event_id\) DO NOTHING/i);
   assert.match(efficiencyMigration, /email_confirmed_at IS NOT NULL/i);
   assert.match(efficiencyMigration, /interval '24 hours'/i);
-  assert.match(efficiencyMigration, /CREATE TRIGGER trg_process_new_referral_event[\\s\\S]*ON public\.referral_events/i);
+  assert.match(efficiencyMigration, /CREATE TRIGGER trg_process_new_referral_event[\s\S]*ON public\.referral_events/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
   assert.match(efficiencyMigration, /DROP FUNCTION IF EXISTS private\.sync_due_competition_registration_statuses/i);
@@ -125,7 +125,7 @@ test('referral trigger helpers are private and cannot be called from client role
 });
 
 test('attempt and competition audit trigger functions are invoked only for meaningful changes', () => {
-  assert.match(efficiencyMigration, /CREATE TRIGGER trg_audit_attempt_result_snapshot[\\s\\S]*?WHEN \\([\\s\\S]*?OLD\\.score IS DISTINCT FROM NEW\\.score/i);
+  assert.match(efficiencyMigration, /CREATE TRIGGER trg_audit_attempt_result_snapshot[\s\S]*?WHEN \([\s\S]*?OLD\.score IS DISTINCT FROM NEW\.score/i);
   assert.match(efficiencyMigration, /CREATE TRIGGER trg_competition_status_history[\s\S]*WHEN \(OLD\.status IS DISTINCT FROM NEW\.status\)/i);
   assert.match(efficiencyMigration, /coalesce\(NEW\.is_preview, false\)/i);
 });
@@ -133,11 +133,11 @@ test('attempt and competition audit trigger functions are invoked only for meani
 test('leaderboard uses Realtime with a five-minute fallback only when the channel is degraded', () => {
   assert.match(leaderboardPage, /postgres_changes/);
   assert.match(leaderboardPage, /addEventListener\('visibilitychange'/);
-  assert.match(leaderboardPage, /5 \\* 60_000/);
+  assert.match(leaderboardPage, /5 \* 60_000/);
   assert.match(leaderboardPage, /startDegradedRefresh/);
   assert.match(leaderboardPage, /stopDegradedRefresh/);
   assert.match(leaderboardPage, /status === 'SUBSCRIBED'/);
-  assert.doesNotMatch(leaderboardPage, /60_000\s*\)/);
+  assert.doesNotMatch(leaderboardPage, /,\s*60_000\)/);
   assert.match(leaderboardPage, /document\.visibilityState/);
   assert.match(platformService, /enrichedLeaderboardCache/);
   assert.match(platformService, /schoolLeaderboardCache/);
