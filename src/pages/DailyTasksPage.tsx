@@ -31,6 +31,14 @@ type CheckinRecord = {
   reward_amount?: number | string;
 };
 
+type CheckinRewardDay = {
+  day_number: number;
+  reward_type: string;
+  reward_amount: number | string;
+  coin_amount: number | string;
+  sparkle?: boolean;
+};
+
 export function DailyTasksPage() {
   const { toast, user } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -134,7 +142,7 @@ export function DailyTasksPage() {
     setError(null);
 
     try {
-      const [nextTasks, todayCheckinResult, historyResult, walletResult] = await Promise.all([
+      const [nextTasks, todayCheckinResult, historyResult, walletResult, rewardScheduleResult] = await Promise.all([
         getDailyTasks(todayKey),
         supabase.from('daily_checkins')
           .select('checkin_date, streak_day, reward_type, reward_amount')
@@ -150,11 +158,13 @@ export function DailyTasksPage() {
           .select('edu_coin')
           .eq('id', user.id)
           .maybeSingle(),
+        supabase.rpc('get_daily_checkin_streak_rewards', { p_date: todayKey }),
       ]);
 
       if (todayCheckinResult.error) throw todayCheckinResult.error;
       if (historyResult.error) throw historyResult.error;
       if (walletResult.error) throw walletResult.error;
+      if (rewardScheduleResult.error) throw rewardScheduleResult.error;
 
       const nextHistory = (historyResult.data ?? []) as CheckinRecord[];
       const latest = nextHistory[0] ?? null;
@@ -164,12 +174,12 @@ export function DailyTasksPage() {
         : latest?.checkin_date === previousDateKey
           ? (Number(latest.streak_day) || 0) + 1
           : 1;
-
-      const { data: rewardData, error: rewardError } = await supabase.rpc('resolve_daily_checkin_reward', {
-        p_date: todayKey,
-        p_day_number: expectedDay,
-      });
-      if (rewardError) throw rewardError;
+      const rewardSchedule = Array.isArray(rewardScheduleResult.data)
+        ? rewardScheduleResult.data as CheckinRewardDay[]
+        : [];
+      const currentReward = rewardSchedule.find((item) => Number(item.day_number) === expectedDay)
+        ?? rewardSchedule[0]
+        ?? null;
 
       setTasks(nextTasks);
       setChecked(Boolean(todayCheckinResult.data));
@@ -177,7 +187,8 @@ export function DailyTasksPage() {
       setLastCheckin(latest);
       setWalletCoin(Math.max(0, Number(walletResult.data?.edu_coin) || 0));
       setCheckin({
-        ...((rewardData && typeof rewardData === 'object') ? rewardData : {}),
+        ...(currentReward ?? {}),
+        day_rewards: rewardSchedule,
         streak_day: todayCheckinResult.data?.streak_day ?? expectedDay,
       });
     } catch (loadError: unknown) {
@@ -430,12 +441,30 @@ export function DailyTasksPage() {
                       const day = index + 1;
                       const completed = day <= Math.min(currentStreak, 7);
                       const ready = !checked && currentStreak < 7 && day === currentStreak + 1;
-                      const historical = checkinHistory.find((record) => Number(record.streak_day) === day);
+                      let historicalDateKey: string | null = null;
+                      if (completed && lastCheckin) {
+                        historicalDateKey = lastCheckin.checkin_date;
+                        for (let offset = day; offset < currentStreak; offset += 1) {
+                          historicalDateKey = getPreviousJakartaDateKey(historicalDateKey);
+                        }
+                      }
+                      const historical = historicalDateKey
+                        ? checkinHistory.find((record) => record.checkin_date === historicalDateKey)
+                        : undefined;
+                      const rewardSchedule = Array.isArray(checkin?.day_rewards)
+                        ? checkin.day_rewards as CheckinRewardDay[]
+                        : [];
+                      const scheduledReward = rewardSchedule.find((item) => Number(item.day_number) === day);
+                      const scheduledType = String(scheduledReward?.reward_type ?? 'XP');
+                      const scheduledAmount = Number(scheduledReward?.reward_amount ?? 0);
+                      const scheduledCoin = Number(scheduledReward?.coin_amount ?? 0);
                       const label = historical
                         ? `+${Number(historical.reward_amount || 0)} ${historical.reward_type || 'XP'}`
-                        : ready && currentRewardLabel.length > 0
-                          ? currentRewardLabel.join(' · ')
-                          : `+${Number(checkin?.regular_xp ?? 0)} XP`;
+                        : [
+                            scheduledType === 'XP' && scheduledAmount > 0 ? `+${scheduledAmount} XP` : null,
+                            scheduledType === 'COIN' && scheduledAmount > 0 ? `+${scheduledAmount} Edu Coin` : null,
+                            scheduledCoin > 0 ? `+${scheduledCoin} Edu Coin` : null,
+                          ].filter((value): value is string => Boolean(value)).join(' · ') || 'Hadiah belum diatur';
                       const locked = !completed && !ready;
 
                       return (
@@ -470,7 +499,7 @@ export function DailyTasksPage() {
                             'block text-[8px] font-medium leading-tight sm:text-[9px]',
                             completed ? 'text-emerald-600 dark:text-emerald-400' : ready ? 'text-amber-600 dark:text-amber-300' : 'text-slate-500',
                           ].join(' ')}>
-                            {completed ? 'Selesai' : ready ? 'Siap Klaim' : locked ? (day === 7 ? 'Bonus streak' : label) : ''}
+                            {completed ? 'Selesai' : ready ? 'Siap Klaim' : locked ? label : ''}
                           </span>
                         </div>
                       );
