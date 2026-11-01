@@ -10,6 +10,7 @@ import { uploadProfileImage } from '@/services/cloudinary.service';
 import { updateProfile } from '@/services/profile.service';
 import { supabase } from '@/lib/supabase';
 import type { CompetitionCategory, EducationLevel, Role } from '@/types';
+import { storePendingReferral } from '@/lib/referralAttribution';
 
 const ROLE_OPTIONS: { value: Exclude<Role,'admin'>; label:string; icon:typeof UserIcon }[]=[{value:'pelajar',label:'Pelajar',icon:UserIcon},{value:'guru',label:'Guru',icon:School},{value:'penyelenggara',label:'Penyelenggara',icon:Building2}];
 
@@ -19,6 +20,8 @@ export function RegisterPage(){
  const navigate = useNavigate();
  const [searchParams] = useSearchParams();
  const requestedRedirect = searchParams.get('redirect') || '/home';
+ const referralCode = searchParams.get('ref')?.trim() ?? '';
+ useEffect(() => { if (referralCode) storePendingReferral(referralCode); }, [referralCode]);
  const redirectTo = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/home';
  const loginTo = redirectTo === '/home' ? '/login' : `/login?redirect=${encodeURIComponent(redirectTo)}`;
  const { register, toast } = useApp(); const fileRef=useRef<HTMLInputElement>(null); const [step,setStep]=useState(1); const [loading,setLoading]=useState(false); const [photoFile,setPhotoFile]=useState<File|null>(null); const [photoPreview,setPhotoPreview]=useState<string>('');

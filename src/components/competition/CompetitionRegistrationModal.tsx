@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
 import { submitRegistrationWithIntegrity } from '@/services/registration.service';
 import { supabase } from '@/lib/supabase';
+import { clearPendingReferral, getPendingReferral } from '@/lib/referralAttribution';
 
 type RegistrationStep = 1 | 2 | 3;
 type Props = {
@@ -109,7 +110,7 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
     setPlatform('tiktok');
     setSocialUsername('');
     setPostUrl('');
-    setReferralCode('');
+    setReferralCode(getPendingReferral() ?? '');
     setEduCoinBypass(false);
     setIntegrityAgreed(false);
     setSubmitting(false);
@@ -220,6 +221,7 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
       setStep(3);
       onRegistered?.();
       if (result.eduCoinBalance != null) setEduCoinBalance(Number(result.eduCoinBalance));
+      if (referralCode.trim()) clearPendingReferral();
       toast(result.eduCoinSpent ? 'Pendaftaran terkirim. 100 Coin Edu telah digunakan untuk skip syarat media sosial.' : 'Pendaftaran berhasil dikirim ke penyelenggara.', 'success');
     } catch (error) {
       const message = error instanceof Error
@@ -332,7 +334,7 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
             {postUrl.trim() && !socialUrlValid && <p className="mt-2 text-xs text-rose-500">Tautan tersebut tidak sesuai dengan platform {platform === 'tiktok' ? 'TikTok' : 'Instagram'}.</p>}
             {!socialInputsPaired && <p className="mt-2 text-xs text-rose-500">Username dan tautan posting harus diisi bersama-sama.</p>}
             <label className="mt-4 block text-xs text-fg-muted">
-              ID Referral (opsional)
+              ID Referral (otomatis dari tautan undangan)
               <input
                 className="input mt-1 w-full"
                 value={referralCode}
@@ -341,7 +343,7 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
                 maxLength={64}
                 autoComplete="off"
               />
-              <span className="mt-1 block text-[11px] text-fg-muted">Masukkan ID akun teman yang kamu gunakan saat bergabung. Kosongkan jika tidak ada.</span>
+              <span className="mt-1 block text-[11px] text-fg-muted">Tautan undangan akan mengisi ID ini otomatis. Kamu tetap bisa mengubahnya jika diperlukan.</span>
             </label>
             <div className="mt-4 border-t border-border pt-4">
               <div className="mb-3 flex items-start gap-2.5">

@@ -54,6 +54,9 @@ jobs:
       - name: Persistent cache TTL tests
         run: npm run test:cache
 
+      - name: Referral attribution contract tests
+        run: npm run test:referral-attribution
+
       - name: Competition results contract tests
         run: npm run test:results-contract
 
