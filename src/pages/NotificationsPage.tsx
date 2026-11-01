@@ -445,7 +445,18 @@ export function NotificationsPage() {
   const selectedAction = selected ? actionFor(selected) : null;
   const selectedAmount = selected ? rewardAmountFor(selected) : null;
   const selectedIsXp = selected ? isXpNotification(selected) : false;
-  const selectedIsSpending = selected?.data?.edu_coin_spent != null;
+  const selectedContent = selected ? selected.title + ' ' + selected.body : '';
+  const selectedMetadataAmount = Number(selected?.data?.edu_coin_spent ?? selected?.data?.amount);
+  const selectedIsSpending = Boolean(
+    selected?.data?.edu_coin_spent != null
+    || (Number.isFinite(selectedMetadataAmount) && selectedMetadataAmount < 0)
+    || /dikurangi|pengurangan|dikurang/i.test(selectedContent)
+  );
+  const selectedRewardPrefix = selectedIsSpending
+    ? '−'
+    : selectedAmount != null && selectedAmount > 0 && /menerima|bertambah|ditambahkan|\+/i.test(selectedContent)
+      ? '+'
+      : '';
   const registrationContent = `${selected?.title ?? ''} ${selected?.body ?? ''}`.toLowerCase();
   const registrationStatus = /ditolak|rejected/.test(registrationContent)
     ? 'Ditolak'
@@ -592,7 +603,7 @@ export function NotificationsPage() {
 
             <div className="notification-modal-body min-h-0 space-y-5 overflow-y-auto p-5 sm:p-6">
               <div>
-                <span className={'mb-2 inline-block rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ' + categoryStyle(selectedCategory)}>{categoryLabel(selectedCategory)}</span>
+                <span className={'mb-2 inline-block rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ' + categoryStyle(selectedCategory, selected)}>{categoryLabel(selectedCategory)}</span>
                 <h3 id="notification-modal-title" className="text-lg font-extrabold leading-snug text-white">{selected.title}</h3>
               </div>
 
@@ -617,7 +628,7 @@ export function NotificationsPage() {
                     <span className="block text-xs font-semibold text-slate-400">{selectedIsXp ? 'Reward Pengalaman (XP)' : selectedIsSpending ? 'Edu Coin Digunakan' : 'Nominal Reward'}</span>
                     {selectedAmount != null && (
                       <span className={['text-2xl font-black tracking-tight', selectedIsXp ? 'text-purple-400' : 'text-amber-400'].join(' ')}>
-                        {selectedIsSpending ? '−' : selectedAmount > 0 && /(?:menerima|bertambah|ditambahkan|\+)/i.test(selected.title + ' ' + selected.body) ? '+' : ''}{selectedAmount.toLocaleString('id-ID')} {selectedIsXp ? 'XP' : 'EDU'}
+                        {selectedRewardPrefix}{selectedAmount.toLocaleString('id-ID')} {selectedIsXp ? 'XP' : 'EDU'}
                       </span>
                     )}
                     {selected.data?.edu_coin_balance != null && <span className="mt-1 block text-[10px] text-slate-500">Saldo setelah transaksi: {Number(selected.data.edu_coin_balance).toLocaleString('id-ID')} Edu Coin</span>}
@@ -696,7 +707,7 @@ export function NotificationsPage() {
                   </>
                 ) : (
                   <>
-                    <button type="button" onClick={() => setSelected(null)} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">Tutup</button>
+                    <button type="button" onClick={() => setSelected(null)} className="notification-modal-secondary rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">Tutup</button>
                     {selectedAction && (
                       <button type="button" onClick={() => goAction(selected)} className="flex items-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-[#1D4ED8]">
                         <span>{selectedAction.label || 'Lihat Detail'}</span>
