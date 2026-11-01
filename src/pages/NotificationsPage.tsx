@@ -513,7 +513,7 @@ export function NotificationsPage() {
                   <p className="mt-0.5 text-[11px] font-medium text-slate-400">{new Date(selected.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setSelected(null)} className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-400 transition hover:bg-slate-700 hover:text-white" aria-label="Tutup">
+              <button type="button" onClick={() => setSelected(null)} className="notification-modal-close ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-400 transition hover:bg-slate-700 hover:text-white" aria-label="Tutup">
                 <i aria-hidden="true" className="fa-solid fa-xmark text-sm" />
               </button>
             </div>
@@ -587,8 +587,8 @@ export function NotificationsPage() {
               <div className="flex items-center justify-end gap-2">
                 {selected.type === 'follow-request' && !selected.data?.resolved ? (
                   <>
-                    <button type="button" onClick={() => setSelected(null)} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">Tutup</button>
-                    <button type="button" disabled={busy === selected.id} onClick={() => void decide(selected, false)} className="rounded-xl border border-slate-700 bg-transparent px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 disabled:opacity-50">Tolak</button>
+                    <button type="button" onClick={() => setSelected(null)} className="notification-modal-secondary rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">Tutup</button>
+                    <button type="button" disabled={busy === selected.id} onClick={() => void decide(selected, false)} className="notification-modal-secondary rounded-xl border border-slate-700 bg-transparent px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 disabled:opacity-50">Tolak</button>
                     <button type="button" disabled={busy === selected.id} onClick={() => void decide(selected, true)} className="rounded-xl bg-[#2563EB] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-[#1D4ED8] disabled:opacity-50">Terima</button>
                   </>
                 ) : (
