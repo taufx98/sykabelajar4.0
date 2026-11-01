@@ -312,5 +312,21 @@ test('Daily Tasks visual structure follows the supplied reference without changi
   assert.match(admin, /from\('daily_tasks'\)\.insert/);
   assert.match(admin, /from\('daily_tasks'\)\.update/);
   assert.match(admin, /is_active/);
+  assert.match(admin, /VERIFIED_REFERRAL/);
+  assert.match(admin, /PROFILE_COMPLETE/);
+  assert.match(admin, /DAILY_CHECKIN/);
+  assert.match(admin, /Task Mandiri dapat diklaim sendiri/);
   assert.match(layout, /max-w-\[1440px\] mx-auto flex surface-bg/);
+});
+
+
+test('daily task completion is atomic and requires the configured backend evidence', async () => {
+  const service = await readFile(new URL('../src/services/daily-task.service.ts', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20261101100000_daily_tasks_wib_wallet_integrity.sql', import.meta.url), 'utf8');
+
+  assert.match(service, /rpc\\('claim_and_complete_daily_task'/);
+  assert.doesNotMatch(service, /rpc\\('claim_daily_task'/);
+  assert.match(migration, /private\\.is_daily_task_eligible\\(u, p_task_id, v_claim_date\\)/);
+  assert.match(migration, /CHECKIN_DATE_MUST_BE_TODAY/);
+  assert.match(migration, /CHECKIN_REWARD_TYPE_NOT_SUPPORTED/);
 });
