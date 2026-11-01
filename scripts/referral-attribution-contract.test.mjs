@@ -209,10 +209,10 @@ test('referral tier defaults match all four configured milestones from the suppl
 
   assert.ok(panel.indexOf('referral-link-card') < panel.indexOf('referral-reward-tiers'));
   assert.ok(panel.indexOf('referral-reward-tiers') < panel.indexOf('referral-stats'));
-  assert.match(migration, /"target":\s*1[\s\S]*?"display_amount":\s*"5 Coin"/);
-  assert.match(migration, /"target":\s*25[\s\S]*?"display_amount":\s*"145 Coin"[\s\S]*?"bonus_amount":\s*20/);
-  assert.match(migration, /"target":\s*1[\s\S]*?"display_amount":\s*"5 Coin"/);
-  assert.match(migration, /"target":\s*1[\s\S]*?"display_amount":\s*"5 Coin"/);
+  assert.match(migration, /"target":\s*1,[\s\S]*?"display_amount":\s*"5 Coin"/);
+  assert.match(migration, /"target":\s*25,[\s\S]*?"display_amount":\s*"145 Coin"[\s\S]*?"bonus_amount":\s*20/);
+  assert.match(migration, /"target":\s*100,[\s\S]*?"display_amount":\s*"650 Coin"[\s\S]*?"bonus_amount":\s*150/);
+  assert.match(migration, /"target":\s*1000,[\s\S]*?"display_amount":\s*"950 Coin"[\s\S]*?"bonus_amount":\s*250[\s\S]*?"tag":\s*"ULTRA"/);
   assert.match(panel, /successful >= milestone\.target/);
   assert.match(panel, /milestone\.display_amount/);
 });
