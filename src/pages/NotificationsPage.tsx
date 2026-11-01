@@ -93,7 +93,7 @@ const mapNotification = (n: NotificationRow): DetailNotification => {
 
 const categoryFor = (n: DetailNotification): NotificationCategory => {
   const content = `${n.type} ${n.title} ${n.body}`.toLowerCase();
-  if (n.data?.payment_currency === 'EDU_COIN' || n.data?.edu_coin_spent != null || /edu.?coin|\\bcoin\\b|wallet|saldo|reward|bonus/.test(content)) return 'coin';
+  if (n.data?.payment_currency === 'EDU_COIN' || n.data?.edu_coin_spent != null || /edu.?coin|\bcoin\b|wallet|saldo|reward|bonus/.test(content)) return 'coin';
   if (/badge|achievement|pencapaian|sertifikat|certificate|award/.test(content)) return 'badge';
   if (/registration|pendaftaran|lomba|kompetisi|competition/.test(content)) return 'registration';
   return 'general';
