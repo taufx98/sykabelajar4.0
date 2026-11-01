@@ -15,7 +15,7 @@ export function getJakartaDateKey(date: Date = new Date()): string {
 }
 
 export function getPreviousJakartaDateKey(dateKey: string): string {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dateKey)) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateKey)) {
     throw new RangeError('Invalid Jakarta date key. Expected YYYY-MM-DD.');
   }
 
