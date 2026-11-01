@@ -95,6 +95,27 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
   const meta = (language === 'en' ? META_EN[label] : META[label]) ?? (language === 'en' ? { section: 'SYKABELAJAR', subtitle: label === 'SYKABELAJAR' ? 'SYKABELAJAR workspace' : `${label} page` } : fallbackMeta(label));
   const showAdminCommunication = user?.role === 'admin' && (location.pathname === '/pesan' || isAdminChat);
 
+  if (location.pathname === '/notifications') {
+    return (
+      <header className="notifications-global-header sticky top-0 z-30 flex h-[76px] shrink-0 items-center justify-between border-b border-[#1E293B] bg-[#0B1120] px-5 sm:px-6">
+        <div className="min-w-0">
+          <div className="mb-0.5 flex items-center gap-2 text-xs font-medium text-slate-400">
+            <span>Aktivitas</span>
+            <i aria-hidden="true" className="fa-solid fa-chevron-right text-[10px] text-slate-500" />
+            <span className="text-slate-200">Notifikasi &amp; Referral</span>
+          </div>
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-white">Notifikasi &amp; Program Referral</h1>
+        </div>
+        {user?.role === 'admin' && (
+          <span className="ml-4 inline-flex shrink-0 items-center gap-2 rounded-full border border-[#3B82F6]/35 bg-[#3B82F6]/10 px-3 py-1.5 text-[11px] font-bold text-slate-200">
+            <i aria-hidden="true" className="fa-solid fa-user-shield text-[#CBD5E1]" />
+            Admin
+          </span>
+        )}
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-30 glass border-b surface-border">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between gap-4">
