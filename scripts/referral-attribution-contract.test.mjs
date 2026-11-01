@@ -56,8 +56,8 @@ test('referral history exposes stored per-invite reward without recalculating ol
   const settingsPanel = await readFile(new URL('../src/components/admin/ReferralSettingsPanel.tsx', import.meta.url), 'utf8');
   assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_my_referrals_v2\(\)/);
   assert.match(migration, /re\.reward_amount/);
-  assert.match(referralPanel, /supabase\\.rpc\\('get_referral_program_settings_v2'\\)/);
-  assert.match(referralPanel, /supabase\\.rpc\\('get_referral_program_settings_v2'\\)/);
+  assert.match(referralPanel, /supabase\.rpc\('get_my_referrals_v2'\)/);
+  assert.match(referralPanel, /supabase\.rpc\('get_referral_program_settings_v2'\)/);
   assert.match(referralPanel, /Number\(row\.reward_amount\)/);
   assert.match(settingsPanel, /p_base_reward_amount:\s*baseReward/);
   assert.match(settingsPanel, /p_event_reward_amount:\s*eventReward/);
