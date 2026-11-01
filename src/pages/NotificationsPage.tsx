@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { Card } from '@/components/ui/Card';
 import { timeAgo } from '@/lib/utils';
@@ -10,7 +10,6 @@ import { showToast } from '@/lib/toast';
 import type { AppNotification } from '@/types';
 import { useLanguage } from '@/lib/LanguageContext';
 import { supabase } from '@/lib/supabase';
-import { ReferralProgramPanel } from '@/components/referrals/ReferralProgramPanel';
 
 type NotificationAction = { label: string; url: string };
 type NotificationData = {
@@ -48,7 +47,16 @@ type DetailNotification = AppNotification & { data?: NotificationData | null };
 type NotificationRow = Awaited<ReturnType<typeof listNotifications>>[number];
 type NotificationFilter = 'all' | 'unread' | 'gamification' | 'winner' | 'announcement' | 'badge' | 'registration';
 type NotificationCategory = 'gamification' | 'winner' | 'announcement' | 'badge' | 'registration' | 'general';
-type ReferralPreview = { reward_amount: number; is_active: boolean; is_event_active: boolean };
+type ReferralPreview = {
+  reward_amount: number;
+  is_active: boolean;
+  is_event_active: boolean;
+  promo_is_enabled: boolean;
+  promo_title: string;
+  promo_description: string;
+  promo_badge: string;
+  promo_cta: string;
+};
 
 const filters: { key: NotificationFilter; label: string; icon?: string; iconClass?: string }[] = [
   { key: 'all', label: 'Semua' },
@@ -234,10 +242,6 @@ export function NotificationsPage() {
   const { language } = useLanguage();
   const text = (id: string, en: string) => language === 'en' ? en : id;
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') === 'referral' ? 'referral' : 'notifications';
-  const [displayedTab, setDisplayedTab] = useState<'notifications' | 'referral'>(activeTab);
-  const [tabContentVisible, setTabContentVisible] = useState(true);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [rows, setRows] = useState<DetailNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -264,7 +268,7 @@ export function NotificationsPage() {
     }
     let live = true;
     const loadReferralPreview = async () => {
-      const { data, error } = await supabase.rpc('get_referral_program_settings');
+      const { data, error } = await supabase.rpc('get_referral_program_settings_v2');
       if (!live || error) return;
       const row = Array.isArray(data) ? data[0] : data;
       if (!row || typeof row !== 'object') return;
@@ -273,6 +277,11 @@ export function NotificationsPage() {
         reward_amount: Math.max(0, Number(settings.reward_amount) || 0),
         is_active: Boolean(settings.is_active),
         is_event_active: Boolean(settings.is_event_active),
+        promo_is_enabled: settings.promo_is_enabled !== false,
+        promo_title: typeof settings.promo_title === 'string' ? settings.promo_title : 'Ajak Teman, Dapatkan Edu Coin!',
+        promo_description: typeof settings.promo_description === 'string' ? settings.promo_description : 'Dapatkan {reward} Edu Coin untuk setiap teman yang memenuhi syarat program referral.',
+        promo_badge: typeof settings.promo_badge === 'string' ? settings.promo_badge : 'Bonus Aktif',
+        promo_cta: typeof settings.promo_cta === 'string' ? settings.promo_cta : 'Buka Program Referral',
       });
     };
     const channel = supabase.channel('referral-program-settings', { config: { private: false } })
@@ -291,24 +300,6 @@ export function NotificationsPage() {
     };
   }, [user?.id]);
 
-  useEffect(() => {
-    if (displayedTab === activeTab) {
-      setTabContentVisible(true);
-      return;
-    }
-
-    setTabContentVisible(false);
-    let animationFrame: number | undefined;
-    const transitionTimer = window.setTimeout(() => {
-      setDisplayedTab(activeTab);
-      animationFrame = window.requestAnimationFrame(() => setTabContentVisible(true));
-    }, 150);
-
-    return () => {
-      window.clearTimeout(transitionTimer);
-      if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
-    };
-  }, [activeTab, displayedTab]);
 
   useEffect(() => {
     let live = true;
@@ -358,11 +349,7 @@ export function NotificationsPage() {
     return categoryFor(row) === filter;
   }), [rows, filter]);
 
-  const switchTab = (tab: 'notifications' | 'referral') => {
-    setFilter('all');
-    setSelected(null);
-    setSearchParams(tab === 'notifications' ? {} : { tab: 'referral' }, { replace: true });
-  };
+
 
   const open = async (notification: DetailNotification) => {
     setSelected(notification);
@@ -488,50 +475,8 @@ export function NotificationsPage() {
   return (
     <div className="notifications-page min-h-full bg-[#0B1120] px-4 pb-10 pt-8 text-slate-200 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-[1234px] space-y-6">
-        <div className="notifications-tab-shell flex flex-col items-center justify-between gap-3 rounded-2xl border border-[#1E293B] bg-[#151E32] p-2 sm:flex-row">
-          <div className="notifications-tab-group flex w-full items-center gap-1 rounded-xl border border-[#1E293B] bg-[#0B1220] p-1 sm:w-auto">
-            <button
-              type="button"
-              onClick={() => switchTab('notifications')}
-              aria-pressed={activeTab === 'notifications'}
-              className={['notifications-tab flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-all sm:flex-initial', activeTab === 'notifications' ? 'is-active bg-[#2563EB] text-white shadow-lg shadow-blue-600/25' : 'text-slate-400 hover:bg-[#1C273E] hover:text-slate-200'].join(' ')}
-            >
-              <i aria-hidden="true" className="fa-solid fa-bell" />
-              <span>Notifikasi Pesan</span>
-              {unread.length > 0 && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold text-white">{unread.length > 99 ? '99+' : unread.length}</span>}
-            </button>
-            <button
-              type="button"
-              onClick={() => switchTab('referral')}
-              aria-pressed={activeTab === 'referral'}
-              className={['notifications-tab flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold transition-all sm:flex-initial', activeTab === 'referral' ? 'is-active bg-[#2563EB] text-white shadow-lg shadow-blue-600/25' : 'text-slate-400 hover:bg-[#1C273E] hover:text-slate-200'].join(' ')}
-            >
-              <i aria-hidden="true" className={['fa-solid fa-gift transition-colors duration-300', activeTab === 'referral' ? 'text-white' : 'text-[#94A3B8]'].join(' ')} />
-              <span>Program Referral</span>
-              {referralPreview?.is_active && <span className="rounded-full border border-[#10B981]/30 bg-[#10B981]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#34D399]">+{referralPreview.reward_amount.toLocaleString('id-ID')} Edu Coin</span>}
-            </button>
-          </div>
-          {activeTab === 'notifications' && (
-            <div className="flex w-full justify-end sm:w-auto">
-              <button
-                type="button"
-                onClick={() => void allRead()}
-                disabled={!unread.some((row) => !Boolean(row.data?.urgent))}
-                className="notifications-mark-read flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-[#1C273E] hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <i aria-hidden="true" className="fa-solid fa-check-double text-slate-500" />
-                Tandai semua dibaca
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className={['transition-all duration-300 ease-out', tabContentVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'].join(' ')}>
-          {displayedTab === 'referral' ? (
-            <ReferralProgramPanel />
-          ) : (
-            <section className="space-y-5">
-            <div className="notifications-promo relative flex min-h-[91px] flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-[#3B82F6]/35 bg-gradient-to-r from-[#142957] via-[#171C3C] to-[#24183F] p-4 sm:flex-row sm:items-center sm:px-5">
+        <section className="space-y-5">
+            {referralPreview?.promo_is_enabled !== false && <div className="notifications-promo relative flex min-h-[91px] flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-[#3B82F6]/35 bg-gradient-to-r from-[#142957] via-[#171C3C] to-[#24183F] p-4 sm:flex-row sm:items-center sm:px-5">
               <div className="pointer-events-none absolute -bottom-12 -right-8 h-40 w-40 rounded-full bg-[#6366F1]/15 blur-3xl" />
               <div className="relative z-10 flex min-w-0 items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#3B82F6] text-xl text-white shadow-lg shadow-blue-500/25">
@@ -539,27 +484,38 @@ export function NotificationsPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-sm font-extrabold text-white sm:text-base">Ajak Teman, Dapatkan Edu Coin!</h2>
+                    <h2 className="text-sm font-extrabold text-white sm:text-base">{referralPreview?.promo_title || 'Ajak Teman, Dapatkan Edu Coin!'}</h2>
                     <span className={['rounded-full border px-2 py-0.5 text-[10px] font-bold', referralPreview?.is_event_active ? 'border-amber-500/30 bg-amber-500/15 text-amber-400' : referralPreview?.is_active ? 'border-emerald-500/25 bg-emerald-500/10 text-[#34D399]' : 'border-slate-500/30 bg-slate-500/10 text-slate-300'].join(' ')}>
-                      {referralPreview?.is_event_active ? 'Bonus Event Aktif' : referralPreview?.is_active ? 'Bonus Aktif' : referralPreview ? 'Program Nonaktif' : 'Memuat Status'}
+                      {referralPreview?.is_event_active ? 'Bonus Event Aktif' : referralPreview?.is_active ? (referralPreview.promo_badge || 'Bonus Aktif') : referralPreview ? 'Program Nonaktif' : 'Memuat Status'}
                     </span>
                   </div>
                   <p className="mt-0.5 text-xs leading-relaxed text-slate-300">
                     {!referralPreview
                       ? 'Memuat informasi program referral...'
                       : referralPreview.is_active
-                        ? <>Dapatkan <strong className="font-bold text-amber-400">{(referralPreview.reward_amount || 0).toLocaleString('id-ID')} Edu Coin</strong> untuk setiap teman yang memenuhi syarat program referral.</>
+                        ? (referralPreview.promo_description || 'Dapatkan {reward} Edu Coin untuk setiap teman yang memenuhi syarat program referral.').split('{reward}').map((part, index, parts) => (
+                            <span key={index}>{part}{index < parts.length - 1 && <strong className="font-bold text-amber-400">{(referralPreview.reward_amount || 0).toLocaleString('id-ID')} Edu Coin</strong>}</span>
+                          ))
                         : 'Program referral sedang tidak menerima undangan baru.'}
                   </p>
                 </div>
               </div>
-              <button type="button" onClick={() => switchTab('referral')} className="notifications-promo-action relative z-10 flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-[#1D4ED8] sm:w-auto">
-                <span>Buka Program Referral</span>
+              <button type="button" onClick={() => navigate('/daily-tasks?tab=referral')} className="notifications-promo-action relative z-10 flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-[#1D4ED8] sm:w-auto">
+                <span>{referralPreview?.promo_cta || 'Buka Program Referral'}</span>
                 <i aria-hidden="true" className="fa-solid fa-arrow-right text-[10px]" />
               </button>
-            </div>
+            </div>}
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1" role="group" aria-label="Filter notifikasi">
+              <button
+                type="button"
+                onClick={() => void allRead()}
+                disabled={!unread.some((row) => !Boolean(row.data?.urgent))}
+                className="notifications-mark-read flex shrink-0 items-center gap-2 rounded-lg border border-[#1E293B] bg-[#151E32] px-3 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-[#1C273E] hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <i aria-hidden="true" className="fa-solid fa-check-double text-slate-500" />
+                Tandai semua dibaca
+              </button>
               <span className="mr-1 shrink-0 text-xs font-medium text-slate-400">Filter:</span>
               {filters.map(({ key, label, icon, iconClass }) => {
                 const active = filter === key;
@@ -597,9 +553,8 @@ export function NotificationsPage() {
                 {filteredRows.map(renderNotification)}
               </div>
             )}
+
             </section>
-          )}
-        </div>
       </div>
 
       {selected && (
