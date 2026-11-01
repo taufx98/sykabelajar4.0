@@ -124,7 +124,7 @@ test('referral trigger helpers are private and cannot be called from client role
 });
 
 test('attempt and competition audit trigger functions are invoked only for meaningful changes', () => {
-  assert.match(efficiencyMigration, /CREATE TRIGGER trg_audit_attempt_result_snapshot[\s\S]*WHEN \(.*OLD\.score IS DISTINCT FROM NEW\.score/i);
+  assert.match(efficiencyMigration, /CREATE TRIGGER trg_audit_attempt_result_snapshot[\\s\\S]*?WHEN \\([\\s\\S]*?OLD\\.score IS DISTINCT FROM NEW\\.score/i);
   assert.match(efficiencyMigration, /CREATE TRIGGER trg_competition_status_history[\s\S]*WHEN \(OLD\.status IS DISTINCT FROM NEW\.status\)/i);
   assert.match(efficiencyMigration, /coalesce\(NEW\.is_preview, false\)/i);
 });
