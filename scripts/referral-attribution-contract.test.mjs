@@ -121,7 +121,8 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   const styles = await readFile(new URL('../src/index.css', import.meta.url), 'utf8');
   assert.doesNotMatch(styles, /\.notifications-modal-backdrop/);
   assert.match(globalHeader, /location\.pathname === '\/notifications'/);
-  assert.match(globalHeader, /Notifikasi &amp; Program Referral/);
+  assert.match(globalHeader, /Notifikasi/);
+  assert.doesNotMatch(globalHeader, /Program Referral/);
   assert.match(notificationsPage, /fa-users-rays/);
   assert.match(notificationsPage, /fa-coins/);
   assert.match(notificationsPage, /fa-award/);
@@ -145,44 +146,75 @@ test('notifications follow the expanded reference categories and dynamic preview
   assert.match(page, /selectedCategory === 'announcement'/);
 });
 
-test('referral tab keeps the configured Edu Coin badge and highlights its gift icon while active', async () => {
-  const page = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
+test('Daily Tasks owns the referral tab and keeps the full referral panel', async () => {
+  const daily = await readFile(new URL('../src/pages/DailyTasksPage.tsx', import.meta.url), 'utf8');
+  const notifications = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
 
-  assert.doesNotMatch(page, /activeTab === 'referral'\)\s*\{\s*setReferralPreview\(null\)/);
-  assert.match(page, /\}, \[user\?\.id\]\);/);
-  assert.match(page, /activeTab === 'referral' \? 'text-white' : 'text-\[#94A3B8\]'/);
-  assert.match(page, /\+\{referralPreview\.reward_amount\.toLocaleString\('id-ID'\)\} Edu Coin/);
+  assert.match(daily, /ReferralProgramPanel/);
+  assert.match(daily, /tab-tasks-btn/);
+  assert.match(daily, /tab-referral-btn/);
+  assert.match(daily, /useSearchParams/);
+  assert.match(daily, /duration-300/);
+  assert.doesNotMatch(notifications, /ReferralProgramPanel/);
+  assert.doesNotMatch(notifications, /notifications-tab-shell/);
+  assert.doesNotMatch(notifications, /activeTab/);
+  assert.match(notifications, /notifications-promo/);
+  assert.match(notifications, /daily-tasks\?tab=referral/);
 });
 
-test('notification and referral tab content use a fade and slide transition when switching', async () => {
+test('notification mark-all-read control is placed immediately before the filter label', async () => {
   const page = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
+  const markRead = page.indexOf('Tandai semua dibaca');
+  const filterLabel = page.indexOf('Filter:');
 
-  assert.match(page, /displayedTab/);
-  assert.match(page, /tabContentVisible/);
-  assert.match(page, /requestAnimationFrame/);
-  assert.match(page, /transition-all duration-300 ease-out/);
+  assert.ok(markRead >= 0 && filterLabel > markRead);
+  assert.match(page, /fa-check-double/);
+  assert.match(page, /markAllNotificationsRead/);
 });
 
-test('referral tier milestones and their reward figures follow the supplied HTML reference', async () => {
+test('referral settings expose custom milestone tiers and editable notifications promo content', async () => {
+  const panel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
+  const settings = await readFile(new URL('../src/components/admin/ReferralSettingsPanel.tsx', import.meta.url), 'utf8');
+
+  assert.match(panel, /get_referral_program_settings_v2/);
+  assert.match(panel, /milestone_tiers/);
+  assert.match(panel, /promo_title/);
+  assert.match(panel, /promo_description/);
+  assert.match(settings, /admin_update_referral_program_settings_v2/);
+  assert.match(settings, /p_milestone_tiers/);
+  assert.match(settings, /p_promo_title/);
+  assert.match(settings, /p_promo_description/);
+  assert.match(settings, /p_promo_badge/);
+  assert.match(settings, /p_promo_cta/);
+  assert.match(settings, /bonus_amount/);
+  assert.match(settings, /display_amount/);
+});
+
+test('referral tier bonuses are credited once through the protected ledger trigger', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20261101090000_referral_milestone_payouts_and_custom_promo.sql', import.meta.url), 'utf8');
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS private\.referral_tier_awards/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION private\.apply_referral_milestone_rewards/);
+  assert.match(migration, /AFTER INSERT ON public\.edu_coin_ledger/);
+  assert.match(migration, /REFERRAL_REGISTRATION/);
+  assert.match(migration, /REFERRAL_TIER_BONUS/);
+  assert.match(migration, /ON CONFLICT \(referrer_user_id, milestone_target\) DO NOTHING/);
+  assert.match(migration, /ON CONFLICT \(user_id, event_type, event_id\) DO NOTHING/);
+  assert.match(migration, /private\.current_user_is_admin\(\)/);
+  assert.match(migration, /REVOKE ALL ON TABLE private\.referral_tier_awards FROM PUBLIC, anon, authenticated, service_role/);
+});
+
+test('referral tier defaults match all four configured milestones from the supplied HTML', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20261101090000_referral_milestone_payouts_and_custom_promo.sql', import.meta.url), 'utf8');
   const panel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
 
   assert.ok(panel.indexOf('referral-link-card') < panel.indexOf('referral-reward-tiers'));
   assert.ok(panel.indexOf('referral-reward-tiers') < panel.indexOf('referral-stats'));
-  assert.match(panel, /target: 1,/);
-  assert.match(panel, /Target Pertama/);
-  assert.match(panel, /5 Coin/);
-  assert.match(panel, /target: 25,/);
-  assert.match(panel, /145 Coin/);
-  assert.match(panel, /\+20 Bonus/);
-  assert.match(panel, /target: 100,/);
-  assert.match(panel, /\+150 Coin Bonus/);
-  assert.match(panel, /650 Coin/);
-  assert.match(panel, /target: 1000,/);
-  assert.match(panel, /ULTRA/);
-  assert.match(panel, /\+250 Bonus Coin/);
-  assert.match(panel, /950 Coin/);
-  assert.match(panel, /700 \+ 250/);
+  assert.match(migration, /"target": 1[\s\S]*?"display_amount": "5 Coin"/);
+  assert.match(migration, /"target": 25[\s\S]*?"display_amount": "145 Coin"[\s\S]*?"bonus_amount": 20/);
+  assert.match(migration, /"target": 100[\s\S]*?"display_amount": "650 Coin"[\s\S]*?"bonus_amount": 150/);
+  assert.match(migration, /"target": 1000[\s\S]*?"display_amount": "950 Coin"[\s\S]*?"bonus_amount": 250[\s\S]*?"tag": "ULTRA"/);
   assert.match(panel, /successful >= milestone\.target/);
+  assert.match(panel, /milestone\.display_amount/);
 });
 
 test('referral statistics match the reference icon-left layout and sit before the instructions', async () => {
