@@ -99,3 +99,20 @@ test('admin referral campaign updates broadcast an invalidation event without pu
   assert.match(migration, /false\s*\)/);
   assert.doesNotMatch(migration, /jsonb_build_object\([^)]*reward_amount/s);
 });
+
+
+test('notifications visual contract follows the supplied Font Awesome reference and single global header', async () => {
+  const notificationsPage = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
+  const globalHeader = await readFile(new URL('../src/components/layout/GlobalHeader.tsx', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+
+  assert.match(html, /font-awesome\/6\.4\.0\/css\/all\.min\.css/);
+  assert.match(globalHeader, /location\.pathname === '\/notifications'/);
+  assert.match(globalHeader, /Notifikasi &amp; Program Referral/);
+  assert.match(notificationsPage, /fa-users-rays/);
+  assert.match(notificationsPage, /fa-coins/);
+  assert.match(notificationsPage, /fa-award/);
+  assert.match(notificationsPage, /fa-circle-check/);
+  assert.match(notificationsPage, /notification-modal-footer/);
+  assert.doesNotMatch(notificationsPage, /Kabar akun, aktivitas, dan undangan komunitasmu/);
+});
