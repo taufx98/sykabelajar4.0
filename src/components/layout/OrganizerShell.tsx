@@ -36,7 +36,7 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
 
   useEffect(() => {
     void reloadWorkspaces();
-  }, [reloadWorkspaces]);
+  }, [location.pathname, reloadWorkspaces]);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -45,13 +45,21 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
       timer = window.setTimeout(() => void reloadWorkspaces(), 250);
     };
     const unsubscribe = subscribeSykaEvents((event) => {
-      if (event.type === 'organizer-changed') schedule();
+      if (event.type !== 'organizer-changed') return;
+      const selectedWorkspace = event.organizerId
+        ? workspaces.find((workspace) => workspace.id === event.organizerId)
+        : null;
+      if (selectedWorkspace) {
+        setSelected(selectedWorkspace);
+        return;
+      }
+      schedule();
     });
     return () => {
       if (timer) window.clearTimeout(timer);
       unsubscribe();
     };
-  }, [reloadWorkspaces]);
+  }, [reloadWorkspaces, workspaces]);
 
   const switchWorkspace = (id: string) => {
     const org = workspaces.find((x) => x.id === id);
