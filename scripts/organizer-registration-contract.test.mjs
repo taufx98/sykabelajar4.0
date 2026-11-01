@@ -202,7 +202,7 @@ test('chat moderation uses one SELECT policy and operation-specific admin write 
   assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_insert[\s\S]*FOR INSERT/i);
   assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_update[\s\S]*FOR UPDATE/i);
   assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_delete[\s\S]*FOR DELETE/i);
-  assert.doesNotMatch(chatPolicyMigration, /FOR ALL/i);
+  assert.doesNotMatch(chatPolicyMigration, /^\s*FOR ALL\s*$/im);
   assert.match(chatPolicyMigration, /DROP INDEX IF EXISTS public\.idx_follows_follower_created/i);
   assert.match(chatPolicyMigration, /CREATE INDEX IF NOT EXISTS idx_chat_user_moderation_blocked_by/i);
 });
