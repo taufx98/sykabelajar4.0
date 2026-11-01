@@ -311,6 +311,10 @@ test('Daily Tasks visual structure follows the supplied reference without changi
 
   assert.match(daily, /get_daily_checkin_streak_rewards/);
   assert.match(daily, /day_rewards/);
+  assert.match(daily, /subscribeSykaEvents/);
+  assert.match(daily, /profile-updated/);
+  assert.match(daily, /refreshUser/);
+  assert.match(daily, /get_daily_checkin_streak_rewards/);
   assert.match(daily, /scheduledReward/);
   assert.match(daily, /historicalDateKey/);
   assert.match(header, /Daily Tasks &(?:amp;)? Program Referral/);
