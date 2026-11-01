@@ -101,7 +101,15 @@ test('referral qualification is event-driven and its hourly scanner is unschedul
   assert.match(efficiencyMigration, /ON CONFLICT \(user_id, event_type, event_id\) DO NOTHING/i);
   assert.match(efficiencyMigration, /email_confirmed_at IS NOT NULL/i);
   assert.match(efficiencyMigration, /interval '24 hours'/i);
-  assert.match(efficiencyMigration, /CREATE TRIGGER trg_process_new_referral_event[\s\S]*ON public\.referral_events/i);
+  assert.match(efficiencyMigration, /v_occurred_at timestamptz := clock_timestamp\(\)/i);
+  assert.match(efficiencyMigration, /SET verified_activity = v_activity,[\s\S]*last_checked_at = v_activity_at/i);
+  assert.match(efficiencyMigration, /verified_activity IS NOT NULL[\s\S]*last_checked_at IS NOT NULL/i);
+  assert.doesNotMatch(efficiencyMigration, /process_new_referral_event|referral_backfill/i);
+  const emailConfirmation = efficiencyMigration.slice(
+    efficiencyMigration.indexOf('CREATE OR REPLACE FUNCTION private.process_referral_email_confirmation'),
+    efficiencyMigration.indexOf('REVOKE ALL ON FUNCTION private.apply_referral_qualification'),
+  );
+  assert.doesNotMatch(emailConfirmation, /FROM public\.(daily_checkins|comments|follows|chat_messages|daily_task_claims)/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
   assert.match(efficiencyMigration, /DROP FUNCTION IF EXISTS private\.sync_due_competition_registration_statuses/i);
