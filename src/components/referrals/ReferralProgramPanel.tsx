@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, Check, CircleCheck, Clock3, Copy, Gift, Link2, Share2, Users, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -59,6 +58,22 @@ export function ReferralProgramPanel() {
   const [program, setProgram] = useState<ReferralProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    const existing = document.getElementById('syka-notification-fontawesome') as HTMLLinkElement | null;
+    if (existing) return;
+
+    const stylesheet = document.createElement('link');
+    stylesheet.id = 'syka-notification-fontawesome';
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+    stylesheet.referrerPolicy = 'no-referrer';
+    document.head.appendChild(stylesheet);
+
+    return () => {
+      stylesheet.remove();
+    };
+  }, []);
+
   const referralLink = useMemo(
     () => user?.id ? `${window.location.origin}/register?ref=${encodeURIComponent(user.id)}` : '',
     [user?.id],
@@ -219,7 +234,7 @@ export function ReferralProgramPanel() {
 
       {program && !program.is_available && !loading && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-xs leading-relaxed text-fg-muted">
-          <Clock3 size={17} className="mt-0.5 shrink-0 text-amber-400"/>
+          <i aria-hidden="true" className="fa-solid fa-clock mt-0.5 shrink-0 text-amber-400"/>
           <p>Program referral sedang dinonaktifkan oleh admin. Link dan riwayat tetap dapat dilihat, tetapi referral baru tidak dicatat sampai program diaktifkan kembali.</p>
         </div>
       )}
@@ -228,7 +243,7 @@ export function ReferralProgramPanel() {
         <Card className="relative flex flex-col justify-between overflow-hidden border-amber-500/20 bg-white p-5 dark:border-[#1E293B] dark:bg-[#151E32]">
           <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-amber-400/10 blur-2xl"/>
           <div className="relative flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-500"><Gift size={22}/></div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-500"><i aria-hidden="true" className="fa-solid fa-gift text-xl"/></div>
             <div>
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{program?.is_event_active ? 'Reward Event Referral' : 'Reward Normal Referral'}</span>
               <p className="mt-0.5 text-2xl font-black text-slate-900 dark:text-white">{loading ? '—' : reward.toLocaleString('id-ID')} <span className="text-sm font-bold text-amber-500">Edu Coin</span></p>
@@ -238,24 +253,24 @@ export function ReferralProgramPanel() {
         </Card>
 
         <Card className="space-y-3 border-[#3B82F6]/20 bg-white p-5 dark:border-[#1E293B] dark:bg-[#151E32] lg:col-span-2">
-          <label htmlFor="referral-share-link" className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200"><Link2 size={15} className="text-[#3B82F6]"/> Link Undangan Pribadi</label>
+          <label htmlFor="referral-share-link" className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200"><i aria-hidden="true" className="fa-solid fa-link text-[#3B82F6]"/> Link Undangan Pribadi</label>
           <input id="referral-share-link" readOnly value={referralLink} onFocus={(event) => event.currentTarget.select()} className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-[11px] text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] dark:border-[#334155] dark:bg-[#0B1120]/80 dark:text-slate-300"/>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button fullWidth onClick={() => void copyLink()} icon={copied ? <Check size={15}/> : <Copy size={15}/>}>{copied ? 'Link tersalin' : 'Salin Link'}</Button>
-            <Button fullWidth variant="outline" onClick={() => void shareLink()} icon={<Share2 size={15}/>}>Bagikan</Button>
+            <Button fullWidth onClick={() => void copyLink()} icon={copied ? <i aria-hidden="true" className="fa-solid fa-check"/> : <i aria-hidden="true" className="fa-solid fa-copy"/>}>{copied ? 'Link tersalin' : 'Salin Link'}</Button>
+            <Button fullWidth variant="outline" onClick={() => void shareLink()} icon={<i aria-hidden="true" className="fa-solid fa-share-nodes"/>}>Bagikan</Button>
           </div>
           <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">Atribusi dicatat oleh backend saat teman membuat akun melalui tautan ini. UID tidak perlu disalin atau dimasukkan secara manual.</p>
         </Card>
       </div>
 
       <section className="grid grid-cols-3 gap-3">
-        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"><Users size={17}/></span><span className="text-[10px] font-medium sm:text-xs">Total Undangan</span></div><p className="mt-3 text-xl font-bold tabular-nums text-slate-900 dark:text-white">{loading ? '—' : rows.length}<span className="ml-1 text-[10px] font-normal text-slate-500">Orang</span></p></Card>
-        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500"><CircleCheck size={17}/></span><span className="text-[10px] font-medium sm:text-xs">Berhasil</span></div><p className="mt-3 text-xl font-bold tabular-nums text-emerald-500">{loading ? '—' : successful}<span className="ml-1 text-[10px] font-normal text-slate-500">Orang</span></p></Card>
-        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500"><Wallet size={17}/></span><span className="text-[10px] font-medium sm:text-xs">Reward Diperoleh</span></div><p className="mt-3 text-xl font-bold tabular-nums text-amber-500">{loading ? '—' : rewardEarned.toLocaleString('id-ID')}<span className="ml-1 text-[10px] font-normal text-slate-500">Coin</span></p></Card>
+        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"><i aria-hidden="true" className="fa-solid fa-users"/></span><span className="text-[10px] font-medium sm:text-xs">Total Undangan</span></div><p className="mt-3 text-xl font-bold tabular-nums text-slate-900 dark:text-white">{loading ? '—' : rows.length}<span className="ml-1 text-[10px] font-normal text-slate-500">Orang</span></p></Card>
+        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500"><i aria-hidden="true" className="fa-solid fa-circle-check text-[#34D399]"/></span><span className="text-[10px] font-medium sm:text-xs">Berhasil</span></div><p className="mt-3 text-xl font-bold tabular-nums text-emerald-500">{loading ? '—' : successful}<span className="ml-1 text-[10px] font-normal text-slate-500">Orang</span></p></Card>
+        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500"><i aria-hidden="true" className="fa-solid fa-coins"/></span><span className="text-[10px] font-medium sm:text-xs">Reward Diperoleh</span></div><p className="mt-3 text-xl font-bold tabular-nums text-amber-500">{loading ? '—' : rewardEarned.toLocaleString('id-ID')}<span className="ml-1 text-[10px] font-normal text-slate-500">Coin</span></p></Card>
       </section>
 
       <Card className="space-y-4 p-5 sm:p-6">
-        <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#3B82F6]/10 text-[#3B82F6]"><CircleCheck size={19}/></span><div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Cara Kerja Referral</h3><p className="text-xs text-slate-500 dark:text-slate-400">Tiga langkah sederhana</p></div></div>
+        <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#3B82F6]/10 text-[#3B82F6]"><i aria-hidden="true" className="fa-solid fa-circle-check"/></span><div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Cara Kerja Referral</h3><p className="text-xs text-slate-500 dark:text-slate-400">Tiga langkah sederhana</p></div></div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {[
             ['1', 'Bagikan Link', 'Sebarkan link undangan pribadi kamu kepada teman atau melalui media sosial.'],
@@ -269,14 +284,14 @@ export function ReferralProgramPanel() {
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Aktivitas Referral Terbaru</h3><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Pantau teman yang bergabung melalui undanganmu.</p></div><Badge color="moss">{rows.length} teman</Badge></div>
         {loading && <Card className="p-8 text-center text-sm text-fg-muted">Memuat aktivitas referral…</Card>}
-        {!loading && rows.length === 0 && <Card className="p-8 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"><Users size={21}/></div><p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">Belum ada referral</p><p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-slate-500 dark:text-slate-400">Bagikan link undanganmu. Teman yang mendaftar melalui link tersebut akan muncul di sini.</p></Card>}
+        {!loading && rows.length === 0 && <Card className="p-8 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"><i aria-hidden="true" className="fa-solid fa-users text-xl"/></div><p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">Belum ada referral</p><p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-slate-500 dark:text-slate-400">Bagikan link undanganmu. Teman yang mendaftar melalui link tersebut akan muncul di sini.</p></Card>}
         {!loading && rows.map((row) => {
           const verified = row.status === 'VERIFIED' || row.status === 'CREDITED';
           return <Card key={row.referred_user_id} className="p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#3B82F6]/10 text-xs font-bold text-[#3B82F6]">{String(row.full_name || row.username || 'P').slice(0, 1).toUpperCase()}</div>
-                <div className="min-w-0"><p className="truncate text-xs font-bold text-slate-900 dark:text-white">{row.full_name}</p><p className="mt-0.5 truncate text-[10px] text-slate-500 dark:text-slate-400">@{row.username || 'pengguna'}</p><p className="mt-1 inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><CalendarClock size={11}/> Bergabung {formatDate(row.joined_at)}</p>{row.verified_activity && <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Aktivitas: {formatActivity(row.verified_activity)}</p>}</div>
+                <div className="min-w-0"><p className="truncate text-xs font-bold text-slate-900 dark:text-white">{row.full_name}</p><p className="mt-0.5 truncate text-[10px] text-slate-500 dark:text-slate-400">@{row.username || 'pengguna'}</p><p className="mt-1 inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><i aria-hidden="true" className="fa-solid fa-calendar-days"/> Bergabung {formatDate(row.joined_at)}</p>{row.verified_activity && <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Aktivitas: {formatActivity(row.verified_activity)}</p>}</div>
               </div>
               <div className="shrink-0 text-right"><Badge color={verified ? 'moss' : row.status === 'EXPIRED' || row.status === 'REVOKED' ? 'err' : 'warn'}>{statusLabel(row)}</Badge>{verified && <p className="mt-1 text-[10px] font-bold text-emerald-500">+{Number(row.reward_amount).toLocaleString('id-ID')} Edu Coin</p>}</div>
             </div>
