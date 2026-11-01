@@ -105,23 +105,29 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
     }).format(new Date());
 
     return (
-      <header className="sticky top-0 z-30 flex min-h-[76px] shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-[#1E293B] dark:bg-[#0B1120] sm:px-6">
-        <div className="min-w-0">
-          <div className="mb-0.5 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span>Belajar</span>
-            <i aria-hidden="true" className="fa-solid fa-chevron-right text-[10px] text-slate-400 dark:text-slate-500" />
-            <span className="text-slate-700 dark:text-slate-200">Daily Tasks &amp; Referral</span>
-          </div>
-          <h1 className="truncate text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Daily Tasks &amp; Program Referral</h1>
+      <header className="sticky top-0 z-30 flex min-h-[76px] shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 dark:border-[#1E293B] dark:bg-[#0B1120] sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link
+            to="/home"
+            onClick={() => notifyHomeNavigationClick("/home")}
+            aria-label={t('header.back')}
+            title={t('header.back')}
+            className="md:hidden inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+          >
+            <ArrowLeft size={21} aria-hidden="true" />
+          </Link>
+          <h1 className="min-w-0 truncate text-lg font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-xl">
+            Daily Tasks &amp; Referral
+          </h1>
         </div>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <span className="hidden items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-[#1E293B] dark:bg-slate-900 dark:text-slate-400 sm:inline-flex">
-            <CalendarDays size={13} className="text-[#3B82F6]"/>
+            <CalendarDays size={13} className="text-[#3B82F6]" />
             {dateLabel}
           </span>
           {user?.role === 'admin' && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3B82F6]/30 bg-[#3B82F6]/10 px-2.5 py-1.5 text-[11px] font-semibold text-[#2563EB] dark:text-[#93C5FD]">
-              <i aria-hidden="true" className="fa-solid fa-user-shield"/>
+              <i aria-hidden="true" className="fa-solid fa-user-shield" />
               Admin
             </span>
           )}
