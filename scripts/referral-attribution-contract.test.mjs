@@ -329,9 +329,9 @@ test('daily task completion is atomic and requires the configured backend eviden
   const service = await readFile(new URL('../src/services/daily-task.service.ts', import.meta.url), 'utf8');
   const migration = await readFile(new URL('../supabase/migrations/20261101100000_daily_tasks_wib_wallet_integrity.sql', import.meta.url), 'utf8');
 
-  assert.match(service, /rpc\\('claim_and_complete_daily_task'/);
-  assert.doesNotMatch(service, /rpc\\('claim_daily_task'/);
-  assert.match(migration, /private\\.is_daily_task_eligible\\(u, p_task_id, v_claim_date\\)/);
+  assert.match(service, /rpc\('claim_and_complete_daily_task'/);
+  assert.doesNotMatch(service, /rpc\('claim_daily_task'/);
+  assert.match(migration, /private\.is_daily_task_eligible\(u, p_task_id, v_claim_date\)/);
   assert.match(migration, /CHECKIN_DATE_MUST_BE_TODAY/);
   assert.match(migration, /CHECKIN_REWARD_TYPE_NOT_SUPPORTED/);
 
