@@ -510,3 +510,25 @@ html.light .notification-modal-secondary:hover {
 html.light .notifications-mark-read:hover {
   background: #F1F5F9 !important;
 }
+
+
+/* Daily Tasks: match the supplied reference surfaces while preserving light mode. */
+.daily-tasks-page {
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+html.dark .daily-tasks-page {
+  background-color: #0B1120;
+  color: #CBD5E1;
+}
+html.dark .daily-tasks-page .card {
+  background-color: #151E32 !important;
+  border-color: #1E293B !important;
+  color: #CBD5E1;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.10);
+}
+html.light .daily-tasks-page .card {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
