@@ -40,6 +40,7 @@ export function ReferralPage() {
     }
 
     let active = true;
+    let refreshTimer: number | undefined;
     const load = async (showLoading: boolean) => {
       if (showLoading) setLoading(true);
       try {
@@ -51,6 +52,13 @@ export function ReferralPage() {
       } finally {
         if (active && showLoading) setLoading(false);
       }
+    };
+    const scheduleRefresh = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined;
+        void load(false);
+      }, 250);
     };
 
     void load(true);
@@ -64,12 +72,13 @@ export function ReferralPage() {
           table: 'referral_events',
           filter: `referrer_user_id=eq.${user.id}`,
         },
-        () => { void load(false); },
+        scheduleRefresh,
       )
       .subscribe();
 
     return () => {
       active = false;
+      if (refreshTimer) window.clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
   }, [user?.id, toast]);
