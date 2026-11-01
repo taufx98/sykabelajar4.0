@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarCheck, Check, Clock, Flame, Award, Loader2, Sparkles, Info } from 'lucide-react';
+import { CalendarCheck, Check, Clock, Flame, Award, Loader2, Sparkles, Info, Gift, ListChecks } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -112,19 +112,19 @@ export function DailyTasksPage() {
         <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-slate-800/80 bg-[#151E32] p-2 shadow-xl sm:flex-row dark:border-slate-800">
           <div className="flex w-full items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/60 p-1 sm:w-auto">
             <button id="tab-tasks-btn" type="button" onClick={() => switchTab('tasks')} aria-pressed={activeTab === 'tasks'} className={['flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5', activeTab === 'tasks' ? 'bg-[#2563EB] font-bold text-white shadow-lg shadow-blue-600/25 scale-[1.02]' : 'font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'].join(' ')}>
-              <i aria-hidden="true" className="fa-solid fa-list-check"/>
+              <ListChecks size={14}/>
               <span>Daily Tasks &amp; Check-in</span>
               <span className="ml-1 rounded-full border border-amber-500/30 bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">{Math.max(0, tasks.length - completedCount)} Task Aktif</span>
             </button>
             <button id="tab-referral-btn" type="button" onClick={() => switchTab('referral')} aria-pressed={activeTab === 'referral'} className={['flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5', activeTab === 'referral' ? 'bg-[#2563EB] font-bold text-white shadow-lg shadow-blue-600/25 scale-[1.02]' : 'font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'].join(' ')}>
-              <i aria-hidden="true" className={['fa-solid fa-gift transition-colors duration-300', activeTab === 'referral' ? 'text-white' : 'text-[#60A5FA]'].join(' ')}/>
+              <Gift size={14} className={activeTab === 'referral' ? 'text-white transition-colors duration-300' : 'text-[#60A5FA] transition-colors duration-300'}/>
               <span>Program Referral</span>
             </button>
           </div>
           <div className="flex w-full items-center justify-center gap-3 px-3 sm:w-auto sm:justify-end">
-            <span className="flex items-center gap-1.5 text-xs text-slate-300"><i className="fa-solid fa-fire text-amber-500"/> Streak: <strong className="text-white">{Number(checkin?.streak_day || 0)} Hari</strong></span>
+            <span className="flex items-center gap-1.5 text-xs text-slate-300"><Flame size={13} className="text-amber-500"/> Streak: <strong className="text-white">{Number(checkin?.streak_day || 0)} Hari</strong></span>
             <span className="h-3 w-px bg-slate-700"/>
-            <span className="flex items-center gap-1.5 text-xs text-slate-300"><i className="fa-solid fa-calendar-check text-[#60A5FA]"/> {checked ? 'Check-in Selesai' : 'Belum Check-in'}</span>
+            <span className="flex items-center gap-1.5 text-xs text-slate-300"><CalendarCheck size={13} className="text-[#60A5FA]"/> {checked ? 'Check-in Selesai' : 'Belum Check-in'}</span>
           </div>
         </div>
         <div className={['transition-all duration-300 ease-out', tabContentVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'].join(' ')}>
