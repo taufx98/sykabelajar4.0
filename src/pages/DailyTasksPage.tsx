@@ -238,6 +238,11 @@ export function DailyTasksPage() {
     try {
       const { data, error: rpcError } = await supabase.rpc('claim_daily_checkin', { p_date: todayKey });
       if (rpcError) throw rpcError;
+      if (data?.already) {
+        toast(text('Check-in hari ini sudah tercatat.', 'Today’s check-in is already recorded.'), 'info');
+        await load();
+        return;
+      }
 
       const streak = Number(data?.streak_day || checkinDay);
       const claimedType = String(data?.reward_type || rewardType);
@@ -260,10 +265,14 @@ export function DailyTasksPage() {
     setBusyId(taskId);
     try {
       const result = await claimAndCompleteDailyTask(taskId);
-      toast(text(
-        `Task selesai. +${Number(result?.exp ?? 0)} XP dan +${Number(result?.points ?? 0)} Edu Coin.`,
-        `Task completed. +${Number(result?.exp ?? 0)} XP and +${Number(result?.points ?? 0)} Edu Coins.`,
-      ), 'success');
+      if (result?.already) {
+        toast(text('Task ini sudah selesai hari ini.', 'This task is already complete for today.'), 'info');
+      } else {
+        toast(text(
+          `Task selesai. +${Number(result?.exp ?? 0)} XP dan +${Number(result?.points ?? 0)} Edu Coin.`,
+          `Task completed. +${Number(result?.exp ?? 0)} XP and +${Number(result?.points ?? 0)} Edu Coins.`,
+        ), 'success');
+      }
       await load();
     } catch (claimError: unknown) {
       const message = claimError instanceof Error ? claimError.message : 'Task gagal diselesaikan.';
