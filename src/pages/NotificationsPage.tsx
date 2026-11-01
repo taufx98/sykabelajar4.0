@@ -33,18 +33,30 @@ type NotificationData = {
   payment_currency?: string;
   edu_coin_spent?: number | string;
   edu_coin_balance?: number | string;
+  currency_type?: string;
+  winner_title?: string;
+  winner_rank?: string;
+  rank_label?: string;
+  competition_title?: string;
+  announcement_title?: string;
+  announcement_date?: string;
+  event_date?: string;
+  starts_at?: string;
+  xp_streak?: string;
 };
 type DetailNotification = AppNotification & { data?: NotificationData | null };
 type NotificationRow = Awaited<ReturnType<typeof listNotifications>>[number];
-type NotificationFilter = 'all' | 'unread' | 'coin' | 'badge' | 'registration';
-type NotificationCategory = 'coin' | 'badge' | 'registration' | 'general';
+type NotificationFilter = 'all' | 'unread' | 'gamification' | 'winner' | 'announcement' | 'badge' | 'registration';
+type NotificationCategory = 'gamification' | 'winner' | 'announcement' | 'badge' | 'registration' | 'general';
 type ReferralPreview = { reward_amount: number; is_active: boolean; is_event_active: boolean };
 
 const filters: { key: NotificationFilter; label: string; icon?: string; iconClass?: string }[] = [
   { key: 'all', label: 'Semua' },
   { key: 'unread', label: 'Belum Dibaca' },
-  { key: 'coin', label: 'Edu Coin', icon: 'fa-coins', iconClass: 'text-[#FBBF24]' },
-  { key: 'badge', label: 'Badge', icon: 'fa-award', iconClass: 'text-[#A78BFA]' },
+  { key: 'gamification', label: 'Coin & XP', icon: 'fa-gamepad', iconClass: 'text-[#C084FC]' },
+  { key: 'winner', label: 'Kemenangan', icon: 'fa-trophy', iconClass: 'text-[#FBBF24]' },
+  { key: 'announcement', label: 'Pengumuman', icon: 'fa-bullhorn', iconClass: 'text-[#FB7185]' },
+  { key: 'badge', label: 'Badge', icon: 'fa-award', iconClass: 'text-[#22D3EE]' },
   { key: 'registration', label: 'Pendaftaran', icon: 'fa-clipboard-check', iconClass: 'text-[#34D399]' },
 ];
 
@@ -74,6 +86,16 @@ const toNotificationData = (value: unknown): NotificationData | null => {
     payment_currency: typeof value.payment_currency === 'string' ? value.payment_currency : undefined,
     edu_coin_spent: typeof value.edu_coin_spent === 'number' || typeof value.edu_coin_spent === 'string' ? value.edu_coin_spent : undefined,
     edu_coin_balance: typeof value.edu_coin_balance === 'number' || typeof value.edu_coin_balance === 'string' ? value.edu_coin_balance : undefined,
+    currency_type: typeof value.currency_type === 'string' ? value.currency_type : undefined,
+    winner_title: typeof value.winner_title === 'string' ? value.winner_title : undefined,
+    winner_rank: typeof value.winner_rank === 'string' ? value.winner_rank : undefined,
+    rank_label: typeof value.rank_label === 'string' ? value.rank_label : undefined,
+    competition_title: typeof value.competition_title === 'string' ? value.competition_title : undefined,
+    announcement_title: typeof value.announcement_title === 'string' ? value.announcement_title : undefined,
+    announcement_date: typeof value.announcement_date === 'string' ? value.announcement_date : undefined,
+    event_date: typeof value.event_date === 'string' ? value.event_date : undefined,
+    starts_at: typeof value.starts_at === 'string' ? value.starts_at : undefined,
+    xp_streak: typeof value.xp_streak === 'string' ? value.xp_streak : undefined,
   };
 };
 
@@ -91,45 +113,74 @@ const mapNotification = (n: NotificationRow): DetailNotification => {
   };
 };
 
+const isXpNotification = (n: DetailNotification) =>
+  n.data?.currency_type?.toLowerCase() === 'xp'
+  || /\bXP\b/i.test(n.title + ' ' + n.body);
+
+const isCoinNotification = (n: DetailNotification) =>
+  n.data?.payment_currency === 'EDU_COIN'
+  || n.data?.edu_coin_spent != null
+  || n.data?.currency_type?.toLowerCase() === 'edu_coin'
+  || /\bedu.?coin\b|\bcoin\s*edu\b|wallet|saldo/i.test(n.title + ' ' + n.body);
+
 const categoryFor = (n: DetailNotification): NotificationCategory => {
-  const content = `${n.type} ${n.title} ${n.body}`.toLowerCase();
-  if (n.data?.payment_currency === 'EDU_COIN' || n.data?.edu_coin_spent != null || /edu.?coin|\bcoin\b|wallet|saldo|reward|bonus/.test(content)) return 'coin';
-  if (/badge|achievement|pencapaian|sertifikat|certificate|award/.test(content)) return 'badge';
-  if (/registration|pendaftaran|lomba|kompetisi|competition/.test(content)) return 'registration';
+  const type = String(n.type).toLowerCase();
+  const content = (type + ' ' + n.title + ' ' + n.body).toLowerCase();
+
+  if (type === 'result-out' || /\bjuara\s*[1-9]|pemenang|winner|hasil kompetisi|hasil lomba/.test(content)) return 'winner';
+  if (type === 'competition-start' || type.includes('announcement') || /pengumuman|technical meeting|siaran resmi/.test(content)) return 'announcement';
+  if (type === 'badge-awarded' || /badge|achievement|pencapaian|sertifikat|certificate|award/.test(content)) return 'badge';
+  if (type.includes('registration') || /pendaftaran|registration/.test(content)) return 'registration';
+  if (type === 'rank-up' || isCoinNotification(n) || isXpNotification(n)) return 'gamification';
   return 'general';
 };
 
 const categoryLabel = (category: NotificationCategory) => ({
-  coin: 'Edu Coin',
+  gamification: 'Coin & XP',
+  winner: 'Kemenangan Lomba',
+  announcement: 'Pengumuman Resmi',
   badge: 'Pencapaian Badge',
   registration: 'Pendaftaran Lomba',
   general: 'Informasi',
 })[category];
 
-const categoryStyle = (category: NotificationCategory) => ({
-  coin: 'border-amber-500/30 bg-amber-500/10 text-[#FBBF24]',
-  badge: 'border-purple-500/30 bg-purple-500/10 text-[#C084FC]',
-  registration: 'border-[#10B981]/30 bg-[#10B981]/10 text-[#34D399]',
-  general: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#60A5FA]',
-})[category];
+const categoryStyle = (category: NotificationCategory, notification?: DetailNotification) => {
+  if (category === 'gamification') {
+    return notification && isXpNotification(notification)
+      ? 'border-purple-500/30 bg-purple-500/10 text-[#C084FC]'
+      : 'border-amber-500/30 bg-amber-500/10 text-[#FBBF24]';
+  }
+  return ({
+    winner: 'border-amber-500/30 bg-amber-500/10 text-[#FBBF24]',
+    announcement: 'border-rose-500/30 bg-rose-500/10 text-[#FB7185]',
+    badge: 'border-cyan-500/30 bg-cyan-500/10 text-[#22D3EE]',
+    registration: 'border-[#10B981]/30 bg-[#10B981]/10 text-[#34D399]',
+    general: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#60A5FA]',
+  })[category];
+};
 
 const iconFor = (n: DetailNotification) => {
   const category = categoryFor(n);
   let icon = 'fa-bell';
   let color = 'text-[#60A5FA]';
 
-  if (category === 'coin') {
-    icon = 'fa-coins';
+  if (category === 'gamification') {
+    icon = isXpNotification(n) ? 'fa-bolt' : 'fa-coins';
+    color = isXpNotification(n) ? 'text-[#C084FC]' : 'text-[#FBBF24]';
+  } else if (category === 'winner') {
+    icon = 'fa-trophy';
     color = 'text-[#FBBF24]';
+  } else if (category === 'announcement') {
+    icon = 'fa-bullhorn';
+    color = 'text-[#FB7185]';
   } else if (category === 'badge') {
     icon = 'fa-award';
-    color = 'text-[#C084FC]';
+    color = 'text-[#22D3EE]';
   } else if (category === 'registration') {
-    icon = 'fa-circle-check';
-    color = 'text-[#34D399]';
+    icon = n.type === 'registration-rejected' ? 'fa-circle-xmark' : 'fa-circle-check';
+    color = n.type === 'registration-rejected' ? 'text-red-400' : 'text-[#34D399]';
   } else {
     switch (n.type) {
-      case 'result-out': icon = 'fa-trophy'; color = 'text-[#FBBF24]'; break;
       case 'competition-start': icon = 'fa-play'; color = 'text-sky-400'; break;
       case 'rank-up': icon = 'fa-chart-line'; color = 'text-[#60A5FA]'; break;
       case 'registration-rejected': icon = 'fa-circle-exclamation'; color = 'text-red-400'; break;
@@ -142,6 +193,27 @@ const iconFor = (n: DetailNotification) => {
   }
 
   return <i aria-hidden="true" className={'fa-solid ' + icon + ' ' + color} />;
+};
+
+const rewardAmountFor = (notification: DetailNotification): number | null => {
+  const stored = notification.data?.edu_coin_spent ?? notification.data?.amount;
+  if (stored != null && Number.isFinite(Number(stored))) return Math.abs(Number(stored));
+
+  const content = notification.title + ' ' + notification.body;
+  const match = content.match(/([+-]?\s*[\d.,]+)\s*(?:XP|EDU\s*COIN|COIN\s*EDU)/i);
+  if (!match) return null;
+  const amount = Number(match[1].replace(/[^\d]/g, ''));
+  return Number.isFinite(amount) ? amount : null;
+};
+
+const announcementDateFor = (notification: DetailNotification) =>
+  notification.data?.announcement_date || notification.data?.event_date || notification.data?.starts_at || null;
+
+const formatAnnouncementDate = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 };
 
 const actionFor = (n: DetailNotification): NotificationAction | null => {
@@ -346,7 +418,7 @@ export function NotificationsPage() {
             : 'notification-card-unread border-[#3B82F6]/50 bg-[#151E32]',
         ].join(' ')}>
           <div className={['flex min-w-0 flex-1 items-start gap-3.5', notification.read ? 'opacity-75 transition-opacity group-hover:opacity-100' : ''].join(' ')}>
-            <div className={'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg ' + categoryStyle(category)}>
+            <div className={'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg ' + categoryStyle(category, notification)}>
               {iconFor(notification)}
             </div>
             <div className="min-w-0 flex-1 space-y-1">
@@ -371,8 +443,8 @@ export function NotificationsPage() {
 
   const selectedCategory = selected ? categoryFor(selected) : 'general';
   const selectedAction = selected ? actionFor(selected) : null;
-  const selectedAmountValue = selected?.data?.edu_coin_spent ?? selected?.data?.amount;
-  const selectedAmount = selectedAmountValue != null ? Number(selectedAmountValue) : null;
+  const selectedAmount = selected ? rewardAmountFor(selected) : null;
+  const selectedIsXp = selected ? isXpNotification(selected) : false;
   const selectedIsSpending = selected?.data?.edu_coin_spent != null;
   const registrationContent = `${selected?.title ?? ''} ${selected?.body ?? ''}`.toLowerCase();
   const registrationStatus = /ditolak|rejected/.test(registrationContent)
@@ -505,7 +577,7 @@ export function NotificationsPage() {
           <section role="dialog" aria-modal="true" aria-labelledby="notification-modal-title" className="notification-modal-panel flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-800 bg-[#151E32] shadow-2xl">
             <div className="notification-modal-header flex shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-900/40 px-5 py-4">
               <div className="flex min-w-0 items-center gap-3">
-                <div className={'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg ' + categoryStyle(selectedCategory)}>
+                <div className={'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg ' + categoryStyle(selectedCategory, selected ?? undefined)}>
                   {iconFor(selected)}
                 </div>
                 <div className="min-w-0">
@@ -524,25 +596,56 @@ export function NotificationsPage() {
                 <h3 id="notification-modal-title" className="text-lg font-extrabold leading-snug text-white">{selected.title}</h3>
               </div>
 
-              {selectedCategory === 'coin' && selectedAmount != null && Number.isFinite(selectedAmount) && (
-                <div className="notification-preview-box flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-3xl text-amber-400 shadow-lg shadow-amber-500/10">
-                    <i aria-hidden="true" className="fa-solid fa-coins" />
+              {selectedCategory === 'winner' && (
+                <div className="notification-preview-box flex flex-col items-center justify-center space-y-3 rounded-2xl border border-amber-500/25 bg-slate-900/70 p-5 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-amber-500/40 bg-amber-500/10 text-3xl text-amber-400 shadow-lg shadow-amber-500/20">
+                    <i aria-hidden="true" className="fa-solid fa-trophy" />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">{selected.data?.winner_rank || selected.data?.rank_label || (selected.title.match(/\bjuara\s*[1-9]\b/i)?.[0] ?? 'Hasil Kompetisi')}</span>
+                    <h4 className="text-sm font-bold text-white">{selected.data?.winner_title || selected.data?.competition_title || selected.title}</h4>
+                  </div>
+                </div>
+              )}
+
+              {selectedCategory === 'gamification' && (
+                <div className={['notification-preview-box flex flex-col items-center justify-center space-y-3 rounded-2xl border bg-slate-900/70 p-5 text-center', selectedIsXp ? 'border-purple-500/30' : 'border-amber-500/30'].join(' ')}>
+                  <div className={['flex h-16 w-16 items-center justify-center rounded-2xl border text-3xl shadow-lg', selectedIsXp ? 'border-purple-500/40 bg-purple-500/10 text-purple-400 shadow-purple-500/20' : 'border-amber-500/40 bg-amber-500/10 text-amber-400 shadow-amber-500/20'].join(' ')}>
+                    <i aria-hidden="true" className={'fa-solid ' + (selectedIsXp ? 'fa-bolt' : 'fa-coins')} />
                   </div>
                   <div>
-                    <span className="block text-xs font-semibold text-slate-400">{selectedIsSpending ? 'Edu Coin Digunakan' : 'Nominal Reward'}</span>
-                    <span className="text-2xl font-black tracking-tight text-amber-400">{selectedIsSpending ? '−' : selectedAmount > 0 ? '+' : ''}{Math.abs(selectedAmount).toLocaleString('id-ID')} EDU</span>
-                    {selected?.data?.edu_coin_balance != null && <span className="mt-1 block text-[10px] text-slate-500">Saldo setelah transaksi: {Number(selected.data.edu_coin_balance).toLocaleString('id-ID')} Edu Coin</span>}
+                    <span className="block text-xs font-semibold text-slate-400">{selectedIsXp ? 'Reward Pengalaman (XP)' : selectedIsSpending ? 'Edu Coin Digunakan' : 'Nominal Reward'}</span>
+                    {selectedAmount != null && (
+                      <span className={['text-2xl font-black tracking-tight', selectedIsXp ? 'text-purple-400' : 'text-amber-400'].join(' ')}>
+                        {selectedIsSpending ? '−' : selectedAmount > 0 && /(?:menerima|bertambah|ditambahkan|\+)/i.test(selected.title + ' ' + selected.body) ? '+' : ''}{selectedAmount.toLocaleString('id-ID')} {selectedIsXp ? 'XP' : 'EDU'}
+                      </span>
+                    )}
+                    {selected.data?.edu_coin_balance != null && <span className="mt-1 block text-[10px] text-slate-500">Saldo setelah transaksi: {Number(selected.data.edu_coin_balance).toLocaleString('id-ID')} Edu Coin</span>}
+                    {selected.data?.xp_streak && <p className="mt-1 text-xs font-medium text-purple-300">{selected.data.xp_streak}</p>}
                   </div>
-                  <span className="flex items-center gap-1.5 rounded-full border border-[#10B981]/20 bg-[#10B981]/10 px-3 py-1 text-[10px] font-bold text-[#34D399]">
-                    <i aria-hidden="true" className="fa-solid fa-circle-check" /> Masuk Saldo Utama
-                  </span>
+                  {!selectedIsXp && (
+                    <span className="flex items-center gap-1.5 rounded-full border border-[#10B981]/20 bg-[#10B981]/10 px-3 py-1 text-[10px] font-bold text-[#34D399]">
+                      <i aria-hidden="true" className="fa-solid fa-circle-check" /> Saldo diverifikasi sistem
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {selectedCategory === 'announcement' && (
+                <div className="notification-preview-box flex flex-col items-center justify-center space-y-3 rounded-2xl border border-rose-500/25 bg-slate-900/70 p-5 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-rose-500/40 bg-rose-500/10 text-3xl text-rose-400 shadow-lg shadow-rose-500/20">
+                    <i aria-hidden="true" className="fa-solid fa-bullhorn" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-white">{selected.data?.announcement_title || selected.data?.competition_title || selected.title}</h4>
+                    {announcementDateFor(selected) && <p className="text-xs font-medium text-rose-300">{formatAnnouncementDate(announcementDateFor(selected) as string)}</p>}
+                  </div>
                 </div>
               )}
 
               {selectedCategory === 'badge' && (
                 <div className="notification-preview-box flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-center">
-                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-tr from-purple-600/20 to-indigo-500/20 text-3xl text-purple-400 shadow-lg shadow-purple-500/20">
+                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-tr from-cyan-600/20 to-sky-500/20 text-3xl text-cyan-400 shadow-lg shadow-cyan-500/20">
                     {selected.data?.badge_icon_url
                       ? <img src={selected.data.badge_icon_url} alt={selected.data.badge_name || 'Ikon badge'} className="h-full w-full object-contain" />
                       : selected.data?.badge_icon_emoji
@@ -551,7 +654,7 @@ export function NotificationsPage() {
                   </div>
                   <div>
                     <h5 className="text-sm font-extrabold text-white">{selected.data?.badge_name || selected.title}</h5>
-                    <p className="text-xs font-medium text-purple-300">{selected.data?.badge_rarity || 'Badge pencapaian'}</p>
+                    <p className="text-xs font-medium text-cyan-300">{selected.data?.badge_rarity || 'Badge pencapaian'}</p>
                   </div>
                   {selected.data?.badge_description && <p className="max-w-sm text-[11px] leading-relaxed text-slate-400">{selected.data.badge_description}</p>}
                   {selected.data?.award_source_label && <span className="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-0.5 text-[10px] text-slate-300">Sumber: {selected.data.award_source_label}</span>}
