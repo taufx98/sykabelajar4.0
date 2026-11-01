@@ -308,7 +308,12 @@ test('Daily Tasks visual structure follows the supplied reference without changi
   assert.match(daily, /#0B1120/);
   assert.match(daily, /#151E32/);
   assert.match(daily, /#1E293B/);
-  assert.match(header, /Daily Tasks & Program Referral/);
+
+  assert.match(daily, /get_daily_checkin_streak_rewards/);
+  assert.match(daily, /day_rewards/);
+  assert.match(daily, /scheduledReward/);
+  assert.match(daily, /historicalDateKey/);
+  assert.match(header, /Daily Tasks &(?:amp;)? Program Referral/);
   assert.match(admin, /from\('daily_tasks'\)\.insert/);
   assert.match(admin, /from\('daily_tasks'\)\.update/);
   assert.match(admin, /is_active/);
@@ -329,4 +334,9 @@ test('daily task completion is atomic and requires the configured backend eviden
   assert.match(migration, /private\\.is_daily_task_eligible\\(u, p_task_id, v_claim_date\\)/);
   assert.match(migration, /CHECKIN_DATE_MUST_BE_TODAY/);
   assert.match(migration, /CHECKIN_REWARD_TYPE_NOT_SUPPORTED/);
+
+  assert.match(migration, /get_daily_checkin_streak_rewards/);
+  assert.match(migration, /pg_advisory_xact_lock/);
+  assert.match(migration, /LOCK TABLE public\\.edu_coin_ledger/);
+  assert.match(migration, /LOCK TABLE public\\.xp_ledger/);
 });
