@@ -319,6 +319,7 @@ test('Daily Tasks visual structure follows the supplied reference without changi
   assert.match(daily, /#1E293B/);
 
   assert.match(daily, /get_daily_checkin_streak_rewards/);
+  assert.match(daily, /checked\s*\?\s*'border-\[#3B82F6\]\/40 bg-gradient-to-r from-blue-950/);
   assert.match(daily, /day_rewards/);
   assert.match(daily, /subscribeSykaEvents/);
   assert.match(daily, /profile-updated/);
@@ -352,4 +353,7 @@ test('daily task completion is atomic and requires the configured backend eviden
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.ok(migration.includes('LOCK TABLE public.edu_coin_ledger'));
   assert.ok(migration.includes('LOCK TABLE public.xp_ledger'));
+  const serialization = await readFile(new URL('../supabase/migrations/20261101120000_daily_task_claim_serialization.sql', import.meta.url), 'utf8');
+  assert.match(serialization, /:daily-task:/);
+  assert.match(serialization, /pg_advisory_xact_lock/);
 });
