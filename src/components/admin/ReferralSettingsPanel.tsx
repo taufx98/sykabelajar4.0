@@ -378,7 +378,7 @@ export function ReferralSettingsPanel() {
             <div className="rounded-xl border border-[#3B82F6]/20 bg-[#3B82F6]/5 p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#3B82F6]">Pratinjau banner</p>
               <h4 className="mt-2 text-sm font-extrabold text-fg">{draft.promo_title || 'Judul promo'}</h4>
-              <p className="mt-1 text-xs text-fg-muted">{draft.promo_description.replaceAll('{reward}', `${saved?.reward_amount ?? baseReward || 0} Edu Coin`)}</p>
+              <p className="mt-1 text-xs text-fg-muted">{draft.promo_description.split('{reward}').join(`${(saved?.reward_amount ?? (baseReward || 0)).toLocaleString('id-ID')} Edu Coin`)}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2"><Badge color="moss">{draft.promo_badge || 'Badge'}</Badge><span className="rounded-lg bg-[#2563EB] px-3 py-2 text-[10px] font-bold text-white">{draft.promo_cta || 'Tombol'}</span></div>
             </div>
             {!validPromo && <p className="text-xs font-medium text-red-400">Periksa panjang judul, deskripsi, badge, dan teks tombol promo.</p>}
