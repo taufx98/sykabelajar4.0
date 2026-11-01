@@ -437,7 +437,7 @@ export function ReferralProgramPanel() {
                     <th className="px-4 py-3">No</th>
                     <th className="px-4 py-3">Nama</th>
                     <th className="px-4 py-3">Tanggal Gabung</th>
-                    <th className="px-4 py-3 text-right">Reward & Status</th>
+                    <th className="px-4 py-3 text-right">Hadiah & Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs dark:divide-slate-800/80">
