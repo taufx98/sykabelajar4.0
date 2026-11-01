@@ -65,7 +65,7 @@ export async function completeDailyTask(taskId: string) {
 }
 
 export async function claimAndCompleteDailyTask(taskId: string) {
-  const { error: claimError } = await supabase.rpc('claim_daily_task', { p_task_id: taskId });
-  if (claimError) throw claimError;
-  return completeDailyTask(taskId);
+  const { data, error } = await supabase.rpc('claim_and_complete_daily_task', { p_task_id: taskId });
+  if (error) throw error;
+  return data;
 }
