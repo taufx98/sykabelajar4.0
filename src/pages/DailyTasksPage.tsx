@@ -192,13 +192,13 @@ export function DailyTasksPage() {
         streak_day: todayCheckinResult.data?.streak_day ?? expectedDay,
       });
     } catch (loadError: unknown) {
-      const message = loadError instanceof Error ? loadError.message : text('Daily Tasks gagal dimuat.', 'Daily Tasks could not be loaded.');
+      const message = loadError instanceof Error ? loadError.message : 'Daily Tasks gagal dimuat.';
       setError(message);
       setTasks([]);
     } finally {
       setLoading(false);
     }
-  }, [text, todayKey, user?.id]);
+  }, [todayKey, user?.id]);
 
   useEffect(() => {
     void load();
