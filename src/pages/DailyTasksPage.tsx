@@ -11,11 +11,13 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { ReferralProgramPanel } from '@/components/referrals/ReferralProgramPanel';
 
 export function DailyTasksPage() {
-  const { toast } = useApp();
+  const { toast, user } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'referral' ? 'referral' : 'tasks';
   const [displayedTab, setDisplayedTab] = useState<'tasks' | 'referral'>(activeTab);
   const [tabContentVisible, setTabContentVisible] = useState(true);
+  const [referralReward, setReferralReward] = useState<number | null>(null);
+  const [referralProgramActive, setReferralProgramActive] = useState(false);
   const { language } = useLanguage();
   const text = (id: string, en: string) => language === 'en' ? en : id;
   const [tasks, setTasks] = useState<LiveDailyTask[]>([]);
@@ -44,6 +46,32 @@ export function DailyTasksPage() {
       if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
     };
   }, [activeTab, displayedTab]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setReferralReward(null);
+      setReferralProgramActive(false);
+      return;
+    }
+    let live = true;
+    const loadReferralReward = async () => {
+      const { data, error: requestError } = await supabase.rpc('get_referral_program_settings_v2');
+      if (!live || requestError) return;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row || typeof row !== 'object') return;
+      const settings = row as Record<string, unknown>;
+      setReferralReward(Math.max(0, Number(settings.reward_amount) || 0));
+      setReferralProgramActive(Boolean(settings.is_active));
+    };
+    const channel = supabase.channel('referral-program-settings', { config: { private: false } })
+      .on('broadcast', { event: 'updated' }, () => { void loadReferralReward(); })
+      .subscribe();
+    void loadReferralReward();
+    return () => {
+      live = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const switchTab = (tab: 'tasks' | 'referral') => {
     setSearchParams(tab === 'tasks' ? {} : { tab: 'referral' }, { replace: true });
@@ -119,6 +147,7 @@ export function DailyTasksPage() {
             <button id="tab-referral-btn" type="button" onClick={() => switchTab('referral')} aria-pressed={activeTab === 'referral'} className={['flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5', activeTab === 'referral' ? 'bg-[#2563EB] font-bold text-white shadow-lg shadow-blue-600/25 scale-[1.02]' : 'font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'].join(' ')}>
               <Gift size={14} className={activeTab === 'referral' ? 'text-white transition-colors duration-300' : 'text-[#60A5FA] transition-colors duration-300'}/>
               <span>Program Referral</span>
+              {referralProgramActive && referralReward !== null && <span className="ml-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400">+{referralReward.toLocaleString('id-ID')} Edu Coin</span>}
             </button>
           </div>
           <div className="flex w-full items-center justify-center gap-3 px-3 sm:w-auto sm:justify-end">
