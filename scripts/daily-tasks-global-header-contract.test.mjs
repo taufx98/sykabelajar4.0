@@ -2,20 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('Daily Tasks uses one concise global header with a mobile-only back control', async () => {
+test('all application routes share the Daily Tasks global header contract', async () => {
   const header = await readFile(new URL('../src/components/layout/GlobalHeader.tsx', import.meta.url), 'utf8');
-  const start = header.indexOf("if (location.pathname === '/daily-tasks')");
-  const end = header.indexOf("if (location.pathname === '/notifications')", start);
-  assert.ok(start >= 0 && end > start, 'Daily Tasks header must be owned by GlobalHeader');
-  const dailyHeader = header.slice(start, end);
 
-  assert.match(dailyHeader, /Daily Tasks &amp; Referral/);
-  assert.doesNotMatch(dailyHeader, /Daily Tasks &amp; Program Referral/);
-  assert.doesNotMatch(dailyHeader, /<span>Belajar<\/span>/);
-  assert.match(dailyHeader, /to="\/home"/);
-  assert.match(dailyHeader, /md:hidden/);
-  assert.match(dailyHeader, /min-h-11 min-w-11/);
+  assert.match(header, /location\.pathname === '\/home'/);
+  assert.match(header, /const isDailyTasks = location\.pathname === '\/daily-tasks'/);
+  assert.match(header, /Daily Tasks &amp; Referral/);
+  assert.match(header, /<h1[^>]*>\{label\}<\/h1>/);
+  assert.doesNotMatch(header, /if \(location\.pathname === '\/daily-tasks'\)/);
+  assert.doesNotMatch(header, /if \(location\.pathname === '\/notifications'\)/);
+  assert.match(header, /to="\/home"/);
+  assert.match(header, /md:hidden/);
+  assert.match(header, /min-h-11 min-w-11/);
+  assert.match(header, /CalendarDays/);
+  assert.match(header, /Asia\/Jakarta/);
+  assert.match(header, /AdminCommunicationLinks/);
 });
+
 
 test('reduced-motion preference leaves the Home running-text marquee moving', async () => {
   const home = await readFile(new URL('../src/pages/HomePage.tsx', import.meta.url), 'utf8');
