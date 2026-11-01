@@ -99,12 +99,15 @@ test('referral qualification is event-driven and its hourly scanner is unschedul
   assert.match(efficiencyMigration, /ON CONFLICT \(user_id, event_type, event_id\) DO NOTHING/i);
   assert.match(efficiencyMigration, /email_confirmed_at IS NOT NULL/i);
   assert.match(efficiencyMigration, /interval '24 hours'/i);
+  assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
+  assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
+  assert.match(efficiencyMigration, /DROP FUNCTION IF EXISTS private\.sync_due_competition_registration_statuses/i);
 });
 
 test('referral accepts a shareable account UUID and preserves existing short referral codes', () => {
   assert.match(efficiencyMigration, /p_referral_code[\s\S]*referral_codes[\s\S]*::uuid/i);
   assert.match(registrationModal, /referralCode/);
-  assert.match(registrationModal, /p_referral_code/);
+  assert.match(registrationModal, /referralCode:\s*referralCode\.trim\(\)\s*\|\|\s*null/);
   assert.match(referralPage, /ensure_referral_code|user\.id/);
   assert.match(referralPage, /navigator\.clipboard\.writeText/);
   assert.match(referralPage, /postgres_changes/);
@@ -125,8 +128,9 @@ test('attempt and competition audit trigger functions are invoked only for meani
 
 test('leaderboard keeps Realtime with a less frequent visible-tab fallback and bounded RPC cache', () => {
   assert.match(leaderboardPage, /postgres_changes/);
-  assert.match(leaderboardPage, /300_000/);
-  assert.match(leaderboardPage, /visibilityState/);
+  assert.match(leaderboardPage, /addEventListener\('visibilitychange'/);
+  assert.doesNotMatch(leaderboardPage, /setInterval\s*\(/);
+  assert.match(leaderboardPage, /document\.visibilityState/);
   assert.match(platformService, /enrichedLeaderboardCache/);
   assert.match(platformService, /schoolLeaderboardCache/);
   assert.match(platformService, /invalidateLeaderboardMemory[\s\S]*enrichedLeaderboardCache\.clear/);
