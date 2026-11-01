@@ -587,7 +587,15 @@ export function DailyTasksPage() {
                 {!loading && !error && tasks.map((task, index) => {
                   const expires = task.endsAt ? new Date(task.endsAt) : null;
                   const isBusy = busyId === task.id;
-                  const taskIcon = task.taskType.toLowerCase().includes('referral') ? <UserPlus size={18}/> : <ListChecks size={18}/>;
+                  const normalizedTaskType = task.taskType.toUpperCase();
+                  const taskIcon = normalizedTaskType.includes('REFERRAL') ? <UserPlus size={18}/> : <ListChecks size={18}/>;
+                  const taskTypeLabel = normalizedTaskType === 'DAILY_CHECKIN'
+                    ? 'Check-in Harian'
+                    : normalizedTaskType === 'PROFILE_COMPLETE'
+                      ? 'Kelengkapan Profil'
+                      : normalizedTaskType === 'VERIFIED_REFERRAL'
+                        ? 'Referral Terverifikasi'
+                        : 'Tugas Mandiri';
 
                   return (
                     <div
@@ -619,11 +627,16 @@ export function DailyTasksPage() {
                                 ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                 : 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
                             ].join(' ')}>
-                              {task.completed ? 'Selesai' : 'Tugas Harian'}
+                              {task.completed ? 'Selesai' : taskTypeLabel}
                             </span>
                           </div>
                           <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
                             {task.description || text('Aktivitas harian SYKABELAJAR.', 'Daily SYKABELAJAR activity.')}
+                            {normalizedTaskType === 'DAILY' && (
+                              <span className="mt-1 block text-[10px] text-amber-700 dark:text-amber-300">
+                                {text('Klaim mandiri. Pastikan aktivitas sudah kamu lakukan.', 'Self-claimed task. Make sure you have completed the activity.')}
+                              </span>
+                            )}
                           </p>
                           <div className="flex flex-wrap items-center gap-2 pt-0.5">
                             <span className="rounded bg-purple-500/10 px-2 py-0.5 text-[11px] font-bold text-purple-600 dark:text-purple-400">+{task.exp} XP</span>
