@@ -19,6 +19,7 @@ export async function signUp(
     institution?: string;
     grade?: string;
     subjects?: string;
+    referral_id?: string;
   },
 ) {
   const { data, error } = await supabase.auth.signUp({
