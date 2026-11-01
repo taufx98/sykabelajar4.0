@@ -12,6 +12,7 @@
     "test:performance-budget": "node --test scripts/performance-budget.test.mjs",
     "check:performance": "node scripts/check-performance-budget.mjs",
     "test:cache": "node --test scripts/persistent-cache.test.mjs",
+    "test:referral-attribution": "node --test scripts/referral-attribution-contract.test.mjs",
     "test:results-contract": "node --test scripts/competition-results-contract.test.mjs",
     "test:organizer-registration-contract": "node --test scripts/organizer-registration-contract.test.mjs",
     "test:teacher-achievement-contract": "node --test scripts/teacher-achievement-contract.test.mjs",
