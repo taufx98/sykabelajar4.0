@@ -78,6 +78,7 @@ const efficiencyMigration = await readFile(
   'utf8',
 );
 const referralPage = await readFile(new URL('../src/pages/ReferralPage.tsx', import.meta.url), 'utf8');
+const referralPanel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
 const registrationModal = await readFile(new URL('../src/components/competition/CompetitionRegistrationModal.tsx', import.meta.url), 'utf8');
 const registrationService = await readFile(new URL('../src/services/registration.service.ts', import.meta.url), 'utf8');
 const platformService = await readFile(new URL('../src/services/platform.service.ts', import.meta.url), 'utf8');
@@ -124,13 +125,15 @@ test('referral accepts a shareable account UUID and preserves existing short ref
   assert.match(registrationModal, /referralCode/);
   assert.match(registrationModal, /referralCode:\s*referralCode\.trim\(\)\s*\|\|\s*null/);
   assert.match(registrationService, /p_referral_code:\s*input\.referralCode\?\.trim\(\)\s*\|\|\s*null/);
-  assert.match(referralPage, /ensure_referral_code|user\.id/);
-  assert.match(referralPage, /navigator\.clipboard\.writeText/);
-  assert.match(referralPage, /row\.status === 'EXPIRED'/);
+  assert.match(referralPage, /ReferralProgramPanel/);
+  assert.match(referralPanel, /user\?\.id/);
+  assert.match(referralPanel, /register\?ref=/);
+  assert.match(referralPanel, /navigator\.clipboard\.writeText/);
+  assert.match(referralPanel, /row\.status === 'EXPIRED'/);
   assert.match(efficiencyMigration, /WHEN re\.status IN \('VERIFIED', 'CREDITED'\)[\s\S]*THEN coalesce\(p\.full_name/i);
   assert.match(efficiencyMigration, /WHEN re\.status IN \('VERIFIED', 'CREDITED'\) THEN p\.username/i);
   assert.match(efficiencyMigration, /re\.created_at \+ interval '24 hours' <= now\(\)/i);
-  assert.match(referralPage, /postgres_changes/);
+  assert.match(referralPanel, /postgres_changes/);
 });
 
 test('referral trigger helpers are private and cannot be called from client roles', () => {
