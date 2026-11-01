@@ -84,6 +84,7 @@ const leaderboardPage = await readFile(new URL('../src/pages/LeaderboardPage.tsx
 const organizerAuth = await readFile(new URL('../src/services/organizerAuth.service.ts', import.meta.url), 'utf8');
 const organizerShell = await readFile(new URL('../src/components/layout/OrganizerShell.tsx', import.meta.url), 'utf8');
 const organizerControlCenter = await readFile(new URL('../src/pages/OrganizerControlCenterPage.tsx', import.meta.url), 'utf8');
+const competitionDetail = await readFile(new URL('../src/pages/CompetitionDetailPage.tsx', import.meta.url), 'utf8');
 
 test('referral qualification is event-driven and its hourly scanner is unscheduled', () => {
   assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION private\.apply_referral_qualification/i);
@@ -102,6 +103,7 @@ test('referral qualification is event-driven and its hourly scanner is unschedul
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
   assert.match(efficiencyMigration, /DROP FUNCTION IF EXISTS private\.sync_due_competition_registration_statuses/i);
+  assert.match(efficiencyMigration, /syka-sync-competition-registration-status/i);
 });
 
 test('referral accepts a shareable account UUID and preserves existing short referral codes', () => {
@@ -143,4 +145,11 @@ test('organizer workspace resolution reuses one authoritative fetched list', () 
   assert.doesNotMatch(organizerShell, /Promise\.all\(\[listCurrentUserOrganizers\(\),\s*resolveCurrentUserOrganizer\(\)\]\)/);
   assert.match(organizerControlCenter, /resolveCurrentUserOrganizerFrom\(all\)/);
   assert.doesNotMatch(organizerControlCenter, /Promise\.all\(\[listCurrentUserOrganizers\(\),\s*resolveCurrentUserOrganizer\(\)\]\)/);
+});
+
+test('competition registration phase is reconciled on demand rather than by cron or 30-second API polling', () => {
+  assert.match(competitionDetail, /syncCompetitionRegistrationStatus\(String\(base\.id\)\)/);
+  assert.doesNotMatch(competitionDetail, /setInterval\s*\(/);
+  assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION public\.check_registration_eligibility[\s\S]*?PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
+  assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION public\.validate_registration_insert[\s\S]*?PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
 });
