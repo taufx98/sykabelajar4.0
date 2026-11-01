@@ -54,17 +54,6 @@ export function DailyTasksPage() {
   const [error, setError] = useState<string | null>(null);
   const [eventOpen, setEventOpen] = useState(false);
 
-  const todayLabel = useMemo(() => {
-    const value = new Date(`${todayKey}T00:00:00.000Z`);
-    return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'id-ID', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'UTC',
-    }).format(value);
-  }, [language, todayKey]);
-
   useEffect(() => {
     if (displayedTab === activeTab) {
       setTabContentVisible(true);
@@ -282,7 +271,7 @@ export function DailyTasksPage() {
     rewardType === 'XP' && rewardAmount > 0 ? `+${rewardAmount} XP` : null,
     rewardType === 'COIN' && rewardAmount > 0 ? `+${rewardAmount} Edu Coin` : null,
     coinReward > 0 && rewardType !== 'COIN' ? `+${coinReward} Edu Coin` : null,
-  ].filter(Boolean);
+  ].filter((label): label is string => Boolean(label));
 
   return (
     <div className="daily-tasks-page min-h-full bg-[#F8FAFC] text-slate-700 dark:bg-[#0B1120] dark:text-slate-200">
