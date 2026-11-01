@@ -21,7 +21,7 @@ test('accepts canonical UUID referral IDs and rejects malformed values', () => {
 test('signup referral is carried as auth user metadata and handled by a database trigger', async () => {
   const appContext = await readFile(new URL('../src/store/AppContext.tsx', import.meta.url), 'utf8');
   const authService = await readFile(new URL('../src/services/auth.service.ts', import.meta.url), 'utf8');
-  const migration = await readFile(new URL('../supabase/migrations/20261101113000_referral_signup_attribution.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20261101043516_referral_signup_attribution.sql', import.meta.url), 'utf8');
   assert.match(appContext, /referral_id:\s*data\.referralCode/);
   assert.match(authService, /referral_id\?:\s*string/);
   assert.match(migration, /AFTER INSERT ON auth\.users/);
