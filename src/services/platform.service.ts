@@ -369,7 +369,7 @@ export async function getPublicLeaderboardEnriched(
     });
     if (error) throw error;
 
-    const rows = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    const rows = ((data ?? []) as Array<Record<string, unknown>>).map((row): PublicEnrichedLeaderboardRow => ({
       user_id: String(row.user_id ?? ''),
       username: String(row.username ?? ''),
       display_name: String(row.display_name ?? row.username ?? 'Pengguna'),
