@@ -1,6 +1,6 @@
 import { toast } from '@/lib/toast';
 import { useEffect, useMemo, useState } from 'react';
-import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, Package, Eye, EyeOff, Sparkles, Image as ImageIcon, Copy } from 'lucide-react';
+import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, Package, Eye, EyeOff, Sparkles, Image as ImageIcon, Copy, Gift } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
@@ -12,10 +12,11 @@ import { CompetitionDeleteModal, type CompetitionDeleteBlockers } from '@/compon
 import { banUser, deleteCompetition, deletePost, deleteProduct, forceDeleteCompetition, getCompetitionDeleteBlockers, loadAdminCore, saveCompetition, savePost, saveProduct, transitionCompetition } from '@/services/adminCore.service';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { ShopProductEditor, type ShopProductDraft } from '@/components/admin/ShopProductEditor';
+import { ReferralSettingsPanel } from '@/components/admin/ReferralSettingsPanel';
 
-type CoreAdminTab = 'dashboard' | 'competitions' | 'users' | 'posts' | 'orders' | 'shop' | 'settings';
+type CoreAdminTab = 'dashboard' | 'competitions' | 'users' | 'posts' | 'orders' | 'shop' | 'settings' | 'referral';
 const tabs: { key: CoreAdminTab; label: string; icon: typeof Trophy }[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { key: 'competitions', label: 'Lomba', icon: Trophy }, { key: 'users', label: 'Pengguna', icon: Users }, { key: 'posts', label: 'Postingan', icon: FileText }, { key: 'orders', label: 'Pesanan', icon: ShoppingBag }, { key: 'shop', label: 'Shop', icon: Store }, { key: 'settings', label: 'Pengaturan', icon: Settings },
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { key: 'competitions', label: 'Lomba', icon: Trophy }, { key: 'users', label: 'Pengguna', icon: Users }, { key: 'posts', label: 'Postingan', icon: FileText }, { key: 'orders', label: 'Pesanan', icon: ShoppingBag }, { key: 'shop', label: 'Shop', icon: Store }, { key: 'settings', label: 'Pengaturan', icon: Settings }, { key: 'referral', label: 'Referral', icon: Gift },
 ];
 const roleLabel: Record<string, string> = { student: 'Pelajar', teacher: 'Guru', organizer_member: 'Penyelenggara', admin: 'Admin' };
 const competitionStatuses = ['DRAFT', 'PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'LIVE', 'SUBMISSION_CLOSED', 'GRADING', 'RESULT_PUBLISHED', 'ARCHIVED', 'CANCELLED'];
@@ -337,6 +338,7 @@ export function AdminPage() {
               </div>}
       </div>}
       {tab === 'settings' && <Card className="p-5"><h3 className="font-semibold text-fg">Pengaturan Platform</h3><p className="text-sm text-fg-muted mt-1">Akses lanjutan tetap tersedia melalui modul admin khusus.</p><Link to="/admin/roles" className="inline-block mt-4"><Button icon={<ShieldCheck size={15}/>}>Role & Akses</Button></Link></Card>}
+      {tab === 'referral' && <ReferralSettingsPanel />}
     </section>
     {usernameEditor&&<AdminUsernameModal user={usernameEditor} onClose={()=>setUsernameEditor(null)} onSaved={username=>{setUsers(rows=>rows.map(row=>row.id===usernameEditor.id?{...row,username}:row));setUsernameEditor(null);}}/>}
     {competitionEditor&&<Editor title={competitionEditor.id?'Edit Lomba':'Tambah Lomba'} onClose={()=>setCompetitionEditor(null)} onSave={()=>void saveCompetitionAction()} busy={busy}><Field label="Judul" value={competitionEditor.title||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,title:v}))}/><Field label="Slug" value={competitionEditor.slug||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,slug:v}))}/><Field label="Kategori" value={competitionEditor.category||''} onChange={v=>setCompetitionEditor((x:any)=>({...x,category:v}))}/></Editor>}
