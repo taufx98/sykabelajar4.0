@@ -800,7 +800,12 @@ AS $function$
       WHEN re.status IN ('VERIFIED', 'CREDITED') THEN au.last_sign_in_at
       ELSE NULL
     END AS last_login_at,
-    re.status,
+    CASE
+      WHEN re.status = 'PENDING'
+       AND re.created_at + interval '24 hours' <= now()
+        THEN 'EXPIRED'
+      ELSE re.status
+    END AS status,
     re.verified_at,
     re.verified_activity
   FROM public.referral_events re
