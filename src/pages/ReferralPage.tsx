@@ -87,7 +87,6 @@ export function ReferralPage() {
     };
   }, [user?.id, toast]);
 
-  const credited = rows.filter((row) => row.status === 'CREDITED').length;
   const successful = rows.filter((row) => row.status === 'VERIFIED' || row.status === 'CREDITED').length;
   const pending = rows.filter((row) => row.status === 'PENDING').length;
 
@@ -155,7 +154,7 @@ export function ReferralPage() {
         <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Ringkasan referral">
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-1.5 text-fg-muted"><Users size={14}/><span className="text-[10px] sm:text-xs">Total</span></div><p className="mt-2 text-xl font-bold tabular-nums text-fg">{rows.length}</p></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-1.5 text-fg-muted"><Check size={14}/><span className="text-[10px] sm:text-xs">Berhasil</span></div><p className="mt-2 text-xl font-bold tabular-nums text-fg">{successful}</p></Card>
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-1.5 text-fg-muted"><Wallet size={14}/><span className="text-[10px] sm:text-xs">Reward</span></div><p className="mt-2 text-xl font-bold tabular-nums text-fg">{credited * 5} <span className="text-[10px] font-medium text-fg-muted">Coin</span></p></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-1.5 text-fg-muted"><Wallet size={14}/><span className="text-[10px] sm:text-xs">Reward</span></div><p className="mt-2 text-xl font-bold tabular-nums text-fg">{successful * 5} <span className="text-[10px] font-medium text-fg-muted">Coin</span></p></Card>
         </section>
 
         <Card className="p-4 md:p-5">
@@ -182,7 +181,7 @@ export function ReferralPage() {
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 font-semibold text-accent">{String(row.full_name || row.username || 'P').slice(0, 1).toUpperCase()}</div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-fg">{row.full_name}</p><Badge color={verified ? 'moss' : row.status === 'EXPIRED' || row.status === 'REVOKED' ? 'danger' : 'warn'}>{statusLabel(row)}</Badge></div>
+                  <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-fg">{row.full_name}</p><Badge color={verified ? 'moss' : row.status === 'EXPIRED' || row.status === 'REVOKED' ? 'err' : 'warn'}>{statusLabel(row)}</Badge></div>
                   <p className="truncate text-xs text-accent">@{row.username || 'pengguna'}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-fg-muted"><span className="inline-flex items-center gap-1"><CalendarClock size={11}/> Bergabung {new Date(row.joined_at).toLocaleDateString('id-ID')}</span>{row.verified_at && <span>Valid {new Date(row.verified_at).toLocaleDateString('id-ID')}</span>}</div>
                   {row.verified_activity && <p className="mt-1 text-[10px] text-fg-muted">Aktivitas: {formatActivity(row.verified_activity)}</p>}
