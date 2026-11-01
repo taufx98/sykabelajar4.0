@@ -113,8 +113,8 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.match(referralPanel, /cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\/6\.4\.0\/css\/all\.min\.css/);
   assert.match(referralPanel, /fa-gift/);
   assert.match(referralPanel, /fa-coins/);
-  assert.match(referralPanel, /text-\\\[#34D399\\\]/);
-  assert.match(appLayout, /location\.pathname === '\\/notifications' \? 'w-full'/);
+  assert.match(referralPanel, /text-\[#34D399\]/);
+  assert.match(appLayout, /location\.pathname === '\/notifications' \? 'w-full'/);
   assert.match(globalHeader, /location\.pathname === '\/notifications'/);
   assert.match(globalHeader, /Notifikasi &amp; Program Referral/);
   assert.match(notificationsPage, /fa-users-rays/);
