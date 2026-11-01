@@ -13,6 +13,12 @@ export const ORGANIZER_SELECTION_KEY = 'syka.selectedOrganizerId';
 
 let listCurrentUserOrganizersInFlight: Promise<CurrentOrganizer[]> | null = null;
 
+// Do not let a pending workspace request from a previous account be reused
+// after a sign-out/sign-in transition.
+supabase.auth.onAuthStateChange(() => {
+  listCurrentUserOrganizersInFlight = null;
+});
+
 export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
   if (listCurrentUserOrganizersInFlight) return listCurrentUserOrganizersInFlight;
 
