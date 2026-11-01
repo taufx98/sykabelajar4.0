@@ -1051,6 +1051,22 @@ export function LeaderboardPage() {
 
     void load(false);
 
+    let degradedRefreshTimer: number | undefined;
+    const stopDegradedRefresh = () => {
+      if (degradedRefreshTimer !== undefined) {
+        window.clearInterval(degradedRefreshTimer);
+        degradedRefreshTimer = undefined;
+      }
+    };
+    const startDegradedRefresh = () => {
+      if (degradedRefreshTimer !== undefined) return;
+      degradedRefreshTimer = window.setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        invalidateLeaderboardMemory();
+        void load(true);
+      }, 5 * 60_000);
+    };
+
     const channel = supabase
       .channel('public-leaderboard-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
@@ -1058,7 +1074,11 @@ export function LeaderboardPage() {
         if (document.visibilityState === 'visible') void load(true);
       })
       .subscribe((status) => {
-        if (active) setIsRealtime(status === 'SUBSCRIBED');
+        if (!active) return;
+        const connected = status === 'SUBSCRIBED';
+        setIsRealtime(connected);
+        if (connected) stopDegradedRefresh();
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') startDegradedRefresh();
       });
 
     const refreshWhenVisible = () => {
@@ -1071,6 +1091,7 @@ export function LeaderboardPage() {
 
     return () => {
       active = false;
+      stopDegradedRefresh();
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       void supabase.removeChannel(channel);
     };
