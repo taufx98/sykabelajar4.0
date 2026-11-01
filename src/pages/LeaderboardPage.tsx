@@ -1061,14 +1061,17 @@ export function LeaderboardPage() {
         if (active) setIsRealtime(status === 'SUBSCRIBED');
       });
 
-    const refreshTimer = window.setInterval(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
       invalidateLeaderboardMemory();
       void load(true);
-    }, 60_000);
+    };
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       active = false;
-      window.clearInterval(refreshTimer);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
       void supabase.removeChannel(channel);
     };
   }, [mode, period, refreshNonce]);
