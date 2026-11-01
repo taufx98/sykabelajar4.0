@@ -353,7 +353,7 @@ test('daily task completion is atomic and requires the configured backend eviden
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.ok(migration.includes('LOCK TABLE public.edu_coin_ledger'));
   assert.ok(migration.includes('LOCK TABLE public.xp_ledger'));
-  const serialization = await readFile(new URL('../supabase/migrations/20261101120000_daily_task_claim_serialization.sql', import.meta.url), 'utf8');
+  const serialization = await readFile(new URL('../supabase/migrations/20261101114059_daily_task_claim_serialization.sql', import.meta.url), 'utf8');
   assert.match(serialization, /:daily-task:/);
   assert.match(serialization, /pg_advisory_xact_lock/);
 });
