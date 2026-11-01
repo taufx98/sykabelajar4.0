@@ -266,7 +266,13 @@ export function DailyTasksPage() {
       ), 'success');
       await load();
     } catch (claimError: unknown) {
-      toast(claimError instanceof Error ? claimError.message : 'Task gagal diselesaikan.', 'error');
+      const message = claimError instanceof Error ? claimError.message : 'Task gagal diselesaikan.';
+      toast(
+        message.includes('TASK_REQUIREMENT_NOT_MET')
+          ? text('Syarat tugas belum terpenuhi. Selesaikan aktivitasnya terlebih dahulu.', 'The task requirements are not met yet. Complete the activity first.')
+          : message,
+        'error',
+      );
     } finally {
       setBusyId(null);
     }
