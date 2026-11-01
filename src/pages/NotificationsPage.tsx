@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowRight, Award, Bell, CheckCheck, Clock, Coins, ExternalLink, Gift, Play, TrendingUp, Truck, UserCheck, UserPlus, UserX, X, Trophy, Users } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
-import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { timeAgo } from '@/lib/utils';
 import { listNotifications } from '@/services/notification.service';
@@ -42,12 +40,12 @@ type NotificationFilter = 'all' | 'unread' | 'coin' | 'badge' | 'registration';
 type NotificationCategory = 'coin' | 'badge' | 'registration' | 'general';
 type ReferralPreview = { reward_amount: number; is_active: boolean; is_event_active: boolean };
 
-const filters: { key: NotificationFilter; label: string }[] = [
+const filters: { key: NotificationFilter; label: string; icon?: string; iconClass?: string }[] = [
   { key: 'all', label: 'Semua' },
   { key: 'unread', label: 'Belum Dibaca' },
-  { key: 'coin', label: 'Edu Coin' },
-  { key: 'badge', label: 'Badge' },
-  { key: 'registration', label: 'Pendaftaran' },
+  { key: 'coin', label: 'Edu Coin', icon: 'fa-coins', iconClass: 'text-[#FBBF24]' },
+  { key: 'badge', label: 'Badge', icon: 'fa-award', iconClass: 'text-[#A78BFA]' },
+  { key: 'registration', label: 'Pendaftaran', icon: 'fa-clipboard-check', iconClass: 'text-[#34D399]' },
 ];
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
@@ -109,29 +107,41 @@ const categoryLabel = (category: NotificationCategory) => ({
 })[category];
 
 const categoryStyle = (category: NotificationCategory) => ({
-  coin: 'border-amber-500/25 bg-amber-500/10 text-amber-500',
-  badge: 'border-purple-500/25 bg-purple-500/10 text-purple-400',
-  registration: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-500',
-  general: 'border-[#3B82F6]/25 bg-[#3B82F6]/10 text-[#3B82F6]',
+  coin: 'border-amber-500/30 bg-amber-500/10 text-[#FBBF24]',
+  badge: 'border-purple-500/30 bg-purple-500/10 text-[#C084FC]',
+  registration: 'border-[#10B981]/30 bg-[#10B981]/10 text-[#34D399]',
+  general: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#60A5FA]',
 })[category];
 
 const iconFor = (n: DetailNotification) => {
   const category = categoryFor(n);
-  if (category === 'coin') return <Coins size={18} className="text-amber-400"/>;
-  if (category === 'badge') return <Award size={18} className="text-purple-400"/>;
-  if (category === 'registration') return <Trophy size={18} className="text-emerald-400"/>;
-  switch (n.type) {
-    case 'result-out': return <Trophy size={18} className="text-amber-400"/>;
-    case 'competition-start': return <Play size={18} className="text-sky-400"/>;
-    case 'rank-up': return <TrendingUp size={18} className="text-[#3B82F6]"/>;
-    case 'registration-rejected': return <AlertCircle size={18} className="text-red-400"/>;
-    case 'registration-approved': return <Award size={18} className="text-emerald-400"/>;
-    case 'follow-request': return <UserPlus size={18} className="text-sky-400"/>;
-    case 'follow-accepted': return <UserCheck size={18} className="text-emerald-400"/>;
-    case 'order-update': return <Truck size={18} className="text-sky-400"/>;
-    case 'daily-reminder': return <Clock size={18} className="text-amber-400"/>;
-    default: return <Bell size={18} className="text-[#60A5FA]"/>;
+  let icon = 'fa-bell';
+  let color = 'text-[#60A5FA]';
+
+  if (category === 'coin') {
+    icon = 'fa-coins';
+    color = 'text-[#FBBF24]';
+  } else if (category === 'badge') {
+    icon = 'fa-award';
+    color = 'text-[#C084FC]';
+  } else if (category === 'registration') {
+    icon = 'fa-circle-check';
+    color = 'text-[#34D399]';
+  } else {
+    switch (n.type) {
+      case 'result-out': icon = 'fa-trophy'; color = 'text-[#FBBF24]'; break;
+      case 'competition-start': icon = 'fa-play'; color = 'text-sky-400'; break;
+      case 'rank-up': icon = 'fa-chart-line'; color = 'text-[#60A5FA]'; break;
+      case 'registration-rejected': icon = 'fa-circle-exclamation'; color = 'text-red-400'; break;
+      case 'registration-approved': icon = 'fa-circle-check'; color = 'text-[#34D399]'; break;
+      case 'follow-request': icon = 'fa-user-plus'; color = 'text-sky-400'; break;
+      case 'follow-accepted': icon = 'fa-user-check'; color = 'text-[#34D399]'; break;
+      case 'order-update': icon = 'fa-truck'; color = 'text-sky-400'; break;
+      case 'daily-reminder': icon = 'fa-clock'; color = 'text-[#FBBF24]'; break;
+    }
   }
+
+  return <i aria-hidden="true" className={'fa-solid ' + icon + ' ' + color} />;
 };
 
 const actionFor = (n: DetailNotification): NotificationAction | null => {
@@ -146,12 +156,6 @@ const actionFor = (n: DetailNotification): NotificationAction | null => {
     default: return data.link ? { label: 'Buka', url: data.link } : null;
   }
 };
-
-function getFilterCount(rows: DetailNotification[], filter: NotificationFilter) {
-  if (filter === 'all') return rows.length;
-  if (filter === 'unread') return rows.filter((row) => !row.read).length;
-  return rows.filter((row) => categoryFor(row) === filter).length;
-}
 
 export function NotificationsPage() {
   const { user, toast, markNotificationRead, markAllNotificationsRead } = useApp();
@@ -317,21 +321,37 @@ export function NotificationsPage() {
     const sender = notification.data?.sender_name || notification.data?.organization_name || 'Sistem SYKABELAJAR';
     const category = categoryFor(notification);
     return (
-      <button key={notification.id} type="button" onClick={() => void open(notification)} className="group h-full w-full rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1120]">
-        <Card className={`relative flex h-full items-start justify-between gap-3 overflow-hidden border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${!notification.read ? 'border-[#3B82F6]/50 bg-white shadow-sm shadow-blue-950/5 dark:bg-[#151E32]' : 'border-slate-200 bg-white hover:border-slate-300 dark:border-[#1E293B] dark:bg-[#151E32] dark:hover:border-slate-700'}`}>
-          <div className="flex min-w-0 flex-1 items-start gap-3.5">
-            <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${categoryStyle(category)}`}>{iconFor(notification)}</div>
+      <button
+        key={notification.id}
+        type="button"
+        onClick={() => void open(notification)}
+        className="group h-full w-full rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1120]"
+      >
+        <Card className={[
+          'notification-card relative flex min-h-[104px] h-full items-start justify-between gap-4 overflow-hidden rounded-2xl border p-4 transition-all duration-200',
+          notification.read
+            ? 'notification-card-read border-[#1E293B] bg-[#151E32]'
+            : 'notification-card-unread border-[#3B82F6]/50 bg-[#151E32]',
+        ].join(' ')}>
+          <div className={['flex min-w-0 flex-1 items-start gap-3.5', notification.read ? 'opacity-75 transition-opacity group-hover:opacity-100' : ''].join(' ')}>
+            <div className={'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg ' + categoryStyle(category)}>
+              {iconFor(notification)}
+            </div>
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900 dark:text-white">{notification.title}</h3>
-                {!notification.read && <span className="h-2 w-2 shrink-0 rounded-full bg-[#3B82F6] shadow-[0_0_0_3px_rgba(59,130,246,0.12)]" aria-label="Belum dibaca"/>}
+                <h3 className="min-w-0 flex-1 truncate text-sm font-bold text-white">{notification.title}</h3>
+                {!notification.read && <span className="h-2 w-2 shrink-0 rounded-full bg-[#3B82F6] shadow-[0_0_0_3px_rgba(59,130,246,0.12)]" aria-label="Belum dibaca" />}
                 {notification.data?.urgent && <span className="rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[9px] font-bold text-red-400">Penting</span>}
               </div>
-              <p className="line-clamp-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">{notification.body}</p>
-              <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] font-medium text-slate-400 dark:text-slate-500"><span>{timeAgo(notification.createdAt)}</span><span aria-hidden="true">·</span><span className="truncate">{sender}</span></div>
+              <p className="line-clamp-2 text-xs leading-relaxed text-slate-300">{notification.body}</p>
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-medium text-slate-400">
+                <span>{timeAgo(notification.createdAt)}</span>
+                <span aria-hidden="true">·</span>
+                <span className="truncate">{sender}</span>
+              </div>
             </div>
           </div>
-          <ArrowRight size={14} className="mt-2 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-[#3B82F6]"/>
+          <i aria-hidden="true" className="fa-solid fa-chevron-right mt-1 shrink-0 text-xs text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-slate-300" />
         </Card>
       </button>
     );
@@ -350,97 +370,223 @@ export function NotificationsPage() {
       : 'Menunggu proses';
 
   return (
-    <div className="min-h-full bg-[#F8FAFC] px-4 pb-10 pt-5 text-slate-800 dark:bg-[#0B1120] dark:text-slate-200 sm:px-6 sm:pt-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="flex flex-col gap-3 border-b border-slate-200/80 pb-5 dark:border-[#1E293B]/80 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-slate-400 dark:text-slate-500"><span>Aktivitas</span><span aria-hidden="true">›</span><span className="text-slate-600 dark:text-slate-300">Notifikasi &amp; Referral</span></div>
-            <h1 className="flex flex-wrap items-center gap-2 text-xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Notifikasi &amp; Program Referral</h1>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Kabar akun, aktivitas, dan undangan komunitasmu dalam satu tempat.</p>
-          </div>
-          <div className="flex items-center gap-2 self-start rounded-full border border-[#3B82F6]/20 bg-[#3B82F6]/10 px-3 py-1.5 text-[11px] font-bold text-[#3B82F6]"><Bell size={13}/>{unread.length} belum dibaca</div>
-        </header>
-
-        <div className="flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-[#1E293B] dark:bg-[#151E32] sm:flex-row sm:items-center">
-          <div className="flex w-full items-center gap-1 rounded-xl border border-slate-200 bg-slate-100/80 p-1 dark:border-[#1E293B] dark:bg-[#0B1120]/70 sm:w-auto">
-            <button type="button" onClick={() => switchTab('notifications')} aria-pressed={activeTab === 'notifications'} className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-all sm:flex-initial ${activeTab === 'notifications' ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-[#1C273E] dark:hover:text-slate-200'}`}><Bell size={14}/><span>Notifikasi Pesan</span><span className={`rounded-full px-1.5 py-0.5 text-[9px] ${activeTab === 'notifications' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-300'}`}>{unread.length}</span></button>
-            <button type="button" onClick={() => switchTab('referral')} aria-pressed={activeTab === 'referral'} className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold transition-all sm:flex-initial ${activeTab === 'referral' ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-[#1C273E] dark:hover:text-slate-200'}`}><Gift size={14} className={activeTab === 'referral' ? 'text-white' : 'text-[#60A5FA]'}/><span>Program Referral</span>{referralPreview?.is_active && <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${activeTab === 'referral' ? 'bg-white/20 text-white' : 'border border-emerald-500/25 bg-emerald-500/10 text-emerald-500'}`}>+{referralPreview.reward_amount.toLocaleString('id-ID')} Coin</span>}</button>
+    <div className="notifications-page min-h-full bg-[#0B1120] px-4 pb-10 pt-8 text-slate-200 sm:px-6 lg:px-8">
+      <div className="notifications-page-content mx-auto w-full max-w-[1234px] space-y-6">
+        <div className="notifications-tab-shell flex flex-col items-center justify-between gap-3 rounded-2xl border border-[#1E293B] bg-[#151E32] p-2 sm:flex-row">
+          <div className="notifications-tab-group flex w-full items-center gap-1 rounded-xl border border-[#1E293B] bg-[#0B1220] p-1 sm:w-auto">
+            <button
+              type="button"
+              onClick={() => switchTab('notifications')}
+              aria-pressed={activeTab === 'notifications'}
+              className={['notifications-tab flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-all sm:flex-initial', activeTab === 'notifications' ? 'is-active bg-[#2563EB] text-white shadow-lg shadow-blue-600/25' : 'text-slate-400 hover:bg-[#1C273E] hover:text-slate-200'].join(' ')}
+            >
+              <i aria-hidden="true" className="fa-solid fa-bell" />
+              <span>Notifikasi Pesan</span>
+              {unread.length > 0 && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold text-white">{unread.length > 99 ? '99+' : unread.length}</span>}
+            </button>
+            <button
+              type="button"
+              onClick={() => switchTab('referral')}
+              aria-pressed={activeTab === 'referral'}
+              className={['notifications-tab flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold transition-all sm:flex-initial', activeTab === 'referral' ? 'is-active bg-[#2563EB] text-white shadow-lg shadow-blue-600/25' : 'text-slate-400 hover:bg-[#1C273E] hover:text-slate-200'].join(' ')}
+            >
+              <i aria-hidden="true" className="fa-solid fa-gift text-[#94A3B8]" />
+              <span>Program Referral</span>
+              {referralPreview?.is_active && <span className="rounded-full border border-[#10B981]/30 bg-[#10B981]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#34D399]">+{referralPreview.reward_amount.toLocaleString('id-ID')} Edu Coin</span>}
+            </button>
           </div>
           {activeTab === 'notifications' && (
-            <div className="flex justify-end">
-              {unread.some((row) => !Boolean(row.data?.urgent)) && <Button size="sm" variant="ghost" onClick={() => void allRead()} icon={<CheckCheck size={14}/>}>Tandai Semua Dibaca</Button>}
+            <div className="flex w-full justify-end sm:w-auto">
+              {unread.some((row) => !Boolean(row.data?.urgent)) && (
+                <button type="button" onClick={() => void allRead()} className="notifications-mark-read flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-[#1C273E] hover:text-slate-200">
+                  <i aria-hidden="true" className="fa-solid fa-check-double text-slate-500" />
+                  Tandai semua dibaca
+                </button>
+              )}
             </div>
           )}
         </div>
 
-        {activeTab === 'referral' ? <ReferralProgramPanel/> : (
-          <section className="space-y-4">
-            <div className="relative flex flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-[#3B82F6]/30 bg-gradient-to-r from-[#1E3A8A]/40 via-indigo-900/20 to-purple-900/30 p-4 shadow-lg shadow-blue-950/5 sm:flex-row sm:items-center sm:p-5">
-              <div className="pointer-events-none absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-[#3B82F6]/10 blur-3xl"/>
-              <div className="relative z-10 flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#2563EB] to-indigo-500 text-white shadow-lg shadow-blue-500/20"><Users size={22}/></div>
+        {activeTab === 'referral' ? (
+          <ReferralProgramPanel />
+        ) : (
+          <section className="space-y-5">
+            <div className="notifications-promo relative flex min-h-[91px] flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-[#3B82F6]/35 bg-gradient-to-r from-[#142957] via-[#171C3C] to-[#24183F] p-4 sm:flex-row sm:items-center sm:px-5">
+              <div className="pointer-events-none absolute -bottom-12 -right-8 h-40 w-40 rounded-full bg-[#6366F1]/15 blur-3xl" />
+              <div className="relative z-10 flex min-w-0 items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#3B82F6] text-xl text-white shadow-lg shadow-blue-500/25">
+                  <i aria-hidden="true" className="fa-solid fa-users-rays" />
+                </div>
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-bold text-slate-900 dark:text-white sm:text-base">Ajak Teman, Dapatkan Edu Coin!</h2><span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-500">{referralPreview?.is_event_active ? 'Bonus Event Aktif' : 'Program Referral'}</span>{referralPreview?.is_active && <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-500">+{referralPreview.reward_amount.toLocaleString('id-ID')} Edu Coin</span>}</div>
-                  <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600 dark:text-slate-300">Bagikan link undanganmu dan pantau reward yang sedang berlaku dari satu halaman.</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-sm font-extrabold text-white sm:text-base">Ajak Teman, Dapatkan Edu Coin!</h2>
+                    <span className={['rounded-full border px-2 py-0.5 text-[10px] font-bold', referralPreview?.is_event_active ? 'border-amber-500/30 bg-amber-500/15 text-amber-400' : referralPreview?.is_active ? 'border-emerald-500/25 bg-emerald-500/10 text-[#34D399]' : 'border-slate-500/30 bg-slate-500/10 text-slate-300'].join(' ')}>
+                      {referralPreview?.is_event_active ? 'Bonus Event Aktif' : referralPreview?.is_active ? 'Program Aktif' : 'Program Nonaktif'}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs leading-relaxed text-slate-300">
+                    {referralPreview?.is_active
+                      ? <>Dapatkan <strong className="font-bold text-amber-400">{(referralPreview.reward_amount || 0).toLocaleString('id-ID')} Edu Coin</strong> untuk setiap teman yang memenuhi syarat program referral.</>
+                      : 'Program referral sedang tidak menerima undangan baru.'}
+                  </p>
                 </div>
               </div>
-              <button type="button" onClick={() => switchTab('referral')} className="relative z-10 flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-[#1D4ED8] sm:w-auto">Buka Program Referral<ArrowRight size={14}/></button>
+              <button type="button" onClick={() => switchTab('referral')} className="notifications-promo-action relative z-10 flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-[#1D4ED8] sm:w-auto">
+                <span>Buka Program Referral</span>
+                <i aria-hidden="true" className="fa-solid fa-arrow-right text-[10px]" />
+              </button>
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1" role="group" aria-label="Filter notifikasi">
-              <span className="mr-1 shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">Filter:</span>
-              {filters.map(({ key, label }) => {
+            <div className="notifications-filter-row flex items-center gap-2 overflow-x-auto pb-1 pt-1" role="group" aria-label="Filter notifikasi">
+              <span className="mr-1 shrink-0 text-xs font-medium text-slate-400">Filter:</span>
+              {filters.map(({ key, label, icon, iconClass }) => {
                 const active = filter === key;
-                const count = getFilterCount(rows, key);
-                return <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={active} className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-semibold transition ${active ? 'border-[#2563EB] bg-[#2563EB] text-white shadow-md shadow-blue-600/20' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-[#1E293B] dark:bg-[#151E32] dark:text-slate-300 dark:hover:bg-[#1C273E]'}`}>{label}<span className={`rounded-full px-1.5 py-0.5 text-[9px] ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>{count}</span></button>;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setFilter(key)}
+                    aria-pressed={active}
+                    className={['notifications-filter flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition', active ? 'is-active border-[#2563EB] bg-[#2563EB] text-white shadow-md shadow-blue-600/20' : 'border-[#1E293B] bg-[#1C273E] text-slate-300 hover:bg-[#26344E]'].join(' ')}
+                  >
+                    {icon && <i aria-hidden="true" className={'fa-solid ' + icon + ' ' + iconClass} />}
+                    {label}
+                  </button>
+                );
               })}
             </div>
 
-            {loading ? <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-2" aria-label="Memuat notifikasi"><div className="h-28 animate-pulse rounded-2xl bg-slate-200 dark:bg-[#151E32]"/><div className="h-28 animate-pulse rounded-2xl bg-slate-200 dark:bg-[#151E32]"/><div className="h-28 animate-pulse rounded-2xl bg-slate-200 dark:bg-[#151E32]"/></div>
-              : filteredRows.length === 0 ? <Card className="px-6 py-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800"><Bell size={22}/></div><h3 className="mt-3 text-sm font-bold text-slate-900 dark:text-white">{rows.length === 0 ? 'Belum Ada Notifikasi' : 'Tidak Ada Notifikasi di Filter Ini'}</h3><p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-slate-500 dark:text-slate-400">{rows.length === 0 ? 'Notifikasi baru akan muncul di sini saat ada aktivitas pada akunmu.' : 'Coba pilih filter yang lain untuk melihat notifikasi.'}</p></Card>
-              : <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-2">{filteredRows.map(renderNotification)}</div>}
+            {loading ? (
+              <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-2" aria-label="Memuat notifikasi">
+                <div className="h-[104px] animate-pulse rounded-2xl border border-[#1E293B] bg-[#151E32]" />
+                <div className="h-[104px] animate-pulse rounded-2xl border border-[#1E293B] bg-[#151E32]" />
+                <div className="h-[104px] animate-pulse rounded-2xl border border-[#1E293B] bg-[#151E32]" />
+              </div>
+            ) : filteredRows.length === 0 ? (
+              <Card className="border border-[#1E293B] bg-[#151E32] px-6 py-12 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400">
+                  <i aria-hidden="true" className="fa-solid fa-bell text-xl" />
+                </div>
+                <h3 className="mt-3 text-sm font-bold text-white">{rows.length === 0 ? 'Belum Ada Notifikasi' : 'Tidak Ada Notifikasi di Filter Ini'}</h3>
+                <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-slate-400">{rows.length === 0 ? 'Notifikasi baru akan muncul di sini saat ada aktivitas pada akunmu.' : 'Coba pilih filter yang lain untuk melihat notifikasi.'}</p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-2">
+                {filteredRows.map(renderNotification)}
+              </div>
+            )}
           </section>
         )}
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="notification-modal-title" className="max-h-[90vh] w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-[#151E32]">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/40">
+        <div
+          className="notification-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md"
+          role="presentation"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}
+        >
+          <section role="dialog" aria-modal="true" aria-labelledby="notification-modal-title" className="notification-modal-panel flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-800 bg-[#151E32] shadow-2xl">
+            <div className="notification-modal-header flex shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-900/40 px-5 py-4">
               <div className="flex min-w-0 items-center gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${categoryStyle(selectedCategory)}`}>{iconFor(selected)}</div>
-                <div className="min-w-0"><h4 className="truncate text-xs font-bold text-slate-900 dark:text-white">{selected.data?.sender_name || selected.data?.organization_name || 'Sistem SYKABELAJAR'}</h4><p className="mt-0.5 text-[11px] font-medium text-slate-400">{new Date(selected.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}</p></div>
+                <div className={'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg ' + categoryStyle(selectedCategory)}>
+                  {iconFor(selected)}
+                </div>
+                <div className="min-w-0">
+                  <h4 className="truncate text-xs font-bold text-white">{selected.data?.sender_name || selected.data?.organization_name || 'Sistem SYKABELAJAR'}</h4>
+                  <p className="mt-0.5 text-[11px] font-medium text-slate-400">{new Date(selected.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                </div>
               </div>
-              <button type="button" onClick={() => setSelected(null)} className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-500 transition hover:bg-slate-300 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white" aria-label="Tutup"><X size={15}/></button>
+              <button type="button" onClick={() => setSelected(null)} className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-400 transition hover:bg-slate-700 hover:text-white" aria-label="Tutup">
+                <i aria-hidden="true" className="fa-solid fa-xmark text-sm" />
+              </button>
             </div>
-            <div className="max-h-[calc(90vh-145px)] space-y-5 overflow-y-auto p-5 sm:p-6">
-              <div><span className={`mb-2 inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${categoryStyle(selectedCategory)}`}>{categoryLabel(selectedCategory)}</span><h3 id="notification-modal-title" className="text-lg font-extrabold leading-snug text-slate-900 dark:text-white">{selected.title}</h3></div>
+
+            <div className="notification-modal-body min-h-0 space-y-5 overflow-y-auto p-5 sm:p-6">
+              <div>
+                <span className={'mb-2 inline-block rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ' + categoryStyle(selectedCategory)}>{categoryLabel(selectedCategory)}</span>
+                <h3 id="notification-modal-title" className="text-lg font-extrabold leading-snug text-white">{selected.title}</h3>
+              </div>
+
               {selectedCategory === 'coin' && selectedAmount != null && Number.isFinite(selectedAmount) && (
-                <div className="flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center dark:border-slate-800 dark:bg-slate-900/70"><div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-lg shadow-amber-500/10"><Coins size={28}/></div><div><span className="block text-xs font-semibold text-slate-400">{selectedIsSpending ? 'Edu Coin Digunakan' : 'Nominal Reward'}</span><span className="text-2xl font-black tracking-tight text-amber-500">{selectedIsSpending ? '−' : selectedAmount > 0 ? '+' : ''}{Math.abs(selectedAmount).toLocaleString('id-ID')} EDU</span>{selected?.data?.edu_coin_balance != null && <span className="mt-1 block text-[10px] text-slate-500">Saldo setelah transaksi: {Number(selected.data.edu_coin_balance).toLocaleString('id-ID')} Edu Coin</span>}</div><span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-500"><CheckCheck size={12}/> Informasi dari sistem</span></div>
-              )}
-              {selectedCategory === 'badge' && (
-                <div className="flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center dark:border-slate-800 dark:bg-slate-900/70">
-                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-tr from-purple-600/20 to-indigo-500/20 text-purple-400 shadow-lg shadow-purple-500/10">
-                    {selected.data?.badge_icon_url ? <img src={selected.data.badge_icon_url} alt={selected.data.badge_name || 'Ikon badge'} className="h-full w-full object-contain"/> : selected.data?.badge_icon_emoji ? <span className="text-3xl">{selected.data.badge_icon_emoji}</span> : <Award size={30}/>}
+                <div className="notification-preview-box flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-3xl text-amber-400 shadow-lg shadow-amber-500/10">
+                    <i aria-hidden="true" className="fa-solid fa-coins" />
                   </div>
-                  <div><h5 className="text-sm font-extrabold text-slate-900 dark:text-white">{selected.data?.badge_name || selected.title}</h5><p className="mt-0.5 text-xs font-medium text-purple-500">{selected.data?.badge_rarity || 'Badge pencapaian'}</p></div>
-                  {selected.data?.badge_description && <p className="max-w-sm text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{selected.data.badge_description}</p>}
-                  {selected.data?.award_source_label && <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">Sumber: {selected.data.award_source_label}</span>}
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-400">{selectedIsSpending ? 'Edu Coin Digunakan' : 'Nominal Reward'}</span>
+                    <span className="text-2xl font-black tracking-tight text-amber-400">{selectedIsSpending ? '−' : selectedAmount > 0 ? '+' : ''}{Math.abs(selectedAmount).toLocaleString('id-ID')} EDU</span>
+                    {selected?.data?.edu_coin_balance != null && <span className="mt-1 block text-[10px] text-slate-500">Saldo setelah transaksi: {Number(selected.data.edu_coin_balance).toLocaleString('id-ID')} Edu Coin</span>}
+                  </div>
+                  <span className="flex items-center gap-1.5 rounded-full border border-[#10B981]/20 bg-[#10B981]/10 px-3 py-1 text-[10px] font-bold text-[#34D399]">
+                    <i aria-hidden="true" className="fa-solid fa-circle-check" /> Masuk Saldo Utama
+                  </span>
                 </div>
               )}
+
+              {selectedCategory === 'badge' && (
+                <div className="notification-preview-box flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-center">
+                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-tr from-purple-600/20 to-indigo-500/20 text-3xl text-purple-400 shadow-lg shadow-purple-500/20">
+                    {selected.data?.badge_icon_url
+                      ? <img src={selected.data.badge_icon_url} alt={selected.data.badge_name || 'Ikon badge'} className="h-full w-full object-contain" />
+                      : selected.data?.badge_icon_emoji
+                        ? <span>{selected.data.badge_icon_emoji}</span>
+                        : <i aria-hidden="true" className="fa-solid fa-award" />}
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-extrabold text-white">{selected.data?.badge_name || selected.title}</h5>
+                    <p className="text-xs font-medium text-purple-300">{selected.data?.badge_rarity || 'Badge pencapaian'}</p>
+                  </div>
+                  {selected.data?.badge_description && <p className="max-w-sm text-[11px] leading-relaxed text-slate-400">{selected.data.badge_description}</p>}
+                  {selected.data?.award_source_label && <span className="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-0.5 text-[10px] text-slate-300">Sumber: {selected.data.award_source_label}</span>}
+                </div>
+              )}
+
               {selectedCategory === 'registration' && (
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-500"><Trophy size={22}/></div>
-                  <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Status Pendaftaran</p><p className={`mt-1 text-xs font-extrabold ${registrationStatus === 'Disetujui' ? 'text-emerald-500' : registrationStatus === 'Ditolak' ? 'text-red-400' : 'text-amber-500'}`}>{registrationStatus}</p><p className="mt-0.5 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">Informasi mengikuti status yang dikirim sistem penyelenggara.</p></div>
+                <div className="notification-preview-box flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#10B981]/30 bg-[#10B981]/10 text-2xl text-[#34D399]">
+                    <i aria-hidden="true" className="fa-solid fa-file-circle-check" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Status Pendaftaran</p>
+                    <p className={['mt-1 text-xs font-extrabold', registrationStatus === 'Disetujui' ? 'text-[#34D399]' : registrationStatus === 'Ditolak' ? 'text-red-400' : 'text-amber-400'].join(' ')}>{registrationStatus}</p>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-slate-400">Informasi mengikuti status yang dikirim sistem penyelenggara.</p>
+                  </div>
                 </div>
               )}
-              <div><p className="text-sm font-bold leading-relaxed text-slate-800 dark:text-slate-200">{selected.body}</p>{selected.data?.description && <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{selected.data.description}</p>}</div>
-              {selected.data?.sender_name && !selected.data?.from_admin && <p className="text-xs text-slate-500">Pengirim: <span className="font-semibold text-slate-800 dark:text-slate-200">{selected.data.sender_name}</span></p>}
-              {selected.data?.organization_name && <p className="text-xs text-slate-500">Organisasi: <span className="font-semibold text-slate-800 dark:text-slate-200">{selected.data.organization_name}</span></p>}
-              {selected.type === 'follow-request' && !selected.data?.resolved ? <div className="flex gap-2"><Button fullWidth disabled={busy === selected.id} onClick={() => void decide(selected, true)} icon={<UserCheck size={14}/>}>Terima</Button><Button fullWidth variant="outline" disabled={busy === selected.id} onClick={() => void decide(selected, false)} icon={<UserX size={14}/>}>Tolak</Button></div>
-                : <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="outline" onClick={() => setSelected(null)}>Tutup</Button>{selectedAction && <Button onClick={() => goAction(selected)} icon={<ExternalLink size={14}/>}>{selectedAction.label}</Button>}</div>}
+
+              <div>
+                <p className="text-sm font-semibold leading-relaxed text-slate-200">{selected.body}</p>
+                {selected.data?.description && <p className="mt-2 text-xs leading-relaxed text-slate-400">{selected.data.description}</p>}
+              </div>
+              {selected.data?.sender_name && !selected.data?.from_admin && <p className="text-xs text-slate-400">Pengirim: <span className="font-semibold text-slate-200">{selected.data.sender_name}</span></p>}
+              {selected.data?.organization_name && <p className="text-xs text-slate-400">Organisasi: <span className="font-semibold text-slate-200">{selected.data.organization_name}</span></p>}
             </div>
-            <div className="flex items-center gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-medium text-slate-400 dark:border-slate-800/80 dark:bg-slate-900/30"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/><span>Terverifikasi oleh sistem SYKABELAJAR</span></div>
+
+            <footer className="notification-modal-footer flex shrink-0 flex-col gap-3 border-t border-slate-800/80 bg-slate-900/30 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                <i aria-hidden="true" className="fa-solid fa-shield-halved text-[#34D399]" />
+                Terverifikasi oleh sistem
+              </span>
+              <div className="flex items-center justify-end gap-2">
+                {selected.type === 'follow-request' && !selected.data?.resolved ? (
+                  <>
+                    <button type="button" onClick={() => setSelected(null)} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">Tutup</button>
+                    <button type="button" disabled={busy === selected.id} onClick={() => void decide(selected, false)} className="rounded-xl border border-slate-700 bg-transparent px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 disabled:opacity-50">Tolak</button>
+                    <button type="button" disabled={busy === selected.id} onClick={() => void decide(selected, true)} className="rounded-xl bg-[#2563EB] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-[#1D4ED8] disabled:opacity-50">Terima</button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => setSelected(null)} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">Tutup</button>
+                    {selectedAction && (
+                      <button type="button" onClick={() => goAction(selected)} className="flex items-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-[#1D4ED8]">
+                        <span>{selectedAction.label || 'Lihat Detail'}</span>
+                        <i aria-hidden="true" className="fa-solid fa-arrow-right text-[10px]" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </footer>
           </section>
         </div>
       )}
