@@ -236,6 +236,8 @@ export function NotificationsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'referral' ? 'referral' : 'notifications';
+  const [displayedTab, setDisplayedTab] = useState<'notifications' | 'referral'>(activeTab);
+  const [tabContentVisible, setTabContentVisible] = useState(true);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [rows, setRows] = useState<DetailNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -256,7 +258,7 @@ export function NotificationsPage() {
   }, []);
 
   useEffect(() => {
-    if (!user?.id || activeTab === 'referral') {
+    if (!user?.id) {
       setReferralPreview(null);
       return;
     }
@@ -287,7 +289,26 @@ export function NotificationsPage() {
       document.removeEventListener('visibilitychange', onVisibility);
       void supabase.removeChannel(channel);
     };
-  }, [user?.id, activeTab]);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (displayedTab === activeTab) {
+      setTabContentVisible(true);
+      return;
+    }
+
+    setTabContentVisible(false);
+    let animationFrame: number | undefined;
+    const transitionTimer = window.setTimeout(() => {
+      setDisplayedTab(activeTab);
+      animationFrame = window.requestAnimationFrame(() => setTabContentVisible(true));
+    }, 150);
+
+    return () => {
+      window.clearTimeout(transitionTimer);
+      if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
+    };
+  }, [activeTab, displayedTab]);
 
   useEffect(() => {
     let live = true;
@@ -485,7 +506,7 @@ export function NotificationsPage() {
               aria-pressed={activeTab === 'referral'}
               className={['notifications-tab flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold transition-all sm:flex-initial', activeTab === 'referral' ? 'is-active bg-[#2563EB] text-white shadow-lg shadow-blue-600/25' : 'text-slate-400 hover:bg-[#1C273E] hover:text-slate-200'].join(' ')}
             >
-              <i aria-hidden="true" className="fa-solid fa-gift text-[#94A3B8]" />
+              <i aria-hidden="true" className={['fa-solid fa-gift transition-colors duration-300', activeTab === 'referral' ? 'text-white' : 'text-[#94A3B8]'].join(' ')} />
               <span>Program Referral</span>
               {referralPreview?.is_active && <span className="rounded-full border border-[#10B981]/30 bg-[#10B981]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#34D399]">+{referralPreview.reward_amount.toLocaleString('id-ID')} Edu Coin</span>}
             </button>
@@ -505,10 +526,11 @@ export function NotificationsPage() {
           )}
         </div>
 
-        {activeTab === 'referral' ? (
-          <ReferralProgramPanel />
-        ) : (
-          <section className="space-y-5">
+        <div className={['transition-all duration-300 ease-out', tabContentVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'].join(' ')}>
+          {displayedTab === 'referral' ? (
+            <ReferralProgramPanel />
+          ) : (
+            <section className="space-y-5">
             <div className="notifications-promo relative flex min-h-[91px] flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-[#3B82F6]/35 bg-gradient-to-r from-[#142957] via-[#171C3C] to-[#24183F] p-4 sm:flex-row sm:items-center sm:px-5">
               <div className="pointer-events-none absolute -bottom-12 -right-8 h-40 w-40 rounded-full bg-[#6366F1]/15 blur-3xl" />
               <div className="relative z-10 flex min-w-0 items-center gap-4">
@@ -575,8 +597,9 @@ export function NotificationsPage() {
                 {filteredRows.map(renderNotification)}
               </div>
             )}
-          </section>
-        )}
+            </section>
+          )}
+        </div>
       </div>
 
       {selected && (
