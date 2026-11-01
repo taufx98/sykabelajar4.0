@@ -213,7 +213,7 @@ export function ReferralSettingsPanel() {
   const validPromo = draft.promo_title.trim().length > 0 && draft.promo_title.length <= 100
     && draft.promo_description.trim().length > 0 && draft.promo_description.length <= 240
     && draft.promo_badge.length <= 30
-    && draft.promo_cta.trim().length > 0 && draft.promo_cta.length <= 60;
+    && draft.promo_cta.trim().length > 0 && draft.promo_badge.trim().length > 0 && draft.promo_cta.length > 0 && draft.promo_cta.length <= 60;
   const dirty = Boolean(savedSnapshot) && JSON.stringify(draft) !== savedSnapshot;
 
   const updateTier = (index: number, key: keyof ReferralMilestoneDraft, value: string) => {
@@ -365,10 +365,6 @@ export function ReferralSettingsPanel() {
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3B82F6]/10 text-[#3B82F6]"><Gift size={19}/></span>
               <div><h3 className="text-sm font-bold text-fg">Konten promo di halaman Notifikasi</h3><p className="mt-1 text-xs leading-relaxed text-fg-muted">Atur teks pada banner “Ajak Teman”. Semua perubahan tampil untuk seluruh pengguna setelah disimpan.</p></div>
             </div>
-            <label className="flex items-center justify-between gap-4 rounded-xl border surface-border p-3">
-              <span><span className="block text-xs font-semibold text-fg">Tampilkan promo referral</span><span className="mt-0.5 block text-[10px] text-fg-muted">Bila dimatikan, banner tidak ditampilkan di halaman Notifikasi.</span></span>
-              <input type="checkbox" className="h-5 w-5 accent-blue-600" checked={draft.promo_is_enabled} onChange={(event) => setDraft((current) => ({ ...current, promo_is_enabled: event.target.checked }))}/>
-            </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block sm:col-span-2"><span className="label">Judul promo</span><input className="input mt-1 w-full" maxLength={100} value={draft.promo_title} onChange={(event) => setDraft((current) => ({ ...current, promo_title: event.target.value }))}/></label>
               <label className="block sm:col-span-2"><span className="label">Deskripsi promo</span><textarea className="input mt-1 min-h-20 w-full resize-y" maxLength={240} value={draft.promo_description} onChange={(event) => setDraft((current) => ({ ...current, promo_description: event.target.value }))}/><span className="mt-1 block text-[10px] text-fg-muted">Gunakan <code>{'{reward}'}</code> untuk menyisipkan nominal reward aktif secara otomatis.</span></label>
@@ -381,7 +377,7 @@ export function ReferralSettingsPanel() {
               <p className="mt-1 text-xs text-fg-muted">{draft.promo_description.split('{reward}').join(`${(saved?.reward_amount ?? (baseReward || 0)).toLocaleString('id-ID')} Edu Coin`)}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2"><Badge color="moss">{draft.promo_badge || 'Badge'}</Badge><span className="rounded-lg bg-[#2563EB] px-3 py-2 text-[10px] font-bold text-white">{draft.promo_cta || 'Tombol'}</span></div>
             </div>
-            {!validPromo && <p className="text-xs font-medium text-red-400">Periksa panjang judul, deskripsi, badge, dan teks tombol promo.</p>}
+            {!validPromo && <p className="text-xs font-medium text-red-400">Judul, deskripsi, badge, dan teks tombol promo wajib diisi dan tidak boleh melebihi batas karakter.</p>}
           </Card>
 
           <Card className="flex items-start gap-3 p-4">
