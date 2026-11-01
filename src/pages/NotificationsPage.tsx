@@ -172,6 +172,22 @@ export function NotificationsPage() {
   const [referralPreview, setReferralPreview] = useState<ReferralPreview | null>(null);
 
   useEffect(() => {
+    const existing = document.getElementById('syka-notification-fontawesome') as HTMLLinkElement | null;
+    if (existing) return;
+
+    const stylesheet = document.createElement('link');
+    stylesheet.id = 'syka-notification-fontawesome';
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+    stylesheet.referrerPolicy = 'no-referrer';
+    document.head.appendChild(stylesheet);
+
+    return () => {
+      stylesheet.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!user?.id || activeTab === 'referral') {
       setReferralPreview(null);
       return;
