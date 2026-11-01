@@ -71,3 +71,18 @@ test('notification navigation uses the blue reference badge without changing unr
   assert.match(appLayout, /liveUnreadNotifications/);
   assert.match(mobileNav, /unreadNotificationCount/);
 });
+
+
+test('legacy manual referral registration uses the same scheduled campaign reward', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20261101053500_referral_campaign_legacy_registration_reward.sql', import.meta.url), 'utf8');
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.register_for_competition\(/);
+  assert.match(migration, /v_referral_reward_amount integer/);
+  assert.match(migration, /s\.event_reward_amount/);
+  assert.match(migration, /s\.base_reward_amount/);
+  assert.match(migration, /s\.is_active = true/);
+  assert.match(migration, /v_referral_reward_amount,\s*'PENDING'/);
+  assert.doesNotMatch(migration, /\n\s*5,\s*'PENDING'/);
+  assert.match(migration, /ON CONFLICT \(referred_user_id\) DO NOTHING/);
+  assert.match(migration, /REVOKE ALL ON FUNCTION public\.register_for_competition\(uuid, text, uuid, text, boolean, text, text, text\) FROM PUBLIC, anon/);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.register_for_competition\(uuid, text, uuid, text, boolean, text, text, text\) TO authenticated/);
+});
