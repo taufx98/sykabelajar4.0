@@ -342,7 +342,7 @@ export function NotificationsPage() {
         <Card className={[
           'notification-card relative flex min-h-[104px] h-full items-start justify-between gap-4 overflow-hidden rounded-2xl border p-4 transition-all duration-200',
           notification.read
-            ? 'notification-card-read border-[#1E293B] bg-[#151E32]'
+            ? 'border-[#1E293B] bg-[#151E32]'
             : 'notification-card-unread border-[#3B82F6]/50 bg-[#151E32]',
         ].join(' ')}>
           <div className={['flex min-w-0 flex-1 items-start gap-3.5', notification.read ? 'opacity-75 transition-opacity group-hover:opacity-100' : ''].join(' ')}>
@@ -383,7 +383,7 @@ export function NotificationsPage() {
 
   return (
     <div className="notifications-page min-h-full bg-[#0B1120] px-4 pb-10 pt-8 text-slate-200 sm:px-6 lg:px-8">
-      <div className="notifications-page-content mx-auto w-full max-w-[1234px] space-y-6">
+      <div className="mx-auto w-full max-w-[1234px] space-y-6">
         <div className="notifications-tab-shell flex flex-col items-center justify-between gap-3 rounded-2xl border border-[#1E293B] bg-[#151E32] p-2 sm:flex-row">
           <div className="notifications-tab-group flex w-full items-center gap-1 rounded-xl border border-[#1E293B] bg-[#0B1220] p-1 sm:w-auto">
             <button
@@ -454,7 +454,7 @@ export function NotificationsPage() {
               </button>
             </div>
 
-            <div className="notifications-filter-row flex items-center gap-2 overflow-x-auto pb-1 pt-1" role="group" aria-label="Filter notifikasi">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1" role="group" aria-label="Filter notifikasi">
               <span className="mr-1 shrink-0 text-xs font-medium text-slate-400">Filter:</span>
               {filters.map(({ key, label, icon, iconClass }) => {
                 const active = filter === key;
@@ -498,7 +498,7 @@ export function NotificationsPage() {
 
       {selected && (
         <div
-          className="notification-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md"
           role="presentation"
           onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}
         >
