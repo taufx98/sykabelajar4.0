@@ -122,7 +122,12 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.doesNotMatch(styles, /\.notifications-modal-backdrop/);
   assert.match(globalHeader, /location\.pathname === '\/notifications'/);
   assert.match(globalHeader, /Notifikasi/);
-  assert.doesNotMatch(globalHeader, /Program Referral/);
+  const notificationsHeaderStart = globalHeader.indexOf("if (location.pathname === '/notifications')");
+  const notificationsHeaderEnd = globalHeader.indexOf("  return (", notificationsHeaderStart);
+  const notificationsHeader = globalHeader.slice(notificationsHeaderStart, notificationsHeaderEnd);
+  assert.ok(notificationsHeaderStart >= 0 && notificationsHeaderEnd > notificationsHeaderStart);
+  assert.doesNotMatch(notificationsHeader, /Program Referral/);
+  assert.match(globalHeader, /Daily Tasks &amp; Program Referral/);
   assert.match(notificationsPage, /fa-users-rays/);
   assert.match(notificationsPage, /fa-coins/);
   assert.match(notificationsPage, /fa-award/);
