@@ -495,3 +495,9 @@ html.light .notification-modal-header .text-slate-200 {
     align-items: stretch;
   }
 }
+
+html.light .notifications-page .notifications-tab.is-active,
+html.light .notifications-page .notifications-promo-action,
+html.light .notification-modal-footer .bg-\[\#2563EB\] {
+  color: #FFFFFF !important;
+}
