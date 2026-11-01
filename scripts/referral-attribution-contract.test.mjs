@@ -206,4 +206,6 @@ test('referral activity table preserves the reference four-column summary', asyn
   assert.match(activity, /Tanggal Gabung/);
   assert.match(activity, /Hadiah & Status/);
   assert.doesNotMatch(activity, /<th[^>]*>Aktivitas<\/th>/);
+  assert.match(panel, /row.status === 'VERIFIED' \|\| row.status === 'CREDITED'/);
+  assert.match(panel, /Edu Coin · Selesai/);
 });
