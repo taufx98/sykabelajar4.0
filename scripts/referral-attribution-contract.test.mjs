@@ -61,6 +61,8 @@ test('referral history exposes stored per-invite reward without recalculating ol
   assert.match(referralPanel, /Number\(row\.reward_amount\)/);
   assert.match(settingsPanel, /p_base_reward_amount:\s*baseReward/);
   assert.match(settingsPanel, /p_event_reward_amount:\s*eventReward/);
+  assert.match(referralPanel, /referral-program-settings/);
+  assert.match(referralPanel, /\.on\('broadcast', \{ event: 'updated' \}, scheduleRefresh\)/);
 });
 
 test('notification navigation uses the blue reference badge without changing unread-count sources', async () => {
@@ -85,4 +87,15 @@ test('legacy manual referral registration uses the same scheduled campaign rewar
   assert.match(migration, /ON CONFLICT \(referred_user_id\) DO NOTHING/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.register_for_competition\(uuid, text, uuid, text, boolean, text, text, text\) FROM PUBLIC, anon/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.register_for_competition\(uuid, text, uuid, text, boolean, text, text, text\) TO authenticated/);
+});
+
+
+test('admin referral campaign updates broadcast an invalidation event without publishing private settings', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20261101053920_referral_campaign_realtime_invalidation.sql', import.meta.url), 'utf8');
+  assert.match(migration, /PERFORM realtime\.send\(/);
+  assert.match(migration, /jsonb_build_object\('updated_at', v_row\.updated_at\)/);
+  assert.match(migration, /'referral-program-settings'/);
+  assert.match(migration, /'updated'/);
+  assert.match(migration, /false\s*\)/);
+  assert.doesNotMatch(migration, /jsonb_build_object\([^)]*reward_amount/s);
 });
