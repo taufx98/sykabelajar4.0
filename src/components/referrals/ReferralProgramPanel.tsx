@@ -176,13 +176,12 @@ export function ReferralProgramPanel() {
   );
 
   const referralMilestones = [
-    { target: 1, title: 'Target Pertama' },
-    { target: 25, title: 'Progress Konsisten' },
-    { target: 100, title: 'Komunitas Berkembang' },
-    { target: 1000, title: 'Target Komunitas' },
+    { target: 1, title: 'Target Pertama', amount: '5 Coin', bonus: null, totalNote: null, ultra: false },
+    { target: 25, title: 'Progress Konsisten', amount: '145 Coin', bonus: '+20 Bonus', totalNote: null, ultra: false },
+    { target: 100, title: 'Komunitas Berkembang', amount: '650 Coin', bonus: '+150 Coin Bonus', totalNote: null, ultra: false },
+    { target: 1000, title: 'Target Komunitas', amount: '950 Coin', bonus: '+250 Bonus Coin', totalNote: '(700 + 250)', ultra: true },
   ] as const;
   const nextMilestone = referralMilestones.find((milestone) => successful < milestone.target);
-
 
   const copyLink = async () => {
     if (!referralLink) return;
@@ -297,31 +296,77 @@ export function ReferralProgramPanel() {
               const achieved = successful >= milestone.target;
               const previousTarget = index === 0 ? 0 : referralMilestones[index - 1].target;
               const inProgress = !achieved && successful >= previousTarget;
+              const locked = !achieved && !inProgress;
               const stateClass = achieved
                 ? 'border-amber-500/50 bg-amber-500/10 shadow-lg shadow-amber-500/5'
                 : inProgress
-                  ? 'border-amber-500/40 bg-amber-500/5 shadow-lg shadow-amber-500/5'
-                  : 'border-dashed border-slate-300 bg-slate-50/70 opacity-75 dark:border-slate-700 dark:bg-slate-900/40';
+                  ? 'border-amber-500/40 bg-amber-500/10 shadow-lg shadow-amber-500/10'
+                  : 'border-dashed border-slate-700/80 bg-slate-900/40 opacity-70 hover:opacity-100';
+              const titleClass = locked ? 'text-slate-300' : 'text-white';
+              const description = index === 0
+                ? achieved ? 'Target Pertama · Achieved' : 'Target Pertama'
+                : index === 1
+                  ? achieved ? 'Target Tercapai' : inProgress ? \`Berjalan (\${successful.toLocaleString('id-ID')}/25 User)\` : milestone.title
+                  : milestone.bonus;
               return (
-                <div key={milestone.target} className={['flex items-center justify-between gap-3 rounded-xl border p-3 transition', stateClass].join(' ')}>
+                <div
+                  key={milestone.target}
+                  className={[
+                    'flex items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-300',
+                    inProgress && index === 1 ? 'animate-pulse motion-reduce:animate-none' : '',
+                    stateClass,
+                  ].join(' ')}
+                  data-referral-tier={milestone.target}
+                  aria-label={\`Target \${milestone.target.toLocaleString('id-ID')} referral: \${achieved ? 'tercapai' : inProgress ? 'sedang berjalan' : 'terkunci'}\`}
+                >
                   <div className="flex min-w-0 items-center gap-2.5">
-                    <div className={['flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-extrabold', achieved ? 'bg-amber-500 text-slate-950' : inProgress ? 'border border-amber-500/50 bg-amber-500/15 text-amber-500' : 'border border-slate-300 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800'].join(' ')}>
-                      {achieved ? <i aria-hidden="true" className="fa-solid fa-check text-[11px]"/> : index + 1}
+                    <div className={[
+                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-extrabold',
+                      achieved
+                        ? 'bg-amber-500 text-slate-950 shadow'
+                        : inProgress
+                          ? 'border border-amber-500/60 bg-amber-500/20 text-amber-400'
+                          : 'border border-slate-700/60 bg-slate-800/80 text-slate-400',
+                    ].join(' ')}>
+                      {index + 1}
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{milestone.target.toLocaleString('id-ID')} User</p>
-                        {achieved && <i aria-hidden="true" className="fa-solid fa-circle-check text-[10px] text-amber-500"/>}
-                        {!achieved && !inProgress && <i aria-hidden="true" className="fa-solid fa-lock text-[9px] text-slate-500"/>}
+                        <p className={['text-xs font-bold', titleClass].join(' ')}>{milestone.target.toLocaleString('id-ID')} User</p>
+                        {milestone.ultra && (
+                          <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1 py-0.5 text-[8px] font-bold text-amber-400/90">ULTRA</span>
+                        )}
+                        {achieved && <i aria-hidden="true" className="fa-solid fa-circle-check text-[10px] text-amber-400"/>}
+                        {inProgress && index === 1 && <span className="h-1.5 w-1.5 animate-ping rounded-full bg-amber-400 motion-reduce:animate-none"/>}
+                        {locked && <i aria-hidden="true" className="fa-solid fa-lock text-[9px] text-slate-500"/>}
                       </div>
-                      <p className={['text-[10px] font-medium', achieved ? 'text-amber-500' : inProgress ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'].join(' ')}>
-                        {achieved ? milestone.title + ' · Tercapai' : inProgress ? `Berjalan (${successful.toLocaleString('id-ID')}/${milestone.target.toLocaleString('id-ID')})` : milestone.title}
+                      <p className={[
+                        'text-[10px] font-medium leading-relaxed',
+                        achieved || inProgress ? 'text-amber-300' : 'text-slate-400',
+                      ].join(' ')}>
+                        {description}
                       </p>
                     </div>
                   </div>
-                  <span className={['shrink-0 rounded-lg px-2.5 py-1 text-[9px] font-bold', achieved ? 'border border-amber-500/30 bg-amber-500/15 text-amber-500' : inProgress ? 'bg-amber-500/10 text-amber-500' : 'border border-slate-300 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800'].join(' ')}>
-                    {achieved ? 'Tercapai' : inProgress ? 'Berjalan' : 'Terkunci'}
-                  </span>
+                  <div className="shrink-0 text-right">
+                    <span className={[
+                      'inline-block whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-extrabold',
+                      achieved || inProgress
+                        ? 'border border-amber-500/40 bg-amber-500/20 text-amber-400'
+                        : 'border border-slate-700/60 bg-slate-800/60 text-slate-400',
+                    ].join(' ')}>
+                      {milestone.amount}
+                    </span>
+                    {milestone.target === 25 && (
+                      <span className="mt-1 block text-[9px] font-medium text-emerald-400">+20 Bonus</span>
+                    )}
+                    {milestone.target === 100 && (
+                      <span className="mt-1 block text-[9px] font-medium text-slate-400">+150 Coin Bonus</span>
+                    )}
+                    {milestone.totalNote && (
+                      <span className="mt-1 block whitespace-nowrap text-[9px] text-slate-500">{milestone.totalNote}</span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -329,14 +374,38 @@ export function ReferralProgramPanel() {
         </div>
 
         <p className="border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800 dark:text-slate-400">
-          Progress ini merupakan pencapaian jumlah undangan, bukan bonus koin tambahan. Reward yang diberikan tetap mengikuti nominal aktif di atas dan nilai yang tercatat pada setiap referral.
+          Target dan nominal tier ditampilkan mengikuti referensi. Reward per referral yang benar-benar masuk tetap menggunakan nominal program aktif dan catatan transaksi backend.
         </p>
       </section>
 
-      <section className="referral-stats grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"><i aria-hidden="true" className="fa-solid fa-users"/></span><span className="text-[10px] font-medium sm:text-xs">Total Undangan</span></div><p className="mt-3 text-xl font-bold tabular-nums text-slate-900 dark:text-white">{loading ? '—' : rows.length}<span className="ml-1 text-[10px] font-normal text-slate-500">Orang</span></p></Card>
-        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#10B981]/20 bg-[#10B981]/10 text-[#34D399]"><i aria-hidden="true" className="fa-solid fa-circle-check"/></span><span className="text-[10px] font-medium sm:text-xs">Berhasil</span></div><p className="mt-3 text-xl font-bold tabular-nums text-[#34D399]">{loading ? '—' : successful}<span className="ml-1 text-[10px] font-normal text-slate-500">Orang</span></p></Card>
-        <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500"><i aria-hidden="true" className="fa-solid fa-coins"/></span><span className="text-[10px] font-medium sm:text-xs">Reward Diperoleh</span></div><p className="mt-3 text-xl font-bold tabular-nums text-amber-500">{loading ? '—' : rewardEarned.toLocaleString('id-ID')}<span className="ml-1 text-[10px] font-normal text-slate-500">Coin</span></p></Card>
+      <section className="referral-stats grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="flex items-center gap-4 border-slate-200 bg-white p-4 dark:border-slate-800/80 dark:bg-[#151E32]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            <i aria-hidden="true" className="fa-solid fa-users"/>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Total Undangan</p>
+            <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900 dark:text-white">{loading ? '—' : rows.length} <span className="text-xs font-normal text-slate-500">Orang</span></p>
+          </div>
+        </Card>
+        <Card className="flex items-center gap-4 border-slate-200 bg-white p-4 dark:border-slate-800/80 dark:bg-[#151E32]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-500 dark:text-emerald-400">
+            <i aria-hidden="true" className="fa-solid fa-user-check"/>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Berhasil Terverifikasi</p>
+            <p className="mt-0.5 text-xl font-bold tabular-nums text-emerald-500 dark:text-emerald-400">{loading ? '—' : successful} <span className="text-xs font-normal text-slate-500">Orang</span></p>
+          </div>
+        </Card>
+        <Card className="flex items-center gap-4 border-slate-200 bg-white p-4 dark:border-slate-800/80 dark:bg-[#151E32]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 dark:text-amber-400">
+            <i aria-hidden="true" className="fa-solid fa-coins"/>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Reward Diperoleh</p>
+            <p className="mt-0.5 text-xl font-bold tabular-nums text-amber-500 dark:text-amber-400">{loading ? '—' : rewardEarned.toLocaleString('id-ID')} <span className="text-xs font-normal text-slate-500">Coin</span></p>
+          </div>
+        </Card>
       </section>
 
       <Card className="space-y-4 p-5 sm:p-6">
@@ -379,7 +448,6 @@ export function ReferralProgramPanel() {
                     <th className="px-4 py-3">No</th>
                     <th className="px-4 py-3">Nama</th>
                     <th className="px-4 py-3">Tanggal Gabung</th>
-                    <th className="px-4 py-3">Aktivitas</th>
                     <th className="px-4 py-3 text-right">Reward & Status</th>
                   </tr>
                 </thead>
@@ -394,13 +462,15 @@ export function ReferralProgramPanel() {
                           <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">@{row.username || 'pengguna'}</p>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">{formatDate(row.joined_at)}</td>
-                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{row.verified_activity ? formatActivity(row.verified_activity) : '—'}</td>
                         <td className="px-4 py-3 text-right">
-                          {verified ? (
-                            <>
-                              <span className="inline-flex rounded-full border border-[#10B981]/20 bg-[#10B981]/10 px-2.5 py-1 text-[10px] font-bold text-[#34D399]">{statusLabel(row)}</span>
-                              <p className="mt-1 whitespace-nowrap text-[10px] font-bold text-[#34D399]">+{Math.max(0, Number(row.reward_amount) || 0).toLocaleString('id-ID')} Edu Coin</p>
-                            </>
+                          {row.status === 'CREDITED' ? (
+                            <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold text-emerald-500 dark:text-emerald-400">
+                              +{Math.max(0, Number(row.reward_amount) || 0).toLocaleString('id-ID')} Edu Coin · Selesai
+                            </span>
+                          ) : row.status === 'VERIFIED' ? (
+                            <span className="inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold text-emerald-500 dark:text-emerald-400">
+                              Terverifikasi
+                            </span>
                           ) : (
                             <Badge color={row.status === 'EXPIRED' || row.status === 'REVOKED' ? 'err' : 'warn'}>{statusLabel(row)}</Badge>
                           )}
