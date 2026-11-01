@@ -74,7 +74,7 @@ test('invitation code is displayed only after a rotation and can be copied from 
 
 
 const efficiencyMigration = await readFile(
-  new URL('../supabase/migrations/20261101120000_event_driven_referrals_trigger_optimization.sql', import.meta.url),
+  new URL('../supabase/migrations/20261101034352_event_driven_referrals_trigger_optimization.sql', import.meta.url),
   'utf8',
 );
 const referralPage = await readFile(new URL('../src/pages/ReferralPage.tsx', import.meta.url), 'utf8');
@@ -87,7 +87,7 @@ const organizerShell = await readFile(new URL('../src/components/layout/Organize
 const organizerControlCenter = await readFile(new URL('../src/pages/OrganizerControlCenterPage.tsx', import.meta.url), 'utf8');
 const realtimeBus = await readFile(new URL('../src/lib/realtimeBus.ts', import.meta.url), 'utf8');
 const competitionDetail = await readFile(new URL('../src/pages/CompetitionDetailPage.tsx', import.meta.url), 'utf8');
-const chatPolicyMigration = await readFile(new URL('../supabase/migrations/20261101034500_chat_moderation_policy_efficiency.sql', import.meta.url), 'utf8');
+const chatPolicyMigration = await readFile(new URL('../supabase/migrations/20261101034539_chat_moderation_policy_efficiency.sql', import.meta.url), 'utf8');
 const chatModerationGate = await readFile(new URL('../src/components/chat/ChatModerationGate.tsx', import.meta.url), 'utf8');
 
 test('referral qualification is event-driven and its hourly scanner is unscheduled', () => {
