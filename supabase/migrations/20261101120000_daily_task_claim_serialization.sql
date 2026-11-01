@@ -168,6 +168,4 @@ BEGIN
 
   RETURN claim;
 END;
-$function$
-
-
+$function$;
