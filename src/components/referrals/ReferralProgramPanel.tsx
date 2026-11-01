@@ -209,7 +209,6 @@ export function ReferralProgramPanel() {
   );
 
   const referralMilestones = (program?.milestone_tiers?.length === 4 ? program.milestone_tiers : DEFAULT_REFERRAL_MILESTONES).slice().sort((left, right) => left.target - right.target);
-  const nextMilestone = referralMilestones.find((milestone) => successful < milestone.target);
 
   const copyLink = async () => {
     if (!referralLink) return;
