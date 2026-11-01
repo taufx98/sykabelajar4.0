@@ -144,6 +144,11 @@ test('leaderboard uses Realtime with a five-minute foreground fallback', () => {
   assert.match(platformService, /invalidateLeaderboardMemory[\s\S]*enrichedLeaderboardCache\.clear/);
 });
 
+test('concurrent organizer workspace consumers share one in-flight request', () => {
+  assert.match(organizerAuth, /listCurrentUserOrganizersInFlight/);
+  assert.match(organizerAuth, /if \(listCurrentUserOrganizersInFlight\) return listCurrentUserOrganizersInFlight/);
+});
+
 test('organizer workspace resolution reuses one authoritative fetched list', () => {
   assert.match(organizerAuth, /resolveCurrentUserOrganizerFrom/);
   assert.match(organizerShell, /const all = await listCurrentUserOrganizers\(\)/);
