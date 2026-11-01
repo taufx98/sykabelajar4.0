@@ -413,12 +413,15 @@ export function NotificationsPage() {
           </div>
           {activeTab === 'notifications' && (
             <div className="flex w-full justify-end sm:w-auto">
-              {unread.some((row) => !Boolean(row.data?.urgent)) && (
-                <button type="button" onClick={() => void allRead()} className="notifications-mark-read flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-[#1C273E] hover:text-slate-200">
-                  <i aria-hidden="true" className="fa-solid fa-check-double text-slate-500" />
-                  Tandai semua dibaca
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => void allRead()}
+                disabled={!unread.some((row) => !Boolean(row.data?.urgent))}
+                className="notifications-mark-read flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-[#1C273E] hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <i aria-hidden="true" className="fa-solid fa-check-double text-slate-500" />
+                Tandai semua dibaca
+              </button>
             </div>
           )}
         </div>
