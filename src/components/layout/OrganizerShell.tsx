@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { BarChart3, Building2, ClipboardList, FileQuestion, Gauge, KeyRound, Megaphone, Trophy, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { subscribeSykaEvents } from '@/lib/realtimeBus';
-import { listCurrentUserOrganizers, resolveCurrentUserOrganizer, setSelectedOrganizerId, type CurrentOrganizer } from '@/services/organizerAuth.service';
+import { listCurrentUserOrganizers, resolveCurrentUserOrganizerFrom, setSelectedOrganizerId, type CurrentOrganizer } from '@/services/organizerAuth.service';
 
 const items = [
   ['/organizer', 'Ringkasan', Building2],
@@ -25,9 +25,9 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
 
   const reloadWorkspaces = useCallback(async () => {
     try {
-      const [all, current] = await Promise.all([listCurrentUserOrganizers(), resolveCurrentUserOrganizer()]);
+      const all = await listCurrentUserOrganizers();
       setWorkspaces(all);
-      setSelected(current);
+      setSelected(resolveCurrentUserOrganizerFrom(all));
     } catch {
       setWorkspaces([]);
       setSelected(null);
@@ -36,7 +36,7 @@ export function OrganizerShell({ children }: OrganizerShellProps) {
 
   useEffect(() => {
     void reloadWorkspaces();
-  }, [location.pathname, reloadWorkspaces]);
+  }, [reloadWorkspaces]);
 
   useEffect(() => {
     let timer: number | undefined;
