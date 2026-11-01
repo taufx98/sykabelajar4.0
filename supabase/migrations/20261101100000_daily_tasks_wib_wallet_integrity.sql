@@ -199,6 +199,78 @@ ALTER TABLE public.daily_task_claims
   ALTER COLUMN claim_date
   SET DEFAULT ((pg_catalog.now() AT TIME ZONE 'Asia/Jakarta')::date);
 
+CREATE OR REPLACE FUNCTION private.is_daily_task_eligible(
+  p_user_id uuid,
+  p_task_id uuid,
+  p_claim_date date
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_task public.daily_tasks%rowtype;
+  v_target integer;
+BEGIN
+  IF p_user_id IS NULL OR p_task_id IS NULL OR p_claim_date IS NULL THEN
+    RETURN false;
+  END IF;
+
+  SELECT *
+    INTO v_task
+  FROM public.daily_tasks
+  WHERE id = p_task_id;
+
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  CASE upper(coalesce(v_task.task_type, 'DAILY'))
+    WHEN 'DAILY_CHECKIN' THEN
+      RETURN EXISTS (
+        SELECT 1
+        FROM public.daily_checkins dc
+        WHERE dc.user_id = p_user_id
+          AND dc.checkin_date = p_claim_date
+      );
+    WHEN 'PROFILE_COMPLETE' THEN
+      RETURN EXISTS (
+        SELECT 1
+        FROM public.profiles p
+        WHERE p.id = p_user_id
+          AND nullif(btrim(coalesce(p.full_name, '')), '') IS NOT NULL
+          AND nullif(btrim(coalesce(p.avatar_url, '')), '') IS NOT NULL
+          AND nullif(btrim(coalesce(p.bio, '')), '') IS NOT NULL
+      );
+    WHEN 'VERIFIED_REFERRAL' THEN
+      v_target := greatest(
+        1,
+        coalesce(nullif(v_task.requirements ->> 'target_count', '')::integer, 1)
+      );
+
+      RETURN (
+        SELECT count(*)::integer
+        FROM public.referral_events re
+        WHERE re.referrer_user_id = p_user_id
+          AND re.status IN ('VERIFIED', 'CREDITED')
+          AND re.verified_at >= (p_claim_date::timestamp AT TIME ZONE 'Asia/Jakarta')
+          AND re.verified_at < ((p_claim_date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta')
+      ) >= v_target;
+    ELSE
+      -- DAILY is a self-claimed task. Admin must describe this honestly;
+      -- objective task types above are validated from trusted backend records.
+      RETURN true;
+  END CASE;
+EXCEPTION
+  WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+    RAISE EXCEPTION 'DAILY_TASK_REQUIREMENT_CONFIG_INVALID';
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION private.is_daily_task_eligible(uuid, uuid, date)
+  FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.claim_daily_task(p_task_id uuid)
 RETURNS public.daily_task_claims
 LANGUAGE plpgsql
@@ -226,6 +298,10 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'TASK_NOT_FOUND';
+  END IF;
+
+  IF NOT private.is_daily_task_eligible(u, p_task_id, v_claim_date) THEN
+    RAISE EXCEPTION 'TASK_REQUIREMENT_NOT_MET';
   END IF;
 
   IF t.max_claims_per_user IS NOT NULL THEN
@@ -288,6 +364,10 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'TASK_NOT_CLAIMED';
+  END IF;
+
+  IF NOT private.is_daily_task_eligible(u, p_task_id, v_claim_date) THEN
+    RAISE EXCEPTION 'TASK_REQUIREMENT_NOT_MET';
   END IF;
 
   IF claim.status = 'COMPLETED' THEN
