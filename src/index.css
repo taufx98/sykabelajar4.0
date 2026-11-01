@@ -353,9 +353,6 @@ html.light .notifications-page {
   background: #F8FAFC !important;
   color: #334155;
 }
-.notifications-page-content {
-  max-width: 1234px;
-}
 .notifications-tab-shell {
   min-height: 67px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
@@ -396,9 +393,6 @@ html.light .notifications-page {
 .notifications-page .notification-card-unread.card:hover {
   border-color: rgba(59, 130, 246, 0.55) !important;
   background: #151E32 !important;
-}
-.notifications-modal-backdrop {
-  background: rgba(2, 6, 23, 0.80);
 }
 .notification-modal-panel {
   background: #151E32 !important;
