@@ -104,6 +104,7 @@ test('admin referral campaign updates broadcast an invalidation event without pu
 test('notifications visual contract follows the supplied Font Awesome reference and single global header', async () => {
   const notificationsPage = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
   const globalHeader = await readFile(new URL('../src/components/layout/GlobalHeader.tsx', import.meta.url), 'utf8');
+  const appLayout = await readFile(new URL('../src/components/layout/AppLayout.tsx', import.meta.url), 'utf8');
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
   assert.doesNotMatch(html, /font-awesome\/6\.4\.0\/css\/all\.min\.css/);
@@ -112,6 +113,8 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.match(referralPanel, /cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\/6\.4\.0\/css\/all\.min\.css/);
   assert.match(referralPanel, /fa-gift/);
   assert.match(referralPanel, /fa-coins/);
+  assert.match(referralPanel, /text-\\\[#34D399\\\]/);
+  assert.match(appLayout, /location\.pathname === '\\/notifications' \? 'w-full'/);
   assert.match(globalHeader, /location\.pathname === '\/notifications'/);
   assert.match(globalHeader, /Notifikasi &amp; Program Referral/);
   assert.match(notificationsPage, /fa-users-rays/);
