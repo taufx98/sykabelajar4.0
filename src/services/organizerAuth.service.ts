@@ -69,8 +69,9 @@ export function setSelectedOrganizerId(id: string | null): void {
   else window.localStorage.removeItem(ORGANIZER_SELECTION_KEY);
 }
 
-export async function resolveCurrentUserOrganizer(): Promise<CurrentOrganizer | null> {
-  const organizers = await listCurrentUserOrganizers();
+export function resolveCurrentUserOrganizerFrom(
+  organizers: CurrentOrganizer[],
+): CurrentOrganizer | null {
   if (!organizers.length) {
     setSelectedOrganizerId(null);
     return null;
@@ -83,4 +84,9 @@ export async function resolveCurrentUserOrganizer(): Promise<CurrentOrganizer | 
   const fallback = organizers[0];
   setSelectedOrganizerId(fallback.id);
   return fallback;
+}
+
+export async function resolveCurrentUserOrganizer(): Promise<CurrentOrganizer | null> {
+  const organizers = await listCurrentUserOrganizers();
+  return resolveCurrentUserOrganizerFrom(organizers);
 }
