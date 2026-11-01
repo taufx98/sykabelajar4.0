@@ -162,6 +162,18 @@ test('Daily Tasks owns the referral tab and keeps the full referral panel', asyn
   assert.match(notifications, /daily-tasks\?tab=referral/);
 });
 
+test('Daily Tasks streak tracker derives seven-day progress from stored check-in history', async () => {
+  const daily = await readFile(new URL('../src/pages/DailyTasksPage.tsx', import.meta.url), 'utf8');
+
+  assert.match(daily, /daily-checkin-streak-tracker/);
+  assert.match(daily, /lastCheckin/);
+  assert.match(daily, /streak_day/);
+  assert.match(daily, /checkin_date/);
+  assert.match(daily, /Array\.from\(\{ length: 7 \}/);
+  assert.match(daily, /Siap Klaim/);
+  assert.doesNotMatch(daily, /Streak: <strong[^>]*>5 Hari/);
+});
+
 test('notification mark-all-read control is placed immediately before the filter label', async () => {
   const page = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
   const markRead = page.indexOf('Tandai semua dibaca');
