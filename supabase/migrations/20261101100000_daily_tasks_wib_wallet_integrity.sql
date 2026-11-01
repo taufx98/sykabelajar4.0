@@ -1,6 +1,11 @@
 -- Keep daily claim dates aligned with the product's Asia/Jakarta calendar and
 -- synchronize reward ledgers with the canonical balances used by checkout.
 
+-- Block concurrent writes while reconciling historical ledgers and replacing
+-- the claim RPCs, so no reward can slip between the backfill and new logic.
+LOCK TABLE public.edu_coin_ledger IN SHARE ROW EXCLUSIVE MODE;
+LOCK TABLE public.xp_ledger IN SHARE ROW EXCLUSIVE MODE;
+
 -- Earlier claim paths wrote these ledger rows but did not update the
 -- canonical profile balances. Reconcile those specific reward families once.
 WITH coin_rewards AS (
@@ -104,6 +109,12 @@ BEGIN
   IF p_date IS DISTINCT FROM v_today THEN
     RAISE EXCEPTION 'CHECKIN_DATE_MUST_BE_TODAY';
   END IF;
+
+  -- Serialize claims per user. Duplicate taps return the already saved row
+  -- instead of racing on the (user_id, checkin_date) primary key.
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(u::text || ':daily-checkin', 0)
+  );
 
   SELECT *
     INTO existing
@@ -424,6 +435,53 @@ $function$;
 REVOKE ALL ON FUNCTION public.complete_daily_task(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.complete_daily_task(uuid) TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.get_daily_checkin_streak_rewards(
+  p_date date DEFAULT ((pg_catalog.now() AT TIME ZONE 'Asia/Jakarta')::date)
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_today date := (pg_catalog.clock_timestamp() AT TIME ZONE 'Asia/Jakarta')::date;
+  v_result jsonb;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  IF p_date IS DISTINCT FROM v_today THEN
+    RAISE EXCEPTION 'DAILY_REWARD_DATE_MUST_BE_TODAY';
+  END IF;
+
+  SELECT coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'day_number', day_number,
+        'reward_type', reward_data ->> 'reward_type',
+        'reward_amount', coalesce((reward_data ->> 'reward_amount')::numeric, 0),
+        'coin_amount', coalesce((reward_data ->> 'coin_amount')::numeric, 0),
+        'sparkle', coalesce((reward_data ->> 'sparkle')::boolean, false)
+      )
+      ORDER BY day_number
+    ),
+    '[]'::jsonb
+  )
+  INTO v_result
+  FROM generate_series(1, 7) AS days(day_number)
+  CROSS JOIN LATERAL (
+    SELECT public.resolve_daily_checkin_reward(p_date, day_number) AS reward_data
+  ) resolved;
+
+  RETURN v_result;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.get_daily_checkin_streak_rewards(date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_daily_checkin_streak_rewards(date) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.claim_and_complete_daily_task(p_task_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -458,30 +516,38 @@ BEGIN
     RAISE EXCEPTION 'TASK_REQUIREMENT_NOT_MET';
   END IF;
 
-  IF t.max_claims_per_user IS NOT NULL THEN
-    SELECT count(*)::integer
-      INTO v_claim_count
-    FROM public.daily_task_claims
-    WHERE task_id = p_task_id AND user_id = u;
+  SELECT *
+    INTO claim
+  FROM public.daily_task_claims
+  WHERE task_id = p_task_id
+    AND user_id = u
+    AND claim_date = v_claim_date
+  FOR UPDATE;
 
-    IF v_claim_count >= t.max_claims_per_user THEN
-      RAISE EXCEPTION 'TASK_CLAIM_LIMIT_REACHED';
-    END IF;
-  END IF;
-
-  INSERT INTO public.daily_task_claims(task_id, user_id, claim_date, status)
-  VALUES (p_task_id, u, v_claim_date, 'CLAIMED')
-  ON CONFLICT (task_id, user_id, claim_date)
-  DO UPDATE SET status = public.daily_task_claims.status
-  RETURNING * INTO claim;
-
-  IF claim.status = 'COMPLETED' THEN
+  IF FOUND AND claim.status = 'COMPLETED' THEN
     RETURN jsonb_build_object(
       'completed', true,
       'already', true,
       'points', coalesce(t.points, 0),
       'exp', coalesce(t.exp, 0)
     );
+  END IF;
+
+  IF NOT FOUND THEN
+    IF t.max_claims_per_user IS NOT NULL THEN
+      SELECT count(*)::integer
+        INTO v_claim_count
+      FROM public.daily_task_claims
+      WHERE task_id = p_task_id AND user_id = u;
+
+      IF v_claim_count >= t.max_claims_per_user THEN
+        RAISE EXCEPTION 'TASK_CLAIM_LIMIT_REACHED';
+      END IF;
+    END IF;
+
+    INSERT INTO public.daily_task_claims(task_id, user_id, claim_date, status)
+    VALUES (p_task_id, u, v_claim_date, 'CLAIMED')
+    RETURNING * INTO claim;
   END IF;
 
   UPDATE public.daily_task_claims
