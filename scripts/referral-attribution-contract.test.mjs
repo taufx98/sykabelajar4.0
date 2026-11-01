@@ -145,12 +145,65 @@ test('notifications follow the expanded reference categories and dynamic preview
   assert.match(page, /selectedCategory === 'announcement'/);
 });
 
-test('referral panel follows the reference order without inventing tier reward payouts', async () => {
+test('referral tab keeps the configured Edu Coin badge and highlights its gift icon while active', async () => {
+  const page = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(page, /activeTab === 'referral'\)\s*\{\s*setReferralPreview\(null\)/);
+  assert.match(page, /\}, \[user\?\.id\]\);/);
+  assert.match(page, /activeTab === 'referral' \? 'text-white' : 'text-\[#94A3B8\]'/);
+  assert.match(page, /\+\{referralPreview\.reward_amount\.toLocaleString\('id-ID'\)\} Edu Coin/);
+});
+
+test('notification and referral tab content use a fade and slide transition when switching', async () => {
+  const page = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
+
+  assert.match(page, /displayedTab/);
+  assert.match(page, /tabContentVisible/);
+  assert.match(page, /requestAnimationFrame/);
+  assert.match(page, /transition-all duration-300 ease-out/);
+});
+
+test('referral tier milestones and their reward figures follow the supplied HTML reference', async () => {
   const panel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
 
-  assert.ok(panel.indexOf('referral-link-card') < panel.indexOf('referral-milestones'));
-  assert.ok(panel.indexOf('referral-milestones') < panel.indexOf('referral-stats'));
-  assert.match(panel, /referral-activity-table/);
-  assert.match(panel, /successful/);
-  assert.doesNotMatch(panel, /145 Coin|650 Coin|950 Coin|Rian Hidayat|Siti Rahma/);
+  assert.ok(panel.indexOf('referral-link-card') < panel.indexOf('referral-reward-tiers'));
+  assert.ok(panel.indexOf('referral-reward-tiers') < panel.indexOf('referral-stats'));
+  assert.match(panel, /1 User/);
+  assert.match(panel, /Target Pertama/);
+  assert.match(panel, /5 Coin/);
+  assert.match(panel, /25 User/);
+  assert.match(panel, /145 Coin/);
+  assert.match(panel, /\+20 Bonus/);
+  assert.match(panel, /100 User/);
+  assert.match(panel, /\+150 Coin Bonus/);
+  assert.match(panel, /650 Coin/);
+  assert.match(panel, /1\.000 User/);
+  assert.match(panel, /ULTRA/);
+  assert.match(panel, /\+250 Bonus Coin/);
+  assert.match(panel, /950 Coin/);
+  assert.match(panel, /700 \+ 250/);
+  assert.match(panel, /successful >= milestone\.target/);
+});
+
+test('referral statistics match the reference icon-left layout and sit before the instructions', async () => {
+  const panel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
+  const statsStart = panel.indexOf('referral-stats');
+  const howItWorks = panel.indexOf('Cara Kerja Referral');
+  const stats = panel.slice(statsStart, howItWorks);
+
+  assert.ok(statsStart >= 0 && howItWorks > statsStart);
+  assert.match(stats, /flex items-center gap-4/);
+  assert.match(stats, /Total Undangan/);
+  assert.match(stats, /Berhasil Terverifikasi/);
+  assert.match(stats, /Reward Diperoleh/);
+  assert.doesNotMatch(stats, /mt-3 text-xl/);
+});
+
+test('referral activity table preserves the reference four-column summary', async () => {
+  const panel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
+  const activity = panel.slice(panel.indexOf('referral-activity-table'));
+
+  assert.match(activity, /Tanggal Gabung/);
+  assert.match(activity, /Hadiah & Status/);
+  assert.doesNotMatch(activity, /<th[^>]*>Aktivitas<\/th>/);
 });
