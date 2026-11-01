@@ -501,3 +501,18 @@ html.light .notifications-page .notifications-promo-action,
 html.light .notification-modal-footer .bg-\[\#2563EB\] {
   color: #FFFFFF !important;
 }
+
+html.light .notification-modal-close,
+html.light .notification-modal-secondary {
+  color: #334155 !important;
+  background: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+}
+html.light .notification-modal-close:hover,
+html.light .notification-modal-secondary:hover {
+  color: #0F172A !important;
+  background: #E2E8F0 !important;
+}
+html.light .notifications-mark-read:hover {
+  background: #F1F5F9 !important;
+}
