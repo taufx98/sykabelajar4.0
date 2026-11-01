@@ -440,7 +440,7 @@ export function NotificationsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-sm font-extrabold text-white sm:text-base">Ajak Teman, Dapatkan Edu Coin!</h2>
                     <span className={['rounded-full border px-2 py-0.5 text-[10px] font-bold', referralPreview?.is_event_active ? 'border-amber-500/30 bg-amber-500/15 text-amber-400' : referralPreview?.is_active ? 'border-emerald-500/25 bg-emerald-500/10 text-[#34D399]' : 'border-slate-500/30 bg-slate-500/10 text-slate-300'].join(' ')}>
-                      {referralPreview?.is_event_active ? 'Bonus Event Aktif' : referralPreview?.is_active ? 'Program Aktif' : 'Program Nonaktif'}
+                      {referralPreview?.is_event_active ? 'Bonus Event Aktif' : referralPreview?.is_active ? 'Bonus Aktif' : 'Program Nonaktif'}
                     </span>
                   </div>
                   <p className="mt-0.5 text-xs leading-relaxed text-slate-300">
