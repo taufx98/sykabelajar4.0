@@ -130,12 +130,12 @@ test('attempt and competition audit trigger functions are invoked only for meani
   assert.match(efficiencyMigration, /coalesce\(NEW\.is_preview, false\)/i);
 });
 
-test('leaderboard uses Realtime with a five-minute fallback only when the channel is degraded', () => {
+test('leaderboard uses Realtime with a five-minute foreground fallback', () => {
   assert.match(leaderboardPage, /postgres_changes/);
   assert.match(leaderboardPage, /addEventListener\('visibilitychange'/);
   assert.match(leaderboardPage, /5 \* 60_000/);
-  assert.match(leaderboardPage, /startDegradedRefresh/);
-  assert.match(leaderboardPage, /stopDegradedRefresh/);
+  assert.match(leaderboardPage, /refreshFallback/);
+  assert.match(leaderboardPage, /clearInterval\(refreshFallback\)/);
   assert.match(leaderboardPage, /status === 'SUBSCRIBED'/);
   assert.doesNotMatch(leaderboardPage, /,\s*60_000\)/);
   assert.match(leaderboardPage, /document\.visibilityState/);
