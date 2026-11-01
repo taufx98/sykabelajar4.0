@@ -25,6 +25,15 @@ type NotificationData = {
   from_admin?: boolean;
   organization_name?: string;
   urgent?: boolean;
+  badge_name?: string;
+  badge_description?: string;
+  badge_icon_url?: string;
+  badge_icon_emoji?: string;
+  badge_rarity?: string;
+  award_source_label?: string;
+  payment_currency?: string;
+  edu_coin_spent?: number | string;
+  edu_coin_balance?: number | string;
 };
 type DetailNotification = AppNotification & { data?: NotificationData | null };
 type NotificationRow = Awaited<ReturnType<typeof listNotifications>>[number];
@@ -56,6 +65,15 @@ const toNotificationData = (value: unknown): NotificationData | null => {
     from_admin: typeof value.from_admin === 'boolean' ? value.from_admin : undefined,
     organization_name: typeof value.organization_name === 'string' ? value.organization_name : undefined,
     urgent: typeof value.urgent === 'boolean' ? value.urgent : undefined,
+    badge_name: typeof value.badge_name === 'string' ? value.badge_name : undefined,
+    badge_description: typeof value.badge_description === 'string' ? value.badge_description : undefined,
+    badge_icon_url: typeof value.badge_icon_url === 'string' ? value.badge_icon_url : undefined,
+    badge_icon_emoji: typeof value.badge_icon_emoji === 'string' ? value.badge_icon_emoji : undefined,
+    badge_rarity: typeof value.badge_rarity === 'string' ? value.badge_rarity : undefined,
+    award_source_label: typeof value.award_source_label === 'string' ? value.award_source_label : undefined,
+    payment_currency: typeof value.payment_currency === 'string' ? value.payment_currency : undefined,
+    edu_coin_spent: typeof value.edu_coin_spent === 'number' || typeof value.edu_coin_spent === 'string' ? value.edu_coin_spent : undefined,
+    edu_coin_balance: typeof value.edu_coin_balance === 'number' || typeof value.edu_coin_balance === 'string' ? value.edu_coin_balance : undefined,
   };
 };
 
@@ -284,7 +302,15 @@ export function NotificationsPage() {
 
   const selectedCategory = selected ? categoryFor(selected) : 'general';
   const selectedAction = selected ? actionFor(selected) : null;
-  const selectedAmount = selected?.data?.amount != null ? Number(selected.data.amount) : null;
+  const selectedAmountValue = selected?.data?.edu_coin_spent ?? selected?.data?.amount;
+  const selectedAmount = selectedAmountValue != null ? Number(selectedAmountValue) : null;
+  const selectedIsSpending = selected?.data?.edu_coin_spent != null;
+  const registrationContent = `${selected?.title ?? ''} ${selected?.body ?? ''}`.toLowerCase();
+  const registrationStatus = /ditolak|rejected/.test(registrationContent)
+    ? 'Ditolak'
+    : /disetujui|approved|langsung aktif/.test(registrationContent)
+      ? 'Disetujui'
+      : 'Menunggu proses';
 
   return (
     <div className="min-h-full bg-[#F8FAFC] px-4 pb-10 pt-5 text-slate-800 dark:bg-[#0B1120] dark:text-slate-200 sm:px-6 sm:pt-6 lg:px-8">
@@ -353,7 +379,23 @@ export function NotificationsPage() {
             <div className="max-h-[calc(90vh-145px)] space-y-5 overflow-y-auto p-5 sm:p-6">
               <div><span className={`mb-2 inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${categoryStyle(selectedCategory)}`}>{categoryLabel(selectedCategory)}</span><h3 id="notification-modal-title" className="text-lg font-extrabold leading-snug text-slate-900 dark:text-white">{selected.title}</h3></div>
               {selectedAmount != null && Number.isFinite(selectedAmount) && (
-                <div className="flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center dark:border-slate-800 dark:bg-slate-900/70"><div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-lg shadow-amber-500/10"><Coins size={28}/></div><div><span className="block text-xs font-semibold text-slate-400">Nominal Reward</span><span className="text-2xl font-black tracking-tight text-amber-500">{selectedAmount > 0 ? '+' : ''}{selectedAmount.toLocaleString('id-ID')} EDU</span></div><span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-500"><CheckCheck size={12}/> Informasi dari sistem</span></div>
+                <div className="flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center dark:border-slate-800 dark:bg-slate-900/70"><div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-lg shadow-amber-500/10"><Coins size={28}/></div><div><span className="block text-xs font-semibold text-slate-400">{selectedIsSpending ? 'Edu Coin Digunakan' : 'Nominal Reward'}</span><span className="text-2xl font-black tracking-tight text-amber-500">{selectedIsSpending ? '−' : selectedAmount > 0 ? '+' : ''}{Math.abs(selectedAmount).toLocaleString('id-ID')} EDU</span>{selected?.data?.edu_coin_balance != null && <span className="mt-1 block text-[10px] text-slate-500">Saldo setelah transaksi: {Number(selected.data.edu_coin_balance).toLocaleString('id-ID')} Edu Coin</span>}</div><span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-500"><CheckCheck size={12}/> Informasi dari sistem</span></div>
+              )}
+              {selectedCategory === 'badge' && (
+                <div className="flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center dark:border-slate-800 dark:bg-slate-900/70">
+                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-tr from-purple-600/20 to-indigo-500/20 text-purple-400 shadow-lg shadow-purple-500/10">
+                    {selected.data?.badge_icon_url ? <img src={selected.data.badge_icon_url} alt={selected.data.badge_name || 'Ikon badge'} className="h-full w-full object-contain"/> : selected.data?.badge_icon_emoji ? <span className="text-3xl">{selected.data.badge_icon_emoji}</span> : <Award size={30}/>}
+                  </div>
+                  <div><h5 className="text-sm font-extrabold text-slate-900 dark:text-white">{selected.data?.badge_name || selected.title}</h5><p className="mt-0.5 text-xs font-medium text-purple-500">{selected.data?.badge_rarity || 'Badge pencapaian'}</p></div>
+                  {selected.data?.badge_description && <p className="max-w-sm text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{selected.data.badge_description}</p>}
+                  {selected.data?.award_source_label && <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">Sumber: {selected.data.award_source_label}</span>}
+                </div>
+              )}
+              {selectedCategory === 'registration' && (
+                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-500"><Trophy size={22}/></div>
+                  <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Status Pendaftaran</p><p className={`mt-1 text-xs font-extrabold ${registrationStatus === 'Disetujui' ? 'text-emerald-500' : registrationStatus === 'Ditolak' ? 'text-red-400' : 'text-amber-500'}`}>{registrationStatus}</p><p className="mt-0.5 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">Informasi mengikuti status yang dikirim sistem penyelenggara.</p></div>
+                </div>
               )}
               <div><p className="text-sm font-bold leading-relaxed text-slate-800 dark:text-slate-200">{selected.body}</p>{selected.data?.description && <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{selected.data.description}</p>}</div>
               {selected.data?.sender_name && !selected.data?.from_admin && <p className="text-xs text-slate-500">Pengirim: <span className="font-semibold text-slate-800 dark:text-slate-200">{selected.data.sender_name}</span></p>}
