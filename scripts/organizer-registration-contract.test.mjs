@@ -79,11 +79,13 @@ const efficiencyMigration = await readFile(
 );
 const referralPage = await readFile(new URL('../src/pages/ReferralPage.tsx', import.meta.url), 'utf8');
 const registrationModal = await readFile(new URL('../src/components/competition/CompetitionRegistrationModal.tsx', import.meta.url), 'utf8');
+const registrationService = await readFile(new URL('../src/services/registration.service.ts', import.meta.url), 'utf8');
 const platformService = await readFile(new URL('../src/services/platform.service.ts', import.meta.url), 'utf8');
 const leaderboardPage = await readFile(new URL('../src/pages/LeaderboardPage.tsx', import.meta.url), 'utf8');
 const organizerAuth = await readFile(new URL('../src/services/organizerAuth.service.ts', import.meta.url), 'utf8');
 const organizerShell = await readFile(new URL('../src/components/layout/OrganizerShell.tsx', import.meta.url), 'utf8');
 const organizerControlCenter = await readFile(new URL('../src/pages/OrganizerControlCenterPage.tsx', import.meta.url), 'utf8');
+const realtimeBus = await readFile(new URL('../src/lib/realtimeBus.ts', import.meta.url), 'utf8');
 const competitionDetail = await readFile(new URL('../src/pages/CompetitionDetailPage.tsx', import.meta.url), 'utf8');
 const chatModerationGate = await readFile(new URL('../src/components/chat/ChatModerationGate.tsx', import.meta.url), 'utf8');
 
@@ -120,8 +122,11 @@ test('referral accepts a shareable account UUID and preserves existing short ref
   assert.match(efficiencyMigration, /p_referral_code[\s\S]*referral_codes[\s\S]*::uuid/i);
   assert.match(registrationModal, /referralCode/);
   assert.match(registrationModal, /referralCode:\s*referralCode\.trim\(\)\s*\|\|\s*null/);
+  assert.match(registrationService, /p_referral_code:\s*input\.referralCode\?\.trim\(\)\s*\|\|\s*null/);
   assert.match(referralPage, /ensure_referral_code|user\.id/);
   assert.match(referralPage, /navigator\.clipboard\.writeText/);
+  assert.match(referralPage, /row\.status === 'EXPIRED'/);
+  assert.match(efficiencyMigration, /re\.created_at \+ interval '24 hours' <= now\(\)/i);
   assert.match(referralPage, /postgres_changes/);
 });
 
@@ -163,6 +168,10 @@ test('organizer workspace resolution reuses one authoritative fetched list', () 
   assert.match(organizerShell, /resolveCurrentUserOrganizerFrom\(all\)/);
   assert.doesNotMatch(organizerShell, /Promise\.all\(\[listCurrentUserOrganizers\(\),\s*resolveCurrentUserOrganizer\(\)\]\)/);
   assert.match(organizerControlCenter, /resolveCurrentUserOrganizerFrom\(all\)/);
+  assert.match(organizerControlCenter, /type: 'organizer-selected'/);
+  assert.match(organizerShell, /event\.type === 'organizer-selected'/);
+  assert.match(organizerShell, /event\.type === 'organizer-changed'/);
+  assert.match(realtimeBus, /organizer-selected/);
   assert.doesNotMatch(organizerControlCenter, /Promise\.all\(\[listCurrentUserOrganizers\(\),\s*resolveCurrentUserOrganizer\(\)\]\)/);
 });
 
