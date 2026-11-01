@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, Check, Edit3, Plus, Save, Sparkles, ToggleLeft, ToggleRight, Upload } from 'lucide-react';
+import { CalendarDays, Edit3, Plus, Save, Sparkles, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
