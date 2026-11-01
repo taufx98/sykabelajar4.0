@@ -152,7 +152,7 @@ export function ReferralPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-fg truncate">{row.full_name}</p>
                       <Badge color={verified ? 'moss' : 'warn'}>
-                        {verified ? 'Aktif' : row.status === 'REVOKED' ? 'Dibatalkan' : 'Menunggu aktivitas'}
+                        {verified ? 'Aktif' : row.status === 'REVOKED' ? 'Dibatalkan' : row.verified_activity ? 'Menunggu email' : 'Menunggu aktivitas'}
                       </Badge>
                     </div>
                     <p className="text-xs text-accent truncate">@{row.username || 'unknown'}</p>
@@ -170,7 +170,9 @@ export function ReferralPage() {
                     )}
                     {!verified && row.status === 'PENDING' && (
                       <p className="mt-1 text-[10px] text-fg-muted">
-                        Menunggu email terverifikasi dan aktivitas pertama yang memenuhi kriteria.
+                        {row.verified_activity
+                          ? `Aktivitas ${formatActivity(row.verified_activity)} sudah tercatat. Menunggu verifikasi email.`
+                          : 'Menunggu email terverifikasi dan aktivitas pertama yang memenuhi kriteria.'}
                       </p>
                     )}
                   </div>
