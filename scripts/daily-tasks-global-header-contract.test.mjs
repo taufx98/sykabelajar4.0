@@ -8,7 +8,7 @@ test('all application routes share the Daily Tasks global header contract', asyn
   assert.match(header, /location\.pathname === '\/home'/);
   assert.match(header, /const isDailyTasks = location\.pathname === '\/daily-tasks'/);
   assert.match(header, /Daily Tasks & Referral/);
-  assert.match(header, /<h1[^>]*>\{label\}<\/h1>/);
+  assert.match(header, /<h1[^>]*>\\s*\\{label\\}\\s*<\\/h1>/);
   assert.doesNotMatch(header, /if \(location\.pathname === '\/daily-tasks'\)/);
   assert.doesNotMatch(header, /if \(location\.pathname === '\/notifications'\)/);
   assert.match(header, /to="\/home"/);
