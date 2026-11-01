@@ -6,7 +6,7 @@ import { useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { uploadImage } from '@/services/cloudinary.service';
 
-type DailyTaskType = 'DAILY' | 'DAILY_CHECKIN' | 'PROFILE_COMPLETE' | 'VERIFIED_REFERRAL';
+type DailyTaskType = string;
 
 type DailyTaskRecord = {
   id: string;
@@ -79,7 +79,7 @@ function taskTypeLabel(type: string) {
     case 'DAILY_CHECKIN': return 'Check-in Harian';
     case 'PROFILE_COMPLETE': return 'Kelengkapan Profil';
     case 'VERIFIED_REFERRAL': return 'Referral Terverifikasi';
-    default: return 'Tugas Mandiri';
+    default: return type === 'DAILY' ? 'Tugas Mandiri' : `Jenis lama · ${type}`;
   }
 }
 
@@ -317,9 +317,7 @@ export function AdminDailyTaskPage() {
       id: task.id,
       title: task.title,
       description: task.description ?? '',
-      task_type: (['DAILY', 'DAILY_CHECKIN', 'PROFILE_COMPLETE', 'VERIFIED_REFERRAL'].includes(task.task_type)
-        ? task.task_type
-        : 'DAILY') as DailyTaskType,
+      task_type: task.task_type,
       points: Number(task.points ?? 0),
       exp: Number(task.exp ?? 0),
       sort_order: Number(task.sort_order ?? 0),
@@ -489,6 +487,9 @@ export function AdminDailyTaskPage() {
               <label className="block text-xs text-fg-muted">
                 Jenis Verifikasi
                 <select className="input mt-1" value={taskDraft.task_type} onChange={(e) => setTaskDraft({ ...taskDraft, task_type: e.target.value as DailyTaskType })}>
+                  {!['DAILY', 'DAILY_CHECKIN', 'PROFILE_COMPLETE', 'VERIFIED_REFERRAL'].includes(taskDraft.task_type) && (
+                    <option value={taskDraft.task_type}>Jenis lama ({taskDraft.task_type}) — klaim mandiri</option>
+                  )}
                   <option value="DAILY">Task Mandiri (klaim sendiri)</option>
                   <option value="DAILY_CHECKIN">Check-in Harian (diverifikasi backend)</option>
                   <option value="PROFILE_COMPLETE">Kelengkapan Profil (diverifikasi backend)</option>
