@@ -208,7 +208,7 @@ test('referral settings expose custom milestone tiers and editable notifications
 });
 
 test('referral tier bonuses are credited once through the protected ledger trigger', async () => {
-  const migration = await readFile(new URL('../supabase/migrations/20261101090000_referral_milestone_payouts_and_custom_promo.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20261101090004_referral_milestone_payouts_and_custom_promo.sql', import.meta.url), 'utf8');
   assert.match(migration, /CREATE TABLE IF NOT EXISTS private\.referral_tier_awards/);
   assert.match(migration, /CREATE OR REPLACE FUNCTION private\.apply_referral_milestone_rewards/);
   assert.match(migration, /AFTER INSERT ON public\.edu_coin_ledger/);
@@ -221,7 +221,7 @@ test('referral tier bonuses are credited once through the protected ledger trigg
 });
 
 test('referral tier defaults match all four configured milestones from the supplied HTML', async () => {
-  const migration = await readFile(new URL('../supabase/migrations/20261101090000_referral_milestone_payouts_and_custom_promo.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20261101090004_referral_milestone_payouts_and_custom_promo.sql', import.meta.url), 'utf8');
   const panel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
 
   assert.ok(panel.indexOf('referral-link-card') < panel.indexOf('referral-reward-tiers'));
@@ -286,8 +286,8 @@ test('Daily Tasks UI and service use the same WIB date key and backend wallet ba
 });
 
 test('daily reward claims update canonical profile balances only when ledger rows are newly inserted', async () => {
-  const migration = await readFile(new URL('../supabase/migrations/20261101100000_daily_tasks_wib_wallet_integrity.sql', import.meta.url), 'utf8');
-  const walletGuard = await readFile(new URL('../supabase/migrations/20261101110000_profile_currency_client_guard.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20261101104239_daily_tasks_wib_wallet_integrity.sql', import.meta.url), 'utf8');
+  const walletGuard = await readFile(new URL('../supabase/migrations/20261101113603_profile_currency_client_guard.sql', import.meta.url), 'utf8');
 
   assert.match(migration, /CREATE OR REPLACE FUNCTION private\.credit_profile_currency/i);
   assert.match(migration, /UPDATE public\.profiles/i);
@@ -340,7 +340,7 @@ test('Daily Tasks visual structure follows the supplied reference without changi
 
 test('daily task completion is atomic and requires the configured backend evidence', async () => {
   const service = await readFile(new URL('../src/services/daily-task.service.ts', import.meta.url), 'utf8');
-  const migration = await readFile(new URL('../supabase/migrations/20261101100000_daily_tasks_wib_wallet_integrity.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20261101104239_daily_tasks_wib_wallet_integrity.sql', import.meta.url), 'utf8');
 
   assert.match(service, /rpc\('claim_and_complete_daily_task'/);
   assert.doesNotMatch(service, /rpc\('claim_daily_task'/);
