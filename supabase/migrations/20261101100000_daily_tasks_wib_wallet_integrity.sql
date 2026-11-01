@@ -1,6 +1,39 @@
 -- Keep daily claim dates aligned with the product's Asia/Jakarta calendar and
 -- synchronize reward ledgers with the canonical balances used by checkout.
 
+-- Earlier claim paths wrote these ledger rows but did not update the
+-- canonical profile balances. Reconcile those specific reward families once.
+WITH coin_rewards AS (
+  SELECT user_id, sum(amount)::bigint AS amount
+  FROM public.edu_coin_ledger
+  WHERE event_type IN (
+    'DAILY_CHECKIN',
+    'DAILY_TASK_COMPLETED',
+    'REFERRAL_REGISTRATION',
+    'REFERRAL_TIER_BONUS'
+  )
+  GROUP BY user_id
+)
+UPDATE public.profiles p
+SET edu_coin = coalesce(p.edu_coin, 0) + coin_rewards.amount,
+    updated_at = pg_catalog.clock_timestamp()
+FROM coin_rewards
+WHERE p.id = coin_rewards.user_id
+  AND coin_rewards.amount <> 0;
+
+WITH xp_rewards AS (
+  SELECT user_id, sum(amount)::bigint AS amount
+  FROM public.xp_ledger
+  WHERE event_type IN ('DAILY_CHECKIN', 'DAILY_TASK_COMPLETED')
+  GROUP BY user_id
+)
+UPDATE public.profiles p
+SET total_xp = coalesce(p.total_xp, 0) + xp_rewards.amount,
+    updated_at = pg_catalog.clock_timestamp()
+FROM xp_rewards
+WHERE p.id = xp_rewards.user_id
+  AND xp_rewards.amount <> 0;
+
 CREATE OR REPLACE FUNCTION private.credit_profile_currency(
   p_user_id uuid,
   p_currency text,
