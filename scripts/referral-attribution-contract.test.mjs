@@ -120,14 +120,18 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.doesNotMatch(notificationsPage, /notification-modal-backdrop/);
   const styles = await readFile(new URL('../src/index.css', import.meta.url), 'utf8');
   assert.doesNotMatch(styles, /\.notifications-modal-backdrop/);
-  assert.match(globalHeader, /location\.pathname === '\/notifications'/);
-  assert.match(globalHeader, /Notifikasi/);
-  const notificationsHeaderStart = globalHeader.indexOf("if (location.pathname === '/notifications')");
-  const notificationsHeaderEnd = globalHeader.indexOf("  return (", notificationsHeaderStart);
-  const notificationsHeader = globalHeader.slice(notificationsHeaderStart, notificationsHeaderEnd);
-  assert.ok(notificationsHeaderStart >= 0 && notificationsHeaderEnd > notificationsHeaderStart);
-  assert.doesNotMatch(notificationsHeader, /Program Referral/);
+  // Daily Tasks defines the visual contract for every route using GlobalHeader.
+  assert.doesNotMatch(globalHeader, /if \\(location\\.pathname === '\\/daily-tasks'\\)/);
+  assert.doesNotMatch(globalHeader, /if \\(location\\.pathname === '\\/notifications'\\)/);
   assert.match(globalHeader, /Daily Tasks &amp; Referral/);
+  assert.match(globalHeader, /<h1[^>]*>\\{label\\}<\\/h1>/);
+  assert.match(globalHeader, /md:hidden/);
+  assert.match(globalHeader, /min-h-11 min-w-11/);
+  assert.match(globalHeader, /CalendarDays/);
+  assert.match(globalHeader, /Asia\\/Jakarta/);
+  assert.match(globalHeader, /notifyHomeNavigationClick/);
+  assert.match(globalHeader, /AdminCommunicationLinks/);
+  assert.doesNotMatch(styles, /\\.notifications-global-header/);
   assert.match(notificationsPage, /fa-users-rays/);
   assert.match(notificationsPage, /fa-coins/);
   assert.match(notificationsPage, /fa-award/);
