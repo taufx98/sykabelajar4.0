@@ -11,7 +11,7 @@ type ReferralRow = {
   username: string | null;
   joined_at: string;
   last_login_at: string | null;
-  status: 'PENDING' | 'VERIFIED' | 'CREDITED' | 'REVOKED' | string;
+  status: 'PENDING' | 'VERIFIED' | 'CREDITED' | 'REVOKED' | 'EXPIRED' | string;
   verified_at: string | null;
   verified_activity: string | null;
 };
@@ -152,7 +152,7 @@ export function ReferralPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-fg truncate">{row.full_name}</p>
                       <Badge color={verified ? 'moss' : 'warn'}>
-                        {verified ? 'Aktif' : row.status === 'REVOKED' ? 'Dibatalkan' : row.verified_activity ? 'Menunggu email' : 'Menunggu aktivitas'}
+                        {verified ? 'Aktif' : row.status === 'REVOKED' ? 'Dibatalkan' : row.status === 'EXPIRED' ? 'Lewat 24 jam' : row.verified_activity ? 'Menunggu email' : 'Menunggu aktivitas'}
                       </Badge>
                     </div>
                     <p className="text-xs text-accent truncate">@{row.username || 'unknown'}</p>
@@ -173,6 +173,11 @@ export function ReferralPage() {
                         {row.verified_activity
                           ? `Aktivitas ${formatActivity(row.verified_activity)} sudah tercatat. Menunggu verifikasi email.`
                           : 'Menunggu email terverifikasi dan aktivitas pertama yang memenuhi kriteria.'}
+                      </p>
+                    )}
+                    {!verified && row.status === 'EXPIRED' && (
+                      <p className="mt-1 text-[10px] text-fg-muted">
+                        Batas waktu 24 jam telah lewat sebelum syarat aktivitas dan email terpenuhi. Referral ini tidak menghasilkan hadiah.
                       </p>
                     )}
                   </div>
