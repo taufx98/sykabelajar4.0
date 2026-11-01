@@ -292,6 +292,8 @@ test('daily reward claims update canonical profile balances only when ledger row
   assert.match(migration, /UPDATE public\.profiles/i);
   assert.match(migration, /total_xp\s*=\s*coalesce\(total_xp,\s*0\)/i);
   assert.match(migration, /edu_coin\s*=\s*coalesce\(edu_coin,\s*0\)/i);
+  assert.match(migration, /prevent_profile_currency_client_mutation/);
+  assert.match(migration, /PROFILE_CURRENCY_BACKEND_MANAGED/);
   assert.match(migration, /RETURNING id INTO v_ledger_id/i);
   assert.match(migration, /IF v_ledger_id IS NOT NULL THEN/i);
   assert.match(migration, /REVOKE ALL ON FUNCTION private\.credit_profile_currency/i);
