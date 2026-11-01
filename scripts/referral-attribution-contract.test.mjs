@@ -106,7 +106,8 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   const globalHeader = await readFile(new URL('../src/components/layout/GlobalHeader.tsx', import.meta.url), 'utf8');
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-  assert.match(html, /font-awesome\/6\.4\.0\/css\/all\.min\.css/);
+  assert.doesNotMatch(html, /font-awesome\/6\.4\.0\/css\/all\.min\.css/);
+  assert.match(notificationsPage, /cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\/6\.4\.0\/css\/all\.min\.css/);
   assert.match(globalHeader, /location\.pathname === '\/notifications'/);
   assert.match(globalHeader, /Notifikasi &amp; Program Referral/);
   assert.match(notificationsPage, /fa-users-rays/);
