@@ -74,7 +74,7 @@ test('notification navigation uses the blue reference badge without changing unr
 
 
 test('legacy manual referral registration uses the same scheduled campaign reward', async () => {
-  const migration = await readFile(new URL('../supabase/migrations/20261101053500_referral_campaign_legacy_registration_reward.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20261101053603_referral_campaign_legacy_registration_reward.sql', import.meta.url), 'utf8');
   assert.match(migration, /CREATE OR REPLACE FUNCTION public\.register_for_competition\(/);
   assert.match(migration, /v_referral_reward_amount integer/);
   assert.match(migration, /s\.event_reward_amount/);
