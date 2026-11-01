@@ -525,7 +525,7 @@ export function DailyTasksPage() {
                             'block text-[8px] font-medium leading-tight sm:text-[9px]',
                             completed ? 'text-emerald-600 dark:text-emerald-400' : ready ? 'text-amber-600 dark:text-amber-300' : 'text-slate-500',
                           ].join(' ')}>
-                            {completed ? 'Selesai' : ready ? 'Siap Klaim' : locked ? label : ''}
+                            {ready ? 'Siap Klaim' : label}
                           </span>
                         </div>
                       );
