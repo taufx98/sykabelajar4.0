@@ -73,6 +73,25 @@ export function ReferralProgramPanel() {
     }
     let active = true;
     let refreshTimer: number | undefined;
+    let boundaryTimer: number | undefined;
+
+    const scheduleBoundaryRefresh = (settings: ReferralProgram | null) => {
+      if (boundaryTimer) window.clearTimeout(boundaryTimer);
+      boundaryTimer = undefined;
+      if (!settings?.is_active || !settings.event_reward_amount) return;
+      const now = Date.now();
+      const nextBoundary = [settings.starts_at, settings.ends_at]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => new Date(value).getTime())
+        .filter((value) => Number.isFinite(value) && value > now)
+        .sort((left, right) => left - right)[0];
+      if (nextBoundary === undefined) return;
+      const delay = Math.min(Math.max(nextBoundary - now + 1000, 1000), 2_147_483_647);
+      boundaryTimer = window.setTimeout(() => {
+        boundaryTimer = undefined;
+        void load(false);
+      }, delay);
+    };
 
     const load = async (showLoading: boolean) => {
       if (showLoading) setLoading(true);
@@ -86,7 +105,9 @@ export function ReferralProgramPanel() {
         if (!active) return;
         setRows((referralResult.data ?? []) as ReferralRow[]);
         const settings = Array.isArray(programResult.data) ? programResult.data[0] : programResult.data;
-        setProgram(settings ? settings as ReferralProgram : null);
+        const nextSettings = settings ? settings as ReferralProgram : null;
+        setProgram(nextSettings);
+        scheduleBoundaryRefresh(nextSettings);
       } catch (error) {
         if (active) toast(error instanceof Error ? error.message : 'Gagal memuat program referral.', 'error');
       } finally {
@@ -102,6 +123,13 @@ export function ReferralProgramPanel() {
         void load(false);
       }, 250);
     };
+    const handleWindowFocus = () => scheduleRefresh();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const channel = supabase.channel(`referral-events-${user.id}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'referral_events',
@@ -112,6 +140,9 @@ export function ReferralProgramPanel() {
     return () => {
       active = false;
       if (refreshTimer) window.clearTimeout(refreshTimer);
+      if (boundaryTimer) window.clearTimeout(boundaryTimer);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       void supabase.removeChannel(channel);
     };
   }, [user?.id, toast]);
