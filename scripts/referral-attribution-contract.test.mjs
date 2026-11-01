@@ -341,6 +341,6 @@ test('daily task completion is atomic and requires the configured backend eviden
 
   assert.match(migration, /get_daily_checkin_streak_rewards/);
   assert.match(migration, /pg_advisory_xact_lock/);
-  assert.match(migration, /LOCK TABLE public\\.edu_coin_ledger/);
-  assert.match(migration, /LOCK TABLE public\\.xp_ledger/);
+  assert.ok(migration.includes('LOCK TABLE public.edu_coin_ledger'));
+  assert.ok(migration.includes('LOCK TABLE public.xp_ledger'));
 });
