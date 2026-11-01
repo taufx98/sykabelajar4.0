@@ -11,6 +11,7 @@ import { emitSykaEvent, subscribeSykaEvents } from '@/lib/realtimeBus';
 import { showToast } from '@/lib/toast';
 import type { AppNotification } from '@/types';
 import { useLanguage } from '@/lib/LanguageContext';
+import { supabase } from '@/lib/supabase';
 import { ReferralProgramPanel } from '@/components/referrals/ReferralProgramPanel';
 
 type NotificationAction = { label: string; url: string };
@@ -39,6 +40,7 @@ type DetailNotification = AppNotification & { data?: NotificationData | null };
 type NotificationRow = Awaited<ReturnType<typeof listNotifications>>[number];
 type NotificationFilter = 'all' | 'unread' | 'coin' | 'badge' | 'registration';
 type NotificationCategory = 'coin' | 'badge' | 'registration' | 'general';
+type ReferralPreview = { reward_amount: number; is_active: boolean; is_event_active: boolean };
 
 const filters: { key: NotificationFilter; label: string }[] = [
   { key: 'all', label: 'Semua' },
@@ -163,6 +165,41 @@ export function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DetailNotification | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [referralPreview, setReferralPreview] = useState<ReferralPreview | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setReferralPreview(null);
+      return;
+    }
+    let live = true;
+    const loadReferralPreview = async () => {
+      const { data, error } = await supabase.rpc('get_referral_program_settings');
+      if (!live || error) return;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row || typeof row !== 'object') return;
+      const settings = row as Record<string, unknown>;
+      setReferralPreview({
+        reward_amount: Math.max(0, Number(settings.reward_amount) || 0),
+        is_active: Boolean(settings.is_active),
+        is_event_active: Boolean(settings.is_event_active),
+      });
+    };
+    const channel = supabase.channel('referral-program-settings-notifications', { config: { private: false } })
+      .on('broadcast', { event: 'updated' }, () => { void loadReferralPreview(); })
+      .subscribe();
+    const onFocus = () => { void loadReferralPreview(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') void loadReferralPreview(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    void loadReferralPreview();
+    return () => {
+      live = false;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     let live = true;
@@ -327,7 +364,7 @@ export function NotificationsPage() {
         <div className="flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-[#1E293B] dark:bg-[#151E32] sm:flex-row sm:items-center">
           <div className="flex w-full items-center gap-1 rounded-xl border border-slate-200 bg-slate-100/80 p-1 dark:border-[#1E293B] dark:bg-[#0B1120]/70 sm:w-auto">
             <button type="button" onClick={() => switchTab('notifications')} aria-pressed={activeTab === 'notifications'} className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-all sm:flex-initial ${activeTab === 'notifications' ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-[#1C273E] dark:hover:text-slate-200'}`}><Bell size={14}/><span>Notifikasi Pesan</span><span className={`rounded-full px-1.5 py-0.5 text-[9px] ${activeTab === 'notifications' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-300'}`}>{unread.length}</span></button>
-            <button type="button" onClick={() => switchTab('referral')} aria-pressed={activeTab === 'referral'} className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold transition-all sm:flex-initial ${activeTab === 'referral' ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-[#1C273E] dark:hover:text-slate-200'}`}><Gift size={14} className={activeTab === 'referral' ? 'text-white' : 'text-[#60A5FA]'}/><span>Program Referral</span></button>
+            <button type="button" onClick={() => switchTab('referral')} aria-pressed={activeTab === 'referral'} className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold transition-all sm:flex-initial ${activeTab === 'referral' ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-[#1C273E] dark:hover:text-slate-200'}`}><Gift size={14} className={activeTab === 'referral' ? 'text-white' : 'text-[#60A5FA]'}/><span>Program Referral</span>{referralPreview?.is_active && <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${activeTab === 'referral' ? 'bg-white/20 text-white' : 'border border-emerald-500/25 bg-emerald-500/10 text-emerald-500'}`}>+{referralPreview.reward_amount.toLocaleString('id-ID')} Coin</span>}</button>
           </div>
           {activeTab === 'notifications' && (
             <div className="flex justify-end">
@@ -343,7 +380,7 @@ export function NotificationsPage() {
               <div className="relative z-10 flex items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#2563EB] to-indigo-500 text-white shadow-lg shadow-blue-500/20"><Users size={22}/></div>
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-bold text-slate-900 dark:text-white sm:text-base">Ajak Teman, Dapatkan Edu Coin!</h2><span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-500">Program Referral</span></div>
+                  <div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-bold text-slate-900 dark:text-white sm:text-base">Ajak Teman, Dapatkan Edu Coin!</h2><span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-500">{referralPreview?.is_event_active ? 'Bonus Event Aktif' : 'Program Referral'}</span>{referralPreview?.is_active && <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-500">+{referralPreview.reward_amount.toLocaleString('id-ID')} Edu Coin</span>}</div>
                   <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600 dark:text-slate-300">Bagikan link undanganmu dan pantau reward yang sedang berlaku dari satu halaman.</p>
                 </div>
               </div>
