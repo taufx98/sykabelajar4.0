@@ -132,7 +132,10 @@ test('attempt and competition audit trigger functions are invoked only for meani
 test('leaderboard refreshes through Realtime and on tab return without polling', () => {
   assert.match(leaderboardPage, /postgres_changes/);
   assert.match(leaderboardPage, /addEventListener\('visibilitychange'/);
-  assert.doesNotMatch(leaderboardPage, /setInterval\s*\(/);
+  assert.match(leaderboardPage, /5 \\* 60_000/);
+  assert.match(leaderboardPage, /startDegradedRefresh/);
+  assert.match(leaderboardPage, /stopDegradedRefresh/);
+  assert.doesNotMatch(leaderboardPage, /60_000/);
   assert.match(leaderboardPage, /document\.visibilityState/);
   assert.match(platformService, /enrichedLeaderboardCache/);
   assert.match(platformService, /schoolLeaderboardCache/);
