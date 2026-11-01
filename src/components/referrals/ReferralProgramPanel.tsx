@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CalendarClock, Check, CircleCheck, Clock3, Copy, Gift, Link2, Share2, Users, Wallet } from 'lucide-react';
+import { CalendarClock, Check, CircleCheck, Clock3, Copy, Gift, Link2, Share2, Users, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -20,6 +20,9 @@ type ReferralRow = {
 type ReferralProgram = {
   is_active: boolean;
   reward_amount: number;
+  base_reward_amount: number;
+  event_reward_amount: number | null;
+  is_event_active: boolean;
   event_name: string | null;
   event_description: string | null;
   starts_at: string | null;
@@ -165,18 +168,18 @@ export function ReferralProgramPanel() {
           <h2 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Ajak teman, dapatkan reward <span className="text-[#60A5FA]">Edu Coin</span> bersama!</h2>
           <p className="max-w-xl text-xs leading-relaxed text-slate-300 sm:text-sm">Bagikan link undangan pribadi kamu. Temanmu mendapat akses belajar SYKABELAJAR, sementara referral tercatat otomatis ketika akun dibuat.</p>
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Badge color={program?.is_available ? 'moss' : 'warn'}>{program?.is_available ? 'Program aktif' : 'Program tidak aktif'}</Badge>
-            {program?.event_name && <span className="text-xs font-semibold text-[#BFDBFE]">{program.event_name}</span>}
+            <Badge color={!program?.is_available ? 'warn' : program.is_event_active ? 'moss' : 'info'}>{!program?.is_available ? 'Program nonaktif' : program.is_event_active ? 'Bonus event aktif' : 'Reward normal aktif'}</Badge>
+            {program?.is_event_active && program.event_name && <span className="text-xs font-semibold text-[#BFDBFE]">{program.event_name}</span>}
             {programDates && <span className="text-[11px] text-slate-400">{programDates}</span>}
           </div>
-          {program?.event_description && <p className="max-w-xl text-xs leading-relaxed text-slate-300">{program.event_description}</p>}
+          {program?.is_event_active && program.event_description && <p className="max-w-xl text-xs leading-relaxed text-slate-300">{program.event_description}</p>}
         </div>
       </section>
 
       {!program?.is_available && !loading && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-xs leading-relaxed text-fg-muted">
           <Clock3 size={17} className="mt-0.5 shrink-0 text-amber-400"/>
-          <p>Program referral sedang tidak menerima pendaftaran berhadiah. Link undangan dan riwayat tetap dapat dilihat, tetapi referral baru belum akan mendapatkan reward sampai program aktif kembali.</p>
+          <p>Program referral sedang dinonaktifkan oleh admin. Link dan riwayat tetap dapat dilihat, tetapi referral baru tidak dicatat sampai program diaktifkan kembali.</p>
         </div>
       )}
 
@@ -186,7 +189,7 @@ export function ReferralProgramPanel() {
           <div className="relative flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-500"><Gift size={22}/></div>
             <div>
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Reward Referral</span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{program?.is_event_active ? 'Reward Event Referral' : 'Reward Normal Referral'}</span>
               <p className="mt-0.5 text-2xl font-black text-slate-900 dark:text-white">{loading ? '—' : reward.toLocaleString('id-ID')} <span className="text-sm font-bold text-amber-500">Edu Coin</span></p>
             </div>
           </div>
