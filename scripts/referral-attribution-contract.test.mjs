@@ -168,13 +168,13 @@ test('referral tier milestones and their reward figures follow the supplied HTML
 
   assert.ok(panel.indexOf('referral-link-card') < panel.indexOf('referral-reward-tiers'));
   assert.ok(panel.indexOf('referral-reward-tiers') < panel.indexOf('referral-stats'));
-  assert.match(panel, /1 User/);
+  assert.match(panel, /target: 1,/);
   assert.match(panel, /Target Pertama/);
   assert.match(panel, /5 Coin/);
-  assert.match(panel, /25 User/);
+  assert.match(panel, /target: 25,/);
   assert.match(panel, /145 Coin/);
   assert.match(panel, /\+20 Bonus/);
-  assert.match(panel, /100 User/);
+  assert.match(panel, /target: 100,/);
   assert.match(panel, /\+150 Coin Bonus/);
   assert.match(panel, /650 Coin/);
   assert.match(panel, /1\.000 User/);
