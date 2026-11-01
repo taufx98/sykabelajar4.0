@@ -177,7 +177,7 @@ test('referral tier milestones and their reward figures follow the supplied HTML
   assert.match(panel, /target: 100,/);
   assert.match(panel, /\+150 Coin Bonus/);
   assert.match(panel, /650 Coin/);
-  assert.match(panel, /1\.000 User/);
+  assert.match(panel, /target: 1000,/);
   assert.match(panel, /ULTRA/);
   assert.match(panel, /\+250 Bonus Coin/);
   assert.match(panel, /950 Coin/);
