@@ -288,7 +288,7 @@ export function ReferralProgramPanel() {
               <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Milestone dihitung dari jumlah referral yang berhasil terverifikasi.</p>
             </div>
             <span className="inline-flex w-fit rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-500">
-              {loading ? 'Memuat progress…' : nextMilestone ? \`Progress Saat Ini: \${successful.toLocaleString('id-ID')} / \${nextMilestone.target.toLocaleString('id-ID')} User\` : 'Semua target tercapai'}
+              {loading ? 'Memuat progress…' : nextMilestone ? `Progress Saat Ini: ${successful.toLocaleString('id-ID')} / ${nextMilestone.target.toLocaleString('id-ID')} User` : 'Semua target tercapai'}
             </span>
           </div>
 
@@ -315,7 +315,7 @@ export function ReferralProgramPanel() {
                         {!achieved && !inProgress && <i aria-hidden="true" className="fa-solid fa-lock text-[9px] text-slate-500"/>}
                       </div>
                       <p className={['text-[10px] font-medium', achieved ? 'text-amber-500' : inProgress ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'].join(' ')}>
-                        {achieved ? milestone.title + ' · Tercapai' : inProgress ? \`Berjalan (\${successful.toLocaleString('id-ID')}/\${milestone.target.toLocaleString('id-ID')})\` : milestone.title}
+                        {achieved ? milestone.title + ' · Tercapai' : inProgress ? `Berjalan (${successful.toLocaleString('id-ID')}/${milestone.target.toLocaleString('id-ID')})` : milestone.title}
                       </p>
                     </div>
                   </div>
@@ -357,7 +357,7 @@ export function ReferralProgramPanel() {
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">Aktivitas Referral Terbaru</h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Pantau teman yang bergabung melalui undanganmu.</p>
           </div>
-          <Badge color="moss">{loading ? 'Memuat…' : \`\${successful.toLocaleString('id-ID')} teman berhasil\`}</Badge>
+          <Badge color="moss">{loading ? 'Memuat…' : `${successful.toLocaleString('id-ID')} teman berhasil`}</Badge>
         </div>
 
         {loading && <Card className="p-8 text-center text-sm text-fg-muted">Memuat aktivitas referral…</Card>}
