@@ -287,13 +287,15 @@ test('Daily Tasks UI and service use the same WIB date key and backend wallet ba
 
 test('daily reward claims update canonical profile balances only when ledger rows are newly inserted', async () => {
   const migration = await readFile(new URL('../supabase/migrations/20261101100000_daily_tasks_wib_wallet_integrity.sql', import.meta.url), 'utf8');
+  const walletGuard = await readFile(new URL('../supabase/migrations/20261101110000_profile_currency_client_guard.sql', import.meta.url), 'utf8');
 
   assert.match(migration, /CREATE OR REPLACE FUNCTION private\.credit_profile_currency/i);
   assert.match(migration, /UPDATE public\.profiles/i);
   assert.match(migration, /total_xp\s*=\s*coalesce\(total_xp,\s*0\)/i);
   assert.match(migration, /edu_coin\s*=\s*coalesce\(edu_coin,\s*0\)/i);
-  assert.match(migration, /prevent_profile_currency_client_mutation/);
-  assert.match(migration, /PROFILE_CURRENCY_BACKEND_MANAGED/);
+  assert.match(walletGuard, /prevent_profile_currency_client_mutation/);
+  assert.match(walletGuard, /PROFILE_CURRENCY_BACKEND_MANAGED/);
+  assert.match(walletGuard, /BEFORE INSERT OR UPDATE OF edu_coin, total_xp/);
   assert.match(migration, /RETURNING id INTO v_ledger_id/i);
   assert.match(migration, /IF v_ledger_id IS NOT NULL THEN/i);
   assert.match(migration, /REVOKE ALL ON FUNCTION private\.credit_profile_currency/i);
