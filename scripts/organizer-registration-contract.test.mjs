@@ -101,6 +101,7 @@ test('referral qualification is event-driven and its hourly scanner is unschedul
   assert.match(efficiencyMigration, /ON CONFLICT \(user_id, event_type, event_id\) DO NOTHING/i);
   assert.match(efficiencyMigration, /email_confirmed_at IS NOT NULL/i);
   assert.match(efficiencyMigration, /interval '24 hours'/i);
+  assert.match(efficiencyMigration, /CREATE TRIGGER trg_process_new_referral_event[\\s\\S]*ON public\.referral_events/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
   assert.match(efficiencyMigration, /DROP FUNCTION IF EXISTS private\.sync_due_competition_registration_statuses/i);
@@ -129,13 +130,14 @@ test('attempt and competition audit trigger functions are invoked only for meani
   assert.match(efficiencyMigration, /coalesce\(NEW\.is_preview, false\)/i);
 });
 
-test('leaderboard refreshes through Realtime and on tab return without polling', () => {
+test('leaderboard uses Realtime with a five-minute fallback only when the channel is degraded', () => {
   assert.match(leaderboardPage, /postgres_changes/);
   assert.match(leaderboardPage, /addEventListener\('visibilitychange'/);
   assert.match(leaderboardPage, /5 \\* 60_000/);
   assert.match(leaderboardPage, /startDegradedRefresh/);
   assert.match(leaderboardPage, /stopDegradedRefresh/);
-  assert.doesNotMatch(leaderboardPage, /60_000/);
+  assert.match(leaderboardPage, /status === 'SUBSCRIBED'/);
+  assert.doesNotMatch(leaderboardPage, /60_000\s*\)/);
   assert.match(leaderboardPage, /document\.visibilityState/);
   assert.match(platformService, /enrichedLeaderboardCache/);
   assert.match(platformService, /schoolLeaderboardCache/);
@@ -153,7 +155,7 @@ test('organizer workspace resolution reuses one authoritative fetched list', () 
 
 test('competition registration phase is reconciled on demand rather than by cron or 30-second API polling', () => {
   assert.match(competitionDetail, /syncCompetitionRegistrationStatus\(String\(base\.id\)\)/);
-  assert.doesNotMatch(competitionDetail, /setInterval\s*\(/);
+  assert.doesNotMatch(competitionDetail, /setInterval\s*\(async[\s\S]*syncCompetitionRegistrationStatus/);
   assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION public\.check_registration_eligibility[\s\S]*?PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
   assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION public\.validate_registration_insert[\s\S]*?PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
 });
@@ -162,8 +164,9 @@ test('chat moderation refreshes from owner-scoped Realtime events without period
   assert.match(chatModerationGate, /table: 'chat_user_moderation'/);
   assert.match(chatModerationGate, /table: 'chat_spam_controls'/);
   assert.match(chatModerationGate, /filter: `user_id=eq\.\$\{user\.id\}`/);
-  assert.doesNotMatch(chatModerationGate, /setInterval\s*\(/);
+  assert.match(chatModerationGate, /scheduleRefresh/);
   assert.match(chatModerationGate, /visibilitychange/);
+  assert.doesNotMatch(chatModerationGate, /15000|15_000/);
   assert.match(efficiencyMigration, /CREATE POLICY chat_user_moderation_self_read[\s\S]*USING \(user_id = auth\.uid\(\)\)/i);
   assert.match(efficiencyMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.chat_user_moderation/i);
   assert.match(efficiencyMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.chat_spam_controls/i);
