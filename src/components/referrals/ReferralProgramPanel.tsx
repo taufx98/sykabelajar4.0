@@ -195,8 +195,8 @@ export function ReferralProgramPanel() {
   };
 
   const programDates = [
-    program?.event_reward_amount != null && program.starts_at ? `Mulai ${formatDate(program.starts_at)}` : null,
-    program?.event_reward_amount != null && program.ends_at ? `Berakhir ${formatDate(program.ends_at)}` : null,
+    program?.is_available && (program.is_event_active || eventUpcoming) && program.starts_at ? `Mulai ${formatDate(program.starts_at)}` : null,
+    program?.is_available && (program.is_event_active || eventUpcoming) && program.ends_at ? `Berakhir ${formatDate(program.ends_at)}` : null,
   ].filter(Boolean).join(' · ');
 
   return (
