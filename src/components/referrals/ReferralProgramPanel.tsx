@@ -271,7 +271,7 @@ export function ReferralProgramPanel() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                <i aria-hidden="true" className="fa-solid fa-chart-line text-[#3B82F6]"/> Target Undangan & Progress
+                <i aria-hidden="true" className="fa-solid fa-chart-line text-[#3B82F6]"/> Target Undangan & Bonus Tier (Progress)
               </h3>
               <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Milestone dihitung dari jumlah referral yang berhasil terverifikasi.</p>
             </div>
