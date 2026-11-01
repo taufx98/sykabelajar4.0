@@ -129,3 +129,28 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.match(notificationsPage, /notification-modal-footer/);
   assert.doesNotMatch(notificationsPage, /Kabar akun, aktivitas, dan undangan komunitasmu/);
 });
+
+
+test('notifications follow the expanded reference categories and dynamic previews', async () => {
+  const page = await readFile(new URL('../src/pages/NotificationsPage.tsx', import.meta.url), 'utf8');
+
+  assert.match(page, /key: 'gamification'/);
+  assert.match(page, /key: 'winner'/);
+  assert.match(page, /key: 'announcement'/);
+  assert.match(page, /fa-gamepad/);
+  assert.match(page, /fa-trophy/);
+  assert.match(page, /fa-bullhorn/);
+  assert.match(page, /selectedCategory === 'winner'/);
+  assert.match(page, /selectedCategory === 'gamification'/);
+  assert.match(page, /selectedCategory === 'announcement'/);
+});
+
+test('referral panel follows the reference order without inventing tier reward payouts', async () => {
+  const panel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
+
+  assert.ok(panel.indexOf('referral-link-card') < panel.indexOf('referral-milestones'));
+  assert.ok(panel.indexOf('referral-milestones') < panel.indexOf('referral-stats'));
+  assert.match(panel, /referral-activity-table/);
+  assert.match(panel, /successful/);
+  assert.doesNotMatch(panel, /145 Coin|650 Coin|950 Coin|Rian Hidayat|Siti Rahma/);
+});
