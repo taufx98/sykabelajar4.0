@@ -136,6 +136,9 @@ export function ReferralProgramPanel() {
         filter: `referrer_user_id=eq.${user.id}`,
       }, scheduleRefresh)
       .subscribe();
+    const campaignChannel = supabase.channel('referral-program-settings', { config: { private: false } })
+      .on('broadcast', { event: 'updated' }, scheduleRefresh)
+      .subscribe();
 
     return () => {
       active = false;
@@ -144,6 +147,7 @@ export function ReferralProgramPanel() {
       window.removeEventListener('focus', handleWindowFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       void supabase.removeChannel(channel);
+      void supabase.removeChannel(campaignChannel);
     };
   }, [user?.id, toast]);
 
