@@ -107,13 +107,24 @@ export function ChatCooldownGate() {
     const deadline = new Date(timedBlockUntil).getTime();
     if (!Number.isFinite(deadline) || deadline <= Date.now()) return;
 
+    let active = true;
     setNow(Date.now());
     const tick = window.setInterval(() => {
       const current = Date.now();
       setNow(current);
-      if (current >= deadline) window.clearInterval(tick);
+      if (current < deadline) return;
+
+      window.clearInterval(tick);
+      void Promise.allSettled([getChatSpamStatus(), getChatAccessStatus()]).then(([spamResult, accessResult]) => {
+        if (!active) return;
+        if (spamResult.status === 'fulfilled') setSpam(spamResult.value);
+        if (accessResult.status === 'fulfilled') setAccess(accessResult.value);
+      });
     }, 1000);
-    return () => window.clearInterval(tick);
+    return () => {
+      active = false;
+      window.clearInterval(tick);
+    };
   }, [timedBlockUntil, location.pathname, user?.id]);
 
   if (!user || location.pathname !== '/pesan') return null;
