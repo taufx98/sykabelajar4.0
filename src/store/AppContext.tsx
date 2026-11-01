@@ -22,7 +22,7 @@ interface AppState {
   orders: Order[];
   feed: FeedPost[];
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
-  register: (data: Partial<User> & { email: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
+  register: (data: Partial<User> & { email: string; password: string; referralCode?: string }) => Promise<{ ok: boolean; error?: string }>;
   loginAsGuest: () => void;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -370,7 +370,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [clearUserState, hydrateCurrentUser, refreshUnreadCount]);
 
-  const register = useCallback(async (data: Partial<User> & { email: string; password: string }) => {
+  const register = useCallback(async (data: Partial<User> & { email: string; password: string; referralCode?: string }) => {
     try {
       const requestedRole = data.role === 'guru' || data.role === 'penyelenggara' ? data.role : 'pelajar';
       await signUp(data.email.trim(), data.password, {
@@ -381,6 +381,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         institution: data.school,
         grade: data.educationLevel,
         subjects: Array.isArray(data.favoriteCategories) ? data.favoriteCategories.join(',') : undefined,
+        referral_id: data.referralCode,
       });
       return { ok: true };
     } catch (error: unknown) {
