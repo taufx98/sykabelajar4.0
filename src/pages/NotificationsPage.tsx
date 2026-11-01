@@ -93,7 +93,7 @@ const mapNotification = (n: NotificationRow): DetailNotification => {
 
 const categoryFor = (n: DetailNotification): NotificationCategory => {
   const content = `${n.type} ${n.title} ${n.body}`.toLowerCase();
-  if (n.data?.amount != null || /edu.?coin|\bcoin\b|wallet|saldo|reward|bonus/.test(content)) return 'coin';
+  if (n.data?.payment_currency === 'EDU_COIN' || n.data?.edu_coin_spent != null || /edu.?coin|\\bcoin\\b|wallet|saldo|reward|bonus/.test(content)) return 'coin';
   if (/badge|achievement|pencapaian|sertifikat|certificate|award/.test(content)) return 'badge';
   if (/registration|pendaftaran|lomba|kompetisi|competition/.test(content)) return 'registration';
   return 'general';
@@ -378,7 +378,7 @@ export function NotificationsPage() {
             </div>
             <div className="max-h-[calc(90vh-145px)] space-y-5 overflow-y-auto p-5 sm:p-6">
               <div><span className={`mb-2 inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${categoryStyle(selectedCategory)}`}>{categoryLabel(selectedCategory)}</span><h3 id="notification-modal-title" className="text-lg font-extrabold leading-snug text-slate-900 dark:text-white">{selected.title}</h3></div>
-              {selectedAmount != null && Number.isFinite(selectedAmount) && (
+              {selectedCategory === 'coin' && selectedAmount != null && Number.isFinite(selectedAmount) && (
                 <div className="flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center dark:border-slate-800 dark:bg-slate-900/70"><div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-lg shadow-amber-500/10"><Coins size={28}/></div><div><span className="block text-xs font-semibold text-slate-400">{selectedIsSpending ? 'Edu Coin Digunakan' : 'Nominal Reward'}</span><span className="text-2xl font-black tracking-tight text-amber-500">{selectedIsSpending ? '−' : selectedAmount > 0 ? '+' : ''}{Math.abs(selectedAmount).toLocaleString('id-ID')} EDU</span>{selected?.data?.edu_coin_balance != null && <span className="mt-1 block text-[10px] text-slate-500">Saldo setelah transaksi: {Number(selected.data.edu_coin_balance).toLocaleString('id-ID')} Edu Coin</span>}</div><span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-500"><CheckCheck size={12}/> Informasi dari sistem</span></div>
               )}
               {selectedCategory === 'badge' && (
