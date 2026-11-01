@@ -476,7 +476,7 @@ export function NotificationsPage() {
     <div className="notifications-page min-h-full bg-[#0B1120] px-4 pb-10 pt-8 text-slate-200 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-[1234px] space-y-6">
         <section className="space-y-5">
-            {referralPreview?.promo_is_enabled !== false && <div className="notifications-promo relative flex min-h-[91px] flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-[#3B82F6]/35 bg-gradient-to-r from-[#142957] via-[#171C3C] to-[#24183F] p-4 sm:flex-row sm:items-center sm:px-5">
+            <div className="notifications-promo relative flex min-h-[91px] flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-[#3B82F6]/35 bg-gradient-to-r from-[#142957] via-[#171C3C] to-[#24183F] p-4 sm:flex-row sm:items-center sm:px-5">
               <div className="pointer-events-none absolute -bottom-12 -right-8 h-40 w-40 rounded-full bg-[#6366F1]/15 blur-3xl" />
               <div className="relative z-10 flex min-w-0 items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#3B82F6] text-xl text-white shadow-lg shadow-blue-500/25">
@@ -504,7 +504,7 @@ export function NotificationsPage() {
                 <span>{referralPreview?.promo_cta || 'Buka Program Referral'}</span>
                 <i aria-hidden="true" className="fa-solid fa-arrow-right text-[10px]" />
               </button>
-            </div>}
+            </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1" role="group" aria-label="Filter notifikasi">
               <button
