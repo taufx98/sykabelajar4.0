@@ -120,14 +120,18 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.doesNotMatch(notificationsPage, /notification-modal-backdrop/);
   const styles = await readFile(new URL('../src/index.css', import.meta.url), 'utf8');
   assert.doesNotMatch(styles, /\.notifications-modal-backdrop/);
-  assert.match(globalHeader, /location\.pathname === '\/notifications'/);
-  assert.match(globalHeader, /Notifikasi/);
-  const notificationsHeaderStart = globalHeader.indexOf("if (location.pathname === '/notifications')");
-  const notificationsHeaderEnd = globalHeader.indexOf("  return (", notificationsHeaderStart);
-  const notificationsHeader = globalHeader.slice(notificationsHeaderStart, notificationsHeaderEnd);
-  assert.ok(notificationsHeaderStart >= 0 && notificationsHeaderEnd > notificationsHeaderStart);
-  assert.doesNotMatch(notificationsHeader, /Program Referral/);
-  assert.match(globalHeader, /Daily Tasks &amp; Program Referral/);
+  // Daily Tasks defines the visual contract for every route using GlobalHeader.
+  assert.doesNotMatch(globalHeader, /if \(location\.pathname === '\/daily-tasks'\)/);
+  assert.doesNotMatch(globalHeader, /if \(location\.pathname === '\/notifications'\)/);
+  assert.match(globalHeader, /Daily Tasks & Referral/);
+  assert.match(globalHeader, /<h1[^>]*>\s*\{label\}\s*<\/h1>/);
+  assert.match(globalHeader, /md:hidden/);
+  assert.match(globalHeader, /min-h-11 min-w-11/);
+  assert.match(globalHeader, /CalendarDays/);
+  assert.match(globalHeader, /Asia\/Jakarta/);
+  assert.match(globalHeader, /notifyHomeNavigationClick/);
+  assert.match(globalHeader, /AdminCommunicationLinks/);
+  assert.doesNotMatch(styles, /\.notifications-global-header/);
   assert.match(notificationsPage, /fa-users-rays/);
   assert.match(notificationsPage, /fa-coins/);
   assert.match(notificationsPage, /fa-award/);
@@ -327,7 +331,7 @@ test('Daily Tasks visual structure follows the supplied reference without changi
   assert.match(daily, /get_daily_checkin_streak_rewards/);
   assert.match(daily, /scheduledReward/);
   assert.match(daily, /historicalDateKey/);
-  assert.match(header, /Daily Tasks &(?:amp;)? Program Referral/);
+  assert.match(header, /Daily Tasks &(?:amp;)? Referral/);
   assert.match(admin, /from\('daily_tasks'\)\.insert/);
   assert.match(admin, /from\('daily_tasks'\)\.update/);
   assert.match(admin, /is_active/);

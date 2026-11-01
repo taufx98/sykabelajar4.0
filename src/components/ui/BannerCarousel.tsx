@@ -118,6 +118,7 @@ function BannerMedia({
         playsInline
         autoPlay={shouldPlayVideo}
         loop
+        draggable={false}
         preload={shouldLoadVideo ? 'metadata' : 'none'}
       />
     );
@@ -132,6 +133,7 @@ function BannerMedia({
       loading={shouldPrioritizeImage ? 'eager' : 'lazy'}
       fetchPriority={shouldPrioritizeImage ? 'high' : 'auto'}
       decoding="async"
+      draggable={false}
       width={width}
       height={Math.round(width / aspectRatio)}
     />
@@ -148,7 +150,7 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
   // screens. The sidebar remains one slot at all breakpoints.
   const [topSlotCount, setTopSlotCount] = useState(2);
   const carouselRef = useRef<HTMLDivElement | null>(null);
-  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const suppressClickRef = useRef(false);
   const canSeeEmptySlots = user?.role === 'admin' || user?.role === 'guru' || user?.role === 'penyelenggara';
   const slotCount = placement === 'home_sidebar' ? 1 : topSlotCount;
@@ -253,20 +255,40 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    dragStartRef.current = { x: event.clientX, y: event.clientY };
+    if (!needsSlide || (event.target instanceof Element && event.target.closest('button'))) return;
+
+    const linkTarget = event.target instanceof Element ? event.target.closest('a') : null;
+    try {
+      if (linkTarget instanceof HTMLElement) linkTarget.setPointerCapture(event.pointerId);
+      else event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may be unavailable in older browser implementations.
+    }
+
+    dragStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      pointerId: event.pointerId,
+    };
     suppressClickRef.current = false;
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     const start = dragStartRef.current;
+    if (!start || start.pointerId !== event.pointerId) return;
     dragStartRef.current = null;
-    if (!start || !needsSlide) return;
+    if (!needsSlide) return;
+
     const deltaX = event.clientX - start.x;
     const deltaY = event.clientY - start.y;
     if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) return;
+
     suppressClickRef.current = true;
     if (deltaX < 0) advance();
     else previous();
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
   };
 
   return (
@@ -319,7 +341,8 @@ export function BannerCarousel({ placement = 'home_top', showArrows = false, onB
                   <a
                     key={banner.id}
                     href={banner.link_url || '#/home'}
-                    className="relative min-w-0 rounded-xl overflow-hidden group bg-black/5"
+                    draggable={false}
+                    className="relative min-w-0 cursor-grab select-none overflow-hidden rounded-xl bg-black/5 group active:cursor-grabbing"
                     style={{
                       gridColumn: `span ${widthSlots} / span ${widthSlots}`,
                       aspectRatio: aspectRatioFor(placement, widthSlots, slotCount),
