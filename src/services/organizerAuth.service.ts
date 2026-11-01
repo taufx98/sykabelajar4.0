@@ -11,7 +11,12 @@ export type CurrentOrganizer = {
 
 export const ORGANIZER_SELECTION_KEY = 'syka.selectedOrganizerId';
 
+let listCurrentUserOrganizersInFlight: Promise<CurrentOrganizer[]> | null = null;
+
 export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
+  if (listCurrentUserOrganizersInFlight) return listCurrentUserOrganizersInFlight;
+
+  const request = (async (): Promise<CurrentOrganizer[]> => {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return [];
 
@@ -56,6 +61,14 @@ export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
     ...owned,
     ...(memberOrgs ?? []).map((org: any) => ({ ...org, _memberRole: roleByOrg.get(org.id) || 'editor' })),
   ];
+  })();
+
+  listCurrentUserOrganizersInFlight = request;
+  try {
+    return await request;
+  } finally {
+    if (listCurrentUserOrganizersInFlight === request) listCurrentUserOrganizersInFlight = null;
+  }
 }
 
 export function getSelectedOrganizerId(): string | null {
