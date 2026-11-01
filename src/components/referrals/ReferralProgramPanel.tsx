@@ -153,6 +153,12 @@ export function ReferralProgramPanel() {
     .filter((row) => row.status === 'VERIFIED' || row.status === 'CREDITED')
     .reduce((sum, row) => sum + Math.max(0, Number(row.reward_amount) || 0), 0);
   const reward = Math.max(0, Number(program?.reward_amount) || 0);
+  const eventUpcoming = Boolean(
+    program?.is_active
+    && program.event_reward_amount != null
+    && program.starts_at
+    && Date.now() < new Date(program.starts_at).getTime()
+  );
 
   const copyLink = async () => {
     if (!referralLink) return;
@@ -199,11 +205,11 @@ export function ReferralProgramPanel() {
           <h2 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Ajak teman, dapatkan reward <span className="text-[#60A5FA]">Edu Coin</span> bersama!</h2>
           <p className="max-w-xl text-xs leading-relaxed text-slate-300 sm:text-sm">Bagikan link undangan pribadi kamu. Temanmu mendapat akses belajar SYKABELAJAR, sementara referral tercatat otomatis ketika akun dibuat.</p>
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Badge color={!program?.is_available ? 'warn' : program.is_event_active ? 'moss' : 'info'}>{!program?.is_available ? 'Program nonaktif' : program.is_event_active ? 'Bonus event aktif' : 'Reward normal aktif'}</Badge>
-            {program?.is_event_active && program.event_name && <span className="text-xs font-semibold text-[#BFDBFE]">{program.event_name}</span>}
+            <Badge color={!program?.is_available ? 'warn' : program.is_event_active ? 'moss' : eventUpcoming ? 'info' : 'info'}>{!program?.is_available ? 'Program nonaktif' : program.is_event_active ? 'Bonus event aktif' : eventUpcoming ? 'Event segera dimulai' : 'Reward normal aktif'}</Badge>
+            {program?.event_reward_amount != null && (program.is_event_active || eventUpcoming) && program.event_name && <span className="text-xs font-semibold text-[#BFDBFE]">{program.event_name}</span>}
             {programDates && <span className="text-[11px] text-slate-400">{programDates}</span>}
           </div>
-          {program?.is_event_active && program.event_description && <p className="max-w-xl text-xs leading-relaxed text-slate-300">{program.event_description}</p>}
+          {program?.event_reward_amount != null && (program.is_event_active || eventUpcoming) && program.event_description && <p className="max-w-xl text-xs leading-relaxed text-slate-300">{program.event_description}</p>}
         </div>
       </section>
 
