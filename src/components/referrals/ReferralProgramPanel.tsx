@@ -154,8 +154,8 @@ export function ReferralProgramPanel() {
   };
 
   const programDates = [
-    program?.starts_at ? `Mulai ${formatDate(program.starts_at)}` : null,
-    program?.ends_at ? `Berakhir ${formatDate(program.ends_at)}` : null,
+    program?.event_reward_amount != null && program.starts_at ? `Mulai ${formatDate(program.starts_at)}` : null,
+    program?.event_reward_amount != null && program.ends_at ? `Berakhir ${formatDate(program.ends_at)}` : null,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -176,7 +176,7 @@ export function ReferralProgramPanel() {
         </div>
       </section>
 
-      {!program?.is_available && !loading && (
+      {program && !program.is_available && !loading && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-xs leading-relaxed text-fg-muted">
           <Clock3 size={17} className="mt-0.5 shrink-0 text-amber-400"/>
           <p>Program referral sedang dinonaktifkan oleh admin. Link dan riwayat tetap dapat dilihat, tetapi referral baru tidak dicatat sampai program diaktifkan kembali.</p>
