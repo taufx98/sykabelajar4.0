@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { ArrowLeft, Medal } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Medal } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
@@ -94,6 +94,62 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
   const Icon = isAdminBadges ? Medal : activeItem?.icon;
   const meta = (language === 'en' ? META_EN[label] : META[label]) ?? (language === 'en' ? { section: 'SYKABELAJAR', subtitle: label === 'SYKABELAJAR' ? 'SYKABELAJAR workspace' : `${label} page` } : fallbackMeta(label));
   const showAdminCommunication = user?.role === 'admin' && (location.pathname === '/pesan' || isAdminChat);
+
+  if (location.pathname === '/daily-tasks') {
+    const dateLabel = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    }).format(new Date());
+
+    return (
+      <header className="sticky top-0 z-30 flex min-h-[76px] shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-[#1E293B] dark:bg-[#0B1120] sm:px-6">
+        <div className="min-w-0">
+          <div className="mb-0.5 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span>Belajar</span>
+            <i aria-hidden="true" className="fa-solid fa-chevron-right text-[10px] text-slate-400 dark:text-slate-500" />
+            <span className="text-slate-700 dark:text-slate-200">Daily Tasks &amp; Referral</span>
+          </div>
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Daily Tasks &amp; Program Referral</h1>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <span className="hidden items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-[#1E293B] dark:bg-slate-900 dark:text-slate-400 sm:inline-flex">
+            <CalendarDays size={13} className="text-[#3B82F6]"/>
+            {dateLabel}
+          </span>
+          {user?.role === 'admin' && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3B82F6]/30 bg-[#3B82F6]/10 px-2.5 py-1.5 text-[11px] font-semibold text-[#2563EB] dark:text-[#93C5FD]">
+              <i aria-hidden="true" className="fa-solid fa-user-shield"/>
+              Admin
+            </span>
+          )}
+        </div>
+      </header>
+    );
+  }
+
+  if (location.pathname === '/notifications') {
+    return (
+      <header className="notifications-global-header sticky top-0 z-30 flex h-[76px] shrink-0 items-center justify-between border-b border-[#1E293B] bg-[#0B1120] px-5 sm:px-6">
+        <div className="min-w-0">
+          <div className="mb-0.5 flex items-center gap-2 text-xs font-medium text-slate-400">
+            <span>Aktivitas</span>
+            <i aria-hidden="true" className="fa-solid fa-chevron-right text-[10px] text-slate-500" />
+            <span className="text-slate-200">Notifikasi</span>
+          </div>
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-white">Notifikasi</h1>
+        </div>
+        {user?.role === 'admin' && (
+          <span className="ml-4 inline-flex shrink-0 items-center gap-2 rounded-full border border-[#3B82F6]/35 bg-[#3B82F6]/10 px-3 py-1.5 text-[11px] font-bold text-slate-200">
+            <i aria-hidden="true" className="fa-solid fa-user-shield text-[#CBD5E1]" />
+            Admin
+          </span>
+        )}
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-30 glass border-b surface-border">

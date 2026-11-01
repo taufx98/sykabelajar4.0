@@ -154,12 +154,12 @@ export function MobileNavigationOverride({
             to={item.to}
             onClick={() => notifyHomeNavigationClick(item.to)}
             aria-current={isActive ? 'page' : undefined}
-            className={`relative flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl ${isActive ? 'text-accent' : 'text-fg-muted'}`}
+            className={`relative flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl ${isActive ? (key === 'notifications' ? 'text-[#3B82F6]' : 'text-accent') : 'text-fg-muted'}`}
           >
             <Icon size={20} />
             <span className="text-[10px] truncate">{item.label}</span>
             {badge > 0 && (
-              <span className="absolute top-0.5 right-1/4 min-w-[14px] h-[14px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+              <span className={`absolute top-0.5 right-1/4 min-w-[14px] h-[14px] rounded-full text-white text-[8px] font-bold flex items-center justify-center shadow-sm ${key === 'notifications' ? 'bg-[#3B82F6] shadow-blue-500/20' : 'bg-red-500'}`}>
                 {badge > 99 ? '99+' : badge}
               </span>
             )}

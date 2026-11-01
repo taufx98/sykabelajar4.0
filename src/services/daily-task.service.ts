@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getJakartaDateKey } from '@/lib/jakartaDate';
 
 export interface LiveDailyTask {
   id: string;
@@ -16,13 +17,13 @@ export interface LiveDailyTask {
   completedAt: string | null;
 }
 
-export async function getDailyTasks(): Promise<LiveDailyTask[]> {
+export async function getDailyTasks(claimDate = getJakartaDateKey()): Promise<LiveDailyTask[]> {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error('LOGIN_REQUIRED');
 
   const [{ data: tasks, error: taskError }, { data: claims, error: claimError }] = await Promise.all([
     supabase.from('daily_tasks').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
-    supabase.from('daily_task_claims').select('*').eq('user_id', userData.user.id).eq('claim_date', new Date().toISOString().slice(0, 10)),
+    supabase.from('daily_task_claims').select('*').eq('user_id', userData.user.id).eq('claim_date', claimDate),
   ]);
 
   if (taskError) throw taskError;
@@ -64,7 +65,7 @@ export async function completeDailyTask(taskId: string) {
 }
 
 export async function claimAndCompleteDailyTask(taskId: string) {
-  const { error: claimError } = await supabase.rpc('claim_daily_task', { p_task_id: taskId });
-  if (claimError) throw claimError;
-  return completeDailyTask(taskId);
+  const { data, error } = await supabase.rpc('claim_and_complete_daily_task', { p_task_id: taskId });
+  if (error) throw error;
+  return data;
 }

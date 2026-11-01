@@ -327,3 +327,208 @@ html.reduce-motion *::after {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+
+/* Notifications route: keep these reference-specific surfaces scoped to this page. */
+.notifications-global-header {
+  background: #0B1120 !important;
+  border-color: #1E293B !important;
+}
+html.light .notifications-global-header {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+html.light .notifications-global-header h1 {
+  color: #0F172A !important;
+}
+html.light .notifications-global-header .text-slate-200 {
+  color: #334155 !important;
+}
+
+.notifications-page {
+  background: #0B1120 !important;
+  color: #CBD5E1;
+}
+html.light .notifications-page {
+  background: #F8FAFC !important;
+  color: #334155;
+}
+.notifications-tab-shell {
+  min-height: 67px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.notifications-tab-group {
+  min-height: 50px;
+}
+.notifications-tab {
+  min-height: 42px;
+  white-space: nowrap;
+}
+.notifications-mark-read {
+  white-space: nowrap;
+}
+.notifications-promo {
+  min-height: 91px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+}
+.notifications-promo-action {
+  min-height: 38px;
+  white-space: nowrap;
+}
+.notifications-filter {
+  min-height: 29px;
+  white-space: nowrap;
+}
+.notifications-page .notification-card.card {
+  min-height: 104px;
+  border-radius: 16px !important;
+  background: #151E32 !important;
+  box-shadow: none !important;
+}
+.notifications-page .notification-card.card:hover {
+  background: #18243A !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+.notifications-page .notification-card-unread.card,
+.notifications-page .notification-card-unread.card:hover {
+  border-color: rgba(59, 130, 246, 0.55) !important;
+  background: #151E32 !important;
+}
+.notification-modal-panel {
+  background: #151E32 !important;
+  border-color: rgba(148, 163, 184, 0.16) !important;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+}
+.notification-modal-header {
+  background: rgba(15, 23, 42, 0.42);
+}
+.notification-modal-body {
+  overscroll-behavior: contain;
+}
+.notification-preview-box {
+  background: rgba(15, 23, 42, 0.72);
+}
+.notification-modal-footer {
+  background: rgba(15, 23, 42, 0.28);
+}
+html.light .notifications-tab-shell,
+html.light .notifications-page .notification-card.card {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+}
+html.light .notifications-tab-group {
+  background: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+}
+html.light .notifications-tab:not(.is-active) {
+  color: #64748B !important;
+}
+html.light .notifications-promo {
+  background: linear-gradient(100deg, #EFF6FF 0%, #EEF2FF 55%, #F5F3FF 100%) !important;
+  border-color: #BFDBFE !important;
+}
+html.light .notifications-promo h2 {
+  color: #0F172A !important;
+}
+html.light .notifications-promo p {
+  color: #475569 !important;
+}
+html.light .notifications-filter:not(.is-active) {
+  color: #475569 !important;
+  background: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+}
+html.light .notifications-page .notification-card.card {
+  background: #FFFFFF !important;
+}
+html.light .notifications-page .notification-card-unread.card {
+  border-color: rgba(37, 99, 235, 0.42) !important;
+}
+html.light .notification-modal-panel {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+html.light .notification-modal-header,
+html.light .notification-modal-footer,
+html.light .notification-preview-box {
+  background: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+}
+html.light .notification-modal-body .text-white,
+html.light .notification-modal-header .text-white {
+  color: #0F172A !important;
+}
+html.light .notification-modal-body .text-slate-200,
+html.light .notification-modal-header .text-slate-200 {
+  color: #334155 !important;
+}
+@media (max-width: 640px) {
+  .notifications-page {
+    padding-top: 20px;
+  }
+  .notifications-tab-shell {
+    align-items: stretch;
+  }
+  .notifications-tab-group {
+    width: 100%;
+  }
+  .notifications-tab {
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 11px;
+  }
+  .notifications-mark-read {
+    justify-content: flex-end;
+    width: 100%;
+  }
+  .notifications-promo-action {
+    width: 100%;
+  }
+  .notification-modal-footer {
+    align-items: stretch;
+  }
+}
+
+html.light .notifications-page .notifications-tab.is-active,
+html.light .notifications-page .notifications-promo-action,
+html.light .notification-modal-footer .bg-\[\#2563EB\] {
+  color: #FFFFFF !important;
+}
+
+html.light .notification-modal-close,
+html.light .notification-modal-secondary {
+  color: #334155 !important;
+  background: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+}
+html.light .notification-modal-close:hover,
+html.light .notification-modal-secondary:hover {
+  color: #0F172A !important;
+  background: #E2E8F0 !important;
+}
+html.light .notifications-mark-read:hover {
+  background: #F1F5F9 !important;
+}
+
+
+/* Daily Tasks: match the supplied reference surfaces while preserving light mode. */
+.daily-tasks-page {
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+html.dark .daily-tasks-page {
+  background-color: #0B1120;
+  color: #CBD5E1;
+}
+html.dark .daily-tasks-page .card {
+  background-color: #151E32 !important;
+  border-color: #1E293B !important;
+  color: #CBD5E1;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.10);
+}
+html.light .daily-tasks-page .card {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
