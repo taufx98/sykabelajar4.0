@@ -336,22 +336,6 @@ html.reduce-motion .home-running-text {
 }
 
 
-/* Notifications route: keep these reference-specific surfaces scoped to this page. */
-.notifications-global-header {
-  background: #0B1120 !important;
-  border-color: #1E293B !important;
-}
-html.light .notifications-global-header {
-  background: #FFFFFF !important;
-  border-color: #E2E8F0 !important;
-}
-html.light .notifications-global-header h1 {
-  color: #0F172A !important;
-}
-html.light .notifications-global-header .text-slate-200 {
-  color: #334155 !important;
-}
-
 .notifications-page {
   background: #0B1120 !important;
   color: #CBD5E1;
