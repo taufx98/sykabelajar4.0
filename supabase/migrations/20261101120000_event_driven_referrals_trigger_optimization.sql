@@ -698,6 +698,72 @@ BEGIN
 END;
 $function$;
 
+-- One-time catch-up for referrals still pending at deployment. This is bounded
+-- to recent pending referral rows, not a recurring scan of all users or events.
+DO $referral_backfill$
+DECLARE
+  v_referral record;
+  v_activity text;
+  v_occurred_at timestamptz;
+BEGIN
+  FOR v_referral IN
+    SELECT re.referred_user_id, re.created_at
+    FROM public.referral_events re
+    JOIN auth.users au ON au.id = re.referred_user_id
+    WHERE re.status = 'PENDING'
+      AND re.verified_at IS NULL
+      AND au.email_confirmed_at IS NOT NULL
+      AND re.created_at >= clock_timestamp() - interval '24 hours'
+  LOOP
+    SELECT activity, occurred_at
+      INTO v_activity, v_occurred_at
+    FROM (
+      SELECT 'daily_checkin'::text AS activity, dc.created_at AS occurred_at
+      FROM public.daily_checkins dc
+      WHERE dc.user_id = v_referral.referred_user_id
+        AND dc.created_at >= v_referral.created_at
+        AND dc.created_at < v_referral.created_at + interval '24 hours'
+      UNION ALL
+      SELECT 'comment'::text, c.created_at
+      FROM public.comments c
+      WHERE c.user_id = v_referral.referred_user_id
+        AND c.created_at >= v_referral.created_at
+        AND c.created_at < v_referral.created_at + interval '24 hours'
+      UNION ALL
+      SELECT 'follow'::text, f.created_at
+      FROM public.follows f
+      WHERE f.follower_id = v_referral.referred_user_id
+        AND f.created_at >= v_referral.created_at
+        AND f.created_at < v_referral.created_at + interval '24 hours'
+      UNION ALL
+      SELECT 'chat'::text, cm.created_at
+      FROM public.chat_messages cm
+      WHERE cm.sender_id = v_referral.referred_user_id
+        AND cm.created_at >= v_referral.created_at
+        AND cm.created_at < v_referral.created_at + interval '24 hours'
+      UNION ALL
+      SELECT 'daily_task'::text, dtc.completed_at
+      FROM public.daily_task_claims dtc
+      WHERE dtc.user_id = v_referral.referred_user_id
+        AND dtc.status = 'COMPLETED'
+        AND dtc.completed_at IS NOT NULL
+        AND dtc.completed_at >= v_referral.created_at
+        AND dtc.completed_at < v_referral.created_at + interval '24 hours'
+    ) qualifying_activity
+    ORDER BY occurred_at ASC
+    LIMIT 1;
+
+    IF v_activity IS NOT NULL AND v_occurred_at IS NOT NULL THEN
+      PERFORM private.apply_referral_qualification(
+        v_referral.referred_user_id,
+        v_activity,
+        v_occurred_at
+      );
+    END IF;
+  END LOOP;
+END;
+$referral_backfill$;
+
 REVOKE ALL ON FUNCTION private.apply_referral_qualification(uuid, text, timestamptz) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.capture_referral_activity() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.process_referral_email_confirmation() FROM PUBLIC, anon, authenticated, service_role;
