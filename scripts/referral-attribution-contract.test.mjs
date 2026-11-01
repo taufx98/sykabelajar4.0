@@ -124,7 +124,7 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.doesNotMatch(globalHeader, /if \(location\.pathname === '\/daily-tasks'\)/);
   assert.doesNotMatch(globalHeader, /if \(location\.pathname === '\/notifications'\)/);
   assert.match(globalHeader, /Daily Tasks & Referral/);
-  assert.match(globalHeader, /<h1[^>]*>\{label\}<\/h1>/);
+  assert.match(globalHeader, /<h1[^>]*>\\s*\\{label\\}\\s*<\\/h1>/);
   assert.match(globalHeader, /md:hidden/);
   assert.match(globalHeader, /min-h-11 min-w-11/);
   assert.match(globalHeader, /CalendarDays/);
