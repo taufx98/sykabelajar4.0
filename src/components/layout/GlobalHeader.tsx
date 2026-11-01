@@ -102,9 +102,9 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
           <div className="mb-0.5 flex items-center gap-2 text-xs font-medium text-slate-400">
             <span>Aktivitas</span>
             <i aria-hidden="true" className="fa-solid fa-chevron-right text-[10px] text-slate-500" />
-            <span className="text-slate-200">Notifikasi &amp; Referral</span>
+            <span className="text-slate-200">Notifikasi</span>
           </div>
-          <h1 className="truncate text-xl font-extrabold tracking-tight text-white">Notifikasi &amp; Program Referral</h1>
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-white">Notifikasi</h1>
         </div>
         {user?.role === 'admin' && (
           <span className="ml-4 inline-flex shrink-0 items-center gap-2 rounded-full border border-[#3B82F6]/35 bg-[#3B82F6]/10 px-3 py-1.5 text-[11px] font-bold text-slate-200">
