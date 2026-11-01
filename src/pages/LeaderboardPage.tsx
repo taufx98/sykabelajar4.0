@@ -1055,20 +1055,30 @@ export function LeaderboardPage() {
       .channel('public-leaderboard-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         invalidateLeaderboardMemory();
-        void load(true);
+        if (document.visibilityState === 'visible') void load(true);
       })
       .subscribe((status) => {
         if (active) setIsRealtime(status === 'SUBSCRIBED');
       });
 
-    const refreshTimer = window.setInterval(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
       invalidateLeaderboardMemory();
       void load(true);
-    }, 60_000);
+    };
+
+    const refreshFallback = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      invalidateLeaderboardMemory();
+      void load(true);
+    }, 5 * 60_000);
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       active = false;
-      window.clearInterval(refreshTimer);
+      window.clearInterval(refreshFallback);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
       void supabase.removeChannel(channel);
     };
   }, [mode, period, refreshNonce]);

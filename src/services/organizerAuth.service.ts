@@ -11,7 +11,18 @@ export type CurrentOrganizer = {
 
 export const ORGANIZER_SELECTION_KEY = 'syka.selectedOrganizerId';
 
+let listCurrentUserOrganizersInFlight: Promise<CurrentOrganizer[]> | null = null;
+
+// Do not let a pending workspace request from a previous account be reused
+// after a sign-out/sign-in transition.
+supabase.auth.onAuthStateChange(() => {
+  listCurrentUserOrganizersInFlight = null;
+});
+
 export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
+  if (listCurrentUserOrganizersInFlight) return listCurrentUserOrganizersInFlight;
+
+  const request = (async (): Promise<CurrentOrganizer[]> => {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return [];
 
@@ -56,6 +67,14 @@ export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
     ...owned,
     ...(memberOrgs ?? []).map((org: any) => ({ ...org, _memberRole: roleByOrg.get(org.id) || 'editor' })),
   ];
+  })();
+
+  listCurrentUserOrganizersInFlight = request;
+  try {
+    return await request;
+  } finally {
+    if (listCurrentUserOrganizersInFlight === request) listCurrentUserOrganizersInFlight = null;
+  }
 }
 
 export function getSelectedOrganizerId(): string | null {
@@ -69,8 +88,9 @@ export function setSelectedOrganizerId(id: string | null): void {
   else window.localStorage.removeItem(ORGANIZER_SELECTION_KEY);
 }
 
-export async function resolveCurrentUserOrganizer(): Promise<CurrentOrganizer | null> {
-  const organizers = await listCurrentUserOrganizers();
+export function resolveCurrentUserOrganizerFrom(
+  organizers: CurrentOrganizer[],
+): CurrentOrganizer | null {
   if (!organizers.length) {
     setSelectedOrganizerId(null);
     return null;
@@ -83,4 +103,9 @@ export async function resolveCurrentUserOrganizer(): Promise<CurrentOrganizer | 
   const fallback = organizers[0];
   setSelectedOrganizerId(fallback.id);
   return fallback;
+}
+
+export async function resolveCurrentUserOrganizer(): Promise<CurrentOrganizer | null> {
+  const organizers = await listCurrentUserOrganizers();
+  return resolveCurrentUserOrganizerFrom(organizers);
 }

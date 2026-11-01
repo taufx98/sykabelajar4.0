@@ -115,6 +115,15 @@ let coinLeaderboardFailureUntil = 0;
 let competitionsFailureUntil = 0;
 let homeFailureUntil = 0;
 
+const ENRICHED_LEADERBOARD_CACHE_MS = 5 * 60_000;
+const SCHOOL_LEADERBOARD_CACHE_MS = 5 * 60_000;
+const enrichedLeaderboardCache = new Map<string, { expiresAt: number; data: PublicEnrichedLeaderboardRow[] }>();
+const schoolLeaderboardCache = new Map<string, { expiresAt: number; data: PublicSchoolLeaderboardRow[] }>();
+const enrichedLeaderboardInFlight = new Map<string, Promise<PublicEnrichedLeaderboardRow[]>>();
+const schoolLeaderboardInFlight = new Map<string, Promise<PublicSchoolLeaderboardRow[]>>();
+let enrichedLeaderboardGeneration = 0;
+let schoolLeaderboardGeneration = 0;
+
 export function applyCompetitionRealtimeChange(eventType: RealtimeChange, row: Record<string, unknown>) {
   const now = Date.now();
   const current = competitionsMemory?.data ?? readCache<Array<Record<string, unknown>>>('competitions');
@@ -146,6 +155,12 @@ export function applyCompetitionRealtimeChange(eventType: RealtimeChange, row: R
 export function invalidateLeaderboardMemory() {
   leaderboardMemory.clear();
   coinLeaderboardMemory.clear();
+  enrichedLeaderboardGeneration += 1;
+  schoolLeaderboardGeneration += 1;
+  enrichedLeaderboardCache.clear();
+  schoolLeaderboardCache.clear();
+  enrichedLeaderboardInFlight.clear();
+  schoolLeaderboardInFlight.clear();
   removePersistentCache('public.leaderboard');
   removePersistentCache('public.coinLeaderboard');
   for (const limit of [6, 10, 20, 50, 100]) {
@@ -338,27 +353,53 @@ export async function getPublicLeaderboardEnriched(
   limit = 100,
 ): Promise<PublicEnrichedLeaderboardRow[]> {
   const safeLimit = Math.max(1, Math.min(Math.trunc(limit) || 100, 1000));
-  const { data, error } = await supabase.rpc('get_public_leaderboard_enriched', {
-    p_period: period,
-    p_limit: safeLimit,
-  });
-  if (error) throw error;
+  const key = `${period}:${safeLimit}`;
+  const now = Date.now();
+  const cached = enrichedLeaderboardCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.data;
 
-  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    user_id: String(row.user_id ?? ''),
-    username: String(row.username ?? ''),
-    display_name: String(row.display_name ?? row.username ?? 'Pengguna'),
-    institution: row.institution == null ? null : String(row.institution),
-    avatar_url: row.avatar_url == null ? null : String(row.avatar_url),
-    grade: row.grade == null ? null : String(row.grade),
-    xp: Number(row.xp ?? 0),
-    rank: Number(row.rank ?? 0),
-    rank_change: row.rank_change === 'up' || row.rank_change === 'down' ? row.rank_change : 'same',
-    point_change: Number(row.point_change ?? 0),
-    average_score: row.average_score == null ? null : Number(row.average_score),
-    competitions_count: Number(row.competitions_count ?? 0),
-    school_id: row.school_id == null ? null : String(row.school_id),
-  }));
+  const inFlight = enrichedLeaderboardInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const generation = enrichedLeaderboardGeneration;
+  const request = (async () => {
+    const { data, error } = await supabase.rpc('get_public_leaderboard_enriched', {
+      p_period: period,
+      p_limit: safeLimit,
+    });
+    if (error) throw error;
+
+    const rows = ((data ?? []) as Array<Record<string, unknown>>).map((row): PublicEnrichedLeaderboardRow => ({
+      user_id: String(row.user_id ?? ''),
+      username: String(row.username ?? ''),
+      display_name: String(row.display_name ?? row.username ?? 'Pengguna'),
+      institution: row.institution == null ? null : String(row.institution),
+      avatar_url: row.avatar_url == null ? null : String(row.avatar_url),
+      grade: row.grade == null ? null : String(row.grade),
+      xp: Number(row.xp ?? 0),
+      rank: Number(row.rank ?? 0),
+      rank_change: row.rank_change === 'up' || row.rank_change === 'down' ? row.rank_change : 'same',
+      point_change: Number(row.point_change ?? 0),
+      average_score: row.average_score == null ? null : Number(row.average_score),
+      competitions_count: Number(row.competitions_count ?? 0),
+      school_id: row.school_id == null ? null : String(row.school_id),
+    }));
+
+    if (generation === enrichedLeaderboardGeneration) {
+      enrichedLeaderboardCache.set(key, {
+        expiresAt: Date.now() + ENRICHED_LEADERBOARD_CACHE_MS,
+        data: rows,
+      });
+    }
+    return rows;
+  })();
+
+  enrichedLeaderboardInFlight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (enrichedLeaderboardInFlight.get(key) === request) enrichedLeaderboardInFlight.delete(key);
+  }
 }
 
 export async function getPublicSchoolLeaderboard(
@@ -366,34 +407,60 @@ export async function getPublicSchoolLeaderboard(
   limit = 100,
 ): Promise<PublicSchoolLeaderboardRow[]> {
   const safeLimit = Math.max(1, Math.min(Math.trunc(limit) || 100, 1000));
-  const { data, error } = await supabase.rpc('get_public_school_leaderboard', {
-    p_period: period,
-    p_limit: safeLimit,
-  });
-  if (error) throw error;
+  const key = `${period}:${safeLimit}`;
+  const now = Date.now();
+  const cached = schoolLeaderboardCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.data;
 
-  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    school_key: String(row.school_key ?? ''),
-    school_id: row.school_id == null ? null : String(row.school_id),
-    school_name: String(row.school_name ?? 'Sekolah'),
-    student_count: Number(row.student_count ?? 0),
-    levels: String(row.levels ?? 'Beragam jenjang'),
-    average_score: row.average_score == null ? null : Number(row.average_score),
-    competitions_count: Number(row.competitions_count ?? 0),
-    xp: Number(row.xp ?? 0),
-    rank: Number(row.rank ?? 0),
-    top_students: (Array.isArray(row.top_students) ? row.top_students : []).map((student) => {
-      const entry = student as Record<string, unknown>;
-      return {
-        user_id: String(entry.user_id ?? ''),
-        username: String(entry.username ?? ''),
-        display_name: String(entry.display_name ?? entry.username ?? 'Pengguna'),
-        avatar_url: entry.avatar_url == null ? null : String(entry.avatar_url),
-        grade: entry.grade == null ? null : String(entry.grade),
-        xp: Number(entry.xp ?? 0),
-        average_score: entry.average_score == null ? null : Number(entry.average_score),
-        competitions_count: Number(entry.competitions_count ?? 0),
-      };
-    }),
-  }));
+  const inFlight = schoolLeaderboardInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const generation = schoolLeaderboardGeneration;
+  const request = (async () => {
+    const { data, error } = await supabase.rpc('get_public_school_leaderboard', {
+      p_period: period,
+      p_limit: safeLimit,
+    });
+    if (error) throw error;
+
+    const rows = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      school_key: String(row.school_key ?? ''),
+      school_id: row.school_id == null ? null : String(row.school_id),
+      school_name: String(row.school_name ?? 'Sekolah'),
+      student_count: Number(row.student_count ?? 0),
+      levels: String(row.levels ?? 'Beragam jenjang'),
+      average_score: row.average_score == null ? null : Number(row.average_score),
+      competitions_count: Number(row.competitions_count ?? 0),
+      xp: Number(row.xp ?? 0),
+      rank: Number(row.rank ?? 0),
+      top_students: (Array.isArray(row.top_students) ? row.top_students : []).map((student) => {
+        const entry = student as Record<string, unknown>;
+        return {
+          user_id: String(entry.user_id ?? ''),
+          username: String(entry.username ?? ''),
+          display_name: String(entry.display_name ?? entry.username ?? 'Pengguna'),
+          avatar_url: entry.avatar_url == null ? null : String(entry.avatar_url),
+          grade: entry.grade == null ? null : String(entry.grade),
+          xp: Number(entry.xp ?? 0),
+          average_score: entry.average_score == null ? null : Number(entry.average_score),
+          competitions_count: Number(entry.competitions_count ?? 0),
+        };
+      }),
+    }));
+
+    if (generation === schoolLeaderboardGeneration) {
+      schoolLeaderboardCache.set(key, {
+        expiresAt: Date.now() + SCHOOL_LEADERBOARD_CACHE_MS,
+        data: rows,
+      });
+    }
+    return rows;
+  })();
+
+  schoolLeaderboardInFlight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (schoolLeaderboardInFlight.get(key) === request) schoolLeaderboardInFlight.delete(key);
+  }
 }

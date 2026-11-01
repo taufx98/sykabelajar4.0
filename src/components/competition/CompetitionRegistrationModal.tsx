@@ -83,6 +83,7 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
   const [platform, setPlatform] = useState<'instagram' | 'tiktok'>('tiktok');
   const [socialUsername, setSocialUsername] = useState('');
   const [postUrl, setPostUrl] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [eduCoinBypass, setEduCoinBypass] = useState(false);
   const [eduCoinBalance, setEduCoinBalance] = useState<number | null>(null);
   const [coinBalanceLoading, setCoinBalanceLoading] = useState(false);
@@ -108,6 +109,7 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
     setPlatform('tiktok');
     setSocialUsername('');
     setPostUrl('');
+    setReferralCode('');
     setEduCoinBypass(false);
     setIntegrityAgreed(false);
     setSubmitting(false);
@@ -208,6 +210,7 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
         socialPlatform: platform,
         socialUsername,
         socialProofUrl: postUrl,
+        referralCode: referralCode.trim() || null,
         integrityAgreed,
         eduCoinBypass,
       });
@@ -328,6 +331,18 @@ export function CompetitionRegistrationModal({ open, competition, slug, onClose,
             </label>
             {postUrl.trim() && !socialUrlValid && <p className="mt-2 text-xs text-rose-500">Tautan tersebut tidak sesuai dengan platform {platform === 'tiktok' ? 'TikTok' : 'Instagram'}.</p>}
             {!socialInputsPaired && <p className="mt-2 text-xs text-rose-500">Username dan tautan posting harus diisi bersama-sama.</p>}
+            <label className="mt-4 block text-xs text-fg-muted">
+              ID Referral (opsional)
+              <input
+                className="input mt-1 w-full"
+                value={referralCode}
+                onChange={(event) => setReferralCode(event.target.value)}
+                placeholder="Masukkan ID akun teman yang mengajak"
+                maxLength={64}
+                autoComplete="off"
+              />
+              <span className="mt-1 block text-[11px] text-fg-muted">Masukkan ID akun teman yang kamu gunakan saat bergabung. Kosongkan jika tidak ada.</span>
+            </label>
             <div className="mt-4 border-t border-border pt-4">
               <div className="mb-3 flex items-start gap-2.5">
                 <Coins size={17} className="mt-0.5 shrink-0 text-amber-400"/>

@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { getChatSpamStatus, type ChatSpamStatus } from '@/services/chat.service';
 import { getChatAccessStatus, type ChatAccessStatus } from '@/services/chatModeration.service';
 import { useApp } from '@/store/AppContext';
+import { supabase } from '@/lib/supabase';
 
 const formatRemaining = (ms: number) => {
   const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
@@ -49,6 +50,7 @@ export function ChatCooldownGate() {
     if (!user || location.pathname !== '/pesan') return;
     let alive = true;
     let refreshInFlight = false;
+    let refreshTimer: number | undefined;
     const refresh = async () => {
       if (!alive || document.visibilityState === 'hidden' || refreshInFlight) return;
       refreshInFlight = true;
@@ -61,17 +63,42 @@ export function ChatCooldownGate() {
         refreshInFlight = false;
       }
     };
+    const scheduleRefresh = () => {
+      if (!alive) return;
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined;
+        void refresh();
+      }, 250);
+    };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
 
-    void refresh();
-    const poll = window.setInterval(() => void refresh(), 15000);
+    const channel = supabase
+      .channel(`chat-access-status-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_user_moderation',
+        filter: `user_id=eq.${user.id}`,
+      }, scheduleRefresh)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_spam_controls',
+        filter: `user_id=eq.${user.id}`,
+      }, scheduleRefresh)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') void refresh();
+      });
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       alive = false;
-      window.clearInterval(poll);
+      if (refreshTimer) window.clearTimeout(refreshTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      void supabase.removeChannel(channel);
     };
   }, [location.pathname, user?.id]);
 
@@ -80,13 +107,24 @@ export function ChatCooldownGate() {
     const deadline = new Date(timedBlockUntil).getTime();
     if (!Number.isFinite(deadline) || deadline <= Date.now()) return;
 
+    let active = true;
     setNow(Date.now());
     const tick = window.setInterval(() => {
       const current = Date.now();
       setNow(current);
-      if (current >= deadline) window.clearInterval(tick);
+      if (current < deadline) return;
+
+      window.clearInterval(tick);
+      void Promise.allSettled([getChatSpamStatus(), getChatAccessStatus()]).then(([spamResult, accessResult]) => {
+        if (!active) return;
+        if (spamResult.status === 'fulfilled') setSpam(spamResult.value);
+        if (accessResult.status === 'fulfilled') setAccess(accessResult.value);
+      });
     }, 1000);
-    return () => window.clearInterval(tick);
+    return () => {
+      active = false;
+      window.clearInterval(tick);
+    };
   }, [timedBlockUntil, location.pathname, user?.id]);
 
   if (!user || location.pathname !== '/pesan') return null;

@@ -134,6 +134,10 @@ export function CompetitionDetailPage() {
           }
           return;
         }
+        // Reconcile time-based registration status on demand for this
+        // competition only; no background page polling is needed.
+        await syncCompetitionRegistrationStatus(String(base.id)).catch(() => null);
+
         const [next, posts] = await Promise.all([
           getCompetitionDetails(String(base.id)),
           listCompetitionPosts(String(base.id), 1),
@@ -150,24 +154,6 @@ export function CompetitionDetailPage() {
     })();
     return () => { active = false; };
   }, [slug]);
-
-  useEffect(() => {
-    const competitionId = String(detail?.competition?.id ?? '');
-    const currentStatus = String(detail?.competition?.status ?? '');
-    if (!competitionId || !['PUBLISHED', 'REGISTRATION_OPEN'].includes(currentStatus)) return;
-    let active = true;
-    const timer = window.setInterval(async () => {
-      try {
-        const latestStatus = await syncCompetitionRegistrationStatus(competitionId);
-        if (!active || !latestStatus || latestStatus === currentStatus) return;
-        const refreshed = await getCompetitionDetails(competitionId);
-        if (active && refreshed) setDetail(refreshed);
-      } catch {
-        // A transient status-sync failure should not break the public detail page.
-      }
-    }, 30000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [detail?.competition?.id, detail?.competition?.status]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
