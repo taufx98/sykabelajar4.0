@@ -10,7 +10,7 @@ import { uploadProfileImage } from '@/services/cloudinary.service';
 import { updateProfile } from '@/services/profile.service';
 import { supabase } from '@/lib/supabase';
 import type { CompetitionCategory, EducationLevel, Role } from '@/types';
-import { storePendingReferral } from '@/lib/referralAttribution';
+import { isValidReferralId } from '@/lib/referralAttribution';
 
 const ROLE_OPTIONS: { value: Exclude<Role,'admin'>; label:string; icon:typeof UserIcon }[]=[{value:'pelajar',label:'Pelajar',icon:UserIcon},{value:'guru',label:'Guru',icon:School},{value:'penyelenggara',label:'Penyelenggara',icon:Building2}];
 
@@ -20,8 +20,8 @@ export function RegisterPage(){
  const navigate = useNavigate();
  const [searchParams] = useSearchParams();
  const requestedRedirect = searchParams.get('redirect') || '/home';
- const referralCode = searchParams.get('ref')?.trim() ?? '';
- useEffect(() => { if (referralCode) storePendingReferral(referralCode); }, [referralCode]);
+ const rawReferralCode = searchParams.get('ref')?.trim() ?? '';
+ const referralCode = isValidReferralId(rawReferralCode) ? rawReferralCode : '';
  const redirectTo = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/home';
  const loginTo = redirectTo === '/home' ? '/login' : `/login?redirect=${encodeURIComponent(redirectTo)}`;
  const { register, toast } = useApp(); const fileRef=useRef<HTMLInputElement>(null); const [step,setStep]=useState(1); const [loading,setLoading]=useState(false); const [photoFile,setPhotoFile]=useState<File|null>(null); const [photoPreview,setPhotoPreview]=useState<string>('');
@@ -33,7 +33,7 @@ export function RegisterPage(){
  const step2Valid=!!form.displayName&&!!form.username&&!!form.birthDate&&!!form.school&&(form.role!=='pelajar'||!!form.educationLevel);
  const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')||file.size>5*1024*1024){toast('Foto harus gambar dan maksimal 5MB.','error');return;}if(photoPreview)URL.revokeObjectURL(photoPreview);setPhotoFile(file);setPhotoPreview(URL.createObjectURL(file));e.target.value='';};
  const handleSubmit=async()=>{if(!form.favoriteCategories.length){toast('Pilih minimal 1 kategori lomba favorit.','error');return;}setLoading(true);try{
-   const result=await register({email:form.email,password:form.password,displayName:form.displayName,username:form.username,role:form.role,school:form.school,birthDate:form.birthDate,educationLevel:form.educationLevel||undefined,favoriteCategories:form.favoriteCategories});
+   const result=await register({email:form.email,password:form.password,displayName:form.displayName,username:form.username,role:form.role,school:form.school,birthDate:form.birthDate,educationLevel:form.educationLevel||undefined,favoriteCategories:form.favoriteCategories,referralCode:referralCode||undefined});
    if(!result.ok){toast(result.error||'Pendaftaran gagal.','error');return;}
    // Upload only after Supabase account creation has succeeded.
    if(photoFile){const {data}=await supabase.auth.getSession(); if(data.session?.user){const up=await uploadProfileImage(photoFile,'profile',form.username);await updateProfile(data.session.user.id,{avatar_url:up.secure_url,avatar_public_id:up.public_id,avatar_width:up.width,avatar_height:up.height,avatar_version:up.version?String(up.version):null,avatar_resource_type:up.resource_type||'image'});}else{toast('Akun berhasil dibuat. Foto profil akan diunggah setelah konfirmasi email dan login pertama.','info');}}
