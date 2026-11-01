@@ -29,17 +29,6 @@ type ReferralProgram = {
   is_available: boolean;
 };
 
-function formatActivity(value: string | null) {
-  const labels: Record<string, string> = {
-    daily_checkin: 'Check-in harian',
-    comment: 'Membuat komentar',
-    follow: 'Mengikuti pengguna',
-    chat: 'Mengirim pesan chat',
-    daily_task: 'Menyelesaikan tugas harian',
-  };
-  return value ? labels[value] ?? value : '';
-}
-
 function statusLabel(row: ReferralRow) {
   if (row.status === 'CREDITED') return 'Reward diberikan';
   if (row.status === 'VERIFIED') return 'Berhasil';
@@ -306,7 +295,7 @@ export function ReferralProgramPanel() {
               const description = index === 0
                 ? achieved ? 'Target Pertama · Achieved' : 'Target Pertama'
                 : index === 1
-                  ? achieved ? 'Target Tercapai' : inProgress ? \`Berjalan (\${successful.toLocaleString('id-ID')}/25 User)\` : milestone.title
+                  ? achieved ? 'Target Tercapai' : inProgress ? `Berjalan (${successful.toLocaleString('id-ID')}/25 User)` : milestone.title
                   : milestone.bonus;
               return (
                 <div
@@ -317,7 +306,7 @@ export function ReferralProgramPanel() {
                     stateClass,
                   ].join(' ')}
                   data-referral-tier={milestone.target}
-                  aria-label={\`Target \${milestone.target.toLocaleString('id-ID')} referral: \${achieved ? 'tercapai' : inProgress ? 'sedang berjalan' : 'terkunci'}\`}
+                  aria-label={`Target ${milestone.target.toLocaleString('id-ID')} referral: ${achieved ? 'tercapai' : inProgress ? 'sedang berjalan' : 'terkunci'}`}
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
                     <div className={[
@@ -453,7 +442,6 @@ export function ReferralProgramPanel() {
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs dark:divide-slate-800/80">
                   {rows.map((row, index) => {
-                    const verified = row.status === 'VERIFIED' || row.status === 'CREDITED';
                     return (
                       <tr key={row.referred_user_id} className="transition hover:bg-slate-50 dark:hover:bg-slate-900/40">
                         <td className="px-4 py-3 text-slate-500">{index + 1}</td>
