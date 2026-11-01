@@ -793,8 +793,15 @@ SET search_path TO ''
 AS $function$
   SELECT
     re.referred_user_id,
-    coalesce(p.full_name, p.username, 'Pengguna') AS full_name,
-    p.username,
+    CASE
+      WHEN re.status IN ('VERIFIED', 'CREDITED')
+        THEN coalesce(p.full_name, p.username, 'Pengguna')
+      ELSE 'Pengguna menunggu verifikasi'
+    END AS full_name,
+    CASE
+      WHEN re.status IN ('VERIFIED', 'CREDITED') THEN p.username
+      ELSE NULL
+    END AS username,
     re.created_at AS joined_at,
     CASE
       WHEN re.status IN ('VERIFIED', 'CREDITED') THEN au.last_sign_in_at
