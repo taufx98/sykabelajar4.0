@@ -16,6 +16,30 @@ type ReferralRow = {
   reward_amount: number | string;
 };
 
+type ReferralMilestone = {
+  target: number;
+  title: string;
+  display_amount: string;
+  bonus_amount: number;
+  bonus_label: string | null;
+  total_note: string | null;
+  tag: string | null;
+};
+
+const DEFAULT_REFERRAL_MILESTONES: ReferralMilestone[] = [
+  { target: 1, title: 'Target Pertama', display_amount: '5 Coin', bonus_amount: 0, bonus_label: null, total_note: null, tag: null },
+  { target: 25, title: 'Progress Konsisten', display_amount: '145 Coin', bonus_amount: 20, bonus_label: '+20 Bonus', total_note: null, tag: null },
+  { target: 100, title: 'Komunitas Berkembang', display_amount: '650 Coin', bonus_amount: 150, bonus_label: '+150 Coin Bonus', total_note: null, tag: null },
+  { target: 1000, title: 'Target Komunitas', display_amount: '950 Coin', bonus_amount: 250, bonus_label: '+250 Bonus Coin', total_note: '(700 + 250)', tag: 'ULTRA' },
+];
+
+type ReferralTierAward = {
+  milestone_target: number;
+  bonus_amount: number | string;
+  referred_count: number;
+  created_at: string;
+};
+
 type ReferralProgram = {
   is_active: boolean;
   reward_amount: number;
@@ -27,6 +51,12 @@ type ReferralProgram = {
   starts_at: string | null;
   ends_at: string | null;
   is_available: boolean;
+  milestone_tiers: ReferralMilestone[];
+  promo_is_enabled: boolean;
+  promo_title: string;
+  promo_description: string;
+  promo_badge: string;
+  promo_cta: string;
 };
 
 function statusLabel(row: ReferralRow) {
@@ -45,6 +75,7 @@ export function ReferralProgramPanel() {
   const { user, toast } = useApp();
   const [rows, setRows] = useState<ReferralRow[]>([]);
   const [program, setProgram] = useState<ReferralProgram | null>(null);
+  const [tierAwards, setTierAwards] = useState<ReferralTierAward[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -96,16 +127,27 @@ export function ReferralProgramPanel() {
     const load = async (showLoading: boolean) => {
       if (showLoading) setLoading(true);
       try {
-        const [referralResult, programResult] = await Promise.all([
+        const [referralResult, programResult, tierAwardsResult] = await Promise.all([
           supabase.rpc('get_my_referrals_v2'),
-          supabase.rpc('get_referral_program_settings'),
+          supabase.rpc('get_referral_program_settings_v2'),
+          supabase.rpc('get_my_referral_tier_awards'),
         ]);
         if (referralResult.error) throw referralResult.error;
         if (programResult.error) throw programResult.error;
+        if (tierAwardsResult.error) throw tierAwardsResult.error;
         if (!active) return;
         setRows((referralResult.data ?? []) as ReferralRow[]);
+        setTierAwards((tierAwardsResult.data ?? []) as ReferralTierAward[]);
         const settings = Array.isArray(programResult.data) ? programResult.data[0] : programResult.data;
-        const nextSettings = settings ? settings as ReferralProgram : null;
+        const nextSettings = settings ? {
+          ...(settings as Omit<ReferralProgram, 'milestone_tiers' | 'promo_is_enabled' | 'promo_title' | 'promo_description' | 'promo_badge' | 'promo_cta'>),
+          milestone_tiers: Array.isArray(settings.milestone_tiers) ? settings.milestone_tiers as ReferralMilestone[] : DEFAULT_REFERRAL_MILESTONES,
+          promo_is_enabled: settings.promo_is_enabled !== false,
+          promo_title: typeof settings.promo_title === 'string' ? settings.promo_title : 'Ajak Teman, Dapatkan Edu Coin!',
+          promo_description: typeof settings.promo_description === 'string' ? settings.promo_description : 'Dapatkan {reward} Edu Coin untuk setiap teman yang memenuhi syarat program referral.',
+          promo_badge: typeof settings.promo_badge === 'string' ? settings.promo_badge : 'Bonus Aktif',
+          promo_cta: typeof settings.promo_cta === 'string' ? settings.promo_cta : 'Buka Program Referral',
+        } as ReferralProgram : null;
         setProgram(nextSettings);
         scheduleBoundaryRefresh(nextSettings);
       } catch (error) {
@@ -155,7 +197,8 @@ export function ReferralProgramPanel() {
   const pending = rows.filter((row) => row.status === 'PENDING').length;
   const rewardEarned = rows
     .filter((row) => row.status === 'VERIFIED' || row.status === 'CREDITED')
-    .reduce((sum, row) => sum + Math.max(0, Number(row.reward_amount) || 0), 0);
+    .reduce((sum, row) => sum + Math.max(0, Number(row.reward_amount) || 0), 0)
+    + tierAwards.reduce((sum, award) => sum + Math.max(0, Number(award.bonus_amount) || 0), 0);
   const reward = Math.max(0, Number(program?.reward_amount) || 0);
   const eventUpcoming = Boolean(
     program?.is_active
@@ -164,12 +207,7 @@ export function ReferralProgramPanel() {
     && Date.now() < new Date(program.starts_at).getTime()
   );
 
-  const referralMilestones = [
-    { target: 1, title: 'Target Pertama', amount: '5 Coin', bonus: null, totalNote: null, ultra: false },
-    { target: 25, title: 'Progress Konsisten', amount: '145 Coin', bonus: '+20 Bonus', totalNote: null, ultra: false },
-    { target: 100, title: 'Komunitas Berkembang', amount: '650 Coin', bonus: '+150 Coin Bonus', totalNote: null, ultra: false },
-    { target: 1000, title: 'Target Komunitas', amount: '950 Coin', bonus: '+250 Bonus Coin', totalNote: '(700 + 250)', ultra: true },
-  ] as const;
+  const referralMilestones = (program?.milestone_tiers?.length === 4 ? program.milestone_tiers : DEFAULT_REFERRAL_MILESTONES).slice().sort((left, right) => left.target - right.target);
   const nextMilestone = referralMilestones.find((milestone) => successful < milestone.target);
 
   const copyLink = async () => {
@@ -292,11 +330,11 @@ export function ReferralProgramPanel() {
                   ? 'border-amber-500/40 bg-amber-500/10 shadow-lg shadow-amber-500/10'
                   : 'border-dashed border-slate-700/80 bg-slate-900/40 opacity-70 hover:opacity-100';
               const titleClass = locked ? 'text-slate-300' : 'text-white';
-              const description = index === 0
-                ? achieved ? 'Target Pertama · Achieved' : 'Target Pertama'
-                : index === 1
-                  ? achieved ? 'Target Tercapai' : inProgress ? `Berjalan (${successful.toLocaleString('id-ID')}/25 User)` : milestone.title
-                  : milestone.bonus;
+              const description = achieved && index === 0
+                ? 'Target Pertama · Achieved'
+                : inProgress
+                  ? `Berjalan (${successful.toLocaleString('id-ID')}/${milestone.target.toLocaleString('id-ID')} User)`
+                  : milestone.bonus_label || milestone.title;
               return (
                 <div
                   key={milestone.target}
@@ -322,8 +360,8 @@ export function ReferralProgramPanel() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <p className={['text-xs font-bold', titleClass].join(' ')}>{milestone.target.toLocaleString('id-ID')} User</p>
-                        {milestone.ultra && (
-                          <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1 py-0.5 text-[8px] font-bold text-amber-400/90">ULTRA</span>
+                        {milestone.tag && (
+                          <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1 py-0.5 text-[8px] font-bold text-amber-400/90">{milestone.tag}</span>
                         )}
                         {achieved && <i aria-hidden="true" className="fa-solid fa-circle-check text-[10px] text-amber-400"/>}
                         {inProgress && index === 1 && <span className="h-1.5 w-1.5 animate-ping rounded-full bg-amber-400 motion-reduce:animate-none"/>}
@@ -344,16 +382,13 @@ export function ReferralProgramPanel() {
                         ? 'border border-amber-500/40 bg-amber-500/20 text-amber-400'
                         : 'border border-slate-700/60 bg-slate-800/60 text-slate-400',
                     ].join(' ')}>
-                      {milestone.amount}
+                      {milestone.display_amount}
                     </span>
-                    {milestone.target === 25 && (
-                      <span className="mt-1 block text-[9px] font-medium text-emerald-400">+20 Bonus</span>
+                    {milestone.bonus_label && (
+                      <span className="mt-1 block text-[9px] font-medium text-emerald-400">{milestone.bonus_label}</span>
                     )}
-                    {milestone.target === 100 && (
-                      <span className="mt-1 block text-[9px] font-medium text-slate-400">+150 Coin Bonus</span>
-                    )}
-                    {milestone.totalNote && (
-                      <span className="mt-1 block whitespace-nowrap text-[9px] text-slate-500">{milestone.totalNote}</span>
+                    {milestone.total_note && (
+                      <span className="mt-1 block whitespace-nowrap text-[9px] text-slate-500">{milestone.total_note}</span>
                     )}
                   </div>
                 </div>
@@ -363,7 +398,7 @@ export function ReferralProgramPanel() {
         </div>
 
         <p className="border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800 dark:text-slate-400">
-          Target dan nominal tier ditampilkan mengikuti referensi. Reward per referral yang benar-benar masuk tetap menggunakan nominal program aktif dan catatan transaksi backend.
+          Hadiah dasar dikreditkan untuk setiap referral yang memenuhi syarat. Bonus milestone tambahan diberikan otomatis satu kali saat target terverifikasi tercapai; seluruhnya tercatat pada ledger Edu Coin.
         </p>
       </section>
 
