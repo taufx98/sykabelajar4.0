@@ -126,7 +126,7 @@ export function ReferralPage() {
         <header className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">SYKABELAJAR COMMUNITY</p>
           <h1 className="font-display text-2xl font-bold text-fg md:text-3xl">Ajak teman, dapatkan reward</h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-fg-muted">Bagikan satu tautan. Temanmu bisa membuat akun dari tautan tersebut dan ID referral akan terisi otomatis saat mendaftar lomba.</p>
+          <p className="max-w-2xl text-sm leading-relaxed text-fg-muted">Bagikan satu tautan. Temanmu bisa membuat akun dari tautan tersebut dan atribusi referral tercatat otomatis saat akun teman dibuat.</p>
         </header>
 
         <Card className="overflow-hidden border-accent/20 p-0">
@@ -146,7 +146,7 @@ export function ReferralPage() {
                 <Button fullWidth onClick={() => void copyLink()} icon={copied ? <Check size={15}/> : <Copy size={15}/>}>{copied ? 'Tersalin' : 'Salin link'}</Button>
                 <Button fullWidth variant="outline" onClick={() => void shareLink()} icon={<Share2 size={15}/>}>Bagikan</Button>
               </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-fg-muted">Link membuka formulir pembuatan akun dan menyimpan atribusi referral di perangkat temanmu. Mereka tidak perlu menyalin atau mengetik UID.</p>
+              <p className="mt-2 text-[11px] leading-relaxed text-fg-muted">Link membuka formulir pembuatan akun. Atribusi dicatat langsung oleh backend saat akun berhasil dibuat; temanmu tidak perlu menyalin atau mengetik UID.</p>
             </div>
           </div>
         </Card>
@@ -161,8 +161,8 @@ export function ReferralPage() {
           <div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-elevated text-accent"><Users size={17}/></span><div><h2 className="text-sm font-bold text-fg">Cara kerja referral</h2><p className="text-xs text-fg-muted">Cukup tiga langkah sederhana</p></div></div>
           <ol className="mt-4 grid gap-3 sm:grid-cols-3">
             <li className="flex gap-2.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">1</span><p className="text-xs leading-relaxed text-fg-muted">Bagikan link undangan pribadimu kepada teman.</p></li>
-            <li className="flex gap-2.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">2</span><p className="text-xs leading-relaxed text-fg-muted">Teman membuat akun melalui link, lalu mendaftar salah satu lomba.</p></li>
-            <li className="flex gap-2.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">3</span><p className="text-xs leading-relaxed text-fg-muted">Teman memverifikasi email dan melakukan aktivitas yang memenuhi syarat dalam 24 jam setelah referral tercatat.</p></li>
+            <li className="flex gap-2.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">2</span><p className="text-xs leading-relaxed text-fg-muted">Teman membuat akun melalui link undanganmu. Referral langsung tercatat di sistem.</p></li>
+            <li className="flex gap-2.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">3</span><p className="text-xs leading-relaxed text-fg-muted">Teman memverifikasi email dan melakukan satu aktivitas yang memenuhi syarat dalam 24 jam setelah akun dibuat.</p></li>
           </ol>
           <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-relaxed text-fg-muted">
             <p className="font-semibold text-fg">Kapan reward diberikan?</p>
@@ -174,7 +174,7 @@ export function ReferralPage() {
         <section className="space-y-3">
           <div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-bold text-fg">Aktivitas referral</h2><p className="text-xs text-fg-muted">Pantau teman yang bergabung melalui undanganmu.</p></div><Badge color="moss">{rows.length} teman</Badge></div>
           {loading && <Card className="p-8 text-center text-sm text-fg-muted">Memuat aktivitas referral…</Card>}
-          {!loading && rows.length === 0 && <Card className="p-7 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-elevated text-fg-muted"><Users size={20}/></div><p className="mt-3 text-sm font-semibold text-fg">Belum ada referral</p><p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-fg-muted">Bagikan link undanganmu. Teman yang mendaftar lomba melalui link tersebut akan muncul di sini.</p></Card>}
+          {!loading && rows.length === 0 && <Card className="p-7 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-elevated text-fg-muted"><Users size={20}/></div><p className="mt-3 text-sm font-semibold text-fg">Belum ada referral</p><p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-fg-muted">Bagikan link undanganmu. Teman yang membuat akun melalui link undanganmu akan muncul di sini.</p></Card>}
           {!loading && rows.map((row) => {
             const verified = row.status === 'VERIFIED' || row.status === 'CREDITED';
             return <Card key={row.referred_user_id} className="p-4">
