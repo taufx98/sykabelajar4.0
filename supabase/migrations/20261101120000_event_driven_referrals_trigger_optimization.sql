@@ -589,15 +589,19 @@ BEGIN
     WHEN 'daily_checkins' THEN
       v_user_id := NEW.user_id;
       v_activity := 'daily_checkin';
+      v_occurred_at := NEW.created_at;
     WHEN 'comments' THEN
       v_user_id := NEW.user_id;
       v_activity := 'comment';
+      v_occurred_at := NEW.created_at;
     WHEN 'follows' THEN
       v_user_id := NEW.follower_id;
       v_activity := 'follow';
+      v_occurred_at := NEW.created_at;
     WHEN 'chat_messages' THEN
       v_user_id := NEW.sender_id;
       v_activity := 'chat';
+      v_occurred_at := NEW.created_at;
     WHEN 'daily_task_claims' THEN
       IF NEW.status = 'COMPLETED' AND NEW.completed_at IS NOT NULL THEN
         v_user_id := NEW.user_id;
