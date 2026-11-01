@@ -154,7 +154,7 @@ export function MobileNavigationOverride({
             to={item.to}
             onClick={() => notifyHomeNavigationClick(item.to)}
             aria-current={isActive ? 'page' : undefined}
-            className={`relative flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl ${isActive ? 'text-accent' : 'text-fg-muted'}`}
+            className={`relative flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl ${isActive ? (key === 'notifications' ? 'text-[#3B82F6]' : 'text-accent') : 'text-fg-muted'}`}
           >
             <Icon size={20} />
             <span className="text-[10px] truncate">{item.label}</span>
