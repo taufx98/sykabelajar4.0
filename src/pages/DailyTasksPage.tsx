@@ -374,9 +374,11 @@ export function DailyTasksPage() {
               <section
                 className={[
                   'relative flex flex-col items-center justify-between gap-6 overflow-hidden rounded-3xl border p-5 shadow-2xl transition-all duration-300 sm:p-7 md:flex-row',
-                  eventActive
-                    ? `bg-gradient-to-r from-amber-950/40 via-slate-900 to-blue-950/60 ${borderClass}`
-                    : 'border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-slate-900 to-blue-950/60',
+                  checked
+                    ? 'border-[#3B82F6]/40 bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/80'
+                    : eventActive
+                      ? `bg-gradient-to-r from-amber-950/40 via-slate-900 to-blue-950/60 ${borderClass}`
+                      : 'border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-slate-900 to-blue-950/60',
                 ].join(' ')}
               >
                 <div className="pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-amber-500/10 blur-3xl"/>
