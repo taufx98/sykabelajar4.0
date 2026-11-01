@@ -766,6 +766,81 @@ BEGIN
 END;
 $referral_backfill$;
 
+-- Handle the other side of the event race: an eligible activity may commit
+-- just before the referral row is inserted. Check only this one new referral.
+CREATE OR REPLACE FUNCTION private.process_new_referral_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_activity text;
+  v_occurred_at timestamptz;
+BEGIN
+  IF NEW.status <> 'PENDING' OR NEW.verified_at IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT activity, occurred_at
+    INTO v_activity, v_occurred_at
+  FROM (
+    SELECT 'daily_checkin'::text AS activity, dc.created_at AS occurred_at
+    FROM public.daily_checkins dc
+    WHERE dc.user_id = NEW.referred_user_id
+      AND dc.created_at >= NEW.created_at
+      AND dc.created_at < NEW.created_at + interval '24 hours'
+    UNION ALL
+    SELECT 'comment'::text, c.created_at
+    FROM public.comments c
+    WHERE c.user_id = NEW.referred_user_id
+      AND c.created_at >= NEW.created_at
+      AND c.created_at < NEW.created_at + interval '24 hours'
+    UNION ALL
+    SELECT 'follow'::text, f.created_at
+    FROM public.follows f
+    WHERE f.follower_id = NEW.referred_user_id
+      AND f.created_at >= NEW.created_at
+      AND f.created_at < NEW.created_at + interval '24 hours'
+    UNION ALL
+    SELECT 'chat'::text, cm.created_at
+    FROM public.chat_messages cm
+    WHERE cm.sender_id = NEW.referred_user_id
+      AND cm.created_at >= NEW.created_at
+      AND cm.created_at < NEW.created_at + interval '24 hours'
+    UNION ALL
+    SELECT 'daily_task'::text, dtc.completed_at
+    FROM public.daily_task_claims dtc
+    WHERE dtc.user_id = NEW.referred_user_id
+      AND dtc.status = 'COMPLETED'
+      AND dtc.completed_at IS NOT NULL
+      AND dtc.completed_at >= NEW.created_at
+      AND dtc.completed_at < NEW.created_at + interval '24 hours'
+  ) qualifying_activity
+  ORDER BY occurred_at ASC
+  LIMIT 1;
+
+  IF v_activity IS NOT NULL AND v_occurred_at IS NOT NULL THEN
+    PERFORM private.apply_referral_qualification(
+      NEW.referred_user_id,
+      v_activity,
+      v_occurred_at
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION private.process_new_referral_event() FROM PUBLIC, anon, authenticated, service_role;
+
+DROP TRIGGER IF EXISTS trg_process_new_referral_event ON public.referral_events;
+CREATE TRIGGER trg_process_new_referral_event
+AFTER INSERT ON public.referral_events
+FOR EACH ROW
+WHEN (NEW.status = 'PENDING')
+EXECUTE FUNCTION private.process_new_referral_event();
+
 REVOKE ALL ON FUNCTION private.apply_referral_qualification(uuid, text, timestamptz) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.capture_referral_activity() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.process_referral_email_confirmation() FROM PUBLIC, anon, authenticated, service_role;
@@ -862,7 +937,10 @@ AS $function$
     coalesce(p.full_name, p.username, 'Pengguna') AS full_name,
     p.username,
     re.created_at AS joined_at,
-    au.last_sign_in_at,
+    CASE
+      WHEN re.status IN ('VERIFIED', 'CREDITED') THEN au.last_sign_in_at
+      ELSE NULL
+    END AS last_login_at,
     re.status,
     re.verified_at,
     re.verified_activity
