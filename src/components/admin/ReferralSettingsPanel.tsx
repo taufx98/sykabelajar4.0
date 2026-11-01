@@ -95,11 +95,6 @@ function toIsoDateTime(value: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
-function sameDateTime(left: string | null, right: string | null) {
-  if (!left || !right) return !left && !right;
-  return new Date(left).getTime() === new Date(right).getTime();
-}
-
 function readSettings(data: unknown): ReferralSettings | null {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== 'object') return null;
