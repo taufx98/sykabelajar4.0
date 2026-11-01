@@ -583,6 +583,7 @@ AS $function$
 DECLARE
   v_user_id uuid;
   v_activity text;
+  v_occurred_at timestamptz := clock_timestamp();
 BEGIN
   CASE TG_TABLE_NAME
     WHEN 'daily_checkins' THEN
@@ -601,13 +602,14 @@ BEGIN
       IF NEW.status = 'COMPLETED' AND NEW.completed_at IS NOT NULL THEN
         v_user_id := NEW.user_id;
         v_activity := 'daily_task';
+        v_occurred_at := NEW.completed_at;
       END IF;
     ELSE
       RETURN NEW;
   END CASE;
 
   IF v_user_id IS NOT NULL AND v_activity IS NOT NULL THEN
-    PERFORM private.apply_referral_qualification(v_user_id, v_activity, clock_timestamp());
+    PERFORM private.apply_referral_qualification(v_user_id, v_activity, v_occurred_at);
   END IF;
 
   RETURN NEW;
