@@ -128,9 +128,9 @@ const categoryFor = (n: DetailNotification): NotificationCategory => {
   const content = (type + ' ' + n.title + ' ' + n.body).toLowerCase();
 
   if (type === 'result-out' || /\bjuara\s*[1-9]|pemenang|winner|hasil kompetisi|hasil lomba/.test(content)) return 'winner';
-  if (type === 'competition-start' || type.includes('announcement') || /pengumuman|technical meeting|siaran resmi/.test(content)) return 'announcement';
-  if (type === 'badge-awarded' || /badge|achievement|pencapaian|sertifikat|certificate|award/.test(content)) return 'badge';
   if (type.includes('registration') || /pendaftaran|registration/.test(content)) return 'registration';
+  if (type === 'badge-awarded' || /badge|achievement|pencapaian|sertifikat|certificate|award/.test(content)) return 'badge';
+  if (type === 'competition-start' || type.includes('announcement') || /pengumuman|technical meeting|siaran resmi/.test(content)) return 'announcement';
   if (type === 'rank-up' || isCoinNotification(n) || isXpNotification(n)) return 'gamification';
   return 'general';
 };
