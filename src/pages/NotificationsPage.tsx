@@ -185,7 +185,7 @@ export function NotificationsPage() {
         is_event_active: Boolean(settings.is_event_active),
       });
     };
-    const channel = supabase.channel('referral-program-settings-notifications', { config: { private: false } })
+    const channel = supabase.channel('referral-program-settings', { config: { private: false } })
       .on('broadcast', { event: 'updated' }, () => { void loadReferralPreview(); })
       .subscribe();
     const onFocus = () => { void loadReferralPreview(); };
