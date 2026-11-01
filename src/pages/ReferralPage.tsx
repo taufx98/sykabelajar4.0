@@ -142,7 +142,7 @@ export function ReferralPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-fg truncate">{row.full_name}</p>
-                      <Badge color={verified ? 'moss' : 'amber'}>
+                      <Badge color={verified ? 'moss' : 'warn'}>
                         {verified ? 'Aktif' : row.status === 'REVOKED' ? 'Dibatalkan' : 'Menunggu aktivitas'}
                       </Badge>
                     </div>
