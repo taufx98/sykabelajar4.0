@@ -108,6 +108,10 @@ test('notifications visual contract follows the supplied Font Awesome reference 
 
   assert.doesNotMatch(html, /font-awesome\/6\.4\.0\/css\/all\.min\.css/);
   assert.match(notificationsPage, /cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\/6\.4\.0\/css\/all\.min\.css/);
+  const referralPanel = await readFile(new URL('../src/components/referrals/ReferralProgramPanel.tsx', import.meta.url), 'utf8');
+  assert.match(referralPanel, /cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\/6\.4\.0\/css\/all\.min\.css/);
+  assert.match(referralPanel, /fa-gift/);
+  assert.match(referralPanel, /fa-coins/);
   assert.match(globalHeader, /location\.pathname === '\/notifications'/);
   assert.match(globalHeader, /Notifikasi &amp; Program Referral/);
   assert.match(notificationsPage, /fa-users-rays/);
