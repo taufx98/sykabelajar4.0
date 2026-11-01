@@ -5,10 +5,11 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/store/AppContext';
-import { listCurrentUserOrganizers, resolveCurrentUserOrganizer, setSelectedOrganizerId, type CurrentOrganizer } from '@/services/organizerAuth.service';
+import { listCurrentUserOrganizers, resolveCurrentUserOrganizerFrom, setSelectedOrganizerId, type CurrentOrganizer } from '@/services/organizerAuth.service';
 import { getActiveOrganizerEntitlements } from '@/services/organizerEntitlement.service';
 import { uploadProfileImageSigned, optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 import { supabase } from '@/lib/supabase';
+import { emitSykaEvent } from '@/lib/realtimeBus';
 import { OrganizerWorkspaceOnboarding } from '@/components/organizer/OrganizerWorkspaceOnboarding';
 
 const TABS = [
@@ -55,13 +56,31 @@ export function OrganizerControlCenterPage() {
   const canEdit = org?._memberRole === 'owner' || org?._memberRole === 'editor';
   const canManageProfile = org?._memberRole === 'owner';
 
-  const load = async () => {
+  const load = async (preferredOrganizerId?: string) => {
     setLoading(true);
     try {
-      const [all, current] = await Promise.all([listCurrentUserOrganizers(), resolveCurrentUserOrganizer()]);
-      setWorkspaces(all);
+      let all = workspaces;
+      let current = preferredOrganizerId
+        ? all.find((item) => item.id === preferredOrganizerId) ?? null
+        : null;
+
+      if (!preferredOrganizerId || !current) {
+        all = await listCurrentUserOrganizers();
+        setWorkspaces(all);
+        current = preferredOrganizerId
+          ? all.find((item) => item.id === preferredOrganizerId) ?? null
+          : resolveCurrentUserOrganizerFrom(all);
+      }
+
       setOrg(current);
-      if (!current) return;
+      if (!current) {
+        setCompetitions([]);
+        setBanks([]);
+        setStats({ competitions: 0, registrations: 0, members: 0, banks: 0 });
+        setPlan(null);
+        setBankLimit(0);
+        return;
+      }
 
       const [c, r, m, b, ent] = await Promise.all([
         supabase.from('competitions').select('id,title,slug,status,created_at,registration_starts_at,registration_ends_at,starts_at,ends_at').eq('organizer_id', current.id).order('created_at', { ascending: false }),
@@ -98,7 +117,8 @@ export function OrganizerControlCenterPage() {
   const switchWorkspace = (id: string) => {
     if (!workspaces.some((x) => x.id === id)) return;
     setSelectedOrganizerId(id);
-    void load();
+    emitSykaEvent({ type: 'organizer-changed', organizerId: id });
+    void load(id);
   };
 
   const chooseLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
