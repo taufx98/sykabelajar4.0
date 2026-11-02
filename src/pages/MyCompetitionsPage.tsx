@@ -848,18 +848,18 @@ function CertificateHistoryModal({
         </div>
 
         {loading ? (
-          <div className="space-y-2">
-            {[0, 1, 2].map((value) => <div key={value} className="h-24 animate-pulse rounded-xl bg-slate-800" />)}
+          <div className="min-h-[20rem] space-y-2" aria-label="Memuat riwayat sertifikat">
+            {[0, 1, 2].map((value) => <div key={value} className="h-24 rounded-xl border border-slate-800/80 bg-slate-800/70" />)}
           </div>
         ) : error ? (
-          <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-5 text-center">
+          <div className="min-h-[20rem] rounded-xl border border-rose-500/20 bg-rose-500/5 p-5 text-center">
             <AlertCircle size={23} className="mx-auto text-rose-500" />
             <p className="mt-2 text-sm font-semibold text-slate-100">Riwayat sertifikat belum dapat dimuat</p>
             <p className="mt-1 break-words text-xs text-slate-400">{error}</p>
             <Button size="sm" className="mt-3" variant="outline" onClick={() => setRefreshKey((value) => value + 1)}>Coba lagi</Button>
           </div>
         ) : visibleRows.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-800 px-5 py-10 text-center">
+          <div className="min-h-[20rem] rounded-xl border border-dashed border-slate-800 px-5 py-10 text-center">
             <FileCheck size={28} className="mx-auto text-slate-400" />
             <p className="mt-3 text-sm font-semibold text-slate-100">{rows.length === 0 ? 'Belum ada sertifikat terbit' : 'Sertifikat tidak ditemukan'}</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-400">
@@ -870,7 +870,7 @@ function CertificateHistoryModal({
             {rows.length > 0 && <Button size="sm" variant="outline" className="mt-3" onClick={() => { setQuery(''); setFilter('all'); }}>Hapus filter</Button>}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="min-h-[20rem] space-y-2">
             {visibleRows.map((certificate) => {
               const title = titleByCompetition.get(certificate.competition_id) || 'Sertifikat lomba';
               const status = String(certificate.status ?? '').toUpperCase();
@@ -1190,7 +1190,7 @@ export function MyCompetitionsPage() {
             </div>
 
             <div className="my-competitions-filter-row border-t border-slate-800/80 pt-3.5">
-              <div className="hidden flex-wrap gap-2 sm:flex" role="tablist" aria-label="Filter status lomba">
+              <div className="syka-tab-list hidden flex-wrap gap-2 sm:flex" role="tablist" aria-label="Filter status lomba">
                 {FILTERS.map((tab) => (
                   <button
                     key={tab.id}
@@ -1198,7 +1198,7 @@ export function MyCompetitionsPage() {
                     role="tab"
                     aria-selected={filter === tab.id}
                     onClick={() => setFilter(tab.id)}
-                    className={'inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-[10px] font-bold transition sm:text-[11px] ' + (filter === tab.id
+                    className={'syka-tab-trigger inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-[10px] font-bold transition sm:text-[11px] ' + (filter === tab.id
                       ? 'border-indigo-500 bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-950/40'
                       : 'border-slate-700/70 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:bg-slate-800 hover:text-slate-100')}
                   >
