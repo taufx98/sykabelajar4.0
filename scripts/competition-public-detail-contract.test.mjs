@@ -13,6 +13,8 @@ const resultsService = await readFile(new URL('../src/services/competitionResult
 const socialService = await readFile(new URL('../src/services/social.service.ts', import.meta.url), 'utf8');
 const comments = await readFile(new URL('../src/components/ui/Comments.tsx', import.meta.url), 'utf8');
 const adminOperations = await readFile(new URL('../src/pages/AdminOperationsPage.tsx', import.meta.url), 'utf8');
+const collectiveWizard = await readFile(new URL('../src/pages/GuruCollectiveRegistrationWizardPage.tsx', import.meta.url), 'utf8');
+const collectiveService = await readFile(new URL('../src/services/collectiveParticipant.service.ts', import.meta.url), 'utf8');
 
 test('organizer can configure an optional minimum target separately from the enforced maximum', () => {
   assert.match(migration, /ADD COLUMN IF NOT EXISTS minimum_participants integer/i);
@@ -36,6 +38,17 @@ test('maximum capacity counts individual and collective reservations through one
   assert.match(migration, /create or replace function public\.quote_collective_registration[\s\S]*?for update[\s\S]*?PARTICIPANT_LIMIT_REACHED/i);
   assert.match(migration, /create or replace function public\.create_collective_participants[\s\S]*?for update[\s\S]*?PARTICIPANT_LIMIT_REACHED/i);
   assert.match(migration, /v_quota_count := private\.competition_reserved_participant_count/);
+});
+
+test('collective registration receives the same organizer quota settings and friendly capacity errors', () => {
+  assert.match(migration, /FUNCTION public\.get_collective_registration_options/i);
+  assert.match(migration, /'minimum_participants', v_rule\.minimum_participants/);
+  assert.match(migration, /'max_participants', v_rule\.max_participants/);
+  assert.match(collectiveService, /minimum_participants\?:number\|null/);
+  assert.match(collectiveService, /max_participants\?:number\|null/);
+  assert.match(collectiveWizard, /options\.registration_rules\.minimum_participants/);
+  assert.match(collectiveWizard, /options\.registration_rules\.max_participants/);
+  assert.match(collectiveWizard, /PARTICIPANT_LIMIT_REACHED/);
 });
 
 test('public participant roster exposes canonical participant fields only for public competitions', () => {
