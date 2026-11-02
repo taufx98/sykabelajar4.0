@@ -279,10 +279,7 @@ export function ShopExperience({
           <div className="flex items-center gap-1 text-[11px] text-amber-400 font-bold">
             <Star size={14} className="fill-amber-400" />
             {summary && summary.review_count > 0
-              ? <>
-                  <span>{summary.average_rating.toFixed(1)}</span>
-    
-                </>
+              ? <span>{summary.average_rating.toFixed(1)}</span>
               : <span className="text-slate-500 font-normal">Belum ada rating</span>}
             <span className="text-slate-500 font-normal">({salesCount.toLocaleString('id-ID')} terjual)</span>
           </div>
