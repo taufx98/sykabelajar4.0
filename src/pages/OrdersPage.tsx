@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingBag, Package, Plus, Minus, Loader2, Upload, X, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle } from 'lucide-react';
+import { ShoppingBag, Package, Plus, Minus, Loader2, Upload, X, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle, Star } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { ShopExperience } from '@/components/shop/ShopExperience';
 import { Button } from '@/components/ui/Button';
