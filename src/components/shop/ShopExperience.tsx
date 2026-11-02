@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowDownWideNarrow, ArrowUpDown, Heart, Loader2, Search, ShoppingBag, SlidersHorizontal, Sparkles, Star, X } from 'lucide-react';
+import { Heart, Loader2, Search, ShoppingBag, SlidersHorizontal, Sparkles, Star, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -202,7 +202,7 @@ export function ShopExperience({
     void hasVerifiedProductPurchase(product.id).then(setVerifiedPurchase).catch(() => setVerifiedPurchase(false));
   };
 
-  const canReview = Boolean(selectedProduct && userId && hasVerifiedPurchase(orders, selectedProduct.id));
+  const canReview = Boolean(selectedProduct && userId && verifiedPurchase);
 
   const submitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
