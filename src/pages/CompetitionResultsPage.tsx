@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Award, CheckCircle2, Clock3, ExternalLink, Loader2, Medal, Trophy, Users, X } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -42,6 +42,8 @@ function podiumLabel(rank: number) {
 
 export function CompetitionResultsPage() {
   const { slug = '' } = useParams<{ slug: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoDetailRequest = useRef<string | null>(null);
   const [data, setData] = useState<PublicCompetitionResults | null>(null);
   const [results, setResults] = useState<CompetitionResultRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,26 +81,50 @@ export function CompetitionResultsPage() {
     void load();
   }, [load]);
 
-  const openDetail = async (row: CompetitionResultRow) => {
-    if (!row.participant_id || detailLoading) return;
-    setDetailName(row.full_name);
+  const loadParticipantDetail = useCallback(async (participantId: string, participantName: string) => {
+    if (!participantId || detailLoading) return;
+    setDetailName(participantName);
     setSelectedDetail(null);
     setDetailError('');
     setDetailLoading(true);
     try {
-      setSelectedDetail(await getCompetitionParticipantDetail(slug, row.participant_id));
+      setSelectedDetail(await getCompetitionParticipantDetail(slug, participantId));
     } catch (cause) {
       setDetailError(cause instanceof Error ? cause.message : 'Detail peserta gagal dimuat.');
     } finally {
       setDetailLoading(false);
     }
+  }, [detailLoading, slug]);
+
+  const openDetail = async (row: CompetitionResultRow) => {
+    if (!row.participant_id || detailLoading) return;
+    autoDetailRequest.current = row.participant_id;
+    setSearchParams((current) => {
+      const nextParams = new URLSearchParams(current);
+      nextParams.set('participant', row.participant_id!);
+      return nextParams;
+    });
+    await loadParticipantDetail(row.participant_id, row.full_name);
   };
+
+  useEffect(() => {
+    const requestedId = searchParams.get('participant');
+    if (!data || !requestedId || detailLoading || autoDetailRequest.current === requestedId) return;
+    autoDetailRequest.current = requestedId;
+    void loadParticipantDetail(requestedId, 'Detail peserta');
+  }, [data, detailLoading, loadParticipantDetail, searchParams]);
 
   const closeDetail = () => {
     if (detailLoading) return;
     setSelectedDetail(null);
     setDetailName('');
     setDetailError('');
+    autoDetailRequest.current = null;
+    setSearchParams((current) => {
+      const nextParams = new URLSearchParams(current);
+      nextParams.delete('participant');
+      return nextParams;
+    }, { replace: true });
   };
 
   const loadMore = async () => {
