@@ -388,3 +388,12 @@ test('Daily Tasks does not show provisional check-in values while account data i
   assert.match(daily, /min-h-\[88px\]/);
   assert.match(daily, /loading\s*\?\s*\(/);
 });
+
+
+test('Daily Tasks reserves the task list footprint while its first data request is pending', async () => {
+  const daily = await readFile(new URL('../src/pages/DailyTasksPage.tsx', import.meta.url), 'utf8');
+
+  assert.match(daily, /daily-task-loading-placeholder/);
+  assert.match(daily, /min-h-\\[12rem\\]/);
+  assert.doesNotMatch(daily, /Memuat data aktivitas\\.\\.\\./);
+});
