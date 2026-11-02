@@ -71,7 +71,6 @@ function Stars({ value, size = 13 }: { value: number; size?: number }) {
 
 export function ShopExperience({
   products,
-  orders,
   userId,
   loading,
   historyContent,
