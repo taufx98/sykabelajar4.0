@@ -101,7 +101,7 @@ test('public result detail respects the participant profile badge collection vis
   assert.match(badgePrivacyMigration, /coalesce\(p\.is_public, false\)/i);
   assert.match(badgePrivacyMigration, /coalesce\(settings\.show_badge_collection, true\)/i);
   assert.match(badgePrivacyMigration, /and v_badges_visible/i);
-  assert.match(badgePrivacyMigration, /GRANT EXECUTE ON FUNCTION public\.get_competition_participant_detail\(text, uuid\) TO anon, authenticated/i);
+  assert.match(badgePrivacyMigration, /GRANT EXECUTE ON FUNCTION public\.get_competition_participant_detail\(text, uuid\) TO anon, authenticated/ii);
 });
 
 test('participant details in the public results UI are fetched from the canonical result RPC', () => {
