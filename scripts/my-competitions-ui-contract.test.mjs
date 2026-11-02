@@ -105,7 +105,6 @@ test('competition detail unavailable state is vertically centered and distinguis
 
 
 const globalHeader = await readFile('src/components/layout/GlobalHeader.tsx', 'utf8');
-const appLayout = await readFile('src/components/layout/AppLayout.tsx', 'utf8');
 
 test('Lomba Saya summary indicators use a compact two-column mobile grid and an accessible collapse control', () => {
   assert.match(page, /my-competitions-summary/);
