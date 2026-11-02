@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { ImagePlus, Loader2, RefreshCw, Save, Star, Upload, ChevronDown, ChevronRight, Heart, MessageSquareText } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { Loader2, RefreshCw, Save, Star, Upload, ChevronDown, ChevronRight, Heart, MessageSquareText } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -47,7 +47,7 @@ export function ShopInsightsPanel({ products }: Props) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -59,9 +59,9 @@ export function ShopInsightsPanel({ products }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   const wishlistRanking = useMemo(() => {
     const counts = new Map(insights.wishlistCounts.map((row) => [row.product_id, row.wishlist_count]));
