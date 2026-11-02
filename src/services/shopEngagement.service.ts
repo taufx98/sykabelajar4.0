@@ -144,8 +144,8 @@ export async function listProductReviewSummaries(): Promise<ProductReviewSummary
 export async function listProductSalesCounts(): Promise<ProductSalesSummary[]> {
   const { data, error } = await supabase.rpc('list_public_commerce_product_sales_counts');
   if (error) throw error;
-  return (data ?? []).map((row) => ({
-    product_id: String(row.product_id),
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    product_id: String(row.product_id ?? ''),
     sales_count: Number(row.sales_count ?? 0),
   }));
 }
