@@ -13,7 +13,7 @@ const globalHeader = await readFile('src/components/layout/GlobalHeader.tsx', 'u
 test('wishlist is private per user and cannot be written on behalf of another account', () => {
   assert.match(migration, /create table if not exists public\.commerce_product_wishlist/i);
   assert.match(migration, /primary key\s*\(product_id,\s*user_id\)/i);
-  assert.match(migration, /auth\.uid\(\)\s*=\s*user_id/i);
+  assert.match(migration, /\(\s*select auth\.uid\(\)\s*\)\s*=\s*user_id/i);
   assert.match(migration, /alter table public\.commerce_product_wishlist enable row level security/i);
   assert.match(migration, /grant select, insert, delete on table public\.commerce_product_wishlist to authenticated/i);
 });
@@ -36,8 +36,8 @@ test('product reviews are verified-purchase-only and ratings are constrained', (
 });
 
 test('public aggregate views execute with invoker permissions and have explicit Data API grants', () => {
-  assert.match(migration, /create or replace view public\.commerce_product_wishlist_counts with \(security_invoker = true\)/i);
-  assert.match(migration, /create or replace view public\.commerce_product_review_summaries with \(security_invoker = true\)/i);
+  assert.match(migration, /create or replace view public\.commerce_product_wishlist_counts\s+with \(security_invoker = true\)/i);
+  assert.match(migration, /create or replace view public\.commerce_product_review_summaries\s+with \(security_invoker = true\)/i);
   assert.match(migration, /grant select on public\.commerce_product_wishlist_counts to authenticated/i);
   assert.match(migration, /grant select on public\.commerce_product_review_summaries to anon, authenticated/i);
 });
