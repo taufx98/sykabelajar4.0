@@ -293,10 +293,7 @@ begin
   from public.participants p
   where p.competition_id = v_comp.id;
 
-  select count(*)::integer into v_quota_count
-  from public.registrations r
-  where r.competition_id = v_comp.id
-    and r.status::text in ('PENDING', 'APPROVED', 'ACTIVE');
+  v_quota_count := private.competition_reserved_participant_count(v_comp.id);
 
   select coalesce(jsonb_agg(
     page.row_data order by page.rank_position nulls last, lower(page.full_name), page.participant_id
