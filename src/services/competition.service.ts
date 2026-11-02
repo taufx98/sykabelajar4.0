@@ -176,6 +176,8 @@ export type PublicCompetitionParticipant = {
   grade: string | null;
   class_name: string | null;
   school_name: string | null;
+  rank: number | null;
+  score: number | null;
 };
 
 export type PublicCompetitionParticipants = {
