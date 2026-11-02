@@ -205,7 +205,7 @@ export function ShopExperience({
       setNotice('Rating dan ulasan berhasil disimpan.');
     } catch (error) {
       const message = String((error as { message?: string } | null)?.message ?? '');
-      setNotice(message.includes('permission') || message.includes('row-level security')
+      setNotice(message.includes('permission') || message.includes('row-level security') || message.includes('VERIFIED_PURCHASE_REQUIRED')
         ? 'Ulasan hanya dapat dikirim setelah pesanan dibayar dan diverifikasi.'
         : message || 'Rating belum berhasil disimpan.');
     } finally {
