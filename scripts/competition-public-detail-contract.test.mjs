@@ -42,6 +42,7 @@ test('public participant roster exposes canonical participant fields only for pu
   assert.match(roster, /'rank', official_result\.rank_position/);
   assert.match(roster, /'score', official_result\.score/);
   assert.match(roster, /v_comp\.status::text in \('RESULT_PUBLISHED', 'ARCHIVED'\)/);
+  assert.match(roster, /page\.rank_position nulls last/);
   assert.match(competitionDetail, /Peringkat/);
   assert.match(competitionDetail, /participant\.score/);
   assert.match(competitionDetail, /\?participant=/);
