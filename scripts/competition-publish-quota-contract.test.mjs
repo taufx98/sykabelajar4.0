@@ -31,37 +31,37 @@ test('creating and saving a competition draft does not consume or block on the p
 });
 
 test('publication quota is counted by first publish within the Jakarta calendar month', () => {
-  assert.match(migration, /Asia\/Jakarta/);
-  assert.match(migration, /date_trunc\('month'/i);
+  assert.match(migration, /Asia\\/Jakarta/);
+  assert.match(migration, /date_trunc\\('month'/i);
   assert.match(migration, /competition_status_history/);
-  assert.match(migration, /from_status::text\s*=\s*'DRAFT'/i);
-  assert.match(migration, /to_status::text\s*=\s*'PUBLISHED'/i);
+  assert.match(migration, /count\\s*\\(distinct h\\.competition_id\\)/i);
+  assert.match(migration, /h\\.to_status::text\\s*=\\s*'PUBLISHED'/i);
   assert.match(transitionFunction, /pg_advisory_xact_lock/);
   assert.match(transitionFunction, /COMPETITION_QUOTA_EXCEEDED/);
 });
 
-test('monthly publication quota is enforced on the server only for DRAFT to PUBLISHED transitions', () => {
-  assert.match(transitionFunction, /p_to_status\s*=\s*'PUBLISHED'/);
-  assert.match(transitionFunction, /v_before\.status\s*=\s*'DRAFT'/);
-  assert.match(transitionFunction, /private\.monthly_organizer_competition_quota/);
-  assert.match(transitionFunction, /current_user_is_admin/);
+test('monthly publication quota is enforced on first publish and administrators retain their bypass', () => {
+  assert.match(transitionFunction, /p_to_status\\s*=\\s*'PUBLISHED'/i);
+  assert.match(transitionFunction, /not v_already_published/i);
+  assert.match(transitionFunction, /private\\.monthly_organizer_competition_quota/i);
+  assert.match(transitionFunction, /current_user_is_admin/i);
 });
 
 test('organizer quota status RPC is authorized and not exposed to anonymous users', () => {
-  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_organizer_competition_quota/);
+  assert.match(migration, /create or replace function public\\.get_organizer_competition_quota/i);
   assert.match(migration, /current_user_can_edit_competition/);
-  assert.match(migration, /REVOKE ALL ON FUNCTION public\.get_organizer_competition_quota\(uuid\) FROM PUBLIC, anon/);
-  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.get_organizer_competition_quota\(uuid\) TO authenticated/);
+  assert.match(migration, /revoke all on function public\\.get_organizer_competition_quota\\(uuid\\) from public, anon/i);
+  assert.match(migration, /grant execute on function public\\.get_organizer_competition_quota\\(uuid\\) to authenticated/i);
 });
 
 test('configuration save stays enabled while Release is locked at quota and shows the first-day reset', () => {
   assert.match(configPage, /get_organizer_competition_quota/);
-  assert.match(configPage, /quota\.can_publish/);
-  assert.match(configPage, /quota\.reset_at/);
-  assert.match(configPage, /00\.00 WIB/);
+  assert.match(configPage, /competitionQuota\\?\\.can_publish/);
+  assert.match(configPage, /competitionQuota\\?\\.reset_at/);
+  assert.match(configPage, /00\\.00 WIB/);
   assert.match(configPage, /Simpan Konfigurasi/);
   assert.match(configPage, /Kuota Habis/);
-  assert.match(configPage, /disabled=\{[^}]*quota\.can_publish/);
+  assert.match(configPage, /disabled=\\{[^}]*competitionQuota\\?\\.can_publish/);
 });
 
 test('a quota race on release leaves the draft intact and refreshes quota feedback', () => {
