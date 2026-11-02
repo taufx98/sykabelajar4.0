@@ -81,6 +81,7 @@ export function AdminMonitoringPage() {
   };
   const loadOfficialResultDetail = async () => {
     if (!detail?.participant_id || !detail.competition_id || detail.attempt_status !== 'FINALIZED' || officialResultLoading) return;
+    const requestId = detailRequestRef.current;
     setOfficialResultLoading(true);
     setOfficialResultError(null);
     try {
@@ -92,11 +93,13 @@ export function AdminMonitoringPage() {
       if (competitionError) throw competitionError;
       if (!competition?.slug) throw new Error('Slug kompetisi tidak ditemukan.');
       const result = await getCompetitionParticipantDetail(String(competition.slug), detail.participant_id);
-      setOfficialResultDetail(result);
+      if (requestId === detailRequestRef.current) setOfficialResultDetail(result);
     } catch (reason) {
-      setOfficialResultError(reason instanceof Error ? reason.message : 'Detail hasil peserta gagal dimuat.');
+      if (requestId === detailRequestRef.current) {
+        setOfficialResultError(reason instanceof Error ? reason.message : 'Detail hasil peserta gagal dimuat.');
+      }
     } finally {
-      setOfficialResultLoading(false);
+      if (requestId === detailRequestRef.current) setOfficialResultLoading(false);
     }
   };
 
