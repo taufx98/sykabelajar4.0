@@ -109,7 +109,9 @@ export function CompetitionDetailPage() {
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [postId, setPostId] = useState<string | null>(null);\n  const [participantDirectory, setParticipantDirectory] = useState<PublicCompetitionParticipants | null>(null);\n  const [participantsLoadingMore, setParticipantsLoadingMore] = useState(false);
+  const [postId, setPostId] = useState<string | null>(null);
+  const [participantDirectory, setParticipantDirectory] = useState<PublicCompetitionParticipants | null>(null);
+  const [participantsLoadingMore, setParticipantsLoadingMore] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [juknisOpen, setJuknisOpen] = useState(false);
   const [clock, setClock] = useState(Date.now());
@@ -164,7 +166,8 @@ export function CompetitionDetailPage() {
         ]);
         if (active) {
           setDetail(next);
-          setPostId(posts[0]?.id ?? null);\n          setParticipantDirectory(participants);
+          setPostId(posts[0]?.id ?? null);
+          setParticipantDirectory(participants);
         }
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : 'Gagal memuat detail lomba.');
@@ -185,7 +188,8 @@ export function CompetitionDetailPage() {
   const organizer = detail?.organizer;
   const rewards = detail?.rewards ?? [];
   const levels = detail?.levels ?? [];
-  const participantCount = Number(participantDirectory?.participant_count ?? detail?.participantCount ?? competition?.participant_count ?? 0);\n  const quotaCount = Number(participantDirectory?.quota_count ?? participantCount);
+  const participantCount = Number(participantDirectory?.participant_count ?? detail?.participantCount ?? competition?.participant_count ?? 0);
+  const quotaCount = Number(participantDirectory?.quota_count ?? participantCount);
   const questionCount = Number(detail?.questionCount ?? 0);
   const capacity = rules?.max_participants == null ? null : Math.max(0, Number(rules.max_participants));
   const remainingCapacity = capacity == null ? null : Math.max(0, capacity - participantCount);
