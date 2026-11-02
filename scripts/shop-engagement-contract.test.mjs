@@ -32,7 +32,7 @@ test('product reviews are verified-purchase-only and ratings are constrained', (
   assert.match(migration, /as \$shop\$[\s\S]*?\$shop\$;/i);
   assert.match(migration, /VERIFIED_PURCHASE_REQUIRED/);
   assert.doesNotMatch(migration, /grant select on table public\.commerce_product_reviews to anon, authenticated/i);
-  assert.doesNotMatch(migration, /grant select \\([^)]*user_id[^)]*\\) on table public\\.commerce_product_reviews/i);
+  assert.doesNotMatch(migration, /grant select \([^)]*user_id[^)]*\) on table public\.commerce_product_reviews/i);
 });
 
 test('public aggregate views execute with invoker permissions and have explicit Data API grants', () => {
