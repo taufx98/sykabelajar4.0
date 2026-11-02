@@ -132,7 +132,7 @@ test('admin banner editor keeps the reference headline line breaks and previews 
   assert.match(adminPanel, /Judul banner[\s\S]*?textarea/);
   assert.match(adminPanel, /bg-gradient-to-r from-\[#0F172A\] via-\[#1E1B4B\] to-\[#0F172A\]/);
   assert.match(adminPanel, /mix-blend-luminosity/);
-  assert.match(adminPanel, /mask-image/);
+  assert.match(adminPanel, /maskImage|WebkitMaskImage/);
 });
 
 test('admin hero configuration is saved through the existing platform settings row', () => {
