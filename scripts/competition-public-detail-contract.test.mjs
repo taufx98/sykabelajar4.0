@@ -65,8 +65,8 @@ test('participant details in the public results UI are fetched from the canonica
 });
 
 test('comment reporting is persisted through an authenticated RPC and comment sharing uses the clipboard', () => {
-  assert.match(migration, /FUNCTION public\.report_competition_comment/);
-  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.report_competition_comment\(uuid, text\) TO authenticated/);
+  assert.match(migration, /FUNCTION public\.report_competition_comment/i);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.report_competition_comment\(uuid, text\) TO authenticated/i);
   assert.match(socialService, /report_competition_comment/);
   assert.match(comments, /reportPostComment/);
   assert.match(comments, /navigator\.clipboard/);
