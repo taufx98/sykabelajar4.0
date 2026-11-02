@@ -853,6 +853,7 @@ export function OrdersPage() {
 
     {selected && <div
       className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+      style={{ fontFamily: "'Inter', sans-serif" }}
       onClick={(event) => { if (event.target === event.currentTarget) close(); }}
     >
       <div role="dialog" aria-modal="true" aria-label="Detail Produk dan Pembelian" className="bg-[#151F32] border border-slate-700/80 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
