@@ -70,7 +70,7 @@ export function AdminMonitoringPage() {
   useEffect(() => { const timer = window.setTimeout(() => { void load(); },250); return () => window.clearTimeout(timer); },[load]);
 
   const inspect = async (attemptId:string) => {
-    const id = ++detailRequestRef.current; setSelectedId(attemptId); setDetail(null); setDetailError(null); setOfficialResultDetail(null); setOfficialResultError(null); setDetailLoading(true);
+    const id = ++detailRequestRef.current; setSelectedId(attemptId); setDetail(null); setDetailError(null); setOfficialResultDetail(null); setOfficialResultLoading(false); setOfficialResultError(null); setDetailLoading(true);
     try {
       const { data, error:rpcError } = await supabase.rpc('admin_get_attempt_investigation',{ p_attempt_id:attemptId });
       if (rpcError) throw rpcError;
@@ -110,7 +110,7 @@ export function AdminMonitoringPage() {
     const remaining = total % 60;
     return hours ? hours + ' jam ' + minutes + ' menit' : minutes ? minutes + ' menit ' + remaining + ' detik' : remaining + ' detik';
   };
-  const closeDetail = () => { detailRequestRef.current += 1; setSelectedId(null); setDetail(null); setDetailError(null); setOfficialResultDetail(null); setOfficialResultError(null); };
+  const closeDetail = () => { detailRequestRef.current += 1; setSelectedId(null); setDetail(null); setDetailError(null); setOfficialResultDetail(null); setOfficialResultLoading(false); setOfficialResultError(null); };
   const updateFilter = (setter:(value:string)=>void,value:string) => { setter(value); setOffset(0); };
   const summary = payload?.summary;
 
