@@ -1,5 +1,12 @@
 begin;
 
+create index if not exists idx_collective_participants_registration_id
+  on public.collective_participants (registration_id)
+  where registration_id is not null;
+
+create index if not exists idx_collective_participants_competition_status
+  on public.collective_participants (competition_id, status);
+
 create or replace function private.competition_plan_participant_limit(
   p_competition_id uuid
 )
