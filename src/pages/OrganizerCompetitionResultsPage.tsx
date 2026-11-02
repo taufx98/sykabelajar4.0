@@ -58,7 +58,11 @@ export function OrganizerCompetitionResultsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState('');\n  const [participantDetail, setParticipantDetail] = useState<CompetitionParticipantDetail | null>(null);\n  const [participantDetailName, setParticipantDetailName] = useState('');\n  const [participantDetailLoading, setParticipantDetailLoading] = useState(false);\n  const [participantDetailError, setParticipantDetailError] = useState('');
+  const [error, setError] = useState('');
+  const [participantDetail, setParticipantDetail] = useState<CompetitionParticipantDetail | null>(null);
+  const [participantDetailName, setParticipantDetailName] = useState('');
+  const [participantDetailLoading, setParticipantDetailLoading] = useState(false);
+  const [participantDetailError, setParticipantDetailError] = useState('');
 
   const load = useCallback(async (quiet = false) => {
     if (!id) {
@@ -117,13 +121,13 @@ export function OrganizerCompetitionResultsPage() {
   };
 
   const openParticipantDetail = async (row: CompetitionResultRow) => {
-    if (!row.participant_id || !competitionSlug || participantDetailLoading) return;
+    const slug = overview?.competition.slug;\n    if (!row.participant_id || !slug || participantDetailLoading) return;
     setParticipantDetailName(row.full_name);
     setParticipantDetail(null);
     setParticipantDetailError('');
     setParticipantDetailLoading(true);
     try {
-      setParticipantDetail(await getCompetitionParticipantDetail(competitionSlug, row.participant_id));
+      setParticipantDetail(await getCompetitionParticipantDetail(slug, row.participant_id));
     } catch (cause) {
       setParticipantDetailError(cause instanceof Error ? cause.message : 'Detail peserta gagal dimuat.');
     } finally {
@@ -180,13 +184,13 @@ export function OrganizerCompetitionResultsPage() {
   }
 
   const competition = overview.competition;
-  const competitionSlug = competition.slug;
   const readiness = overview.readiness;
   const results = overview.results;
   const isPublished = ['RESULT_PUBLISHED', 'ARCHIVED'].includes(competition.status);
   const isClosed = competition.status === 'SUBMISSION_CLOSED';
 
   return (
+    <>
     <div className="mx-auto max-w-7xl space-y-5 p-4 pb-24 md:p-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link to="/organizer" className="inline-flex items-center gap-2 text-xs text-fg-muted hover:text-fg"><ArrowLeft size={14}/>Kembali ke Control Center</Link>
@@ -288,13 +292,14 @@ export function OrganizerCompetitionResultsPage() {
           <div className="p-10 text-center text-sm text-fg-muted">Belum ada attempt resmi yang final untuk ditampilkan.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-sm">
+            <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="bg-surface-elevated/50 text-[11px] text-fg-muted">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Peringkat</th>
                   <th className="px-4 py-3 font-semibold">Peserta</th>
                   <th className="px-4 py-3 font-semibold">Jenjang / Sekolah</th>
-                  <th className="px-4 py-3 text-right font-semibold">Skor</th>\n                  <th className="px-4 py-3 text-right font-semibold">Detail</th>
+                  <th className="px-4 py-3 text-right font-semibold">Skor</th>
+                  <th className="px-4 py-3 text-right font-semibold">Detail</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -359,5 +364,6 @@ export function OrganizerCompetitionResultsPage() {
           </section>
         </div>
       )}
+    </>
   );
 }
