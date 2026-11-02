@@ -29,9 +29,9 @@ test('product reviews are verified-purchase-only and ratings are constrained', (
   assert.match(migration, /create or replace function public\.save_my_commerce_product_review/i);
   assert.match(migration, /security definer[\s\S]*?set search_path = ''/i);
   assert.match(migration, /grant execute on function public\.save_my_commerce_product_review\(uuid, smallint, text\) to authenticated/i);
-  assert.match(migration, /as \\$shop\\\$[\\s\\S]*?\\$shop\\\$;/i);
+  assert.match(migration, /as \$shop\$[\s\S]*?\$shop\$;/i);
   assert.match(migration, /VERIFIED_PURCHASE_REQUIRED/);
-  assert.doesNotMatch(migration, /grant select on table public\\.commerce_product_reviews to anon, authenticated/i);
+  assert.doesNotMatch(migration, /grant select on table public\.commerce_product_reviews to anon, authenticated/i);
   assert.doesNotMatch(migration, /grant select \\([^)]*user_id[^)]*\\) on table public\\.commerce_product_reviews/i);
 });
 
