@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Heart, MessageCircle, Send, CornerDownRight, RefreshCw } from 'lucide-react';
+import { Heart, MessageCircle, Send, CornerDownRight, RefreshCw, Flag, Share2, X } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
 import { timeAgo } from '@/lib/utils';
-import { addPostComment, listPostComments, toggleCommentLike, type SocialComment } from '@/services/social.service';
+import { addPostComment, listPostComments, toggleCommentLike, reportPostComment, type SocialComment } from '@/services/social.service';
 import type { Comment as CommentType } from '@/types';
 
 function mapComments(rows: SocialComment[]): CommentType[] {
@@ -26,7 +26,7 @@ export function CommentsSection({ postId, comments: initialComments = [] }: { po
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyInput, setReplyInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);\n  const [reportCommentId, setReportCommentId] = useState<string | null>(null);\n  const [reportReason, setReportReason] = useState('');\n  const [reporting, setReporting] = useState(false);
 
   const load = async () => {
     if (!postId || postId.startsWith('f-')) { setComments([]); return; }
@@ -51,7 +51,33 @@ export function CommentsSection({ postId, comments: initialComments = [] }: { po
     finally { setSubmitting(false); }
   };
 
-  const like = async (commentId: string) => {
+
+  const share = async (commentId: string) => {
+    const url = new URL(window.location.href);
+    url.hash = `comment-${commentId}`;
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      toast('Tautan komentar disalin.', 'success');
+    } catch {
+      toast('Browser tidak mengizinkan penyalinan tautan.', 'error');
+    }
+  };
+
+  const submitReport = async () => {
+    if (!reportCommentId || !reportReason.trim() || reporting) return;
+    setReporting(true);
+    try {
+      await reportPostComment(reportCommentId, reportReason);
+      setReportCommentId(null);
+      setReportReason('');
+      toast('Laporan komentar berhasil dikirim ke admin.', 'success');
+    } catch (error: any) {
+      toast(error?.message ?? 'Laporan komentar gagal dikirim.', 'error');
+    } finally {
+      setReporting(false);
+    }
+  };
+\n  const like = async (commentId: string) => {
     if (!user || isGuest) return;
     try { await toggleCommentLike(commentId); await load(); }
     catch (error: any) { toast(error?.message ?? 'Gagal memperbarui like.', 'error'); }
@@ -60,6 +86,14 @@ export function CommentsSection({ postId, comments: initialComments = [] }: { po
   return <div className="mt-4 border-t surface-border pt-4">
     <div className="flex items-center justify-between mb-3"><p className="text-xs font-semibold text-slate-400">Komentar ({total})</p><button onClick={() => void load()} disabled={loading} className="p-1.5 rounded-lg hover:bg-white/5 dark:hover:bg-white/5 text-slate-500" title="Refresh komentar"><RefreshCw size={13} className={loading ? 'animate-spin' : ''}/></button></div>
     {!isGuest && user ? <div className="flex gap-2 mb-4"><Avatar name={user.displayName} id={user.id} size={32} src={user.profilePhoto}/><div className="flex-1 flex gap-2"><input className="input text-sm" placeholder="Tulis komentar..." value={input} disabled={submitting} onChange={(e)=>setInput(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&void submit(input)}/><Button size="sm" disabled={!input.trim()} loading={submitting} onClick={()=>void submit(input)} icon={<Send size={14}/>}>Kirim</Button></div></div> : <div className="mb-4 p-3 rounded-xl surface-elevated text-center text-xs text-slate-500">Masuk untuk berkomentar</div>}
-    <div className="space-y-3">{comments.map((comment)=><div key={comment.id}><div className="flex gap-2.5"><Avatar name={comment.authorName} id={comment.authorId} size={32}/><div className="flex-1 min-w-0"><div className="surface-elevated rounded-xl px-3 py-2"><div className="flex items-center gap-1.5"><span className="text-xs font-semibold text-fg">{comment.authorName}</span><span className="text-[10px] text-slate-500">@{comment.authorUsername}</span><span className="text-[10px] text-slate-600">· {timeAgo(comment.createdAt)}</span></div><p className="text-sm text-fg-secondary mt-1">{comment.body}</p></div><div className="flex items-center gap-3 mt-1 ml-1"><button onClick={()=>void like(comment.id)} disabled={!user||isGuest} className={`flex items-center gap-1 text-[11px] ${comment.liked?'text-accent':'text-slate-500 hover:text-accent'}`}><Heart size={12} className={comment.liked?'fill-moss-400':''}/> {comment.likes}</button>{user&&!isGuest&&<button onClick={()=>setReplyTo(replyTo===comment.id?null:comment.id)} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-accent"><MessageCircle size={12}/> Balas</button>}</div>{replyTo===comment.id&&user&&!isGuest&&<div className="flex gap-2 mt-2"><input autoFocus className="input text-sm py-2" placeholder="Balas komentar..." value={replyInput} onChange={(e)=>setReplyInput(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&void submit(replyInput,comment.id)}/><Button size="sm" loading={submitting} disabled={!replyInput.trim()} onClick={()=>void submit(replyInput,comment.id)} icon={<Send size={13}/>}>Kirim</Button></div>}{comment.replies.length>0&&<div className="mt-2 space-y-2">{comment.replies.map((reply)=><div key={reply.id} className="flex gap-2"><CornerDownRight size={15} className="text-slate-600 mt-1 shrink-0"/><Avatar name={reply.authorName} id={reply.authorId} size={24}/><div className="flex-1"><div className="surface-elevated rounded-xl px-3 py-2"><div className="flex items-center gap-1.5"><span className="text-xs font-semibold text-fg">{reply.authorName}</span><span className="text-[10px] text-slate-500">@{reply.authorUsername}</span><span className="text-[10px] text-slate-600">· {timeAgo(reply.createdAt)}</span></div><p className="text-sm text-fg-secondary mt-1">{reply.body}</p></div><button onClick={()=>void like(reply.id)} disabled={!user||isGuest} className={`flex items-center gap-1 text-[11px] mt-1 ml-1 ${reply.liked?'text-accent':'text-slate-500 hover:text-accent'}`}><Heart size={12} className={reply.liked?'fill-moss-400':''}/> {reply.likes}</button></div></div>)}</div>}</div></div></div>)}{!loading&&!comments.length&&<p className="text-xs text-slate-600 text-center py-4">Belum ada komentar. Jadilah yang pertama!</p>}</div>
+    <div className="space-y-3">{comments.map((comment)=><div key={comment.id} id={'comment-' + comment.id}><div className="flex gap-2.5"><Avatar name={comment.authorName} id={comment.authorId} size={32}/><div className="flex-1 min-w-0"><div className="surface-elevated rounded-xl px-3 py-2"><div className="flex items-center gap-1.5"><span className="text-xs font-semibold text-fg">{comment.authorName}</span><span className="text-[10px] text-slate-500">@{comment.authorUsername}</span><span className="text-[10px] text-slate-600">· {timeAgo(comment.createdAt)}</span></div><p className="text-sm text-fg-secondary mt-1">{comment.body}</p></div><div className="flex items-center gap-3 mt-1 ml-1"><button onClick={()=>void like(comment.id)} disabled={!user||isGuest} className={`flex items-center gap-1 text-[11px] ${comment.liked?'text-accent':'text-slate-500 hover:text-accent'}`}><Heart size={12} className={comment.liked?'fill-moss-400':''}/> {comment.likes}</button>{user&&!isGuest&&<button onClick={()=>setReplyTo(replyTo===comment.id?null:comment.id)} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-accent"><MessageCircle size={12}/> Balas</button>}{user&&!isGuest&&<button onClick={()=>void share(comment.id)} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-accent"><Share2 size={12}/> Bagikan</button>}{user&&!isGuest&&comment.userId!==user.id&&<button onClick={()=>{setReportCommentId(comment.id);setReportReason('');}} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-400"><Flag size={12}/> Laporkan</button>}</div>{replyTo===comment.id&&user&&!isGuest&&<div className="flex gap-2 mt-2"><input autoFocus className="input text-sm py-2" placeholder="Balas komentar..." value={replyInput} onChange={(e)=>setReplyInput(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&void submit(replyInput,comment.id)}/><Button size="sm" loading={submitting} disabled={!replyInput.trim()} onClick={()=>void submit(replyInput,comment.id)} icon={<Send size={13}/>}>Kirim</Button></div>}{comment.replies.length>0&&<div className="mt-2 space-y-2">{comment.replies.map((reply)=><div key={reply.id} className="flex gap-2"><CornerDownRight size={15} className="text-slate-600 mt-1 shrink-0"/><Avatar name={reply.authorName} id={reply.authorId} size={24}/><div className="flex-1"><div className="surface-elevated rounded-xl px-3 py-2"><div className="flex items-center gap-1.5"><span className="text-xs font-semibold text-fg">{reply.authorName}</span><span className="text-[10px] text-slate-500">@{reply.authorUsername}</span><span className="text-[10px] text-slate-600">· {timeAgo(reply.createdAt)}</span></div><p className="text-sm text-fg-secondary mt-1">{reply.body}</p></div><button onClick={()=>void like(reply.id)} disabled={!user||isGuest} className={`flex items-center gap-1 text-[11px] mt-1 ml-1 ${reply.liked?'text-accent':'text-slate-500 hover:text-accent'}`}><Heart size={12} className={reply.liked?'fill-moss-400':''}/> {reply.likes}</button></div></div>)}</div>}</div></div></div>)}{!loading&&!comments.length&&<p className="text-xs text-slate-600 text-center py-4">Belum ada komentar. Jadilah yang pertama!</p>}</div>
+    {reportCommentId&&<div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)setReportCommentId(null);}}>
+      <section role="dialog" aria-modal="true" aria-labelledby="comment-report-title" className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
+        <div className="flex items-center justify-between gap-3"><h3 id="comment-report-title" className="font-semibold text-fg">Laporkan komentar</h3><button type="button" aria-label="Tutup" onClick={()=>setReportCommentId(null)} className="rounded-lg p-2 text-fg-muted hover:bg-surface-elevated"><X size={16}/></button></div>
+        <p className="mt-2 text-xs leading-relaxed text-fg-muted">Laporan diteruskan ke admin untuk ditinjau. Sertakan alasan yang jelas.</p>
+        <textarea className="input mt-3 min-h-24 w-full resize-y text-sm" maxLength={200} value={reportReason} onChange={(event)=>setReportReason(event.target.value)} placeholder="Jelaskan alasan laporan (3–200 karakter)…"/>
+        <div className="mt-3 flex justify-end gap-2"><Button type="button" variant="outline" onClick={()=>setReportCommentId(null)}>Batal</Button><Button type="button" loading={reporting} disabled={reportReason.trim().length<3} onClick={()=>void submitReport()}>Kirim laporan</Button></div>
+      </section>
+    </div>}
   </div>;
 }
