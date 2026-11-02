@@ -16,7 +16,7 @@ type DraftField = Omit<OrganizerPaymentFieldSetting, 'id'>;
 
 type Section = 'plans' | 'checkout' | 'payments' | 'promos' | 'requests';
 
-const CAPABILITY_LABELS: Record<string, string> = { competition_create: 'Jumlah lomba', participant_limit: 'Kapasitas peserta', question_bank: 'Bank soal', question_limit: 'Jumlah soal', manual_grading: 'Penilaian manual', certificate: 'Sertifikat', certificate_serials: 'QR / Serial sertifikat', analytics: 'Analitik', advanced_reports: 'Laporan lanjutan', bulk_notification: 'Notifikasi massal', custom_branding: 'Branding khusus', storage: 'Penyimpanan', essay_ai_assessment: 'Penilaian esai dengan AI', twibbon: 'Twibbon', twibbon_canvas: 'Twibbon Canvas', priority_support: 'Dukungan prioritas' };
+const CAPABILITY_LABELS: Record<string, string> = { competition_create: 'Publikasi lomba per bulan', participant_limit: 'Kapasitas peserta', question_bank: 'Bank soal', question_limit: 'Jumlah soal', manual_grading: 'Penilaian manual', certificate: 'Sertifikat', certificate_serials: 'QR / Serial sertifikat', analytics: 'Analitik', advanced_reports: 'Laporan lanjutan', bulk_notification: 'Notifikasi massal', custom_branding: 'Branding khusus', storage: 'Penyimpanan', essay_ai_assessment: 'Penilaian esai dengan AI', twibbon: 'Twibbon', twibbon_canvas: 'Twibbon Canvas', priority_support: 'Dukungan prioritas' };
 const STATUS_LABELS: Record<CustomRequest['status'], string> = { PENDING: 'Menunggu', CONTACTED: 'Sudah dihubungi', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan' };
 const FEATURE_OPTIONS = Object.entries(CAPABILITY_LABELS);
 const PLAN_CODE_LABELS: Record<string, string> = { FREE: 'Gratis', PREMIUM: 'Premium', PRO: 'Pro' };

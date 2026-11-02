@@ -14,6 +14,14 @@ const configPage = await readFile(
   new URL('../src/pages/OrganizerCompetitionConfigPage.tsx', import.meta.url),
   'utf8',
 );
+const organizerPlanPage = await readFile(
+  new URL('../src/pages/OrganizerPlanPage.tsx', import.meta.url),
+  'utf8',
+);
+const adminPlanPage = await readFile(
+  new URL('../src/pages/AdminPlanUsagePage.tsx', import.meta.url),
+  'utf8',
+);
 
 const lowerMigration = migration.toLowerCase();
 const createStart = lowerMigration.indexOf('create or replace function public.create_organizer_competition');
@@ -69,4 +77,9 @@ test('a quota race on release leaves the draft intact and refreshes quota feedba
   assert.equal(configPage.includes('COMPETITION_QUOTA_EXCEEDED'), true);
   assert.equal(configPage.includes('refreshOrganizerCompetitionQuota'), true);
   assert.equal(configPage.includes('reset_at'), true);
+});
+
+test('organizer and admin plan panels describe competition_create as monthly publications', () => {
+  assert.equal(organizerPlanPage.includes("competition_create: 'Publikasi lomba per bulan'"), true);
+  assert.equal(adminPlanPage.includes("competition_create: 'Publikasi lomba per bulan'"), true);
 });
