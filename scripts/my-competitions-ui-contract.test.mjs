@@ -47,3 +47,25 @@ test('individual, collective, exam and official-result actions use existing rout
 test('the participant dashboard contains no hard-coded sample competitions or certificate fixtures', () => {
   assert.doesNotMatch(page, /INITIAL_COMPETITIONS|DUMMY_CERTIFICATES|NSSC 2026|CERT-2026-/);
 });
+
+const indexCss = await readFile('src/index.css', 'utf8');
+
+test('Lomba Saya follows the reference page composition and dark visual system', () => {
+  assert.match(page, /my-competitions-page/);
+  assert.match(page, /max-w-7xl space-y-8/);
+  assert.match(page, /lg:grid-cols-4/);
+  assert.match(page, /lg:grid-cols-3/);
+  assert.match(indexCss, /\.my-competitions-page/);
+  assert.match(indexCss, /#070b14/i);
+});
+
+test('list mode uses the compact square competition mark instead of a stretched poster', () => {
+  assert.match(page, /viewMode === 'list'/);
+  assert.match(page, /h-12 w-12/);
+  assert.match(page, /Trophy/);
+});
+
+test('competition detail hero uses the actual poster returned by the dashboard', () => {
+  assert.match(page, /competition\.poster_url/);
+  assert.match(page, /alt=\{['"]Poster ['"] \+ item\.competition\.title\}/);
+});
