@@ -9,6 +9,9 @@ import {
   getOrganizerCompetitionResults,
   publishCompetitionResults,
   startCompetitionGrading,
+  getCompetitionParticipantDetail,
+  type CompetitionParticipantDetail,
+  type CompetitionResultRow,
   type OrganizerCompetitionResultsOverview,
 } from '@/services/competitionResults.service';
 
