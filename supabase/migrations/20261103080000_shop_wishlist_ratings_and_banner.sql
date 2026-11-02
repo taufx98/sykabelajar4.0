@@ -153,7 +153,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $shop$
 declare
   v_user_id uuid := auth.uid();
   v_review text := pg_catalog.btrim(coalesce(p_review, ''));
@@ -189,7 +189,7 @@ begin
         review = excluded.review,
         updated_at = pg_catalog.now();
 end;
-$;
+$shop$;
 
 revoke all on function public.save_my_commerce_product_review(uuid, smallint, text) from public, anon;
 grant execute on function public.save_my_commerce_product_review(uuid, smallint, text) to authenticated;
