@@ -24,6 +24,7 @@ type ProductReviewState = { rows: ProductReview[]; hasMore: boolean; page: numbe
 
 type Props = {
   products: CommerceProduct[];
+  orders: Array<Record<string, any>>;
   userId?: string;
   loading: boolean;
   historyContent: ReactNode;
@@ -79,6 +80,7 @@ function hasVerifiedPurchase(orders: Array<Record<string, any>>, productId: stri
 
 export function ShopExperience({
   products,
+  orders,
   userId,
   loading,
   historyContent,
@@ -199,7 +201,7 @@ export function ShopExperience({
 
   const myReview = reviewState.rows.find((review) => review.user_id === userId);
   const canReview = Boolean(selectedProduct && userId && (
-    hasVerifiedPurchase([], selectedProduct.id)
+    hasVerifiedPurchase(orders, selectedProduct.id)
     || reviewState.rows.some((review) => review.user_id === userId)
   ));
 
