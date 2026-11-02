@@ -81,6 +81,9 @@ jobs:
       - name: Lomba Saya dashboard UI contract tests
         run: npm run test:my-competitions-ui-contract
 
+      - name: Shop wishlist and verified review contract tests
+        run: npm run test:shop-engagement-contract
+
       - name: Lint
         run: npm run lint
 
