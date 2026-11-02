@@ -525,7 +525,7 @@ export function NotificationsPage() {
                     type="button"
                     onClick={() => setFilter(key)}
                     aria-pressed={active}
-                    className={['notifications-filter flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition', active ? 'is-active border-[#2563EB] bg-[#2563EB] text-white shadow-md shadow-blue-600/20' : 'border-[#1E293B] bg-[#1C273E] text-slate-300 hover:bg-[#26344E]'].join(' ')}
+                    className={['syka-tab-trigger notifications-filter flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition', active ? 'is-active border-[#2563EB] bg-[#2563EB] text-white shadow-md shadow-blue-600/20' : 'border-[#1E293B] bg-[#1C273E] text-slate-300 hover:bg-[#26344E]'].join(' ')}
                   >
                     {icon && <i aria-hidden="true" className={'fa-solid ' + icon + ' ' + iconClass} />}
                     {label}
