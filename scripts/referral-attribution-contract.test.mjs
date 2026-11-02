@@ -394,6 +394,6 @@ test('Daily Tasks reserves the task list footprint while its first data request 
   const daily = await readFile(new URL('../src/pages/DailyTasksPage.tsx', import.meta.url), 'utf8');
 
   assert.match(daily, /daily-task-loading-placeholder/);
-  assert.match(daily, /min-h-\\[12rem\\]/);
-  assert.doesNotMatch(daily, /Memuat data aktivitas\\.\\.\\./);
+  assert.ok(daily.includes('min-h-[12rem]'));
+  assert.ok(!daily.includes('Memuat data aktivitas...'));
 });
