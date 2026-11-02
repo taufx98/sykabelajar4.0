@@ -29,7 +29,10 @@ test('product reviews are verified-purchase-only and ratings are constrained', (
   assert.match(migration, /create or replace function public\.save_my_commerce_product_review/i);
   assert.match(migration, /security definer[\s\S]*?set search_path = ''/i);
   assert.match(migration, /grant execute on function public\.save_my_commerce_product_review\(uuid, smallint, text\) to authenticated/i);
-  assert.doesNotMatch(migration, /grant select on table public\.commerce_product_reviews to anon, authenticated/i);
+  assert.match(migration, /as \\$shop\\\$[\\s\\S]*?\\$shop\\\$;/i);
+  assert.match(migration, /VERIFIED_PURCHASE_REQUIRED/);
+  assert.doesNotMatch(migration, /grant select on table public\\.commerce_product_reviews to anon, authenticated/i);
+  assert.doesNotMatch(migration, /grant select \\([^)]*user_id[^)]*\\) on table public\\.commerce_product_reviews/i);
 });
 
 test('public aggregate views execute with invoker permissions and have explicit Data API grants', () => {
@@ -73,7 +76,8 @@ test('ratings can only be submitted after the current user has a paid or complet
 
 test('admin Shop ranks real wishlist counts and displays real reviews grouped by product', () => {
   assert.match(adminPanel, /listShopAdminInsights/);
-  assert.match(adminPanel, /wishlist_count/);
+  assert.match(adminPanel, /wishlistCounts/);
+  assert.match(service, /wishlist_count/);
   assert.match(adminPanel, /review.rating/);
   assert.match(adminPanel, /review.review/);
   assert.match(adminPanel, /Belum ada ulasan/);
