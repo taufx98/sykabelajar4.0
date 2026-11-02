@@ -79,6 +79,10 @@ test('Shop catalog, product cards, toolbar, and detail modal follow the supplied
   assert.match(shop, /listProductSalesCounts/);
   assert.match(shop, /terjual/);
   assert.match(ordersPage, /selectedSalesCount/);
+  assert.match(ordersPage, /<QrCode size=\{20\}/);
+  assert.match(ordersPage, /<CreditCard size=\{20\}/);
+  assert.match(ordersPage, /<UploadCloud size=\{20\}/);
+  assert.match(ordersPage, /<Wallet size=\{20\}/);
   assert.match(shop, /saveProductReview/);
   assert.match(shop, /relative h-40 overflow-hidden bg-slate-900/);
   assert.match(shop, /bg-\[#151F32\] border border-slate-800\/90 hover:border-blue-500\/40 rounded-2xl/);
