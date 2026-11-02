@@ -1190,6 +1190,91 @@ begin
 end;
 $collective_quote$;
 
+-- Keep the collective enrollment wizard aligned with the organizer's quota controls.
+create or replace function public.get_collective_registration_options(
+  p_competition_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to ''
+as $collective_options$
+declare
+  v_comp public.competitions%rowtype;
+  v_rule public.registration_rules%rowtype;
+  v_levels jsonb;
+  v_price numeric;
+begin
+  select c.* into v_comp
+  from public.competitions c
+  where c.id = p_competition_id;
+
+  if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+  if not private.competition_allows_collective(v_comp.participant_mode, v_comp.config) then
+    raise exception 'COMPETITION_NOT_COLLECTIVE';
+  end if;
+  if v_comp.status not in ('PUBLISHED', 'REGISTRATION_OPEN') then
+    raise exception 'REGISTRATION_NOT_OPEN';
+  end if;
+
+  select rr.* into v_rule
+  from public.registration_rules rr
+  where rr.competition_id = p_competition_id
+  limit 1;
+
+  select coalesce(
+    nullif(v_comp.config->>'collective_price_per_participant', '')::numeric,
+    nullif(v_comp.config->>'registration_price_per_participant', '')::numeric,
+    nullif(v_rule.config->>'collective_price_per_participant', '')::numeric,
+    nullif(v_rule.config->>'registration_price_per_participant', '')::numeric,
+    0
+  ) into v_price;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id', cl.id,
+        'code', cl.code,
+        'label', cl.label,
+        'allowed_grades', cl.allowed_grades,
+        'points', cl.points,
+        'config', cl.config
+      ) order by cl.created_at
+    ),
+    '[]'::jsonb
+  ) into v_levels
+  from public.competition_levels cl
+  where cl.competition_id = p_competition_id;
+
+  return jsonb_build_object(
+    'competition', jsonb_build_object(
+      'id', v_comp.id,
+      'title', v_comp.title,
+      'participant_mode', v_comp.participant_mode,
+      'status', v_comp.status,
+      'registration_ends_at', v_comp.registration_ends_at,
+      'target_grades', coalesce(v_comp.target_grades, '{}'::text[]),
+      'excluded_grades', coalesce(v_comp.excluded_grades, '{}'::text[])
+    ),
+    'levels', v_levels,
+    'registration_rules', case
+      when v_rule.id is null then '{}'::jsonb
+      else jsonb_build_object(
+        'allowed_grades', v_rule.allowed_grades,
+        'minimum_participants', v_rule.minimum_participants,
+        'max_participants', v_rule.max_participants,
+        'approval_mode', v_rule.approval_mode,
+        'require_twibbon', v_rule.require_twibbon,
+        'require_social_proof', v_rule.require_social_proof,
+        'config', v_rule.config
+      )
+    end,
+    'pricing', jsonb_build_object('unit_price', v_price, 'currency', 'IDR'),
+    'certificate_policies', jsonb_build_array('EVENT_DEFAULT', 'INCLUDED', 'OPTIONAL', 'NONE')
+  );
+end;
+$collective_options$;
+
 -- Legacy direct collective provisioning remains supported, but cannot bypass
 -- the same participant ceiling used by paid collective and individual flows.
 create or replace function public.create_collective_participants(
