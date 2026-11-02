@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { Loader2, RefreshCw, Save, Star, Upload, ChevronDown, ChevronRight, Heart, MessageSquareText } from 'lucide-react';
+import { Loader2, RefreshCw, Save, Star, Upload, ChevronDown, ChevronRight, Heart, MessageSquareText, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -169,7 +169,7 @@ export function ShopInsightsPanel({ products }: Props) {
       <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1fr_280px]">
         <div className="space-y-3">
           <label className="block"><span className="label">Label kecil</span><input className="input mt-1 w-full" maxLength={48} value={banner.badge} onChange={(event) => patchBanner({ badge: event.target.value })}/></label>
-          <label className="block"><span className="label">Judul banner</span><input className="input mt-1 w-full" maxLength={100} value={banner.title} onChange={(event) => patchBanner({ title: event.target.value })}/></label>
+          <label className="block"><span className="label">Judul banner</span><textarea className="input mt-1 min-h-20 w-full" rows={3} maxLength={100} value={banner.title} onChange={(event) => patchBanner({ title: event.target.value })}/><span className="mt-1 block text-right text-[10px] text-fg-muted">{banner.title.length}/100 · Baris baru akan dipertahankan</span></label>
           <label className="block"><span className="label">Deskripsi</span><textarea className="input mt-1 min-h-24 w-full" maxLength={240} value={banner.subtitle} onChange={(event) => patchBanner({ subtitle: event.target.value })}/><span className="mt-1 block text-right text-[10px] text-fg-muted">{banner.subtitle.length}/240</span></label>
           <div className="flex flex-wrap items-center gap-3">
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border surface-border px-3 py-2 text-xs font-semibold text-fg hover:bg-surface-elevated/40">
@@ -186,13 +186,24 @@ export function ShopInsightsPanel({ products }: Props) {
           </div>
         </div>
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-300">Pratinjau</p>
-          <div className="relative isolate flex min-h-48 flex-col justify-end overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-br from-[#17345C] to-[#101B2C] p-4">
-            {banner.image_url && <img src={banner.image_url} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-30"/>}
-            <span className="w-fit rounded-full border border-sky-300/30 bg-sky-300/10 px-2 py-1 text-[9px] font-bold text-sky-200">{banner.badge || 'LABEL'}</span>
-            <h5 className="mt-3 text-lg font-extrabold leading-tight text-white">{banner.title || 'Judul banner'}</h5>
-            <p className="mt-2 text-xs leading-5 text-slate-300">{banner.subtitle || 'Deskripsi banner Shop'}</p>
-            {!banner.enabled && <span className="mt-3 w-fit rounded-full bg-slate-950/70 px-2 py-1 text-[9px] text-slate-200">Pratinjau · banner disembunyikan</span>}
+          <p className="text-xs font-semibold text-slate-300">Pratinjau banner</p>
+          <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-[#0F172A] via-[#1E1B4B] to-[#0F172A] p-5 shadow-2xl shadow-blue-950/40 group">
+            <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-blue-600/20 blur-3xl"/>
+            <div className="pointer-events-none absolute -bottom-10 right-1/4 h-36 w-36 rounded-full bg-indigo-500/15 blur-2xl"/>
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-cover bg-center mix-blend-luminosity opacity-40 group-hover:opacity-60 transition-opacity duration-500"
+              style={{
+                backgroundImage: 'url(' + (banner.image_url || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80') + ')',
+                WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 40%, black 75%, transparent 100%)',
+                maskImage: 'linear-gradient(to right, transparent 0%, black 40%, black 75%, transparent 100%)',
+              }}
+            />
+            <div className="relative z-10 max-w-[78%] space-y-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/30 bg-blue-500/20 px-3 py-1 text-[10px] font-semibold text-blue-300"><Sparkles size={12} className="text-amber-400"/>{banner.badge || 'Label banner'}</span>
+              <h5 className="whitespace-pre-line text-lg font-extrabold leading-tight text-white">{banner.title || 'Judul banner'}</h5>
+              <p className="pt-1 text-xs leading-relaxed text-slate-300">{banner.subtitle || 'Deskripsi banner Shop'}</p>
+            </div>
+            {!banner.enabled && <span className="relative z-10 mt-3 inline-flex rounded-full bg-slate-950/70 px-2 py-1 text-[9px] text-slate-200">Pratinjau · banner disembunyikan</span>}
           </div>
         </div>
       </div>
