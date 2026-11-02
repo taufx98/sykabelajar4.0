@@ -27,15 +27,15 @@ test('organizer can configure an optional minimum target separately from the enf
 });
 
 test('maximum capacity counts individual and collective reservations through one shared server counter', () => {
-  assert.match(migration, /FUNCTION private\\.competition_reserved_participant_count/i);
-  assert.match(migration, /public\\.registrations r[\\s\\S]*PENDING[\\s\\S]*APPROVED[\\s\\S]*ACTIVE/i);
-  assert.match(migration, /public\\.collective_registrations cr[\\s\\S]*PENDING_PAYMENT[\\s\\S]*PAID/i);
-  assert.match(migration, /public\\.collective_participants cp[\\s\\S]*ACTIVE[\\s\\S]*PROVISIONED/i);
-  assert.match(migration, /current_count := private\\.competition_reserved_participant_count/);
-  assert.match(migration, /v_reserved_count := private\\.competition_reserved_participant_count/);
-  assert.match(migration, /create or replace function public\\.quote_collective_registration[\\s\\S]*?for update[\\s\\S]*?PARTICIPANT_LIMIT_REACHED/i);
-  assert.match(migration, /create or replace function public\\.create_collective_participants[\\s\\S]*?for update[\\s\\S]*?PARTICIPANT_LIMIT_REACHED/i);
-  assert.match(migration, /v_quota_count := private\\.competition_reserved_participant_count/);
+  assert.match(migration, /FUNCTION private\.competition_reserved_participant_count/i);
+  assert.match(migration, /public\.registrations r[\s\S]*PENDING[\s\S]*APPROVED[\s\S]*ACTIVE/i);
+  assert.match(migration, /public\.collective_registrations cr[\s\S]*PENDING_PAYMENT[\s\S]*PAID/i);
+  assert.match(migration, /public\.collective_participants cp[\s\S]*ACTIVE[\s\S]*PROVISIONED/i);
+  assert.match(migration, /current_count := private\.competition_reserved_participant_count/);
+  assert.match(migration, /v_reserved_count := private\.competition_reserved_participant_count/);
+  assert.match(migration, /create or replace function public\.quote_collective_registration[\s\S]*?for update[\s\S]*?PARTICIPANT_LIMIT_REACHED/i);
+  assert.match(migration, /create or replace function public\.create_collective_participants[\s\S]*?for update[\s\S]*?PARTICIPANT_LIMIT_REACHED/i);
+  assert.match(migration, /v_quota_count := private\.competition_reserved_participant_count/);
 });
 
 test('public participant roster exposes canonical participant fields only for public competitions', () => {
