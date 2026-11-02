@@ -12,6 +12,7 @@ import {
   addWishlistItem,
   removeWishlistItem,
   saveProductReview,
+  hasVerifiedProductPurchase,
   type ProductReview,
   type ProductReviewSummary,
   type ShopHeroBanner,
@@ -24,7 +25,6 @@ type ProductReviewState = { rows: ProductReview[]; hasMore: boolean; page: numbe
 
 type Props = {
   products: CommerceProduct[];
-  orders: Array<Record<string, any>>;
   userId?: string;
   loading: boolean;
   historyContent: ReactNode;
@@ -109,6 +109,7 @@ export function ShopExperience({
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [verifiedPurchase, setVerifiedPurchase] = useState(false);
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
@@ -192,11 +193,13 @@ export function ShopExperience({
 
   const openDetails = (product: CommerceProduct) => {
     setSelectedProduct(product);
+    setVerifiedPurchase(false);
     setRating(5);
     setReviewText('');
     setNotice('');
     setReviewState({ rows: [], hasMore: false, page: 0, loading: true });
     void loadReviews(product.id);
+    void hasVerifiedProductPurchase(product.id).then(setVerifiedPurchase).catch(() => setVerifiedPurchase(false));
   };
 
   const canReview = Boolean(selectedProduct && userId && hasVerifiedPurchase(orders, selectedProduct.id));
@@ -347,7 +350,7 @@ export function ShopExperience({
               </div> : <div className="rounded-xl border border-dashed border-slate-700 p-5 text-center text-xs text-slate-500">Belum ada ulasan untuk produk ini.</div>}
 
             {canReview ? <form onSubmit={(event) => void submitReview(event)} className="space-y-3 rounded-xl border border-slate-700 bg-[#0B1422] p-3">
-              <div><h4 className="text-xs font-bold">Ulasan pembelianmu</h4><p className="mt-1 text-[10px] text-slate-500">Rating hanya tersedia untuk pesanan yang sudah dibayar.</p></div>
+              <div><h4 className="text-xs font-bold">Ulasan pembelianmu</h4><p className="mt-1 text-[10px] text-slate-500">Pembelian terverifikasi dari riwayat transaksi akunmu.</p></div>
               <div className="flex items-center gap-1" role="radiogroup" aria-label="Pilih rating produk">
                 {Array.from({ length: 5 }, (_, index) => {
                   const value = index + 1;
