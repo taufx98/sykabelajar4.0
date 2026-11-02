@@ -140,8 +140,10 @@ group by product_id;
 -- Explicit grants are required for newly created public-schema objects to be
 -- available through the Supabase Data API.
 grant select, insert, delete on table public.commerce_product_wishlist to authenticated;
-grant select on table public.commerce_product_reviews to anon, authenticated;
-grant insert, update on table public.commerce_product_reviews to authenticated;
+revoke all on table public.commerce_product_reviews from anon, authenticated;
+grant select (id, product_id, rating, review, created_at) on table public.commerce_product_reviews to anon, authenticated;
+grant insert (product_id, user_id, rating, review) on table public.commerce_product_reviews to authenticated;
+grant update (rating, review, updated_at) on table public.commerce_product_reviews to authenticated;
 grant select on public.commerce_product_wishlist_counts to authenticated;
 grant select on public.commerce_product_review_summaries to anon, authenticated;
 
