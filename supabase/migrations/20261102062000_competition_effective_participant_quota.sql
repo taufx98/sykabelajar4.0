@@ -495,7 +495,6 @@ declare
   v_comp public.competitions%rowtype;
   v_minimum integer;
   v_competition_maximum integer;
-  v_plan_maximum integer;
   v_effective_maximum integer;
   v_participant_count integer;
   v_quota_count integer;
@@ -521,7 +520,6 @@ begin
   from public.registration_rules rr
   where rr.competition_id = v_comp.id;
 
-  v_plan_maximum := private.competition_plan_participant_limit(v_comp.id);
   v_effective_maximum := private.competition_effective_participant_limit(v_comp.id);
 
   select count(*)::integer into v_participant_count
@@ -573,7 +571,6 @@ begin
     'minimum_participants', v_minimum,
     'maximum_participants', v_effective_maximum,
     'competition_maximum_participants', v_competition_maximum,
-    'plan_maximum_participants', v_plan_maximum,
     'effective_maximum_participants', v_effective_maximum,
     'participants', v_participants,
     'limit', v_limit,
@@ -652,7 +649,6 @@ begin
         'allowed_grades', v_rule.allowed_grades,
         'minimum_participants', v_rule.minimum_participants,
         'max_participants', v_rule.max_participants,
-        'plan_maximum_participants', private.competition_plan_participant_limit(p_competition_id),
         'effective_maximum_participants', private.competition_effective_participant_limit(p_competition_id),
         'approval_mode', v_rule.approval_mode,
         'require_twibbon', v_rule.require_twibbon,
@@ -662,7 +658,6 @@ begin
     end,
     'participant_limits', jsonb_build_object(
       'competition_maximum_participants', v_rule.max_participants,
-      'plan_maximum_participants', private.competition_plan_participant_limit(p_competition_id),
       'effective_maximum_participants', private.competition_effective_participant_limit(p_competition_id)
     ),
     'pricing', jsonb_build_object('unit_price', v_price, 'currency', 'IDR'),
