@@ -85,9 +85,9 @@ test('Lomba Saya uses the global application header rather than defining a local
 test('Lomba Saya toolbar places search and view controls above the status filters', () => {
   assert.ok(page.includes('my-competitions-toolbar-top'));
   assert.ok(page.includes('my-competitions-filter-row'));
-  assert.ok(page.includes('my-competitions-mobile-filter-switcher'));
-  assert.ok(page.includes('aria-label="Filter sebelumnya"'));
-  assert.ok(page.includes('aria-label="Filter berikutnya"'));
+  assert.ok(page.includes('my-competitions-mobile-filter-select'));
+  assert.ok(page.includes('aria-label="Filter status lomba"'));
+  assert.doesNotMatch(page, /my-competitions-mobile-filter-switcher|Filter sebelumnya|Filter berikutnya/);
 });
 
 test('Lomba Saya category chips and certificate notice use restrained dark borders', () => {
@@ -106,14 +106,21 @@ test('competition detail unavailable state is vertically centered and distinguis
 
 const globalHeader = await readFile('src/components/layout/GlobalHeader.tsx', 'utf8');
 
-test('Lomba Saya summary indicators use a compact two-column mobile grid and an accessible collapse control', () => {
+test('Lomba Saya summary indicators stay visible without a mobile collapse control', () => {
   assert.match(page, /my-competitions-summary/);
-  assert.match(page, /grid-cols-2 gap-2\.5 sm:gap-4 lg:grid-cols-4/);
-  assert.match(page, /summaryExpanded \? 'grid ' : 'hidden sm:grid '/);
-  assert.match(page, /summaryExpanded/);
-  assert.match(page, /aria-expanded=\{summaryExpanded\}/);
-  assert.match(page, /sm:hidden/);
-  assert.match(page, /<ChevronDown/);
+  assert.match(page, /className="grid grid-cols-2 gap-2\.5 sm:gap-4 lg:grid-cols-4"/);
+  assert.doesNotMatch(page, /summaryExpanded|my-competitions-summary-grid|Ciutkan ringkasan|Tampilkan ringkasan/);
+});
+
+test('mobile status filter is a dropdown backed by the existing filter state', () => {
+  assert.match(page, /my-competitions-mobile-filter-select/);
+  assert.match(page, /id="my-competitions-mobile-filter"/);
+  assert.match(page, /aria-label="Filter status lomba"/);
+  assert.match(page, /value=\{filter\}/);
+  assert.match(page, /setFilter\(event\.target\.value as DashboardFilter\)/);
+  assert.match(page, /FILTERS\.map\(\(tab\) => \(/);
+  assert.match(page, /<option[\s\S]*?value=\{tab\.id\}[\s\S]*?\{tab\.label\}/);
+  assert.doesNotMatch(page, /my-competitions-mobile-filter-switcher|Filter sebelumnya|Filter berikutnya|activeFilterIndex|stepFilter/);
 });
 
 test('Lomba Saya competition grid uses two compact columns on phones while list mode remains one column', () => {
