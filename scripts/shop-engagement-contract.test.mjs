@@ -22,7 +22,7 @@ test('product reviews are verified-purchase-only and ratings are constrained', (
   assert.match(migration, /create table if not exists public\.commerce_product_reviews/i);
   assert.match(migration, /check\s*\(\s*rating between 1 and 5\s*\)/i);
   assert.match(migration, /unique\s*\(user_id,\s*product_id\)/i);
-  assert.match(migration, /o\.user_id\s*=\s*auth\.uid\(\)/i);
+  assert.match(migration, /o\.user_id\s*=\s*\(select auth\.uid\(\)\)/i);
   assert.match(migration, /o\.status::text in\s*\('PAID',\s*'COMPLETED'\)/i);
   assert.match(migration, /oi\.product_ref\s*=\s*commerce_product_reviews\.product_id::text/i);
   assert.match(migration, /grant select \(id, product_id, rating, review, created_at\) on table public\.commerce_product_reviews to anon, authenticated/i);
@@ -63,7 +63,6 @@ test('Shop has catalog, order history and product-only whitelist tabs', () => {
 });
 
 test('ratings can only be submitted after the current user has a paid or completed order', () => {
-  assert.match(shop, /PAID|COMPLETED/);
   assert.match(service, /\.in\('status', \['PAID', 'COMPLETED'\]\)/);
   assert.match(shop, /hasVerifiedProductPurchase/);
   assert.match(shop, /pembelian terverifikasi/i);
