@@ -180,7 +180,7 @@ const LEADERBOARD_STYLES = String.raw`
 .lb-search input::placeholder { color: var(--lb-muted); }
 .lb-search button { display: inline-flex; border: 0; padding: 3px; border-radius: 6px; background: transparent; color: var(--lb-muted); cursor: pointer; }
 .lb-search button:hover { color: var(--lb-fg); background: var(--lb-elevated); }
-.lb-category-area { max-width: 1040px; margin: 0 auto 22px; border-bottom: 1px solid var(--lb-border); }
+.lb-category-area { max-width: 1040px; margin: 0 auto 22px; }
 .lb-category-tabs { display: flex; justify-content: center; align-items: stretch; gap: 3px; overflow-x: auto; scrollbar-width: none; padding: 0 2px; }
 .lb-category-tabs::-webkit-scrollbar { display: none; }
 .lb-mobile-category-switcher,
@@ -815,11 +815,16 @@ const LEADERBOARD_STYLES = String.raw`
   grid-template-rows: 46px 62px;
   align-content: start;
   margin-bottom: 24px;
+  border-bottom: 0;
 }
 .lb-category-tabs {
   height: 46px;
   min-height: 46px;
   align-items: stretch;
+}
+.lb-category-area > .lb-category-tabs,
+.lb-category-area > .lb-mobile-category-switcher {
+  box-shadow: inset 0 -1px 0 var(--lb-border);
 }
 .lb-category-tab {
   display: inline-flex;
