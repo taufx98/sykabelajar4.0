@@ -309,7 +309,7 @@ export function ShopExperience({
   const detailSummary = selectedProduct ? reviewSummaries.get(selectedProduct.id) : undefined;
   const detailWishlistSaved = selectedProduct ? wishlistIds.has(selectedProduct.id) : false;
 
-  return <div className="space-y-6">
+  return <div className="space-y-6" style={{ fontFamily: "'Inter', sans-serif" }}>
     {banner.enabled && <section className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#0F172A] via-[#1E1B4B] to-[#0F172A] border border-blue-500/20 p-6 md:p-8 shadow-2xl shadow-blue-950/40 group">
       <div className="absolute -right-10 -top-10 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute right-1/4 -bottom-10 w-48 h-48 bg-indigo-500/15 rounded-full blur-2xl pointer-events-none" />
