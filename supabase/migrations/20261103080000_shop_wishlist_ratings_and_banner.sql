@@ -142,8 +142,57 @@ group by product_id;
 grant select, insert, delete on table public.commerce_product_wishlist to authenticated;
 revoke all on table public.commerce_product_reviews from anon, authenticated;
 grant select (id, product_id, rating, review, created_at) on table public.commerce_product_reviews to anon, authenticated;
-grant insert (product_id, user_id, rating, review, updated_at) on table public.commerce_product_reviews to authenticated;
-grant update (rating, review, updated_at) on table public.commerce_product_reviews to authenticated;
+-- Writes go through a narrowly scoped security-definer RPC so callers cannot
+-- read or forge reviewer user IDs. The function independently verifies payment.
+create or replace function public.save_my_commerce_product_review(
+  p_product_id uuid,
+  p_rating smallint,
+  p_review text default ''
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_user_id uuid := auth.uid();
+  v_review text := pg_catalog.btrim(coalesce(p_review, ''));
+begin
+  if v_user_id is null then
+    raise exception 'AUTH_REQUIRED' using errcode = '28000';
+  end if;
+  if p_rating is null or p_rating < 1 or p_rating > 5 then
+    raise exception 'INVALID_RATING' using errcode = '22023';
+  end if;
+  if pg_catalog.char_length(v_review) > 1200 then
+    raise exception 'REVIEW_TOO_LONG' using errcode = '22023';
+  end if;
+  if not exists (
+    select 1
+    from public.order_items oi
+    join public.orders o on o.id = oi.order_id
+    where oi.product_ref = p_product_id::text
+      and o.user_id = v_user_id
+      and o.status::text in ('PAID', 'COMPLETED')
+  ) then
+    raise exception 'VERIFIED_PURCHASE_REQUIRED' using errcode = '42501';
+  end if;
+
+  insert into public.commerce_product_reviews (
+    product_id, user_id, rating, review, updated_at
+  )
+  values (
+    p_product_id, v_user_id, p_rating, v_review, pg_catalog.now()
+  )
+  on conflict (user_id, product_id) do update
+    set rating = excluded.rating,
+        review = excluded.review,
+        updated_at = pg_catalog.now();
+end;
+$;
+
+revoke all on function public.save_my_commerce_product_review(uuid, smallint, text) from public, anon;
+grant execute on function public.save_my_commerce_product_review(uuid, smallint, text) to authenticated;
 grant select on public.commerce_product_wishlist_counts to authenticated;
 grant select on public.commerce_product_review_summaries to anon, authenticated;
 
