@@ -289,10 +289,10 @@ export function CompetitionResultsPage() {
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div className="rounded-xl bg-emerald-500/10 p-3"><p className="text-[10px] text-emerald-500">Benar</p><p className="mt-1 text-xl font-extrabold text-emerald-500">{questionSummary?.correct ?? 0}<span className="text-xs font-medium"> / {questionSummary?.total ?? 0}</span></p></div>
                     <div className="rounded-xl bg-rose-500/10 p-3"><p className="text-[10px] text-rose-400">Salah</p><p className="mt-1 text-xl font-extrabold text-rose-400">{questionSummary?.incorrect ?? 0}</p></div>
-                    <div className="rounded-xl bg-amber-500/10 p-3"><p className="text-[10px] text-amber-500">Perlu tinjauan</p><p className="mt-1 text-xl font-extrabold text-amber-500">{questionSummary?.manual_review ?? 0}</p></div>
+                    <div className="rounded-xl bg-amber-500/10 p-3"><p className="text-[10px] text-amber-500">Dinilai manual</p><p className="mt-1 text-xl font-extrabold text-amber-500">{questionSummary?.manual_review ?? 0}</p></div>
                     <div className="rounded-xl bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Tidak dijawab</p><p className="mt-1 text-xl font-extrabold text-fg">{questionSummary?.unanswered ?? 0}</p></div>
                   </div>
-                  <p className="mt-3 text-[10px] leading-relaxed text-fg-muted">Rincian menampilkan jumlah jawaban, bukan isi jawaban atau kunci soal. Soal esai/unggahan yang membutuhkan pemeriksaan manual dipisahkan dari hitungan benar dan salah.</p>
+                  <p className="mt-3 text-[10px] leading-relaxed text-fg-muted">Rincian menampilkan jumlah jawaban, bukan isi jawaban atau kunci soal. Soal esai/unggahan yang dinilai manual dipisahkan dari hitungan benar dan salah.</p>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-border p-4">
