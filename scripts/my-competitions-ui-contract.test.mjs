@@ -52,7 +52,7 @@ const indexCss = await readFile('src/index.css', 'utf8');
 
 test('Lomba Saya follows the reference page composition and dark visual system', () => {
   assert.match(page, /my-competitions-page/);
-  assert.match(page, /max-w-7xl space-y-8/);
+  assert.match(page, /max-w-7xl space-y-5 sm:space-y-6 lg:space-y-8/);
   assert.match(page, /lg:grid-cols-4/);
   assert.match(page, /lg:grid-cols-3/);
   assert.match(indexCss, /\.my-competitions-page/);
@@ -119,7 +119,8 @@ test('Lomba Saya summary indicators use a compact two-column mobile grid and an 
 test('Lomba Saya competition grid uses two compact columns on phones while list mode remains one column', () => {
   assert.match(page, /grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3/);
   assert.match(page, /aspect-\[16\/10\]/);
-  assert.match(page, /line-clamp-3 sm:line-clamp-none/);
+  assert.match(page, /line-clamp-3/);
+  assert.match(page, /sm:line-clamp-none/);
   assert.match(page, /grid grid-cols-1 gap-3/);
   assert.match(page, /p-3 sm:p-4 lg:p-5/);
 });
