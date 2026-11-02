@@ -725,6 +725,13 @@ function CertificateHistoryModal({
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    if (open) {
+      setQuery('');
+      setFilter('all');
+    }
+  }, [open, competitionFilter]);
+
+  useEffect(() => {
     if (!open || !userId) return;
     let active = true;
     setLoading(true);
