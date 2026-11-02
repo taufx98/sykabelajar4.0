@@ -167,16 +167,11 @@ export async function saveProductReview(productId: string, rating: number, revie
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error('INVALID_RATING');
   if (review.trim().length > 1200) throw new Error('REVIEW_TOO_LONG');
 
-  const userId = await requireCurrentUserId();
-  const { error } = await supabase
-    .from('commerce_product_reviews')
-    .upsert({
-      product_id: productId,
-      user_id: userId,
-      rating,
-      review: review.trim(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,product_id' });
+  const { error } = await supabase.rpc('save_my_commerce_product_review', {
+    p_product_id: productId,
+    p_rating: rating,
+    p_review: review.trim(),
+  });
   if (error) throw error;
 }
 
