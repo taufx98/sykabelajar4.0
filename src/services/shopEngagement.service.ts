@@ -137,7 +137,7 @@ export async function listProductReviews(productId: string, page = 0, pageSize =
   const safePage = Math.max(0, Math.floor(page));
   const safeSize = Math.max(1, Math.min(50, Math.floor(pageSize)));
   const start = safePage * safeSize;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('commerce_product_reviews')
     .select('id,product_id,rating,review,created_at')
     .eq('product_id', productId)
@@ -154,7 +154,7 @@ export async function saveProductReview(productId: string, rating: number, revie
   if (review.trim().length > 1200) throw new Error('REVIEW_TOO_LONG');
 
   const userId = await requireCurrentUserId();
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('commerce_product_reviews')
     .upsert({
       product_id: productId,
@@ -162,11 +162,8 @@ export async function saveProductReview(productId: string, rating: number, revie
       rating,
       review: review.trim(),
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,product_id' })
-    .select('id,product_id,user_id,rating,review,created_at')
-    .single();
+    }, { onConflict: 'user_id,product_id' });
   if (error) throw error;
-  return mapReview(data as Record<string, unknown>);
 }
 
 export async function listShopAdminInsights(): Promise<ShopAdminInsights> {
