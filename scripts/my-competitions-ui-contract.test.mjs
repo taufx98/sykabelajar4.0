@@ -102,3 +102,32 @@ test('competition detail unavailable state is vertically centered and distinguis
   assert.ok(competitionDetailPage.includes('Lomba tidak ditemukan'));
   assert.ok(competitionDetailPage.includes('navigate(-1)'));
 });
+
+
+const globalHeader = await readFile('src/components/layout/GlobalHeader.tsx', 'utf8');
+const appLayout = await readFile('src/components/layout/AppLayout.tsx', 'utf8');
+
+test('Lomba Saya summary indicators use a compact two-column mobile grid and an accessible collapse control', () => {
+  assert.match(page, /my-competitions-summary/);
+  assert.match(page, /grid grid-cols-2 gap-2\.5 sm:gap-4 lg:grid-cols-4/);
+  assert.match(page, /summaryExpanded/);
+  assert.match(page, /aria-expanded=\{summaryExpanded\}/);
+  assert.match(page, /sm:hidden/);
+  assert.match(page, /<ChevronDown/);
+});
+
+test('Lomba Saya competition grid uses two compact columns on phones while list mode remains one column', () => {
+  assert.match(page, /grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3/);
+  assert.match(page, /aspect-\[16\/10\]/);
+  assert.match(page, /line-clamp-3 sm:line-clamp-none/);
+  assert.match(page, /grid grid-cols-1 gap-3/);
+  assert.match(page, /p-3 sm:p-4 lg:p-5/);
+});
+
+test('admin badge has a stable Lucide shield icon and a single role-driven source', () => {
+  assert.match(globalHeader, /ShieldCheck/);
+  assert.doesNotMatch(globalHeader, /fa-user-shield/);
+  assert.doesNotMatch(globalHeader, /badgeLabel/);
+  assert.match(globalHeader, /user\?\.role === 'admin'/);
+  assert.doesNotMatch(appLayout, /badgeLabel=/);
+});
