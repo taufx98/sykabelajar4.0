@@ -38,15 +38,15 @@ test('public participant roster exposes canonical participant fields only for pu
   );
   assert.match(migration, /'quota_count', v_quota_count/);
   assert.match(migration, /'minimum_participants', v_minimum/);
-  const roster = migration.match(/create or replace function public\\.get_public_competition_participants[\\s\\S]*?\\$function\\$;/i)?.[0] ?? '';
-  assert.match(roster, /'rank', official_result\\.rank_position/);
-  assert.match(roster, /'score', official_result\\.score/);
-  assert.match(roster, /v_comp\\.status::text in \\('RESULT_PUBLISHED', 'ARCHIVED'\\)/);
+  const roster = migration.match(/create or replace function public\.get_public_competition_participants[\s\S]*?\$function\$;/i)?.[0] ?? '';
+  assert.match(roster, /'rank', official_result\.rank_position/);
+  assert.match(roster, /'score', official_result\.score/);
+  assert.match(roster, /v_comp\.status::text in \('RESULT_PUBLISHED', 'ARCHIVED'\)/);
   assert.match(competitionDetail, /Peringkat/);
-  assert.match(competitionDetail, /participant\\.score/);
-  assert.match(competitionDetail, /\\?participant=/);
+  assert.match(competitionDetail, /participant\.score/);
+  assert.match(competitionDetail, /\?participant=/);
   assert.match(resultsPage, /useSearchParams/);
-  assert.match(resultsPage, /searchParams\\.get\\('participant'\\)/);
+  assert.match(resultsPage, /searchParams\.get\('participant'\)/);
 });
 
 test('participant result detail is gated by publication or organizer/admin access and excludes raw answers', () => {
