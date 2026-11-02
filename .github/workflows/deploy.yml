@@ -60,6 +60,9 @@ jobs:
       - name: Competition results contract tests
         run: npm run test:results-contract
 
+      - name: Public competition participant detail contract tests
+        run: npm run test:competition-public-detail-contract
+
       - name: Organizer registration contract tests
         run: npm run test:organizer-registration-contract
 
