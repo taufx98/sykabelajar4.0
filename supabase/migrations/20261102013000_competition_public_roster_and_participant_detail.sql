@@ -308,7 +308,15 @@ begin
         and v_comp.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
     ) official_result on true
     where p.competition_id = v_comp.id
-    order by lower(p.full_name), p.id
+    order by
+      case
+        when v_comp.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+          and official_result.rank_position is not null then 0
+        else 1
+      end,
+      official_result.rank_position nulls last,
+      lower(p.full_name),
+      p.id
     limit v_limit offset v_offset
   ) page;
 
