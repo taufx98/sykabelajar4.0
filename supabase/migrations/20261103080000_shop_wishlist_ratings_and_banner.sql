@@ -197,6 +197,11 @@ grant select on public.commerce_product_wishlist_counts to authenticated;
 grant select on public.commerce_product_review_summaries to anon, authenticated;
 
 
+-- Support the public sold-count aggregation without scanning order items per product.
+create index if not exists order_items_shop_sales_lookup_idx
+  on public.order_items (product_ref, product_type, order_id)
+  where product_ref is not null;
+
 -- Expose only aggregate sold quantities for active Shop products. The
 -- security-definer function never returns order IDs or buyer information.
 create or replace function public.list_public_commerce_product_sales_counts()
