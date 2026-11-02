@@ -26,7 +26,9 @@ test('product reviews are verified-purchase-only and ratings are constrained', (
   assert.match(migration, /o\.status::text in\s*\('PAID',\s*'COMPLETED'\)/i);
   assert.match(migration, /oi\.product_ref\s*=\s*commerce_product_reviews\.product_id::text/i);
   assert.match(migration, /grant select \(id, product_id, rating, review, created_at\) on table public\.commerce_product_reviews to anon, authenticated/i);
-  assert.match(migration, /grant insert \(product_id, user_id, rating, review, updated_at\) on table public\.commerce_product_reviews to authenticated/i);
+  assert.match(migration, /create or replace function public\.save_my_commerce_product_review/i);
+  assert.match(migration, /security definer[\s\S]*?set search_path = ''/i);
+  assert.match(migration, /grant execute on function public\.save_my_commerce_product_review\(uuid, smallint, text\) to authenticated/i);
   assert.doesNotMatch(migration, /grant select on table public\.commerce_product_reviews to anon, authenticated/i);
 });
 
@@ -43,7 +45,7 @@ test('shop engagement service stores real wishlist, review and hero settings in 
   assert.match(service, /commerce_product_wishlist_counts/);
   assert.match(service, /commerce_product_review_summaries/);
   assert.match(service, /shop_hero_banner/);
-  assert.match(service, /onConflict:\s*['"]user_id,product_id['"]/);
+  assert.match(service, /rpc\(['"]save_my_commerce_product_review['"]\)/);
   assert.match(service, /getUser\(/);
   assert.match(service, /hasVerifiedProductPurchase/);
   assert.match(service, /order_items!inner\(product_ref\)/);
