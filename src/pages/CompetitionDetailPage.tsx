@@ -246,24 +246,24 @@ export function CompetitionDetailPage() {
   if (!competition) {
     const competitionNotFound = /tidak ditemukan|not found/i.test(error);
     return (
-      <div className="competition-detail-theme flex min-h-[calc(100dvh-4rem)] items-center justify-center bg-[#070b14] px-4 py-8">
-        <Card className="relative isolate w-full max-w-md overflow-hidden rounded-3xl border border-slate-800/80 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/35 p-8 text-center shadow-2xl shadow-black/30 sm:p-10">
-          <div className="pointer-events-none absolute -right-14 -top-16 h-48 w-48 rounded-full bg-indigo-500/12 blur-3xl" />
+      <div className="competition-detail-theme flex min-h-[calc(100dvh-8rem)] items-center justify-center px-4 py-8 surface-bg md:min-h-[calc(100dvh-4rem)]">
+        <Card className="relative isolate w-full max-w-md overflow-hidden rounded-3xl border border-surface-border bg-surface-card p-8 text-center shadow-2xl shadow-black/20 sm:p-10">
+          <div className="pointer-events-none absolute -right-14 -top-16 h-48 w-48 rounded-full bg-accent/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-20 -left-12 h-44 w-44 rounded-full bg-blue-500/10 blur-3xl" />
           <div className="relative z-10">
-            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-700/65 bg-gradient-to-br from-indigo-500/15 via-slate-800 to-blue-500/10 text-indigo-300 shadow-lg shadow-black/20">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-surface-border bg-accent/10 text-accent shadow-lg shadow-black/10">
               <Trophy size={30} strokeWidth={1.6} />
             </span>
-            <span className="mt-5 inline-flex rounded-full border border-slate-700/70 bg-slate-800/60 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            <span className="mt-5 inline-flex rounded-full border border-surface-border bg-surface-elevated/60 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-fg-muted">
               Informasi kompetisi
             </span>
-            <h1 className="mt-3 text-xl font-extrabold tracking-tight text-slate-100 sm:text-2xl">
+            <h1 className="mt-3 text-xl font-extrabold tracking-tight text-fg sm:text-2xl">
               {competitionNotFound ? 'Lomba tidak ditemukan' : 'Detail lomba belum dapat dimuat'}
             </h1>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-400">
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-fg-muted">
               {error || 'Lomba ini tidak tersedia atau tautannya sudah berubah.'}
             </p>
-            <Button variant="outline" className="mt-6 min-w-32 border-slate-700/80 px-5 py-2.5 text-sm" onClick={() => navigate(-1)}>
+            <Button variant="outline" className="mt-6 min-w-32 px-5 py-2.5 text-sm" onClick={() => navigate(-1)}>
               Kembali
             </Button>
           </div>
