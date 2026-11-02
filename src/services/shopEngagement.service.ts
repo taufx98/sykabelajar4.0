@@ -133,6 +133,20 @@ export async function listProductReviewSummaries(): Promise<ProductReviewSummary
   }));
 }
 
+export async function hasVerifiedProductPurchase(productId: string): Promise<boolean> {
+  if (!productId) return false;
+  const userId = await requireCurrentUserId();
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id,order_items!inner(product_ref)')
+    .eq('user_id', userId)
+    .in('status', ['PAID', 'COMPLETED'])
+    .eq('order_items.product_ref', productId)
+    .limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+}
+
 export async function listProductReviews(productId: string, page = 0, pageSize = 20): Promise<ProductReviewPage> {
   const safePage = Math.max(0, Math.floor(page));
   const safeSize = Math.max(1, Math.min(50, Math.floor(pageSize)));
