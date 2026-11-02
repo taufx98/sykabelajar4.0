@@ -332,6 +332,13 @@ html.light .fixed.inset-0:has(> .card) > .card {
 }
 .syka-tab-trigger[aria-pressed="true"],
 .syka-tab-trigger[aria-selected="true"] {
+  border-radius: 0.625rem;
+  border-color: #2563EB !important;
+  background-color: #2563EB !important;
+  background-image: none !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  box-shadow: 0 9px 22px -8px rgba(37, 99, 235, 0.58);
   transform: scale(1.02);
 }
 .syka-tab-panel {
