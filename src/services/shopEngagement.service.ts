@@ -34,9 +34,9 @@ export type ProductReviewPage = {
 
 export const DEFAULT_SHOP_HERO_BANNER: ShopHeroBanner = {
   enabled: true,
-  badge: 'SYKABELAJAR SHOP',
-  title: 'Kebutuhan belajar dan lomba dalam satu tempat',
-  subtitle: 'Temukan produk digital dan layanan resmi yang tersedia di SYKABELAJAR.',
+  badge: 'Diskon Khusus Peserta Lomba',
+  title: 'Dengan membeli produk,\nkamu mendukung website ini untuk terus berkembang!',
+  subtitle: 'Dapatkan Edu Coin, Kartu Bypass, Voucher Diskon Pendaftaran, hingga Layanan lainnya untuk menunjang kebutuhanmu.',
   image_url: '',
 };
 
@@ -59,11 +59,14 @@ export async function getShopHeroBanner(): Promise<ShopHeroBanner> {
   const value = data?.value && typeof data.value === 'object'
     ? data.value as Record<string, unknown>
     : {};
+  const isPreviousShopDefault = value.badge === 'SYKABELAJAR SHOP'
+    && value.title === 'Kebutuhan belajar dan lomba dalam satu tempat'
+    && value.subtitle === 'Temukan produk digital dan layanan resmi yang tersedia di SYKABELAJAR.';
   return {
     enabled: value.enabled !== false,
-    badge: String(value.badge ?? DEFAULT_SHOP_HERO_BANNER.badge),
-    title: String(value.title ?? DEFAULT_SHOP_HERO_BANNER.title),
-    subtitle: String(value.subtitle ?? DEFAULT_SHOP_HERO_BANNER.subtitle),
+    badge: isPreviousShopDefault ? DEFAULT_SHOP_HERO_BANNER.badge : String(value.badge ?? DEFAULT_SHOP_HERO_BANNER.badge),
+    title: isPreviousShopDefault ? DEFAULT_SHOP_HERO_BANNER.title : String(value.title ?? DEFAULT_SHOP_HERO_BANNER.title),
+    subtitle: isPreviousShopDefault ? DEFAULT_SHOP_HERO_BANNER.subtitle : String(value.subtitle ?? DEFAULT_SHOP_HERO_BANNER.subtitle),
     image_url: String(value.image_url ?? ''),
   };
 }
