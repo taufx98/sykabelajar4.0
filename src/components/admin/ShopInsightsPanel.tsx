@@ -173,7 +173,7 @@ export function ShopInsightsPanel({ products }: Props) {
           <label className="block"><span className="label">Deskripsi</span><textarea className="input mt-1 min-h-24 w-full" maxLength={240} value={banner.subtitle} onChange={(event) => patchBanner({ subtitle: event.target.value })}/><span className="mt-1 block text-right text-[10px] text-fg-muted">{banner.subtitle.length}/240</span></label>
           <div className="flex flex-wrap items-center gap-3">
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border surface-border px-3 py-2 text-xs font-semibold text-fg hover:bg-surface-elevated/40">
-              <Upload size={14}/>{uploadingImage ? 'Mengunggah…' : banner.image_url ? 'Ganti gambar' : 'Unggah gambar'}
+              <Upload size={14}/>{uploadingImage ? 'Mengunggah…' : banner.image_url ? 'Ganti gambar banner' : 'Unggah gambar banner'}
               <input className="sr-only" type="file" accept="image/*" onChange={(event) => void uploadBannerImage(event)} disabled={uploadingImage || savingBanner}/>
             </label>
             {banner.image_url && <button type="button" className="text-xs text-fg-muted hover:text-red-300" onClick={() => patchBanner({ image_url: '' })}>Hapus gambar</button>}
