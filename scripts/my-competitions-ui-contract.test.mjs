@@ -69,3 +69,36 @@ test('competition detail hero uses the actual poster returned by the dashboard',
   assert.match(page, /competition\.poster_url/);
   assert.match(page, /alt=\{['"]Poster ['"] \+ item\.competition\.title\}/);
 });
+
+
+
+const appLayout = await readFile('src/components/layout/AppLayout.tsx', 'utf8');
+const appRoutes = await readFile('src/App.tsx', 'utf8');
+const competitionDetailPage = await readFile('src/pages/CompetitionDetailPage.tsx', 'utf8');
+
+test('Lomba Saya uses the global application header rather than defining a local header', () => {
+  assert.ok(appRoutes.includes('<Route element={<AuthGuard><AppLayout /></AuthGuard>}>'));
+  assert.ok(appRoutes.includes('path="/lomba-saya" element={<MyCompetitionsPage />}'));
+  assert.ok(appLayout.includes('!isHomeRoute&&<GlobalHeader navItems={globalHeaderNav}'));
+});
+
+test('Lomba Saya toolbar places search and view controls above the status filters', () => {
+  assert.ok(page.includes('my-competitions-toolbar-top'));
+  assert.ok(page.includes('my-competitions-filter-row'));
+  assert.ok(page.includes('my-competitions-mobile-filter-switcher'));
+  assert.ok(page.includes('aria-label="Filter sebelumnya"'));
+  assert.ok(page.includes('aria-label="Filter berikutnya"'));
+});
+
+test('Lomba Saya category chips and certificate notice use restrained dark borders', () => {
+  assert.doesNotMatch(page, /border border-accent\/15 bg-accent\/5/);
+  assert.ok(page.includes('border-slate-700/70 bg-slate-800/50'));
+  assert.ok(page.includes('border-slate-700/55 bg-slate-800/35'));
+});
+
+test('competition detail unavailable state is vertically centered and distinguishes missing data from load failures', () => {
+  assert.ok(competitionDetailPage.includes('min-h-[calc(100dvh-4rem)]'));
+  assert.ok(competitionDetailPage.includes('Detail lomba belum dapat dimuat'));
+  assert.ok(competitionDetailPage.includes('Lomba tidak ditemukan'));
+  assert.ok(competitionDetailPage.includes('navigate(-1)'));
+});
