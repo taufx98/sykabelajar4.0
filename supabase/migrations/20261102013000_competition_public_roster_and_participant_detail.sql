@@ -295,10 +295,18 @@ begin
         'participant_type', p.participant_type,
         'grade', p.grade,
         'class_name', p.class_name,
-        'school_name', s.name
+        'school_name', s.name,
+        'rank', official_result.rank_position,
+        'score', official_result.score
       ) as row_data
     from public.participants p
     left join public.schools s on s.id = p.school_id
+    left join lateral (
+      select r.rank_position, r.score
+      from private.canonical_competition_results(v_comp.id) r
+      where r.canonical_participant_id = p.id
+        and v_comp.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+    ) official_result on true
     where p.competition_id = v_comp.id
     order by lower(p.full_name), p.id
     limit v_limit offset v_offset
