@@ -26,7 +26,10 @@ export function CommentsSection({ postId, comments: initialComments = [] }: { po
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyInput, setReplyInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);\n  const [reportCommentId, setReportCommentId] = useState<string | null>(null);\n  const [reportReason, setReportReason] = useState('');\n  const [reporting, setReporting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [reportCommentId, setReportCommentId] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reporting, setReporting] = useState(false);
 
   const load = async () => {
     if (!postId || postId.startsWith('f-')) { setComments([]); return; }
@@ -77,7 +80,8 @@ export function CommentsSection({ postId, comments: initialComments = [] }: { po
       setReporting(false);
     }
   };
-\n  const like = async (commentId: string) => {
+
+  const like = async (commentId: string) => {
     if (!user || isGuest) return;
     try { await toggleCommentLike(commentId); await load(); }
     catch (error: any) { toast(error?.message ?? 'Gagal memperbarui like.', 'error'); }
