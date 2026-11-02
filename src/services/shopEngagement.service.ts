@@ -11,7 +11,6 @@ export type ShopHeroBanner = {
 export type ProductReview = {
   id: string;
   product_id: string;
-  user_id: string;
   rating: number;
   review: string;
   created_at: string;
@@ -44,7 +43,6 @@ export const DEFAULT_SHOP_HERO_BANNER: ShopHeroBanner = {
 const mapReview = (row: Record<string, unknown>): ProductReview => ({
   id: String(row.id ?? ''),
   product_id: String(row.product_id ?? ''),
-  user_id: String(row.user_id ?? ''),
   rating: Number(row.rating ?? 0),
   review: String(row.review ?? ''),
   created_at: String(row.created_at ?? ''),
@@ -139,9 +137,9 @@ export async function listProductReviews(productId: string, page = 0, pageSize =
   const safePage = Math.max(0, Math.floor(page));
   const safeSize = Math.max(1, Math.min(50, Math.floor(pageSize)));
   const start = safePage * safeSize;
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('commerce_product_reviews')
-    .select('id,product_id,user_id,rating,review,created_at')
+    .select('id,product_id,rating,review,created_at')
     .eq('product_id', productId)
     .order('created_at', { ascending: false })
     .range(start, start + safeSize);
@@ -150,7 +148,7 @@ export async function listProductReviews(productId: string, page = 0, pageSize =
   return { rows: rows.slice(0, safeSize), hasMore: rows.length > safeSize };
 }
 
-export async function saveProductReview(productId: string, rating: number, review: string): Promise<ProductReview> {
+export async function saveProductReview(productId: string, rating: number, review: string): Promise<void> {
   if (!productId) throw new Error('PRODUCT_REQUIRED');
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error('INVALID_RATING');
   if (review.trim().length > 1200) throw new Error('REVIEW_TOO_LONG');
