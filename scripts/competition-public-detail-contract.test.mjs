@@ -55,7 +55,9 @@ test('collective registration receives the same organizer quota settings and fri
   assert.match(collectiveService, /minimum_participants\?:number\|null/);
   assert.match(collectiveService, /max_participants\?:number\|null/);
   assert.match(collectiveWizard, /options\.registration_rules\.minimum_participants/);
-  assert.match(collectiveWizard, /options\.registration_rules\.max_participants/);
+  assert.match(collectiveWizard, /options\.participant_limits\?\.competition_maximum_participants/);
+  assert.match(collectiveWizard, /options\.participant_limits\?\.plan_maximum_participants/);
+  assert.match(collectiveWizard, /options\.participant_limits\?\.effective_maximum_participants/);
   assert.match(collectiveWizard, /PARTICIPANT_LIMIT_REACHED/);
 });
 
