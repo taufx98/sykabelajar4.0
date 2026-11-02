@@ -196,6 +196,33 @@ grant execute on function public.save_my_commerce_product_review(uuid, smallint,
 grant select on public.commerce_product_wishlist_counts to authenticated;
 grant select on public.commerce_product_review_summaries to anon, authenticated;
 
+
+-- Expose only aggregate sold quantities for active Shop products. The
+-- security-definer function never returns order IDs or buyer information.
+create or replace function public.list_public_commerce_product_sales_counts()
+returns table (product_id uuid, sales_count bigint)
+language sql
+stable
+security definer
+set search_path = ''
+as $shop$
+  select
+    p.id as product_id,
+    coalesce(sum(oi.quantity), 0)::bigint as sales_count
+  from public.commerce_products p
+  join public.order_items oi
+    on oi.product_ref = p.id::text
+    and oi.product_type::text = p.product_type::text
+  join public.orders o
+    on o.id = oi.order_id
+  where p.is_active = true
+    and o.status::text in ('PAID', 'COMPLETED')
+  group by p.id;
+$shop$;
+
+revoke all on function public.list_public_commerce_product_sales_counts() from public, anon;
+grant execute on function public.list_public_commerce_product_sales_counts() to anon, authenticated;
+
 comment on table public.commerce_product_wishlist is
   'Per-user persistent wishlist for active SYKABELAJAR Shop products; rows are protected by RLS.';
 comment on table public.commerce_product_reviews is
