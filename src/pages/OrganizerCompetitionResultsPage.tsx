@@ -357,7 +357,7 @@ export function OrganizerCompetitionResultsPage() {
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       <div><p className="text-[10px] text-emerald-500">Benar</p><p className="font-bold text-fg">{participantDetail.question_summary?.correct ?? 0} / {participantDetail.question_summary?.total ?? 0}</p></div>
                       <div><p className="text-[10px] text-rose-400">Salah</p><p className="font-bold text-fg">{participantDetail.question_summary?.incorrect ?? 0}</p></div>
-                      <div><p className="text-[10px] text-amber-500">Tinjauan manual</p><p className="font-bold text-fg">{participantDetail.question_summary?.manual_review ?? 0}</p></div>
+                      <div><p className="text-[10px] text-amber-500">Dinilai manual</p><p className="font-bold text-fg">{participantDetail.question_summary?.manual_review ?? 0}</p></div>
                       <div><p className="text-[10px] text-fg-muted">Tidak dijawab</p><p className="font-bold text-fg">{participantDetail.question_summary?.unanswered ?? 0}</p></div>
                     </div>
                   </div>
