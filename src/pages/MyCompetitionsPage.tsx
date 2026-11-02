@@ -6,7 +6,6 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   ClipboardList,
   Clock3,
@@ -939,7 +938,6 @@ export function MyCompetitionsPage() {
   const [selectedItem, setSelectedItem] = useState<ParticipantDashboardItem | null>(null);
   const [certificatesOpen, setCertificatesOpen] = useState(false);
   const [certificateCompetitionFilter, setCertificateCompetitionFilter] = useState<string | null>(null);
-  const [summaryExpanded, setSummaryExpanded] = useState(true);
 
   useEffect(() => {
     if (!user || isGuest) {
@@ -1008,12 +1006,6 @@ export function MyCompetitionsPage() {
       const bDate = b.competition.starts_at ? new Date(b.competition.starts_at).getTime() : Number.MAX_SAFE_INTEGER;
       return aDate - bDate;
     })[0] ?? null, [items]);
-
-  const activeFilterIndex = Math.max(0, FILTERS.findIndex((tab) => tab.id === filter));
-  const stepFilter = (direction: -1 | 1) => {
-    const nextFilter = FILTERS[activeFilterIndex + direction];
-    if (nextFilter) setFilter(nextFilter.id);
-  };
 
   const openCertificates = (competitionId: string | null = null) => {
     setCertificateCompetitionFilter(competitionId);
@@ -1126,26 +1118,7 @@ export function MyCompetitionsPage() {
         </Card>
 
         <section className="my-competitions-summary min-w-0" aria-label="Ringkasan keikutsertaan lomba">
-          <button
-            type="button"
-            aria-controls="my-competitions-summary-grid"
-            aria-expanded={summaryExpanded}
-            aria-label={summaryExpanded ? 'Ciutkan ringkasan keikutsertaan' : 'Tampilkan ringkasan keikutsertaan'}
-            onClick={() => setSummaryExpanded((expanded) => !expanded)}
-            className="mb-2.5 flex w-full items-center justify-between gap-3 rounded-xl border border-slate-800/90 bg-slate-900/85 px-3 py-2.5 text-left shadow-sm shadow-black/10 transition hover:border-slate-700 sm:hidden"
-          >
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-xs font-extrabold text-slate-100">Ringkasan Keikutsertaan</span>
-              <span className="truncate text-[10px] font-medium text-slate-400">{counts.all.toLocaleString('id-ID')} lomba · {counts.in_progress.toLocaleString('id-ID')} sedang berlangsung</span>
-            </span>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700/70 bg-slate-800/60 text-slate-300">
-              <ChevronDown size={16} className={'transition-transform duration-200 ' + (summaryExpanded ? 'rotate-180' : '')} />
-            </span>
-          </button>
-          <div
-            id="my-competitions-summary-grid"
-            className={(summaryExpanded ? 'grid ' : 'hidden sm:grid ') + 'grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4'}
-          >
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
             <SummaryCard
               label="Total Lomba Diikuti"
               value={counts.all}
@@ -1237,31 +1210,27 @@ export function MyCompetitionsPage() {
                 ))}
               </div>
 
-              <div className="my-competitions-mobile-filter-switcher flex items-center justify-between gap-3 rounded-xl border border-slate-700/70 bg-slate-950/55 p-1.5 sm:hidden" role="group" aria-label="Navigasi filter lomba">
-                <button
-                  type="button"
-                  aria-label="Filter sebelumnya"
-                  onClick={() => stepFilter(-1)}
-                  disabled={activeFilterIndex <= 0}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700/70 bg-slate-800/70 text-slate-200 transition hover:border-indigo-400/35 hover:bg-slate-700/80 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ChevronLeft size={18} aria-hidden="true" />
-                </button>
-                <span className="flex min-w-0 flex-1 items-center justify-center gap-2 px-1 text-center" aria-live="polite">
-                  <span className="truncate text-xs font-extrabold text-slate-100">{FILTERS[activeFilterIndex].label}</span>
-                  <span className="shrink-0 rounded-full border border-indigo-400/15 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold tabular-nums text-indigo-300">
-                    {counts[filter]}
-                  </span>
+              <div className="my-competitions-mobile-filter-select flex items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-950/55 p-2 sm:hidden">
+                <label htmlFor="my-competitions-mobile-filter" className="shrink-0 px-1 text-[10px] font-semibold text-slate-400">
+                  Filter
+                </label>
+                <div className="relative min-w-0 flex-1">
+                  <select
+                    id="my-competitions-mobile-filter"
+                    aria-label="Filter status lomba"
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value as DashboardFilter)}
+                    className="h-10 w-full appearance-none rounded-lg border border-slate-700/70 bg-slate-800/70 py-2 pl-3 pr-9 text-xs font-extrabold text-slate-100 outline-none transition focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-400/20"
+                  >
+                    {FILTERS.map((tab) => (
+                      <option key={tab.id} value={tab.id}>{tab.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+                <span className="shrink-0 rounded-full border border-indigo-400/15 bg-indigo-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-indigo-300" aria-live="polite">
+                  {counts[filter]}
                 </span>
-                <button
-                  type="button"
-                  aria-label="Filter berikutnya"
-                  onClick={() => stepFilter(1)}
-                  disabled={activeFilterIndex >= FILTERS.length - 1}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700/70 bg-slate-800/70 text-slate-200 transition hover:border-indigo-400/35 hover:bg-slate-700/80 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ChevronRight size={18} aria-hidden="true" />
-                </button>
               </div>
             </div>
           </div>
