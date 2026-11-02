@@ -13,6 +13,7 @@ import { createCheckoutPayment, getPublicPaymentGatewayStatus, reconcileGatewayP
 import { supabase } from '@/lib/supabase';
 import { listCurrentUserOrganizers, type CurrentOrganizer } from '@/services/organizerAuth.service';
 import { getCollectiveCertificatePrice, listTeacherCollectiveParticipants, prepareCollectiveCertificate, type CollectiveParticipant } from '@/services/collectiveParticipant.service';
+import type { ProductReviewSummary } from '@/services/shopEngagement.service';
 
 type BadgeOption = { id: string; name: string; icon_emoji: string | null; rarity: string };
 type GatewayReturnCheck = { orderId: string; status: 'checking' | 'paid' | 'pending' | 'cancelled' };
@@ -68,6 +69,8 @@ export function OrdersPage() {
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<any | null>(null);
   const [orderActionId, setOrderActionId] = useState('');
   const [selected, setSelected] = useState<CommerceProduct | null>(null);
+  const [selectedReviewSummary, setSelectedReviewSummary] = useState<ProductReviewSummary | null>(null);
+  const [purchaseStep, setPurchaseStep] = useState<1 | 2 | 3>(1);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -311,6 +314,7 @@ export function OrdersPage() {
   const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethod) ?? null;
   const usablePaymentMethods = paymentMethods.filter((method) => method.details?.global_gateway === true || ['BANK_TRANSFER', 'MANUAL_TRANSFER', 'QRIS', 'EWALLET'].includes(String(method.payment_type).trim().toUpperCase()));
   const isGlobalGatewayCheckout = !isEduCoinCheckout && selectedPaymentMethod?.details?.global_gateway === true;
+  const checkoutPaymentMethods = usablePaymentMethods.filter((method) => method.details?.global_gateway !== true || gatewayStatus?.checkoutEnabled);
   const checkoutQuantity = selected && isQuantityPackage ? quantity : 1;
   const checkoutTotal = selected ? displayPrice(selected) * checkoutQuantity : 0;
   const formatProductPrice = (price: number, currency: string) => currency === 'EDU_COIN'
@@ -339,12 +343,65 @@ export function OrdersPage() {
   const close = () => {
     if (submitting) return;
     setSelected(null);
+    setSelectedReviewSummary(null);
+    setPurchaseStep(1);
     setQuantity(1);
     setProofFile(null);
     setProofPreview('');
     setWhatsapp('');
     setSelectedParticipantId('');
     setError('');
+  };
+
+  const goToPurchaseStep = (step: 1 | 2 | 3) => {
+    if (submitting) return;
+    if (step === 2) {
+      if (selected?.product_type === 'BADGE' && ownsSelectedBadge) {
+        setError('Badge ini sudah ada di koleksimu.');
+        return;
+      }
+      if (selectedNeedsOrganizer && !selectedOrganizerId) {
+        setError('Pilih organisasi yang akan menerima QR / Serial sertifikat.');
+        return;
+      }
+      if (selectedNeedsParticipant && !selectedParticipantId) {
+        setError('Pilih peserta yang sudah menyelesaikan lomba.');
+        return;
+      }
+      if (needsWhatsapp && !whatsapp.trim()) {
+        setError('Nomor WhatsApp wajib diisi.');
+        return;
+      }
+      if (isEduCoinCheckout && selected && !['DIGITAL_ITEM', 'DONATION', 'BADGE', 'CERTIFICATE_SERIALS'].includes(selected.product_type)) {
+        setError('Jenis produk ini tidak mendukung pembayaran Edu Coin.');
+        return;
+      }
+      if (selectedNeedsParticipant && !(Number(certificatePrice) > 0)) {
+        setError('Harga sertifikat belum diatur. Hubungi admin atau periksa pengaturan sertifikat peserta.');
+        return;
+      }
+    }
+    if (step === 3) {
+      if (!isEduCoinCheckout && !selectedPaymentMethod) {
+        setError('Belum ada metode pembayaran yang aktif. Periksa pengaturan pembayaran admin.');
+        return;
+      }
+      if (isGlobalGatewayCheckout && !gatewayStatus?.checkoutEnabled) {
+        setError('Pembayaran otomatis sedang tidak tersedia. Pilih metode manual yang diaktifkan admin.');
+        return;
+      }
+    }
+    setError('');
+    setPurchaseStep(step);
+  };
+
+  const copyPaymentValue = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setMessage('Informasi pembayaran disalin.');
+    } catch {
+      setError('Browser tidak mengizinkan penyalinan otomatis. Salin informasi pembayaran secara manual.');
+    }
   };
 
   const submit = async () => {
@@ -678,6 +735,7 @@ export function OrdersPage() {
         products={products}
         userId={user?.id}
         loading={loading}
+        ordersCount={orders.length}
         historyContent={(
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -723,13 +781,16 @@ export function OrdersPage() {
                 : cannotBuySerials ? 'Butuh organisasi aktif' : 'Pilih & pesan',
           };
         }}
-        onBuy={(product) => {
+        onBuy={(product, summary) => {
           setSelected(product);
+          setSelectedReviewSummary(summary ?? null);
+          setPurchaseStep(1);
           setQuantity(1);
           setProofFile(null);
           setProofPreview('');
           setSelectedParticipantId('');
           setError('');
+          setMessage('');
         }}
       />
     </div>
@@ -769,57 +830,212 @@ export function OrdersPage() {
       </Card>
     </div>}
 
-    {selected && <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg p-5 max-h-[92vh] overflow-auto">
-        <div className="flex items-center justify-between gap-3">
-          <div><h3 className="font-display text-lg font-bold text-fg">Konfirmasi pesanan</h3><p className="text-sm text-slate-400 mt-1">{selected.name}</p></div>
-          <button onClick={close} disabled={submitting} className="p-2 rounded-lg hover:bg-white/5 text-slate-400" aria-label="Tutup"><X size={18}/></button>
-        </div>
-        <p className="mt-3 text-sm text-fg-muted">{productBenefit(selected, badgeOptions)}</p>
-
-        {isQuantityPackage && <div className="flex items-center justify-between mt-5">
-          <span className="text-sm text-slate-400">Jumlah paket</span>
-          <div className="flex items-center gap-3">
-            <button className="w-8 h-8 rounded-lg surface-elevated text-white" onClick={() => setQuantity((value) => Math.max(1, value - 1))} disabled={submitting}><Minus size={14} className="mx-auto"/></button>
-            <span className="w-6 text-center text-fg">{quantity}</span>
-            <button className="w-8 h-8 rounded-lg surface-elevated text-white" onClick={() => setQuantity((value) => Math.min(100, value + 1))} disabled={submitting || quantity >= 100}><Plus size={14} className="mx-auto"/></button>
+    {selected && <div
+      className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(event) => { if (event.target === event.currentTarget) close(); }}
+    >
+      <div role="dialog" aria-modal="true" aria-label="Detail Produk dan Pembelian" className="bg-[#151F32] border border-slate-700/80 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-blue-500"/>
+            <h3 className="font-bold text-slate-100 text-base">Detail Produk & Pembelian</h3>
           </div>
-        </div>}
+          <button type="button" onClick={close} disabled={submitting} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition disabled:opacity-50" aria-label="Tutup pembelian"><X size={20}/></button>
+        </div>
 
-        {selectedNeedsOrganizer && <label className="block mt-4">
-          <span className="label">Organisasi penerima QR / Serial <span className="text-red-400">*</span></span>
-          <select className="input mt-1 w-full" value={selectedOrganizerId} onChange={(event) => setSelectedOrganizerId(event.target.value)} disabled={submitting} required>
-            <option value="">Pilih organisasi yang kamu kelola</option>
-            {organizers.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
-          </select>
-          <span className="mt-1 block text-xs text-fg-muted">Serial masuk ke inventaris organisasi dan dapat dipasangkan ke sertifikat yang sesuai.</span>
-        </label>}
+        <div className="bg-slate-900/40 px-6 py-3 border-b border-slate-800/80 shrink-0">
+          <div className="flex items-center justify-between gap-2 text-[10px] sm:text-xs font-semibold">
+            {([
+              { step: 1, label: 'Detail & Jumlah' },
+              { step: 2, label: 'Metode Bayar' },
+              { step: 3, label: 'Konfirmasi' },
+            ] as const).map((item, index) => (
+              <div key={item.step} className="flex min-w-0 flex-1 items-center">
+                <div className={'flex min-w-0 items-center gap-1.5 sm:gap-2 ' + (purchaseStep === item.step
+                  ? 'text-blue-400 font-semibold'
+                  : purchaseStep > item.step ? 'text-emerald-400 font-semibold' : 'text-slate-500')}>
+                  <span className={'w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] ' + (purchaseStep === item.step
+                    ? 'bg-blue-600 text-white'
+                    : purchaseStep > item.step ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400')}>{item.step}</span>
+                  <span className="truncate">{item.label}</span>
+                </div>
+                {index < 2 && <div className="mx-2 h-px min-w-2 flex-1 bg-slate-700"/>}
+              </div>
+            ))}
+          </div>
+        </div>
 
-        {selectedNeedsParticipant && <label className="block mt-4">
-          <span className="label">Peserta yang akan menerima sertifikat <span className="text-red-400">*</span></span>
-          <select className="input mt-1 w-full" value={selectedParticipantId} onChange={(event) => setSelectedParticipantId(event.target.value)} disabled={submitting} required>
-            <option value="">Pilih peserta dengan hasil selesai</option>
-            {eligibleParticipants.map((participant) => <option key={participant.participant_id} value={participant.participant_id}>{participant.full_name} · {participant.competition_title}</option>)}
-          </select>
-          <span className="mt-1 block text-xs text-fg-muted">Sistem akan mengecek ulang kelayakan peserta dan status pengumuman hasil di backend.</span>
-        </label>}
-
-        {needsWhatsapp && <label className="block mt-4"><span className="label">Nomor WhatsApp <span className="text-red-400">*</span></span><input className="input mt-1 w-full" placeholder="Contoh: 08xxxxxxxxxx" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} disabled={submitting} required={needsWhatsapp}/><span className="mt-1 block text-xs text-fg-muted">{isEduCoinCheckout ? 'Dipakai tim untuk tindak lanjut produk ini; tidak ada bukti transfer.' : 'Digunakan untuk koordinasi pesanan jika diperlukan.'}</span></label>}
-        {isEduCoinCheckout
-          ? <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-              <div className="flex items-center justify-between gap-3"><span className="text-sm text-fg-muted">Saldo Edu Coin</span><span className="font-semibold text-fg">{eduCoinBalance == null ? 'Tidak tersedia' : eduCoinBalance.toLocaleString('id-ID') + ' Edu Coin'}</span></div>
-              <div className="mt-2 flex items-center justify-between gap-3"><span className="text-sm text-fg-muted">Total pembayaran</span><span className="font-bold text-accent">{formatProductPrice(checkoutTotal, 'EDU_COIN')}</span></div>
-              {eduCoinBalance != null && eduCoinBalance < checkoutTotal && <p className="mt-2 text-xs text-red-300">Saldo tidak mencukupi. Isi saldo Edu Coin terlebih dahulu.</p>}
-              <p className="mt-2 text-xs leading-5 text-fg-muted">Tidak perlu bukti transfer. Backend mengecek harga dan saldo terbaru, lalu memotong koin serta mencatat transaksi secara bersamaan. Saldo yang terlihat di sini hanya informasi; server tetap memvalidasi ulang saat pembayaran.</p>
+        <div className="p-4 sm:p-6 overflow-y-auto">
+          {purchaseStep === 1 && <div className="space-y-5">
+            <div className="flex gap-4 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div className="w-20 h-20 shrink-0 overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
+                {selected.image_url
+                  ? <img src={selected.image_url} alt={selected.name} className="w-full h-full object-cover"/>
+                  : <div className="flex h-full items-center justify-center"><ShoppingBag size={25} className="text-slate-600"/></div>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">{selected.product_type.replaceAll('_', ' ')}</span>
+                <h4 className="font-bold text-white text-base mt-1 truncate">{selected.name}</h4>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
+                  <span className="flex items-center text-amber-400 font-bold gap-1"><Star size={13} className="fill-amber-400"/>{selectedReviewSummary?.average_rating != null ? selectedReviewSummary.average_rating.toFixed(1) : 'Belum ada rating'}</span>
+                  <span>•</span>
+                  <span>{selectedReviewSummary?.review_count ? selectedReviewSummary.review_count + ' ulasan' : 'Belum ada ulasan'}</span>
+                </div>
+                <div className="text-blue-400 font-bold text-lg mt-1">{formatProductPrice(displayPrice(selected), selected.currency)}</div>
+              </div>
             </div>
-          : <>
-              <label className="block mt-3"><span className="label">Metode pembayaran</span><select className="input mt-1 w-full" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setProofFile(null); }} disabled={submitting}><option value="">Pilih metode pembayaran</option>{usablePaymentMethods.filter((method) => method.details?.global_gateway !== true || gatewayStatus?.checkoutEnabled).map((method) => <option key={method.id} value={method.id}>{method.name} · {method.details?.global_gateway === true ? (gatewayStatus?.providerName || 'Gateway Global') : String(method.payment_type).replaceAll('_', ' ')}</option>)}</select></label>
-              {isGlobalGatewayCheckout ? <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-3"><div className="flex flex-wrap items-center gap-2 text-xs font-semibold"><span className="rounded-full bg-accent/15 px-2 py-1 text-accent">1 · Konfirmasi pesanan</span><span className="text-fg-muted">→</span><span className="rounded-full border border-surface-border px-2 py-1 text-fg">2 · Pilih kanal & bayar di XenithPay</span></div><p className="mt-3 text-sm font-semibold text-fg">Pembayaran otomatis · {gatewayStatus?.providerName || 'Gateway Global'}</p><p className="mt-1 text-xs leading-5 text-fg-muted">Setelah kamu menekan “Lanjut ke pembayaran”, pesanan disimpan di Riwayat Pesanan dan halaman pembayaran XenithPay dibuka. Pilih kanal yang tersedia lalu selesaikan pembayaran di sana. Jika kamu menutup halaman sebelum membayar, kembali ke Riwayat Pesanan dan tekan “Lanjutkan pembayaran”. Status akan diperbarui otomatis setelah callback provider tervalidasi.</p></div> : selectedPaymentMethod ? <div className="mt-4 rounded-xl border surface-border p-3"><p className="text-sm font-semibold text-fg">{selectedPaymentMethod.name}</p>{Boolean(selectedPaymentMethod.details?.bank_name) && <p className="mt-1 text-xs text-fg-muted">Bank: <span className="text-fg">{String(selectedPaymentMethod.details.bank_name)}</span></p>}{Boolean(selectedPaymentMethod.details?.account_number) && <p className="mt-1 text-xs text-fg-muted">Nomor rekening: <span className="font-mono text-fg">{String(selectedPaymentMethod.details.account_number)}</span></p>}{Boolean(selectedPaymentMethod.details?.account_name) && <p className="mt-1 text-xs text-fg-muted">Atas nama: <span className="text-fg">{String(selectedPaymentMethod.details.account_name)}</span></p>}{typeof selectedPaymentMethod.details?.instructions === 'string' && selectedPaymentMethod.details.instructions && <p className="mt-2 whitespace-pre-line text-xs leading-5 text-fg-muted">{selectedPaymentMethod.details.instructions}</p>}{(selectedPaymentMethod.image_url || (typeof selectedPaymentMethod.details?.image_url === 'string' ? selectedPaymentMethod.details.image_url : '')) && <img src={selectedPaymentMethod.image_url || String(selectedPaymentMethod.details.image_url)} alt={selectedPaymentMethod.name} className="mt-3 max-h-48 rounded-lg object-contain"/>}<div className="mt-4"><span className="label">Bukti pembayaran <span className="text-red-400">*</span></span><p className="text-xs text-fg-muted mt-1">Unggah bukti transfer yang menampilkan nominal dan status pembayaran.</p><label className="mt-2 flex items-center gap-2 input cursor-pointer"><Upload size={15}/><span>{proofFile ? 'Ganti bukti pembayaran' : 'Pilih gambar bukti'}</span><input ref={proofRef} type="file" accept="image/*" className="sr-only" onChange={chooseProof} disabled={submitting}/></label>{proofPreview && <img src={proofPreview} alt="Pratinjau bukti pembayaran" className="mt-3 w-full max-h-48 object-contain rounded-xl border surface-border"/>}</div></div> : <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-5 text-fg-muted">Belum ada metode pembayaran yang aktif. Admin perlu mengaktifkan atau menambahkan metode di Pengaturan Pembayaran.</div>}
-            </>}
-        {error && <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-300">{error}</div>}
-        <div className="flex items-center justify-between mt-5 pt-4 border-t surface-border"><span className="text-sm text-slate-400">Total pesanan</span><span className="text-lg font-bold text-fg">{formatProductPrice(checkoutTotal, String(selected.currency ?? 'IDR'))}</span></div>
-        <div className="flex gap-2 mt-5"><Button variant="outline" fullWidth onClick={close} disabled={submitting}>Batal</Button><Button fullWidth loading={submitting} disabled={submitting || (selectedNeedsParticipant && !(Number(certificatePrice) > 0)) || (isEduCoinCheckout && eduCoinBalance != null && eduCoinBalance < checkoutTotal)} onClick={() => void submit()}>{isEduCoinCheckout ? 'Beli dengan Edu Coin' : isGlobalGatewayCheckout ? 'Lanjut ke pembayaran' : 'Kirim untuk verifikasi'}</Button></div>
-      </Card>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Deskripsi Produk</label>
+              <p className="text-xs text-slate-400 bg-slate-900/30 p-3 rounded-lg border border-slate-800 leading-relaxed whitespace-pre-line">{productBenefit(selected, badgeOptions)}</p>
+            </div>
+
+            {(isQuantityPackage || needsWhatsapp) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {isQuantityPackage && <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Jumlah Paket</label>
+                <div className="flex items-center border border-slate-700 rounded-lg bg-slate-900/80 w-fit">
+                  <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} disabled={submitting} className="px-3 py-1.5 text-slate-400 hover:text-white font-bold text-base">−</button>
+                  <span className="w-12 text-center text-sm font-bold text-white">{quantity}</span>
+                  <button type="button" onClick={() => setQuantity((value) => Math.min(100, value + 1))} disabled={submitting || quantity >= 100} className="px-3 py-1.5 text-slate-400 hover:text-white font-bold text-base">+</button>
+                </div>
+              </div>}
+              {needsWhatsapp && <label className="block">
+                <span className="block text-xs font-semibold text-slate-300 mb-1.5">Nomor WhatsApp <span className="text-red-400">*</span></span>
+                <input type="tel" inputMode="tel" className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500" placeholder="Contoh: 08xxxxxxxxxx" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} disabled={submitting}/>
+                <span className="text-[10px] text-slate-500">Untuk koordinasi pengiriman dan pemrosesan produk.</span>
+              </label>}
+            </div>}
+
+            {selectedNeedsOrganizer && <label className="block">
+              <span className="block text-xs font-semibold text-slate-300 mb-1.5">Organisasi penerima QR / Serial <span className="text-red-400">*</span></span>
+              <select className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500" value={selectedOrganizerId} onChange={(event) => setSelectedOrganizerId(event.target.value)} disabled={submitting} required>
+                <option value="">Pilih organisasi yang kamu kelola</option>
+                {organizers.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
+              </select>
+              <span className="mt-1 block text-[10px] text-slate-500">Serial akan masuk ke inventaris organisasi yang dipilih.</span>
+            </label>}
+
+            {selectedNeedsParticipant && <label className="block">
+              <span className="block text-xs font-semibold text-slate-300 mb-1.5">Peserta yang akan menerima sertifikat <span className="text-red-400">*</span></span>
+              <select className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500" value={selectedParticipantId} onChange={(event) => setSelectedParticipantId(event.target.value)} disabled={submitting} required>
+                <option value="">Pilih peserta dengan hasil selesai</option>
+                {eligibleParticipants.map((participant) => <option key={participant.participant_id} value={participant.participant_id}>{participant.full_name} · {participant.competition_title}</option>)}
+              </select>
+              <span className="mt-1 block text-[10px] text-slate-500">Backend akan memeriksa ulang kelayakan peserta dan status pengumuman hasil.</span>
+            </label>}
+
+            {error && <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">{error}</div>}
+            {isEduCoinCheckout && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-slate-300">
+              Saldo tersedia: <b className="text-white">{eduCoinBalance == null ? 'Tidak tersedia' : eduCoinBalance.toLocaleString('id-ID') + ' Edu Coin'}</b>
+            </div>}
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+              <div>
+                <span className="text-xs text-slate-400 block">Total Pembayaran:</span>
+                <span className="text-lg font-extrabold text-white">{formatProductPrice(checkoutTotal, String(selected.currency ?? 'IDR'))}</span>
+              </div>
+              <button type="button" onClick={() => goToPurchaseStep(2)} disabled={submitting} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition disabled:opacity-50">
+                Lanjut ke Pembayaran <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>}
+
+          {purchaseStep === 2 && <div className="space-y-4">
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Pilih Metode Pembayaran</label>
+            {isEduCoinCheckout
+              ? <label className="payment-option flex items-center justify-between p-3 rounded-xl border border-blue-500 bg-blue-500/10 cursor-default">
+                  <div className="flex items-center gap-3">
+                    <input type="radio" checked readOnly className="text-blue-600 focus:ring-0"/>
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-2">Pembayaran Edu Coin <span className="bg-emerald-500/20 text-emerald-400 text-[9px] px-1.5 py-0.5 rounded font-semibold">Otomatis</span></div>
+                      <div className="text-[11px] text-slate-400">Saldo dipotong dan transaksi dicatat oleh backend.</div>
+                    </div>
+                  </div>
+                  <CreditCard size={20} className="text-slate-400"/>
+                </label>
+              : checkoutPaymentMethods.length ? <div className="space-y-2.5">
+                  {checkoutPaymentMethods.map((method) => {
+                    const isAutomatic = method.details?.global_gateway === true;
+                    const selectedMethod = paymentMethod === method.id;
+                    return <label key={method.id} className={'payment-option flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ' + (selectedMethod ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 bg-slate-900/50 hover:border-blue-500')}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <input type="radio" name="shop-payment-method" value={method.id} checked={selectedMethod} onChange={() => { setPaymentMethod(method.id); setProofFile(null); setError(''); }} disabled={submitting} className="text-blue-600 focus:ring-0"/>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-white">
+                            <span>{method.name}</span>
+                            <span className={'text-[9px] px-1.5 py-0.5 rounded font-semibold ' + (isAutomatic ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400')}>{isAutomatic ? 'Otomatis' : 'Verifikasi Admin'}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-400">{isAutomatic ? 'Pembayaran diproses melalui gateway yang aktif di admin.' : String(method.payment_type).replaceAll('_', ' ') + ' · Unggah bukti setelah transfer.'}</div>
+                        </div>
+                      </div>
+                      <CreditCard size={20} className="shrink-0 text-slate-400"/>
+                    </label>;
+                  })}
+                </div>
+              : <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-5 text-slate-300">Belum ada metode pembayaran aktif. Admin perlu mengaktifkan metode melalui Pengaturan Pembayaran.</div>}
+
+            {error && <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">{error}</div>}
+            <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-3">
+              <button type="button" onClick={() => goToPurchaseStep(1)} disabled={submitting} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition disabled:opacity-50">Kembali</button>
+              <button type="button" onClick={() => goToPurchaseStep(3)} disabled={submitting || (!isEduCoinCheckout && checkoutPaymentMethods.length === 0)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition disabled:opacity-50">
+                Lanjut Konfirmasi <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>}
+
+          {purchaseStep === 3 && <div className="space-y-4">
+            <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between gap-3 text-slate-400"><span>Item:</span><span className="font-bold text-white text-right">{selected.name}</span></div>
+              <div className="flex justify-between gap-3 text-slate-400"><span>Jumlah:</span><span className="font-bold text-white">{checkoutQuantity} Paket</span></div>
+              <div className="flex justify-between gap-3 text-slate-400"><span>Metode Pembayaran:</span><span className="font-bold text-blue-400 text-right">{isEduCoinCheckout ? 'Edu Coin' : isGlobalGatewayCheckout ? gatewayStatus?.providerName || 'Gateway otomatis' : selectedPaymentMethod?.name || 'Belum dipilih'}</span></div>
+              <div className="flex justify-between gap-3 text-slate-400 pt-2 border-t border-slate-800"><span className="font-bold text-slate-200">Total Yang Harus Dibayar:</span><span className="font-extrabold text-blue-400 text-sm">{formatProductPrice(checkoutTotal, String(selected.currency ?? 'IDR'))}</span></div>
+            </div>
+
+            {isEduCoinCheckout
+              ? <div className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between text-xs text-slate-300"><span>Saldo Edu Coin</span><b className="text-white">{eduCoinBalance == null ? 'Tidak tersedia' : eduCoinBalance.toLocaleString('id-ID') + ' Edu Coin'}</b></div>
+                  <div className="flex items-center justify-between text-xs text-slate-300"><span>Total pembayaran</span><b className="text-blue-400">{formatProductPrice(checkoutTotal, 'EDU_COIN')}</b></div>
+                  {eduCoinBalance != null && eduCoinBalance < checkoutTotal && <p className="text-[10px] text-red-300">Saldo tidak mencukupi. Isi saldo Edu Coin terlebih dahulu.</p>}
+                  <p className="text-[10px] leading-5 text-slate-400">Tidak perlu bukti transfer. Backend akan memeriksa harga dan saldo terbaru, lalu mencatat transaksi secara bersamaan.</p>
+                </div>
+              : isGlobalGatewayCheckout
+                ? <div className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-xl space-y-2">
+                    <p className="text-xs font-semibold text-slate-300">Pembayaran otomatis · {gatewayStatus?.providerName || selectedPaymentMethod?.name}</p>
+                    <p className="text-[11px] leading-relaxed text-slate-400">Setelah konfirmasi, pesanan akan disimpan dan halaman pembayaran dari penyedia yang dikonfigurasi admin akan dibuka. Status transaksi diperbarui setelah callback penyedia tervalidasi.</p>
+                  </div>
+                : selectedPaymentMethod
+                  ? <div className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-xl space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-300">{selectedPaymentMethod.name}</p>
+                        {Boolean(selectedPaymentMethod.details?.bank_name) && <p className="mt-1 text-[11px] text-slate-400">Bank: <span className="text-white">{String(selectedPaymentMethod.details.bank_name)}</span></p>}
+                        {Boolean(selectedPaymentMethod.details?.account_number) && <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3"><div><span className="block text-[10px] font-bold uppercase text-slate-500">Nomor rekening</span><span className="font-mono text-base font-extrabold tracking-wider text-blue-400">{String(selectedPaymentMethod.details.account_number)}</span></div><button type="button" onClick={() => void copyPaymentValue(String(selectedPaymentMethod.details.account_number))} className="inline-flex items-center gap-1 rounded-lg border border-blue-500/30 bg-blue-600/20 px-3 py-1.5 text-xs font-bold text-blue-300"><Copy size={13}/>Salin</button></div>}
+                        {Boolean(selectedPaymentMethod.details?.account_name) && <p className="text-[11px] text-slate-400">Atas nama: <span className="text-white">{String(selectedPaymentMethod.details.account_name)}</span></p>}
+                        {typeof selectedPaymentMethod.details?.instructions === 'string' && selectedPaymentMethod.details.instructions && <p className="whitespace-pre-line text-[11px] leading-relaxed text-slate-400">{selectedPaymentMethod.details.instructions}</p>}
+                        {(selectedPaymentMethod.image_url || (typeof selectedPaymentMethod.details?.image_url === 'string' ? selectedPaymentMethod.details.image_url : '')) && <img src={selectedPaymentMethod.image_url || String(selectedPaymentMethod.details.image_url)} alt={selectedPaymentMethod.name} className="mt-2 max-h-48 w-full rounded-lg object-contain bg-white p-2"/>}
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-xs font-semibold text-amber-400">Unggah Bukti Transfer (Manual) <span className="text-red-400">*</span></label>
+                        <div className="border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-xl p-4 text-center bg-slate-900/40 cursor-pointer transition">
+                          <Upload size={28} className="text-slate-500 mx-auto mb-1"/>
+                          <label className="cursor-pointer text-xs text-slate-300 font-medium">{proofFile ? 'Ganti bukti pembayaran' : 'Klik untuk pilih gambar bukti transfer'}<input ref={proofRef} type="file" accept="image/*" className="sr-only" onChange={chooseProof} disabled={submitting}/></label>
+                          <span className="block text-[10px] text-slate-500">JPG, PNG · Maksimal 5 MB</span>
+                        </div>
+                        {proofPreview && <img src={proofPreview} alt="Pratinjau bukti pembayaran" className="max-h-48 w-full rounded-xl border border-slate-800 object-contain"/>}
+                      </div>
+                    </div>
+                  : <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-slate-300">Pilih metode pembayaran yang aktif sebelum melanjutkan.</div>}
+
+            {error && <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">{error}</div>}
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+              <button type="button" onClick={() => goToPurchaseStep(2)} disabled={submitting} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition disabled:opacity-50">Kembali</button>
+              <button type="button" onClick={() => void submit()} disabled={submitting || (!isEduCoinCheckout && !isGlobalGatewayCheckout && !proofFile) || (isEduCoinCheckout && eduCoinBalance != null && eduCoinBalance < checkoutTotal) || (selectedNeedsParticipant && !(Number(certificatePrice) > 0))} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition disabled:opacity-50">
+                {submitting ? <Loader2 size={15} className="animate-spin"/> : null}
+                Konfirmasi & Bayar Sekarang
+              </button>
+            </div>
+          </div>}
+        </div>
+      </div>
     </div>}
   </div>;
 }
