@@ -6,6 +6,10 @@ const migration = await readFile(
   new URL('../supabase/migrations/20261102013000_competition_public_roster_and_participant_detail.sql', import.meta.url),
   'utf8',
 );
+const badgePrivacyMigration = await readFile(
+  new URL('../supabase/migrations/20261102061000_competition_result_badge_collection_privacy.sql', import.meta.url),
+  'utf8',
+);
 const organizerConfig = await readFile(new URL('../src/pages/OrganizerCompetitionConfigPage.tsx', import.meta.url), 'utf8');
 const competitionDetail = await readFile(new URL('../src/pages/CompetitionDetailPage.tsx', import.meta.url), 'utf8');
 const resultsPage = await readFile(new URL('../src/pages/CompetitionResultsPage.tsx', import.meta.url), 'utf8');
@@ -89,6 +93,15 @@ test('participant result detail is gated by publication or organizer/admin acces
   assert.match(detail, /duration_seconds/);
   assert.match(detail, /cert\.status::text = 'PUBLISHED'/);
   assert.doesNotMatch(detail, /'answer',|answer_json->|answer_key_snapshot->/);
+});
+
+test('public result detail respects the participant profile badge collection visibility setting', () => {
+  assert.match(badgePrivacyMigration, /v_badges_visible boolean/i);
+  assert.match(badgePrivacyMigration, /auth\.uid\(\) = p\.id/i);
+  assert.match(badgePrivacyMigration, /coalesce\(p\.is_public, false\)/i);
+  assert.match(badgePrivacyMigration, /coalesce\(settings\.show_badge_collection, true\)/i);
+  assert.match(badgePrivacyMigration, /and v_badges_visible/i);
+  assert.match(badgePrivacyMigration, /GRANT EXECUTE ON FUNCTION public\.get_competition_participant_detail\(text, uuid\) TO anon, authenticated/i);
 });
 
 test('participant details in the public results UI are fetched from the canonical result RPC', () => {
