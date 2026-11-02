@@ -85,6 +85,7 @@ export function OrdersPage() {
   const [orderActionId, setOrderActionId] = useState('');
   const [selected, setSelected] = useState<CommerceProduct | null>(null);
   const [selectedReviewSummary, setSelectedReviewSummary] = useState<ProductReviewSummary | null>(null);
+  const [selectedSalesCount, setSelectedSalesCount] = useState(0);
   const [purchaseStep, setPurchaseStep] = useState<1 | 2 | 3>(1);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -359,6 +360,7 @@ export function OrdersPage() {
     if (submitting) return;
     setSelected(null);
     setSelectedReviewSummary(null);
+    setSelectedSalesCount(0);
     setPurchaseStep(1);
     setQuantity(1);
     setProofFile(null);
@@ -456,6 +458,7 @@ export function OrdersPage() {
         const purchasedName = selected.name;
         setSelected(null);
         setSelectedReviewSummary(null);
+        setSelectedSalesCount(0);
         setPurchaseStep(1);
         setQuantity(1);
         setProofFile(null);
@@ -552,6 +555,7 @@ export function OrdersPage() {
           setMessage(`Pesanan #${orderReference} sudah tersimpan. Buat ulang sesi pembayaran menggunakan tombol di bawah—jangan membuat order baru.`);
           setSelected(null);
           setSelectedReviewSummary(null);
+          setSelectedSalesCount(0);
           setPurchaseStep(1);
           setQuantity(1);
           setProofFile(null);
@@ -567,6 +571,7 @@ export function OrdersPage() {
       }
       setSelected(null);
       setSelectedReviewSummary(null);
+      setSelectedSalesCount(0);
       setPurchaseStep(1);
       setQuantity(1);
       setProofFile(null);
@@ -802,9 +807,10 @@ export function OrdersPage() {
                 : cannotBuySerials ? 'Butuh organisasi aktif' : 'Pilih & pesan',
           };
         }}
-        onBuy={(product, summary) => {
+        onBuy={(product, summary, salesCount) => {
           setSelected(product);
           setSelectedReviewSummary(summary ?? null);
+          setSelectedSalesCount(salesCount ?? 0);
           setPurchaseStep(1);
           setQuantity(1);
           setProofFile(null);
@@ -901,7 +907,7 @@ export function OrdersPage() {
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
                   <span className="flex items-center text-amber-400 font-bold gap-1"><Star size={13} className="fill-amber-400"/>{selectedReviewSummary?.average_rating != null ? selectedReviewSummary.average_rating.toFixed(1) : 'Belum ada rating'}</span>
                   <span>•</span>
-                  <span>{selectedReviewSummary?.review_count ? selectedReviewSummary.review_count + ' ulasan' : 'Belum ada ulasan'}</span>
+                  <span>{selectedSalesCount.toLocaleString('id-ID')} Terjual</span>
                 </div>
                 <div className="text-blue-400 font-bold text-lg mt-1">{formatProductPrice(displayPrice(selected), selected.currency)}</div>
               </div>
