@@ -25,8 +25,9 @@ test('product reviews are verified-purchase-only and ratings are constrained', (
   assert.match(migration, /o\.user_id\s*=\s*auth\.uid\(\)/i);
   assert.match(migration, /o\.status::text in\s*\('PAID',\s*'COMPLETED'\)/i);
   assert.match(migration, /oi\.product_ref\s*=\s*commerce_product_reviews\.product_id::text/i);
-  assert.match(migration, /grant select on table public\.commerce_product_reviews to anon, authenticated/i);
-  assert.match(migration, /grant insert, update on table public\.commerce_product_reviews to authenticated/i);
+  assert.match(migration, /grant select \(id, product_id, rating, review, created_at\) on table public\.commerce_product_reviews to anon, authenticated/i);
+  assert.match(migration, /grant insert \(product_id, user_id, rating, review\) on table public\.commerce_product_reviews to authenticated/i);
+  assert.doesNotMatch(migration, /grant select on table public\.commerce_product_reviews to anon, authenticated/i);
 });
 
 test('public aggregate views execute with invoker permissions and have explicit Data API grants', () => {
