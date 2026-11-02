@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { ChevronDown, Heart, Loader2, MessageSquare, Receipt, Search, ShoppingCart, ShoppingBag, Sparkles, Star, Store, X } from 'lucide-react';
+import { ChevronDown, Heart, Info, Loader2, MessageSquare, Receipt, Search, ShoppingCart, ShoppingBag, Sparkles, Star, Store, X } from 'lucide-react';
 import { formatShortDate } from '@/lib/utils';
 import {
   DEFAULT_SHOP_HERO_BANNER,
@@ -448,7 +448,7 @@ export function ShopExperience({
       <div className="bg-[#151F32] border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-section-in">
         <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#0F172A]">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <MessageSquare size={16} className="text-blue-400" />
+            <Info size={16} className="text-blue-400" />
             Detail & Ulasan Produk
           </h3>
           <button type="button" onClick={closeDetails} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-all" aria-label="Tutup detail produk">
