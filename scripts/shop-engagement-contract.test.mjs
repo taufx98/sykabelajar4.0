@@ -44,14 +44,14 @@ test('public aggregate views execute with invoker permissions and have explicit 
 });
 
 test('public sales summary exposes only aggregate quantities from paid or completed Shop orders', () => {
-  assert.match(migration, /create or replace function public\\.list_public_commerce_product_sales_counts/i);
-  assert.match(migration, /returns table \\(product_id uuid, sales_count bigint\\)/i);
-  assert.match(migration, /security definer[\\s\\S]*?set search_path = ''[\\s\\S]*?as \\$shop\\$/i);
-  assert.match(migration, /sum\\(oi\\.quantity\\)/i);
-  assert.match(migration, /oi\\.product_ref = p\\.id::text/i);
-  assert.match(migration, /oi\\.product_type::text = p\\.product_type::text/i);
-  assert.match(migration, /o\\.status::text in \\('PAID', 'COMPLETED'\\)/i);
-  assert.match(migration, /grant execute on function public\\.list_public_commerce_product_sales_counts\\(\\) to anon, authenticated/i);
+  assert.match(migration, /create or replace function public\.list_public_commerce_product_sales_counts/i);
+  assert.match(migration, /returns table \(product_id uuid, sales_count bigint\)/i);
+  assert.match(migration, /security definer[\s\S]*?set search_path = ''[\s\S]*?as \$shop\$/i);
+  assert.match(migration, /sum\(oi\.quantity\)/i);
+  assert.match(migration, /oi\.product_ref = p\.id::text/i);
+  assert.match(migration, /oi\.product_type::text = p\.product_type::text/i);
+  assert.match(migration, /o\.status::text in \('PAID', 'COMPLETED'\)/i);
+  assert.match(migration, /grant execute on function public\.list_public_commerce_product_sales_counts\(\) to anon, authenticated/i);
 });
 
 test('shop engagement service stores real wishlist, review and hero settings in Supabase', () => {
