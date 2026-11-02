@@ -18,7 +18,8 @@
     "test:organizer-registration-contract": "node --test scripts/organizer-registration-contract.test.mjs",
     "test:teacher-achievement-contract": "node --test scripts/teacher-achievement-contract.test.mjs",
     "test:admin-monitoring-contract": "node --test scripts/admin-monitoring-contract.test.mjs",
-    "test:my-competitions-ui-contract": "node --test scripts/my-competitions-ui-contract.test.mjs"
+    "test:my-competitions-ui-contract": "node --test scripts/my-competitions-ui-contract.test.mjs",
+    "test:shop-engagement-contract": "node --test scripts/shop-engagement-contract.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
