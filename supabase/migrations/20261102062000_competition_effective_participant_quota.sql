@@ -45,7 +45,7 @@ as $function$
   from public.competitions c
   left join public.registration_rules rr on rr.competition_id = c.id
   where c.id = p_competition_id;
-$function$;;
+$function$;
 
 CREATE OR REPLACE FUNCTION private.competition_reserved_participant_count(p_competition_id uuid)
  RETURNS integer
