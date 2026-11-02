@@ -17,6 +17,7 @@ const adminOperations = await readFile(new URL('../src/pages/AdminOperationsPage
 test('organizer can configure an optional minimum target separately from the enforced maximum', () => {
   assert.match(migration, /ADD COLUMN IF NOT EXISTS minimum_participants integer/i);
   assert.match(migration, /MINIMUM_EXCEEDS_MAXIMUM/);
+  assert.match(migration, /registration_rules_minimum_not_exceed_maximum/);
   assert.match(migration, /minimum_participants = excluded\.minimum_participants/i);
   assert.match(organizerConfig, /minimum_participants/);
   assert.match(organizerConfig, /max_participants/);
