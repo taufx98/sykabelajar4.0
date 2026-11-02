@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingBag, Package, Loader2, Upload, X, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle, Star } from 'lucide-react';
+import { ShoppingBag, Package, Loader2, Upload, X, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle, Star, QrCode, UploadCloud, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { ShopExperience } from '@/components/shop/ShopExperience';
 import { Button } from '@/components/ui/Button';
@@ -996,7 +996,13 @@ export function OrdersPage() {
                           <div className="text-[11px] text-slate-400">{isAutomatic ? 'Pembayaran diproses melalui gateway yang aktif di admin.' : String(method.payment_type).replaceAll('_', ' ') + ' · Unggah bukti setelah transfer.'}</div>
                         </div>
                       </div>
-                      <CreditCard size={20} className="shrink-0 text-slate-400"/>
+                      {String(method.payment_type).toUpperCase() === 'QRIS'
+                        ? <QrCode size={20} className="shrink-0 text-slate-400"/>
+                        : String(method.payment_type).toUpperCase() === 'EWALLET'
+                          ? <Wallet size={20} className="shrink-0 text-slate-400"/>
+                          : isAutomatic
+                            ? <CreditCard size={20} className="shrink-0 text-slate-400"/>
+                            : <UploadCloud size={20} className="shrink-0 text-slate-400"/>}
                     </label>;
                   })}
                 </div>
