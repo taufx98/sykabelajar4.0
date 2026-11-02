@@ -126,6 +126,8 @@ test('effective participant ceiling is the lower of organizer-plan and competiti
   assert.match(planQuotaMigration, /least\(/i);
   assert.match(planQuotaMigration, /participant_limit/);
   assert.match(planQuotaMigration, /maximum_participants/);
+  assert.match(planQuotaMigration, /idx_collective_participants_registration_id/);
+  assert.match(planQuotaMigration, /idx_collective_participants_competition_status/);
 });
 
 test('individual registration entitlement guard serializes with collective reservations', () => {
