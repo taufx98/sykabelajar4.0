@@ -257,8 +257,8 @@ export function ProfilePage() {
         </div>
       </div>
     </div>
-    <div className="px-3 sm:px-5 md:px-8"><div className="mx-auto mt-4 max-w-6xl overflow-x-auto border-b surface-border"><div className="flex min-w-max justify-start gap-1">{tabs.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={`border-b-2 px-4 py-3 text-sm font-semibold whitespace-nowrap transition ${tab === value ? 'border-accent bg-accent/5 text-accent' : 'border-transparent text-fg-muted hover:bg-slate-500/5 hover:text-fg'}`}>{label}</button>)}</div></div>
-      <Card className="mx-auto mt-4 max-w-6xl p-4 sm:p-5 md:p-6">
+    <div className="px-3 sm:px-5 md:px-8"><div className="syka-tab-list mx-auto mt-4 max-w-6xl overflow-x-auto border-b surface-border"><div className="flex min-w-max justify-start gap-1">{tabs.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={`syka-tab-trigger border-b-2 px-4 py-3 text-sm font-semibold whitespace-nowrap transition ${tab === value ? 'border-accent bg-accent/5 text-accent' : 'border-transparent text-fg-muted hover:bg-slate-500/5 hover:text-fg'}`}>{label}</button>)}</div></div>
+      <Card key={tab} className="syka-tab-panel mx-auto mt-4 max-w-6xl p-4 sm:p-5 md:p-6">
         {tab === 'tentang' && (isAdminProfile ? (
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
