@@ -332,7 +332,7 @@ function CompetitionStageTracker({ status }: { status: DashboardStatus }) {
               <span className={'text-center text-[9px] font-semibold ' + (index === stage ? 'text-accent' : 'text-slate-400')}>{label}</span>
             </div>
             {index < stages.length - 1 && (
-              <span className={'mx-1 mb-5 h-px min-w-1 flex-1 ' + (index < stage ? 'bg-accent/70' : 'bg-border')} />
+              <span className={'mx-1 mb-5 h-px min-w-1 flex-1 ' + (index < stage ? 'bg-accent/70' : 'bg-slate-700')} />
             )}
           </div>
         ))}
@@ -1203,7 +1203,7 @@ export function MyCompetitionsPage() {
         </Card>
 
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2].map((value) => (
               <Card key={value} className="animate-pulse overflow-hidden">
                 <div className="h-40 bg-slate-800" />
