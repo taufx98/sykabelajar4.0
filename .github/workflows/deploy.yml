@@ -63,6 +63,9 @@ jobs:
       - name: Public competition participant detail contract tests
         run: npm run test:competition-public-detail-contract
 
+      - name: Organizer competition quota feedback tests
+        run: node --test scripts/competition-create-quota-contract.test.mjs
+
       - name: Organizer registration contract tests
         run: npm run test:organizer-registration-contract
 
