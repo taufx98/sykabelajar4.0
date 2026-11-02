@@ -217,7 +217,7 @@ begin
     'certificates', v_certificates
   );
 end;
-$function$
+$function$;
 
 revoke all on function public.get_competition_participant_detail(text, uuid) from public;
 grant execute on function public.get_competition_participant_detail(text, uuid) to anon, authenticated;
