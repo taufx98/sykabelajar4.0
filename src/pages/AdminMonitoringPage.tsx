@@ -45,7 +45,10 @@ export function AdminMonitoringPage() {
   const [selectedId,setSelectedId] = useState<string|null>(null);
   const [detail,setDetail] = useState<Investigation|null>(null);
   const [detailLoading,setDetailLoading] = useState(false);
-  const [detailError,setDetailError] = useState<string|null>(null);\n  const [officialResultDetail,setOfficialResultDetail] = useState<CompetitionParticipantDetail|null>(null);\n  const [officialResultLoading,setOfficialResultLoading] = useState(false);\n  const [officialResultError,setOfficialResultError] = useState<string|null>(null);
+  const [detailError,setDetailError] = useState<string|null>(null);
+  const [officialResultDetail,setOfficialResultDetail] = useState<CompetitionParticipantDetail|null>(null);
+  const [officialResultLoading,setOfficialResultLoading] = useState(false);
+  const [officialResultError,setOfficialResultError] = useState<string|null>(null);
   const requestRef = useRef(0);
   const detailRequestRef = useRef(0);
 
