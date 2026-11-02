@@ -18,6 +18,21 @@ import type { ProductReviewSummary } from '@/services/shopEngagement.service';
 type BadgeOption = { id: string; name: string; icon_emoji: string | null; rarity: string };
 type GatewayReturnCheck = { orderId: string; status: 'checking' | 'paid' | 'pending' | 'cancelled' };
 
+function checkoutProductBadge(product: CommerceProduct) {
+  const configured = product.metadata?.shop_badge ?? product.metadata?.badge_label;
+  if (typeof configured === 'string' && configured.trim()) return configured.trim();
+  const labels: Record<string, string> = {
+    EDU_COIN_TOPUP: 'Paket Edu Coin',
+    BADGE: 'Badge Profil',
+    CERTIFICATE_SERIALS: 'QR / Serial Sertifikat',
+    COLLECTIVE_CERTIFICATE: 'Sertifikat Peserta',
+    DIGITAL_ITEM: 'Item Lomba & Bypass',
+    DONATION: 'Dukungan SYKABELAJAR',
+    VOUCHER: 'Voucher Diskon',
+  };
+  return labels[product.product_type] ?? product.product_type.replaceAll('_', ' ');
+}
+
 function productBenefit(product: CommerceProduct, badges: Map<string, BadgeOption>) {
   const metadata = product.metadata ?? {};
   if (product.product_type === 'EDU_COIN_TOPUP') return `+${Number(metadata.coin_amount ?? 0).toLocaleString('id-ID')} Edu Coin setelah pembayaran disetujui`;
@@ -440,6 +455,8 @@ export function OrdersPage() {
         const orderReference = String(order?.id ?? '').slice(0, 8);
         const purchasedName = selected.name;
         setSelected(null);
+        setSelectedReviewSummary(null);
+        setPurchaseStep(1);
         setQuantity(1);
         setProofFile(null);
         setProofPreview('');
@@ -534,6 +551,8 @@ export function OrdersPage() {
           setGatewayPaymentError(detail);
           setMessage(`Pesanan #${orderReference} sudah tersimpan. Buat ulang sesi pembayaran menggunakan tombol di bawah—jangan membuat order baru.`);
           setSelected(null);
+          setSelectedReviewSummary(null);
+          setPurchaseStep(1);
           setQuantity(1);
           setProofFile(null);
           setProofPreview('');
@@ -547,6 +566,8 @@ export function OrdersPage() {
         setMessage(`Pesanan ${orderReference ? `#${orderReference}` : ''} berhasil dikirim. Tim SYKABELAJAR akan memeriksa pembayaran sebelum manfaat diberikan.`);
       }
       setSelected(null);
+      setSelectedReviewSummary(null);
+      setPurchaseStep(1);
       setQuantity(1);
       setProofFile(null);
       setProofPreview('');
@@ -874,7 +895,7 @@ export function OrdersPage() {
                   : <div className="flex h-full items-center justify-center"><ShoppingBag size={25} className="text-slate-600"/></div>}
               </div>
               <div className="flex-1 min-w-0">
-                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">{selected.product_type.replaceAll('_', ' ')}</span>
+                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">{checkoutProductBadge(selected)}</span>
                 <h4 className="font-bold text-white text-base mt-1 truncate">{selected.name}</h4>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
                   <span className="flex items-center text-amber-400 font-bold gap-1"><Star size={13} className="fill-amber-400"/>{selectedReviewSummary?.average_rating != null ? selectedReviewSummary.average_rating.toFixed(1) : 'Belum ada rating'}</span>
