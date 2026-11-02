@@ -826,7 +826,7 @@ function CertificateHistoryModal({
               className="input w-full pl-9 text-xs"
             />
           </label>
-          <div className="flex gap-1.5 overflow-x-auto">
+          <div className="syka-tab-list flex gap-1.5 overflow-x-auto">
             {([
               { id: 'all', label: 'Semua' },
               { id: 'winner', label: 'Juara & Penghargaan' },
@@ -837,7 +837,7 @@ function CertificateHistoryModal({
                 type="button"
                 onClick={() => setFilter(tab.id)}
                 aria-pressed={filter === tab.id}
-                className={'shrink-0 rounded-lg px-3 py-2 text-[10px] font-semibold transition ' + (filter === tab.id
+                className={'syka-tab-trigger shrink-0 rounded-lg px-3 py-2 text-[10px] font-semibold transition ' + (filter === tab.id
                   ? 'bg-accent text-white'
                   : 'bg-slate-800 text-slate-400 hover:text-slate-100')}
               >
@@ -1236,6 +1236,7 @@ export function MyCompetitionsPage() {
           </div>
         </Card>
 
+        <div key={filter} className="syka-tab-panel">
         {loading ? (
           <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3' : 'grid grid-cols-1 gap-3'}>
             {[0, 1, 2].map((value) => (
@@ -1286,6 +1287,7 @@ export function MyCompetitionsPage() {
           </div>
         )}
 
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[10px] text-slate-400">
           <span>Data keikutsertaan berasal dari pendaftaran dan identitas peserta kanonis akunmu.</span>
           <span>{items.length.toLocaleString('id-ID')} lomba tercatat</span>
