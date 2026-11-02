@@ -187,7 +187,7 @@ export function ShopInsightsPanel({ products }: Props) {
         </div>
         <div className="space-y-2">
           <p className="text-xs font-semibold text-slate-300">Pratinjau banner</p>
-          <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-[#0F172A] via-[#1E1B4B] to-[#0F172A] p-5 shadow-2xl shadow-blue-950/40 group">
+          <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-[#0F172A] via-[#1E1B4B] to-[#0F172A] p-5 shadow-2xl shadow-blue-950/40 group" style={{ fontFamily: "'Inter', sans-serif" }}>
             <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-blue-600/20 blur-3xl"/>
             <div className="pointer-events-none absolute -bottom-10 right-1/4 h-36 w-36 rounded-full bg-indigo-500/15 blur-2xl"/>
             <div
