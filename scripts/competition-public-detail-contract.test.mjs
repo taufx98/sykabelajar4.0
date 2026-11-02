@@ -26,7 +26,7 @@ test('organizer can configure an optional minimum target separately from the enf
 });
 
 test('public participant roster exposes canonical participant fields only for public competitions', () => {
-  assert.match(migration, /FUNCTION public\.get_public_competition_participants/);
+  assert.match(migration, /FUNCTION public\.get_public_competition_participants/i);
   assert.match(migration, /c\.visibility = 'PUBLIC'/);
   assert.match(migration, /public\.participants p[\s\S]*left join public\.schools s/i);
   assert.match(migration, /'full_name', p\.full_name/);
