@@ -46,7 +46,7 @@ export function ProfileSettingsPage() {
           <Link to={`/profile/@${user.username}`} className="inline-flex w-fit items-center gap-2 rounded-xl border surface-border surface-card-bg px-3 py-2 text-xs font-semibold text-fg-muted transition hover:border-accent/30 hover:text-accent"><ArrowLeft size={14}/> {t('settings.backToProfile')}</Link>
         </header>
 
-        <nav aria-label="Bagian pengaturan profil" role="tablist" className="grid gap-2 rounded-2xl border surface-border surface-card-bg p-2 sm:grid-cols-2">
+        <nav aria-label="Bagian pengaturan profil" role="tablist" className="syka-tab-list grid gap-2 rounded-2xl border surface-border surface-card-bg p-2 sm:grid-cols-2">
           {tabs.map(({ id, label, description, icon: Icon }) => {
             const selected = activeTab === id;
             return (
@@ -58,7 +58,7 @@ export function ProfileSettingsPage() {
                 aria-selected={selected}
                 aria-controls={`profile-settings-panel-${id}`}
                 onClick={() => selectTab(id)}
-                className={`flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition sm:p-4 ${selected ? 'border-accent/35 bg-accent/10 text-accent shadow-sm' : 'border-transparent text-fg-muted hover:border-surface-border hover:bg-surface-elevated/70 hover:text-fg'}`}
+                className={`syka-tab-trigger flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition sm:p-4 ${selected ? 'border-accent/35 bg-accent/10 text-accent shadow-sm' : 'border-transparent text-fg-muted hover:border-surface-border hover:bg-surface-elevated/70 hover:text-fg'}`}
               >
                 <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${selected ? 'bg-accent/15' : 'surface-elevated'}`}><Icon size={19}/></span>
                 <span className="min-w-0 flex-1">
@@ -71,11 +71,11 @@ export function ProfileSettingsPage() {
           })}
         </nav>
 
-        {visitedTabs.includes('profile') && <section id="profile-settings-panel-profile" role="tabpanel" aria-labelledby="profile-settings-tab-profile" hidden={activeTab !== 'profile'} className="min-w-0">
+        {visitedTabs.includes('profile') && <section id="profile-settings-panel-profile" role="tabpanel" aria-labelledby="profile-settings-tab-profile" hidden={activeTab !== 'profile'} className="syka-tab-panel min-w-0">
           <EditProfilePage embedded />
         </section>}
 
-        {visitedTabs.includes('appearance') && <section id="profile-settings-panel-appearance" role="tabpanel" aria-labelledby="profile-settings-tab-appearance" hidden={activeTab !== 'appearance'} className="min-w-0 space-y-4">
+        {visitedTabs.includes('appearance') && <section id="profile-settings-panel-appearance" role="tabpanel" aria-labelledby="profile-settings-tab-appearance" hidden={activeTab !== 'appearance'} className="syka-tab-panel min-w-0 space-y-4">
           <div className="flex flex-wrap gap-2" aria-label="Pintasan bagian tampilan dan privasi">
             {[
               ['#appearance', 'Badge Showcase'],

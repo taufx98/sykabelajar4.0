@@ -44,8 +44,6 @@ export function DailyTasksPage() {
   const { toast, user, refreshUser } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'referral' ? 'referral' : 'tasks';
-  const [displayedTab, setDisplayedTab] = useState<'tasks' | 'referral'>(activeTab);
-  const [tabContentVisible, setTabContentVisible] = useState(true);
   const [referralReward, setReferralReward] = useState<number | null>(null);
   const [referralProgramActive, setReferralProgramActive] = useState(false);
   const { language } = useLanguage();
@@ -63,24 +61,6 @@ export function DailyTasksPage() {
   const [error, setError] = useState<string | null>(null);
   const [eventOpen, setEventOpen] = useState(false);
 
-  useEffect(() => {
-    if (displayedTab === activeTab) {
-      setTabContentVisible(true);
-      return;
-    }
-
-    setTabContentVisible(false);
-    let animationFrame: number | undefined;
-    const transitionTimer = window.setTimeout(() => {
-      setDisplayedTab(activeTab);
-      animationFrame = window.requestAnimationFrame(() => setTabContentVisible(true));
-    }, 150);
-
-    return () => {
-      window.clearTimeout(transitionTimer);
-      if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
-    };
-  }, [activeTab, displayedTab]);
 
   // Refresh the calendar key while the page stays open across 00:00 WIB.
   useEffect(() => {
@@ -314,14 +294,14 @@ export function DailyTasksPage() {
     <div className="daily-tasks-page min-h-full bg-[#F8FAFC] text-slate-700 dark:bg-[#0B1120] dark:text-slate-200">
       <div className="max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         <section className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#1E293B] dark:bg-[#151E32] sm:flex-row">
-          <div className="flex w-full items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-[#1E293B] dark:bg-slate-900/60 sm:w-auto">
+          <div className="syka-tab-list flex w-full items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-[#1E293B] dark:bg-slate-900/60 sm:w-auto" role="tablist" aria-label="Daily Tasks dan referral">
             <button
               id="tab-tasks-btn"
               type="button"
               onClick={() => switchTab('tasks')}
               aria-pressed={activeTab === 'tasks'}
               className={[
-                'flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5',
+                'syka-tab-trigger flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5',
                 activeTab === 'tasks'
                   ? 'scale-[1.02] bg-[#2563EB] font-bold text-white shadow-lg shadow-blue-600/25'
                   : 'font-semibold text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200',
@@ -330,7 +310,7 @@ export function DailyTasksPage() {
               <ListChecks size={14}/>
               <span>{text('Daily Tasks & Check-in', 'Daily Tasks & Check-in')}</span>
               <span className="ml-1 rounded-full border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-300">
-                {Math.max(0, tasks.length - completedCount)} Task Aktif
+                {loading ? 'Memuat…' : Math.max(0, tasks.length - completedCount) + ' Task Aktif'}
               </span>
             </button>
             <button
@@ -339,7 +319,7 @@ export function DailyTasksPage() {
               onClick={() => switchTab('referral')}
               aria-pressed={activeTab === 'referral'}
               className={[
-                'flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5',
+                'syka-tab-trigger flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5',
                 activeTab === 'referral'
                   ? 'scale-[1.02] bg-[#2563EB] font-bold text-white shadow-lg shadow-blue-600/25'
                   : 'font-semibold text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200',
@@ -358,18 +338,18 @@ export function DailyTasksPage() {
           <div className="flex w-full items-center justify-center gap-3 px-3 py-1 text-xs sm:w-auto sm:justify-end">
             <span className="flex items-center gap-1.5 whitespace-nowrap text-slate-600 dark:text-slate-300">
               <Flame size={13} className="text-amber-500"/>
-              Streak: <strong className="text-slate-900 dark:text-white">{currentStreak} Hari</strong>
+              Streak: <strong className="text-slate-900 dark:text-white">{loading ? '—' : currentStreak + ' Hari'}</strong>
             </span>
             <span className="h-3 w-px bg-slate-300 dark:bg-slate-700"/>
             <span className="flex items-center gap-1.5 whitespace-nowrap text-slate-600 dark:text-slate-300">
               <Coins size={13} className="text-amber-500"/>
-              Coin: <strong className="text-amber-600 dark:text-amber-400">{walletCoin.toLocaleString('id-ID')} EDU</strong>
+              Coin: <strong className="text-amber-600 dark:text-amber-400">{loading ? '—' : walletCoin.toLocaleString('id-ID') + ' EDU'}</strong>
             </span>
           </div>
         </section>
 
-        <div className={['transition-all duration-300 ease-out', tabContentVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'].join(' ')}>
-          {displayedTab === 'tasks' ? (
+        <div key={activeTab} className="syka-tab-panel">
+          {activeTab === 'tasks' ? (
             <div className="space-y-6">
               <section
                 className={[
@@ -400,7 +380,7 @@ export function DailyTasksPage() {
                           : 'border-amber-500/30 bg-amber-500/20 text-amber-300',
                       ].join(' ')}>
                         {checked ? <Check size={11}/> : <Clock size={11}/>}
-                        {checked ? `Hari ke-${Number(checkin?.streak_day || 1)} Selesai` : `Hari ke-${checkinDay} Belum Di-Klaim`}
+                        {loading ? 'Memuat status check-in…' : checked ? `Hari ke-${Number(checkin?.streak_day || 1)} Selesai` : `Hari ke-${checkinDay} Belum Di-Klaim`}
                       </span>
                       {eventActive && (
                         <Badge color="moss"><Sparkles size={10}/> {String(checkin?.event_name)}</Badge>
@@ -418,7 +398,7 @@ export function DailyTasksPage() {
                           {label}
                         </span>
                       )) : (
-                        <span className="text-xs font-semibold text-slate-400">{text('Hadiah mengikuti pengaturan check-in aktif.', 'Reward follows the active check-in settings.')}</span>
+                        <span className="text-xs font-semibold text-slate-400">{loading ? 'Memuat hadiah check-in…' : text('Hadiah mengikuti pengaturan check-in aktif.', 'Reward follows the active check-in settings.')}</span>
                       )}
                     </div>
                   </div>
@@ -447,7 +427,7 @@ export function DailyTasksPage() {
                     ].join(' ')}
                   >
                     {busyId === 'checkin' ? <Loader2 size={15} className="animate-spin"/> : checked ? <Check size={15}/> : <CalendarCheck size={15}/>}
-                    {checked ? 'Sudah Check-in Hari Ini' : text('Klik untuk Check-In Hari Ini!', 'Check in today!')}
+                    {loading ? 'Memuat status…' : checked ? 'Sudah Check-in Hari Ini' : text('Klik untuk Check-In Hari Ini!', 'Check in today!')}
                   </button>
                 </div>
               </section>
@@ -464,8 +444,15 @@ export function DailyTasksPage() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-7 gap-1.5 pt-1 sm:gap-2">
-                    {Array.from({ length: 7 }, (_, index) => {
+                  {loading ? (
+                    <div className="grid grid-cols-7 gap-1.5 pt-1 sm:gap-2" aria-label="Memuat progres streak">
+                      {Array.from({ length: 7 }, (_, index) => (
+                        <div key={index} className="min-h-[88px] rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-7 gap-1.5 pt-1 sm:gap-2">
+                      {Array.from({ length: 7 }, (_, index) => {
                       const day = index + 1;
                       const completed = day <= Math.min(currentStreak, 7);
                       const ready = !checked && currentStreak < 7 && day === currentStreak + 1;
@@ -499,7 +486,7 @@ export function DailyTasksPage() {
                         <div
                           key={day}
                           className={[
-                            'space-y-1.5 rounded-xl border p-1.5 text-center sm:p-2.5',
+                            'min-h-[88px] space-y-1.5 rounded-xl border p-1.5 text-center sm:p-2.5',
                             completed
                               ? 'border-emerald-500/40 bg-emerald-500/10'
                               : ready
@@ -532,7 +519,8 @@ export function DailyTasksPage() {
                         </div>
                       );
                     })}
-                  </div>
+                    </div>
+                  )}
 
                   <p className="border-t border-slate-200 pt-3 text-[10px] leading-relaxed text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
                     Status streak mengikuti catatan check-in yang tersimpan. Hari berikutnya dibuka setelah check-in hari ini berhasil.
@@ -549,22 +537,22 @@ export function DailyTasksPage() {
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/80">
                         <p className="text-[11px] font-medium text-slate-500">Task Selesai</p>
                         <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
-                          {completedCount} <span className="text-xs font-medium text-slate-500">/ {tasks.length}</span>
+                          {loading ? '—' : completedCount} <span className="text-xs font-medium text-slate-500">/ {loading ? '—' : tasks.length}</span>
                         </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/80">
                         <p className="text-[11px] font-medium text-slate-500">XP Diperoleh</p>
-                        <p className="mt-1 text-2xl font-black text-purple-600 dark:text-purple-400">+{totalXp.toLocaleString('id-ID')}</p>
+                        <p className="mt-1 text-2xl font-black text-purple-600 dark:text-purple-400">{loading ? '—' : '+' + totalXp.toLocaleString('id-ID')}</p>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-1.5 border-t border-slate-200 pt-3 dark:border-slate-800/80">
                     <div className="flex justify-between text-xs font-semibold">
                       <span className="text-slate-500">Kelengkapan Harian</span>
-                      <span className="text-[#2563EB]">{checkinProgress}%</span>
+                      <span className="text-[#2563EB]">{loading ? '—' : checkinProgress + '%'}</span>
                     </div>
                     <div className="h-2 w-full overflow-hidden rounded-full border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900">
-                      <div className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-indigo-500 transition-all duration-300" style={{ width: `${checkinProgress}%` }}/>
+                      <div className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-indigo-500 transition-all duration-300" style={{ width: `${loading ? 0 : checkinProgress}%` }}/>
                     </div>
                   </div>
                 </Card>
@@ -579,10 +567,26 @@ export function DailyTasksPage() {
                   <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Reset otomatis setiap 00:00 WIB</span>
                 </div>
 
+                <div className="daily-task-loading-placeholder min-h-[12rem] space-y-3">
                 {loading && (
-                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-                    <Loader2 size={17} className="animate-spin"/>
-                    Memuat data aktivitas...
+                  <div className="grid gap-3" aria-label="Memuat daftar task">
+                    {Array.from({ length: 2 }, (_, index) => (
+                      <div key={index} className="flex min-h-[104px] items-start gap-3.5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800/80 dark:bg-slate-900/70">
+                        <span className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-slate-200/80 dark:border-slate-700 dark:bg-slate-800" />
+                        <div className="min-w-0 flex-1 space-y-3 pt-1">
+                          <div className="flex flex-wrap gap-2">
+                            <span className="h-3 w-32 rounded bg-slate-200 dark:bg-slate-800" />
+                            <span className="h-4 w-20 rounded-full bg-slate-200 dark:bg-slate-800" />
+                          </div>
+                          <span className="block h-3 w-4/5 rounded bg-slate-200 dark:bg-slate-800" />
+                          <div className="flex gap-2">
+                            <span className="h-5 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+                            <span className="h-5 w-24 rounded bg-slate-200 dark:bg-slate-800" />
+                          </div>
+                        </div>
+                        <span className="hidden h-10 w-32 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-800 sm:block" />
+                      </div>
+                    ))}
                   </div>
                 )}
                 {error && !loading && (
@@ -686,6 +690,7 @@ export function DailyTasksPage() {
                     </div>
                   );
                 })}
+                </div>
               </Card>
             </div>
           ) : (
