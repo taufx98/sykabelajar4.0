@@ -55,7 +55,7 @@ export function GlobalHeader({ navItems }: GlobalHeaderProps) {
   }).format(new Date());
 
   return (
-    <header className="sticky top-0 z-30 flex min-h-[76px] shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 dark:border-[#1E293B] dark:bg-[#0B1120] sm:px-6">
+    <header className="relative z-30 flex min-h-[76px] shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 dark:border-[#1E293B] dark:bg-[#0B1120] sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <Link
           to="/home"
