@@ -41,7 +41,7 @@ test('individual, collective, exam and official-result actions use existing rout
   assert.match(page, /profile\/collective-history/);
   assert.match(page, /\/kerja/);
   assert.match(page, /\/hasil/);
-  assert.match(page, /encodeURIComponent\(competition\.slug\)/);
+  assert.match(page, /encodeURIComponent\(item\.competition\.slug\)/);
 });
 
 test('the participant dashboard contains no hard-coded sample competitions or certificate fixtures', () => {
