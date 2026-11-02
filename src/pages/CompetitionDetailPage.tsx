@@ -379,7 +379,7 @@ export function CompetitionDetailPage() {
               <div className="mb-2 flex items-center justify-between gap-3"><span className="text-xs font-semibold text-fg-secondary">Batas maksimum</span><span className="text-xs font-bold tabular-nums text-fg">{quotaCount.toLocaleString('id-ID')} / {capacity.toLocaleString('id-ID')}</span></div>
               <div className="h-2 overflow-hidden rounded-full bg-surface-elevated"><div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: capacityProgress + '%' }}/></div>
               <p className="mt-2 text-[11px] text-fg-muted">{remainingCapacity === 0 ? 'Kuota telah penuh' : 'Sisa kuota ' + remainingText + ' peserta'}</p>
-              {participantDirectory?.plan_maximum_participants != null && participantDirectory?.competition_maximum_participants != null && <p className="mt-1 text-[10px] text-fg-muted">Batas efektif mengikuti nilai terendah antara kuota paket penyelenggara ({participantDirectory.plan_maximum_participants.toLocaleString('id-ID')}) dan batas lomba ({participantDirectory.competition_maximum_participants.toLocaleString('id-ID')}).</p>}
+              <p className="mt-1 text-[10px] text-fg-muted">Kuota efektif memperhitungkan batas maksimum lomba dan kapasitas paket penyelenggara.</p>
             </div>}
           </Card>}
           <Card className="flex items-start gap-2.5 p-4">
