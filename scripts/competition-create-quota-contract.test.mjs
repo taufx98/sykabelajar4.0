@@ -7,8 +7,9 @@ const createPage = await readFile(
   'utf8',
 );
 
-test('competition creation quota errors are explained and link to organizer plan management', () => {
-  assert.match(createPage, /COMPETITION_QUOTA_EXCEEDED/);
-  assert.match(createPage, /Kuota pembuatan lomba/);
-  assert.match(createPage, /\/organizer\/plan/);
+test('draft creation remains available independently from monthly publication quota', () => {
+  assert.match(createPage, /create_organizer_competition/);
+  assert.match(createPage, /Simpan Draft/);
+  assert.doesNotMatch(createPage, /COMPETITION_QUOTA_EXCEEDED/);
+  assert.doesNotMatch(createPage, /quotaReached/);
 });
