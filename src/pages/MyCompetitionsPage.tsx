@@ -8,7 +8,6 @@ import {
   ChevronRight,
   ClipboardList,
   Clock3,
-  Download,
   ExternalLink,
   FileCheck,
   GraduationCap,
@@ -19,7 +18,6 @@ import {
   Sparkles,
   Trophy,
   Users,
-  XCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
@@ -305,9 +303,7 @@ function SummaryCard({
         <strong className="text-3xl font-extrabold leading-none tracking-tight tabular-nums text-fg">{value.toLocaleString('id-ID')}</strong>
         {footnote && <span className="text-right text-[10px] font-semibold text-fg-muted">{footnote}</span>}
       </div>
-      <div className="mt-4 h-1 overflow-hidden rounded-full bg-surface-elevated">
-        <div className="h-full w-full rounded-full bg-gradient-to-r from-accent/80 to-accent opacity-70" />
-      </div>
+      <div className="mt-4 h-px bg-gradient-to-r from-accent/55 to-transparent" />
     </Card>
   );
 }
@@ -446,7 +442,7 @@ function CompetitionCard({
 
         {status !== 'cancelled' && <CompetitionStageTracker status={status} />}
 
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3 mt-4">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
           <span className="text-[10px] font-medium text-fg-muted">
             {item.published_certificate_count > 0
               ? item.published_certificate_count + ' piagam terbit'
@@ -1036,8 +1032,8 @@ export function MyCompetitionsPage() {
               </div>
 
               <div className="flex shrink-0 flex-wrap gap-2">
-                <Link to="/home">
-                  <Button size="sm" icon={<Sparkles size={14} />}>Jelajahi Lomba Baru</Button>
+                <Link to="/home" className="btn-primary px-3 py-2 text-xs">
+                  <Sparkles size={14} /> Jelajahi Lomba Baru
                 </Link>
                 <Button
                   size="sm"
@@ -1216,7 +1212,7 @@ export function MyCompetitionsPage() {
                 : 'Coba ubah kata kunci pencarian atau filter status untuk menemukan lomba yang kamu cari.'}
             </p>
             {items.length === 0 ? (
-              <Link to="/home" className="mt-5 inline-flex"><Button size="sm">Jelajahi Lomba</Button></Link>
+              <Link to="/home" className="btn-primary mt-5 inline-flex px-4 py-2.5 text-xs">Jelajahi Lomba</Link>
             ) : (
               <Button size="sm" className="mt-5" variant="outline" onClick={() => { setQuery(''); setFilter('all'); }}>Hapus Filter</Button>
             )}
