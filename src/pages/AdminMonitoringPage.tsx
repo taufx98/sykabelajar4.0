@@ -154,7 +154,7 @@ export function AdminMonitoringPage() {
             <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Durasi</p><p className="font-bold text-fg">{formatElapsed(officialResultDetail.result?.duration_seconds)}</p></div>
             <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Benar / Total</p><p className="font-bold text-fg">{number(officialResultDetail.question_summary?.correct)} / {number(officialResultDetail.question_summary?.total)}</p></div>
             <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Jawaban salah</p><p className="font-bold text-fg">{number(officialResultDetail.question_summary?.incorrect)}</p></div>
-            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Tinjauan manual</p><p className="font-bold text-fg">{number(officialResultDetail.question_summary?.manual_review)}</p></div>
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Dinilai manual</p><p className="font-bold text-fg">{number(officialResultDetail.question_summary?.manual_review)}</p></div>
             <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Badge / penghargaan</p><p className="font-bold text-fg">{number((officialResultDetail.badges?.length ?? 0) + (officialResultDetail.awards?.length ?? 0))}</p></div>
             <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Sertifikat</p><p className="font-bold text-fg">{number(officialResultDetail.certificates?.length ?? 0)}</p></div>
           </div>}
