@@ -319,7 +319,7 @@ export function DailyTasksPage() {
               onClick={() => switchTab('referral')}
               aria-pressed={activeTab === 'referral'}
               className={[
-                'flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5',
+                'syka-tab-trigger flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs transition-all duration-300 sm:flex-initial sm:px-5',
                 activeTab === 'referral'
                   ? 'scale-[1.02] bg-[#2563EB] font-bold text-white shadow-lg shadow-blue-600/25'
                   : 'font-semibold text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200',
