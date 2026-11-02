@@ -56,7 +56,7 @@ test('collective registration receives the same organizer quota settings and fri
   assert.match(collectiveService, /max_participants\?:number\|null/);
   assert.match(collectiveWizard, /options\.registration_rules\.minimum_participants/);
   assert.match(collectiveWizard, /options\.participant_limits\?\.competition_maximum_participants/);
-  assert.match(collectiveWizard, /options\.participant_limits\?\.plan_maximum_participants/);
+  assert.doesNotMatch(collectiveWizard, /plan_maximum_participants/);
   assert.match(collectiveWizard, /options\.participant_limits\?\.effective_maximum_participants/);
   assert.match(collectiveWizard, /PARTICIPANT_LIMIT_REACHED/);
 });
@@ -143,8 +143,11 @@ test('all participant admission and public capacity paths use the effective plan
   assert.match(planQuotaMigration, /FUNCTION public\.quote_collective_registration[\s\S]*competition_effective_participant_limit/i);
   assert.match(planQuotaMigration, /FUNCTION public\.create_collective_participants[\s\S]*competition_effective_participant_limit/i);
   assert.match(planQuotaMigration, /'maximum_participants', v_effective_maximum/i);
-  assert.match(planQuotaMigration, /'plan_maximum_participants', v_plan_maximum/i);
   assert.match(planQuotaMigration, /'effective_maximum_participants', v_effective_maximum/i);
+  const publicRoster = planQuotaMigration.match(/create or replace function public\.get_public_competition_participants[\s\S]*?\$function\$;/i)?.[0] ?? '';
+  const collectiveOptions = planQuotaMigration.match(/create or replace function public\.get_collective_registration_options[\s\S]*?\$function\$;/i)?.[0] ?? '';
+  assert.doesNotMatch(publicRoster, /plan_maximum_participants/);
+  assert.doesNotMatch(collectiveOptions, /plan_maximum_participants/);
 });
 
 test('public detail and teacher collective wizard display the effective maximum, not only the configured event cap', () => {
