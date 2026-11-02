@@ -168,3 +168,36 @@ export async function getMyCanonicalCompetitionResult(competitionId: string) {
   if (error) throw error;
   return data;
 }
+
+export type PublicCompetitionParticipant = {
+  participant_id: string;
+  full_name: string;
+  participant_type: 'INDIVIDUAL' | 'COLLECTIVE' | string;
+  grade: string | null;
+  class_name: string | null;
+  school_name: string | null;
+};
+
+export type PublicCompetitionParticipants = {
+  participant_count: number;
+  quota_count: number;
+  minimum_participants: number | null;
+  maximum_participants: number | null;
+  participants: PublicCompetitionParticipant[];
+  limit: number;
+  offset: number;
+};
+
+export async function getPublicCompetitionParticipants(
+  slug: string,
+  limit = 20,
+  offset = 0,
+): Promise<PublicCompetitionParticipants> {
+  const { data, error } = await supabase.rpc('get_public_competition_participants', {
+    p_slug: slug,
+    p_limit: Math.max(1, Math.min(50, Math.floor(limit))),
+    p_offset: Math.max(0, Math.floor(offset)),
+  });
+  if (error) throw error;
+  return data as PublicCompetitionParticipants;
+}
