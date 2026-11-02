@@ -150,9 +150,8 @@ export function ShopExperience({
       if (sort === 'rating-desc') return (rightSummary?.average_rating ?? 0) - (leftSummary?.average_rating ?? 0);
       if (sort === 'rating-asc') return (leftSummary?.average_rating ?? 0) - (rightSummary?.average_rating ?? 0);
       if (sort === 'popular') {
-        return (salesCounts.get(right.id) ?? 0) - (salesCounts.get(left.id) ?? 0)
-          || (rightSummary?.review_count ?? 0) - (leftSummary?.review_count ?? 0)
-          || (rightSummary?.average_rating ?? 0) - (leftSummary?.average_rating ?? 0);
+        return (rightSummary?.review_count ?? 0) - (leftSummary?.review_count ?? 0)
+          || (salesCounts.get(right.id) ?? 0) - (salesCounts.get(left.id) ?? 0);
       }
       return Number(right.is_featured) - Number(left.is_featured) || left.sort_order - right.sort_order;
     });
