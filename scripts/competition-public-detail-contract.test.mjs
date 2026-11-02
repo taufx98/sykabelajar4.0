@@ -12,6 +12,7 @@ const resultsPage = await readFile(new URL('../src/pages/CompetitionResultsPage.
 const resultsService = await readFile(new URL('../src/services/competitionResults.service.ts', import.meta.url), 'utf8');
 const socialService = await readFile(new URL('../src/services/social.service.ts', import.meta.url), 'utf8');
 const comments = await readFile(new URL('../src/components/ui/Comments.tsx', import.meta.url), 'utf8');
+const adminOperations = await readFile(new URL('../src/pages/AdminOperationsPage.tsx', import.meta.url), 'utf8');
 
 test('organizer can configure an optional minimum target separately from the enforced maximum', () => {
   assert.match(migration, /ADD COLUMN IF NOT EXISTS minimum_participants integer/i);
@@ -70,4 +71,6 @@ test('comment reporting is persisted through an authenticated RPC and comment sh
   assert.match(comments, /reportPostComment/);
   assert.match(comments, /navigator\.clipboard/);
   assert.match(comments, /Laporkan/);
+  assert.match(adminOperations, /resolveReport\(r\.id,'DISMISSED'\)/);
+  assert.doesNotMatch(adminOperations, /resolveReport\(r\.id,'REJECTED'\)/);
 });
