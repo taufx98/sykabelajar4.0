@@ -361,3 +361,30 @@ test('daily task completion is atomic and requires the configured backend eviden
   assert.match(serialization, /:daily-task:/);
   assert.match(serialization, /pg_advisory_xact_lock/);
 });
+
+
+test('global tab motion is reusable and fully disabled by reduced-motion settings', async () => {
+  const styles = await readFile(new URL('../src/index.css', import.meta.url), 'utf8');
+  const settings = await readFile(new URL('../src/components/ui/GeneralSettingsButton.tsx', import.meta.url), 'utf8');
+  const daily = await readFile(new URL('../src/pages/DailyTasksPage.tsx', import.meta.url), 'utf8');
+
+  assert.match(styles, /\.syka-tab-trigger/);
+  assert.match(styles, /\.syka-tab-panel/);
+  assert.match(styles, /html\.reduce-motion \.syka-tab-trigger/);
+  assert.match(styles, /html\.reduce-motion \.syka-tab-panel/);
+  assert.match(settings, /classList\.toggle\('reduce-motion', checked\)/);
+  assert.match(daily, /syka-tab-list/);
+  assert.match(daily, /syka-tab-trigger/);
+  assert.match(daily, /syka-tab-panel/);
+  assert.doesNotMatch(daily, /transitionTimer|tabContentVisible|displayedTab/);
+});
+
+test('Daily Tasks does not show provisional check-in values while account data is loading', async () => {
+  const daily = await readFile(new URL('../src/pages/DailyTasksPage.tsx', import.meta.url), 'utf8');
+
+  assert.match(daily, /loading \? 'Memuat status/);
+  assert.match(daily, /loading \? '—'/);
+  assert.match(daily, /data-testid="daily-checkin-streak-tracker"/);
+  assert.match(daily, /min-h-\[88px\]/);
+  assert.match(daily, /loading\s*\?\s*\(/);
+});
