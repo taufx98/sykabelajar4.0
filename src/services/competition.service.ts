@@ -186,7 +186,6 @@ export type PublicCompetitionParticipants = {
   minimum_participants: number | null;
   maximum_participants: number | null;
   competition_maximum_participants?: number | null;
-  plan_maximum_participants?: number | null;
   effective_maximum_participants?: number | null;
   participants: PublicCompetitionParticipant[];
   limit: number;
