@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingBag, Package, Plus, Minus, Loader2, Upload, X, Coins, BadgeCheck, QrCode, GraduationCap, HeartHandshake, FileText, Sparkles, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle } from 'lucide-react';
+import { ShoppingBag, Package, Plus, Minus, Loader2, Upload, X, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
+import { ShopExperience } from '@/components/shop/ShopExperience';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { formatRupiah, formatShortDate } from '@/lib/utils';
@@ -15,27 +16,6 @@ import { getCollectiveCertificatePrice, listTeacherCollectiveParticipants, prepa
 
 type BadgeOption = { id: string; name: string; icon_emoji: string | null; rarity: string };
 type GatewayReturnCheck = { orderId: string; status: 'checking' | 'paid' | 'pending' | 'cancelled' };
-
-function productTypeLabel(type: string) {
-  const labels: Record<string, string> = {
-    EDU_COIN_TOPUP: 'Paket Edu Coin',
-    BADGE: 'Badge profil',
-    CERTIFICATE_SERIALS: 'QR / Serial Sertifikat',
-    COLLECTIVE_CERTIFICATE: 'Sertifikat peserta kolektif',
-    DIGITAL_ITEM: 'Layanan / materi lomba',
-    DONATION: 'Donasi',
-  };
-  return labels[type] ?? 'Produk SYKABELAJAR';
-}
-
-function productIcon(type: string) {
-  if (type === 'EDU_COIN_TOPUP') return Coins;
-  if (type === 'BADGE') return BadgeCheck;
-  if (type === 'CERTIFICATE_SERIALS') return QrCode;
-  if (type === 'COLLECTIVE_CERTIFICATE') return GraduationCap;
-  if (type === 'DONATION') return HeartHandshake;
-  return FileText;
-}
 
 function productBenefit(product: CommerceProduct, badges: Map<string, BadgeOption>) {
   const metadata = product.metadata ?? {};
@@ -654,10 +634,6 @@ export function OrdersPage() {
 
 
   return <div>
-    <div className="sticky top-0 z-20 glass border-b surface-border px-4 py-3">
-      <h2 className="font-display font-bold text-lg text-fg">{language === 'en' ? 'Shop & Orders' : 'Shop & Pesanan'}</h2>
-      <p className="text-xs text-slate-500">Produk dan layanan penunjang lomba SYKABELAJAR. Pembayaran manual menunggu verifikasi admin; Gateway Global diperbarui otomatis setelah callback tervalidasi. Pembelian Edu Coin diproses otomatis.</p>
-    </div>
     <div className="p-4 space-y-6">
       {error && <Card className="p-3 border-red-500/20 text-sm text-red-300">{error}</Card>}
       {message && <Card className="p-3 border-moss-500/20 text-sm text-accent">{message}</Card>}
@@ -698,42 +674,12 @@ export function OrdersPage() {
           </div>
         </Card>
       )}{gatewayPaymentError && <Card className="border-amber-500/20 bg-amber-500/5 p-4"><div className="flex items-start gap-3"><CreditCard size={18} className="mt-0.5 text-amber-300"/><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Sesi pembayaran otomatis belum siap</p><p className="mt-1 break-words text-xs leading-5 text-fg-muted">{gatewayPaymentError}</p><Button size="sm" className="mt-3" loading={submitting} disabled={submitting||!pendingGatewayOrderId} onClick={()=>void retryGatewayPayment()}>Coba buat sesi lagi</Button></div></div></Card>}{gatewayPaymentResult && !gatewayPaymentResult.redirect_url && <Card className="border-accent/20 p-4"><div className="flex items-start gap-3"><CreditCard size={18} className="mt-0.5 text-accent"/><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-fg">Instruksi pembayaran · {gatewayStatus?.providerName||gatewayPaymentResult.provider}</p><p className="mt-1 text-xs leading-5 text-fg-muted">Status pesanan akan diperbarui otomatis setelah webhook provider tervalidasi.</p>{gatewayPaymentResult.payment_code&&<div className="mt-3 rounded-xl border border-surface-border bg-surface-elevated/25 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">{gatewayPaymentResult.payment_code_type||'Kode pembayaran'}</p><div className="mt-1 flex items-center justify-between gap-2"><p className="break-all font-mono text-lg font-bold text-fg">{gatewayPaymentResult.payment_code}</p><button type="button" className="rounded-lg border border-surface-border p-2 text-fg-muted hover:text-fg" onClick={()=>{void navigator.clipboard?.writeText(String(gatewayPaymentResult.payment_code));setMessage('Kode pembayaran disalin.')}} aria-label="Salin kode pembayaran"><Copy size={14}/></button></div></div>}</div></div></Card>}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <div><p className="text-xs text-accent font-semibold">SHOP SYKABELAJAR</p><h3 className="font-display text-xl font-bold text-fg">{language === 'en' ? 'Benefits and services' : 'Manfaat dan layanan'}</h3></div>
-          {loading && <Loader2 size={16} className="animate-spin text-slate-500"/>}
-        </div>
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {products.map((product) => {
-            const Icon = productIcon(product.product_type);
-            const price = displayPrice(product);
-            const badgeId = product.product_type === 'BADGE' ? String(product.metadata.badge_id ?? '') : '';
-            const alreadyOwned = Boolean(badgeId && ownedBadgeIds.has(badgeId));
-            const unavailableCertificatePrice = product.product_type === 'COLLECTIVE_CERTIFICATE' && price <= 0;
-            const needsOrganizer = product.product_type === 'CERTIFICATE_SERIALS';
-            const cannotBuySerials = needsOrganizer && organizers.length === 0;
-            return <Card key={product.id} className="overflow-hidden border surface-border">
-              {product.image_url && <img src={product.image_url} alt={product.name} loading="lazy" className="w-full aspect-[16/8] object-cover"/>}
-              <div className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="rounded-xl bg-accent/10 p-2 text-accent"><Icon size={18}/></div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap gap-1.5 items-center"><p className="text-sm font-semibold text-fg">{product.name}</p>{product.is_featured && <Badge color="moss"><Sparkles size={10} className="mr-1 inline"/>Pilihan</Badge>}</div>
-                    <p className="text-xs text-fg-muted mt-1">{productTypeLabel(product.product_type)}</p>
-                  </div>
-                </div>
-                <p className="text-sm text-slate-500 mt-3">{productBenefit(product, badgeOptions)}</p>
-                <p className="text-lg font-bold text-accent mt-3">{unavailableCertificatePrice ? 'Harga belum diatur' : formatProductPrice(price, product.currency)}</p>
-                <Button size="sm" fullWidth className="mt-3 w-full" disabled={alreadyOwned || unavailableCertificatePrice || cannotBuySerials} onClick={() => { setSelected(product); setQuantity(1); setProofFile(null); setProofPreview(''); setSelectedParticipantId(''); setError(''); setPaymentMethod(gatewayStatus?.checkoutEnabled ? 'GATEWAY_GLOBAL' : 'BANK_TRANSFER'); }}>
-                  {alreadyOwned ? 'Sudah dimiliki' : unavailableCertificatePrice ? 'Belum tersedia' : cannotBuySerials ? 'Butuh organisasi aktif' : 'Pilih & pesan'}
-                </Button>
-              </div>
-            </Card>;
-          })}
-          {!loading && !products.length && <Card className="p-8 text-center col-span-full text-sm text-slate-500">{language === 'en' ? 'No active competition benefits in the Shop yet. Products appear here after an admin activates them.' : 'Belum ada manfaat lomba aktif di Shop. Produk baru akan tampil di sini setelah admin mengaktifkannya.'}</Card>}
-        </div>
-      </section>
-
+      <ShopExperience
+        products={products}
+        orders={orders}
+        userId={user?.id}
+        loading={loading}
+        historyContent={(
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2"><ShoppingBag size={17} className="text-accent"/><div><h3 className="font-display text-xl font-bold text-fg">{t('orders.history')}</h3><p className="text-xs text-fg-muted mt-0.5">{language === 'en' ? 'View details, continue payment, or clear the list without deleting the admin transaction record.' : 'Lihat detail, lanjutkan pembayaran, atau bersihkan riwayat tanpa menghapus catatan transaksi admin.'}</p></div></div>
@@ -762,6 +708,31 @@ export function OrdersPage() {
           {!loading && !orders.length && <Card className="p-6 text-center text-sm text-slate-500">{language === 'en' ? 'No orders in history yet. New orders will appear here and can be resumed while unpaid.' : 'Belum ada pesanan di riwayat. Pesanan baru akan muncul di sini dan dapat dibuka kembali selama belum dibayar.'}</Card>}
         </div>
       </section>
+        )}
+        productBenefit={(product) => productBenefit(product, badgeOptions)}
+        displayPrice={displayPrice}
+        formatProductPrice={formatProductPrice}
+        getBuyState={(product) => {
+          const badgeId = product.product_type === 'BADGE' ? String(product.metadata?.badge_id ?? '') : '';
+          const alreadyOwned = Boolean(badgeId && ownedBadgeIds.has(badgeId));
+          const unavailableCertificatePrice = product.product_type === 'COLLECTIVE_CERTIFICATE' && displayPrice(product) <= 0;
+          const cannotBuySerials = product.product_type === 'CERTIFICATE_SERIALS' && organizers.length === 0;
+          return {
+            disabled: alreadyOwned || unavailableCertificatePrice || cannotBuySerials,
+            label: alreadyOwned ? 'Sudah dimiliki'
+              : unavailableCertificatePrice ? 'Belum tersedia'
+                : cannotBuySerials ? 'Butuh organisasi aktif' : 'Pilih & pesan',
+          };
+        }}
+        onBuy={(product) => {
+          setSelected(product);
+          setQuantity(1);
+          setProofFile(null);
+          setProofPreview('');
+          setSelectedParticipantId('');
+          setError('');
+        }}
+      />
     </div>
 
     {selectedOrderForDetails && <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4" onClick={(event) => { if (event.target === event.currentTarget) setSelectedOrderForDetails(null); }}>
