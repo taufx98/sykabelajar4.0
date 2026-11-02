@@ -19,7 +19,7 @@ test('dashboard status filters keep registration and cancellation distinct', () 
   }
   assert.match(page, /competitionStatus\s*===\s*'CANCELLED'/);
   assert.match(page, /REGISTRATION_FILTER_STATUSES/);
-  assert.doesNotMatch(page, /REGISTRATION_FILTER_STATUSES[^;]*'cancelled'/);
+  assert.match(page, /REGISTRATION_FILTER_STATUSES: DashboardStatus\[\] = \['pending', 'rejected', 'registered'\]/);
 });
 
 test('agenda milestones are derived from dates returned for the signed-in competitions', () => {
