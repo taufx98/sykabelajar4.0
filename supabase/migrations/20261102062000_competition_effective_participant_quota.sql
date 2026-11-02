@@ -143,6 +143,7 @@ declare
   c public.competitions;
   r public.registration_rules;
   current_count integer := 0;
+  v_effective_maximum integer;
   u uuid := auth.uid();
 begin
   if u is null then
@@ -200,7 +201,12 @@ begin
   end if;
 
   current_count := private.competition_reserved_participant_count(p_competition_id);
-  if current_count >= private.competition_effective_participant_limit(p_competition_id) then
+  if private.current_user_is_admin() then
+    v_effective_maximum := r.max_participants;
+  else
+    v_effective_maximum := private.competition_effective_participant_limit(p_competition_id);
+  end if;
+  if v_effective_maximum is not null and current_count >= v_effective_maximum then
     return jsonb_build_object('eligible', false, 'reason', 'PARTICIPANT_LIMIT_REACHED');
   end if;
 
@@ -224,6 +230,7 @@ declare
   v_student_ids uuid[];
   v_invalid integer;
   v_reserved_count integer;
+  v_effective_maximum integer;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
   if p_certificate_policy not in ('EVENT_DEFAULT', 'INCLUDED', 'OPTIONAL', 'NONE') then
@@ -310,7 +317,12 @@ begin
   end if;
 
   v_reserved_count := private.competition_reserved_participant_count(p_competition_id);
-  if v_reserved_count + v_count > private.competition_effective_participant_limit(p_competition_id) then
+  if private.current_user_is_admin() then
+    v_effective_maximum := v_rule.max_participants;
+  else
+    v_effective_maximum := private.competition_effective_participant_limit(p_competition_id);
+  end if;
+  if v_effective_maximum is not null and v_reserved_count + v_count > v_effective_maximum then
     raise exception 'PARTICIPANT_LIMIT_REACHED';
   end if;
 
