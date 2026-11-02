@@ -48,7 +48,7 @@ test('shop engagement service stores real wishlist, review and hero settings in 
   assert.match(service, /commerce_product_wishlist_counts/);
   assert.match(service, /commerce_product_review_summaries/);
   assert.match(service, /shop_hero_banner/);
-  assert.match(service, /rpc\(['"]save_my_commerce_product_review['"]\)/);
+  assert.match(service, /rpc\(['"]save_my_commerce_product_review['"]\s*,/);
   assert.match(service, /getUser\(/);
   assert.match(service, /hasVerifiedProductPurchase/);
   assert.match(service, /order_items!inner\(product_ref\)/);
