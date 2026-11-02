@@ -5,7 +5,7 @@ begin;
 alter table public.registration_rules
   add column if not exists minimum_participants integer;
 
-do $$
+do $minimum_participant_constraints$
 begin
   if not exists (
     select 1
@@ -17,11 +17,7 @@ begin
       add constraint registration_rules_minimum_participants_positive
       check (minimum_participants is null or minimum_participants >= 1);
   end if;
-end;
-$;
 
-do $
-begin
   if not exists (
     select 1
     from pg_constraint
@@ -37,7 +33,7 @@ begin
       );
   end if;
 end;
-$;
+$minimum_participant_constraints$;
 
 create or replace function public.save_organizer_competition_config(
   p_competition_id uuid,
