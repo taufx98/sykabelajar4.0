@@ -280,6 +280,7 @@ export function ShopExperience({
             {summary && summary.review_count > 0
               ? <span>{summary.average_rating.toFixed(1)}</span>
               : <span className="text-slate-500 font-normal">Belum ada rating</span>}
+            <span className="text-slate-600">•</span>
             <span className="text-slate-500 font-normal">({salesCount.toLocaleString('id-ID')} terjual)</span>
           </div>
           <h3 className="font-bold text-white text-xs md:text-sm line-clamp-1 group-hover:text-blue-400 transition-colors">{product.name}</h3>
