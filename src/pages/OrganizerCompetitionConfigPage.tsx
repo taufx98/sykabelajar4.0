@@ -1,6 +1,6 @@
 import { toast } from "@/lib/toast";
 import { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award, UserRound, Activity, Clock3, Shuffle, FlaskConical, Rocket, BookOpen, Check, Medal } from 'lucide-react';
+import { ArrowLeft, Save, Trophy, Users, CalendarDays, Award, UserRound, Activity, Clock3, Shuffle, FlaskConical, Rocket, BookOpen, Check, Medal, Lock } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -40,11 +40,51 @@ const participantModeOptions = [
   { value: 'COLLECTIVE_ORGANIZATION', label: 'Kolektif oleh Organisasi', description: 'Pendaftaran dikelola oleh sekolah atau organisasi untuk peserta yang diwakilinya.' },
 ] as const;
 
+type OrganizerCompetitionQuota = {
+  plan_code: string;
+  quota_limit: number | null;
+  used_count: number;
+  reset_at: string;
+  can_publish: boolean;
+  is_admin: boolean;
+};
+
+async function refreshOrganizerCompetitionQuota(organizerId: string): Promise<OrganizerCompetitionQuota> {
+  const { data, error } = await supabase.rpc('get_organizer_competition_quota', {
+    p_organizer_id: organizerId,
+  });
+  if (error) throw error;
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+  if (!row) throw new Error('Status kuota publikasi tidak ditemukan.');
+  return {
+    plan_code: String(row.plan_code ?? 'NONE'),
+    quota_limit: row.quota_limit == null ? null : Number(row.quota_limit),
+    used_count: Number(row.used_count ?? 0),
+    reset_at: String(row.reset_at ?? ''),
+    can_publish: Boolean(row.can_publish),
+    is_admin: Boolean(row.is_admin),
+  };
+}
+
+function formatCompetitionQuotaReset(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'tanggal 1 bulan berikutnya';
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  }).format(date);
+}
+
 export function OrganizerCompetitionConfigPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [competition, setCompetition] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [competitionQuota, setCompetitionQuota] = useState<OrganizerCompetitionQuota | null>(null);
+  const [quotaLoading, setQuotaLoading] = useState(true);
+  const [quotaError, setQuotaError] = useState('');
   const [workingAction, setWorkingAction] = useState<'save' | 'preview' | 'release' | null>(null);
   const saving = workingAction !== null;
   const [participantModes, setParticipantModes] = useState<string[]>(['INDIVIDUAL']);
@@ -115,6 +155,65 @@ export function OrganizerCompetitionConfigPage() {
     })();
     return () => { active = false; };
   }, [id]);
+
+  useEffect(() => {
+    const organizerId = String(competition?.organizer_id ?? '');
+    if (!organizerId || competition?.status !== 'DRAFT') {
+      setQuotaLoading(false);
+      return;
+    }
+
+    let active = true;
+    setQuotaLoading(true);
+    setQuotaError('');
+    void refreshOrganizerCompetitionQuota(organizerId)
+      .then((quota) => {
+        if (active) setCompetitionQuota(quota);
+      })
+      .catch((error: any) => {
+        if (!active) return;
+        setCompetitionQuota(null);
+        setQuotaError(String(error?.message ?? 'Status kuota belum dapat diperiksa.'));
+      })
+      .finally(() => {
+        if (active) setQuotaLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [competition?.organizer_id, competition?.status]);
+
+  useEffect(() => {
+    const organizerId = String(competition?.organizer_id ?? '');
+    const resetAt = competitionQuota?.reset_at;
+    if (!organizerId || !resetAt || competition?.status !== 'DRAFT') return;
+
+    let timer = 0;
+    const scheduleResetRefresh = () => {
+      const remaining = new Date(resetAt).getTime() - Date.now();
+      if (remaining > 0) {
+        timer = window.setTimeout(
+          scheduleResetRefresh,
+          Math.min(remaining + 500, 2_147_000_000),
+        );
+        return;
+      }
+
+      setQuotaLoading(true);
+      void refreshOrganizerCompetitionQuota(organizerId)
+        .then((quota) => {
+          setCompetitionQuota(quota);
+          setQuotaError('');
+        })
+        .catch((error: any) => {
+          setCompetitionQuota(null);
+          setQuotaError(String(error?.message ?? 'Status kuota belum dapat diperiksa.'));
+        })
+        .finally(() => setQuotaLoading(false));
+    };
+
+    scheduleResetRefresh();
+    return () => window.clearTimeout(timer);
+  }, [competition?.organizer_id, competition?.status, competitionQuota?.reset_at]);
 
   useEffect(() => {
     let active = true;
@@ -262,6 +361,27 @@ export function OrganizerCompetitionConfigPage() {
         toast.error('Lengkapi seluruh jadwal lomba sebelum Release.');
       } else if (message.includes('COMPETITION_TIMELINE_INVALID')) {
         toast.error('Periksa kembali urutan jadwal pendaftaran dan pelaksanaan lomba.');
+      } else if (message.includes('COMPETITION_QUOTA_EXCEEDED')) {
+        const organizerId = String(competition?.organizer_id ?? '');
+        let refreshedQuota: OrganizerCompetitionQuota | null = null;
+        if (organizerId) {
+          setQuotaLoading(true);
+          try {
+            refreshedQuota = await refreshOrganizerCompetitionQuota(organizerId);
+            setCompetitionQuota(refreshedQuota);
+            setQuotaError('');
+          } catch {
+            setCompetitionQuota(null);
+            setQuotaError('Status kuota belum dapat diperiksa.');
+          } finally {
+            setQuotaLoading(false);
+          }
+        }
+        const resetAt = refreshedQuota?.reset_at ?? competitionQuota?.reset_at;
+        const resetMessage = resetAt
+          ? `Kuota tersedia kembali pada ${formatCompetitionQuotaReset(resetAt)}, pukul 00.00 WIB.`
+          : 'Kuota akan tersedia kembali pada tanggal 1 bulan berikutnya pukul 00.00 WIB.';
+        toast.error(`Kuota publikasi bulan ini sudah habis. ${resetMessage}`);
       } else {
         toast.error(error?.message ?? 'Gagal menyimpan konfigurasi lomba.');
       }
@@ -442,11 +562,29 @@ export function OrganizerCompetitionConfigPage() {
             })}
           </div>
         </Card>
+        {competition.status === 'DRAFT' && <Card className="border border-accent/15 bg-accent/5 p-4 md:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><Trophy size={18}/></div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-fg">Kuota publikasi lomba</p>
+              {quotaLoading ? <p className="mt-1 text-sm text-fg-muted">Memeriksa kuota paket…</p> : competitionQuota ? competitionQuota.is_admin ? (
+                <p className="mt-1 text-sm text-fg-muted">Akses administrator tidak dibatasi kuota publikasi.</p>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm text-fg-muted">Terpakai <strong className="text-fg">{competitionQuota.used_count.toLocaleString('id-ID')}</strong> dari <strong className="text-fg">{Number(competitionQuota.quota_limit ?? 0).toLocaleString('id-ID')}</strong> publikasi bulan ini · Paket {competitionQuota.plan_code}.</p>
+                  <p className="mt-1 text-xs text-fg-muted">Kuota direset pada tanggal 1 setiap bulan, pukul 00.00 WIB. Reset berikutnya: <strong className="text-fg">{formatCompetitionQuotaReset(competitionQuota.reset_at)}, 00.00 WIB</strong>.</p>
+                  {!competitionQuota.can_publish && <p className="mt-2 text-sm font-medium text-amber-300">Kuota bulan ini sudah habis. Simpan Konfigurasi tetap tersedia; Release akan terbuka kembali saat kuota direset.</p>}
+                  {competitionQuota.can_publish && <p className="mt-2 text-xs text-fg-muted">Sisa kuota: {Math.max(0, Number(competitionQuota.quota_limit ?? 0) - competitionQuota.used_count).toLocaleString('id-ID')} publikasi.</p>}
+                </>
+              ) : <p className="mt-1 text-sm text-amber-300">{quotaError || 'Status kuota belum dapat diperiksa. Muat ulang halaman untuk mencoba lagi.'} Tombol Release dikunci sementara, tetapi konfigurasi tetap bisa disimpan.</p>}
+            </div>
+          </div>
+        </Card>}
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
           <Button type="submit" variant="outline" loading={workingAction === 'save'} disabled={saving} icon={<Save size={17}/>}>Simpan Konfigurasi</Button>
           {competition.status === 'DRAFT' && <>
             <Button type="button" variant="outline" loading={workingAction === 'preview'} disabled={saving || questionCountLoading} icon={<FlaskConical size={17}/>} onClick={() => void saveConfiguration('preview')}>Simulasi</Button>
-            <Button type="button" loading={workingAction === 'release'} disabled={saving || questionCountLoading} icon={<Rocket size={17}/>} onClick={() => void saveConfiguration('release')}>Release · Terbitkan Lomba</Button>
+            <Button type="button" loading={workingAction === 'release'} disabled={saving || questionCountLoading || quotaLoading || competitionQuota?.can_publish !== true} icon={competitionQuota?.can_publish ? <Rocket size={17}/> : <Lock size={17}/>} onClick={() => void saveConfiguration('release')}>{quotaLoading ? 'Memeriksa Kuota…' : competitionQuota?.can_publish ? 'Release · Terbitkan Lomba' : 'Kuota Habis'}</Button>
           </>}
         </div>
       </form>
