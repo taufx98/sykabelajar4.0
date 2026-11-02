@@ -54,7 +54,7 @@ test('shop engagement service stores real wishlist, review and hero settings in 
   assert.match(service, /order_items!inner\(product_ref\)/);
 });
 
-test('Shop has catalog, order history and product-only whitelist tabs', () => {
+test('Shop catalog, product cards, toolbar, and detail modal follow the supplied visual reference', () => {
   assert.match(shop, /Katalog Shop/);
   assert.match(shop, /Status & History/);
   assert.match(shop, /Whitelist/);
@@ -63,8 +63,30 @@ test('Shop has catalog, order history and product-only whitelist tabs', () => {
   assert.match(shop, /removeWishlistItem/);
   assert.match(shop, /listProductReviewSummaries/);
   assert.match(shop, /saveProductReview/);
-  assert.match(shop, /grid-cols-2[\s\S]*?xl:grid-cols-4/);
+  assert.match(shop, /relative h-40 overflow-hidden bg-slate-900/);
+  assert.match(shop, /bg-\[#151F32\] border border-slate-800\/90 hover:border-blue-500\/40 rounded-2xl/);
+  assert.match(shop, /sticky top-\[10px\] z-10 bg-\[#151F32\]\/95 backdrop-blur-md/);
+  assert.match(shop, /Cari item, coin, atau barcode sertifikat/);
+  assert.match(shop, /Harga Termahal/);
+  assert.match(shop, /Harga Termurah/);
+  assert.match(shop, /Rating Tertinggi/);
+  assert.match(shop, /Rating Terendah/);
+  assert.match(shop, /Paling Populer/);
+  assert.match(shop, /grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5/);
+  assert.match(shop, /Detail & Ulasan Produk/);
+  assert.match(shop, /Favorit & Whitelist Saya/);
   assert.match(shop, /historyContent/);
+});
+
+test('banner copy and visual defaults match the supplied Shop hero', () => {
+  assert.match(service, /badge: 'Diskon Khusus Peserta Lomba'/);
+  assert.match(service, /title: 'Dengan membeli produk,\\nkamu mendukung website ini untuk terus berkembang!'/);
+  assert.match(service, /Dapatkan Edu Coin, Kartu Bypass, Voucher Diskon Pendaftaran, hingga Layanan lainnya untuk menunjang kebutuhanmu/);
+  assert.match(shop, /from-\[#0F172A\] via-\[#1E1B4B\] to-\[#0F172A\]/);
+  assert.match(shop, /mix-blend-luminosity/);
+  assert.match(shop, /mask-image/);
+  assert.match(adminPanel, /whitespace-pre-line/);
+  assert.match(adminPanel, /Baris baru akan dipertahankan/);
 });
 
 test('ratings can only be submitted after the current user has a paid or completed order', () => {
@@ -92,13 +114,25 @@ test('global header scrolls with the document and the Shop does not add a second
   assert.match(ordersPage, /<ShopExperience/);
 });
 
-test('the Shop checkout continues to use configured payment methods and existing secure order services', () => {
-  assert.match(ordersPage, /listOrganizerPaymentMethods/);
+test('the three-step Shop checkout follows the reference while using configured payment methods and secure order services', () => {
+  assert.match(ordersPage, /Detail & Jumlah/);
+  assert.match(ordersPage, /Metode Bayar/);
+  assert.match(ordersPage, /Konfirmasi/);
+  assert.match(ordersPage, /checkoutPaymentMethods\.map/);
+  assert.match(ordersPage, /selectedPaymentMethod\.details/);
   assert.match(ordersPage, /createProductOrderWithEduCoin/);
   assert.match(ordersPage, /createProductOrderWithProof/);
   assert.match(ordersPage, /createCheckoutPayment/);
   assert.match(ordersPage, /reconcileGatewayPaymentReturn/);
+  assert.doesNotMatch(ordersPage, /88301 0812 3456 7890|8830 123 999|SYKABELAJAR OFFICIAL/);
   assert.doesNotMatch(ordersPage, /setPaymentMethod\(gatewayStatus\?\.checkoutEnabled \? 'GATEWAY_GLOBAL' : 'BANK_TRANSFER'\)/);
+});
+
+test('admin banner editor keeps the reference headline line breaks and previews the same layout', () => {
+  assert.match(adminPanel, /Judul banner[\s\S]*?textarea/);
+  assert.match(adminPanel, /bg-gradient-to-r from-\[#0F172A\] via-\[#1E1B4B\] to-\[#0F172A\]/);
+  assert.match(adminPanel, /mix-blend-luminosity/);
+  assert.match(adminPanel, /mask-image/);
 });
 
 test('admin hero configuration is saved through the existing platform settings row', () => {
