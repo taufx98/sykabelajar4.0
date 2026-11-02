@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   ClipboardList,
   Clock3,
@@ -397,7 +398,7 @@ function CompetitionCard({
           {viewMode === 'list' && (
             <span className={'rounded-full border px-2.5 py-1 text-[9px] font-bold ' + meta.className}>{meta.label}</span>
           )}
-          <span className="inline-flex items-center gap-1 rounded-md border border-accent/15 bg-accent/5 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-accent">
+          <span className="inline-flex items-center gap-1 rounded-md border border-slate-700/70 bg-slate-800/50 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-indigo-300">
             {competition.category || 'Kompetisi'}
           </span>
           <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-slate-400">
@@ -521,7 +522,7 @@ function AgendaModal({
         <div className="space-y-2">
           {events.map((event) => (
             <div key={event.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-800/45 p-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/15 bg-accent/10 text-accent">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-700/60 bg-indigo-500/10 text-indigo-300">
                 <CalendarClock size={17} />
               </span>
               <div className="min-w-0 flex-1">
@@ -804,8 +805,8 @@ function CertificateHistoryModal({
       }
     >
       <div className="space-y-4">
-        <div className="flex items-start gap-3 rounded-xl border border-accent/15 bg-accent/5 p-3.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><Award size={17} /></span>
+        <div className="flex items-start gap-3 rounded-xl border border-slate-700/55 bg-slate-800/35 p-3.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-700/60 bg-indigo-500/10 text-indigo-300"><Award size={17} /></span>
           <p className="text-[11px] leading-relaxed text-slate-400">
             Dokumen diambil dari riwayat sertifikat peserta yang terhubung dengan akunmu. Tautan dokumen hanya ditampilkan ketika URL sertifikat tersedia dari sistem.
           </p>
@@ -881,7 +882,7 @@ function CertificateHistoryModal({
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-md border border-accent/15 bg-accent/5 px-2 py-0.5 text-[9px] font-bold text-accent">{certificateTypeLabel(certificate.certificate_type)}</span>
+                        <span className="rounded-md border border-slate-700/70 bg-slate-800/50 px-2 py-0.5 text-[9px] font-bold text-indigo-300">{certificateTypeLabel(certificate.certificate_type)}</span>
                         <span className={'rounded-md px-2 py-0.5 text-[9px] font-bold ' + (published ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>
                           {published ? 'Diterbitkan' : status ? status.replaceAll('_', ' ') : 'Dalam proses'}
                         </span>
@@ -1003,6 +1004,12 @@ export function MyCompetitionsPage() {
       const bDate = b.competition.starts_at ? new Date(b.competition.starts_at).getTime() : Number.MAX_SAFE_INTEGER;
       return aDate - bDate;
     })[0] ?? null, [items]);
+
+  const activeFilterIndex = Math.max(0, FILTERS.findIndex((tab) => tab.id === filter));
+  const stepFilter = (direction: -1 | 1) => {
+    const nextFilter = FILTERS[activeFilterIndex + direction];
+    if (nextFilter) setFilter(nextFilter.id);
+  };
 
   const openCertificates = (competitionId: string | null = null) => {
     setCertificateCompetitionFilter(competitionId);
@@ -1144,58 +1151,91 @@ export function MyCompetitionsPage() {
           />
         </section>
 
-        <Card className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 shadow-lg shadow-black/10">
-          <div className="flex flex-col-reverse gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="no-scrollbar flex min-w-0 gap-1.5 overflow-x-auto py-0.5" role="tablist" aria-label="Filter status lomba">
-              {FILTERS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={filter === tab.id}
-                  onClick={() => setFilter(tab.id)}
-                  className={'inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-[10px] font-bold transition sm:text-[11px] ' + (filter === tab.id
-                    ? 'border-indigo-500 bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-950/40'
-                    : 'border-slate-800 bg-slate-800/60 text-slate-400 hover:border-slate-700 hover:text-slate-100')}
-                >
-                  <span>{tab.label}</span>
-                  <span className={'rounded-full px-1.5 py-0.5 text-[9px] tabular-nums ' + (filter === tab.id ? 'bg-white/15 text-white' : 'bg-slate-950 text-slate-400')}>
-                    {counts[tab.id]}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="flex w-full min-w-0 items-center gap-2 lg:w-auto">
-              <label className="relative block min-w-0 flex-1 lg:w-64 lg:flex-none">
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Card className="rounded-2xl border border-slate-800/90 bg-slate-900/90 p-4 shadow-lg shadow-black/10 sm:p-5">
+          <div className="space-y-4">
+            <div className="my-competitions-toolbar-top flex min-w-0 items-center gap-2.5">
+              <label className="relative block min-w-0 flex-1">
+                <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Cari lomba atau peserta..."
                   aria-label="Cari lomba atau peserta"
-                  className="input w-full py-2 pl-9 text-xs"
+                  className="input w-full py-2.5 pl-10 text-xs sm:text-sm"
                 />
               </label>
-              <div className="flex shrink-0 items-center rounded-xl border border-slate-800 bg-slate-800/70 p-1">
+              <div className="flex shrink-0 items-center rounded-xl border border-slate-700/70 bg-slate-800/70 p-1">
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
                   aria-label="Tampilan grid"
                   aria-pressed={viewMode === 'grid'}
-                  className={'flex h-8 w-8 items-center justify-center rounded-lg transition ' + (viewMode === 'grid' ? 'bg-accent text-white shadow' : 'text-slate-400 hover:text-slate-100')}
+                  className={'flex h-9 w-9 items-center justify-center rounded-lg transition ' + (viewMode === 'grid'
+                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-950/40'
+                    : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-100')}
                 >
-                  <LayoutGrid size={15} />
+                  <LayoutGrid size={16} />
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode('list')}
                   aria-label="Tampilan daftar"
                   aria-pressed={viewMode === 'list'}
-                  className={'flex h-8 w-8 items-center justify-center rounded-lg transition ' + (viewMode === 'list' ? 'bg-accent text-white shadow' : 'text-slate-400 hover:text-slate-100')}
+                  className={'flex h-9 w-9 items-center justify-center rounded-lg transition ' + (viewMode === 'list'
+                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-950/40'
+                    : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-100')}
                 >
-                  <List size={15} />
+                  <List size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="my-competitions-filter-row border-t border-slate-800/80 pt-3.5">
+              <div className="hidden flex-wrap gap-2 sm:flex" role="tablist" aria-label="Filter status lomba">
+                {FILTERS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={filter === tab.id}
+                    onClick={() => setFilter(tab.id)}
+                    className={'inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-[10px] font-bold transition sm:text-[11px] ' + (filter === tab.id
+                      ? 'border-indigo-500 bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-950/40'
+                      : 'border-slate-700/70 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:bg-slate-800 hover:text-slate-100')}
+                  >
+                    <span>{tab.label}</span>
+                    <span className={'rounded-full px-1.5 py-0.5 text-[9px] tabular-nums ' + (filter === tab.id ? 'bg-white/15 text-white' : 'bg-slate-950/70 text-slate-400')}>
+                      {counts[tab.id]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="my-competitions-mobile-filter-switcher flex items-center justify-between gap-3 rounded-xl border border-slate-700/70 bg-slate-950/55 p-1.5 sm:hidden" role="group" aria-label="Navigasi filter lomba">
+                <button
+                  type="button"
+                  aria-label="Filter sebelumnya"
+                  onClick={() => stepFilter(-1)}
+                  disabled={activeFilterIndex <= 0}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700/70 bg-slate-800/70 text-slate-200 transition hover:border-indigo-400/35 hover:bg-slate-700/80 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ChevronLeft size={18} aria-hidden="true" />
+                </button>
+                <span className="flex min-w-0 flex-1 items-center justify-center gap-2 px-1 text-center" aria-live="polite">
+                  <span className="truncate text-xs font-extrabold text-slate-100">{FILTERS[activeFilterIndex].label}</span>
+                  <span className="shrink-0 rounded-full border border-indigo-400/15 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold tabular-nums text-indigo-300">
+                    {counts[filter]}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  aria-label="Filter berikutnya"
+                  onClick={() => stepFilter(1)}
+                  disabled={activeFilterIndex >= FILTERS.length - 1}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700/70 bg-slate-800/70 text-slate-200 transition hover:border-indigo-400/35 hover:bg-slate-700/80 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ChevronRight size={18} aria-hidden="true" />
                 </button>
               </div>
             </div>
