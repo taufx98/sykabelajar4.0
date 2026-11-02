@@ -1,6 +1,6 @@
 import { toast } from '@/lib/toast';
 import { useEffect, useMemo, useState } from 'react';
-import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, Package, Eye, EyeOff, Sparkles, Image as ImageIcon, Copy, Gift } from 'lucide-react';
+import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, Package, Eye, EyeOff, Sparkles, Image as ImageIcon, Copy, Gift, CreditCard } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
@@ -13,6 +13,7 @@ import { banUser, deleteCompetition, deletePost, deleteProduct, forceDeleteCompe
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { ShopProductEditor, type ShopProductDraft } from '@/components/admin/ShopProductEditor';
 import { ReferralSettingsPanel } from '@/components/admin/ReferralSettingsPanel';
+import { ShopInsightsPanel } from '@/components/admin/ShopInsightsPanel';
 
 type CoreAdminTab = 'dashboard' | 'competitions' | 'users' | 'posts' | 'orders' | 'shop' | 'settings' | 'referral';
 const tabs: { key: CoreAdminTab; label: string; icon: typeof Trophy }[] = [
@@ -266,6 +267,7 @@ export function AdminPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link to="/admin/orders/review"><Button size="sm" variant="outline" icon={<ShoppingBag size={14}/>}>Verifikasi pembayaran{pendingPaymentReviewCount > 0 ? ` (${pendingPaymentReviewCount})` : ''}</Button></Link>
+            <Link to="/admin/payment-settings"><Button size="sm" variant="outline" icon={<CreditCard size={14}/>}>Pengaturan pembayaran</Button></Link>
             <Button size="sm" icon={<Plus size={14}/>} onClick={() => setProductEditor({code:'',slug:'',name:'',short_description:'',description:'',product_type:'DIGITAL_ITEM',audiences:['student'],price:0,currency:'IDR',image_url:'',is_active:false,is_featured:false,sort_order:products.length,metadata:{}})}>Tambah produk</Button>
           </div>
         </div>
@@ -336,6 +338,7 @@ export function AdminPage() {
                   </Card>;
                 })}
               </div>}
+        <ShopInsightsPanel products={products}/>
       </div>}
       {tab === 'settings' && <Card className="p-5"><h3 className="font-semibold text-fg">Pengaturan Platform</h3><p className="text-sm text-fg-muted mt-1">Akses lanjutan tetap tersedia melalui modul admin khusus.</p><Link to="/admin/roles" className="inline-block mt-4"><Button icon={<ShieldCheck size={15}/>}>Role & Akses</Button></Link></Card>}
       {tab === 'referral' && <ReferralSettingsPanel />}
