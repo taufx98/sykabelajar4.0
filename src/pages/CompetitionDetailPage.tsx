@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { CommentsSection } from '@/components/ui/Comments';
 import { CompetitionRegistrationModal } from '@/components/competition/CompetitionRegistrationModal';
 import { useApp } from '@/store/AppContext';
-import { getCompetitionBySlug, getCompetitionDetails, syncCompetitionRegistrationStatus } from '@/services/competition.service';
+import { getCompetitionBySlug, getCompetitionDetails, getPublicCompetitionParticipants, syncCompetitionRegistrationStatus, type PublicCompetitionParticipants } from '@/services/competition.service';
 import { listCompetitionPosts } from '@/services/social.service';
 import { CATEGORY_LABELS, LEVEL_LABELS } from '@/data/catalog';
 import { countdown } from '@/lib/utils';
@@ -110,13 +110,35 @@ export function CompetitionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [postId, setPostId] = useState<string | null>(null);
+  const [participantDirectory, setParticipantDirectory] = useState<PublicCompetitionParticipants | null>(null);
+  const [participantsLoadingMore, setParticipantsLoadingMore] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [juknisOpen, setJuknisOpen] = useState(false);
   const [clock, setClock] = useState(Date.now());
 
   const refreshDetail = async (competitionId: string) => {
-    const refreshed = await getCompetitionDetails(competitionId);
+    const [refreshed, participants] = await Promise.all([
+      getCompetitionDetails(competitionId),
+      getPublicCompetitionParticipants(slug, 20, 0),
+    ]);
     if (refreshed) setDetail(refreshed);
+    setParticipantDirectory(participants);
+  };
+
+  const loadMoreParticipants = async () => {
+    if (!participantDirectory || participantsLoadingMore || participantDirectory.participants.length >= participantDirectory.participant_count) return;
+    setParticipantsLoadingMore(true);
+    try {
+      const next = await getPublicCompetitionParticipants(slug, 20, participantDirectory.participants.length);
+      setParticipantDirectory((current) => current ? {
+        ...next,
+        participants: current.participants.concat(next.participants),
+      } : next);
+    } catch (loadError) {
+      toast(loadError instanceof Error ? loadError.message : 'Daftar peserta gagal dimuat.', 'error');
+    } finally {
+      setParticipantsLoadingMore(false);
+    }
   };
 
   useEffect(() => {
@@ -138,13 +160,15 @@ export function CompetitionDetailPage() {
         // competition only; no background page polling is needed.
         await syncCompetitionRegistrationStatus(String(base.id)).catch(() => null);
 
-        const [next, posts] = await Promise.all([
+        const [next, posts, participants] = await Promise.all([
           getCompetitionDetails(String(base.id)),
           listCompetitionPosts(String(base.id), 1),
+          getPublicCompetitionParticipants(slug, 20, 0),
         ]);
         if (active) {
           setDetail(next);
           setPostId(posts[0]?.id ?? null);
+          setParticipantDirectory(participants);
         }
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : 'Gagal memuat detail lomba.');
@@ -165,10 +189,16 @@ export function CompetitionDetailPage() {
   const organizer = detail?.organizer;
   const rewards = detail?.rewards ?? [];
   const levels = detail?.levels ?? [];
-  const participantCount = Number(detail?.participantCount ?? competition?.participant_count ?? 0);
+  const participantCount = Number(participantDirectory?.participant_count ?? detail?.participantCount ?? competition?.participant_count ?? 0);
+  const quotaCount = Number(participantDirectory?.quota_count ?? participantCount);
   const questionCount = Number(detail?.questionCount ?? 0);
-  const capacity = rules?.max_participants == null ? null : Math.max(0, Number(rules.max_participants));
-  const remainingCapacity = capacity == null ? null : Math.max(0, capacity - participantCount);
+  const capacityValue = rules?.max_participants ?? participantDirectory?.maximum_participants;
+  const capacity = capacityValue == null ? null : Math.max(0, Number(capacityValue));
+  const minimumValue = rules?.minimum_participants ?? participantDirectory?.minimum_participants;
+  const minimumTarget = minimumValue == null ? null : Math.max(1, Number(minimumValue));
+  const remainingCapacity = capacity == null ? null : Math.max(0, capacity - quotaCount);
+  const minimumProgress = minimumTarget == null ? 0 : Math.min(100, Math.round((participantCount / minimumTarget) * 100));
+  const capacityProgress = capacity == null ? 0 : Math.min(100, Math.round((quotaCount / Math.max(1, capacity)) * 100));
 
   const cd = competition?.registration_ends_at
     ? countdown(String(competition.registration_ends_at))
@@ -258,6 +288,7 @@ export function CompetitionDetailPage() {
     || timelineStageActive(competition.announcement_at, null, clock);
   const isExamLive = competition.status === 'LIVE';
   const isCompleted = ['RESULT_PUBLISHED', 'ARCHIVED'].includes(String(competition.status));
+  const resultsPublished = isCompleted && competition.visibility === 'PUBLIC';
   const startedDate = shortDate(competition.starts_at);
   const organizerName = String(organizer?.name ?? 'Penyelenggara');
   const remainingText = remainingCapacity == null ? 'Tidak dibatasi' : remainingCapacity.toLocaleString('id-ID');
@@ -337,6 +368,19 @@ export function CompetitionDetailPage() {
               </div>
             </div>
           </Card>
+          {(minimumTarget != null || capacity != null) && <Card className="p-4 sm:p-5">
+            <h2 className="mb-4 text-sm font-bold text-fg">Target & Kuota Peserta</h2>
+            {minimumTarget != null && <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between gap-3"><span className="text-xs font-semibold text-fg-secondary">Target minimum</span><span className="text-xs font-bold tabular-nums text-fg">{participantCount.toLocaleString('id-ID')} / {minimumTarget.toLocaleString('id-ID')}</span></div>
+              <div className="h-2 overflow-hidden rounded-full bg-surface-elevated"><div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: minimumProgress + '%' }}/></div>
+              <p className={'mt-2 text-[11px] ' + (participantCount >= minimumTarget ? 'text-emerald-500' : 'text-fg-muted')}>{participantCount >= minimumTarget ? 'Target minimum telah tercapai' : 'Masih membutuhkan ' + (minimumTarget - participantCount).toLocaleString('id-ID') + ' peserta lagi'}</p>
+            </div>}
+            {capacity != null && <div>
+              <div className="mb-2 flex items-center justify-between gap-3"><span className="text-xs font-semibold text-fg-secondary">Batas maksimum</span><span className="text-xs font-bold tabular-nums text-fg">{quotaCount.toLocaleString('id-ID')} / {capacity.toLocaleString('id-ID')}</span></div>
+              <div className="h-2 overflow-hidden rounded-full bg-surface-elevated"><div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: capacityProgress + '%' }}/></div>
+              <p className="mt-2 text-[11px] text-fg-muted">{remainingCapacity === 0 ? 'Kuota telah penuh' : 'Sisa kuota ' + remainingText + ' peserta'}</p>
+            </div>}
+          </Card>}
           <Card className="flex items-start gap-2.5 p-4">
             <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-accent"/>
             <p className="text-[11px] leading-relaxed text-fg-muted">Pendaftaran disimpan pada akun SykaBelajar. Status persetujuan mengikuti ketentuan penyelenggara.</p>
@@ -374,7 +418,8 @@ export function CompetitionDetailPage() {
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Rule label="Persetujuan Pendaftaran" value={rules?.approval_mode === 'AUTO' ? 'Otomatis' : 'Ditinjau Panitia'}/>
-              <Rule label="Kuota Peserta" value={capacity == null ? 'Tidak dibatasi' : capacity.toLocaleString('id-ID') + ' Peserta'}/>
+              <Rule label="Target Minimum" value={minimumTarget == null ? 'Tidak ditentukan' : minimumTarget.toLocaleString('id-ID') + ' Peserta'}/>
+              <Rule label="Kuota Maksimum" value={capacity == null ? 'Tidak dibatasi' : capacity.toLocaleString('id-ID') + ' Peserta'}/>
               <Rule label="Twibbon" value={rules?.require_twibbon ? 'Wajib' : 'Tidak wajib'} accent={Boolean(rules?.require_twibbon)}/>
               <Rule label="Bukti Media Sosial" value={rules?.require_social_proof ? 'Wajib' : 'Tidak wajib'} accent={Boolean(rules?.require_social_proof)}/>
             </div>
@@ -396,6 +441,54 @@ export function CompetitionDetailPage() {
           </Card>
 
 
+
+          <Card className="p-5 sm:p-6">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <SectionHeading icon={<Users size={17}/>} title={resultsPublished ? "Peserta & Hasil Resmi" : "Daftar Peserta"} subtitle={resultsPublished ? "Pengumuman hasil resmi per peserta. Buka Detail untuk melihat durasi, nilai, dan ringkasan jawaban." : "Daftar peserta dengan pendaftaran yang telah disetujui. Informasi identitas ditampilkan seperlunya."}/>
+              {isCompleted && competition.visibility === 'PUBLIC' && <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil'} className="shrink-0"><Button size="sm" variant="outline" icon={<Trophy size={14}/>}>Hasil Resmi</Button></Link>}
+            </div>
+            {participantDirectory?.participants.length ? <>
+              <div className="hidden overflow-x-auto sm:block">
+                <table className={'w-full text-left text-sm ' + (resultsPublished ? 'min-w-[880px]' : 'min-w-[540px]')}>
+                  <thead className="bg-surface-elevated/50 text-[11px] text-fg-muted"><tr>
+                    <th className="px-3 py-3 font-semibold">Peserta</th>
+                    <th className="px-3 py-3 font-semibold">Jenjang / Kelas</th>
+                    <th className="px-3 py-3 font-semibold">Sekolah</th>
+                    {resultsPublished && <><th className="px-3 py-3 text-right font-semibold">Peringkat</th><th className="px-3 py-3 text-right font-semibold">Nilai</th><th className="px-3 py-3 text-right font-semibold">Detail</th></>}
+                  </tr></thead>
+                  <tbody className="divide-y divide-border/70">
+                    {participantDirectory.participants.map((participant) => <tr key={participant.participant_id}>
+                      <td className="px-3 py-3 font-semibold text-fg">{participant.full_name}</td>
+                      <td className="px-3 py-3 text-xs text-fg-muted">{[participant.grade, participant.class_name].filter(Boolean).join(' · ') || '—'}</td>
+                      <td className="px-3 py-3 text-xs text-fg-muted">{participant.school_name || '—'}</td>
+                      {resultsPublished && <>
+                        <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-fg">{participant.rank == null ? '—' : '#' + participant.rank.toLocaleString('id-ID')}</td>
+                        <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-fg">{participant.score == null ? '—' : Number(participant.score).toLocaleString('id-ID')}</td>
+                        <td className="px-3 py-3 text-right">
+                          {participant.rank != null && <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil?participant=' + encodeURIComponent(participant.participant_id)}><Button size="sm" variant="outline">Detail</Button></Link>}
+                        </td>
+                      </>}
+                    </tr>)}
+                  </tbody>
+                </table>
+              </div>
+              <div className="divide-y divide-border sm:hidden">
+                {participantDirectory.participants.map((participant) => <div key={participant.participant_id} className="py-3">
+                  <p className="text-sm font-semibold text-fg">{participant.full_name}</p>
+                  <p className="mt-1 text-[11px] text-fg-muted">{[participant.grade, participant.class_name, participant.school_name].filter(Boolean).join(' · ') || 'Informasi kelas belum tersedia'}</p>
+                  {resultsPublished && <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex gap-3 text-xs"><span className="font-semibold text-fg">{participant.rank == null ? 'Belum ada peringkat' : '#' + participant.rank}</span><span className="tabular-nums text-fg-muted">{participant.score == null ? '—' : Number(participant.score).toLocaleString('id-ID') + ' nilai'}</span></div>
+                    {participant.rank != null && <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil?participant=' + encodeURIComponent(participant.participant_id)}><Button size="sm" variant="outline">Detail</Button></Link>}
+                  </div>}
+                </div>)}
+              </div>
+              {participantDirectory.participants.length < participantDirectory.participant_count && <div className="mt-4 border-t border-border pt-4 text-center">
+                <p className="mb-2 text-[10px] text-fg-muted">Menampilkan {participantDirectory.participants.length.toLocaleString('id-ID')} dari {participantDirectory.participant_count.toLocaleString('id-ID')} peserta</p>
+                <Button size="sm" variant="outline" loading={participantsLoadingMore} onClick={() => void loadMoreParticipants()}>Muat peserta lainnya</Button>
+              </div>}
+            </> : <p className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-fg-muted">Belum ada peserta yang disetujui untuk ditampilkan.</p>}
+            {resultsPublished && <p className="mt-3 text-[11px] text-fg-muted">Peringkat dan nilai ditampilkan setelah hasil resmi diterbitkan. Tombol Detail membuka ringkasan performa peserta tanpa menampilkan isi jawaban atau kunci soal.</p>}
+          </Card>
 
           {postId ? <Card className="p-5 sm:p-6"><CommentsSection postId={postId}/></Card> : <Card className="p-4"><p className="text-[11px] text-fg-muted">Komentar akan tersedia setelah postingan lomba dibuat.</p></Card>}
         </div>

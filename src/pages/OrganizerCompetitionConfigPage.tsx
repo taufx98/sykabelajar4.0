@@ -57,7 +57,7 @@ export function OrganizerCompetitionConfigPage() {
   const [randomizeOptions, setRandomizeOptions] = useState(false);
   const [form, setForm] = useState<CompetitionConfigInput>({
     level: { code: 'general', label: 'Umum', allowed_grades: grades, points: 0 },
-    registration_rule: { allowed_grades: grades, require_twibbon: false, require_social_proof: false, express_enabled: false, express_cost: 0, max_participants: null, approval_mode: 'MANUAL' },
+    registration_rule: { allowed_grades: grades, require_twibbon: false, require_social_proof: false, express_enabled: false, express_cost: 0, minimum_participants: null, max_participants: null, approval_mode: 'MANUAL' },
     rewards: [
       { rank_code: 'FIRST', title: 'Juara 1', points: 0, emblem_name: '', certificate_enabled: true },
       { rank_code: 'SECOND', title: 'Juara 2', points: 0, emblem_name: '', certificate_enabled: true },
@@ -170,6 +170,20 @@ export function OrganizerCompetitionConfigPage() {
     }
     if (action === 'release' && !window.confirm('Terbitkan lomba ini sekarang? Setelah diterbitkan, peserta dapat melihatnya sesuai jadwal dan aturan pendaftaran.')) return;
     if (participantModes.length === 0) { toast.error('Pilih minimal satu cara pendaftaran peserta.'); return; }
+    const minimumParticipants = form.registration_rule.minimum_participants;
+    const maximumParticipants = form.registration_rule.max_participants;
+    if (minimumParticipants != null && (!Number.isInteger(minimumParticipants) || minimumParticipants < 1)) {
+      toast.error('Target minimum harus berupa bilangan bulat minimal 1 peserta.');
+      return;
+    }
+    if (maximumParticipants != null && (!Number.isInteger(maximumParticipants) || maximumParticipants < 1)) {
+      toast.error('Batas maksimum harus berupa bilangan bulat minimal 1 peserta.');
+      return;
+    }
+    if (minimumParticipants != null && maximumParticipants != null && minimumParticipants > maximumParticipants) {
+      toast.error('Target minimum tidak boleh lebih besar dari batas maksimum.');
+      return;
+    }
     const duration = Number(durationMinutes);
     if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
       toast.error('Durasi ujian harus 1 sampai 1.440 menit.');
@@ -377,7 +391,30 @@ export function OrganizerCompetitionConfigPage() {
             <Input label="Pengumuman" type="datetime-local" value={toLocalDateTimeInput(form.level.announcement_at)} onChange={(v)=>updateLevel('announcement_at',v)}/>
           </div>
         </Card>
-        <Card className="p-5"><div className="flex items-center gap-2 mb-4 text-fg font-semibold"><Users size={18} className="text-accent"/> Syarat Pendaftaran</div><div className="grid md:grid-cols-2 gap-4"><Input label="Maksimal peserta" type="number" value={form.registration_rule.max_participants == null ? '' : String(form.registration_rule.max_participants)} onChange={(v)=>updateRule('max_participants',v === '' ? null : Number(v))}/><Input label="Biaya pendaftaran prioritas" type="number" value={String(form.registration_rule.express_cost)} onChange={(v)=>updateRule('express_cost',Number(v||0))}/></div><div className="mt-4 flex flex-wrap gap-2">{grades.map(g=><button type="button" key={g} onClick={()=>updateRule('allowed_grades',toggleGrade(form.registration_rule.allowed_grades,g))} className={`px-3 py-2 rounded-lg border text-sm ${form.registration_rule.allowed_grades.includes(g)?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-slate-500'}`}>{g.toUpperCase()}</button>)}</div><div className="grid md:grid-cols-2 gap-3 mt-4"><Toggle label="Twibbon wajib" checked={form.registration_rule.require_twibbon} onChange={(v)=>updateRule('require_twibbon',v)}/><Toggle label="Bukti promosi di media sosial wajib" checked={form.registration_rule.require_social_proof} onChange={(v)=>updateRule('require_social_proof',v)}/><Toggle label="Sediakan pendaftaran prioritas" checked={form.registration_rule.express_enabled} onChange={(v)=>updateRule('express_enabled',v)}/><div><label className="label">Persetujuan pendaftaran</label><select className="input" value={form.registration_rule.approval_mode} onChange={e=>updateRule('approval_mode',e.target.value)}><option value="MANUAL">Manual</option><option value="AUTO">Otomatis</option></select></div></div></Card>
+        <Card className="p-5">
+          <div className="mb-2 flex items-center gap-2 font-semibold text-fg"><Users size={18} className="text-accent"/> Kuota & Syarat Pendaftaran</div>
+          <p className="mb-4 text-xs leading-relaxed text-fg-muted">Target minimum menunjukkan jumlah peserta yang ingin dicapai dan menjadi indikator pada halaman lomba. Batas maksimum adalah kuota yang benar-benar ditegakkan server. Keduanya dapat diatur terpisah.</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="competition-minimum-participants">Target minimum peserta (opsional)</label>
+              <input id="competition-minimum-participants" className="input" type="number" min="1" step="1" inputMode="numeric" placeholder="Contoh: 1000" value={form.registration_rule.minimum_participants == null ? '' : String(form.registration_rule.minimum_participants)} onChange={(event)=>updateRule('minimum_participants',event.target.value === '' ? null : Number(event.target.value))} disabled={saving}/>
+              <p className="mt-1 text-xs text-fg-muted">Tidak menutup pendaftaran jika target belum tercapai.</p>
+            </div>
+            <div>
+              <label className="label" htmlFor="competition-maximum-participants">Batas maksimum peserta (opsional)</label>
+              <input id="competition-maximum-participants" className="input" type="number" min="1" step="1" inputMode="numeric" placeholder="Kosongkan untuk tanpa batas" value={form.registration_rule.max_participants == null ? '' : String(form.registration_rule.max_participants)} onChange={(event)=>updateRule('max_participants',event.target.value === '' ? null : Number(event.target.value))} disabled={saving}/>
+              <p className="mt-1 text-xs text-fg-muted">Pendaftaran otomatis ditolak saat kuota penuh.</p>
+            </div>
+            <Input label="Biaya pendaftaran prioritas" type="number" value={String(form.registration_rule.express_cost)} onChange={(v)=>updateRule('express_cost',Number(v||0))}/>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">{grades.map(g=><button type="button" key={g} onClick={()=>updateRule('allowed_grades',toggleGrade(form.registration_rule.allowed_grades,g))} className={`rounded-lg border px-3 py-2 text-sm ${form.registration_rule.allowed_grades.includes(g)?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-slate-500'}`}>{g.toUpperCase()}</button>)}</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <Toggle label="Twibbon wajib" checked={form.registration_rule.require_twibbon} onChange={(v)=>updateRule('require_twibbon',v)}/>
+            <Toggle label="Bukti promosi di media sosial wajib" checked={form.registration_rule.require_social_proof} onChange={(v)=>updateRule('require_social_proof',v)}/>
+            <Toggle label="Sediakan pendaftaran prioritas" checked={form.registration_rule.express_enabled} onChange={(v)=>updateRule('express_enabled',v)}/>
+            <div><label className="label" htmlFor="competition-approval-mode">Persetujuan pendaftaran</label><select id="competition-approval-mode" className="input" value={form.registration_rule.approval_mode} onChange={event=>updateRule('approval_mode',event.target.value)}><option value="MANUAL">Manual</option><option value="AUTO">Otomatis</option></select></div>
+          </div>
+        </Card>
         <Card className="p-5 md:p-6">
           <div className="mb-2 flex items-center gap-2 text-fg font-semibold"><Award size={18} className="text-accent"/> Hadiah & Apresiasi</div>
           <p className="mb-5 text-sm leading-relaxed text-fg-muted">Atur apa yang diterima juara dan peserta. Nama penghargaan disimpan untuk ditampilkan di website; kode sistem dikelola otomatis.</p>

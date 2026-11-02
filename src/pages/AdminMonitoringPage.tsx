@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { getCompetitionParticipantDetail, type CompetitionParticipantDetail } from '@/services/competitionResults.service';
 
 type Summary = { total_competitions:number; live_competitions:number; registration_open:number; published_competitions:number; canonical_participants:number; official_attempts:number; in_progress_attempts:number; submitted_attempts:number; grading_attempts:number; finalized_attempts:number; expired_attempts:number; open_incidents:number };
 type CompetitionRow = { id:string; title:string; status:string; organizer_name:string; starts_at:string|null; ends_at:string|null; created_at:string; participant_count:number; registration_count:number; attempt_count:number; active_attempt_count:number; pending_review_count:number };
@@ -45,6 +46,9 @@ export function AdminMonitoringPage() {
   const [detail,setDetail] = useState<Investigation|null>(null);
   const [detailLoading,setDetailLoading] = useState(false);
   const [detailError,setDetailError] = useState<string|null>(null);
+  const [officialResultDetail,setOfficialResultDetail] = useState<CompetitionParticipantDetail|null>(null);
+  const [officialResultLoading,setOfficialResultLoading] = useState(false);
+  const [officialResultError,setOfficialResultError] = useState<string|null>(null);
   const requestRef = useRef(0);
   const detailRequestRef = useRef(0);
 
@@ -66,7 +70,7 @@ export function AdminMonitoringPage() {
   useEffect(() => { const timer = window.setTimeout(() => { void load(); },250); return () => window.clearTimeout(timer); },[load]);
 
   const inspect = async (attemptId:string) => {
-    const id = ++detailRequestRef.current; setSelectedId(attemptId); setDetail(null); setDetailError(null); setDetailLoading(true);
+    const id = ++detailRequestRef.current; setSelectedId(attemptId); setDetail(null); setDetailError(null); setOfficialResultDetail(null); setOfficialResultLoading(false); setOfficialResultError(null); setDetailLoading(true);
     try {
       const { data, error:rpcError } = await supabase.rpc('admin_get_attempt_investigation',{ p_attempt_id:attemptId });
       if (rpcError) throw rpcError;
@@ -75,7 +79,38 @@ export function AdminMonitoringPage() {
       if (id === detailRequestRef.current) setDetailError(reason instanceof Error ? reason.message : 'Detail investigasi gagal dimuat.');
     } finally { if (id === detailRequestRef.current) setDetailLoading(false); }
   };
-  const closeDetail = () => { detailRequestRef.current += 1; setSelectedId(null); setDetail(null); setDetailError(null); };
+  const loadOfficialResultDetail = async () => {
+    if (!detail?.participant_id || !detail.competition_id || detail.attempt_status !== 'FINALIZED' || officialResultLoading) return;
+    const requestId = detailRequestRef.current;
+    setOfficialResultLoading(true);
+    setOfficialResultError(null);
+    try {
+      const { data: competition, error: competitionError } = await supabase
+        .from('competitions')
+        .select('slug')
+        .eq('id', detail.competition_id)
+        .maybeSingle();
+      if (competitionError) throw competitionError;
+      if (!competition?.slug) throw new Error('Slug kompetisi tidak ditemukan.');
+      const result = await getCompetitionParticipantDetail(String(competition.slug), detail.participant_id);
+      if (requestId === detailRequestRef.current) setOfficialResultDetail(result);
+    } catch (reason) {
+      if (requestId === detailRequestRef.current) {
+        setOfficialResultError(reason instanceof Error ? reason.message : 'Detail hasil peserta gagal dimuat.');
+      }
+    } finally {
+      if (requestId === detailRequestRef.current) setOfficialResultLoading(false);
+    }
+  };
+
+  const formatElapsed = (seconds?: number | null) => {
+    const total = Math.max(0, Math.floor(Number(seconds ?? 0)));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const remaining = total % 60;
+    return hours ? hours + ' jam ' + minutes + ' menit' : minutes ? minutes + ' menit ' + remaining + ' detik' : remaining + ' detik';
+  };
+  const closeDetail = () => { detailRequestRef.current += 1; setSelectedId(null); setDetail(null); setDetailError(null); setOfficialResultDetail(null); setOfficialResultLoading(false); setOfficialResultError(null); };
   const updateFilter = (setter:(value:string)=>void,value:string) => { setter(value); setOffset(0); };
   const summary = payload?.summary;
 
@@ -106,7 +141,26 @@ export function AdminMonitoringPage() {
     </div></Card><Card className="min-w-0 p-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">Tindak lanjut</p><h2 className="mt-1 text-sm font-semibold text-fg">Pusat investigasi terkait</h2><div className="mt-3 space-y-2"><Link to="/admin/error-intelligence" className="flex items-center gap-3 rounded-xl border border-surface-border p-3 hover:bg-white/[0.025]"><ShieldAlert size={17} className="text-amber-400"/><span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-fg">Intelijen error sistem</span><span className="mt-0.5 block text-[10px] text-fg-muted">Incident, lifecycle penanganan, dan diagnostic layanan</span></span><ChevronRight size={15} className="text-fg-muted"/></Link><Link to="/admin/operations" className="flex items-center gap-3 rounded-xl border border-surface-border p-3 hover:bg-white/[0.025]"><ClipboardList size={17} className="text-accent"/><span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-fg">Audit operasional</span><span className="mt-0.5 block text-[10px] text-fg-muted">Riwayat tindakan admin, moderasi, dan sertifikat</span></span><ChevronRight size={15} className="text-fg-muted"/></Link></div><p className="mt-3 text-[10px] leading-5 text-fg-muted">Indikator skip/timeout membantu pemeriksaan awal, tetapi bukan bukti kecurangan dan tidak otomatis mengubah nilai atau peringkat.</p></Card></section>
     {selectedId && <div className="fixed inset-0 z-[90] flex justify-end bg-black/65 p-2 md:p-4" onClick={closeDetail}><section role="dialog" aria-modal="true" aria-label="Detail investigasi attempt" onClick={(e) => e.stopPropagation()} className="flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-surface-border bg-surface-card shadow-2xl"><header className="flex items-start justify-between gap-3 border-b surface-border p-4"><div><p className="text-[10px] font-semibold uppercase tracking-wider text-accent">Bukti aktivitas</p><h2 className="mt-1 text-lg font-bold text-fg">Investigasi attempt</h2><p className="mt-1 break-all text-[10px] text-fg-muted">{selectedId}</p></div><Button size="sm" variant="outline" onClick={closeDetail}>Tutup</Button></header><div className="min-h-0 flex-1 overflow-y-auto p-4">
       {detailLoading && <p className="py-10 text-center text-xs text-fg-muted">Memuat detail investigasi…</p>}{detailError && <Card className="border-red-500/25 p-4 text-xs text-red-400">{detailError}</Card>}
-      {detail && <><div className="grid gap-3 sm:grid-cols-2"><Card className="p-3"><p className="text-[10px] text-fg-muted">Peserta</p><p className="mt-1 text-sm font-semibold text-fg">{detail.participant_name}</p><p className="mt-1 text-[10px] text-fg-muted">{detail.participant_code || detail.participant_type}</p></Card><Card className="p-3"><p className="text-[10px] text-fg-muted">Kompetisi</p><p className="mt-1 text-sm font-semibold text-fg">{detail.competition_title}</p><p className="mt-1 text-[10px] text-fg-muted">{competitionLabel(detail.competition_status)}</p></Card><Card className="p-3"><p className="text-[10px] text-fg-muted">Status attempt</p><p className="mt-1 text-sm font-semibold text-fg">{statusLabel(detail.attempt_status)}</p><p className="mt-1 text-[10px] text-fg-muted">Mulai {date(detail.started_at)}</p></Card><Card className="p-3"><p className="text-[10px] text-fg-muted">Progres</p><p className="mt-1 text-sm font-semibold text-fg">{number(detail.answered_count)} dijawab · {number(detail.skipped_count)} dilewati</p><p className="mt-1 text-[10px] text-fg-muted">{number(detail.timeout_count)} timeout · {number(detail.event_count)} event</p></Card></div>
+      {detail && <>
+        {detail.attempt_status === 'FINALIZED' && detail.participant_id && <Card className="mt-4 border border-accent/20 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><p className="text-xs font-semibold text-fg">Detail hasil resmi peserta</p><p className="mt-1 text-[10px] text-fg-muted">Ringkasan terverifikasi melalui layanan detail peserta, bukan data yang dikirim browser.</p></div>
+            <Button size="sm" variant="outline" loading={officialResultLoading} onClick={() => void loadOfficialResultDetail()}>Buka detail hasil</Button>
+          </div>
+          {officialResultError && <p className="mt-3 text-xs text-rose-400">{officialResultError}</p>}
+          {officialResultDetail && officialResultDetail.has_result && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Peringkat</p><p className="font-bold text-fg">#{officialResultDetail.result?.rank ?? '—'}</p></div>
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Nilai</p><p className="font-bold text-fg">{number(officialResultDetail.result?.score)}</p></div>
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Durasi</p><p className="font-bold text-fg">{formatElapsed(officialResultDetail.result?.duration_seconds)}</p></div>
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Benar / Total</p><p className="font-bold text-fg">{number(officialResultDetail.question_summary?.correct)} / {number(officialResultDetail.question_summary?.total)}</p></div>
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Jawaban salah</p><p className="font-bold text-fg">{number(officialResultDetail.question_summary?.incorrect)}</p></div>
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Dinilai manual</p><p className="font-bold text-fg">{number(officialResultDetail.question_summary?.manual_review)}</p></div>
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Badge / penghargaan</p><p className="font-bold text-fg">{number((officialResultDetail.badges?.length ?? 0) + (officialResultDetail.awards?.length ?? 0))}</p></div>
+            <div className="rounded-lg bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Sertifikat</p><p className="font-bold text-fg">{number(officialResultDetail.certificates?.length ?? 0)}</p></div>
+          </div>}
+          {officialResultDetail && !officialResultDetail.has_result && <p className="mt-3 text-xs text-fg-muted">Belum ada hasil final untuk peserta ini.</p>}
+        </Card>}
+        <div className="grid gap-3 sm:grid-cols-2"><Card className="p-3"><p className="text-[10px] text-fg-muted">Peserta</p><p className="mt-1 text-sm font-semibold text-fg">{detail.participant_name}</p><p className="mt-1 text-[10px] text-fg-muted">{detail.participant_code || detail.participant_type}</p></Card><Card className="p-3"><p className="text-[10px] text-fg-muted">Kompetisi</p><p className="mt-1 text-sm font-semibold text-fg">{detail.competition_title}</p><p className="mt-1 text-[10px] text-fg-muted">{competitionLabel(detail.competition_status)}</p></Card><Card className="p-3"><p className="text-[10px] text-fg-muted">Status attempt</p><p className="mt-1 text-sm font-semibold text-fg">{statusLabel(detail.attempt_status)}</p><p className="mt-1 text-[10px] text-fg-muted">Mulai {date(detail.started_at)}</p></Card><Card className="p-3"><p className="text-[10px] text-fg-muted">Progres</p><p className="mt-1 text-sm font-semibold text-fg">{number(detail.answered_count)} dijawab · {number(detail.skipped_count)} dilewati</p><p className="mt-1 text-[10px] text-fg-muted">{number(detail.timeout_count)} timeout · {number(detail.event_count)} event</p></Card></div>
       {detail.requires_review && <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3"><p className="text-xs font-semibold text-amber-300">Indikator perlu ditinjau</p><p className="mt-1 text-[11px] leading-5 text-fg-muted">{detail.review_note || 'Ditemukan pola skip/timeout berulang.'} Ini bukan bukti kecurangan.</p></div>}
       <section className="mt-5"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-fg">Timeline aktivitas</h3><Badge>{detail.events.length} event</Badge></div><div className="mt-3 space-y-2">{detail.events.map((item) => <div key={item.id} className="flex gap-3 rounded-xl border border-surface-border p-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-accent"/><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-fg">{eventLabel(item.event_type)}</p><span className="text-[10px] text-fg-muted">{date(item.occurred_at)}</span></div><p className="mt-1 text-[10px] text-fg-muted">{item.actor_kind}{item.question_position ? ' · Soal ' + item.question_position : ''}</p>{Object.keys(item.metadata ?? {}).length > 0 && <p className="mt-1 break-words text-[10px] text-fg-muted">{Object.entries(item.metadata).map(([key,value]) => key.replaceAll('_',' ') + ': ' + String(value)).join(' · ')}</p>}</div></div>)}{!detail.events.length && <p className="rounded-xl border border-dashed border-surface-border p-5 text-center text-xs text-fg-muted">Belum ada event ujian yang tercatat.</p>}</div></section>
       <section className="mt-5"><h3 className="text-sm font-semibold text-fg">Audit perubahan hasil</h3><div className="mt-2 space-y-2">{detail.audit_events.map((item) => <div key={item.id} className="rounded-xl border border-surface-border p-3"><p className="text-xs font-semibold text-fg">{item.action}</p><p className="mt-1 text-[10px] text-fg-muted">{date(item.created_at)} · {item.reason || 'Tanpa catatan'}</p><p className="mt-1 text-[11px] text-fg-secondary">Nilai: {String(item.before?.score ?? '—')} → {String(item.after?.score ?? '—')}</p></div>)}{!detail.audit_events.length && <p className="text-xs text-fg-muted">Belum ada catatan perubahan hasil untuk attempt ini.</p>}</div></section></>}

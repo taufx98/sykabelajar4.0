@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Award, CheckCircle2, Clock3, ExternalLink, Loader2, RefreshCw, ShieldAlert, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, Award, CheckCircle2, Clock3, ExternalLink, Loader2, RefreshCw, ShieldAlert, Trophy, Users, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,9 @@ import {
   getOrganizerCompetitionResults,
   publishCompetitionResults,
   startCompetitionGrading,
+  getCompetitionParticipantDetail,
+  type CompetitionParticipantDetail,
+  type CompetitionResultRow,
   type OrganizerCompetitionResultsOverview,
 } from '@/services/competitionResults.service';
 
@@ -59,6 +62,10 @@ export function OrganizerCompetitionResultsPage() {
   const [busy, setBusy] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [participantDetail, setParticipantDetail] = useState<CompetitionParticipantDetail | null>(null);
+  const [participantDetailName, setParticipantDetailName] = useState('');
+  const [participantDetailLoading, setParticipantDetailLoading] = useState(false);
+  const [participantDetailError, setParticipantDetailError] = useState('');
 
   const load = useCallback(async (quiet = false) => {
     if (!id) {
@@ -116,6 +123,37 @@ export function OrganizerCompetitionResultsPage() {
     }
   };
 
+  const openParticipantDetail = async (row: CompetitionResultRow) => {
+    const slug = overview?.competition.slug;
+    if (!row.participant_id || !slug || participantDetailLoading) return;
+    setParticipantDetailName(row.full_name);
+    setParticipantDetail(null);
+    setParticipantDetailError('');
+    setParticipantDetailLoading(true);
+    try {
+      setParticipantDetail(await getCompetitionParticipantDetail(slug, row.participant_id));
+    } catch (cause) {
+      setParticipantDetailError(cause instanceof Error ? cause.message : 'Detail peserta gagal dimuat.');
+    } finally {
+      setParticipantDetailLoading(false);
+    }
+  };
+
+  const closeParticipantDetail = () => {
+    if (participantDetailLoading) return;
+    setParticipantDetail(null);
+    setParticipantDetailName('');
+    setParticipantDetailError('');
+  };
+
+  const formatAttemptDuration = (seconds?: number | null) => {
+    const total = Math.max(0, Math.floor(Number(seconds ?? 0)));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const rest = total % 60;
+    return hours ? hours + ' jam ' + minutes + ' menit' : minutes ? minutes + ' menit ' + rest + ' detik' : rest + ' detik';
+  };
+
   const loadMore = async () => {
     if (!id || !overview || loadingMore || overview.results.length >= overview.readiness.result_count) return;
     setLoadingMore(true);
@@ -156,6 +194,7 @@ export function OrganizerCompetitionResultsPage() {
   const isClosed = competition.status === 'SUBMISSION_CLOSED';
 
   return (
+    <>
     <div className="mx-auto max-w-7xl space-y-5 p-4 pb-24 md:p-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link to="/organizer" className="inline-flex items-center gap-2 text-xs text-fg-muted hover:text-fg"><ArrowLeft size={14}/>Kembali ke Control Center</Link>
@@ -257,13 +296,14 @@ export function OrganizerCompetitionResultsPage() {
           <div className="p-10 text-center text-sm text-fg-muted">Belum ada attempt resmi yang final untuk ditampilkan.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-sm">
+            <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="bg-surface-elevated/50 text-[11px] text-fg-muted">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Peringkat</th>
                   <th className="px-4 py-3 font-semibold">Peserta</th>
                   <th className="px-4 py-3 font-semibold">Jenjang / Sekolah</th>
                   <th className="px-4 py-3 text-right font-semibold">Skor</th>
+                  <th className="px-4 py-3 text-right font-semibold">Detail</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -276,6 +316,7 @@ export function OrganizerCompetitionResultsPage() {
                     </td>
                     <td className="px-4 py-3 text-xs text-fg-muted">{[row.grade, row.class_name, row.school_name].filter(Boolean).join(' · ') || '—'}</td>
                     <td className="px-4 py-3 text-right font-bold tabular-nums text-fg">{Number(row.score).toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right"><Button size="sm" variant="outline" disabled={!row.participant_id} onClick={() => void openParticipantDetail(row)}>Detail</Button></td>
                   </tr>
                 ))}
               </tbody>
@@ -294,5 +335,39 @@ export function OrganizerCompetitionResultsPage() {
         )}
       </Card>
     </div>
+      {(participantDetailLoading || participantDetail || participantDetailError) && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeParticipantDetail(); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="organizer-participant-detail-title" className="w-full max-w-xl overflow-hidden rounded-3xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-border p-4">
+              <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wider text-accent">Detail peserta · Internal</p><h2 id="organizer-participant-detail-title" className="truncate font-bold text-fg">{participantDetail?.participant.full_name || participantDetailName}</h2></div>
+              <button type="button" onClick={closeParticipantDetail} disabled={participantDetailLoading} aria-label="Tutup detail peserta" className="rounded-lg p-2 text-fg-muted hover:bg-surface-elevated"><X size={16}/></button>
+            </div>
+            <div className="p-4 sm:p-5">
+              {participantDetailLoading ? <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-fg-muted"><Loader2 size={17} className="animate-spin"/>Memuat rincian resmi…</div>
+                : participantDetailError ? <p className="text-sm text-rose-400">{participantDetailError}</p>
+                : participantDetail && !participantDetail.has_result ? <p className="text-sm text-fg-muted">Belum ada attempt final untuk peserta ini.</p>
+                : participantDetail && <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Peringkat</p><p className="mt-1 text-xl font-bold text-fg">#{participantDetail.result?.rank ?? '—'}</p></div>
+                    <div className="rounded-xl bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Nilai</p><p className="mt-1 text-xl font-bold text-fg">{Number(participantDetail.result?.score ?? 0).toLocaleString('id-ID')}</p></div>
+                    <div className="rounded-xl bg-surface-elevated p-3"><p className="text-[10px] text-fg-muted">Durasi</p><p className="mt-1 text-sm font-bold text-fg">{formatAttemptDuration(participantDetail.result?.duration_seconds)}</p></div>
+                  </div>
+                  <div className="rounded-xl border border-border p-4">
+                    <p className="mb-2 text-xs font-bold text-fg">Jawaban</p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div><p className="text-[10px] text-emerald-500">Benar</p><p className="font-bold text-fg">{participantDetail.question_summary?.correct ?? 0} / {participantDetail.question_summary?.total ?? 0}</p></div>
+                      <div><p className="text-[10px] text-rose-400">Salah</p><p className="font-bold text-fg">{participantDetail.question_summary?.incorrect ?? 0}</p></div>
+                      <div><p className="text-[10px] text-amber-500">Dinilai manual</p><p className="font-bold text-fg">{participantDetail.question_summary?.manual_review ?? 0}</p></div>
+                      <div><p className="text-[10px] text-fg-muted">Tidak dijawab</p><p className="font-bold text-fg">{participantDetail.question_summary?.unanswered ?? 0}</p></div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-fg-muted">Rincian ini hanya tersedia bagi penyelenggara yang berwenang dan admin sebelum pengumuman. Isi jawaban dan kunci soal tidak ditampilkan.</p>
+                </div>}
+            </div>
+            <div className="flex justify-end border-t border-border p-4"><Button variant="outline" onClick={closeParticipantDetail} disabled={participantDetailLoading}>Tutup</Button></div>
+          </section>
+        </div>
+      )}
+    </>
   );
 }

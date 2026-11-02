@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
 export type CompetitionResultRow = {
+  participant_id?: string;
   rank: number;
   full_name: string;
   participant_type: 'INDIVIDUAL' | 'COLLECTIVE' | string;
@@ -104,4 +105,44 @@ export async function getPublicCompetitionResults(
   });
   if (error) throw error;
   return data as PublicCompetitionResults;
+}
+
+
+export type CompetitionParticipantDetail = {
+  has_result: boolean;
+  participant: {
+    full_name: string;
+    participant_type: string;
+    grade: string | null;
+    class_name: string | null;
+    school_name: string | null;
+  };
+  result?: {
+    rank: number | null;
+    score: number;
+    finalized_at: string | null;
+    duration_seconds: number;
+  } | null;
+  question_summary?: {
+    total: number;
+    correct: number;
+    incorrect: number;
+    manual_review: number;
+    unanswered: number;
+  } | null;
+  awards: Array<{ title: string; rank_code: string | null; points: number; emblem_url: string | null; issued_at: string }>;
+  badges: Array<{ name: string; description: string | null; icon_url: string | null; icon_emoji: string | null; rarity: string | null; awarded_at: string }>;
+  certificates: Array<{ serial_number: string | null; certificate_url: string; issued_at: string | null }>;
+};
+
+export async function getCompetitionParticipantDetail(
+  slug: string,
+  participantId: string,
+): Promise<CompetitionParticipantDetail> {
+  const { data, error } = await supabase.rpc('get_competition_participant_detail', {
+    p_slug: slug,
+    p_participant_id: participantId,
+  });
+  if (error) throw error;
+  return data as CompetitionParticipantDetail;
 }

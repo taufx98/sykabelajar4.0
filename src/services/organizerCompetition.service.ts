@@ -19,6 +19,7 @@ export interface CompetitionConfigInput {
     require_social_proof: boolean;
     express_enabled: boolean;
     express_cost: number;
+    minimum_participants?: number | null;
     max_participants?: number | null;
     approval_mode: string;
     config?: Record<string, unknown>;
