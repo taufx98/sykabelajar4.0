@@ -523,3 +523,52 @@ html.light .daily-tasks-page .card {
   color: #334155;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
+
+
+/* Lomba Saya: reproduce the supplied navy/indigo reference without changing
+   the site's global theme or the appearance of other routes. */
+.my-competitions-page {
+  background: #070b14 !important;
+  color: #cbd5e1 !important;
+  color-scheme: dark;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+.my-competitions-page .card {
+  background-color: #0f172a !important;
+  border-color: rgba(51, 65, 85, 0.78) !important;
+  color: #cbd5e1;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+}
+.my-competitions-page .text-fg,
+.my-competitions-page .text-slate-100 { color: #f8fafc !important; }
+.my-competitions-page .text-fg-secondary,
+.my-competitions-page .text-slate-300 { color: #cbd5e1 !important; }
+.my-competitions-page .text-fg-muted,
+.my-competitions-page .text-slate-400 { color: #94a3b8 !important; }
+.my-competitions-page [class*="bg-surface-elevated"],
+.my-competitions-page [class*="bg-slate-800"] { background-color: rgba(30, 41, 59, 0.62); }
+.my-competitions-page [class*="bg-surface-card"],
+.my-competitions-page [class*="bg-slate-950"] { background-color: rgba(2, 6, 23, 0.62); }
+.my-competitions-page .input {
+  background-color: rgba(15, 23, 42, 0.88) !important;
+  border-color: rgba(71, 85, 105, 0.72) !important;
+  color: #f1f5f9 !important;
+}
+.my-competitions-page .input::placeholder { color: #64748b !important; }
+.my-competitions-page .btn-outline {
+  border-color: rgba(148, 163, 184, 0.2) !important;
+  color: #cbd5e1 !important;
+}
+.my-competitions-page .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+}
+.my-competitions-page .fixed.inset-0 > .card {
+  background: #0f172a !important;
+  border-color: rgba(71, 85, 105, 0.75) !important;
+  color: #cbd5e1 !important;
+}
+.my-competitions-page .fixed.inset-0 .surface-border { border-color: rgba(71, 85, 105, 0.65) !important; }
+@media (max-width: 639px) {
+  .my-competitions-page { padding-top: 1rem; }
+}
