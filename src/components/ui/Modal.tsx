@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -11,17 +11,22 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, size = 'md', footer }: ModalProps) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-      const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-      window.addEventListener('keydown', onKey);
-      return () => {
-        document.body.style.overflow = '';
-        window.removeEventListener('keydown', onKey);
-      };
-    }
-  }, [open, onClose]);
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   if (!open) return null;
 
