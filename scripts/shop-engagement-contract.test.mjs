@@ -26,7 +26,7 @@ test('product reviews are verified-purchase-only and ratings are constrained', (
   assert.match(migration, /o\.status::text in\s*\('PAID',\s*'COMPLETED'\)/i);
   assert.match(migration, /oi\.product_ref\s*=\s*commerce_product_reviews\.product_id::text/i);
   assert.match(migration, /grant select \(id, product_id, rating, review, created_at\) on table public\.commerce_product_reviews to anon, authenticated/i);
-  assert.match(migration, /grant insert \(product_id, user_id, rating, review\) on table public\.commerce_product_reviews to authenticated/i);
+  assert.match(migration, /grant insert \(product_id, user_id, rating, review, updated_at\) on table public\.commerce_product_reviews to authenticated/i);
   assert.doesNotMatch(migration, /grant select on table public\.commerce_product_reviews to anon, authenticated/i);
 });
 
@@ -45,6 +45,8 @@ test('shop engagement service stores real wishlist, review and hero settings in 
   assert.match(service, /shop_hero_banner/);
   assert.match(service, /onConflict:\s*['"]user_id,product_id['"]/);
   assert.match(service, /getUser\(/);
+  assert.match(service, /hasVerifiedProductPurchase/);
+  assert.match(service, /order_items!inner\(product_ref\)/);
 });
 
 test('Shop has catalog, order history and product-only whitelist tabs', () => {
@@ -62,7 +64,8 @@ test('Shop has catalog, order history and product-only whitelist tabs', () => {
 
 test('ratings can only be submitted after the current user has a paid or completed order', () => {
   assert.match(shop, /PAID|COMPLETED/);
-  assert.match(shop, /product_ref/);
+  assert.match(service, /\.in\('status', \['PAID', 'COMPLETED'\]\)/);
+  assert.match(shop, /hasVerifiedProductPurchase/);
   assert.match(shop, /pembelian terverifikasi/i);
   assert.match(shop, /Ulasan hanya dapat dikirim setelah pesanan dibayar/i);
 });
