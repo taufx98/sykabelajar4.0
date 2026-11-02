@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const migration = await readFile('supabase/migrations/20261103080000_shop_wishlist_ratings_and_banner.sql', 'utf8');
+const indexHtml = await readFile('index.html', 'utf8');
 const service = await readFile('src/services/shopEngagement.service.ts', 'utf8');
 const shop = await readFile('src/components/shop/ShopExperience.tsx', 'utf8');
 const adminPanel = await readFile('src/components/admin/ShopInsightsPanel.tsx', 'utf8');
@@ -76,6 +77,13 @@ test('Shop catalog, product cards, toolbar, and detail modal follow the supplied
   assert.match(shop, /Detail & Ulasan Produk/);
   assert.match(shop, /Favorit & Whitelist Saya/);
   assert.match(shop, /historyContent/);
+});
+
+test('Shop typography matches the reference without replacing the application-wide font', () => {
+  assert.match(indexHtml, /fonts\.googleapis\.com\/css2\?family=Inter/);
+  assert.match(shop, /fontFamily:.*Inter/);
+  assert.match(ordersPage, /fontFamily:.*Inter/);
+  assert.match(adminPanel, /fontFamily:.*Inter/);
 });
 
 test('banner copy and visual defaults match the supplied Shop hero', () => {
