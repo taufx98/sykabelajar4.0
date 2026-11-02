@@ -792,6 +792,556 @@ begin
 end;
 $function$;
 
+
+-- One quota counter shared by individual and collective registration paths.
+-- Collective orders reserve student_count while awaiting payment; provisioned
+-- collective students are counted by their actual participant rows instead.
+create or replace function private.competition_reserved_participant_count(
+  p_competition_id uuid
+)
+returns integer
+language sql
+stable
+set search_path to ''
+as $quota_count$
+  select
+    coalesce((
+      select count(*)::integer
+      from public.registrations r
+      where r.competition_id = p_competition_id
+        and r.status::text in ('PENDING', 'APPROVED', 'ACTIVE')
+        and not exists (
+          select 1
+          from public.collective_participants cp
+          where cp.registration_id = r.id
+        )
+    ), 0)
+    + coalesce((
+      select count(*)::integer
+      from public.collective_participants cp
+      where cp.competition_id = p_competition_id
+        and cp.status in ('ACTIVE', 'PROVISIONED')
+    ), 0)
+    + coalesce((
+      select sum(cr.student_count)::integer
+      from public.collective_registrations cr
+      where cr.competition_id = p_competition_id
+        and cr.status in ('PENDING_PAYMENT', 'PAID')
+    ), 0);
+$quota_count$;
+
+revoke all on function private.competition_reserved_participant_count(uuid)
+  from public, anon, authenticated, service_role;
+
+-- Keep the eligibility preflight aligned with the same mixed-mode counter.
+create or replace function public.check_registration_eligibility(
+  p_competition_id uuid,
+  p_grade text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $eligibility$
+declare
+  c public.competitions;
+  r public.registration_rules;
+  current_count integer := 0;
+  u uuid := auth.uid();
+begin
+  if u is null then
+    return jsonb_build_object('eligible', false, 'reason', 'LOGIN_REQUIRED');
+  end if;
+
+  perform public.sync_competition_registration_status(p_competition_id);
+
+  select * into c
+  from public.competitions
+  where id = p_competition_id;
+
+  if not found then
+    return jsonb_build_object('eligible', false, 'reason', 'COMPETITION_NOT_FOUND');
+  end if;
+
+  if c.status <> 'REGISTRATION_OPEN' then
+    return jsonb_build_object('eligible', false, 'reason', 'REGISTRATION_NOT_OPEN');
+  end if;
+
+  if c.registration_starts_at is not null and now() < c.registration_starts_at then
+    return jsonb_build_object('eligible', false, 'reason', 'REGISTRATION_NOT_OPEN');
+  end if;
+
+  if c.registration_ends_at is not null and now() > c.registration_ends_at then
+    return jsonb_build_object('eligible', false, 'reason', 'REGISTRATION_CLOSED');
+  end if;
+
+  if exists (
+    select 1 from public.registrations
+    where competition_id = p_competition_id
+      and user_id = u
+      and status <> 'CANCELLED'
+  ) then
+    return jsonb_build_object('eligible', false, 'reason', 'ALREADY_REGISTERED');
+  end if;
+
+  select * into r
+  from public.registration_rules
+  where competition_id = p_competition_id;
+
+  if coalesce(cardinality(r.allowed_grades), 0) > 0 then
+    if p_grade is null or not exists (
+      select 1
+      from unnest(r.allowed_grades) allowed(grade_code)
+      where private.normalize_registration_grade(allowed.grade_code)
+        = private.normalize_registration_grade(p_grade)
+    ) then
+      return jsonb_build_object(
+        'eligible', false,
+        'reason', 'ELIGIBILITY_FAILED',
+        'allowed_grades', to_jsonb(r.allowed_grades)
+      );
+    end if;
+  end if;
+
+  if r.max_participants is not null then
+    current_count := private.competition_reserved_participant_count(p_competition_id);
+    if current_count >= r.max_participants then
+      return jsonb_build_object('eligible', false, 'reason', 'PARTICIPANT_LIMIT_REACHED');
+    end if;
+  end if;
+
+  return jsonb_build_object('eligible', true, 'reason', null);
+end;
+$eligibility$;
+
+-- The insert trigger serializes all admission paths on the competition row,
+-- then checks the same reserved-seat counter before accepting a new person.
+create or replace function public.validate_registration_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path to ''
+as $registration_guard$
+declare
+  c public.competitions;
+  r public.registration_rules;
+  p public.profiles;
+  org_plan text;
+  auto_allowed boolean := false;
+  current_count integer;
+  twibbon_completed boolean := coalesce((new.metadata->>'twibbon_completed')::boolean, false);
+  proof_url text := nullif(trim(new.social_proof_url), '');
+  social_platform text := lower(nullif(trim(new.metadata->>'social_platform'), ''));
+  social_username text := nullif(trim(new.metadata->>'social_username'), '');
+  reg_end timestamptz;
+begin
+  if auth.uid() is null or new.user_id <> auth.uid() then
+    raise exception 'AUTHORIZATION_REQUIRED';
+  end if;
+
+  perform public.sync_competition_registration_status(new.competition_id);
+
+  select * into c
+  from public.competitions
+  where id = new.competition_id
+  for update;
+
+  if not found then
+    raise exception 'COMPETITION_NOT_FOUND';
+  end if;
+
+  if c.visibility <> 'PUBLIC' or c.status <> 'REGISTRATION_OPEN' then
+    raise exception 'REGISTRATION_CLOSED';
+  end if;
+
+  if c.registration_starts_at is not null and now() < c.registration_starts_at then
+    raise exception 'REGISTRATION_NOT_OPEN';
+  end if;
+
+  if c.registration_ends_at is not null and now() > c.registration_ends_at then
+    raise exception 'REGISTRATION_CLOSED';
+  end if;
+
+  if exists (
+    select 1 from public.registrations
+    where competition_id = c.id
+      and user_id = new.user_id
+      and status <> 'CANCELLED'
+  ) then
+    raise exception 'ALREADY_REGISTERED';
+  end if;
+
+  select * into r
+  from public.registration_rules
+  where competition_id = c.id;
+
+  select * into p
+  from public.profiles
+  where id = new.user_id;
+
+  if coalesce(cardinality(r.allowed_grades), 0) > 0
+     and (
+       p.grade is null
+       or not exists (
+         select 1
+         from unnest(r.allowed_grades) allowed(grade_code)
+         where private.normalize_registration_grade(allowed.grade_code)
+           = private.normalize_registration_grade(p.grade)
+       )
+     ) then
+    raise exception 'ELIGIBILITY_FAILED';
+  end if;
+
+  if r.max_participants is not null then
+    current_count := private.competition_reserved_participant_count(c.id);
+    if current_count >= r.max_participants then
+      raise exception 'PARTICIPANT_LIMIT_REACHED';
+    end if;
+  end if;
+
+  if r.require_twibbon
+     and not twibbon_completed
+     and coalesce(current_setting('app.registration_coin_bypass', true), 'false') <> 'true' then
+    raise exception 'TWIBBON_REQUIRED';
+  end if;
+
+  if r.require_social_proof
+     and (proof_url is null or social_platform is null or social_username is null)
+     and coalesce(current_setting('app.registration_coin_bypass', true), 'false') <> 'true' then
+    raise exception 'SOCIAL_PROOF_REQUIRED';
+  end if;
+
+  if proof_url is not null then
+    if social_platform = 'instagram' and proof_url !~* '^https?://(www\.)?instagram\.com/' then
+      raise exception 'SOCIAL_PROOF_PLATFORM_MISMATCH';
+    end if;
+    if social_platform = 'tiktok' and proof_url !~* '^https?://(www\.)?tiktok\.com/' then
+      raise exception 'SOCIAL_PROOF_PLATFORM_MISMATCH';
+    end if;
+    if social_platform not in ('instagram', 'tiktok') then
+      raise exception 'SOCIAL_PROOF_PLATFORM_INVALID';
+    end if;
+  end if;
+
+  if social_username is not null
+     and length(regexp_replace(social_username, '[^A-Za-z0-9._]', '', 'g')) < 2 then
+    raise exception 'SOCIAL_USERNAME_INVALID';
+  end if;
+
+  new.submitted_at := coalesce(new.submitted_at, now());
+  new.status := 'PENDING'::public.registration_status;
+
+  select op.plan_code into org_plan
+  from public.organizer_plans op
+  where op.organizer_id = c.organizer_id
+    and op.is_active = true
+    and (op.ends_at is null or op.ends_at > now())
+  order by op.starts_at desc
+  limit 1;
+
+  if upper(coalesce(r.approval_mode, 'MANUAL')) = 'AUTO' then
+    if upper(coalesce(org_plan, '')) = 'PRO' then
+      auto_allowed := true;
+    elsif upper(coalesce(org_plan, '')) = 'PREMIUM' then
+      reg_end := c.registration_ends_at;
+      auto_allowed := reg_end is not null and now() >= reg_end - interval '3 days';
+    elsif upper(coalesce(org_plan, '')) not in ('FREE', '') then
+      select exists (
+        select 1
+        from public.plan_entitlements pe
+        where pe.plan_code = org_plan
+          and pe.capability = 'auto_registration_approval'
+          and coalesce(pe.limit_value, 1) > 0
+      ) into auto_allowed;
+    end if;
+  end if;
+
+  if auto_allowed then
+    new.status := 'ACTIVE'::public.registration_status;
+    new.approved_at := now();
+    new.approved_by := null;
+  end if;
+
+  return new;
+end;
+$registration_guard$;
+
+-- Collective quotes reserve all selected seats while payment is pending.
+-- A row lock on competitions serializes quotes with individual registrations.
+create or replace function public.quote_collective_registration(
+  p_competition_id uuid,
+  p_roster_student_ids uuid[],
+  p_certificate_policy text default 'EVENT_DEFAULT'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to ''
+as $collective_quote$
+declare
+  v_uid uuid := auth.uid();
+  v_comp public.competitions%rowtype;
+  v_rule public.registration_rules%rowtype;
+  v_unit numeric := 0;
+  v_count integer;
+  v_eligible integer;
+  v_student_ids uuid[];
+  v_invalid integer;
+  v_reserved_count integer;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if p_certificate_policy not in ('EVENT_DEFAULT', 'INCLUDED', 'OPTIONAL', 'NONE') then
+    raise exception 'INVALID_CERTIFICATE_POLICY';
+  end if;
+
+  select c.* into v_comp
+  from public.competitions c
+  where c.id = p_competition_id
+  for update;
+
+  if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+  if not private.competition_allows_collective(v_comp.participant_mode, v_comp.config) then
+    raise exception 'COMPETITION_NOT_COLLECTIVE';
+  end if;
+  if v_comp.status not in ('PUBLISHED', 'REGISTRATION_OPEN') then
+    raise exception 'REGISTRATION_NOT_OPEN';
+  end if;
+  if v_comp.registration_starts_at is not null and now() < v_comp.registration_starts_at then
+    raise exception 'REGISTRATION_NOT_OPEN';
+  end if;
+  if v_comp.registration_ends_at is not null and now() > v_comp.registration_ends_at then
+    raise exception 'REGISTRATION_CLOSED';
+  end if;
+
+  v_student_ids := coalesce(p_roster_student_ids, '{}'::uuid[]);
+  v_count := coalesce(array_length(v_student_ids, 1), 0);
+  if v_count < 1 then raise exception 'NO_STUDENTS_SELECTED'; end if;
+  if v_count > 500 then raise exception 'TOO_MANY_STUDENTS'; end if;
+
+  select count(*) into v_invalid
+  from public.roster_students rs
+  join public.teacher_rosters tr on tr.id = rs.roster_id
+  where rs.id = any(v_student_ids)
+    and rs.is_active = true
+    and tr.is_active = true
+    and tr.teacher_user_id = v_uid;
+
+  if v_invalid <> v_count then raise exception 'ROSTER_ACCESS_DENIED'; end if;
+
+  select rr.* into v_rule
+  from public.registration_rules rr
+  where rr.competition_id = p_competition_id
+  limit 1;
+
+  select coalesce(
+    nullif(v_comp.config->>'collective_price_per_participant', '')::numeric,
+    nullif(v_comp.config->>'registration_price_per_participant', '')::numeric,
+    nullif(v_rule.config->>'collective_price_per_participant', '')::numeric,
+    nullif(v_rule.config->>'registration_price_per_participant', '')::numeric,
+    0
+  ) into v_unit;
+
+  select count(*) into v_eligible
+  from public.roster_students rs
+  join public.teacher_rosters tr on tr.id = rs.roster_id
+  where rs.id = any(v_student_ids)
+    and rs.is_active = true
+    and tr.is_active = true
+    and tr.teacher_user_id = v_uid
+    and (
+      coalesce(array_length(v_comp.target_grades, 1), 0) = 0
+      or rs.grade = any(v_comp.target_grades)
+    )
+    and not (
+      coalesce(array_length(v_comp.excluded_grades, 1), 0) > 0
+      and rs.grade = any(v_comp.excluded_grades)
+    )
+    and not exists (
+      select 1 from public.collective_participants cp
+      where cp.competition_id = p_competition_id
+        and cp.roster_student_id = rs.id
+        and cp.status in ('ACTIVE', 'PROVISIONED')
+    )
+    and not exists (
+      select 1 from public.collective_registrations cr
+      where cr.competition_id = p_competition_id
+        and cr.status in ('PENDING_PAYMENT', 'PAID')
+        and rs.id = any(cr.roster_student_ids)
+    );
+
+  if v_eligible <> v_count then
+    raise exception 'STUDENT_NOT_ELIGIBLE_OR_ALREADY_REGISTERED';
+  end if;
+
+  if v_rule.max_participants is not null then
+    v_reserved_count := private.competition_reserved_participant_count(p_competition_id);
+    if v_reserved_count + v_count > v_rule.max_participants then
+      raise exception 'PARTICIPANT_LIMIT_REACHED';
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'competition_id', p_competition_id,
+    'student_count', v_count,
+    'student_ids', to_jsonb(v_student_ids),
+    'unit_price', v_unit,
+    'subtotal', v_unit * v_count,
+    'total', v_unit * v_count,
+    'currency', 'IDR',
+    'certificate_policy', p_certificate_policy
+  );
+end;
+$collective_quote$;
+
+-- Legacy direct collective provisioning remains supported, but cannot bypass
+-- the same participant ceiling used by paid collective and individual flows.
+create or replace function public.create_collective_participants(
+  p_competition_id uuid,
+  p_roster_student_ids uuid[]
+)
+returns table (
+  participant_id uuid,
+  roster_student_id uuid,
+  participant_code text,
+  temporary_password text,
+  full_name text,
+  class_name text,
+  grade text,
+  photo_url text
+)
+language plpgsql
+security definer
+set search_path to 'public', 'extensions'
+as $collective_direct$
+declare
+  v_uid uuid := auth.uid();
+  v_competition record;
+  v_maximum integer;
+  v_new_count integer := 0;
+  v_reserved_count integer := 0;
+  v_participant_id uuid;
+  v_code text;
+  v_password text;
+  r_student record;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+
+  select c.id, c.participant_mode, c.config
+  into v_competition
+  from public.competitions c
+  where c.id = p_competition_id
+  for update;
+
+  if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+  if not private.competition_allows_collective(v_competition.participant_mode, v_competition.config) then
+    raise exception 'COMPETITION_NOT_COLLECTIVE';
+  end if;
+  if not exists (
+    select 1 from public.user_roles ur
+    where ur.user_id = v_uid and ur.is_active = true and ur.role in ('teacher', 'admin')
+  ) then
+    raise exception 'FORBIDDEN';
+  end if;
+
+  select rr.max_participants into v_maximum
+  from public.registration_rules rr
+  where rr.competition_id = p_competition_id;
+
+  select count(*) into v_new_count
+  from (
+    select distinct unnest(coalesce(p_roster_student_ids, '{}'::uuid[])) as roster_student_id
+  ) requested
+  join public.roster_students rs on rs.id = requested.roster_student_id
+  join public.teacher_rosters tr on tr.id = rs.roster_id
+  where rs.is_active = true
+    and tr.is_active = true
+    and tr.teacher_user_id = v_uid
+    and not exists (
+      select 1 from public.collective_participants cp
+      where cp.competition_id = p_competition_id
+        and cp.roster_student_id = rs.id
+        and cp.status in ('ACTIVE', 'PROVISIONED')
+    )
+    and not exists (
+      select 1 from public.collective_registrations cr
+      where cr.competition_id = p_competition_id
+        and cr.status in ('PENDING_PAYMENT', 'PAID')
+        and rs.id = any(cr.roster_student_ids)
+    );
+
+  if v_maximum is not null and v_new_count > 0 then
+    v_reserved_count := private.competition_reserved_participant_count(p_competition_id);
+    if v_reserved_count + v_new_count > v_maximum then
+      raise exception 'PARTICIPANT_LIMIT_REACHED';
+    end if;
+  end if;
+
+  for r_student in
+    select rs.id, rs.full_name, rs.class_name, rs.grade, rs.photo_url, tr.school_id
+    from public.roster_students rs
+    join public.teacher_rosters tr on tr.id = rs.roster_id
+    where rs.id = any(coalesce(p_roster_student_ids, '{}'::uuid[]))
+      and rs.is_active = true
+      and tr.is_active = true
+      and tr.teacher_user_id = v_uid
+  loop
+    if exists (
+      select 1 from public.collective_participants cp
+      where cp.competition_id = p_competition_id
+        and cp.roster_student_id = r_student.id
+        and cp.status in ('ACTIVE', 'PROVISIONED')
+    ) then
+      continue;
+    end if;
+
+    if exists (
+      select 1 from public.collective_registrations cr
+      where cr.competition_id = p_competition_id
+        and cr.status in ('PENDING_PAYMENT', 'PAID')
+        and r_student.id = any(cr.roster_student_ids)
+    ) then
+      continue;
+    end if;
+
+    v_code := 'CP-' || upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 10));
+    while exists (
+      select 1 from public.collective_participants cp where cp.participant_code = v_code
+    ) loop
+      v_code := 'CP-' || upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 10));
+    end loop;
+    v_password := 'SK' || upper(substr(encode(gen_random_bytes(7), 'hex'), 1, 12));
+
+    insert into public.collective_participants(
+      competition_id, roster_student_id, managed_by_user_id, participant_code,
+      full_name, class_name, grade, school_id, photo_url, status
+    )
+    values (
+      p_competition_id, r_student.id, v_uid, v_code,
+      r_student.full_name, r_student.class_name, r_student.grade,
+      r_student.school_id, r_student.photo_url, 'ACTIVE'
+    )
+    returning id into v_participant_id;
+
+    insert into public.participant_access_credentials(
+      collective_participant_id, password_hash, password_version, failed_attempts, enabled
+    )
+    values (
+      v_participant_id, crypt(v_password, gen_salt('bf', 12)), 1, 0, true
+    );
+
+    participant_id := v_participant_id;
+    roster_student_id := r_student.id;
+    participant_code := v_code;
+    temporary_password := v_password;
+    full_name := r_student.full_name;
+    class_name := r_student.class_name;
+    grade := r_student.grade;
+    photo_url := r_student.photo_url;
+    return next;
+  end loop;
+end;
+$collective_direct$;
+
 -- User-submitted reports flow through a narrow RPC because report records are
 -- intentionally not directly writable through the public Data API.
 create or replace function public.report_competition_comment(
