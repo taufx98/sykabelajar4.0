@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Heart, Loader2, Search, ShoppingBag, SlidersHorizontal, Sparkles, Star, X } from 'lucide-react';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { formatShortDate } from '@/lib/utils';
@@ -68,14 +67,6 @@ function Stars({ value, size = 13 }: { value: number; size?: number }) {
       <Star key={index} size={size} className={index < Math.round(value) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'} />
     ))}
   </span>;
-}
-
-function hasVerifiedPurchase(orders: Array<Record<string, any>>, productId: string) {
-  return orders.some((order) => {
-    if (!['PAID', 'COMPLETED'].includes(String(order.status ?? '').toUpperCase())) return false;
-    const items = Array.isArray(order.order_items) ? order.order_items : order.order_items ? [order.order_items] : [];
-    return items.some((item: Record<string, unknown>) => String(item.product_ref ?? '') === productId);
-  });
 }
 
 export function ShopExperience({
