@@ -534,6 +534,7 @@ export function NotificationsPage() {
               })}
             </div>
 
+            <div key={filter} className="syka-tab-panel">
             {loading ? (
               <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-2" aria-label="Memuat notifikasi">
                 <div className="h-[104px] animate-pulse rounded-2xl border border-[#1E293B] bg-[#151E32]" />
@@ -554,6 +555,7 @@ export function NotificationsPage() {
               </div>
             )}
 
+            </div>
             </section>
       </div>
 
