@@ -104,6 +104,6 @@ test('the Shop checkout continues to use configured payment methods and existing
 test('admin hero configuration is saved through the existing platform settings row', () => {
   assert.match(adminPanel, /getShopHeroBanner/);
   assert.match(adminPanel, /saveShopHeroBanner/);
-  assert.match(adminPanel, /shop_hero_banner/);
+  assert.match(service, /shop_hero_banner/);
   assert.match(adminPanel, /sykabelajar\/shop-hero/);
 });
