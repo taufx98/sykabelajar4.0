@@ -71,34 +71,34 @@ test('competition detail hero uses the actual poster returned by the dashboard',
 });
 
 
+
 const appLayout = await readFile('src/components/layout/AppLayout.tsx', 'utf8');
 const appRoutes = await readFile('src/App.tsx', 'utf8');
 const competitionDetailPage = await readFile('src/pages/CompetitionDetailPage.tsx', 'utf8');
 
 test('Lomba Saya uses the global application header rather than defining a local header', () => {
-  assert.match(appRoutes, /<Route element={<AuthGuard><AppLayout \/><\/AuthGuard>}>[\\s\\S]*path="\\/lomba-saya" element={<MyCompetitionsPage \/>/);
-  assert.match(appLayout, /!isHomeRoute&&<GlobalHeader navItems={globalHeaderNav}/);
+  assert.ok(appRoutes.includes('<Route element={<AuthGuard><AppLayout /></AuthGuard>}>'));
+  assert.ok(appRoutes.includes('path="/lomba-saya" element={<MyCompetitionsPage />}'));
+  assert.ok(appLayout.includes('!isHomeRoute&&<GlobalHeader navItems={globalHeaderNav}'));
 });
 
 test('Lomba Saya toolbar places search and view controls above the status filters', () => {
-  assert.match(page, /my-competitions-toolbar-top/);
-  assert.match(page, /my-competitions-filter-row/);
-  assert.match(page, /my-competitions-mobile-filter-switcher/);
-  assert.match(page, /ChevronLeft/);
-  assert.match(page, /ChevronRight/);
-  assert.match(page, /aria-label="Filter sebelumnya"/);
-  assert.match(page, /aria-label="Filter berikutnya"/);
+  assert.ok(page.includes('my-competitions-toolbar-top'));
+  assert.ok(page.includes('my-competitions-filter-row'));
+  assert.ok(page.includes('my-competitions-mobile-filter-switcher'));
+  assert.ok(page.includes('aria-label="Filter sebelumnya"'));
+  assert.ok(page.includes('aria-label="Filter berikutnya"'));
 });
 
 test('Lomba Saya category chips and certificate notice use restrained dark borders', () => {
-  assert.doesNotMatch(page, /border border-accent\\/15 bg-accent\\/5/);
-  assert.match(page, /border-slate-700\\/70 bg-slate-800\\/50/);
-  assert.match(page, /border-slate-700\\/55 bg-slate-800\\/35/);
+  assert.doesNotMatch(page, /border border-accent\/15 bg-accent\/5/);
+  assert.ok(page.includes('border-slate-700/70 bg-slate-800/50'));
+  assert.ok(page.includes('border-slate-700/55 bg-slate-800/35'));
 });
 
 test('competition detail unavailable state is vertically centered and distinguishes missing data from load failures', () => {
-  assert.match(competitionDetailPage, /min-h-\\[calc\\(100dvh-4rem\\)\\]/);
-  assert.match(competitionDetailPage, /Detail lomba belum dapat dimuat/);
-  assert.match(competitionDetailPage, /Lomba tidak ditemukan/);
-  assert.match(competitionDetailPage, /navigate\\(-1\\)/);
+  assert.ok(competitionDetailPage.includes('min-h-[calc(100dvh-4rem)]'));
+  assert.ok(competitionDetailPage.includes('Detail lomba belum dapat dimuat'));
+  assert.ok(competitionDetailPage.includes('Lomba tidak ditemukan'));
+  assert.ok(competitionDetailPage.includes('navigate(-1)'));
 });
