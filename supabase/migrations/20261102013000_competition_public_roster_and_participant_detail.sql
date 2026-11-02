@@ -534,6 +534,233 @@ $function$;
 revoke all on function public.get_competition_participant_detail(text, uuid) from public;
 grant execute on function public.get_competition_participant_detail(text, uuid) to anon, authenticated;
 
+
+
+-- Keep the participant key in the same canonical result projection so both
+-- the organizer dashboard and the public results table can open one detail RPC.
+create or replace function public.get_organizer_competition_result_overview(
+  p_competition_id uuid,
+  p_limit integer default 500,
+  p_offset integer default 0
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to ''
+as $function$
+declare
+  v_comp public.competitions%rowtype;
+  v_results jsonb;
+  v_participant_count integer;
+  v_result_count integer;
+  v_pending_attempt_count integer;
+  v_manual_pending_count integer;
+  v_expired_attempt_count integer;
+  v_legacy_active_count integer;
+  v_missing_canonical_count integer;
+  v_limit integer := greatest(1, least(coalesce(p_limit, 500), 1000));
+  v_offset integer := greatest(0, coalesce(p_offset, 0));
+begin
+  if auth.uid() is null then
+    raise exception 'AUTHORIZATION_REQUIRED';
+  end if;
+
+  select * into v_comp
+  from public.competitions
+  where id = p_competition_id;
+
+  if not found then
+    raise exception 'COMPETITION_NOT_FOUND';
+  end if;
+
+  if not (
+    private.current_user_is_admin()
+    or (
+      v_comp.organizer_id is not null
+      and private.current_user_can_edit_competition(v_comp.organizer_id)
+    )
+  ) then
+    raise exception 'ACCESS_DENIED';
+  end if;
+
+  select count(*)::integer into v_participant_count
+  from public.participants p
+  where p.competition_id = v_comp.id;
+
+  select count(*)::integer into v_result_count
+  from private.canonical_competition_results(v_comp.id);
+
+  select coalesce(jsonb_agg(row_data order by rank_position, full_name), '[]'::jsonb)
+  into v_results
+  from (
+    select
+      r.rank_position,
+      r.full_name,
+      jsonb_build_object(
+        'participant_id', r.canonical_participant_id,
+        'rank', r.rank_position,
+        'full_name', r.full_name,
+        'participant_type', r.participant_type,
+        'participant_code', r.participant_code,
+        'class_name', r.class_name,
+        'grade', r.grade,
+        'school_name', r.school_name,
+        'score', r.score,
+        'finalized_at', r.finalized_at
+      ) as row_data
+    from private.canonical_competition_results(v_comp.id) r
+    order by r.rank_position, r.full_name
+    limit v_limit offset v_offset
+  ) page;
+
+  select
+    count(*) filter (
+      where a.status::text in ('NOT_STARTED', 'IN_PROGRESS', 'SUBMITTED', 'GRADING')
+    )::integer,
+    count(*) filter (where a.status::text = 'EXPIRED')::integer,
+    count(*) filter (
+      where a.status::text = 'IN_PROGRESS'
+        and not exists (
+          select 1
+          from public.exam_attempt_runtime runtime
+          where runtime.attempt_id = a.id
+        )
+    )::integer,
+    count(*) filter (
+      where a.status::text = 'FINALIZED'
+        and a.canonical_participant_id is null
+    )::integer
+  into
+    v_pending_attempt_count,
+    v_expired_attempt_count,
+    v_legacy_active_count,
+    v_missing_canonical_count
+  from public.attempts a
+  where a.competition_id = v_comp.id
+    and a.is_preview = false;
+
+  select count(*)::integer
+  into v_manual_pending_count
+  from public.grading_items gi
+  join public.attempts a on a.id = gi.attempt_id
+  where a.competition_id = v_comp.id
+    and a.is_preview = false
+    and a.status::text in ('SUBMITTED', 'GRADING')
+    and gi.grader_id is null
+    and gi.automatic_score is null;
+
+  return jsonb_build_object(
+    'competition', jsonb_build_object(
+      'id', v_comp.id,
+      'slug', v_comp.slug,
+      'title', v_comp.title,
+      'category', v_comp.category,
+      'status', v_comp.status,
+      'visibility', v_comp.visibility,
+      'announcement_at', v_comp.announcement_at,
+      'poster_url', v_comp.poster_url
+    ),
+    'readiness', jsonb_build_object(
+      'participant_count', v_participant_count,
+      'result_count', v_result_count,
+      'pending_attempt_count', v_pending_attempt_count,
+      'manual_pending_count', v_manual_pending_count,
+      'expired_attempt_count', v_expired_attempt_count,
+      'legacy_active_count', v_legacy_active_count,
+      'missing_canonical_count', v_missing_canonical_count,
+      'can_publish',
+        v_comp.status::text = 'GRADING'
+        and v_result_count > 0
+        and v_pending_attempt_count = 0
+        and v_manual_pending_count = 0
+        and v_missing_canonical_count = 0
+    ),
+    'results', v_results,
+    'result_limit', v_limit,
+    'result_offset', v_offset
+  );
+end;
+$function$;
+
+create or replace function public.get_public_competition_results(
+  p_slug text,
+  p_limit integer default 500,
+  p_offset integer default 0
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path to ''
+as $function$
+declare
+  v_comp public.competitions%rowtype;
+  v_results jsonb;
+  v_result_count integer;
+  v_limit integer := greatest(1, least(coalesce(p_limit, 500), 1000));
+  v_offset integer := greatest(0, coalesce(p_offset, 0));
+  v_published_at timestamptz;
+begin
+  select * into v_comp
+  from public.competitions
+  where slug = trim(coalesce(p_slug, ''))
+    and visibility = 'PUBLIC'
+    and status::text in ('RESULT_PUBLISHED', 'ARCHIVED');
+
+  if not found then
+    raise exception 'COMPETITION_RESULTS_NOT_FOUND';
+  end if;
+
+  select count(*)::integer into v_result_count
+  from private.canonical_competition_results(v_comp.id);
+
+  select coalesce(jsonb_agg(row_data order by rank_position, full_name), '[]'::jsonb)
+  into v_results
+  from (
+    select
+      r.rank_position,
+      r.full_name,
+      jsonb_build_object(
+        'participant_id', r.canonical_participant_id,
+        'rank', r.rank_position,
+        'full_name', r.full_name,
+        'participant_type', r.participant_type,
+        'participant_code', r.participant_code,
+        'class_name', r.class_name,
+        'grade', r.grade,
+        'school_name', r.school_name,
+        'score', r.score,
+        'finalized_at', r.finalized_at
+      ) as row_data
+    from private.canonical_competition_results(v_comp.id) r
+    order by r.rank_position, r.full_name
+    limit v_limit offset v_offset
+  ) page;
+
+  select max(h.created_at) into v_published_at
+  from public.competition_status_history h
+  where h.competition_id = v_comp.id
+    and h.to_status::text = 'RESULT_PUBLISHED';
+
+  return jsonb_build_object(
+    'competition', jsonb_build_object(
+      'id', v_comp.id,
+      'slug', v_comp.slug,
+      'title', v_comp.title,
+      'category', v_comp.category,
+      'status', v_comp.status,
+      'poster_url', v_comp.poster_url,
+      'announcement_at', v_comp.announcement_at,
+      'published_at', v_published_at
+    ),
+    'result_count', v_result_count,
+    'results', v_results,
+    'result_limit', v_limit,
+    'result_offset', v_offset
+  );
+end;
+$function$;
+
 -- User-submitted reports flow through a narrow RPC because report records are
 -- intentionally not directly writable through the public Data API.
 create or replace function public.report_competition_comment(
