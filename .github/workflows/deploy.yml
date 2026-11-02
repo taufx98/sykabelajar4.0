@@ -78,6 +78,9 @@ jobs:
       - name: Admin monitoring contract tests
         run: npm run test:admin-monitoring-contract
 
+      - name: Lomba Saya dashboard UI contract tests
+        run: npm run test:my-competitions-ui-contract
+
       - name: Lint
         run: npm run lint
 
