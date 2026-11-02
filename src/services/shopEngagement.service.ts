@@ -22,6 +22,11 @@ export type ProductReviewSummary = {
   review_count: number;
 };
 
+export type ProductSalesSummary = {
+  product_id: string;
+  sales_count: number;
+};
+
 export type ShopAdminInsights = {
   wishlistCounts: Array<{ product_id: string; wishlist_count: number }>;
   reviewSummaries: ProductReviewSummary[];
@@ -133,6 +138,15 @@ export async function listProductReviewSummaries(): Promise<ProductReviewSummary
     product_id: String(row.product_id),
     average_rating: Number(row.average_rating ?? 0),
     review_count: Number(row.review_count ?? 0),
+  }));
+}
+
+export async function listProductSalesCounts(): Promise<ProductSalesSummary[]> {
+  const { data, error } = await supabase.rpc('list_public_commerce_product_sales_counts');
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    product_id: String(row.product_id),
+    sales_count: Number(row.sales_count ?? 0),
   }));
 }
 
