@@ -139,3 +139,14 @@ test('admin badge has a stable Lucide shield icon and a single role-driven sourc
   assert.match(globalHeader, /user\?\.role === 'admin'/);
   assert.doesNotMatch(appLayout, /badgeLabel=/);
 });
+
+
+test('certificate history loading preserves popup size and does not pulse the placeholder rows', async () => {
+  const modal = await readFile('src/components/ui/Modal.tsx', 'utf8');
+
+  assert.match(page, /min-h-\[20rem\]/);
+  assert.doesNotMatch(page, /h-24 animate-pulse rounded-xl bg-slate-800/);
+  assert.match(modal, /onCloseRef/);
+  assert.match(modal, /previousOverflow/);
+  assert.match(modal, /\}, \[open\]\)/);
+});
