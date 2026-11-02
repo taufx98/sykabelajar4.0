@@ -1085,14 +1085,19 @@ export function MyCompetitionsPage() {
                   Agenda Lomba
                 </Button>
                 {activeExamItem ? (
-                  <Link to={examHref(activeExamItem)}>
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500" icon={<Play size={13} fill="currentColor" />}>
-                      {String(activeExamItem.latest_attempt?.status ?? '').toUpperCase() === 'IN_PROGRESS' ? 'Lanjutkan Ujian' : 'Masuk Ujian'}
-                    </Button>
+                  <Link
+                    to={examHref(activeExamItem)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+                  >
+                    <Play size={13} fill="currentColor" />
+                    {String(activeExamItem.latest_attempt?.status ?? '').toUpperCase() === 'IN_PROGRESS' ? 'Lanjutkan Ujian' : 'Masuk Ujian'}
                   </Link>
                 ) : agendaEvents[0] ? (
-                  <Link to={'/lomba/' + encodeURIComponent(agendaEvents[0].competitionSlug)}>
-                    <Button size="sm" variant="outline" icon={<ChevronRight size={14} />}>Detail Lomba</Button>
+                  <Link
+                    to={'/lomba/' + encodeURIComponent(agendaEvents[0].competitionSlug)}
+                    className="btn-outline px-3 py-2 text-xs"
+                  >
+                    Detail Lomba <ChevronRight size={14} />
                   </Link>
                 ) : null}
               </div>
