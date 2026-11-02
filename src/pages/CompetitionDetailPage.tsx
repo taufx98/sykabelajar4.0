@@ -160,9 +160,10 @@ export function CompetitionDetailPage() {
         // competition only; no background page polling is needed.
         await syncCompetitionRegistrationStatus(String(base.id)).catch(() => null);
 
-        const [next, posts] = await Promise.all([
+        const [next, posts, participants] = await Promise.all([
           getCompetitionDetails(String(base.id)),
           listCompetitionPosts(String(base.id), 1),
+          getPublicCompetitionParticipants(slug, 20, 0),
         ]);
         if (active) {
           setDetail(next);
@@ -191,8 +192,13 @@ export function CompetitionDetailPage() {
   const participantCount = Number(participantDirectory?.participant_count ?? detail?.participantCount ?? competition?.participant_count ?? 0);
   const quotaCount = Number(participantDirectory?.quota_count ?? participantCount);
   const questionCount = Number(detail?.questionCount ?? 0);
-  const capacity = rules?.max_participants == null ? null : Math.max(0, Number(rules.max_participants));
-  const remainingCapacity = capacity == null ? null : Math.max(0, capacity - participantCount);
+  const capacityValue = rules?.max_participants ?? participantDirectory?.maximum_participants;
+  const capacity = capacityValue == null ? null : Math.max(0, Number(capacityValue));
+  const minimumValue = rules?.minimum_participants ?? participantDirectory?.minimum_participants;
+  const minimumTarget = minimumValue == null ? null : Math.max(1, Number(minimumValue));
+  const remainingCapacity = capacity == null ? null : Math.max(0, capacity - quotaCount);
+  const minimumProgress = minimumTarget == null ? 0 : Math.min(100, Math.round((participantCount / minimumTarget) * 100));
+  const capacityProgress = capacity == null ? 0 : Math.min(100, Math.round((quotaCount / Math.max(1, capacity)) * 100));
 
   const cd = competition?.registration_ends_at
     ? countdown(String(competition.registration_ends_at))
