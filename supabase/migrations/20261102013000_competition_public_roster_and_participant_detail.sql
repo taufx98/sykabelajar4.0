@@ -301,12 +301,9 @@ begin
       ) as row_data
     from public.participants p
     left join public.schools s on s.id = p.school_id
-    left join lateral (
-      select r.rank_position, r.score
-      from private.canonical_competition_results(v_comp.id) r
-      where r.canonical_participant_id = p.id
-        and v_comp.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
-    ) official_result on true
+    left join private.canonical_competition_results(v_comp.id) official_result
+      on official_result.canonical_participant_id = p.id
+     and v_comp.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
     where p.competition_id = v_comp.id
     order by
       case
