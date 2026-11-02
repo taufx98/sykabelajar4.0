@@ -6,6 +6,7 @@ import {
   getShopHeroBanner,
   listMyWishlist,
   listProductReviewSummaries,
+  listProductSalesCounts,
   listProductReviews,
   addWishlistItem,
   removeWishlistItem,
@@ -13,6 +14,7 @@ import {
   hasVerifiedProductPurchase,
   type ProductReview,
   type ProductReviewSummary,
+  type ProductSalesSummary,
   type ShopHeroBanner,
 } from '@/services/shopEngagement.service';
 import type { CommerceProduct } from '@/services/commerce.service';
@@ -32,7 +34,7 @@ type Props = {
   displayPrice: (product: CommerceProduct) => number;
   formatProductPrice: (price: number, currency: string) => string;
   getBuyState: (product: CommerceProduct) => { disabled: boolean; label: string };
-  onBuy: (product: CommerceProduct, summary?: ProductReviewSummary) => void;
+  onBuy: (product: CommerceProduct, summary?: ProductReviewSummary, salesCount?: number) => void;
 };
 
 const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80';
@@ -100,6 +102,7 @@ export function ShopExperience({
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
   const [wishlistBusyId, setWishlistBusyId] = useState('');
   const [reviewSummaries, setReviewSummaries] = useState<Map<string, ProductReviewSummary>>(new Map());
+  const [salesCounts, setSalesCounts] = useState<Map<string, number>>(new Map());
   const [selectedProduct, setSelectedProduct] = useState<CommerceProduct | null>(null);
   const [reviewState, setReviewState] = useState<ProductReviewState>({ rows: [], hasMore: false, page: 0, loading: false });
   const [rating, setRating] = useState(5);
@@ -115,6 +118,9 @@ export function ShopExperience({
       getShopHeroBanner().then((value) => { if (active) setBanner(value); }).catch(() => undefined),
       listProductReviewSummaries().then((rows) => {
         if (active) setReviewSummaries(new Map(rows.map((row) => [row.product_id, row])));
+      }).catch(() => undefined),
+      listProductSalesCounts().then((rows: ProductSalesSummary[]) => {
+        if (active) setSalesCounts(new Map(rows.map((row) => [row.product_id, row.sales_count])));
       }).catch(() => undefined),
       userId ? listMyWishlist().then((ids) => {
         if (active) setWishlistIds(new Set(ids));
@@ -144,12 +150,13 @@ export function ShopExperience({
       if (sort === 'rating-desc') return (rightSummary?.average_rating ?? 0) - (leftSummary?.average_rating ?? 0);
       if (sort === 'rating-asc') return (leftSummary?.average_rating ?? 0) - (rightSummary?.average_rating ?? 0);
       if (sort === 'popular') {
-        return (rightSummary?.review_count ?? 0) - (leftSummary?.review_count ?? 0)
+        return (salesCounts.get(right.id) ?? 0) - (salesCounts.get(left.id) ?? 0)
+          || (rightSummary?.review_count ?? 0) - (leftSummary?.review_count ?? 0)
           || (rightSummary?.average_rating ?? 0) - (leftSummary?.average_rating ?? 0);
       }
       return Number(right.is_featured) - Number(left.is_featured) || left.sort_order - right.sort_order;
     });
-  }, [products, category, search, sort, displayPrice, reviewSummaries]);
+  }, [products, category, search, sort, displayPrice, reviewSummaries, salesCounts]);
 
   const wishlistProducts = useMemo(
     () => products.filter((product) => wishlistIds.has(product.id)),
@@ -242,6 +249,7 @@ export function ShopExperience({
 
   const ProductCard = ({ product }: { product: CommerceProduct }) => {
     const summary = reviewSummaries.get(product.id);
+    const salesCount = salesCounts.get(product.id) ?? 0;
     const buyState = getBuyState(product);
     const price = displayPrice(product);
 
@@ -273,9 +281,10 @@ export function ShopExperience({
             {summary && summary.review_count > 0
               ? <>
                   <span>{summary.average_rating.toFixed(1)}</span>
-                  <span className="text-slate-500 font-normal">({summary.review_count} ulasan)</span>
+    
                 </>
               : <span className="text-slate-500 font-normal">Belum ada rating</span>}
+            <span className="text-slate-500 font-normal">({salesCount.toLocaleString('id-ID')} terjual)</span>
           </div>
           <h3 className="font-bold text-white text-xs md:text-sm line-clamp-1 group-hover:text-blue-400 transition-colors">{product.name}</h3>
           <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{product.short_description || productBenefit(product)}</p>
@@ -294,7 +303,7 @@ export function ShopExperience({
             <button
               type="button"
               disabled={buyState.disabled}
-              onClick={() => onBuy(product, summary)}
+              onClick={() => onBuy(product, summary, salesCount)}
               className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ShoppingCart size={14} />
@@ -307,6 +316,7 @@ export function ShopExperience({
   };
 
   const detailSummary = selectedProduct ? reviewSummaries.get(selectedProduct.id) : undefined;
+  const selectedProductSalesCount = selectedProduct ? salesCounts.get(selectedProduct.id) ?? 0 : 0;
   const detailWishlistSaved = selectedProduct ? wishlistIds.has(selectedProduct.id) : false;
 
   return <div className="space-y-6" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -471,7 +481,7 @@ export function ShopExperience({
                   ? <span className="flex items-center gap-1 text-amber-400 font-bold"><Star size={16} className="fill-amber-400" />{detailSummary.average_rating.toFixed(1)}</span>
                   : <span className="text-slate-500">Belum ada rating</span>}
                 <span>•</span>
-                <span>{detailSummary?.review_count ?? 0} Ulasan</span>
+                <span>{selectedProductSalesCount.toLocaleString('id-ID')} Terjual</span>
               </div>
             </div>
           </div>
@@ -527,7 +537,7 @@ export function ShopExperience({
           </button>
           <button
             type="button"
-            onClick={() => { const product = selectedProduct; const summary = detailSummary; closeDetails(); onBuy(product, summary); }}
+            onClick={() => { const product = selectedProduct; const summary = detailSummary; const count = selectedProductSalesCount; closeDetails(); onBuy(product, summary, count); }}
             disabled={getBuyState(selectedProduct).disabled}
             className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
           >
