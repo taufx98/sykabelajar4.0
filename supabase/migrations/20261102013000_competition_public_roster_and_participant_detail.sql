@@ -283,12 +283,15 @@ begin
   where r.competition_id = v_comp.id
     and r.status::text in ('PENDING', 'APPROVED', 'ACTIVE');
 
-  select coalesce(jsonb_agg(page.row_data order by page.full_name, page.participant_id), '[]'::jsonb)
+  select coalesce(jsonb_agg(
+    page.row_data order by page.rank_position nulls last, lower(page.full_name), page.participant_id
+  ), '[]'::jsonb)
   into v_participants
   from (
     select
       p.full_name,
       p.id as participant_id,
+      official_result.rank_position as rank_position,
       jsonb_build_object(
         'participant_id', p.id,
         'full_name', p.full_name,
