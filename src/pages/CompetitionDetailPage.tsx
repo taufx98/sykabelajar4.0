@@ -288,6 +288,7 @@ export function CompetitionDetailPage() {
     || timelineStageActive(competition.announcement_at, null, clock);
   const isExamLive = competition.status === 'LIVE';
   const isCompleted = ['RESULT_PUBLISHED', 'ARCHIVED'].includes(String(competition.status));
+  const resultsPublished = isCompleted && competition.visibility === 'PUBLIC';
   const startedDate = shortDate(competition.starts_at);
   const organizerName = String(organizer?.name ?? 'Penyelenggara');
   const remainingText = remainingCapacity == null ? 'Tidak dibatasi' : remainingCapacity.toLocaleString('id-ID');
@@ -443,18 +444,30 @@ export function CompetitionDetailPage() {
 
           <Card className="p-5 sm:p-6">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-              <SectionHeading icon={<Users size={17}/>} title="Daftar Peserta" subtitle="Daftar peserta dengan pendaftaran yang telah disetujui. Informasi identitas ditampilkan seperlunya."/>
+              <SectionHeading icon={<Users size={17}/>} title={resultsPublished ? "Peserta & Hasil Resmi" : "Daftar Peserta"} subtitle={resultsPublished ? "Pengumuman hasil resmi per peserta. Buka Detail untuk melihat durasi, nilai, dan ringkasan jawaban." : "Daftar peserta dengan pendaftaran yang telah disetujui. Informasi identitas ditampilkan seperlunya."}/>
               {isCompleted && competition.visibility === 'PUBLIC' && <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil'} className="shrink-0"><Button size="sm" variant="outline" icon={<Trophy size={14}/>}>Hasil Resmi</Button></Link>}
             </div>
             {participantDirectory?.participants.length ? <>
               <div className="hidden overflow-x-auto sm:block">
-                <table className="w-full min-w-[540px] text-left text-sm">
-                  <thead className="bg-surface-elevated/50 text-[11px] text-fg-muted"><tr><th className="px-3 py-3 font-semibold">Peserta</th><th className="px-3 py-3 font-semibold">Jenjang / Kelas</th><th className="px-3 py-3 font-semibold">Sekolah</th></tr></thead>
+                <table className={'w-full text-left text-sm ' + (resultsPublished ? 'min-w-[880px]' : 'min-w-[540px]')}>
+                  <thead className="bg-surface-elevated/50 text-[11px] text-fg-muted"><tr>
+                    <th className="px-3 py-3 font-semibold">Peserta</th>
+                    <th className="px-3 py-3 font-semibold">Jenjang / Kelas</th>
+                    <th className="px-3 py-3 font-semibold">Sekolah</th>
+                    {resultsPublished && <><th className="px-3 py-3 text-right font-semibold">Peringkat</th><th className="px-3 py-3 text-right font-semibold">Nilai</th><th className="px-3 py-3 text-right font-semibold">Detail</th></>}
+                  </tr></thead>
                   <tbody className="divide-y divide-border/70">
                     {participantDirectory.participants.map((participant) => <tr key={participant.participant_id}>
                       <td className="px-3 py-3 font-semibold text-fg">{participant.full_name}</td>
                       <td className="px-3 py-3 text-xs text-fg-muted">{[participant.grade, participant.class_name].filter(Boolean).join(' · ') || '—'}</td>
                       <td className="px-3 py-3 text-xs text-fg-muted">{participant.school_name || '—'}</td>
+                      {resultsPublished && <>
+                        <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-fg">{participant.rank == null ? '—' : '#' + participant.rank.toLocaleString('id-ID')}</td>
+                        <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-fg">{participant.score == null ? '—' : Number(participant.score).toLocaleString('id-ID')}</td>
+                        <td className="px-3 py-3 text-right">
+                          {participant.rank != null && <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil?participant=' + encodeURIComponent(participant.participant_id)}><Button size="sm" variant="outline">Detail</Button></Link>}
+                        </td>
+                      </>}
                     </tr>)}
                   </tbody>
                 </table>
@@ -463,6 +476,10 @@ export function CompetitionDetailPage() {
                 {participantDirectory.participants.map((participant) => <div key={participant.participant_id} className="py-3">
                   <p className="text-sm font-semibold text-fg">{participant.full_name}</p>
                   <p className="mt-1 text-[11px] text-fg-muted">{[participant.grade, participant.class_name, participant.school_name].filter(Boolean).join(' · ') || 'Informasi kelas belum tersedia'}</p>
+                  {resultsPublished && <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex gap-3 text-xs"><span className="font-semibold text-fg">{participant.rank == null ? 'Belum ada peringkat' : '#' + participant.rank}</span><span className="tabular-nums text-fg-muted">{participant.score == null ? '—' : Number(participant.score).toLocaleString('id-ID') + ' nilai'}</span></div>
+                    {participant.rank != null && <Link to={'/lomba/' + encodeURIComponent(competition.slug) + '/hasil?participant=' + encodeURIComponent(participant.participant_id)}><Button size="sm" variant="outline">Detail</Button></Link>}
+                  </div>}
                 </div>)}
               </div>
               {participantDirectory.participants.length < participantDirectory.participant_count && <div className="mt-4 border-t border-border pt-4 text-center">
@@ -470,7 +487,7 @@ export function CompetitionDetailPage() {
                 <Button size="sm" variant="outline" loading={participantsLoadingMore} onClick={() => void loadMoreParticipants()}>Muat peserta lainnya</Button>
               </div>}
             </> : <p className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-fg-muted">Belum ada peserta yang disetujui untuk ditampilkan.</p>}
-            {isCompleted && competition.visibility === 'PUBLIC' && <p className="mt-3 text-[11px] text-fg-muted">Hasil, peringkat, durasi, dan rincian penilaian tersedia pada halaman hasil resmi.</p>}
+            {resultsPublished && <p className="mt-3 text-[11px] text-fg-muted">Peringkat dan nilai ditampilkan setelah hasil resmi diterbitkan. Tombol Detail membuka ringkasan performa peserta tanpa menampilkan isi jawaban atau kunci soal.</p>}
           </Card>
 
           {postId ? <Card className="p-5 sm:p-6"><CommentsSection postId={postId}/></Card> : <Card className="p-4"><p className="text-[11px] text-fg-muted">Komentar akan tersedia setelah postingan lomba dibuat.</p></Card>}
