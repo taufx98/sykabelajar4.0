@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -295,16 +296,16 @@ function SummaryCard({
     green: 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20',
   };
   return (
-    <Card className="group relative min-w-0 overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-900/90 p-5 shadow-lg shadow-black/10 transition duration-200 hover:-translate-y-0.5 hover:border-slate-700 hover:bg-slate-900">
-      <div className="flex items-start justify-between gap-3">
-        <span className="min-w-0 text-xs font-semibold leading-relaxed text-slate-400">{label}</span>
-        <span className={'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ' + tones[tone]}>{icon}</span>
+    <Card className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-900/90 p-3 shadow-lg shadow-black/10 transition duration-200 hover:-translate-y-0.5 hover:border-slate-700 hover:bg-slate-900 sm:p-4 lg:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <span className="min-w-0 flex-1 text-[10px] font-semibold leading-snug text-slate-400 sm:text-xs sm:leading-relaxed">{label}</span>
+        <span className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border sm:h-10 sm:w-10 sm:rounded-xl [&>svg]:h-4 [&>svg]:w-4 sm:[&>svg]:h-[18px] sm:[&>svg]:w-[18px] ' + tones[tone]}>{icon}</span>
       </div>
-      <div className="mt-2 flex items-end justify-between gap-2">
-        <strong className="text-3xl font-extrabold leading-none tracking-tight tabular-nums text-slate-100">{value.toLocaleString('id-ID')}</strong>
-        {footnote && <span className="text-right text-[10px] font-semibold text-slate-400">{footnote}</span>}
+      <div className="mt-2 flex min-w-0 items-end justify-between gap-1.5 sm:gap-2">
+        <strong className="shrink-0 text-2xl font-extrabold leading-none tracking-tight tabular-nums text-slate-100 sm:text-3xl">{value.toLocaleString('id-ID')}</strong>
+        {footnote && <span className="line-clamp-2 min-w-0 max-w-[58%] text-right text-[9px] font-semibold leading-tight text-slate-400 sm:max-w-none sm:text-[10px]">{footnote}</span>}
       </div>
-      <div className="mt-4 h-px bg-gradient-to-r from-accent/55 to-transparent" />
+      <div className="mt-3 h-px bg-gradient-to-r from-accent/55 to-transparent sm:mt-4" />
     </Card>
   );
 }
@@ -320,20 +321,20 @@ function CompetitionStageTracker({ status }: { status: DashboardStatus }) {
         : 0;
   const stages = ['Pendaftaran', 'Pelaksanaan', 'Penilaian', 'Hasil'];
   return (
-    <div className="mt-4 rounded-xl border border-slate-800/70 bg-slate-800/35 px-3 py-3">
-      <div className="flex items-center justify-between gap-1">
+    <div className="mt-2 rounded-xl border border-slate-800/70 bg-slate-800/35 px-2.5 py-2 sm:mt-4 sm:px-3 sm:py-3">
+      <div className="flex items-center justify-between gap-0.5 sm:gap-1">
         {stages.map((label, index) => (
           <div key={label} className="flex min-w-0 flex-1 items-center">
-            <div className="flex min-w-0 flex-col items-center gap-1.5">
-              <span className={'flex h-5 w-5 items-center justify-center rounded-full border text-[9px] font-bold ' + (index <= stage
+            <div className="flex min-w-0 flex-col items-center gap-1 sm:gap-1.5">
+              <span className={'flex h-4 w-4 items-center justify-center rounded-full border text-[8px] font-bold sm:h-5 sm:w-5 sm:text-[9px] ' + (index <= stage
                 ? 'border-accent bg-accent text-white'
                 : 'border-slate-800 bg-slate-950 text-slate-400')}>
-                {index < stage ? <CheckCircle2 size={12} /> : index + 1}
+                {index < stage ? <CheckCircle2 size={10} /> : index + 1}
               </span>
-              <span className={'text-center text-[9px] font-semibold ' + (index === stage ? 'text-accent' : 'text-slate-400')}>{label}</span>
+              <span className={'max-w-full text-center text-[8px] font-semibold leading-tight sm:text-[9px] ' + (index === stage ? 'text-accent' : 'text-slate-400')}>{label}</span>
             </div>
             {index < stages.length - 1 && (
-              <span className={'mx-1 mb-5 h-px min-w-1 flex-1 ' + (index < stage ? 'bg-accent/70' : 'bg-slate-700')} />
+              <span className={'mx-0.5 mb-4 h-px min-w-1 flex-1 sm:mx-1 sm:mb-5 ' + (index < stage ? 'bg-accent/70' : 'bg-slate-700')} />
             )}
           </div>
         ))}
@@ -358,13 +359,13 @@ function CompetitionCard({
   const competition = item.competition;
   const isCollective = item.participant_type === 'COLLECTIVE';
   const examAvailable = canEnterExam(item);
-  const cardLayout = viewMode === 'list' ? 'sm:flex-row' : 'flex-col';
-  const cardContent = viewMode === 'list' ? 'p-4 sm:p-5' : 'p-4 sm:p-5';
+  const cardLayout = viewMode === 'list' ? 'flex-row' : 'flex-col';
+  const cardContent = 'p-3 sm:p-4 lg:p-5';
 
   return (
     <Card className={'group flex h-full min-w-0 overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-900/90 shadow-lg shadow-black/10 transition duration-200 hover:-translate-y-0.5 hover:border-slate-700 hover:bg-slate-900 ' + cardLayout}>
       {viewMode === 'grid' ? (
-        <div className="relative h-40 w-full shrink-0 overflow-hidden bg-slate-800 sm:h-44">
+        <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-slate-800 sm:aspect-[16/8] lg:aspect-auto lg:h-40">
           {competition.poster_url ? (
             <img
               src={competition.poster_url}
@@ -374,13 +375,13 @@ function CompetitionCard({
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500/15 via-slate-800 to-slate-900 text-indigo-300/70">
-              <Trophy size={48} strokeWidth={1.4} />
+              <Trophy size={40} strokeWidth={1.4} />
             </div>
           )}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/5" />
-          <div className="absolute left-3 top-3 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-1.5">
-            <span className={'rounded-full border px-2.5 py-1 text-[9px] font-extrabold shadow-sm backdrop-blur-md ' + meta.className}>{meta.label}</span>
-            <span className="rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[9px] font-bold text-white backdrop-blur-md">
+          <div className="absolute left-2 top-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1 sm:left-3 sm:top-3 sm:max-w-[calc(100%-1.5rem)] sm:gap-1.5">
+            <span className={'rounded-full border px-2 py-0.5 text-[8px] font-extrabold shadow-sm backdrop-blur-md sm:px-2.5 sm:py-1 sm:text-[9px] ' + meta.className}>{meta.label}</span>
+            <span className="rounded-full border border-white/10 bg-slate-950/75 px-2 py-0.5 text-[8px] font-bold text-white backdrop-blur-md sm:px-2.5 sm:py-1 sm:text-[9px]">
               {isCollective ? 'Peserta Kolektif' : 'Peserta Individu'}
             </span>
           </div>
@@ -394,50 +395,52 @@ function CompetitionCard({
       )}
 
       <div className={'flex min-w-0 flex-1 flex-col ' + cardContent}>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {viewMode === 'list' && (
-            <span className={'rounded-full border px-2.5 py-1 text-[9px] font-bold ' + meta.className}>{meta.label}</span>
+            <span className={'rounded-full border px-2 py-0.5 text-[8px] font-bold sm:px-2.5 sm:py-1 sm:text-[9px] ' + meta.className}>{meta.label}</span>
           )}
-          <span className="inline-flex items-center gap-1 rounded-md border border-slate-700/70 bg-slate-800/50 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-indigo-300">
+          <span className="inline-flex items-center gap-1 rounded-md border border-slate-700/70 bg-slate-800/50 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-indigo-300 sm:px-2 sm:py-1 sm:text-[9px]">
             {competition.category || 'Kompetisi'}
           </span>
-          <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-slate-400">
-            {isCollective ? <Users size={11} /> : <GraduationCap size={11} />}
-            {isCollective ? 'Peserta kolektif' : 'Peserta individu'}
-          </span>
+          {viewMode === 'list' && (
+            <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-slate-400">
+              {isCollective ? <Users size={11} /> : <GraduationCap size={11} />}
+              {isCollective ? 'Peserta kolektif' : 'Peserta individu'}
+            </span>
+          )}
         </div>
 
-        <h2 className="mt-2 line-clamp-2 text-sm font-extrabold leading-snug text-slate-100 sm:text-base">{competition.title}</h2>
-        <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-400">
-          <CalendarDays size={13} className="mt-0.5 shrink-0 text-accent" />
+        <h2 className="mt-1.5 line-clamp-2 text-xs font-extrabold leading-snug text-slate-100 sm:mt-2 sm:text-sm lg:text-base">{competition.title}</h2>
+        <p className="mt-1.5 flex items-start gap-1.5 text-[10px] leading-snug text-slate-400 sm:mt-2 sm:text-[11px] sm:leading-relaxed">
+          <CalendarDays size={12} className="mt-0.5 shrink-0 text-accent sm:h-[13px] sm:w-[13px]" />
           <span>{competitionDate(item)}</span>
         </p>
         {item.participant?.full_name && (
-          <p className="mt-1 flex items-center gap-1.5 truncate text-[10px] text-slate-400">
+          <p className="mt-1 flex items-center gap-1.5 truncate text-[9px] text-slate-400 sm:text-[10px]">
             <Users size={12} className="shrink-0" />
             <span className="truncate">{item.participant.full_name}</span>
             {item.participant.grade && <span className="shrink-0">· {item.participant.grade}</span>}
           </p>
         )}
 
-        <p className="mt-3 min-h-10 text-[11px] leading-relaxed text-slate-400">{statusDescription(item, status)}</p>
+        <p className="mt-2 line-clamp-3 min-h-0 text-[10px] leading-snug text-slate-400 sm:mt-3 sm:line-clamp-none sm:min-h-10 sm:text-[11px] sm:leading-relaxed">{statusDescription(item, status)}</p>
         {status === 'rejected' && item.registration?.rejection_reason && (
-          <div className="mt-2 rounded-lg border border-rose-500/20 bg-rose-500/5 p-2.5 text-[10px] leading-relaxed text-rose-500">
+          <div className="mt-2 rounded-lg border border-rose-500/20 bg-rose-500/5 p-2 text-[9px] leading-relaxed text-rose-500 sm:p-2.5 sm:text-[10px]">
             Alasan: {item.registration.rejection_reason}
           </div>
         )}
 
         {status === 'result_published' && (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-slate-800 bg-slate-800/55 p-3">
+          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:mt-3 sm:gap-2">
+            <div className="rounded-xl border border-slate-800 bg-slate-800/55 p-2 sm:p-3">
               <span className="block text-[9px] font-semibold text-slate-400">Skor akhir</span>
-              <strong className="mt-1 block text-xl font-extrabold tabular-nums text-slate-100">
+              <strong className="mt-1 block text-lg font-extrabold tabular-nums text-slate-100 sm:text-xl">
                 {item.result.score == null ? '—' : Number(item.result.score).toLocaleString('id-ID')}
               </strong>
             </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-800/55 p-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-800/55 p-2 sm:p-3">
               <span className="block text-[9px] font-semibold text-slate-400">Peringkat</span>
-              <strong className="mt-1 block text-xl font-extrabold tabular-nums text-slate-100">
+              <strong className="mt-1 block text-lg font-extrabold tabular-nums text-slate-100 sm:text-xl">
                 {item.result.rank == null ? '—' : '#' + Number(item.result.rank).toLocaleString('id-ID')}
               </strong>
             </div>
@@ -446,20 +449,20 @@ function CompetitionCard({
 
         {status !== 'cancelled' && <CompetitionStageTracker status={status} />}
 
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/70 pt-3">
-          <span className="text-[10px] font-medium text-slate-400">
+        <div className="mt-auto flex flex-col items-start gap-2 border-t border-slate-800/70 pt-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:pt-3">
+          <span className="text-[9px] font-medium leading-tight text-slate-400 sm:text-[10px]">
             {item.published_certificate_count > 0
               ? item.published_certificate_count + ' piagam terbit'
               : item.certificate_count > 0
                 ? item.certificate_count + ' piagam dalam proses'
                 : 'Piagam belum tersedia'}
           </span>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center justify-start gap-1.5 sm:w-auto sm:justify-end sm:gap-2">
             {item.published_certificate_count > 0 && (
               <Button
                 size="sm"
                 variant="outline"
-                className="px-2.5 py-2 text-[10px]"
+                className="px-2 py-1.5 text-[9px] sm:px-2.5 sm:py-2 sm:text-[10px]"
                 onClick={() => onOpenCertificates(competition.id)}
                 icon={<Award size={13} />}
               >
@@ -467,21 +470,21 @@ function CompetitionCard({
               </Button>
             )}
             {status === 'result_published' && (
-              <Link to={resultHref(item)} className="btn-outline px-3 py-2 text-[10px]">
+              <Link to={resultHref(item)} className="btn-outline px-2 py-1.5 text-[9px] sm:px-3 sm:py-2 sm:text-[10px]">
                 Lihat Hasil
               </Link>
             )}
             {isCollective ? (
-              <Link to="/profile/collective-history" className="btn-primary px-3 py-2 text-[10px]">
+              <Link to="/profile/collective-history" className="btn-primary px-2 py-1.5 text-[9px] sm:px-3 sm:py-2 sm:text-[10px]">
                 Riwayat <ChevronRight size={13} />
               </Link>
             ) : examAvailable ? (
-              <Link to={examHref(item)} className="btn-primary px-3 py-2 text-[10px]">
+              <Link to={examHref(item)} className="btn-primary px-2 py-1.5 text-[9px] sm:px-3 sm:py-2 sm:text-[10px]">
                 {String(item.latest_attempt?.status ?? '').toUpperCase() === 'IN_PROGRESS' ? 'Lanjutkan Ujian' : 'Masuk Ujian'}
                 <Play size={12} fill="currentColor" />
               </Link>
             ) : (
-              <Button size="sm" className="px-3 py-2 text-[10px]" onClick={() => onOpenDetails(item)} icon={<ChevronRight size={13} />}>
+              <Button size="sm" className="px-2 py-1.5 text-[9px] sm:px-3 sm:py-2 sm:text-[10px]" onClick={() => onOpenDetails(item)} icon={<ChevronRight size={13} />}>
                 Detail Lomba
               </Button>
             )}
@@ -936,6 +939,7 @@ export function MyCompetitionsPage() {
   const [selectedItem, setSelectedItem] = useState<ParticipantDashboardItem | null>(null);
   const [certificatesOpen, setCertificatesOpen] = useState(false);
   const [certificateCompetitionFilter, setCertificateCompetitionFilter] = useState<string | null>(null);
+  const [summaryExpanded, setSummaryExpanded] = useState(true);
 
   useEffect(() => {
     if (!user || isGuest) {
@@ -1030,15 +1034,15 @@ export function MyCompetitionsPage() {
   }
 
   return (
-    <main className="my-competitions-page min-h-screen bg-[#070B14] px-4 py-5 pb-24 text-slate-300 sm:px-6 sm:py-6 md:px-8 md:py-8">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <Card className="relative overflow-hidden rounded-3xl border border-slate-800/80 bg-gradient-to-br from-slate-900 via-slate-900/95 to-indigo-950/60 p-6 shadow-2xl shadow-black/20 md:p-7">
+    <main className="my-competitions-page min-h-screen bg-[#070B14] px-3 py-4 pb-24 text-slate-300 sm:px-6 sm:py-6 md:px-8 md:py-8">
+      <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6 lg:space-y-8">
+        <Card className="relative overflow-hidden rounded-3xl border border-slate-800/80 bg-gradient-to-br from-slate-900 via-slate-900/95 to-indigo-950/60 p-4 shadow-2xl shadow-black/20 sm:p-6 md:p-7">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-transparent via-indigo-500/5 to-blue-500/15" />
           <div className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full bg-indigo-500/15 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-24 left-1/3 h-52 w-52 rounded-full bg-blue-500/15 blur-3xl" />
 
           <div className="relative z-10">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-400/20 bg-indigo-500/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">
@@ -1048,7 +1052,7 @@ export function MyCompetitionsPage() {
                     {syncedAt ? 'Terakhir disinkronkan ' + formatDateTime(syncedAt) : 'Data keikutsertaan akunmu'}
                   </span>
                 </div>
-                <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-100 sm:text-4xl">Lomba Saya</h1>
+                <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-100 sm:text-3xl md:text-4xl">Lomba Saya</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400 sm:text-base">
                   Kelola keikutsertaan kompetisi, pantau jadwal dan pengerjaan, periksa hasil resmi, serta akses piagam yang diterbitkan untuk akunmu.
                 </p>
@@ -1072,7 +1076,7 @@ export function MyCompetitionsPage() {
               </div>
             </div>
 
-            <div className="mt-7 flex flex-col gap-4 rounded-2xl border border-slate-800/80 bg-slate-950/55 p-4 sm:p-5 md:flex-row md:items-center md:justify-between">
+            <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/55 p-3 sm:mt-7 sm:gap-4 sm:p-5 md:flex-row md:items-center md:justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-500">
                   {activeExamItem ? <Play size={18} fill="currentColor" /> : <Clock3 size={19} />}
@@ -1121,34 +1125,55 @@ export function MyCompetitionsPage() {
           </div>
         </Card>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Ringkasan keikutsertaan lomba">
-          <SummaryCard
-            label="Total Lomba Diikuti"
-            value={counts.all}
-            icon={<Trophy size={18} />}
-            footnote={counts.registration + ' pendaftaran'}
-          />
-          <SummaryCard
-            label="Sedang Berlangsung"
-            value={counts.in_progress}
-            icon={<Clock3 size={18} />}
-            tone="green"
-            footnote="Pelaksanaan"
-          />
-          <SummaryCard
-            label="Menunggu Hasil"
-            value={counts.waiting_result}
-            icon={<AlertCircle size={18} />}
-            tone="violet"
-            footnote="Proses penilaian"
-          />
-          <SummaryCard
-            label="Hasil Diumumkan"
-            value={counts.result_published}
-            icon={<CheckCircle2 size={18} />}
-            tone="blue"
-            footnote={items.reduce((sum, item) => sum + item.published_certificate_count, 0) + ' piagam terbit'}
-          />
+        <section className="my-competitions-summary min-w-0" aria-label="Ringkasan keikutsertaan lomba">
+          <button
+            type="button"
+            aria-controls="my-competitions-summary-grid"
+            aria-expanded={summaryExpanded}
+            aria-label={summaryExpanded ? 'Ciutkan ringkasan keikutsertaan' : 'Tampilkan ringkasan keikutsertaan'}
+            onClick={() => setSummaryExpanded((expanded) => !expanded)}
+            className="mb-2.5 flex w-full items-center justify-between gap-3 rounded-xl border border-slate-800/90 bg-slate-900/85 px-3 py-2.5 text-left shadow-sm shadow-black/10 transition hover:border-slate-700 sm:hidden"
+          >
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-xs font-extrabold text-slate-100">Ringkasan Keikutsertaan</span>
+              <span className="truncate text-[10px] font-medium text-slate-400">{counts.all.toLocaleString('id-ID')} lomba · {counts.in_progress.toLocaleString('id-ID')} sedang berlangsung</span>
+            </span>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700/70 bg-slate-800/60 text-slate-300">
+              <ChevronDown size={16} className={'transition-transform duration-200 ' + (summaryExpanded ? 'rotate-180' : '')} />
+            </span>
+          </button>
+          <div
+            id="my-competitions-summary-grid"
+            className={(summaryExpanded ? 'grid ' : 'hidden sm:grid ') + 'grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4'}
+          >
+            <SummaryCard
+              label="Total Lomba Diikuti"
+              value={counts.all}
+              icon={<Trophy size={18} />}
+              footnote={counts.registration + ' pendaftaran'}
+            />
+            <SummaryCard
+              label="Sedang Berlangsung"
+              value={counts.in_progress}
+              icon={<Clock3 size={18} />}
+              tone="green"
+              footnote="Pelaksanaan"
+            />
+            <SummaryCard
+              label="Menunggu Hasil"
+              value={counts.waiting_result}
+              icon={<AlertCircle size={18} />}
+              tone="violet"
+              footnote="Proses penilaian"
+            />
+            <SummaryCard
+              label="Hasil Diumumkan"
+              value={counts.result_published}
+              icon={<CheckCircle2 size={18} />}
+              tone="blue"
+              footnote={items.reduce((sum, item) => sum + item.published_certificate_count, 0) + ' piagam terbit'}
+            />
+          </div>
         </section>
 
         <Card className="rounded-2xl border border-slate-800/90 bg-slate-900/90 p-4 shadow-lg shadow-black/10 sm:p-5">
@@ -1243,15 +1268,15 @@ export function MyCompetitionsPage() {
         </Card>
 
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3' : 'grid grid-cols-1 gap-3'}>
             {[0, 1, 2].map((value) => (
               <Card key={value} className="animate-pulse overflow-hidden">
-                <div className="h-40 bg-slate-800" />
-                <div className="space-y-3 p-5">
+                <div className={viewMode === 'grid' ? 'aspect-[16/10] bg-slate-800 sm:aspect-[16/8] lg:aspect-auto lg:h-40' : 'h-12 bg-slate-800'} />
+                <div className="space-y-2 p-3 sm:space-y-3 sm:p-4">
                   <div className="h-4 w-32 rounded bg-slate-800" />
                   <div className="h-5 w-3/4 rounded bg-slate-800" />
                   <div className="h-3 w-1/2 rounded bg-slate-800" />
-                  <div className="h-16 rounded-xl bg-slate-800" />
+                  <div className="h-12 rounded-xl bg-slate-800 sm:h-16" />
                 </div>
               </Card>
             ))}
@@ -1279,7 +1304,7 @@ export function MyCompetitionsPage() {
             )}
           </Card>
         ) : (
-          <div className={viewMode === 'grid' ? 'grid gap-5 md:grid-cols-2 lg:grid-cols-3' : 'grid grid-cols-1 gap-3'}>
+          <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3' : 'grid grid-cols-1 gap-3'}>
             {visibleItems.map((item) => (
               <CompetitionCard
                 key={item.entry_id}
