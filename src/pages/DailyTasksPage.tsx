@@ -567,10 +567,26 @@ export function DailyTasksPage() {
                   <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Reset otomatis setiap 00:00 WIB</span>
                 </div>
 
+                <div className="daily-task-loading-placeholder min-h-[12rem] space-y-3">
                 {loading && (
-                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-                    <Loader2 size={17} className="animate-spin"/>
-                    Memuat data aktivitas...
+                  <div className="grid gap-3" aria-label="Memuat daftar task">
+                    {Array.from({ length: 2 }, (_, index) => (
+                      <div key={index} className="flex min-h-[104px] items-start gap-3.5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800/80 dark:bg-slate-900/70">
+                        <span className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-slate-200/80 dark:border-slate-700 dark:bg-slate-800" />
+                        <div className="min-w-0 flex-1 space-y-3 pt-1">
+                          <div className="flex flex-wrap gap-2">
+                            <span className="h-3 w-32 rounded bg-slate-200 dark:bg-slate-800" />
+                            <span className="h-4 w-20 rounded-full bg-slate-200 dark:bg-slate-800" />
+                          </div>
+                          <span className="block h-3 w-4/5 rounded bg-slate-200 dark:bg-slate-800" />
+                          <div className="flex gap-2">
+                            <span className="h-5 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+                            <span className="h-5 w-24 rounded bg-slate-200 dark:bg-slate-800" />
+                          </div>
+                        </div>
+                        <span className="hidden h-10 w-32 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-800 sm:block" />
+                      </div>
+                    ))}
                   </div>
                 )}
                 {error && !loading && (
@@ -674,6 +690,7 @@ export function DailyTasksPage() {
                     </div>
                   );
                 })}
+                </div>
               </Card>
             </div>
           ) : (
