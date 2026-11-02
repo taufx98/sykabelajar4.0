@@ -49,7 +49,7 @@ type OrganizerCompetitionQuota = {
   is_admin: boolean;
 };
 
-async function fetchOrganizerCompetitionQuota(organizerId: string): Promise<OrganizerCompetitionQuota> {
+async function refreshOrganizerCompetitionQuota(organizerId: string): Promise<OrganizerCompetitionQuota> {
   const { data, error } = await supabase.rpc('get_organizer_competition_quota', {
     p_organizer_id: organizerId,
   });
@@ -166,7 +166,7 @@ export function OrganizerCompetitionConfigPage() {
     let active = true;
     setQuotaLoading(true);
     setQuotaError('');
-    void fetchOrganizerCompetitionQuota(organizerId)
+    void refreshOrganizerCompetitionQuota(organizerId)
       .then((quota) => {
         if (active) setCompetitionQuota(quota);
       })
@@ -187,10 +187,19 @@ export function OrganizerCompetitionConfigPage() {
     const resetAt = competitionQuota?.reset_at;
     if (!organizerId || !resetAt || competition?.status !== 'DRAFT') return;
 
-    const resetDelay = Math.max(0, new Date(resetAt).getTime() - Date.now() + 500);
-    const timer = window.setTimeout(() => {
+    let timer = 0;
+    const scheduleResetRefresh = () => {
+      const remaining = new Date(resetAt).getTime() - Date.now();
+      if (remaining > 0) {
+        timer = window.setTimeout(
+          scheduleResetRefresh,
+          Math.min(remaining + 500, 2_147_000_000),
+        );
+        return;
+      }
+
       setQuotaLoading(true);
-      void fetchOrganizerCompetitionQuota(organizerId)
+      void refreshOrganizerCompetitionQuota(organizerId)
         .then((quota) => {
           setCompetitionQuota(quota);
           setQuotaError('');
@@ -200,8 +209,9 @@ export function OrganizerCompetitionConfigPage() {
           setQuotaError(String(error?.message ?? 'Status kuota belum dapat diperiksa.'));
         })
         .finally(() => setQuotaLoading(false));
-    }, Math.min(resetDelay, 2_147_483_647));
+    };
 
+    scheduleResetRefresh();
     return () => window.clearTimeout(timer);
   }, [competition?.organizer_id, competition?.status, competitionQuota?.reset_at]);
 
@@ -357,7 +367,7 @@ export function OrganizerCompetitionConfigPage() {
         if (organizerId) {
           setQuotaLoading(true);
           try {
-            refreshedQuota = await fetchOrganizerCompetitionQuota(organizerId);
+            refreshedQuota = await refreshOrganizerCompetitionQuota(organizerId);
             setCompetitionQuota(refreshedQuota);
             setQuotaError('');
           } catch {

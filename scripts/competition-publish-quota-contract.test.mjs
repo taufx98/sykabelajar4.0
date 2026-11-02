@@ -15,10 +15,11 @@ const configPage = await readFile(
   'utf8',
 );
 
-const createStart = migration.indexOf('CREATE OR REPLACE FUNCTION public.create_organizer_competition');
+const lowerMigration = migration.toLowerCase();
+const createStart = lowerMigration.indexOf('create or replace function public.create_organizer_competition');
 const createEnd = migration.indexOf('$function$;', createStart);
 const createFunction = migration.slice(createStart, createEnd);
-const transitionStart = migration.indexOf('CREATE OR REPLACE FUNCTION public.transition_competition');
+const transitionStart = lowerMigration.indexOf('create or replace function public.transition_competition');
 const transitionEnd = migration.indexOf('$function$;', transitionStart);
 const transitionFunction = migration.slice(transitionStart, transitionEnd);
 
@@ -65,6 +66,6 @@ test('configuration save stays enabled while Release is locked at quota and show
 
 test('a quota race on release leaves the draft intact and refreshes quota feedback', () => {
   assert.match(configPage, /COMPETITION_QUOTA_EXCEEDED/);
-  assert.match(configPage, /refreshCompetitionQuota/);
+  assert.match(configPage, /refreshOrganizerCompetitionQuota/);
   assert.match(configPage, /reset_at/);
 });
