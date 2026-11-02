@@ -641,6 +641,11 @@ begin
         'config', v_rule.config
       )
     end,
+    'participant_limits', jsonb_build_object(
+      'competition_maximum_participants', v_rule.max_participants,
+      'plan_maximum_participants', private.competition_plan_participant_limit(p_competition_id),
+      'effective_maximum_participants', private.competition_effective_participant_limit(p_competition_id)
+    ),
     'pricing', jsonb_build_object('unit_price', v_price, 'currency', 'IDR'),
     'certificate_policies', jsonb_build_array('EVENT_DEFAULT', 'INCLUDED', 'OPTIONAL', 'NONE')
   );
