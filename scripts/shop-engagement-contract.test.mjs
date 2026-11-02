@@ -43,11 +43,24 @@ test('public aggregate views execute with invoker permissions and have explicit 
   assert.match(migration, /grant select on public\.commerce_product_review_summaries to anon, authenticated/i);
 });
 
+test('public sales summary exposes only aggregate quantities from paid or completed Shop orders', () => {
+  assert.match(migration, /create or replace function public\\.list_public_commerce_product_sales_counts/i);
+  assert.match(migration, /returns table \\(product_id uuid, sales_count bigint\\)/i);
+  assert.match(migration, /security definer[\\s\\S]*?set search_path = ''[\\s\\S]*?as \\$shop\\$/i);
+  assert.match(migration, /sum\\(oi\\.quantity\\)/i);
+  assert.match(migration, /oi\\.product_ref = p\\.id::text/i);
+  assert.match(migration, /oi\\.product_type::text = p\\.product_type::text/i);
+  assert.match(migration, /o\\.status::text in \\('PAID', 'COMPLETED'\\)/i);
+  assert.match(migration, /grant execute on function public\\.list_public_commerce_product_sales_counts\\(\\) to anon, authenticated/i);
+});
+
 test('shop engagement service stores real wishlist, review and hero settings in Supabase', () => {
   assert.match(service, /from\(['"]commerce_product_wishlist['"]\)/);
   assert.match(service, /from\(['"]commerce_product_reviews['"]\)/);
   assert.match(service, /commerce_product_wishlist_counts/);
   assert.match(service, /commerce_product_review_summaries/);
+  assert.match(service, /list_public_commerce_product_sales_counts/);
+  assert.match(service, /sales_count/);
   assert.match(service, /shop_hero_banner/);
   assert.match(service, /rpc\(['"]save_my_commerce_product_review['"]\s*,/);
   assert.match(service, /getUser\(/);
@@ -63,6 +76,9 @@ test('Shop catalog, product cards, toolbar, and detail modal follow the supplied
   assert.match(shop, /addWishlistItem/);
   assert.match(shop, /removeWishlistItem/);
   assert.match(shop, /listProductReviewSummaries/);
+  assert.match(shop, /listProductSalesCounts/);
+  assert.match(shop, /terjual/);
+  assert.match(ordersPage, /selectedSalesCount/);
   assert.match(shop, /saveProductReview/);
   assert.match(shop, /relative h-40 overflow-hidden bg-slate-900/);
   assert.match(shop, /bg-\[#151F32\] border border-slate-800\/90 hover:border-blue-500\/40 rounded-2xl/);
