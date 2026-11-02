@@ -84,7 +84,7 @@ test('banner copy and visual defaults match the supplied Shop hero', () => {
   assert.match(service, /Dapatkan Edu Coin, Kartu Bypass, Voucher Diskon Pendaftaran, hingga Layanan lainnya untuk menunjang kebutuhanmu/);
   assert.match(shop, /from-\[#0F172A\] via-\[#1E1B4B\] to-\[#0F172A\]/);
   assert.match(shop, /mix-blend-luminosity/);
-  assert.match(shop, /mask-image/);
+  assert.match(shop, /maskImage|WebkitMaskImage/);
   assert.match(adminPanel, /whitespace-pre-line/);
   assert.match(adminPanel, /Baris baru akan dipertahankan/);
 });
