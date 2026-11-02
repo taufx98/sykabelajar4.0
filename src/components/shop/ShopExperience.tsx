@@ -199,17 +199,7 @@ export function ShopExperience({
     void loadReviews(product.id);
   };
 
-  const myReview = reviewState.rows.find((review) => review.user_id === userId);
-  const canReview = Boolean(selectedProduct && userId && (
-    hasVerifiedPurchase(orders, selectedProduct.id)
-    || reviewState.rows.some((review) => review.user_id === userId)
-  ));
-
-  useEffect(() => {
-    if (!myReview) return;
-    setRating(myReview.rating);
-    setReviewText(myReview.review);
-  }, [myReview?.id]);
+  const canReview = Boolean(selectedProduct && userId && hasVerifiedPurchase(orders, selectedProduct.id));
 
   const submitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -365,7 +355,7 @@ export function ShopExperience({
                 })}
               </div>
               <textarea className="min-h-20 w-full rounded-xl border border-slate-700 bg-[#101A2A] p-3 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-500" maxLength={1200} value={reviewText} onChange={(event) => setReviewText(event.target.value)} placeholder="Ceritakan pengalamanmu menggunakan produk ini (opsional)."/>
-              <div className="flex items-center justify-between gap-2"><span className="text-[10px] text-slate-500">{reviewText.length}/1200</span><Button size="sm" type="submit" loading={reviewBusy} disabled={reviewBusy}>{myReview ? 'Perbarui ulasan' : 'Kirim rating'}</Button></div>
+              <div className="flex items-center justify-between gap-2"><span className="text-[10px] text-slate-500">{reviewText.length}/1200</span><Button size="sm" type="submit" loading={reviewBusy} disabled={reviewBusy}>Kirim rating</Button></div>
             </form> : <div className="rounded-xl border border-slate-800 bg-[#0B1422] p-3 text-xs leading-5 text-slate-500">Ulasan hanya dapat dikirim setelah pesanan dibayar dan diverifikasi untuk akun ini.</div>}
           </div>
         </div>
