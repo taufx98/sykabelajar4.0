@@ -192,7 +192,7 @@ export function CompetitionDetailPage() {
   const participantCount = Number(participantDirectory?.participant_count ?? detail?.participantCount ?? competition?.participant_count ?? 0);
   const quotaCount = Number(participantDirectory?.quota_count ?? participantCount);
   const questionCount = Number(detail?.questionCount ?? 0);
-  const capacityValue = rules?.max_participants ?? participantDirectory?.maximum_participants;
+  const capacityValue = participantDirectory?.maximum_participants ?? rules?.max_participants;
   const capacity = capacityValue == null ? null : Math.max(0, Number(capacityValue));
   const minimumValue = rules?.minimum_participants ?? participantDirectory?.minimum_participants;
   const minimumTarget = minimumValue == null ? null : Math.max(1, Number(minimumValue));
@@ -379,6 +379,7 @@ export function CompetitionDetailPage() {
               <div className="mb-2 flex items-center justify-between gap-3"><span className="text-xs font-semibold text-fg-secondary">Batas maksimum</span><span className="text-xs font-bold tabular-nums text-fg">{quotaCount.toLocaleString('id-ID')} / {capacity.toLocaleString('id-ID')}</span></div>
               <div className="h-2 overflow-hidden rounded-full bg-surface-elevated"><div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: capacityProgress + '%' }}/></div>
               <p className="mt-2 text-[11px] text-fg-muted">{remainingCapacity === 0 ? 'Kuota telah penuh' : 'Sisa kuota ' + remainingText + ' peserta'}</p>
+              <p className="mt-1 text-[10px] text-fg-muted">Kuota efektif memperhitungkan batas maksimum lomba dan kapasitas paket penyelenggara.</p>
             </div>}
           </Card>}
           <Card className="flex items-start gap-2.5 p-4">
