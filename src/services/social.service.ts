@@ -31,3 +31,16 @@ export async function listPostComments(postId:string):Promise<SocialComment[]>{c
 export async function togglePostLike(postId:string){const userId=await currentUserId();if(!userId)throw new Error('LOGIN_REQUIRED');const{data:existing,error:lookupError}=await supabase.from('post_likes').select('post_id').eq('post_id',postId).eq('user_id',userId).maybeSingle();if(lookupError)throw lookupError;if(existing){const{error}=await supabase.from('post_likes').delete().eq('post_id',postId).eq('user_id',userId);if(error)throw error;}else{const{error}=await supabase.from('post_likes').insert({post_id:postId,user_id:userId});if(error)throw error;}}
 export async function toggleCommentLike(commentId:string){const userId=await currentUserId();if(!userId)throw new Error('LOGIN_REQUIRED');const{data:existing,error:lookupError}=await supabase.from('comment_likes').select('comment_id').eq('comment_id',commentId).eq('user_id',userId).maybeSingle();if(lookupError)throw lookupError;if(existing){const{error}=await supabase.from('comment_likes').delete().eq('comment_id',commentId).eq('user_id',userId);if(error)throw error;}else{const{error}=await supabase.from('comment_likes').insert({comment_id:commentId,user_id:userId});if(error)throw error;}}
 export async function addPostComment(postId:string,body:string,parentId?:string){const userId=await currentUserId();if(!userId)throw new Error('LOGIN_REQUIRED');const text=body.trim();if(!text)throw new Error('Komentar tidak boleh kosong.');const{error}=await supabase.from('comments').insert({post_id:postId,user_id:userId,parent_id:parentId??null,body:text,moderation_state:'PUBLISHED'});if(error)throw error;}
+
+export async function reportPostComment(commentId: string, reason: string) {
+  const text = reason.trim();
+  if (!text || text.length < 3 || text.length > 200) {
+    throw new Error('Alasan laporan harus 3 sampai 200 karakter.');
+  }
+  const { data, error } = await supabase.rpc('report_competition_comment', {
+    p_comment_id: commentId,
+    p_reason: text,
+  });
+  if (error) throw error;
+  return String(data);
+}
