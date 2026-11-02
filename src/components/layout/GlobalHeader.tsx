@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { ArrowLeft, CalendarDays } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ShieldCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { AdminCommunicationLinks } from '@/components/admin/AdminCommunicationLinks';
@@ -7,7 +7,7 @@ import { notifyHomeNavigationClick } from '@/lib/homeNavigation';
 import { useLanguage } from '@/lib/LanguageContext';
 
 export type GlobalHeaderNavItem = { to: string; label: string; icon: LucideIcon };
-type GlobalHeaderProps = { navItems: GlobalHeaderNavItem[]; badgeLabel?: string };
+type GlobalHeaderProps = { navItems: GlobalHeaderNavItem[] };
 
 function scoreMatch(itemPath: string, pathname: string) {
   const path = itemPath.split('?')[0].replace(/\/$/, '') || '/';
@@ -27,7 +27,7 @@ function resolveActiveItem(navItems: GlobalHeaderNavItem[], pathname: string) {
   }, null);
 }
 
-export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
+export function GlobalHeader({ navItems }: GlobalHeaderProps) {
   const location = useLocation();
   const { user } = useApp();
   const { language, t } = useLanguage();
@@ -46,7 +46,6 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
         : activeItem?.label ?? 'SYKABELAJAR';
   const showAdminCommunication = user?.role === 'admin'
     && (location.pathname === '/pesan' || isAdminChat);
-  const roleBadge = user?.role === 'admin' ? 'Admin' : badgeLabel;
   const dateLabel = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'id-ID', {
     weekday: 'long',
     day: 'numeric',
@@ -77,10 +76,10 @@ export function GlobalHeader({ navItems, badgeLabel }: GlobalHeaderProps) {
           {dateLabel}
         </span>
         {showAdminCommunication && <AdminCommunicationLinks />}
-        {roleBadge && (
+        {user?.role === 'admin' && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3B82F6]/30 bg-[#3B82F6]/10 px-2.5 py-1.5 text-[11px] font-semibold text-[#2563EB] dark:text-[#93C5FD]">
-            <i aria-hidden="true" className="fa-solid fa-user-shield" />
-            {roleBadge}
+            <ShieldCheck size={14} aria-hidden="true" />
+            Admin
           </span>
         )}
       </div>
