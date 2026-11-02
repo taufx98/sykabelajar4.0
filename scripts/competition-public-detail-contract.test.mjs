@@ -10,6 +10,10 @@ const badgePrivacyMigration = await readFile(
   new URL('../supabase/migrations/20261102061000_competition_result_badge_collection_privacy.sql', import.meta.url),
   'utf8',
 );
+const planQuotaMigration = await readFile(
+  new URL('../supabase/migrations/20261102062000_competition_effective_participant_quota.sql', import.meta.url),
+  'utf8',
+);
 const organizerConfig = await readFile(new URL('../src/pages/OrganizerCompetitionConfigPage.tsx', import.meta.url), 'utf8');
 const competitionDetail = await readFile(new URL('../src/pages/CompetitionDetailPage.tsx', import.meta.url), 'utf8');
 const resultsPage = await readFile(new URL('../src/pages/CompetitionResultsPage.tsx', import.meta.url), 'utf8');
@@ -111,6 +115,38 @@ test('participant details in the public results UI are fetched from the canonica
   assert.match(resultsPage, /correct/);
   assert.match(resultsPage, /incorrect/);
   assert.match(resultsPage, /duration_seconds/);
+});
+
+
+test('effective participant ceiling is the lower of organizer-plan and competition caps', () => {
+  assert.match(planQuotaMigration, /FUNCTION private\.competition_plan_participant_limit/i);
+  assert.match(planQuotaMigration, /FUNCTION private\.competition_effective_participant_limit/i);
+  assert.match(planQuotaMigration, /least\(/i);
+  assert.match(planQuotaMigration, /participant_limit/);
+  assert.match(planQuotaMigration, /maximum_participants/);
+});
+
+test('individual registration entitlement guard serializes with collective reservations', () => {
+  const guard = planQuotaMigration.match(/create or replace function private\.guard_registration_entitlement[\s\S]*?\$function\$;/i)?.[0] ?? '';
+  assert.match(guard, /FOR UPDATE/i);
+  assert.match(guard, /competition_reserved_participant_count/);
+  assert.match(guard, /PARTICIPANT_QUOTA_EXCEEDED/);
+  assert.doesNotMatch(guard, /pg_advisory_xact_lock/i);
+});
+
+test('all participant admission and public capacity paths use the effective plan-aware ceiling', () => {
+  assert.match(planQuotaMigration, /FUNCTION public\.check_registration_eligibility[\s\S]*competition_effective_participant_limit/i);
+  assert.match(planQuotaMigration, /FUNCTION public\.quote_collective_registration[\s\S]*competition_effective_participant_limit/i);
+  assert.match(planQuotaMigration, /FUNCTION public\.create_collective_participants[\s\S]*competition_effective_participant_limit/i);
+  assert.match(planQuotaMigration, /'maximum_participants', v_effective_maximum/i);
+  assert.match(planQuotaMigration, /'plan_maximum_participants', v_plan_maximum/i);
+  assert.match(planQuotaMigration, /'effective_maximum_participants', v_effective_maximum/i);
+});
+
+test('public detail and teacher collective wizard display the effective maximum, not only the configured event cap', () => {
+  assert.match(competitionDetail, /participantDirectory\?\.maximum_participants \?\? rules\?\.max_participants/);
+  assert.match(collectiveWizard, /effective_maximum_participants/);
+  assert.match(collectiveWizard, /plan_maximum_participants/);
 });
 
 test('comment reporting is persisted through an authenticated RPC and comment sharing uses the clipboard', () => {
