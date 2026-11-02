@@ -153,7 +153,7 @@ test('all participant admission and public capacity paths use the effective plan
 test('public detail and teacher collective wizard display the effective maximum, not only the configured event cap', () => {
   assert.match(competitionDetail, /participantDirectory\?\.maximum_participants \?\? rules\?\.max_participants/);
   assert.match(collectiveWizard, /effective_maximum_participants/);
-  assert.match(collectiveWizard, /plan_maximum_participants/);
+  assert.doesNotMatch(collectiveWizard, /plan_maximum_participants/);
 });
 
 test('comment reporting is persisted through an authenticated RPC and comment sharing uses the clipboard', () => {
