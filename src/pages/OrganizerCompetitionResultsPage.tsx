@@ -121,7 +121,8 @@ export function OrganizerCompetitionResultsPage() {
   };
 
   const openParticipantDetail = async (row: CompetitionResultRow) => {
-    const slug = overview?.competition.slug;\n    if (!row.participant_id || !slug || participantDetailLoading) return;
+    const slug = overview?.competition.slug;
+    if (!row.participant_id || !slug || participantDetailLoading) return;
     setParticipantDetailName(row.full_name);
     setParticipantDetail(null);
     setParticipantDetailError('');
