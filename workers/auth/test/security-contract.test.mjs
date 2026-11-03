@@ -47,7 +47,7 @@ test('local Worker config does not bind to a production D1 database or deploy on
   const wrangler = await source('../wrangler.jsonc');
   const workflow = await source('../../../.github/workflows/auth-worker-poc.yml');
   assert.match(wrangler, /database_name:\s*["']sykabelajar-auth-local["']/);
-  assert.match(wrangler, /database_id:\s*["']local-development-only["']/);
+  assert.match(wrangler, /database_id:\s*["']00000000-0000-0000-0000-000000000000["']/);
   assert.match(workflow, /npm run build:worker/);
   assert.doesNotMatch(workflow, /wrangler deploy\s*$/m);
 });
