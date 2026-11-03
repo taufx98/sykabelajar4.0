@@ -1,0 +1,21 @@
+name = "sykabelajar-auth-poc"
+main = "src/worker.ts"
+compatibility_date = "2026-11-04"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = false
+
+# Non-deployable placeholder. Replace only after creating a dedicated NON-PRODUCTION D1 database.
+[[d1_databases]]
+binding = "DB"
+database_name = "sykabelajar-auth-poc"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
+APP_ORIGIN = "https://sykabelajar.my.id"
+SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
+
+[observability]
+enabled = true
