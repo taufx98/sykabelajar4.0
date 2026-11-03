@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 
 const migration = await readFile('supabase/migrations/20261103031139_shop_wishlist_ratings_and_banner.sql', 'utf8');
-const grantsMigrationFile = (await readdir('supabase/migrations')).find((file) => /_shop_engagement_minimal_grants\\.sql$/.test(file));
+const grantsMigrationFile = (await readdir('supabase/migrations')).find((file) => /_shop_engagement_minimal_grants\.sql$/.test(file));
 const grantsMigration = grantsMigrationFile
   ? await readFile('supabase/migrations/' + grantsMigrationFile, 'utf8')
   : '';
@@ -27,11 +27,11 @@ test('Shop schema migration explicitly refreshes the PostgREST schema cache', ()
 
 test('Shop grants are least-privilege despite permissive project default privileges', () => {
   assert.ok(grantsMigrationFile, 'the explicit Shop grants hardening migration must exist');
-  assert.match(grantsMigration, /revoke all on table public\.commerce_product_wishlist from anon, authenticated/i);
+  assert.match(grantsMigration, /revoke all on table public\.commerce_product_wishlist from (?:public, )?anon, authenticated/i);
   assert.match(grantsMigration, /grant select, insert, delete on table public\.commerce_product_wishlist to authenticated/i);
-  assert.match(grantsMigration, /revoke all on table public\.commerce_product_wishlist_counts from anon, authenticated/i);
+  assert.match(grantsMigration, /revoke all on table public\.commerce_product_wishlist_counts from (?:public, )?anon, authenticated/i);
   assert.match(grantsMigration, /grant select on public\.commerce_product_wishlist_counts to authenticated/i);
-  assert.match(grantsMigration, /revoke all on table public\.commerce_product_review_summaries from anon, authenticated/i);
+  assert.match(grantsMigration, /revoke all on table public\.commerce_product_review_summaries from (?:public, )?anon, authenticated/i);
   assert.match(grantsMigration, /grant select on public\.commerce_product_review_summaries to anon, authenticated/i);
   assert.match(grantsMigration, /notify pgrst,\s*'reload schema'/i);
 });
