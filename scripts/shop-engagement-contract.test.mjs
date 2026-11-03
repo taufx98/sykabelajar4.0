@@ -408,7 +408,7 @@ test('scheduled duration vouchers are shown as ready and collective certificate 
     promotionsMigration.indexOf('create or replace function public.admin_list_issued_shop_vouchers()'),
     promotionsMigration.indexOf('create or replace function public.list_my_shop_vouchers()'),
   );
-  const scheduledState = /when uv\\.status='ACTIVE' and uv\\.activated_at > now\\(\\) then 'READY'/;
+  const scheduledState = /when uv\.status='ACTIVE' and uv\.activated_at > now\(\) then 'READY'/;
   assert.match(myVoucherList, scheduledState);
   assert.match(checkoutVoucherList, scheduledState);
   assert.match(adminIssuedVoucherList, scheduledState);
@@ -418,6 +418,6 @@ test('scheduled duration vouchers are shown as ready and collective certificate 
   );
   assert.match(
     collectiveCheckout,
-    /end if;\\s+update public\\.collective_certificate_orders cco\\s+set amount=v_order\\.total,updated_at=now\\(\\)\\s+where cco\\.order_id=v_order\\.id;\\s+return v_order;/,
+    /end if;\s+update public\.collective_certificate_orders cco\s+set amount=v_order\.total,updated_at=now\(\)\s+where cco\.order_id=v_order\.id;\s+return v_order;/,
   );
 });
