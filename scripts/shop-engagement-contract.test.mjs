@@ -345,6 +345,8 @@ test('purchased voucher products are issued only after successful payment and re
   assert.match(promotionsMigration, /on conflict \(source_order_item_id,source_order_item_index\) do nothing/i);
   assert.match(promotionsMigration, /new\.status::text in \('PAID','COMPLETED'\)/i);
   assert.match(promotionsMigration, /v_issued_count/);
+  assert.match(promotionsMigration, /shop_voucher_definition_snapshot/);
+  assert.match(promotionsMigration, /jsonb_populate_record/);
 });
 
 test('admin can create, issue, edit and disable voucher definitions with target scope and minimum purchase', () => {
