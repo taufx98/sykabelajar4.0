@@ -689,7 +689,13 @@ export function OrdersPage() {
     const proofStatus = String(order.payment_proof_status ?? '').toUpperCase();
     if (status === 'PAID') {
       const type = order.order_items?.[0]?.product_type;
-      return String(order.order_items?.[0]?.product_ref ?? '') === 'COLLECTIVE_CERTIFICATE' ? 'Sertifikat diterbitkan' : ['DIGITAL_ITEM', 'DONATION'].includes(String(type)) ? 'Terverifikasi' : 'Manfaat diberikan';
+      return String(order.order_items?.[0]?.product_ref ?? '') === 'COLLECTIVE_CERTIFICATE'
+        ? 'Sertifikat diterbitkan'
+        : String(type) === 'VOUCHER'
+          ? 'Voucher diterbitkan'
+          : ['DIGITAL_ITEM', 'DONATION'].includes(String(type))
+            ? 'Terverifikasi'
+            : 'Manfaat diberikan';
     }
     if (status === 'CANCELLED' || status === 'CANCELED' || status === 'REFUNDED') return 'Ditolak / dibatalkan';
     if (status === 'PENDING_PAYMENT' || status === 'PENDING') {
@@ -732,7 +738,7 @@ export function OrdersPage() {
   const isShopOrder = (order: any) => {
     const item = itemForOrder(order);
     const type = String(item?.product_type ?? '').toUpperCase();
-    return ['EDU_COIN_TOPUP', 'BADGE', 'CERTIFICATE_SERIALS', 'DONATION'].includes(type)
+    return ['EDU_COIN_TOPUP', 'BADGE', 'CERTIFICATE_SERIALS', 'DONATION', 'VOUCHER'].includes(type)
       || (type === 'DIGITAL_ITEM' && Boolean(item?.metadata?.shop_metadata) && String(item?.product_ref ?? '') !== 'COLLECTIVE_CERTIFICATE');
   };
   const canCancelOrder = (order: any) => {
