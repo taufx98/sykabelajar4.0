@@ -15,7 +15,7 @@ test('anonymous callers cannot bypass a private connections setting through SQL 
     '',
     'the profile connections privacy migration must exist before this regression can pass',
   );
-  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_profile_connections\(p_profile_id uuid, p_mode text\)/i);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\\.get_profile_connections\\(\\s*p_profile_id uuid,\\s*p_mode text\\s*\\)/i);
   assert.match(
     migration,
     /IF\s+v_uid\s+IS DISTINCT FROM\s+p_profile_id\s+AND\s+NOT\s+coalesce\(v_allow,\s*true\)\s+THEN\s+RETURN;\s+END IF;/i,
