@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 
 const migration = await readFile('supabase/migrations/20261103031139_shop_wishlist_ratings_and_banner.sql', 'utf8');
-const promotionsMigration = await readFile('supabase/migrations/20261103043000_shop_vouchers_and_carousel_banners.sql', 'utf8');
+const promotionsMigration = await readFile('supabase/migrations/20261103074001_shop_vouchers_and_carousel_banners.sql', 'utf8');
 const grantsMigrationFile = (await readdir('supabase/migrations')).find((file) => /_shop_engagement_minimal_grants\.sql$/.test(file));
 const grantsMigration = grantsMigrationFile
   ? await readFile('supabase/migrations/' + grantsMigrationFile, 'utf8')
