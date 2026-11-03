@@ -136,6 +136,8 @@ export function createAuth(env: AuthWorkerEnv) {
         },
       }),
       oauthProvider({
+        loginPage: new URL("/login", appOrigin).toString(),
+        consentPage: new URL("/oauth/consent", appOrigin).toString(),
         scopes: ["openid", "profile", "email"],
         resources: [{
           identifier: resourceAudience,
