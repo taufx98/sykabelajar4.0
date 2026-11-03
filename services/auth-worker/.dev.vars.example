@@ -1,8 +1,9 @@
 # Copy to .dev.vars for local-only testing. Never commit real credentials.
+BETTER_AUTH_URL=http://localhost:8787
 BETTER_AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters
+DEV_APP_ORIGIN=http://localhost:5173
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 AUTH_EMAIL_WEBHOOK_URL=
 AUTH_EMAIL_WEBHOOK_TOKEN=
 AUTH_EMAIL_FROM=
-DEV_APP_ORIGIN=http://localhost:5173
