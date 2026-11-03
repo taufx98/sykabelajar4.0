@@ -768,7 +768,7 @@ create table if not exists public.shop_promo_banners (
   image_url text not null,
   target_url text,
   slide_duration_seconds integer not null default 5 check (slide_duration_seconds between 2 and 60),
-  position integer not null default 0 check (position >= 0),
+  position integer not null default 1 check (position >= 1),
   is_active boolean not null default true,
   views_count bigint not null default 0,
   clicks_count bigint not null default 0,
@@ -901,6 +901,19 @@ $function$;
 revoke all on function public.create_product_order_with_proof(uuid,integer,text,text,text,text,integer,integer,text,text,uuid) from public,anon,authenticated;
 revoke all on function public.create_product_order_with_edu_coin(uuid,integer,text,uuid) from public,anon,authenticated;
 revoke all on function private.calculate_shop_voucher_effects(uuid,uuid,integer,numeric,numeric,uuid[]) from public,anon,authenticated;
+revoke all on function public.list_my_shop_vouchers() from public, anon, authenticated;
+revoke all on function public.mark_my_shop_vouchers_seen() from public, anon, authenticated;
+revoke all on function public.list_shop_checkout_vouchers(uuid,integer,numeric,numeric) from public, anon, authenticated;
+revoke all on function public.admin_list_shop_voucher_definitions() from public, anon, authenticated;
+revoke all on function public.admin_save_shop_voucher_definition(jsonb) from public, anon, authenticated;
+revoke all on function public.admin_issue_shop_voucher(uuid,text) from public, anon, authenticated;
+revoke all on function public.admin_list_issued_shop_vouchers() from public, anon, authenticated;
+revoke all on function public.list_active_shop_promo_banners() from public, anon, authenticated;
+revoke all on function public.record_shop_promo_banner_event(uuid,text,text) from public, anon, authenticated;
+revoke all on function public.admin_list_shop_promo_banners() from public, anon, authenticated;
+revoke all on function public.admin_save_shop_promo_banner(uuid,text,text,integer,integer,boolean) from public, anon, authenticated;
+revoke all on function public.admin_delete_shop_promo_banner(uuid) from public, anon, authenticated;
+
 grant execute on function public.create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[]) to authenticated;
 grant execute on function public.create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[]) to authenticated;
 grant execute on function public.list_my_shop_vouchers() to authenticated;
