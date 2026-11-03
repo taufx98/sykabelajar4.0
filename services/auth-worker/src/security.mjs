@@ -1,3 +1,4 @@
+/** @param {string} value @returns {string | null} */
 const normalizeOrigin = (value) => {
   try {
     const parsed = new URL(value);
@@ -12,6 +13,7 @@ const normalizeOrigin = (value) => {
   }
 };
 
+/** @param {string | null} origin @param {string[]} allowedOrigins */
 export function isAllowedOrigin(origin, allowedOrigins) {
   if (typeof origin !== "string") return false;
   const normalized = normalizeOrigin(origin);
@@ -19,6 +21,7 @@ export function isAllowedOrigin(origin, allowedOrigins) {
   return allowedOrigins.some((entry) => normalizeOrigin(entry) === normalized);
 }
 
+/** @param {Request} request @param {string[]} allowedOrigins @returns {Headers | null} */
 export function createCorsHeaders(request, allowedOrigins) {
   const origin = request.headers.get("Origin");
   if (!isAllowedOrigin(origin, allowedOrigins)) return null;
@@ -33,6 +36,7 @@ export function createCorsHeaders(request, allowedOrigins) {
   });
 }
 
+/** @param {unknown} expected @param {unknown} supplied */
 export function timingSafeEqualString(expected, supplied) {
   if (typeof expected !== "string" || typeof supplied !== "string") return false;
   const encoder = new TextEncoder();
@@ -46,6 +50,7 @@ export function timingSafeEqualString(expected, supplied) {
   return difference === 0;
 }
 
+/** @param {Response} response @param {Headers | null} [corsHeaders] @returns {Response} */
 export function applyResponseHeaders(response, corsHeaders = null) {
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
@@ -54,12 +59,22 @@ export function applyResponseHeaders(response, corsHeaders = null) {
   headers.set("Strict-Transport-Security", "max-age=31536000");
 
   if (corsHeaders) {
-    for (const [key, value] of corsHeaders.entries()) {
-      if (key.toLowerCase() === "vary") {
+    const names = [
+      "Access-Control-Allow-Origin",
+      "Access-Control-Allow-Credentials",
+      "Access-Control-Allow-Methods",
+      "Access-Control-Allow-Headers",
+      "Access-Control-Max-Age",
+      "Vary",
+    ];
+    for (const name of names) {
+      const value = corsHeaders.get(name);
+      if (!value) continue;
+      if (name.toLowerCase() === "vary") {
         const existing = headers.get("Vary");
         headers.set("Vary", existing ? existing + ", " + value : value);
       } else {
-        headers.set(key, value);
+        headers.set(name, value);
       }
     }
   }
