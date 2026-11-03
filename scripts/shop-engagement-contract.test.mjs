@@ -416,8 +416,9 @@ test('scheduled duration vouchers are shown as ready and collective certificate 
   const collectiveCheckout = promotionsMigration.slice(
     promotionsMigration.indexOf('create or replace function public.create_shop_collective_certificate_order_with_vouchers('),
   );
-  assert.match(
-    collectiveCheckout,
-    /end if;\s+update public\.collective_certificate_orders cco\s+set amount=v_order\.total,updated_at=now\(\)\s+where cco\.order_id=v_order\.id;\s+return v_order;/,
-  );
+  const amountSync = collectiveCheckout.indexOf('update public.collective_certificate_orders cco');
+  const voucherBranchEnd = collectiveCheckout.lastIndexOf('  end if;');
+  assert.ok(amountSync > voucherBranchEnd, 'certificate amount sync must run outside the optional voucher branch');
+  assert.match(collectiveCheckout, /set amount=v_order\.total,updated_at=now\(\)/);
+  assert.match(collectiveCheckout, /where cco\.order_id=v_order\.id;\s+return v_order;/);
 });
