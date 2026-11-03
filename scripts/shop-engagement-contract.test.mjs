@@ -409,7 +409,7 @@ test('scheduled duration vouchers are shown as ready and collective certificate 
     promotionsMigration.indexOf('create or replace function public.list_my_shop_vouchers()'),
   );
   const scheduledState = /when uv\.status='ACTIVE' and uv\.activated_at > now\(\) then 'READY'/;
-  assert.match(shop, /const scheduled = voucher\\.usage_type === 'DURATION'/);
+  assert.match(shop, /const scheduled = voucher\.usage_type === 'DURATION'/);
   assert.match(shop, /Belum dimulai/);
   assert.match(shop, /Voucher ini akan aktif otomatis saat tanggal mulai tiba/);
   assert.match(myVoucherList, scheduledState);
