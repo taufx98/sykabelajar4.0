@@ -83,3 +83,15 @@ A complete PoC test must verify:
 - Cloudflare custom-domain deployment.
 
 These are explicit gates, not implied successes.
+
+## Current Stage 1 checkpoint — 4 November 2026
+
+The latest local CI attempt has verified the TypeScript contracts, security contract tests, and local D1 bootstrap migration. It then failed at the local Worker health check before the generated Better Auth D1 schema could be exported. The CI workflow now prints the complete Wrangler startup log when that health check fails. Do not treat OIDC runtime, PKCE token issuance, or Supabase acceptance as complete until those tests have run successfully.
+
+Remaining gates before this PoC is considered complete:
+
+- Resolve local Wrangler Worker startup and generate/review the full D1 schema artifact.
+- Run live local email/password verification and session/logout tests using the webhook mock.
+- Run Authorization Code + PKCE end-to-end and verify the ES256 JWT against the discovered JWKS.
+- Test Google OAuth once isolated Google client credentials and callback URI are configured.
+- Verify Supabase Custom OIDC only in a dedicated staging project. The production Supabase project is intentionally untouched.
