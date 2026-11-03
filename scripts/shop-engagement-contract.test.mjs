@@ -267,6 +267,9 @@ test('duration vouchers auto-apply once per benefit group and one-time vouchers 
   assert.match(promotionsMigration, /order by d\.benefit_group, uv\.issued_at desc, uv\.id/i);
   assert.match(promotionsMigration, /d\.benefit_group=any\(v_group_active\)/i);
   assert.match(promotionsMigration, /SHOP_VOUCHER_STACK_CONFLICT/);
+  assert.match(promotionsMigration, /when v_product\.currency='EDU_COIN' then trunc/i);
+  assert.match(ordersPage, /voucher\.usage_type === 'SINGLE_USE'/);
+  assert.match(ordersPage, /Math\.min\(/);
   assert.match(promotionsMigration, /SHOP_VOUCHER_NOT_AVAILABLE/);
   assert.match(promotionsMigration, /one_time_ids/);
   assert.match(promotionsMigration, /status='RESERVED'/);
