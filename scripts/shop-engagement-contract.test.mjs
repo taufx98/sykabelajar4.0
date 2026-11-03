@@ -13,6 +13,7 @@ const shop = await readFile('src/components/shop/ShopExperience.tsx', 'utf8');
 const adminPanel = await readFile('src/components/admin/ShopInsightsPanel.tsx', 'utf8');
 const adminPage = await readFile('src/pages/AdminPage.tsx', 'utf8');
 const ordersPage = await readFile('src/pages/OrdersPage.tsx', 'utf8');
+const shopProductEditor = await readFile('src/components/admin/ShopProductEditor.tsx', 'utf8');
 const globalHeader = await readFile('src/components/layout/GlobalHeader.tsx', 'utf8');
 
 test('wishlist displays PostgREST object errors and explains a missing schema object', () => {
@@ -193,4 +194,46 @@ test('admin hero configuration is saved through the existing platform settings r
   assert.match(adminPanel, /saveShopHeroBanner/);
   assert.match(service, /shop_hero_banner/);
   assert.match(adminPanel, /sykabelajar\/shop-hero/);
+});
+
+
+test('WhatsApp is entered in confirmation step and requires at least nine digits', () => {
+  const stepOne = ordersPage.slice(
+    ordersPage.indexOf('{purchaseStep === 1 &&'),
+    ordersPage.indexOf('{purchaseStep === 2 &&'),
+  );
+  const stepThree = ordersPage.slice(ordersPage.indexOf('{purchaseStep === 3 &&'));
+  assert.doesNotMatch(stepOne, /Nomor WhatsApp/);
+  assert.match(stepThree, /Nomor WhatsApp/);
+  assert.match(ordersPage, /replace\([^)]*\\D[^)]*,\s*['"]{2}\)\.length\s*<\s*9/);
+});
+
+test('purchase popup closes only through explicit controls and includes a cancel action', () => {
+  assert.doesNotMatch(ordersPage, /event\.target === event\.currentTarget\)\s*close\(\)/);
+  assert.match(ordersPage, /aria-label="Tutup pembelian"/);
+  assert.match(ordersPage, /Batal/);
+});
+
+test('package quantity control is grouped inside the product summary card', () => {
+  const stepOne = ordersPage.slice(
+    ordersPage.indexOf('{purchaseStep === 1 &&'),
+    ordersPage.indexOf('{purchaseStep === 2 &&'),
+  );
+  const productCardStart = stepOne.indexOf('className="flex gap-4 p-3 rounded-xl bg-slate-900/60 border border-slate-800"');
+  const productCardEnd = stepOne.indexOf('</div>\n\n            <div>', productCardStart);
+  assert.ok(productCardStart >= 0 && productCardEnd > productCardStart);
+  assert.match(stepOne.slice(productCardStart, productCardEnd), /Jumlah Paket/);
+});
+
+test('Shop filter catalogue is configured by admin and assigned to products independently from fulfillment type', () => {
+  assert.match(service, /shop_product_categories/);
+  assert.match(service, /getShopProductCategories/);
+  assert.match(service, /saveShopProductCategories/);
+  assert.match(adminPanel, /Kelola katalog produk/);
+  assert.match(adminPanel, /saveShopProductCategories/);
+  assert.match(shop, /getShopProductCategories/);
+  assert.match(shop, /categoryOptions\.map/);
+  assert.doesNotMatch(shop, /const CATEGORIES:/);
+  assert.match(shopProductEditor, /shop_category_id/);
+  assert.match(shopProductEditor, /Kategori katalog Shop/);
 });
