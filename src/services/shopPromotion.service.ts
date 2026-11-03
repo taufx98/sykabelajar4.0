@@ -205,7 +205,7 @@ export async function adminListShopVoucherDefinitions(): Promise<ShopVoucherDefi
   return rows<Record<string, unknown>>(data).map(mapDefinition);
 }
 
-export async function adminSaveShopVoucherDefinition(input: Omit<ShopVoucherDefinition, 'created_at'> & { id?: string | null }): Promise<ShopVoucherDefinition> {
+export async function adminSaveShopVoucherDefinition(input: Omit<ShopVoucherDefinition, 'created_at' | 'id'> & { id?: string | null }): Promise<ShopVoucherDefinition> {
   const { data, error } = await supabase.rpc('admin_save_shop_voucher_definition', {
     p_definition: {
       id: input.id ?? null,
