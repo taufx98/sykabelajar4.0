@@ -355,7 +355,7 @@ export function OrdersPage() {
   const appliedCheckoutVouchers = checkoutVoucherOptions.filter((voucher) =>
     voucher.auto_applied || (voucher.eligible && selectedCheckoutVoucherIds.includes(voucher.id))
   );
-  const checkoutManualVoucherOptions = checkoutVoucherOptions.filter((voucher) => !voucher.auto_applied);
+  const checkoutManualVoucherOptions = checkoutVoucherOptions.filter((voucher) => voucher.usage_type === 'SINGLE_USE');
   const formatProductPrice = (price: number, currency: string) => currency === 'EDU_COIN'
     ? `${Number(price).toLocaleString('id-ID')} Edu Coin`
     : formatRupiah(price);
