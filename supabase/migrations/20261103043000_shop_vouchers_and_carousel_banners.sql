@@ -177,6 +177,7 @@ begin
   if v_usage = 'SINGLE_USE' then v_duration := null; end if;
   if v_group = 'PRICE_DISCOUNT' then
     if v_type not in ('PERCENT','FIXED') or v_value <= 0 or (v_type='PERCENT' and v_value > 100) then raise exception 'INVALID_VOUCHER_DISCOUNT'; end if;
+    if v_type='FIXED' and v_currency='EDU_COIN' and v_value <> trunc(v_value) then raise exception 'INVALID_EDU_COIN_VOUCHER_AMOUNT'; end if;
   elsif v_group = 'BUY_X_GET_Y' then
     if v_type <> 'BUY_X_GET_Y' or v_buy not between 1 and 100 or v_free not between 1 and 100 then raise exception 'INVALID_VOUCHER_BOGO'; end if;
     v_value := 0;
@@ -593,6 +594,16 @@ declare
   v_voucher_ids uuid[];
 begin
   if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  if exists (
+    select 1 from public.commerce_products p
+    where p.id=p_product_id and p.product_type::text='VOUCHER'
+      and not exists (
+        select 1 from public.shop_voucher_definitions d
+        where d.id=nullif(p.metadata->>'shop_voucher_definition_id','')::uuid
+          and d.is_active=true and d.starts_at<=now()
+          and (d.ends_at is null or d.ends_at>now())
+      )
+  ) then raise exception 'SHOP_VOUCHER_REWARD_NOT_AVAILABLE'; end if;
   v_order := public.create_product_order_with_proof(
     p_product_id,p_quantity,p_whatsapp,p_payment_method,p_proof_url,p_proof_public_id,
     p_proof_width,p_proof_height,p_proof_version,p_proof_resource_type,p_target_organizer_id
@@ -1048,7 +1059,7 @@ begin
     if v_issued_count > 0 then
       insert into public.notifications(user_id,type,title,body,data)
       values(
-        new.user_id,'SHOP_VOUCHER','Voucher Shop berhasil diterima',
+        new.user_id,'ORDER_PAYMENT','Voucher Shop berhasil diterima',
         v_issued_count::text || ' voucher dari pembelian Shop telah masuk ke koleksi Voucher Saya.',
         jsonb_build_object('order_id',new.id,'voucher_count',v_issued_count)
       );
