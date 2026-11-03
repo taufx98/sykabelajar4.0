@@ -259,7 +259,7 @@ export async function listActiveShopPromoBanners(): Promise<ShopPromoBanner[]> {
     image_url: String(row.image_url ?? ''),
     target_url: row.target_url == null ? null : String(row.target_url),
     slide_duration_seconds: Number(row.slide_duration_seconds ?? 5),
-    position: Number(row.position ?? 0),
+    position: Number(row.slide_position ?? 0),
   }));
 }
 
@@ -271,7 +271,7 @@ export async function adminListShopPromoBanners(): Promise<ShopPromoBanner[]> {
     image_url: String(row.image_url ?? ''),
     target_url: row.target_url == null ? null : String(row.target_url),
     slide_duration_seconds: Number(row.slide_duration_seconds ?? 5),
-    position: Number(row.position ?? 0),
+    position: Number(row.slide_position ?? 0),
     is_active: Boolean(row.is_active),
     views_count: Number(row.views_count ?? 0),
     clicks_count: Number(row.clicks_count ?? 0),
@@ -303,7 +303,7 @@ export async function adminSaveShopPromoBanner(input: {
     image_url: String(row.image_url ?? ''),
     target_url: row.target_url == null ? null : String(row.target_url),
     slide_duration_seconds: Number(row.slide_duration_seconds ?? 5),
-    position: Number(row.position ?? 0),
+    position: Number(row.slide_position ?? 0),
     is_active: Boolean(row.is_active),
     views_count: Number(row.views_count ?? 0),
     clicks_count: Number(row.clicks_count ?? 0),
