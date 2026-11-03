@@ -60,20 +60,39 @@ export async function createOrganizerPlanOrder(input: { organizerId: string; pla
 export async function createOrganizerPlanOrderV2(input: { organizerId: string; planCode: string; billingPeriod: 'MONTHLY' | 'YEARLY'; whatsapp: string; proofUrl?: string; proofPublicId?: string; proofWidth?: number; proofHeight?: number; proofVersion?: string; proofResourceType?: string; voucherCode?: string; }) { return createOrganizerPlanOrder({ ...input, whatsapp: input.whatsapp }); }
 export async function requestCustomOrganizerPlan(input: { organizerId: string; requestedFeatures: string[]; quantities?: Record<string, number>; notes?: string; contactWhatsapp?: string; }) { const features = input.requestedFeatures.map((x) => x.trim()).filter(Boolean); if (!input.organizerId) throw new Error('Organisasi wajib dipilih.'); if (!features.length) throw new Error('Pilih minimal satu fitur custom.'); const quantities: Record<string, number> = {}; for (const [key,value] of Object.entries(input.quantities ?? {})) { if (!features.includes(key)) continue; if (!Number.isInteger(value) || value < 1) throw new Error(`Jumlah untuk ${key} harus bilangan bulat minimal 1.`); quantities[key]=value; } const { data,error }=await supabase.rpc('request_custom_organizer_plan',{p_organizer_id:input.organizerId,p_requested_features:{features,quantities},p_notes:input.notes?.trim()||null,p_contact_whatsapp:input.contactWhatsapp?.trim()||null});if(error)throw error;return Array.isArray(data)?data[0]:data; }
 export async function createProductOrder(productId:string,quantity:number){if(!Number.isInteger(quantity)||quantity<1)throw new Error('Jumlah produk tidak valid.');const{data,error}=await supabase.rpc('create_product_order',{p_product_id:productId,p_quantity:quantity});if(error)throw error;return Array.isArray(data)?data[0]:data;}
+function isVoucherCheckoutRpcUnavailable(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (
+    error.code === 'PGRST202'
+    || error.code === '42883'
+    || /could not find the function|function .* does not exist/i.test(error.message ?? '')
+  ));
+}
+
 export async function createProductOrderWithEduCoin(input: {
   productId: string;
   quantity: number;
   whatsapp?: string;
   targetOrganizerId?: string | null;
+  voucherIds?: string[];
 }) {
   if (!input.productId) throw new Error('Produk tidak valid.');
   if (!Number.isInteger(input.quantity) || input.quantity < 1) throw new Error('Jumlah produk tidak valid.');
-  const { data, error } = await supabase.rpc('create_product_order_with_edu_coin', {
+  let { data, error } = await supabase.rpc('create_shop_product_order_with_edu_coin_vouchers', {
     p_product_id: input.productId,
     p_quantity: input.quantity,
     p_whatsapp: input.whatsapp?.trim() || null,
     p_target_organizer_id: input.targetOrganizerId ?? null,
+    p_voucher_ids: input.voucherIds ?? [],
   });
+  if (isVoucherCheckoutRpcUnavailable(error)) {
+    if (input.voucherIds?.length) throw new Error('Fitur voucher Shop belum tersedia. Pesanan tidak dikirim agar voucher pilihanmu tidak hilang.');
+    ({ data, error } = await supabase.rpc('create_product_order_with_edu_coin', {
+      p_product_id: input.productId,
+      p_quantity: input.quantity,
+      p_whatsapp: input.whatsapp?.trim() || null,
+      p_target_organizer_id: input.targetOrganizerId ?? null,
+    }));
+  }
   if (error) {
     if (error.message.includes('INSUFFICIENT_EDU_COIN')) throw new Error('INSUFFICIENT_EDU_COIN');
     if (error.message.includes('BADGE_ALREADY_OWNED')) throw new Error('BADGE_ALREADY_OWNED');
@@ -99,9 +118,10 @@ export async function createProductOrderWithProof(input: {
   proofVersion?: string;
   proofResourceType?: string;
   targetOrganizerId?: string | null;
+  voucherIds?: string[];
 }) {
   if (!Number.isInteger(input.quantity) || input.quantity < 1) throw new Error('Jumlah produk tidak valid.');
-  const { data, error } = await supabase.rpc('create_product_order_with_proof', {
+  let { data, error } = await supabase.rpc('create_shop_product_order_with_vouchers', {
     p_product_id: input.productId,
     p_quantity: input.quantity,
     p_whatsapp: input.whatsapp.trim(),
@@ -113,7 +133,24 @@ export async function createProductOrderWithProof(input: {
     p_proof_version: input.proofVersion ?? null,
     p_proof_resource_type: input.proofResourceType ?? null,
     p_target_organizer_id: input.targetOrganizerId ?? null,
+    p_voucher_ids: input.voucherIds ?? [],
   });
+  if (isVoucherCheckoutRpcUnavailable(error)) {
+    if (input.voucherIds?.length) throw new Error('Fitur voucher Shop belum tersedia. Pesanan tidak dikirim agar voucher pilihanmu tidak hilang.');
+    ({ data, error } = await supabase.rpc('create_product_order_with_proof', {
+      p_product_id: input.productId,
+      p_quantity: input.quantity,
+      p_whatsapp: input.whatsapp.trim(),
+      p_payment_method: input.paymentMethod,
+      p_proof_url: input.proofUrl ?? null,
+      p_proof_public_id: input.proofPublicId ?? null,
+      p_proof_width: input.proofWidth ?? null,
+      p_proof_height: input.proofHeight ?? null,
+      p_proof_version: input.proofVersion ?? null,
+      p_proof_resource_type: input.proofResourceType ?? null,
+      p_target_organizer_id: input.targetOrganizerId ?? null,
+    }));
+  }
   if (error) {
     if (error.message.includes('BADGE_ALREADY_OWNED')) throw new Error('Badge ini sudah ada di koleksimu.');
     if (error.message.includes('ORGANIZER_REQUIRED')) throw new Error('Pilih organisasi yang akan menerima QR / Serial sertifikat.');
@@ -126,6 +163,7 @@ export async function createProductOrderWithProof(input: {
 
 export async function createCollectiveCertificateOrderWithProof(input: {
   certificateId: string;
+  shopProductId?: string;
   paymentMethod: string;
   proofUrl?: string | null;
   whatsapp?: string;
@@ -134,8 +172,9 @@ export async function createCollectiveCertificateOrderWithProof(input: {
   proofHeight?: number;
   proofVersion?: string;
   proofResourceType?: string;
+  voucherIds?: string[];
 }) {
-  const { data, error } = await supabase.rpc('create_collective_certificate_order_with_proof', {
+  const proofArgs = {
     p_certificate_id: input.certificateId,
     p_payment_method: input.paymentMethod,
     p_proof_url: input.proofUrl ?? null,
@@ -145,7 +184,34 @@ export async function createCollectiveCertificateOrderWithProof(input: {
     p_proof_version: input.proofVersion ?? null,
     p_proof_resource_type: input.proofResourceType ?? null,
     p_whatsapp: input.whatsapp?.trim() || null,
-  });
+  };
+
+  let data: unknown;
+  let error: { message: string; code?: string } | null = null;
+  if (input.shopProductId) {
+    const result = await supabase.rpc('create_shop_collective_certificate_order_with_vouchers', {
+      ...proofArgs,
+      p_shop_product_id: input.shopProductId,
+      p_voucher_ids: input.voucherIds ?? [],
+    });
+    data = result.data;
+    error = result.error;
+    if (isVoucherCheckoutRpcUnavailable(error)) {
+      if (input.voucherIds?.length) {
+        throw new Error('Fitur voucher Shop belum tersedia. Pesanan sertifikat tidak dikirim agar voucher pilihanmu tidak hilang.');
+      }
+      const fallback = await supabase.rpc('create_collective_certificate_order_with_proof', proofArgs);
+      data = fallback.data;
+      error = fallback.error;
+    }
+  } else {
+    // The teacher certificate workspace is a separate legacy flow, not the Shop checkout.
+    // Keep it on its original RPC; Shop orders always provide shopProductId and use voucher validation.
+    const result = await supabase.rpc('create_collective_certificate_order_with_proof', proofArgs);
+    data = result.data;
+    error = result.error;
+  }
+
   if (error) {
     if (error.message.includes('CERTIFICATE_SHOP_NOT_AVAILABLE')) throw new Error('Produk sertifikat peserta belum diaktifkan oleh admin di Shop.');
     if (error.message.includes('RESULT_NOT_FINALIZED')) throw new Error('Peserta belum menyelesaikan lomba. Sertifikat belum bisa dipesan.');
