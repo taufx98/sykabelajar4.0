@@ -63,6 +63,12 @@ create index if not exists shop_user_vouchers_user_issued_idx
 create index if not exists shop_user_vouchers_available_idx
   on public.shop_user_vouchers (user_id, status, active_until);
 
+alter table public.shop_user_vouchers
+  add column if not exists source_order_item_id uuid references public.order_items(id) on delete set null,
+  add column if not exists source_order_item_index integer not null default 0;
+create unique index if not exists shop_user_vouchers_purchase_item_unique
+  on public.shop_user_vouchers (source_order_item_id,source_order_item_index);
+
 alter table public.shop_voucher_definitions enable row level security;
 alter table public.shop_user_vouchers enable row level security;
 revoke all on table public.shop_voucher_definitions from public, anon, authenticated;
@@ -900,3 +906,159 @@ grant execute on function public.admin_save_shop_promo_banner(uuid,text,text,int
 grant execute on function public.admin_delete_shop_promo_banner(uuid) to authenticated;
 
 notify pgrst, 'reload schema';
+
+
+-- Allow a Shop product to represent a voucher that is granted only after the order is paid.
+alter table public.commerce_products
+  drop constraint if exists commerce_products_product_type_check;
+alter table public.commerce_products
+  add constraint commerce_products_product_type_check
+  check (product_type = any (array[
+    'EDU_COIN_TOPUP','FEATURE_UNLOCK','DIGITAL_ITEM','DONATION','PLAN',
+    'BADGE','CERTIFICATE_SERIALS','COLLECTIVE_CERTIFICATE','VOUCHER'
+  ]::text[]));
+
+do $shop_voucher_product$
+declare
+  v_definition text;
+begin
+  -- Keep the established product editor and checkout RPC implementations intact; extend only their supported type lists.
+  v_definition := pg_get_functiondef('public.admin_save_product(uuid,text,text,text,text,text,text,text[],numeric,text,text,boolean,boolean,integer,jsonb)'::regprocedure);
+  if position('''VOUCHER''' in v_definition) = 0 then
+    v_definition := replace(
+      v_definition,
+      'if v_type not in (''DIGITAL_ITEM'',''DONATION'',''EDU_COIN_TOPUP'',''BADGE'',''CERTIFICATE_SERIALS'',''COLLECTIVE_CERTIFICATE'') then',
+      'if v_type not in (''DIGITAL_ITEM'',''DONATION'',''EDU_COIN_TOPUP'',''BADGE'',''CERTIFICATE_SERIALS'',''COLLECTIVE_CERTIFICATE'',''VOUCHER'') then'
+    );
+    if position('''VOUCHER''' in v_definition) = 0 then raise exception 'SHOP_VOUCHER_PRODUCT_ADMIN_PATCH_FAILED'; end if;
+    v_definition := replace(
+      v_definition,
+      '  elsif v_type = ''COLLECTIVE_CERTIFICATE'' then',
+      '  elsif v_type = ''VOUCHER'' then
+    if upper(trim(coalesce(p_currency,''IDR''))) <> ''IDR'' then raise exception ''VOUCHER_PRODUCT_IDR_ONLY''; end if;
+    if coalesce(v_metadata->>''shop_voucher_definition_id'','''') !~* ''^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'' then raise exception ''VOUCHER_DEFINITION_REQUIRED''; end if;
+    if not exists (select 1 from public.shop_voucher_definitions d where d.id=(v_metadata->>''shop_voucher_definition_id'')::uuid and d.is_active=true) then raise exception ''VOUCHER_DEFINITION_NOT_AVAILABLE''; end if;
+  elsif v_type = ''COLLECTIVE_CERTIFICATE'' then'
+    );
+    execute v_definition;
+  end if;
+
+  v_definition := pg_get_functiondef('public.create_product_order_with_proof(uuid,integer,text,text,text,text,integer,integer,text,text,uuid)'::regprocedure);
+  if position('''VOUCHER''' in v_definition) = 0 then
+    v_definition := replace(
+      v_definition,
+      'v_product.product_type not in (''DIGITAL_ITEM'',''DONATION'',''EDU_COIN_TOPUP'',''BADGE'',''CERTIFICATE_SERIALS'')',
+      'v_product.product_type not in (''DIGITAL_ITEM'',''DONATION'',''EDU_COIN_TOPUP'',''BADGE'',''CERTIFICATE_SERIALS'',''VOUCHER'')'
+    );
+    if position('''VOUCHER''' in v_definition) = 0 then raise exception 'SHOP_VOUCHER_PRODUCT_CHECKOUT_PATCH_FAILED'; end if;
+    execute v_definition;
+  end if;
+
+  v_definition := pg_get_functiondef('public.admin_review_manual_order(uuid,text,text)'::regprocedure);
+  if position('''VOUCHER''' in v_definition) = 0 then
+    v_definition := replace(
+      v_definition,
+      'if i.product_type in (''DIGITAL_ITEM'', ''DONATION'') then',
+      'if i.product_type in (''DIGITAL_ITEM'', ''DONATION'', ''VOUCHER'') then'
+    );
+    if position('''VOUCHER''' in v_definition) = 0 then raise exception 'SHOP_VOUCHER_PRODUCT_REVIEW_PATCH_FAILED'; end if;
+    execute v_definition;
+  end if;
+
+  v_definition := pg_get_functiondef('public.process_payment_gateway_success(uuid,text,uuid)'::regprocedure);
+  if position('''VOUCHER''' in v_definition) = 0 then
+    v_definition := replace(
+      v_definition,
+      'if i.product_type in (''DIGITAL_ITEM'', ''DONATION'') then',
+      'if i.product_type in (''DIGITAL_ITEM'', ''DONATION'', ''VOUCHER'') then'
+    );
+    if position('''VOUCHER''' in v_definition) = 0 then raise exception 'SHOP_VOUCHER_PRODUCT_GATEWAY_PATCH_FAILED'; end if;
+    execute v_definition;
+  end if;
+end;
+$shop_voucher_product$;
+
+create or replace function private.sync_shop_voucher_order_status()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_item record;
+  v_definition public.shop_voucher_definitions%rowtype;
+  v_definition_id uuid;
+  v_activation timestamptz;
+  v_active_until timestamptz;
+  v_index integer;
+  v_issued_count integer := 0;
+begin
+  if old.status::text not in ('PAID','COMPLETED') and new.status::text in ('PAID','COMPLETED') then
+    update public.shop_user_vouchers uv set
+      status='USED',used_at=coalesce(uv.used_at,now()),used_order_id=new.id,
+      reserved_order_id=null,reserved_at=null
+    where uv.reserved_order_id=new.id and uv.status='RESERVED';
+
+    for v_item in
+      select oi.id,oi.quantity,oi.metadata
+      from public.order_items oi
+      where oi.order_id=new.id and oi.product_type::text='VOUCHER'
+      order by oi.created_at
+    loop
+      v_definition_id := nullif(v_item.metadata->'shop_metadata'->>'shop_voucher_definition_id','')::uuid;
+      if v_definition_id is null then raise exception 'SHOP_VOUCHER_DEFINITION_REQUIRED'; end if;
+      select * into v_definition
+      from public.shop_voucher_definitions d
+      where d.id=v_definition_id and d.is_active=true
+      for share;
+      if not found then raise exception 'SHOP_VOUCHER_DEFINITION_NOT_AVAILABLE'; end if;
+      if v_definition.starts_at > now() or (v_definition.ends_at is not null and v_definition.ends_at <= now()) then
+        raise exception 'SHOP_VOUCHER_DEFINITION_OUT_OF_DATE';
+      end if;
+      if v_item.quantity is null or v_item.quantity < 1 or v_item.quantity > 100 then
+        raise exception 'SHOP_VOUCHER_PRODUCT_QUANTITY_INVALID';
+      end if;
+
+      for v_index in 1..v_item.quantity loop
+        if v_definition.usage_type='DURATION' then
+          v_activation := greatest(now(),v_definition.starts_at);
+          v_active_until := least(
+            v_activation + make_interval(hours => v_definition.duration_hours),
+            coalesce(v_definition.ends_at,'infinity'::timestamptz)
+          );
+          insert into public.shop_user_vouchers(
+            definition_id,user_id,issued_at,activated_at,active_until,status,
+            source_order_item_id,source_order_item_index
+          ) values (
+            v_definition.id,new.user_id,now(),v_activation,v_active_until,
+            case when v_active_until <= now() then 'EXPIRED' else 'ACTIVE' end,
+            v_item.id,v_index
+          ) on conflict (source_order_item_id,source_order_item_index) do nothing;
+        else
+          insert into public.shop_user_vouchers(
+            definition_id,user_id,issued_at,status,source_order_item_id,source_order_item_index
+          ) values (
+            v_definition.id,new.user_id,now(),'READY',v_item.id,v_index
+          ) on conflict (source_order_item_id,source_order_item_index) do nothing;
+        end if;
+        if found then v_issued_count := v_issued_count + 1; end if;
+      end loop;
+    end loop;
+
+    if v_issued_count > 0 then
+      insert into public.notifications(user_id,type,title,body,data)
+      values(
+        new.user_id,'SHOP_VOUCHER','Voucher Shop berhasil diterima',
+        v_issued_count::text || ' voucher dari pembelian Shop telah masuk ke koleksi Voucher Saya.',
+        jsonb_build_object('order_id',new.id,'voucher_count',v_issued_count)
+      );
+    end if;
+  elsif new.status::text in ('CANCELLED','CANCELED','REFUNDED','EXPIRED')
+    and old.status::text not in ('CANCELLED','CANCELED','REFUNDED','EXPIRED') then
+    update public.shop_user_vouchers uv set
+      status='READY',reserved_order_id=null,reserved_at=null
+    where uv.reserved_order_id=new.id and uv.status='RESERVED';
+  end if;
+  return new;
+end;
+$function$;
