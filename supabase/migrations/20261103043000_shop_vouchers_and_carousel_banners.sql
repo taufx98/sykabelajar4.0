@@ -891,7 +891,7 @@ begin
   if coalesce(p_image_url,'') !~* '^https://res\.cloudinary\.com/[^/]+/image/upload/.+' then raise exception 'INVALID_BANNER_IMAGE_URL'; end if;
   if p_target_url is not null and p_target_url !~* '^https://' then raise exception 'INVALID_BANNER_TARGET_URL'; end if;
   if p_slide_duration_seconds not between 2 and 60 then raise exception 'INVALID_BANNER_DURATION'; end if;
-  if p_position is null or p_position < 0 then raise exception 'INVALID_BANNER_POSITION'; end if;
+  if p_position is null or p_position < 1 then raise exception 'INVALID_BANNER_POSITION'; end if;
   if p_id is null then
     insert into public.shop_promo_banners(image_url,target_url,slide_duration_seconds,slide_position,is_active)
       values(p_image_url,nullif(btrim(p_target_url),''),p_slide_duration_seconds,p_position,coalesce(p_is_active,true))
