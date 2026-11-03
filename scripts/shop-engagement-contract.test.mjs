@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 
 const migration = await readFile('supabase/migrations/20261103031139_shop_wishlist_ratings_and_banner.sql', 'utf8');
+const promotionsMigration = await readFile('supabase/migrations/20261103043000_shop_vouchers_and_carousel_banners.sql', 'utf8');
 const grantsMigrationFile = (await readdir('supabase/migrations')).find((file) => /_shop_engagement_minimal_grants\.sql$/.test(file));
 const grantsMigration = grantsMigrationFile
   ? await readFile('supabase/migrations/' + grantsMigrationFile, 'utf8')
@@ -15,6 +16,11 @@ const adminPage = await readFile('src/pages/AdminPage.tsx', 'utf8');
 const ordersPage = await readFile('src/pages/OrdersPage.tsx', 'utf8');
 const shopProductEditor = await readFile('src/components/admin/ShopProductEditor.tsx', 'utf8');
 const globalHeader = await readFile('src/components/layout/GlobalHeader.tsx', 'utf8');
+const promotionService = await readFile('src/services/shopPromotion.service.ts', 'utf8');
+const promotionAdmin = await readFile('src/components/admin/ShopPromotionManager.tsx', 'utf8');
+const bannerSlider = await readFile('src/components/shop/ShopBannerSlider.tsx', 'utf8');
+const productEditor = await readFile('src/components/admin/ShopProductEditor.tsx', 'utf8');
+const commerceService = await readFile('src/services/commerce.service.ts', 'utf8');
 
 test('wishlist displays PostgREST object errors and explains a missing schema object', () => {
   assert.match(shop, /getWishlistErrorNotice/);
@@ -238,4 +244,127 @@ test('Shop filter catalogue is configured by admin and assigned to products inde
   assert.doesNotMatch(shop, /const CATEGORIES:/);
   assert.match(shopProductEditor, /shop_category_id/);
   assert.match(shopProductEditor, /Kategori katalog Shop/);
+});
+
+
+test('Shop voucher schema separates reusable duration vouchers from one-time checkout vouchers', () => {
+  assert.match(promotionsMigration, /create table if not exists public\.shop_voucher_definitions/i);
+  assert.match(promotionsMigration, /create table if not exists public\.shop_user_vouchers/i);
+  assert.match(promotionsMigration, /usage_type in \('DURATION','SINGLE_USE'\)/i);
+  assert.match(promotionsMigration, /benefit_group in \('PRICE_DISCOUNT','BUY_X_GET_Y','FREE_SHIPPING'\)/i);
+  assert.match(promotionsMigration, /scope_type in \('ALL','CATEGORY','PRODUCT'\)/i);
+  assert.match(promotionsMigration, /active_until timestamptz/i);
+  assert.match(promotionsMigration, /status text not null default 'READY'/i);
+  assert.match(promotionsMigration, /alter table public\.shop_user_vouchers enable row level security/i);
+  assert.match(promotionsMigration, /revoke all on table public\.shop_user_vouchers from public,anon,authenticated/i);
+  assert.match(promotionsMigration, /function public\.admin_issue_shop_voucher/i);
+  assert.match(promotionsMigration, /function public\.list_my_shop_vouchers/i);
+  assert.match(promotionsMigration, /function public\.mark_my_shop_vouchers_seen/i);
+});
+
+test('duration vouchers auto-apply once per benefit group and one-time vouchers cannot stack with the same group', () => {
+  assert.match(promotionsMigration, /select distinct on \(d\.benefit_group\) uv\.id/i);
+  assert.match(promotionsMigration, /order by d\.benefit_group, uv\.issued_at desc, uv\.id/i);
+  assert.match(promotionsMigration, /d\.benefit_group=any\(v_group_active\)/i);
+  assert.match(promotionsMigration, /SHOP_VOUCHER_STACK_CONFLICT/);
+  assert.match(promotionsMigration, /SHOP_VOUCHER_NOT_AVAILABLE/);
+  assert.match(promotionsMigration, /one_time_ids/);
+  assert.match(promotionsMigration, /status='RESERVED'/);
+  assert.match(promotionsMigration, /status='USED'/);
+  assert.match(promotionsMigration, /status='READY'/);
+});
+
+test('voucher checkout is server-priced and preserves the legacy checkout before the new migration is installed', () => {
+  assert.match(promotionsMigration, /function public\.create_shop_product_order_with_vouchers/i);
+  assert.match(promotionsMigration, /function public\.create_shop_product_order_with_edu_coin_vouchers/i);
+  assert.match(promotionsMigration, /private\.calculate_shop_voucher_effects/i);
+  assert.match(promotionsMigration, /revoke all on function public\.create_product_order_with_proof/i);
+  assert.match(promotionsMigration, /revoke all on function public\.create_product_order_with_edu_coin/i);
+  assert.match(commerceService, /isVoucherCheckoutRpcUnavailable/);
+  assert.match(commerceService, /PGRST202/);
+  assert.match(commerceService, /create_product_order_with_proof/);
+  assert.match(commerceService, /create_product_order_with_edu_coin/);
+});
+
+test('checkout Step 1 shows eligible and disabled vouchers in a picker with one bottom cancel action', () => {
+  assert.match(ordersPage, /listShopCheckoutVouchers/);
+  assert.match(ordersPage, /Gunakan Voucher/);
+  assert.match(ordersPage, /voucherPickerOpen/);
+  assert.match(ordersPage, /disabled=\{!selectable\}/);
+  assert.match(ordersPage, /opacity-45/);
+  assert.match(ordersPage, /setVoucherPickerOpen\(false\)/);
+  assert.match(ordersPage, /voucherIds: selectedCheckoutVoucherIds/);
+  const picker = ordersPage.slice(
+    ordersPage.indexOf('{voucherPickerOpen && selected &&'),
+    ordersPage.lastIndexOf('</div>}') > ordersPage.indexOf('{voucherPickerOpen && selected &&')
+      ? ordersPage.lastIndexOf('</div>}')
+      : undefined,
+  );
+  assert.match(picker, />Batal</);
+  assert.doesNotMatch(picker, /Gunakan Voucher/);
+});
+
+test('Discount toolbar control is icon-only, sits after Whitelist, and reports unseen vouchers', () => {
+  const whitelistIndex = shop.indexOf('Whitelist');
+  const discountIndex = shop.indexOf('aria-label="Voucher saya"');
+  assert.ok(whitelistIndex >= 0 && discountIndex > whitelistIndex);
+  const discountButton = shop.slice(discountIndex, shop.indexOf('</button>', discountIndex));
+  assert.match(discountButton, /svgrepo\.com\/show\/456865\/discount-tag\.svg/);
+  assert.match(discountButton, /newVoucherCount/);
+  assert.doesNotMatch(discountButton, />\s*Discount\s*</);
+  assert.match(shop, /setTab\('vouchers'\)/);
+  assert.match(shop, /listMyShopVouchers/);
+  assert.match(shop, /markMyShopVouchersSeen/);
+});
+
+test('purchased voucher products are issued only after successful payment and remain idempotent per order item', () => {
+  assert.match(productEditor, /value: 'VOUCHER'/);
+  assert.match(productEditor, /shop_voucher_definition_id/);
+  assert.match(ordersPage, /'VOUCHER'\]\?\.includes|VOUCHER/);
+  assert.match(promotionsMigration, /commerce_products_product_type_check/i);
+  assert.match(promotionsMigration, /shop_voucher_product_checkout_patch_failed/i);
+  assert.match(promotionsMigration, /shop_voucher_product_review_patch_failed/i);
+  assert.match(promotionsMigration, /shop_voucher_product_gateway_patch_failed/i);
+  assert.match(promotionsMigration, /source_order_item_id/);
+  assert.match(promotionsMigration, /on conflict \(source_order_item_id,source_order_item_index\) do nothing/i);
+  assert.match(promotionsMigration, /new\.status::text in \('PAID','COMPLETED'\)/i);
+  assert.match(promotionsMigration, /v_issued_count/);
+});
+
+test('admin can create, issue, edit and disable voucher definitions with target scope and minimum purchase', () => {
+  assert.match(promotionAdmin, /adminSaveShopVoucherDefinition/);
+  assert.match(promotionAdmin, /adminIssueShopVoucher/);
+  assert.match(promotionAdmin, /usage_type/);
+  assert.match(promotionAdmin, /benefit_group/);
+  assert.match(promotionAdmin, /scope_type/);
+  assert.match(promotionAdmin, /min_purchase/);
+  assert.match(promotionAdmin, /toggleVoucherDefinition/);
+  assert.match(promotionAdmin, /Berikan voucher/);
+});
+
+test('additional Shop banners support slides, direct links, Cloudinary, status, views, clicks, hide and delete', () => {
+  assert.match(promotionAdmin, /uploadImage/);
+  assert.match(promotionAdmin, /targetUrl/);
+  assert.match(promotionAdmin, /durationSeconds/);
+  assert.match(promotionAdmin, /position/);
+  assert.match(promotionAdmin, /views_count/);
+  assert.match(promotionAdmin, /clicks_count/);
+  assert.match(promotionAdmin, /hideBanner/);
+  assert.match(promotionAdmin, /deleteBanner/);
+  assert.match(bannerSlider, /listActiveShopPromoBanners/);
+  assert.match(bannerSlider, /recordShopPromoBannerEvent/);
+  assert.match(bannerSlider, /setTimeout/);
+  assert.match(promotionsMigration, /create table if not exists public\.shop_promo_banners/i);
+  assert.match(promotionsMigration, /create table if not exists public\.shop_promo_banner_events/i);
+  assert.match(promotionsMigration, /views_count=views_count\+1/);
+  assert.match(promotionsMigration, /clicks_count=clicks_count\+1/);
+  assert.match(promotionsMigration, /admin_delete_shop_promo_banner/i);
+});
+
+test('the existing main Shop hero remains separately managed and the carousel is an additional component', () => {
+  assert.match(adminPanel, /getShopHeroBanner/);
+  assert.match(adminPanel, /saveShopHeroBanner/);
+  assert.match(adminPanel, /<ShopPromotionManager products=\{products\}/);
+  assert.match(shop, /<ShopBannerSlider \/>/);
+  assert.match(promotionsMigration, /shop_promo_banners/);
 });
