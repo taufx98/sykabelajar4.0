@@ -444,7 +444,7 @@ begin
           else round(least(p_subtotal,p_subtotal*d.discount_value/100),2)
         end
       when d.benefit_type='FIXED' then least(p_subtotal,d.discount_value)
-      when d.benefit_type='BUY_X_GET_Y' then floor(p_quantity::numeric/(d.buy_quantity+d.free_quantity))*d.free_quantity*v_product.price
+      when d.benefit_type='BUY_X_GET_Y' then floor(p_quantity::numeric/(d.buy_quantity+d.free_quantity))*d.free_quantity*(p_subtotal/p_quantity)
       when d.benefit_type='FREE_SHIPPING' then p_shipping_cost
       else 0::numeric
     end
@@ -545,7 +545,7 @@ begin
       v_amount := least(p_subtotal,v_row.discount_value);
       v_price_discount := v_price_discount + v_amount;
     elsif v_row.benefit_type='BUY_X_GET_Y' then
-      v_amount := floor(p_quantity::numeric/(v_row.buy_quantity+v_row.free_quantity))*v_row.free_quantity*v_product.price;
+      v_amount := floor(p_quantity::numeric/(v_row.buy_quantity+v_row.free_quantity))*v_row.free_quantity*(p_subtotal/p_quantity);
       v_bogo_discount := v_bogo_discount + v_amount;
     elsif v_row.benefit_type='FREE_SHIPPING' then
       v_shipping_discount := v_shipping_discount + p_shipping_cost;
@@ -1091,3 +1091,113 @@ begin
   return new;
 end;
 $function$;
+
+
+-- Collective certificate orders use a dedicated existing checkout RPC. Wrap that same flow so ALL-scope vouchers
+-- and product/category-scoped vouchers are also validated and applied without bypassing certificate preparation.
+create or replace function public.create_shop_collective_certificate_order_with_vouchers(
+  p_certificate_id uuid,
+  p_shop_product_id uuid,
+  p_payment_method text,
+  p_proof_url text,
+  p_proof_public_id text,
+  p_proof_width integer,
+  p_proof_height integer,
+  p_proof_version text,
+  p_proof_resource_type text,
+  p_whatsapp text,
+  p_voucher_ids uuid[] default '{}'
+) returns public.orders
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_order public.orders%rowtype;
+  v_effects jsonb;
+  v_total_discount numeric;
+  v_line_discount numeric;
+  v_shipping_discount numeric;
+  v_one_time_ids uuid[];
+  v_voucher_ids uuid[];
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not exists (
+    select 1 from public.commerce_products p
+    where p.id=p_shop_product_id and p.product_type::text='COLLECTIVE_CERTIFICATE' and p.is_active=true
+  ) then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
+
+  v_order := public.create_collective_certificate_order_with_proof(
+    p_certificate_id,p_payment_method,p_proof_url,p_proof_public_id,
+    p_proof_width,p_proof_height,p_proof_version,p_proof_resource_type,p_whatsapp
+  );
+
+  -- The existing certificate checkout can reuse a pending gateway order. Clear any prior voucher reservation
+  -- and discount metadata before calculating this attempt, so retries cannot stack stale discounts.
+  update public.shop_user_vouchers uv set
+    status='READY',reserved_order_id=null,reserved_at=null
+  where uv.reserved_order_id=v_order.id and uv.status='RESERVED';
+
+  update public.order_items oi set
+    line_total=oi.unit_price*oi.quantity,
+    metadata=coalesce(oi.metadata,'{}'::jsonb)-'shop_voucher_ids'-'shop_voucher_discount'-'shop_voucher_breakdown'
+  where oi.order_id=v_order.id;
+
+  update public.orders o set
+    discount=0,
+    total=coalesce(o.subtotal,0)+coalesce(o.shipping_cost,0),
+    updated_at=now()
+  where o.id=v_order.id
+  returning * into v_order;
+
+  v_effects := private.calculate_shop_voucher_effects(
+    auth.uid(),p_shop_product_id,1,v_order.subtotal,v_order.shipping_cost,coalesce(p_voucher_ids,'{}'::uuid[])
+  );
+  v_total_discount := coalesce((v_effects->>'total_discount')::numeric,0);
+  v_line_discount := coalesce((v_effects->>'line_discount')::numeric,0);
+  v_shipping_discount := coalesce((v_effects->>'shipping_discount')::numeric,0);
+
+  select coalesce(array_agg(value::uuid),'{}') into v_one_time_ids
+    from jsonb_array_elements_text(v_effects->'one_time_ids') as x(value);
+  select coalesce(array_agg(value::uuid),'{}') into v_voucher_ids
+    from jsonb_array_elements_text(v_effects->'voucher_ids') as x(value);
+
+  if cardinality(v_voucher_ids)>0 then
+    update public.order_items oi set
+      line_total=greatest(0,oi.line_total-v_line_discount),
+      metadata=coalesce(oi.metadata,'{}'::jsonb) || jsonb_build_object(
+        'shop_voucher_ids',to_jsonb(v_voucher_ids),
+        'shop_voucher_discount',v_total_discount,
+        'shop_voucher_breakdown',v_effects
+      )
+    where oi.order_id=v_order.id;
+
+    if cardinality(v_one_time_ids)>0 then
+      update public.shop_user_vouchers uv set
+        status='RESERVED',reserved_order_id=v_order.id,reserved_at=now()
+      where uv.id=any(v_one_time_ids) and uv.user_id=auth.uid() and uv.status='READY';
+      if not found then raise exception 'SHOP_VOUCHER_NOT_AVAILABLE'; end if;
+    end if;
+
+    update public.orders o set
+      discount=coalesce(o.discount,0)+v_total_discount,
+      shipping_cost=greatest(0,coalesce(o.shipping_cost,0)-v_shipping_discount),
+      total=greatest(0,coalesce(o.total,0)-v_total_discount),
+      updated_at=now()
+    where o.id=v_order.id returning * into v_order;
+
+    update public.collective_certificate_orders cco
+      set amount=v_order.total,updated_at=now()
+    where cco.order_id=v_order.id;
+
+    perform private.write_audit('commerce.shop_voucher_reserved','order',v_order.id::text,
+      'Shop voucher discount reserved for collective certificate order',null,to_jsonb(v_order),null);
+  end if;
+  return v_order;
+end;
+$function$;
+
+revoke all on function public.create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text) from public, anon, authenticated;
+revoke all on function public.create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[]) from public, anon, authenticated;
+grant execute on function public.create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[]) to authenticated;
+
