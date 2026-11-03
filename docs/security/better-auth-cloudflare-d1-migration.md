@@ -61,9 +61,15 @@ Every authenticated Supabase request must carry a short-lived, asymmetric-signed
 - `aud`: exact audience configured and validated for this Supabase integration
 - `exp`, `iat`, and JWT key ID `kid`
 
-Use ES256 for the first integration candidate. Keep private signing material in the Worker/D1-backed Better Auth JWKS system only. Validate token creation, key rotation, expiry, discovery, and Supabase acceptance in an isolated environment before production configuration.
+Use the Better Auth OAuth Provider plugin (`@better-auth/oauth-provider`) together with its JWT plugin, rather than inventing a partial discovery document. Supabase's current Custom OIDC integration validates required authorization-server metadata fields as well as loading the `jwks_uri`. The OAuth Provider plugin exposes real OpenID discovery metadata at `{issuer}/.well-known/openid-configuration` when the `openid` scope is used.
 
-The Supabase JS `accessToken` callback is the intended integration point. Once it is configured, do not use the `supabase.auth` namespace; all login/session operations must go through Better Auth. The callback must use a single-flight token refresh/cache so concurrent Data API and Realtime requests do not cause refresh races.
+The first-party React app will be registered as a public OAuth client (no client secret) and use Authorization Code + PKCE (S256). Mark only this exact first-party client as trusted to skip consent; do not allow arbitrary dynamic client registration. Request the Supabase resource identifier so the OAuth Provider issues a JWT access token with the matching `aud`. Set the resource access token TTL to 300 seconds and add only `role: "authenticated"` through `customAccessTokenClaims`. Keep the JWT plugin enabled so resource-bound access tokens are signed, explicitly configure ES256, and use the OAuth Provider mode settings to disable the standalone JWT `/token` endpoint and JWT response header. Do not set `disableJwtPlugin: true`, because that changes access tokens to opaque tokens.
+
+The issuer is expected to use the Better Auth base path (likely `https://auth.sykabelajar.my.id/api/auth`), but the exact value must come from the emitted discovery document and must match the JWT `iss` claim and Supabase configuration byte-for-byte. Keep private signing material encrypted in D1; configure planned key rotation with an overlap period and test old/new `kid` behavior against Supabase. Supabase caches third-party signing keys and may take up to 30 minutes to detect rotation, so the old public key must remain available during the overlap.
+
+The Supabase JS `accessToken` callback is the intended integration point. Once it is configured, do not use the `supabase.auth` namespace; all login/session operations must go through Better Auth. The app will use an in-memory access-token cache with single-flight renewal. After a hard reload, if the short-lived OAuth token is gone, the app may complete a new Authorization Code + PKCE round-trip using the still-valid Better Auth cookie; this must return without asking the user to enter credentials again. Do not persist the OAuth refresh token or Supabase JWT in `localStorage`. Test Realtime token refresh, account switching, multiple tabs, and logout/revocation.
+
+OAuth Provider mode requires disabling the standalone JWT plugin `/token` endpoint and `set-auth-jwt` response header; it does **not** require disabling the JWT plugin itself. Keep the plugin enabled for ES256 resource-bound JWT issuance.
 
 ## 3. Google login and account linking
 
@@ -138,6 +144,9 @@ Snapshot retrieved on 2026-11-03:
 
 - Create a standalone Worker project under the repository, separate from the Vite app's runtime.
 - Configure Better Auth with D1, UUID IDs, secure host-only cookies, exact trusted origins, strict rate limits, email/password, and Google provider configuration.
+- Register `@better-auth/oauth-provider` plus `jwt()`; verify the full OIDC discovery document, not only JWKS. Use the first-party public client with Authorization Code + PKCE (S256), trusted-client consent skipping, Supabase `resource`, five-minute JWT access tokens, ES256, and `role=authenticated`.
+- Use OAuth Provider mode correctly: disable the standalone `/token` endpoint and JWT response header, but keep the JWT plugin enabled so resource-scoped access tokens remain signed JWTs rather than opaque tokens.
+- Verify that after a hard reload, a valid Better Auth cookie can silently re-authorize the first-party client without another password/Google prompt; preserve the existing SPA route navigation without auth redirects between internal pages.
 - Implement session retrieval, logout/revocation, email verification, password reset, and session listing/revocation tests.
 - Prove Google OAuth callback and account-linking behavior.
 - Prove an OIDC discovery/JWKS document and ES256 JWT that Supabase can validate. Select one token issuance flow and document it; do not combine incompatible Better Auth JWT-plugin and OAuth-provider endpoints.
@@ -240,6 +249,7 @@ Snapshot retrieved on 2026-11-03:
 - Supabase JS third-party `accessToken`: https://supabase.com/docs/reference/javascript/initializing
 - Better Auth OAuth 2.1 Provider: https://better-auth.com/docs/plugins/oauth-provider
 - Better Auth JWT/JWKS: https://better-auth.com/docs/plugins/jwt
+- Better Auth OAuth Provider (OIDC discovery, PKCE, public clients, resource-bound JWT access tokens): https://better-auth.com/docs/plugins/oauth-provider
 - Better Auth Google OAuth: https://better-auth.com/docs/concepts/oauth
 - Better Auth Cloudflare: https://better-auth.com/docs/authentication/cloudflare
 - Cloudflare D1 migrations: https://developers.cloudflare.com/d1/reference/migrations/
