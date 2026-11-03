@@ -969,8 +969,8 @@ begin
   if position('''VOUCHER''' in v_definition) = 0 then
     v_definition := replace(
       v_definition,
-      'if i.product_type in (''DIGITAL_ITEM'', ''DONATION'') then',
-      'if i.product_type in (''DIGITAL_ITEM'', ''DONATION'', ''VOUCHER'') then'
+      'if i.product_type in (''DIGITAL_ITEM'',''DONATION'') then',
+      'if i.product_type in (''DIGITAL_ITEM'',''DONATION'',''VOUCHER'') then'
     );
     if position('''VOUCHER''' in v_definition) = 0 then raise exception 'SHOP_VOUCHER_PRODUCT_REVIEW_PATCH_FAILED'; end if;
     execute v_definition;
