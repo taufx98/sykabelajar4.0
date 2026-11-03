@@ -1219,7 +1219,6 @@ begin
 end;
 $function$;
 
-revoke all on function public.create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text) from public, anon, authenticated;
 revoke all on function public.create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[]) from public, anon, authenticated;
 grant execute on function public.create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[]) to authenticated;
 
