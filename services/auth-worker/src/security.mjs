@@ -24,10 +24,11 @@ export function isAllowedOrigin(origin, allowedOrigins) {
 /** @param {Request} request @param {string[]} allowedOrigins @returns {Headers | null} */
 export function createCorsHeaders(request, allowedOrigins) {
   const origin = request.headers.get("Origin");
-  if (!isAllowedOrigin(origin, allowedOrigins)) return null;
+  const normalizedOrigin = typeof origin === "string" ? normalizeOrigin(origin) : null;
+  if (!normalizedOrigin || !isAllowedOrigin(origin, allowedOrigins)) return null;
 
   return new Headers({
-    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Origin": normalizedOrigin,
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With",
