@@ -337,7 +337,7 @@ export function OrdersPage() {
     ? `${Number(price).toLocaleString('id-ID')} Edu Coin`
     : formatRupiah(price);
   const needsWhatsapp = Boolean(selected && (!isEduCoinCheckout || ['DIGITAL_ITEM', 'DONATION'].includes(selected.product_type)));
-  const whatsappDigitCount = whatsapp.replace(/\\D/g, '').length;
+  const whatsappDigitCount = whatsapp.replace(/\D/g, '').length;
   const isWhatsappValid = whatsappDigitCount >= 9;
   const selectedBadgeId = selected?.product_type === 'BADGE' ? String(selected.metadata.badge_id ?? '') : '';
   const ownsSelectedBadge = Boolean(selectedBadgeId && ownedBadgeIds.has(selectedBadgeId));
@@ -907,14 +907,6 @@ export function OrdersPage() {
                   <span>{selectedSalesCount.toLocaleString('id-ID')} Terjual</span>
                 </div>
                 <div className="text-blue-400 font-bold text-lg mt-1">{formatProductPrice(displayPrice(selected), selected.currency)}</div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Deskripsi Produk</label>
-              <p className="text-xs text-slate-400 bg-slate-900/30 p-3 rounded-lg border border-slate-800 leading-relaxed whitespace-pre-line">{productBenefit(selected, badgeOptions)}</p>
-            </div>
-
             {isQuantityPackage && <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-2">
               <span className="text-[11px] font-semibold text-slate-300">Jumlah Paket</span>
               <div className="flex items-center rounded-lg border border-slate-700 bg-slate-900/80">
@@ -923,6 +915,14 @@ export function OrdersPage() {
                 <button type="button" aria-label="Tambah jumlah paket" onClick={() => setQuantity((value) => Math.min(100, value + 1))} disabled={submitting || quantity >= 100} className="px-3 py-1 text-slate-400 hover:text-white disabled:opacity-40 font-bold text-base">+</button>
               </div>
             </div>}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Deskripsi Produk</label>
+              <p className="text-xs text-slate-400 bg-slate-900/30 p-3 rounded-lg border border-slate-800 leading-relaxed whitespace-pre-line">{productBenefit(selected, badgeOptions)}</p>
+            </div>
+
 
             {selectedNeedsOrganizer && <label className="block">
               <span className="block text-xs font-semibold text-slate-300 mb-1.5">Organisasi penerima QR / Serial <span className="text-red-400">*</span></span>
