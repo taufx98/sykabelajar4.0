@@ -75,7 +75,9 @@ Required controls:
 - Use Google's exact registered callback URI and HTTPS in production.
 - Keep OAuth `state` validation and PKCE enabled; do not permit caller-supplied overrides of protocol parameters.
 - Require a verified email from Google before treating it as verified locally.
-- Define account-linking rules explicitly. Only allow automatic linking from a trusted Google provider after provider email verification; require an authenticated session and re-authentication for manual account linking.
+- Disable implicit account linking with `account.accountLinking.disableImplicitLinking: true`. New Google sign-ins may create a new Better Auth account, but attaching Google to an existing email/password account must require the user to already be signed in and complete the explicit `/link-social` flow with re-authentication.
+- Do not rely on `emailAndPassword.requireEmailVerification: true` alone as a defense against account pre-hijacking. Better Auth published GHSA-g38m-r43w-p2q7 (CVE-2026-53516), a high-severity implicit OAuth-account-linking flaw affecting stable versions below 1.6.11 and early 1.7.0 betas; patched stable versions start at 1.6.11. Pin a patched stable release, commit the lockfile, and enable dependency vulnerability scanning.
+- For the initial launch, consider Google-only login if email/password login is not required. If both methods are enabled, keep implicit linking disabled and test the pre-account-registration attack scenario explicitly.
 - Do not accept `role`, `is_admin`, `account_type`, Edu Coin, referral eligibility, or other authorization/business claims from Google profile data.
 - Keep application role assignment in guarded Supabase provisioning logic. Public signup may request only the allowed non-admin account types; admin bootstrap remains out-of-band and restricted.
 - Test the cases where an email/password account already exists, Google email is unverified, the Google account changes email, and a user attempts to link a Google account owned by another user.
