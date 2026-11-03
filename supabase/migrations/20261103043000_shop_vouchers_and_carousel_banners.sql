@@ -479,7 +479,6 @@ declare
   v_amount numeric := 0;
   v_selected_count integer := 0;
   v_requested_count integer := cardinality(coalesce(p_selected_voucher_ids,'{}'::uuid[]));
-  v_used_auto boolean;
 begin
   if p_user_id is null then raise exception 'AUTH_REQUIRED'; end if;
   if p_quantity is null or p_quantity < 1 or p_quantity > 100 then raise exception 'INVALID_QUANTITY'; end if;
@@ -537,7 +536,10 @@ begin
     end if;
 
     if v_row.benefit_type='PERCENT' then
-      v_amount := round(least(p_subtotal,p_subtotal*v_row.discount_value/100),2);
+      v_amount := case
+        when v_product.currency='EDU_COIN' then trunc(least(p_subtotal,p_subtotal*v_row.discount_value/100))
+        else round(least(p_subtotal,p_subtotal*v_row.discount_value/100),2)
+      end;
       v_price_discount := v_price_discount + v_amount;
     elsif v_row.benefit_type='FIXED' then
       v_amount := least(p_subtotal,v_row.discount_value);
