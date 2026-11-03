@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "build:worker": "wrangler deploy --dry-run --outdir ./.wrangler-dist",
-    "generate:auth-schema": "auth generate --adapter drizzle --dialect sqlite --config ./src/auth-schema.config.ts --output ./src/auth-schema.ts"
+    "generate:auth-schema": "auth generate --adapter drizzle --dialect sqlite --config ./src/auth-schema.config.ts --output ./src/auth-schema.ts",
+    "generate:d1-migration": "drizzle-kit generate --config ./drizzle.config.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.15",
