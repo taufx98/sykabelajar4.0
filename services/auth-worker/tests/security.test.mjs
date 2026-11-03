@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCorsHeaders, isAllowedOrigin } from "../src/security.mjs";
+import {
+  createCorsHeaders,
+  isAllowedOrigin,
+  timingSafeEqualString,
+} from "../src/security.mjs";
 
 test("allows only the exact configured HTTPS origin", () => {
   const allowlist = ["https://sykabelajar.my.id"];
@@ -37,4 +41,11 @@ test("CORS allows credentials only for an exact allowlisted origin", () => {
 test("development localhost is allowed only when explicitly listed", () => {
   assert.equal(isAllowedOrigin("http://localhost:5173", ["https://sykabelajar.my.id"]), false);
   assert.equal(isAllowedOrigin("http://localhost:5173", ["http://localhost:5173"]), true);
+});
+
+test("bootstrap secret comparison accepts exact value and rejects wrong/empty values", () => {
+  assert.equal(timingSafeEqualString("a".repeat(32), "a".repeat(32)), true);
+  assert.equal(timingSafeEqualString("a".repeat(32), "a".repeat(31) + "b"), false);
+  assert.equal(timingSafeEqualString("secret", ""), false);
+  assert.equal(timingSafeEqualString("secret", null), false);
 });
