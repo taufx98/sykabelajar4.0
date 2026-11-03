@@ -65,12 +65,22 @@ jobs:
           npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
           WORKER_PID=$!
           trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
+          WORKER_READY=false
           for attempt in $(seq 1 30); do
             if curl --silent --fail http://127.0.0.1:8787/healthz > /dev/null; then
+              WORKER_READY=true
+              break
+            fi
+            if ! kill -0 "$WORKER_PID" 2>/dev/null; then
               break
             fi
             sleep 1
           done
+          if [ "$WORKER_READY" != "true" ]; then
+            echo "Local Worker did not become healthy. Startup log follows:"
+            cat "$RUNNER_TEMP/auth-worker.log"
+            exit 1
+          fi
           curl --silent --show-error --fail http://127.0.0.1:8787/healthz
           AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 D1_SCHEMA_BOOTSTRAP_TOKEN="$SCHEMA_TOKEN" npm run auth:schema:generate
           node --input-type=module <<'NODE'
