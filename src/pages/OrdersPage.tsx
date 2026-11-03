@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingBag, Package, Loader2, Upload, X, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle, Star, QrCode, UploadCloud, Wallet } from 'lucide-react';
+import { ShoppingBag, Package, Loader2, Upload, X, CreditCard, Copy, Eye, Trash2, RefreshCw, XCircle, Star, QrCode, UploadCloud, Wallet, Tag, CheckCircle2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { ShopExperience } from '@/components/shop/ShopExperience';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { listCurrentUserOrganizers, type CurrentOrganizer } from '@/services/organizerAuth.service';
 import { getCollectiveCertificatePrice, listTeacherCollectiveParticipants, prepareCollectiveCertificate, type CollectiveParticipant } from '@/services/collectiveParticipant.service';
 import type { ProductReviewSummary } from '@/services/shopEngagement.service';
+import { listShopCheckoutVouchers, type ShopCheckoutVoucher } from '@/services/shopPromotion.service';
 
 type BadgeOption = { id: string; name: string; icon_emoji: string | null; rarity: string };
 type GatewayReturnCheck = { orderId: string; status: 'checking' | 'paid' | 'pending' | 'cancelled' };
@@ -87,6 +88,11 @@ export function OrdersPage() {
   const [selectedReviewSummary, setSelectedReviewSummary] = useState<ProductReviewSummary | null>(null);
   const [selectedSalesCount, setSelectedSalesCount] = useState(0);
   const [purchaseStep, setPurchaseStep] = useState<1 | 2 | 3>(1);
+  const [checkoutVoucherOptions, setCheckoutVoucherOptions] = useState<ShopCheckoutVoucher[]>([]);
+  const [selectedCheckoutVoucherIds, setSelectedCheckoutVoucherIds] = useState<string[]>([]);
+  const [voucherPickerOpen, setVoucherPickerOpen] = useState(false);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherLoadError, setVoucherLoadError] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -332,7 +338,16 @@ export function OrdersPage() {
   const isGlobalGatewayCheckout = !isEduCoinCheckout && selectedPaymentMethod?.details?.global_gateway === true;
   const checkoutPaymentMethods = usablePaymentMethods.filter((method) => method.details?.global_gateway !== true || gatewayStatus?.checkoutEnabled);
   const checkoutQuantity = selected && isQuantityPackage ? quantity : 1;
-  const checkoutTotal = selected ? displayPrice(selected) * checkoutQuantity : 0;
+  const checkoutSubtotal = selected ? displayPrice(selected) * checkoutQuantity : 0;
+  const checkoutVoucherDiscount = checkoutVoucherOptions.reduce((total, voucher) => {
+    const included = voucher.auto_applied || (voucher.eligible && selectedCheckoutVoucherIds.includes(voucher.id));
+    return total + (included ? Math.max(0, Number(voucher.estimated_discount ?? 0)) : 0);
+  }, 0);
+  const checkoutTotal = Math.max(0, checkoutSubtotal - checkoutVoucherDiscount);
+  const appliedCheckoutVouchers = checkoutVoucherOptions.filter((voucher) =>
+    voucher.auto_applied || (voucher.eligible && selectedCheckoutVoucherIds.includes(voucher.id))
+  );
+  const checkoutManualVoucherOptions = checkoutVoucherOptions.filter((voucher) => !voucher.auto_applied);
   const formatProductPrice = (price: number, currency: string) => currency === 'EDU_COIN'
     ? `${Number(price).toLocaleString('id-ID')} Edu Coin`
     : formatRupiah(price);
@@ -344,6 +359,45 @@ export function OrdersPage() {
   const selectedNeedsOrganizer = selected?.product_type === 'CERTIFICATE_SERIALS';
   const selectedNeedsParticipant = selected?.product_type === 'COLLECTIVE_CERTIFICATE';
   const eligibleParticipants = useMemo(() => participants.filter((row) => row.attempt_status === 'FINALIZED'), [participants]);
+
+  useEffect(() => {
+    let active = true;
+    setVoucherLoadError('');
+    if (!selected || selected.product_type === 'COLLECTIVE_CERTIFICATE') {
+      setCheckoutVoucherOptions([]);
+      setSelectedCheckoutVoucherIds([]);
+      setVoucherPickerOpen(false);
+      setVoucherLoading(false);
+      return () => { active = false; };
+    }
+    setVoucherLoading(true);
+    void listShopCheckoutVouchers({
+      productId: selected.id,
+      quantity: checkoutQuantity,
+      subtotal: checkoutSubtotal,
+      shippingCost: 0,
+    }).then((rows) => {
+      if (!active) return;
+      setCheckoutVoucherOptions(rows);
+      setSelectedCheckoutVoucherIds((current) => current.filter((id) => rows.some((row) => row.id === id && row.eligible)));
+    }).catch((loadError) => {
+      if (!active) return;
+      setVoucherLoadError(loadError instanceof Error ? loadError.message : 'Daftar voucher belum dapat dimuat.');
+      setCheckoutVoucherOptions([]);
+    }).finally(() => {
+      if (active) setVoucherLoading(false);
+    });
+    return () => { active = false; };
+  }, [selected?.id, checkoutQuantity, checkoutSubtotal]);
+
+  const chooseCheckoutVoucher = (voucher: ShopCheckoutVoucher) => {
+    if (!voucher.eligible || voucher.auto_applied) return;
+    setSelectedCheckoutVoucherIds((current) => {
+      const otherGroups = current.filter((id) => checkoutVoucherOptions.find((item) => item.id === id)?.benefit_group !== voucher.benefit_group);
+      return otherGroups.includes(voucher.id) ? otherGroups : [...otherGroups, voucher.id];
+    });
+    setVoucherPickerOpen(false);
+  };
 
   const chooseProof = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -361,6 +415,9 @@ export function OrdersPage() {
   const close = () => {
     if (submitting) return;
     setSelected(null);
+    setSelectedCheckoutVoucherIds([]);
+    setCheckoutVoucherOptions([]);
+    setVoucherPickerOpen(false);
     setSelectedReviewSummary(null);
     setSelectedSalesCount(0);
     setPurchaseStep(1);
@@ -451,10 +508,14 @@ export function OrdersPage() {
           quantity: checkoutQuantity,
           whatsapp,
           targetOrganizerId: selectedNeedsOrganizer ? selectedOrganizerId : null,
+          voucherIds: selectedCheckoutVoucherIds,
         });
         const orderReference = String(order?.id ?? '').slice(0, 8);
         const purchasedName = selected.name;
         setSelected(null);
+        setSelectedCheckoutVoucherIds([]);
+        setCheckoutVoucherOptions([]);
+        setVoucherPickerOpen(false);
         setSelectedReviewSummary(null);
         setSelectedSalesCount(0);
         setPurchaseStep(1);
@@ -533,6 +594,7 @@ export function OrdersPage() {
           proofVersion: upload?.version?.toString(),
           proofResourceType: upload?.resource_type,
           targetOrganizerId: selectedNeedsOrganizer ? selectedOrganizerId : null,
+          voucherIds: selectedCheckoutVoucherIds,
         });
       }
       const orderReference = String(order?.id ?? '').slice(0, 8);
@@ -552,6 +614,9 @@ export function OrdersPage() {
           setGatewayPaymentError(detail);
           setMessage(`Pesanan #${orderReference} sudah tersimpan. Buat ulang sesi pembayaran menggunakan tombol di bawah—jangan membuat order baru.`);
           setSelected(null);
+          setSelectedCheckoutVoucherIds([]);
+          setCheckoutVoucherOptions([]);
+          setVoucherPickerOpen(false);
           setSelectedReviewSummary(null);
           setSelectedSalesCount(0);
           setPurchaseStep(1);
@@ -807,6 +872,9 @@ export function OrdersPage() {
         }}
         onBuy={(product, summary, salesCount) => {
           setSelected(product);
+          setSelectedCheckoutVoucherIds([]);
+          setCheckoutVoucherOptions([]);
+          setVoucherPickerOpen(false);
           setSelectedReviewSummary(summary ?? null);
           setSelectedSalesCount(salesCount ?? 0);
           setPurchaseStep(1);
@@ -923,6 +991,28 @@ export function OrdersPage() {
               <p className="text-xs text-slate-400 bg-slate-900/30 p-3 rounded-lg border border-slate-800 leading-relaxed whitespace-pre-line">{productBenefit(selected, badgeOptions)}</p>
             </div>
 
+            {selected.product_type !== 'COLLECTIVE_CERTIFICATE' && <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-200"><Tag size={14} className="text-amber-400"/>Voucher Diskon</div>
+                <button type="button" onClick={() => setVoucherPickerOpen(true)} disabled={voucherLoading || submitting || checkoutManualVoucherOptions.length === 0} className="rounded-lg border border-blue-500/30 bg-blue-600/10 px-3 py-1.5 text-[11px] font-bold text-blue-300 transition hover:bg-blue-600/20 disabled:cursor-not-allowed disabled:opacity-50">
+                  {voucherLoading ? 'Memuat voucher…' : 'Gunakan Voucher'}
+                </button>
+              </div>
+              {appliedCheckoutVouchers.length ? <div className="mt-3 space-y-2">
+                {appliedCheckoutVouchers.map((voucher) => <div key={voucher.id} className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-bold text-emerald-200">{voucher.name}</p>
+                    <p className="text-[10px] text-slate-400">{voucher.auto_applied ? 'Voucher durasi otomatis' : 'Voucher sekali pakai'}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-[11px] font-bold text-emerald-300">{voucher.estimated_discount > 0 ? '−' + formatProductPrice(voucher.estimated_discount, String(selected.currency ?? 'IDR')) : 'Promo aktif'}</span>
+                    {!voucher.auto_applied && <button type="button" onClick={() => setSelectedCheckoutVoucherIds((current) => current.filter((id) => id !== voucher.id))} className="rounded-md p-1 text-slate-500 hover:bg-slate-800 hover:text-red-300" aria-label="Lepas voucher"><X size={13}/></button>}
+                  </div>
+                </div>)}
+                {checkoutVoucherDiscount > 0 && <div className="flex items-center justify-between border-t border-slate-800 pt-2 text-xs"><span className="text-slate-400">Total potongan voucher</span><b className="text-emerald-300">−{formatProductPrice(checkoutVoucherDiscount, String(selected.currency ?? 'IDR'))}</b></div>}
+              </div> : <p className="mt-2 text-[10px] text-slate-500">{voucherLoading ? 'Memeriksa voucher yang memenuhi syarat…' : voucherLoadError ? 'Voucher belum dapat dimuat. Kamu tetap bisa melanjutkan pembelian.' : 'Belum ada voucher yang aktif untuk produk ini.'}</p>}
+            </div>}
+
 
             {selectedNeedsOrganizer && <label className="block">
               <span className="block text-xs font-semibold text-slate-300 mb-1.5">Organisasi penerima QR / Serial <span className="text-red-400">*</span></span>
@@ -1014,6 +1104,7 @@ export function OrdersPage() {
               <div className="flex justify-between gap-3 text-slate-400"><span>Item:</span><span className="font-bold text-white text-right">{selected.name}</span></div>
               <div className="flex justify-between gap-3 text-slate-400"><span>Jumlah:</span><span className="font-bold text-white">{checkoutQuantity} Paket</span></div>
               <div className="flex justify-between gap-3 text-slate-400"><span>Metode Pembayaran:</span><span className="font-bold text-blue-400 text-right">{isEduCoinCheckout ? 'Edu Coin' : isGlobalGatewayCheckout ? gatewayStatus?.providerName || 'Gateway otomatis' : selectedPaymentMethod?.name || 'Belum dipilih'}</span></div>
+              {checkoutVoucherDiscount > 0 && <div className="flex justify-between gap-3 text-emerald-300"><span>Potongan voucher:</span><span className="font-bold">−{formatProductPrice(checkoutVoucherDiscount, String(selected.currency ?? 'IDR'))}</span></div>}
               <div className="flex justify-between gap-3 text-slate-400 pt-2 border-t border-slate-800"><span className="font-bold text-slate-200">Total Yang Harus Dibayar:</span><span className="font-extrabold text-blue-400 text-sm">{formatProductPrice(checkoutTotal, String(selected.currency ?? 'IDR'))}</span></div>
             </div>
 
@@ -1083,6 +1174,41 @@ export function OrdersPage() {
               </button>
             </div>
           </div>}
+        </div>
+      </div>
+    </div>}
+
+    {voucherPickerOpen && selected && <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm"
+      onClick={(event) => { if (event.target === event.currentTarget) setVoucherPickerOpen(false); }}
+    >
+      <div role="dialog" aria-modal="true" aria-label="Pilih voucher diskon" className="flex max-h-[82vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-700 bg-[#151F32] shadow-2xl">
+        <div className="border-b border-slate-800 px-5 py-4">
+          <h3 className="text-sm font-bold text-white">Pilih Voucher</h3>
+          <p className="mt-1 text-[11px] text-slate-400">Pilih voucher yang sesuai. Voucher dengan manfaat sejenis akan menggantikan pilihan sebelumnya.</p>
+        </div>
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+          {voucherLoading ? <div className="flex items-center justify-center gap-2 py-10 text-xs text-slate-400"><Loader2 size={15} className="animate-spin"/>Memeriksa voucher…</div>
+            : checkoutManualVoucherOptions.length ? checkoutManualVoucherOptions.map((voucher) => {
+              const selectedVoucher = selectedCheckoutVoucherIds.includes(voucher.id);
+              const selectable = voucher.eligible && !voucher.auto_applied;
+              return <button
+                key={voucher.id}
+                type="button"
+                disabled={!selectable}
+                onClick={() => chooseCheckoutVoucher(voucher)}
+                className={'w-full rounded-xl border p-3 text-left transition ' + (selectedVoucher ? 'border-emerald-500 bg-emerald-500/10' : selectable ? 'border-slate-700 bg-slate-900/60 hover:border-blue-500' : 'cursor-not-allowed border-slate-800 bg-slate-950/60 opacity-45')}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><p className="truncate text-xs font-bold text-white">{voucher.name}</p><p className="mt-1 text-[10px] text-slate-400">{voucher.description || (voucher.benefit_group === 'PRICE_DISCOUNT' ? 'Diskon harga produk' : voucher.benefit_group === 'BUY_X_GET_Y' ? 'Promo beli dan gratis' : 'Promo pengiriman')}</p></div>
+                  <div className="shrink-0 text-right"><span className="text-xs font-extrabold text-emerald-300">{voucher.benefit_type === 'PERCENT' ? voucher.discount_value + '%' : voucher.benefit_type === 'FIXED' ? formatProductPrice(voucher.discount_value, voucher.discount_currency) : voucher.benefit_type === 'BUY_X_GET_Y' ? 'BOGO' : 'Gratis Ongkir'}</span>{selectedVoucher && <span className="mt-1 block text-[9px] font-bold text-emerald-300">Dipilih</span>}</div>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-800/80 pt-2"><span className="text-[10px] text-slate-500">{voucher.eligible ? 'Bisa digunakan · perkiraan potongan ' + formatProductPrice(voucher.estimated_discount, String(selected.currency ?? 'IDR')) : voucher.reason}</span>{selectable && <CheckCircle2 size={14} className={selectedVoucher ? 'text-emerald-300' : 'text-slate-600'}/>}</div>
+              </button>;
+            }) : <p className="py-10 text-center text-xs text-slate-500">Belum ada voucher sekali pakai untuk ditampilkan.</p>}
+        </div>
+        <div className="border-t border-slate-800 p-4">
+          <button type="button" onClick={() => setVoucherPickerOpen(false)} className="w-full rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-slate-200 transition hover:bg-slate-700">Batal</button>
         </div>
       </div>
     </div>}
