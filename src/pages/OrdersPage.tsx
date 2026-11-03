@@ -54,7 +54,7 @@ function productErrorMessage(error: unknown) {
   if (message.includes('PRODUCT_CURRENCY_NOT_SUPPORTED')) return 'Produk ini tidak mendukung pembayaran Edu Coin.';
   if (message.includes('INVALID_QUANTITY')) return 'Jumlah paket tidak valid.';
   if (message.includes('PAYMENT_PROOF_REQUIRED')) return 'Unggah bukti pembayaran sebelum mengirim pesanan.';
-  if (message.includes('WHATSAPP_REQUIRED')) return 'Nomor WhatsApp wajib diisi.';
+  if (message.includes('WHATSAPP_REQUIRED')) return 'Nomor WhatsApp wajib diisi dan minimal 9 digit.';
   if (message.includes('BADGE_ALREADY_OWNED')) return 'Badge ini sudah ada di koleksimu.';
   if (message.includes('ORGANIZER_REQUIRED')) return 'Pilih organisasi yang akan menerima QR / Serial sertifikat.';
   if (message.includes('ORGANIZER_ACCESS_DENIED')) return 'Kamu tidak memiliki akses ke organisasi yang dipilih.';
@@ -337,6 +337,8 @@ export function OrdersPage() {
     ? `${Number(price).toLocaleString('id-ID')} Edu Coin`
     : formatRupiah(price);
   const needsWhatsapp = Boolean(selected && (!isEduCoinCheckout || ['DIGITAL_ITEM', 'DONATION'].includes(selected.product_type)));
+  const whatsappDigitCount = whatsapp.replace(/\\D/g, '').length;
+  const isWhatsappValid = whatsappDigitCount >= 9;
   const selectedBadgeId = selected?.product_type === 'BADGE' ? String(selected.metadata.badge_id ?? '') : '';
   const ownsSelectedBadge = Boolean(selectedBadgeId && ownedBadgeIds.has(selectedBadgeId));
   const selectedNeedsOrganizer = selected?.product_type === 'CERTIFICATE_SERIALS';
@@ -383,10 +385,6 @@ export function OrdersPage() {
       }
       if (selectedNeedsParticipant && !selectedParticipantId) {
         setError('Pilih peserta yang sudah menyelesaikan lomba.');
-        return;
-      }
-      if (needsWhatsapp && !whatsapp.trim()) {
-        setError('Nomor WhatsApp wajib diisi.');
         return;
       }
       if (isEduCoinCheckout && selected && !['DIGITAL_ITEM', 'DONATION', 'BADGE', 'CERTIFICATE_SERIALS'].includes(selected.product_type)) {
@@ -440,8 +438,8 @@ export function OrdersPage() {
         setError('Jenis produk ini tidak mendukung pembayaran Edu Coin.');
         return;
       }
-      if (['DIGITAL_ITEM', 'DONATION'].includes(selected.product_type) && !whatsapp.trim()) {
-        setError('Nomor WhatsApp wajib diisi untuk produk yang diproses tim.');
+      if (needsWhatsapp && !isWhatsappValid) {
+        setError(whatsapp.trim() ? 'Nomor WhatsApp harus berisi minimal 9 digit.' : 'Nomor WhatsApp wajib diisi.');
         return;
       }
       setSubmitting(true);
@@ -487,8 +485,8 @@ export function OrdersPage() {
       setError('Unggah bukti pembayaran sebelum mengirim pesanan.');
       return;
     }
-    if (!whatsapp.trim()) {
-      setError('Nomor WhatsApp wajib diisi.');
+    if (needsWhatsapp && !isWhatsappValid) {
+      setError(whatsapp.trim() ? 'Nomor WhatsApp harus berisi minimal 9 digit.' : 'Nomor WhatsApp wajib diisi.');
       return;
     }
     if (selectedNeedsParticipant && !(Number(certificatePrice) > 0)) {
@@ -860,7 +858,6 @@ export function OrdersPage() {
     {selected && <div
       className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
       style={{ fontFamily: "'Inter', sans-serif" }}
-      onClick={(event) => { if (event.target === event.currentTarget) close(); }}
     >
       <div role="dialog" aria-modal="true" aria-label="Detail Produk dan Pembelian" className="bg-[#151F32] border border-slate-700/80 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0">
@@ -918,20 +915,13 @@ export function OrdersPage() {
               <p className="text-xs text-slate-400 bg-slate-900/30 p-3 rounded-lg border border-slate-800 leading-relaxed whitespace-pre-line">{productBenefit(selected, badgeOptions)}</p>
             </div>
 
-            {(isQuantityPackage || needsWhatsapp) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {isQuantityPackage && <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Jumlah Paket</label>
-                <div className="flex items-center border border-slate-700 rounded-lg bg-slate-900/80 w-fit">
-                  <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} disabled={submitting} className="px-3 py-1.5 text-slate-400 hover:text-white font-bold text-base">−</button>
-                  <span className="w-12 text-center text-sm font-bold text-white">{quantity}</span>
-                  <button type="button" onClick={() => setQuantity((value) => Math.min(100, value + 1))} disabled={submitting || quantity >= 100} className="px-3 py-1.5 text-slate-400 hover:text-white font-bold text-base">+</button>
-                </div>
-              </div>}
-              {needsWhatsapp && <label className="block">
-                <span className="block text-xs font-semibold text-slate-300 mb-1.5">Nomor WhatsApp <span className="text-red-400">*</span></span>
-                <input type="tel" inputMode="tel" className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500" placeholder="Contoh: 08xxxxxxxxxx" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} disabled={submitting}/>
-                <span className="text-[10px] text-slate-500">Untuk koordinasi pengiriman dan pemrosesan produk.</span>
-              </label>}
+            {isQuantityPackage && <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-2">
+              <span className="text-[11px] font-semibold text-slate-300">Jumlah Paket</span>
+              <div className="flex items-center rounded-lg border border-slate-700 bg-slate-900/80">
+                <button type="button" aria-label="Kurangi jumlah paket" onClick={() => setQuantity((value) => Math.max(1, value - 1))} disabled={submitting || quantity <= 1} className="px-3 py-1 text-slate-400 hover:text-white disabled:opacity-40 font-bold text-base">−</button>
+                <span className="w-10 text-center text-sm font-bold text-white">{quantity}</span>
+                <button type="button" aria-label="Tambah jumlah paket" onClick={() => setQuantity((value) => Math.min(100, value + 1))} disabled={submitting || quantity >= 100} className="px-3 py-1 text-slate-400 hover:text-white disabled:opacity-40 font-bold text-base">+</button>
+              </div>
             </div>}
 
             {selectedNeedsOrganizer && <label className="block">
@@ -957,8 +947,9 @@ export function OrdersPage() {
               Saldo tersedia: <b className="text-white">{eduCoinBalance == null ? 'Tidak tersedia' : eduCoinBalance.toLocaleString('id-ID') + ' Edu Coin'}</b>
             </div>}
 
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
-              <div>
+            <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={close} disabled={submitting} className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 disabled:opacity-50">Batal</button>
+              <div className="ml-auto">
                 <span className="text-xs text-slate-400 block">Total Pembayaran:</span>
                 <span className="text-lg font-extrabold text-white">{formatProductPrice(checkoutTotal, String(selected.currency ?? 'IDR'))}</span>
               </div>
@@ -1009,9 +1000,10 @@ export function OrdersPage() {
               : <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-5 text-slate-300">Belum ada metode pembayaran aktif. Admin perlu mengaktifkan metode melalui Pengaturan Pembayaran.</div>}
 
             {error && <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">{error}</div>}
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-3">
-              <button type="button" onClick={() => goToPurchaseStep(1)} disabled={submitting} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition disabled:opacity-50">Kembali</button>
-              <button type="button" onClick={() => goToPurchaseStep(3)} disabled={submitting || (!isEduCoinCheckout && checkoutPaymentMethods.length === 0)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition disabled:opacity-50">
+            <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-2">
+              <button type="button" onClick={() => goToPurchaseStep(1)} disabled={submitting} className="px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition disabled:opacity-50">Kembali</button>
+              <button type="button" onClick={close} disabled={submitting} className="px-3 sm:px-4 py-2 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">Batal</button>
+              <button type="button" onClick={() => goToPurchaseStep(3)} disabled={submitting || (!isEduCoinCheckout && checkoutPaymentMethods.length === 0)} className="px-4 sm:px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition disabled:opacity-50">
                 Lanjut Konfirmasi <span aria-hidden="true">→</span>
               </button>
             </div>
@@ -1024,6 +1016,28 @@ export function OrdersPage() {
               <div className="flex justify-between gap-3 text-slate-400"><span>Metode Pembayaran:</span><span className="font-bold text-blue-400 text-right">{isEduCoinCheckout ? 'Edu Coin' : isGlobalGatewayCheckout ? gatewayStatus?.providerName || 'Gateway otomatis' : selectedPaymentMethod?.name || 'Belum dipilih'}</span></div>
               <div className="flex justify-between gap-3 text-slate-400 pt-2 border-t border-slate-800"><span className="font-bold text-slate-200">Total Yang Harus Dibayar:</span><span className="font-extrabold text-blue-400 text-sm">{formatProductPrice(checkoutTotal, String(selected.currency ?? 'IDR'))}</span></div>
             </div>
+
+            {needsWhatsapp && <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <label className="block">
+                <span className="block text-xs font-semibold text-slate-300 mb-1.5">Nomor WhatsApp <span className="text-red-400">*</span></span>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  maxLength={24}
+                  aria-invalid={whatsapp.trim().length > 0 && !isWhatsappValid}
+                  className={'w-full rounded-lg border bg-slate-950/70 px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 ' + (whatsapp.trim().length > 0 && !isWhatsappValid ? 'border-red-500/70' : 'border-slate-700')}
+                  placeholder="Contoh: 08xxxxxxxxxx"
+                  value={whatsapp}
+                  onChange={(event) => setWhatsapp(event.target.value)}
+                  disabled={submitting}
+                  required
+                />
+                <span className={'mt-1.5 block text-[10px] ' + (whatsapp.trim().length > 0 && !isWhatsappValid ? 'text-red-300' : 'text-slate-500')}>
+                  Minimal 9 digit untuk koordinasi pengiriman dan pemrosesan produk · {whatsappDigitCount}/9 digit
+                </span>
+              </label>
+            </div>}
 
             {isEduCoinCheckout
               ? <div className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-xl space-y-3">
@@ -1060,9 +1074,10 @@ export function OrdersPage() {
                   : <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-slate-300">Pilih metode pembayaran yang aktif sebelum melanjutkan.</div>}
 
             {error && <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">{error}</div>}
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
-              <button type="button" onClick={() => goToPurchaseStep(2)} disabled={submitting} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition disabled:opacity-50">Kembali</button>
-              <button type="button" onClick={() => void submit()} disabled={submitting || (!isEduCoinCheckout && !isGlobalGatewayCheckout && !proofFile) || (isEduCoinCheckout && eduCoinBalance != null && eduCoinBalance < checkoutTotal) || (selectedNeedsParticipant && !(Number(certificatePrice) > 0))} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition disabled:opacity-50">
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+              <button type="button" onClick={() => goToPurchaseStep(2)} disabled={submitting} className="px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition disabled:opacity-50">Kembali</button>
+              <button type="button" onClick={close} disabled={submitting} className="px-3 sm:px-4 py-2 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">Batal</button>
+              <button type="button" onClick={() => void submit()} disabled={submitting || (!isEduCoinCheckout && !isGlobalGatewayCheckout && !proofFile) || (isEduCoinCheckout && eduCoinBalance != null && eduCoinBalance < checkoutTotal) || (selectedNeedsParticipant && !(Number(certificatePrice) > 0))} className="px-4 sm:px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition disabled:opacity-50">
                 {submitting ? <Loader2 size={15} className="animate-spin"/> : null}
                 Konfirmasi & Bayar Sekarang
               </button>
