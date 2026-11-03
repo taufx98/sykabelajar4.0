@@ -45,7 +45,7 @@ test('auth Worker rejects foreign browser origins and does not share auth cookie
 
 test('local Worker config does not bind to a production D1 database or deploy on push', async () => {
   const wrangler = await source('../wrangler.jsonc');
-  const workflow = await source('../.github/workflows/ci.yml');
+  const workflow = await source('../../../.github/workflows/auth-worker-poc.yml');
   assert.match(wrangler, /database_name:\s*["']sykabelajar-auth-local["']/);
   assert.match(wrangler, /database_id:\s*["']local-development-only["']/);
   assert.match(workflow, /npm run build:worker/);
