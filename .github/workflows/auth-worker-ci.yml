@@ -25,7 +25,7 @@ concurrency:
 jobs:
   check:
     if: ${{ github.head_ref == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-poc-stage-1' }}
-    name: Typecheck, tests, audit, D1 schema, OIDC/JWKS smoke test, and Worker dry run
+    name: Audit, tests, D1 migration, OIDC/JWKS smoke test, and Worker dry run
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,23 +47,21 @@ jobs:
       - name: Check dependency advisories
         run: npm audit --audit-level=high
 
-      - name: Generate Better Auth schema against disposable local D1 binding
-        run: npm run auth:schema:generate
-
       - name: Typecheck
         run: npm run typecheck
 
       - name: Security contract tests
         run: npm test
 
-      - name: Apply migrations to local-only D1
+      - name: Apply bootstrap-state migration to local D1
         run: npx wrangler d1 migrations apply sykabelajar-auth-poc --local
 
-      - name: Smoke test Worker, OIDC discovery, and ES256 JWKS
+      - name: Start local Worker and generate Better Auth D1 schema
         shell: bash
         run: |
           set -euo pipefail
-          printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\n' "$(openssl rand -hex 32)" > .dev.vars
+          SCHEMA_TOKEN="$(openssl rand -hex 32)"
+          printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" > .dev.vars
           npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
           WORKER_PID=$!
           trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
@@ -74,9 +72,10 @@ jobs:
             sleep 1
           done
           curl --silent --show-error --fail http://127.0.0.1:8787/healthz
+          AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 D1_SCHEMA_BOOTSTRAP_TOKEN="$SCHEMA_TOKEN" npm run auth:schema:generate
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
-          const discoveryResponse = await fetch("http://localhost:8787/api/auth/.well-known/openid-configuration");
+          const discoveryResponse = await fetch("http://127.0.0.1:8787/api/auth/.well-known/openid-configuration");
           assert.equal(discoveryResponse.status, 200, "OIDC discovery must respond 200");
           const discovery = await discoveryResponse.json();
           assert.equal(new URL(discovery.issuer).hostname, "localhost", "issuer must use the local Worker host");
