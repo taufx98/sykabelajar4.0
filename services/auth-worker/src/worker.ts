@@ -1,6 +1,10 @@
 import { createAuth } from "./auth";
 import type { AuthWorkerEnv } from "./env";
-import { applyResponseHeaders, createCorsHeaders } from "./security.mjs";
+import {
+  applyResponseHeaders,
+  createCorsHeaders,
+  timingSafeEqualString,
+} from "./security.mjs";
 
 const authInstances = new WeakMap<object, ReturnType<typeof createAuth>>();
 
@@ -24,6 +28,119 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
+function bearerToken(request: Request): string | null {
+  const header = request.headers.get("Authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length);
+}
+
+async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): Promise<Response> {
+  const expectedToken = env.OAUTH_CLIENT_BOOTSTRAP_TOKEN;
+  const suppliedToken = bearerToken(request);
+
+  // This endpoint is server-to-server only. Never permit browser-origin calls.
+  if (
+    request.method !== "POST" ||
+    request.headers.has("Origin") ||
+    !expectedToken ||
+    expectedToken.length < 32 ||
+    !suppliedToken ||
+    !timingSafeEqualString(expectedToken, suppliedToken)
+  ) {
+    return json({ error: "NOT_FOUND" }, 404);
+  }
+
+  const callbackUrl = env.OAUTH_CALLBACK_URL;
+  if (!callbackUrl) return json({ error: "OAUTH_CLIENT_BOOTSTRAP_NOT_CONFIGURED" }, 503);
+
+  let parsedCallback: URL;
+  try {
+    parsedCallback = new URL(callbackUrl);
+  } catch {
+    return json({ error: "OAUTH_CALLBACK_URL_INVALID" }, 503);
+  }
+
+  if (
+    parsedCallback.origin !== env.APP_ORIGIN ||
+    parsedCallback.protocol !== "https:" ||
+    parsedCallback.username ||
+    parsedCallback.password ||
+    parsedCallback.hash ||
+    parsedCallback.search
+  ) {
+    return json({ error: "OAUTH_CALLBACK_URL_NOT_ALLOWED" }, 503);
+  }
+
+  try {
+    const existing = await env.DB
+      .prepare("SELECT value, created_at FROM auth_worker_internal_config WHERE key = ?1")
+      .bind("first_party_oauth_client_id")
+      .first<{ value: string; created_at: string }>();
+
+    if (existing && existing.value !== "pending") {
+      return json({ client_id: existing.value, already_configured: true });
+    }
+
+    if (existing?.value === "pending") {
+      const insertedAt = Date.parse(existing.created_at + (existing.created_at.endsWith("Z") ? "" : "Z"));
+      const stale = Number.isFinite(insertedAt) && Date.now() - insertedAt > 10 * 60 * 1000;
+      if (!stale) return json({ error: "OAUTH_CLIENT_BOOTSTRAP_IN_PROGRESS" }, 409);
+
+      await env.DB
+        .prepare("DELETE FROM auth_worker_internal_config WHERE key = ?1 AND value = 'pending'")
+        .bind("first_party_oauth_client_id")
+        .run();
+    }
+
+    const reservation = await env.DB
+      .prepare("INSERT INTO auth_worker_internal_config (key, value) VALUES (?1, 'pending') ON CONFLICT(key) DO NOTHING")
+      .bind("first_party_oauth_client_id")
+      .run();
+
+    if ((reservation.meta?.changes ?? 0) !== 1) {
+      return json({ error: "OAUTH_CLIENT_BOOTSTRAP_IN_PROGRESS" }, 409);
+    }
+
+    try {
+      const created = await getAuth(env).api.adminCreateOAuthClient({
+        headers: request.headers,
+        body: {
+          client_name: "SYKABELAJAR Web",
+          redirect_uris: [callbackUrl],
+          token_endpoint_auth_method: "none",
+          grant_types: ["authorization_code"],
+          response_types: ["code"],
+          scope: "openid profile email",
+          client_secret_expires_at: 0,
+          skip_consent: true,
+        },
+      });
+
+      const clientId = created.client_id;
+      if (!clientId) throw new Error("OAUTH_CLIENT_ID_NOT_RETURNED");
+
+      const stored = await env.DB
+        .prepare("UPDATE auth_worker_internal_config SET value = ?1, created_at = CURRENT_TIMESTAMP WHERE key = ?2 AND value = 'pending'")
+        .bind(clientId, "first_party_oauth_client_id")
+        .run();
+
+      if ((stored.meta?.changes ?? 0) !== 1) {
+        throw new Error("OAUTH_CLIENT_BOOTSTRAP_RESERVATION_LOST");
+      }
+
+      return json({ client_id: clientId, already_configured: false }, 201);
+    } catch {
+      await env.DB
+        .prepare("DELETE FROM auth_worker_internal_config WHERE key = ?1 AND value = 'pending'")
+        .bind("first_party_oauth_client_id")
+        .run();
+      return json({ error: "OAUTH_CLIENT_BOOTSTRAP_FAILED" }, 503);
+    }
+  } catch {
+    return json({ error: "OAUTH_CLIENT_BOOTSTRAP_UNAVAILABLE" }, 503);
+  }
+}
+
 export default {
   async fetch(request: Request, env: AuthWorkerEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -42,6 +159,10 @@ export default {
       } catch {
         return applyResponseHeaders(json({ ok: false, service: "sykabelajar-auth-poc" }, 503), corsHeaders);
       }
+    }
+
+    if (url.pathname === "/_internal/bootstrap-first-party-client") {
+      return applyResponseHeaders(await bootstrapFirstPartyClient(request, env), null);
     }
 
     if (!url.pathname.startsWith("/api/auth/") && url.pathname !== "/api/auth") {
