@@ -38,11 +38,20 @@ function bearerToken(request: Request): string | null {
 async function generateD1Schema(request: Request, env: AuthWorkerEnv): Promise<Response> {
   const expectedToken = env.D1_SCHEMA_BOOTSTRAP_TOKEN;
   const suppliedToken = bearerToken(request);
+  let isLocalWorker = false;
+  try {
+    const hostname = new URL(env.BETTER_AUTH_URL).hostname;
+    isLocalWorker = hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    isLocalWorker = false;
+  }
 
-  // Enabled only by an ephemeral local .dev.vars value in CI.
+  // This endpoint can never run against a non-local auth origin, even if
+  // someone accidentally sets the bootstrap flag in a shared environment.
   if (
     request.method !== "POST" ||
     request.headers.has("Origin") ||
+    !isLocalWorker ||
     env.ALLOW_SCHEMA_BOOTSTRAP !== "true" ||
     !expectedToken ||
     expectedToken.length < 32 ||
