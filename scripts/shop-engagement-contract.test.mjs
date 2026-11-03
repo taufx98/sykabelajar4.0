@@ -256,7 +256,7 @@ test('Shop voucher schema separates reusable duration vouchers from one-time che
   assert.match(promotionsMigration, /active_until timestamptz/i);
   assert.match(promotionsMigration, /status text not null default 'READY'/i);
   assert.match(promotionsMigration, /alter table public\.shop_user_vouchers enable row level security/i);
-  assert.match(promotionsMigration, /revoke all on table public\.shop_user_vouchers from public,anon,authenticated/i);
+  assert.match(promotionsMigration, /revoke all on table public\.shop_user_vouchers from public,\\s*anon,\\s*authenticated/i);
   assert.match(promotionsMigration, /function public\.admin_issue_shop_voucher/i);
   assert.match(promotionsMigration, /function public\.list_my_shop_vouchers/i);
   assert.match(promotionsMigration, /function public\.mark_my_shop_vouchers_seen/i);
