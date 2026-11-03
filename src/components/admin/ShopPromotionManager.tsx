@@ -23,7 +23,7 @@ type VoucherDraft = {
   min_purchase: number; starts_at: string; ends_at: string; is_active: boolean;
 };
 
-const emptyBanner: BannerDraft = { id: null, imageUrl: '', targetUrl: '', durationSeconds: 5, position: 0, isActive: true };
+const emptyBanner: BannerDraft = { id: null, imageUrl: '', targetUrl: '', durationSeconds: 5, position: 1, isActive: true };
 const localDateTime = (date: Date) => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
@@ -127,8 +127,8 @@ export function ShopPromotionManager({ products }: Props) {
     if (!Number.isInteger(bannerDraft.durationSeconds) || bannerDraft.durationSeconds < 2 || bannerDraft.durationSeconds > 60) {
       setError('Durasi slide harus antara 2 sampai 60 detik.'); return;
     }
-    if (!Number.isInteger(bannerDraft.position) || bannerDraft.position < 0) {
-      setError('Posisi slide harus berupa angka nol atau lebih.'); return;
+    if (!Number.isInteger(bannerDraft.position) || bannerDraft.position < 1) {
+      setError('Posisi slide harus berupa angka mulai dari 1.'); return;
     }
     setSavingBanner(true); setError(''); setSuccess('');
     try {
@@ -273,7 +273,7 @@ export function ShopPromotionManager({ products }: Props) {
           <label className="block"><span className="label">Direct link tujuan (opsional)</span><input className="input mt-1 w-full" type="url" value={bannerDraft.targetUrl} onChange={(event) => setBannerDraft((current) => ({ ...current, targetUrl: event.target.value }))} placeholder="https://..."/></label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block"><span className="label">Timer slide (detik)</span><input className="input mt-1 w-full" type="number" min={2} max={60} value={bannerDraft.durationSeconds} onChange={(event) => setBannerDraft((current) => ({ ...current, durationSeconds: Number(event.target.value) }))}/></label>
-            <label className="block"><span className="label">Posisi slide</span><input className="input mt-1 w-full" type="number" min={0} value={bannerDraft.position} onChange={(event) => setBannerDraft((current) => ({ ...current, position: Number(event.target.value) }))}/></label>
+            <label className="block"><span className="label">Posisi slide</span><input className="input mt-1 w-full" type="number" min={1} value={bannerDraft.position} onChange={(event) => setBannerDraft((current) => ({ ...current, position: Number(event.target.value) }))}/></label>
           </div>
           <label className="inline-flex items-center gap-2 text-xs text-fg"><input type="checkbox" checked={bannerDraft.isActive} onChange={(event) => setBannerDraft((current) => ({ ...current, isActive: event.target.checked }))}/>Tampilkan banner ke pengguna</label>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -288,7 +288,7 @@ export function ShopPromotionManager({ products }: Props) {
             {orderedBanners.map((banner) => <div key={banner.id} className="flex gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-2.5">
               <img src={banner.image_url} alt="" className="h-16 w-24 shrink-0 rounded-lg border border-slate-700 object-cover"/>
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5"><Badge color={banner.is_active ? 'moss' : 'default'}>{banner.is_active ? 'Aktif' : 'Disembunyikan'}</Badge><span className="text-[10px] text-slate-500">Slide {banner.position + 1} · {banner.slide_duration_seconds}s</span></div>
+                <div className="flex flex-wrap items-center gap-1.5"><Badge color={banner.is_active ? 'moss' : 'default'}>{banner.is_active ? 'Aktif' : 'Disembunyikan'}</Badge><span className="text-[10px] text-slate-500">Slide {banner.position} · {banner.slide_duration_seconds}s</span></div>
                 <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-slate-400"><span className="inline-flex items-center gap-1"><Eye size={11}/>{(banner.views_count ?? 0).toLocaleString('id-ID')} view</span><span className="inline-flex items-center gap-1"><MousePointerClick size={11}/>{(banner.clicks_count ?? 0).toLocaleString('id-ID')} klik</span></div>
                 {banner.target_url && <a className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-[10px] text-sky-300 hover:underline" href={banner.target_url} target="_blank" rel="noreferrer"><ExternalLink size={10}/>Tautan tujuan</a>}
                 <div className="mt-1.5 flex flex-wrap gap-1">
