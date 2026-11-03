@@ -17,7 +17,9 @@ This service is deliberately isolated from the production frontend and database.
 - Do not point this service at the production Supabase database or add the Better Auth issuer to production Third-Party Auth yet.
 - Do not add secrets to this directory, source control, Vite variables, or browser code.
 - The Google provider is enabled only when both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured.
+- Google OAuth callback URL for the eventual provider console configuration: https://auth.sykabelajar.my.id/api/auth/callback/google
 - Email/password sign-up requires email verification. Configure the outbound email webhook before attempting sign-up or password reset.
+- The email webhook receives JSON with from, to, subject, text, and category. It must authenticate the bearer token and must not log verification or reset URLs.
 - Google-to-password implicit account linking is disabled. Users must explicitly link accounts after proving control of both methods.
 - The five-minute access token is not individually revocable at the JWT signature level. Ending a Better Auth session prevents future session-bound issuance, but a token already minted can remain cryptographically valid until its expiry. The short lifetime is intentional.
 - The generic JWT plugin /token endpoint is disabled in OAuth Provider mode. Do not re-enable it without revisiting the OAuth/OIDC design.
@@ -39,16 +41,15 @@ This service is deliberately isolated from the production frontend and database.
 | AUTH_EMAIL_FROM | Worker variable | Verified sender identity |
 | DEV_APP_ORIGIN | Worker variable | Optional exact localhost origin for local development only |
 
-The email webhook receives JSON with from, to, subject, text, and category. It must authenticate the bearer token and must not log verification or reset URLs.
-
 ## Development
 
 1. Install dependencies with npm install.
-2. Create .dev.vars locally (never commit it) containing test-only values for BETTER_AUTH_SECRET, Google OAuth credentials if testing Google, and email webhook credentials if testing email flows.
-3. Generate the D1 schema from the exact auth config using npm run auth:schema:generate. Review the generated schema for core Better Auth, JWKS, OAuth Provider, and database rate-limit tables. Save the reviewed SQL as a versioned D1 migration under migrations/.
-4. Create a local D1 database and apply migrations with Wrangler.
-5. Run npm run check and npm run dev.
-6. Verify /healthz, /api/auth/.well-known/openid-configuration, and the JWKS URL advertised by discovery.
+2. Copy .dev.vars.example to .dev.vars. Use test-only values; never commit this file.
+3. Generate the complete D1 schema from the same Better Auth configuration used by the Worker with npm run auth:schema:generate. The CLI config starts a disposable, local-only D1 binding through Wrangler getPlatformProxy; it does not connect to a remote D1 database.
+4. Review the generated services/auth-worker/migrations/0001_better_auth.sql. Confirm core tables, JWKS, OAuth Provider tables, and database rate-limit tables are present.
+5. Apply the reviewed SQL only to a disposable local D1 environment first.
+6. Run npm run check and npm run dev.
+7. Verify /healthz, /api/auth/.well-known/openid-configuration, and the JWKS URL advertised by discovery.
 
 Do not apply generated migrations to production. The generated migration must be reviewed and tested against a disposable D1 database first.
 
@@ -69,10 +70,10 @@ A complete PoC test must verify:
 
 ## Not yet implemented in this stage
 
-- D1 resource creation and reviewed/generated schema migration.
+- D1 cloud resource creation and staging deployment.
 - OAuth first-party client bootstrap and SPA client integration.
 - Email vendor selection/webhook deployment.
-- Supabase Third-Party Auth configuration and live token acceptance test.
+- Supabase Custom OIDC configuration and live token acceptance test.
 - Supabase schema/FK changes, account provisioning, Edge Function migration, or frontend auth replacement.
 - Cloudflare custom-domain deployment.
 
