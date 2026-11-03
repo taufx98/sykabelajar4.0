@@ -205,7 +205,9 @@ test('WhatsApp is entered in confirmation step and requires at least nine digits
   const stepThree = ordersPage.slice(ordersPage.indexOf('{purchaseStep === 3 &&'));
   assert.doesNotMatch(stepOne, /Nomor WhatsApp/);
   assert.match(stepThree, /Nomor WhatsApp/);
-  assert.match(ordersPage, /replace\([^)]*\\D[^)]*,\s*['"]{2}\)\.length\s*<\s*9/);
+  assert.match(ordersPage, /whatsapp\.replace\(\/\\D\/g, ''\)\.length/);
+  assert.match(ordersPage, /isWhatsappValid = whatsappDigitCount >= 9/);
+  assert.match(ordersPage, /needsWhatsapp && !isWhatsappValid/);
 });
 
 test('purchase popup closes only through explicit controls and includes a cancel action', () => {
