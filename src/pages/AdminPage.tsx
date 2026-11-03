@@ -158,7 +158,7 @@ export function AdminPage() {
       image_url: draft.image_url.trim(),
       currency: draft.currency === 'EDU_COIN' ? 'EDU_COIN' : 'IDR',
       audiences: draft.product_type === 'CERTIFICATE_SERIALS' ? ['organizer'] : draft.product_type === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : [...new Set(draft.audiences)],
-      metadata: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : draft.metadata ?? {},
+      metadata: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? { ...(draft.metadata ?? {}), fulfillment: 'COLLECTIVE_CERTIFICATE' } : draft.metadata ?? {},
     };
 
     setBusy(true);
