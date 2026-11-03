@@ -103,7 +103,7 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
 
     try {
       const created = await getAuth(env).api.adminCreateOAuthClient({
-        headers: request.headers,
+        headers: new Headers({ Origin: env.APP_ORIGIN }),
         body: {
           client_name: "SYKABELAJAR Web",
           redirect_uris: [callbackUrl],
