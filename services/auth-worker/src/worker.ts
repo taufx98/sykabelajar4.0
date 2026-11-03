@@ -82,7 +82,7 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
     }
 
     if (existing?.value === "pending") {
-      const insertedAt = Date.parse(existing.created_at + (existing.created_at.endsWith("Z") ? "" : "Z"));
+      const insertedAt = Date.parse(existing.created_at);
       const stale = Number.isFinite(insertedAt) && Date.now() - insertedAt > 10 * 60 * 1000;
       if (!stale) return json({ error: "OAUTH_CLIENT_BOOTSTRAP_IN_PROGRESS" }, 409);
 
@@ -93,7 +93,7 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
     }
 
     const reservation = await env.DB
-      .prepare("INSERT INTO auth_worker_internal_config (key, value) VALUES (?1, 'pending') ON CONFLICT(key) DO NOTHING")
+      .prepare("INSERT INTO auth_worker_internal_config (key, value, created_at) VALUES (?1, 'pending', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(key) DO NOTHING")
       .bind("first_party_oauth_client_id")
       .run();
 
@@ -120,7 +120,7 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
       if (!clientId) throw new Error("OAUTH_CLIENT_ID_NOT_RETURNED");
 
       const stored = await env.DB
-        .prepare("UPDATE auth_worker_internal_config SET value = ?1, created_at = CURRENT_TIMESTAMP WHERE key = ?2 AND value = 'pending'")
+        .prepare("UPDATE auth_worker_internal_config SET value = ?1, created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE key = ?2 AND value = 'pending'")
         .bind(clientId, "first_party_oauth_client_id")
         .run();
 
