@@ -380,7 +380,7 @@ export function OrdersPage() {
   useEffect(() => {
     let active = true;
     setVoucherLoadError('');
-    if (!selected || selected.product_type === 'COLLECTIVE_CERTIFICATE') {
+    if (!selected) {
       setCheckoutVoucherOptions([]);
       setSelectedCheckoutVoucherIds([]);
       setVoucherPickerOpen(false);
@@ -589,6 +589,7 @@ export function OrdersPage() {
         }
         order = await createCollectiveCertificateOrderWithProof({
           certificateId: String((certificate as Record<string, unknown>).id),
+          shopProductId: selected.id,
           paymentMethod: paymentMethodValue,
           proofUrl: upload?.secure_url ?? null,
           proofPublicId: upload?.public_id,
@@ -597,6 +598,7 @@ export function OrdersPage() {
           proofVersion: upload?.version?.toString(),
           proofResourceType: upload?.resource_type,
           whatsapp,
+          voucherIds: selectedCheckoutVoucherIds,
         });
       } else {
         order = await createProductOrderWithProof({
@@ -1014,7 +1016,7 @@ export function OrdersPage() {
               <p className="text-xs text-slate-400 bg-slate-900/30 p-3 rounded-lg border border-slate-800 leading-relaxed whitespace-pre-line">{productBenefit(selected, badgeOptions)}</p>
             </div>
 
-            {selected.product_type !== 'COLLECTIVE_CERTIFICATE' && <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs font-semibold text-slate-200"><Tag size={14} className="text-amber-400"/>Voucher Diskon</div>
                 <button type="button" onClick={() => setVoucherPickerOpen(true)} disabled={voucherLoading || submitting || checkoutManualVoucherOptions.length === 0} className="rounded-lg border border-blue-500/30 bg-blue-600/10 px-3 py-1.5 text-[11px] font-bold text-blue-300 transition hover:bg-blue-600/20 disabled:cursor-not-allowed disabled:opacity-50">
@@ -1034,7 +1036,7 @@ export function OrdersPage() {
                 </div>)}
                 {checkoutVoucherDiscount > 0 && <div className="flex items-center justify-between border-t border-slate-800 pt-2 text-xs"><span className="text-slate-400">Total potongan voucher</span><b className="text-emerald-300">−{formatProductPrice(checkoutVoucherDiscount, String(selected.currency ?? 'IDR'))}</b></div>}
               </div> : <p className="mt-2 text-[10px] text-slate-500">{voucherLoading ? 'Memeriksa voucher yang memenuhi syarat…' : voucherLoadError ? 'Voucher belum dapat dimuat. Kamu tetap bisa melanjutkan pembelian.' : 'Belum ada voucher yang aktif untuk produk ini.'}</p>}
-            </div>}
+            </div>
 
 
             {selectedNeedsOrganizer && <label className="block">
