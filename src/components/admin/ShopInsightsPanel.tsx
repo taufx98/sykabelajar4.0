@@ -33,6 +33,20 @@ function validCloudinaryUrl(value: string) {
   }
 }
 
+function productUsesShopCategory(product: CommerceProduct, category: ShopProductCategory) {
+  const metadata = product.metadata ?? {};
+  const assignedId = String(metadata.shop_category_id ?? '').trim().toLowerCase();
+  if (assignedId) return assignedId === category.id;
+
+  const legacyCategory = String(metadata.shop_category ?? metadata.category ?? '').trim().toLocaleLowerCase('id-ID');
+  if (legacyCategory) return legacyCategory === category.id || legacyCategory === category.label.toLocaleLowerCase('id-ID');
+
+  const legacyTypeCategory = product.product_type === 'EDU_COIN_TOPUP' ? 'edu-coin'
+    : ['CERTIFICATE_SERIALS', 'COLLECTIVE_CERTIFICATE'].includes(product.product_type) ? 'sertifikat-barcode'
+      : product.product_type === 'VOUCHER' ? 'voucher-diskon' : 'item-lomba-bypass';
+  return legacyTypeCategory === category.id;
+}
+
 function RatingStars({ rating }: { rating: number }) {
   return <span className="inline-flex items-center gap-0.5" aria-label={`Rating ${rating.toFixed(1)} dari 5`}>
     {Array.from({ length: 5 }, (_, index) => <Star key={index} size={13} className={index < Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}/>)}
@@ -143,7 +157,7 @@ export function ShopInsightsPanel({ products }: Props) {
       return;
     }
 
-    const toCategoryId = (value: string) => value.normalize('NFKD').replace(/\\p{M}/gu, '')
+    const toCategoryId = (value: string) => value.normalize('NFKD').replace(/\p{M}/gu, '')
       .toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 42) || 'kategori';
     let next: ShopProductCategory[];
     if (editingCategoryId) {
@@ -183,12 +197,7 @@ export function ShopInsightsPanel({ products }: Props) {
   };
 
   const deleteCategory = async (category: ShopProductCategory) => {
-    const usedCount = products.filter((product) => {
-      const metadata = product.metadata ?? {};
-      const assignedId = String(metadata.shop_category_id ?? '');
-      const legacyLabel = String(metadata.shop_category ?? metadata.category ?? '').trim().toLocaleLowerCase('id-ID');
-      return assignedId === category.id || legacyLabel === category.label.toLocaleLowerCase('id-ID');
-    }).length;
+    const usedCount = products.filter((product) => productUsesShopCategory(product, category)).length;
     if (usedCount > 0) {
       setError(`Kategori "${category.label}" masih dipakai ${usedCount} produk. Pindahkan kategori produk tersebut terlebih dahulu.`);
       return;
@@ -328,7 +337,7 @@ export function ShopInsightsPanel({ products }: Props) {
         </div>
         {categories.length ? <div className="grid gap-2 sm:grid-cols-2">
           {categories.map((category) => {
-            const usedCount = products.filter((product) => String(product.metadata?.shop_category_id ?? '') === category.id).length;
+            const usedCount = products.filter((product) => productUsesShopCategory(product, category)).length;
             return <div key={category.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-3">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-semibold text-slate-100">{category.label}</span>
