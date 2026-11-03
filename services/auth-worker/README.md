@@ -22,7 +22,7 @@ This service is deliberately isolated from the production frontend and database.
 - The email webhook receives JSON with from, to, subject, text, and category. It must authenticate the bearer token and must not log verification or reset URLs.
 - Google-to-password implicit account linking is disabled. Users must explicitly link accounts after proving control of both methods.
 - The first-party OAuth public client is created only through the server-to-server endpoint /_internal/bootstrap-first-party-client. It requires OAUTH_CLIENT_BOOTSTRAP_TOKEN, rejects browser Origin headers, fixes the callback URI from server configuration, and stores the resulting client ID so the client cannot be created repeatedly.
-- The bootstrap endpoint is disabled unless its token is configured. Use a random token of at least 32 characters and remove/rotate it after bootstrap.
+- The D1 schema bootstrap endpoint /_internal/schema-migrate is enabled only when ALLOW_SCHEMA_BOOTSTRAP=true and D1_SCHEMA_BOOTSTRAP_TOKEN are set. CI sets these only in an ephemeral local .dev.vars file. Never set ALLOW_SCHEMA_BOOTSTRAP in a shared or production environment.
 - The five-minute access token is not individually revocable at the JWT signature level. Ending a Better Auth session prevents future session-bound issuance, but a token already minted can remain cryptographically valid until its expiry. The short lifetime is intentional.
 - The generic JWT plugin /token endpoint is disabled in OAuth Provider mode. Do not re-enable it without revisiting the OAuth/OIDC design.
 - Better Auth rate-limit records are stored in D1, not isolate-local memory.
@@ -38,6 +38,8 @@ This service is deliberately isolated from the production frontend and database.
 | SUPABASE_RESOURCE_AUDIENCE | Worker variable | JWT audience/resource for the application |
 | OAUTH_CALLBACK_URL | Worker variable | Exact first-party SPA OAuth callback URI |
 | OAUTH_CLIENT_BOOTSTRAP_TOKEN | Worker secret | One-time server-to-server client registration token |
+| D1_SCHEMA_BOOTSTRAP_TOKEN | Local-only secret | Enables local schema export during CI only |
+| ALLOW_SCHEMA_BOOTSTRAP | Local-only variable | Must never be enabled on a shared or production Worker |
 | GOOGLE_CLIENT_ID | Worker secret/variable | Google OAuth client ID |
 | GOOGLE_CLIENT_SECRET | Worker secret | Google OAuth client secret |
 | AUTH_EMAIL_WEBHOOK_URL | Worker variable | HTTPS endpoint that accepts the documented JSON email payload |
@@ -49,14 +51,13 @@ This service is deliberately isolated from the production frontend and database.
 
 1. Install dependencies with npm install.
 2. Copy .dev.vars.example to .dev.vars. Use test-only values; never commit this file.
-3. Generate the complete D1 schema from the same Better Auth configuration used by the Worker with npm run auth:schema:generate. The CLI config starts a disposable, local-only D1 binding through Wrangler getPlatformProxy with persist=false.
-4. Review the generated services/auth-worker/migrations/0001_better_auth.sql. Confirm core tables, JWKS, OAuth Provider, and database rate-limit tables are present. The custom bootstrap-state table is migration 0000.
-5. Apply the migrations only to disposable local D1 using Wrangler with the --local flag.
-6. Run npm run check and npm run dev.
-7. Verify /healthz, /api/auth/.well-known/openid-configuration, and the JWKS URL advertised by discovery.
-8. For OAuth client testing only, invoke /_internal/bootstrap-first-party-client from a trusted server with the one-time bootstrap bearer token. Never call it from browser code.
+3. Apply migration 0000 to a disposable local D1 database.
+4. Start the Worker locally. Only in local development, set ALLOW_SCHEMA_BOOTSTRAP=true and a random D1_SCHEMA_BOOTSTRAP_TOKEN.
+5. Run npm run auth:schema:generate. The script calls the protected Worker endpoint; Better Auth's getMigrations() runs against the request-scoped D1 binding and the Worker exports the resulting DDL from sqlite_master.
+6. Review migrations/0001_better_auth.sql. Confirm core tables, JWKS, OAuth Provider, and database rate-limit tables are present. The custom bootstrap-state table is migration 0000.
+7. Run npm run check and verify /healthz, /api/auth/.well-known/openid-configuration, and the JWKS URL advertised by discovery.
 
-Do not apply generated migrations to production. The generated migration must be reviewed and tested against a disposable D1 database first.
+Do not set the schema bootstrap flag or apply generated migrations to production. The generated migration must be reviewed and tested against a disposable D1 database first.
 
 ## OAuth/OIDC integration test requirements
 
