@@ -594,22 +594,40 @@ declare
   v_shipping_discount numeric;
   v_one_time_ids uuid[];
   v_voucher_ids uuid[];
+  v_reward_definition_id uuid;
+  v_reward_definition public.shop_voucher_definitions%rowtype;
 begin
   if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
-  if exists (
-    select 1 from public.commerce_products p
-    where p.id=p_product_id and p.product_type::text='VOUCHER'
-      and not exists (
-        select 1 from public.shop_voucher_definitions d
-        where d.id=nullif(p.metadata->>'shop_voucher_definition_id','')::uuid
-          and d.is_active=true and d.starts_at<=now()
-          and (d.ends_at is null or d.ends_at>now())
-      )
-  ) then raise exception 'SHOP_VOUCHER_REWARD_NOT_AVAILABLE'; end if;
+  select nullif(p.metadata->>'shop_voucher_definition_id','')::uuid
+    into v_reward_definition_id
+  from public.commerce_products p
+  where p.id=p_product_id and p.product_type::text='VOUCHER' and p.is_active=true;
+  if found then
+    select * into v_reward_definition
+    from public.shop_voucher_definitions d
+    where d.id=v_reward_definition_id
+      and d.is_active=true
+      and d.starts_at<=now()
+      and (d.ends_at is null or d.ends_at>now())
+    for share;
+    if not found then raise exception 'SHOP_VOUCHER_REWARD_NOT_AVAILABLE'; end if;
+  end if;
   v_order := public.create_product_order_with_proof(
     p_product_id,p_quantity,p_whatsapp,p_payment_method,p_proof_url,p_proof_public_id,
     p_proof_width,p_proof_height,p_proof_version,p_proof_resource_type,p_target_organizer_id
   );
+  if v_reward_definition_id is not null then
+    update public.order_items oi set
+      metadata=jsonb_set(
+        coalesce(oi.metadata,'{}'::jsonb),
+        '{shop_metadata}',
+        coalesce(oi.metadata->'shop_metadata','{}'::jsonb)
+          || jsonb_build_object('shop_voucher_definition_snapshot',to_jsonb(v_reward_definition)),
+        true
+      )
+    where oi.order_id=v_order.id and oi.product_type::text='VOUCHER';
+    if not found then raise exception 'SHOP_VOUCHER_ORDER_ITEM_MISSING'; end if;
+  end if;
   v_effects := private.calculate_shop_voucher_effects(
     auth.uid(),p_product_id,p_quantity,v_order.subtotal,v_order.shipping_cost,coalesce(p_voucher_ids,'{}'::uuid[])
   );
@@ -1036,14 +1054,18 @@ begin
     loop
       v_definition_id := nullif(v_item.metadata->'shop_metadata'->>'shop_voucher_definition_id','')::uuid;
       if v_definition_id is null then raise exception 'SHOP_VOUCHER_DEFINITION_REQUIRED'; end if;
-      select * into v_definition
-      from public.shop_voucher_definitions d
-      where d.id=v_definition_id and d.is_active=true
-      for share;
-      if not found then raise exception 'SHOP_VOUCHER_DEFINITION_NOT_AVAILABLE'; end if;
-      if v_definition.starts_at > now() or (v_definition.ends_at is not null and v_definition.ends_at <= now()) then
-        raise exception 'SHOP_VOUCHER_DEFINITION_OUT_OF_DATE';
+      if jsonb_typeof(v_item.metadata->'shop_metadata'->'shop_voucher_definition_snapshot')='object' then
+        v_definition := jsonb_populate_record(
+          null::public.shop_voucher_definitions,
+          v_item.metadata->'shop_metadata'->'shop_voucher_definition_snapshot'
+        );
+      else
+        select * into v_definition
+        from public.shop_voucher_definitions d
+        where d.id=v_definition_id
+        for share;
       end if;
+      if v_definition.id is null then raise exception 'SHOP_VOUCHER_DEFINITION_NOT_AVAILABLE'; end if;
       if v_item.quantity is null or v_item.quantity < 1 or v_item.quantity > 100 then
         raise exception 'SHOP_VOUCHER_PRODUCT_QUANTITY_INVALID';
       end if;
