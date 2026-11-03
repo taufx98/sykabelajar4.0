@@ -7,9 +7,9 @@
   "workers_dev": false,
   "preview_urls": false,
   "vars": {
-    "APP_ORIGIN": "https://sykabelajar.my.id",
-    "AUTH_BASE_URL": "https://auth.sykabelajar.my.id",
-    "SUPABASE_JWT_AUDIENCE": "https://mvdczyitbkxkldjughor.supabase.co"
+    "APP_ORIGIN": "http://localhost:5173",
+    "AUTH_BASE_URL": "http://localhost:8787",
+    "SUPABASE_JWT_AUDIENCE": "https://supabase-poc.invalid"
   },
   "d1_databases": [
     {
