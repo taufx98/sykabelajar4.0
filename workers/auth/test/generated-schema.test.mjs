@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 const readGenerated = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
@@ -28,7 +28,12 @@ test('generated schema includes OAuth Provider resources, grants, and consent ta
 });
 
 test('generated D1 migration creates the same security-critical tables', async () => {
-  const migration = await readGenerated('../migrations/0000_motionless_tattoo.sql');
+  const migrationFiles = (await readdir(new URL('../migrations/', import.meta.url)))
+    .filter((file) => file.endsWith('.sql'));
+  assert.ok(migrationFiles.length > 0, 'at least one generated migration must exist');
+  const migration = (await Promise.all(
+    migrationFiles.map((file) => readGenerated('../migrations/' + file)),
+  )).join('\n');
   for (const table of [
     'user',
     'session',
