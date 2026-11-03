@@ -3,7 +3,9 @@ import { ChevronDown, Heart, Info, Loader2, MessageSquare, Receipt, Search, Shop
 import { formatShortDate } from '@/lib/utils';
 import {
   DEFAULT_SHOP_HERO_BANNER,
+  DEFAULT_SHOP_PRODUCT_CATEGORIES,
   getShopHeroBanner,
+  getShopProductCategories,
   listMyWishlist,
   listProductReviewSummaries,
   listProductSalesCounts,
@@ -16,11 +18,11 @@ import {
   type ProductReviewSummary,
   type ProductSalesSummary,
   type ShopHeroBanner,
+  type ShopProductCategory,
 } from '@/services/shopEngagement.service';
 import type { CommerceProduct } from '@/services/commerce.service';
 
 type ShopTab = 'catalog' | 'history' | 'wishlist';
-type ShopCategory = 'all' | 'coin' | 'item' | 'cert' | 'voucher';
 type ShopSort = 'default' | 'price-asc' | 'price-desc' | 'rating-desc' | 'rating-asc' | 'popular';
 type ProductReviewState = { rows: ProductReview[]; hasMore: boolean; page: number; loading: boolean };
 
@@ -38,14 +40,6 @@ type Props = {
 };
 
 const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80';
-
-const CATEGORIES: Array<{ id: ShopCategory; label: string }> = [
-  { id: 'all', label: 'Semua Produk' },
-  { id: 'coin', label: 'Edu Coin' },
-  { id: 'item', label: 'Item Lomba & Bypass' },
-  { id: 'cert', label: 'Sertifikat & Barcode' },
-  { id: 'voucher', label: 'Voucher Diskon' },
-];
 
 function typeLabel(type: string) {
   const labels: Record<string, string> = {
@@ -66,12 +60,25 @@ function productBadge(product: CommerceProduct) {
   return product.is_featured ? 'Pilihan' : typeLabel(product.product_type);
 }
 
-function categoryForProduct(product: CommerceProduct): ShopCategory {
-  const metadataCategory = String(product.metadata?.shop_category ?? product.metadata?.category ?? '').toLowerCase();
-  if (product.product_type === 'VOUCHER' || metadataCategory.includes('voucher')) return 'voucher';
-  if (product.product_type === 'EDU_COIN_TOPUP') return 'coin';
-  if (['CERTIFICATE_SERIALS', 'COLLECTIVE_CERTIFICATE'].includes(product.product_type)) return 'cert';
-  return 'item';
+function legacyCategoryIdForProduct(product: CommerceProduct) {
+  const metadataCategory = String(product.metadata?.shop_category ?? product.metadata?.category ?? '').trim().toLocaleLowerCase('id-ID');
+  if (product.product_type === 'VOUCHER' || metadataCategory.includes('voucher')) return 'voucher-diskon';
+  if (product.product_type === 'EDU_COIN_TOPUP' || metadataCategory === 'coin' || metadataCategory === 'edu coin') return 'edu-coin';
+  if (['CERTIFICATE_SERIALS', 'COLLECTIVE_CERTIFICATE'].includes(product.product_type)) return 'sertifikat-barcode';
+  return 'item-lomba-bypass';
+}
+
+function categoryForProduct(product: CommerceProduct, categories: ShopProductCategory[]) {
+  const selectedCategoryId = String(product.metadata?.shop_category_id ?? '').trim().toLowerCase();
+  if (selectedCategoryId && categories.some((category) => category.id === selectedCategoryId)) return selectedCategoryId;
+
+  const metadataCategory = String(product.metadata?.shop_category ?? product.metadata?.category ?? '').trim().toLocaleLowerCase('id-ID');
+  const matchingCategory = categories.find((category) => category.id === metadataCategory
+    || category.label.trim().toLocaleLowerCase('id-ID') === metadataCategory);
+  if (matchingCategory) return matchingCategory.id;
+
+  const legacyId = legacyCategoryIdForProduct(product);
+  return categories.some((category) => category.id === legacyId) ? legacyId : '';
 }
 
 function getWishlistErrorNotice(error: unknown) {
@@ -116,7 +123,8 @@ export function ShopExperience({
   onBuy,
 }: Props) {
   const [tab, setTab] = useState<ShopTab>('catalog');
-  const [category, setCategory] = useState<ShopCategory>('all');
+  const [category, setCategory] = useState('all');
+  const [categoryOptions, setCategoryOptions] = useState<ShopProductCategory[]>(DEFAULT_SHOP_PRODUCT_CATEGORIES);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<ShopSort>('default');
   const [banner, setBanner] = useState<ShopHeroBanner>(DEFAULT_SHOP_HERO_BANNER);
@@ -137,6 +145,7 @@ export function ShopExperience({
     let active = true;
     void Promise.all([
       getShopHeroBanner().then((value) => { if (active) setBanner(value); }).catch(() => undefined),
+      getShopProductCategories().then((rows) => { if (active) setCategoryOptions(rows.filter((row) => row.is_active)); }).catch(() => undefined),
       listProductReviewSummaries().then((rows) => {
         if (active) setReviewSummaries(new Map(rows.map((row) => [row.product_id, row])));
       }).catch(() => undefined),
@@ -153,7 +162,7 @@ export function ShopExperience({
   const visibleProducts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('id-ID');
     const filtered = products.filter((product) => {
-      const matchesCategory = category === 'all' || categoryForProduct(product) === category;
+      const matchesCategory = category === 'all' || categoryForProduct(product, categoryOptions) === category;
       const matchesSearch = !query || [
         product.name,
         product.short_description,
@@ -176,7 +185,7 @@ export function ShopExperience({
       }
       return Number(right.is_featured) - Number(left.is_featured) || left.sort_order - right.sort_order;
     });
-  }, [products, category, search, sort, displayPrice, reviewSummaries, salesCounts]);
+  }, [products, category, categoryOptions, search, sort, displayPrice, reviewSummaries, salesCounts]);
 
   const wishlistProducts = useMemo(
     () => products.filter((product) => wishlistIds.has(product.id)),
@@ -421,7 +430,16 @@ export function ShopExperience({
         </div>
       </div>
 
-      {CATEGORIES.map((item) => (
+      <button
+        type="button"
+        onClick={() => setCategory('all')}
+        className={'cat-pill px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap border ' + (category === 'all'
+          ? 'active bg-blue-600/20 text-blue-400 border-blue-500/30'
+          : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700')}
+      >
+        Semua Produk
+      </button>
+      {categoryOptions.map((item) => (
         <button
           key={item.id}
           type="button"
