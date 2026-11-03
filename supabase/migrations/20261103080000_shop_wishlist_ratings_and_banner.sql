@@ -232,3 +232,6 @@ comment on table public.commerce_product_wishlist is
   'Per-user persistent wishlist for active SYKABELAJAR Shop products; rows are protected by RLS.';
 comment on table public.commerce_product_reviews is
   'Public Shop product ratings and reviews; writes require a paid/completed matching order.';
+
+-- Ensure newly created Shop tables, views and RPCs are visible to PostgREST immediately.
+notify pgrst, 'reload schema';
