@@ -1,0 +1,71 @@
+name: Auth Worker CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - security/auth-migration-phase-0
+    paths:
+      - "services/auth-worker/**"
+      - ".github/workflows/auth-worker-ci.yml"
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - "services/auth-worker/**"
+      - ".github/workflows/auth-worker-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-worker-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: ${{ github.head_ref == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-poc-stage-1' }}
+    name: Typecheck, tests, audit, schema generation, and Worker dry run
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package.json
+
+      - name: Install pinned direct dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check dependency advisories
+        run: npm audit --audit-level=high
+
+      - name: Generate Better Auth schema against disposable local D1
+        run: npm run auth:schema:generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Security contract tests
+        run: npm test
+
+      - name: Bundle Worker without deploying
+        run: npm run build
+
+      - name: Upload generated schema and dependency lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-worker-poc-review-artifacts
+          path: |
+            services/auth-worker/migrations/0001_better_auth.sql
+            services/auth-worker/package-lock.json
+          if-no-files-found: warn
+          retention-days: 7
