@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const migration = await readFile('supabase/migrations/20261103080000_shop_wishlist_ratings_and_banner.sql', 'utf8');
+const migration = await readFile('supabase/migrations/20261103031139_shop_wishlist_ratings_and_banner.sql', 'utf8');
 const indexHtml = await readFile('index.html', 'utf8');
 const service = await readFile('src/services/shopEngagement.service.ts', 'utf8');
 const shop = await readFile('src/components/shop/ShopExperience.tsx', 'utf8');
