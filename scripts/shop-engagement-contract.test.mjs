@@ -11,6 +11,16 @@ const adminPage = await readFile('src/pages/AdminPage.tsx', 'utf8');
 const ordersPage = await readFile('src/pages/OrdersPage.tsx', 'utf8');
 const globalHeader = await readFile('src/components/layout/GlobalHeader.tsx', 'utf8');
 
+test('wishlist displays PostgREST object errors and explains a missing schema object', () => {
+  assert.match(shop, /getWishlistErrorNotice/);
+  assert.match(shop, /PGRST205/);
+  assert.match(shop, /Whitelist belum tersedia di database Shop/);
+});
+
+test('Shop schema migration explicitly refreshes the PostgREST schema cache', () => {
+  assert.match(migration, /notify pgrst,\s*'reload schema'/i);
+});
+
 test('wishlist is private per user and cannot be written on behalf of another account', () => {
   assert.match(migration, /create table if not exists public\.commerce_product_wishlist/i);
   assert.match(migration, /primary key\s*\(product_id,\s*user_id\)/i);
