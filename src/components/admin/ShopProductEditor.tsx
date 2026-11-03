@@ -6,6 +6,7 @@ import type { AdminProductInput } from '@/services/adminCore.service';
 import { uploadImage } from '@/services/cloudinary.service';
 import { supabase } from '@/lib/supabase';
 import { getCollectiveCertificatePrice } from '@/services/collectiveParticipant.service';
+import { getShopProductCategories, type ShopProductCategory } from '@/services/shopEngagement.service';
 
 export type ShopProductDraft = AdminProductInput & {
   code: string;
@@ -85,6 +86,7 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
   const [draft, setDraft] = useState<ShopProductDraft>(() => initialDraft(product));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [availableBadges, setAvailableBadges] = useState<Array<{ id: string; name: string; icon_emoji: string | null; rarity: string }>>([]);
+  const [shopCategories, setShopCategories] = useState<ShopProductCategory[]>([]);
   const [badgeCatalogLoading, setBadgeCatalogLoading] = useState(false);
   const [collectiveCertificatePrice, setCollectiveCertificatePrice] = useState<number | null>(null);
   const [imageUploadBusy, setImageUploadBusy] = useState(false);
@@ -92,6 +94,7 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
   const isEditing = Boolean(draft.id);
   const isDuplicate = mode === 'duplicate';
   const selectedType = PRODUCT_TYPES.find((item) => item.value === draft.product_type);
+  const selectedShopCategory = shopCategories.find((item) => item.id === String(draft.metadata.shop_category_id ?? ''));
   const unsupportedType = !selectedType;
   const usesSpecialAudience = draft.product_type === 'CERTIFICATE_SERIALS' || draft.product_type === 'COLLECTIVE_CERTIFICATE';
   const canUseEduCoin = EDU_COIN_SUPPORTED_TYPES.includes(draft.product_type);
@@ -129,6 +132,31 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
     return () => { active = false; };
   }, [draft.product_type]);
 
+  useEffect(() => {
+    let active = true;
+    void getShopProductCategories()
+      .then((rows) => {
+        if (!active) return;
+        const enabled = rows.filter((row) => row.is_active);
+        setShopCategories(enabled);
+        setDraft((current) => {
+          const currentId = String(current.metadata.shop_category_id ?? '');
+          if (enabled.some((category) => category.id === currentId)) return current;
+          const legacyId = current.product_type === 'EDU_COIN_TOPUP' ? 'edu-coin'
+            : ['CERTIFICATE_SERIALS', 'COLLECTIVE_CERTIFICATE'].includes(current.product_type) ? 'sertifikat-barcode'
+              : current.product_type === 'VOUCHER' ? 'voucher-diskon' : 'item-lomba-bypass';
+          const defaultCategory = enabled.find((category) => category.id === legacyId) ?? enabled[0];
+          return defaultCategory
+            ? { ...current, metadata: { ...current.metadata, shop_category_id: defaultCategory.id } }
+            : current;
+        });
+      })
+      .catch(() => {
+        if (active) setValidationMessage('Katalog kategori Shop belum dapat dimuat. Coba buka kembali formulir produk.');
+      });
+    return () => { active = false; };
+  }, []);
+
   const patch = (changes: Partial<ShopProductDraft>) => {
     setDraft((current) => ({ ...current, ...changes }));
     setValidationMessage('');
@@ -138,7 +166,10 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
     const fixedAudience = productType === 'CERTIFICATE_SERIALS' ? ['organizer']
       : productType === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : draft.audiences;
     const currency = EDU_COIN_SUPPORTED_TYPES.includes(productType) ? draft.currency : 'IDR';
-    patch({ product_type: productType, audiences: fixedAudience, currency, metadata: productType === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : {} , price: productType === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price });
+    const shopCategoryId = String(draft.metadata.shop_category_id ?? '');
+    const metadata: Record<string, unknown> = shopCategoryId ? { shop_category_id: shopCategoryId } : {};
+    if (productType === 'COLLECTIVE_CERTIFICATE') metadata.fulfillment = 'COLLECTIVE_CERTIFICATE';
+    patch({ product_type: productType, audiences: fixedAudience, currency, metadata, price: productType === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price });
   };
 
   const toggleAudience = (audience: string) => {
@@ -184,6 +215,7 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
     if (!name) return setValidationMessage('Nama produk perlu diisi terlebih dahulu.');
     if (draft.short_description.trim().length > 160) return setValidationMessage('Ringkasan maksimal 160 karakter.');
     if (draft.audiences.length === 0) return setValidationMessage('Pilih minimal satu kelompok pengguna.');
+    if (shopCategories.length > 0 && !String(draft.metadata.shop_category_id ?? '')) return setValidationMessage('Pilih kategori katalog Shop untuk produk ini.');
     if (unsupportedType) return setValidationMessage('Jenis produk ini belum didukung untuk pemesanan Shop. Pilih Produk digital atau Donasi.');
     if (!Number.isFinite(draft.price) || draft.price < 0) return setValidationMessage('Harga harus berupa angka nol atau lebih.');
     if (draft.is_active && draft.price <= 0 && draft.product_type !== 'COLLECTIVE_CERTIFICATE') return setValidationMessage(isCoinPrice ? 'Produk aktif harus memiliki harga minimal 1 Edu Coin.' : 'Produk aktif harus memiliki harga di atas Rp0.');
@@ -195,7 +227,7 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
     if (draft.product_type === 'COLLECTIVE_CERTIFICATE' && collectiveCertificatePrice == null) return setValidationMessage('Harga sertifikat belum dapat dimuat. Atur atau periksa Pengaturan Sertifikat Kolektif terlebih dahulu.');
     if (draft.image_url.trim() && !validCloudinaryImageUrl(draft.image_url)) return setValidationMessage('Gambar produk wajib berasal dari Cloudinary. Hapus gambar lama atau unggah ulang melalui tombol Unggah gambar.');
     if (!Number.isFinite(draft.sort_order) || draft.sort_order < 0 || !Number.isInteger(draft.sort_order)) return setValidationMessage('Urutan tampilan harus bilangan bulat nol atau lebih.');
-    void onSave({ ...draft, name, price: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price, audiences: draft.product_type === 'CERTIFICATE_SERIALS' ? ['organizer'] : draft.product_type === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : draft.audiences, metadata: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : draft.metadata, short_description: draft.short_description.trim(), description: draft.description.trim(), image_url: draft.image_url.trim() });
+    void onSave({ ...draft, name, price: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? 0 : draft.price, audiences: draft.product_type === 'CERTIFICATE_SERIALS' ? ['organizer'] : draft.product_type === 'COLLECTIVE_CERTIFICATE' ? ['teacher'] : draft.audiences, metadata: draft.product_type === 'COLLECTIVE_CERTIFICATE' ? { ...draft.metadata, fulfillment: 'COLLECTIVE_CERTIFICATE' } : draft.metadata, short_description: draft.short_description.trim(), description: draft.description.trim(), image_url: draft.image_url.trim() });
   };
 
   return <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 sm:p-5" role="dialog" aria-modal="true" aria-labelledby="shop-product-editor-title">
@@ -231,6 +263,21 @@ export function ShopProductEditor({ product, mode, busy, onClose, onSave }: Prop
                   {PRODUCT_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
                 </select>
                 <span className="mt-1.5 block text-xs leading-5 text-fg-muted">{selectedType?.description ?? 'Produk dengan alur khusus ini belum bisa dijual melalui Shop.'}</span>
+              </label>
+              <label className="block">
+                <span className="label">Kategori katalog Shop <span className="text-red-400">*</span></span>
+                <select
+                  className="input mt-1 w-full"
+                  value={String(draft.metadata.shop_category_id ?? '')}
+                  onChange={(event) => patch({ metadata: { ...draft.metadata, shop_category_id: event.target.value } })}
+                  disabled={shopCategories.length === 0}
+                  required={shopCategories.length > 0}
+                >
+                  <option value="">Pilih kategori katalog</option>
+                  {shopCategories.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+                </select>
+                <span className="mt-1.5 block text-xs leading-5 text-fg-muted">Kategori ini menentukan tombol filter produk di Shop. Jenis produk di atas tetap mengatur proses pemenuhan pesanan.</span>
+                {selectedShopCategory && <span className="mt-1 inline-flex rounded-full bg-accent/10 px-2 py-1 text-[10px] font-semibold text-accent">{selectedShopCategory.label}</span>}
               </label>
               <label className="block">
                 <span className="label">Ringkasan</span>
