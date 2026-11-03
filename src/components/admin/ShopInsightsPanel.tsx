@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { Loader2, RefreshCw, Save, Star, Upload, ChevronDown, ChevronRight, Heart, MessageSquareText, Sparkles } from 'lucide-react';
+import { Loader2, RefreshCw, Save, Star, Upload, ChevronDown, ChevronRight, Heart, MessageSquareText, Sparkles, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -8,9 +8,12 @@ import { uploadImage } from '@/services/cloudinary.service';
 import {
   DEFAULT_SHOP_HERO_BANNER,
   getShopHeroBanner,
+  getShopProductCategories,
   listProductReviews,
   listShopAdminInsights,
   saveShopHeroBanner,
+  saveShopProductCategories,
+  type ShopProductCategory,
   type ProductReview,
   type ShopHeroBanner,
   type ShopAdminInsights,
@@ -38,6 +41,10 @@ function RatingStars({ rating }: { rating: number }) {
 
 export function ShopInsightsPanel({ products }: Props) {
   const [banner, setBanner] = useState<ShopHeroBanner>(DEFAULT_SHOP_HERO_BANNER);
+  const [categories, setCategories] = useState<ShopProductCategory[]>([]);
+  const [categoryDraft, setCategoryDraft] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState('');
+  const [savingCategories, setSavingCategories] = useState(false);
   const [insights, setInsights] = useState<ShopAdminInsights>({ wishlistCounts: [], reviewSummaries: [] });
   const [loading, setLoading] = useState(true);
   const [savingBanner, setSavingBanner] = useState(false);
@@ -51,9 +58,10 @@ export function ShopInsightsPanel({ products }: Props) {
     setLoading(true);
     setError('');
     try {
-      const [hero, data] = await Promise.all([getShopHeroBanner(), listShopAdminInsights()]);
+      const [hero, data, productCategories] = await Promise.all([getShopHeroBanner(), listShopAdminInsights(), getShopProductCategories()]);
       setBanner(hero);
       setInsights(data);
+      setCategories(productCategories);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Data Shop belum dapat dimuat.');
     } finally {
@@ -121,6 +129,91 @@ export function ShopInsightsPanel({ products }: Props) {
       setError(saveError instanceof Error ? saveError.message : 'Pengaturan banner gagal disimpan.');
     } finally {
       setSavingBanner(false);
+    }
+  };
+
+  const saveCategoryDraft = async () => {
+    const label = categoryDraft.trim();
+    if (label.length < 2) {
+      setError('Nama kategori minimal 2 karakter.');
+      return;
+    }
+    if (categories.some((item) => item.id !== editingCategoryId && item.label.toLocaleLowerCase('id-ID') === label.toLocaleLowerCase('id-ID'))) {
+      setError('Nama kategori tersebut sudah tersedia.');
+      return;
+    }
+
+    const toCategoryId = (value: string) => value.normalize('NFKD').replace(/\\p{M}/gu, '')
+      .toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 42) || 'kategori';
+    let next: ShopProductCategory[];
+    if (editingCategoryId) {
+      next = categories.map((item) => item.id === editingCategoryId ? { ...item, label } : item);
+    } else {
+      const baseId = toCategoryId(label);
+      let id = baseId;
+      let suffix = 2;
+      while (categories.some((item) => item.id === id)) {
+        id = `${baseId}-${suffix}`;
+        suffix += 1;
+      }
+      next = [...categories, { id, label, sort_order: categories.length, is_active: true }];
+    }
+
+    setSavingCategories(true);
+    setError('');
+    setSuccess('');
+    try {
+      await saveShopProductCategories(next);
+      setCategories(next);
+      setCategoryDraft('');
+      setEditingCategoryId('');
+      setSuccess('Katalog kategori Shop berhasil disimpan.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Kategori Shop gagal disimpan.');
+    } finally {
+      setSavingCategories(false);
+    }
+  };
+
+  const editCategory = (category: ShopProductCategory) => {
+    setEditingCategoryId(category.id);
+    setCategoryDraft(category.label);
+    setError('');
+    setSuccess('');
+  };
+
+  const deleteCategory = async (category: ShopProductCategory) => {
+    const usedCount = products.filter((product) => {
+      const metadata = product.metadata ?? {};
+      const assignedId = String(metadata.shop_category_id ?? '');
+      const legacyLabel = String(metadata.shop_category ?? metadata.category ?? '').trim().toLocaleLowerCase('id-ID');
+      return assignedId === category.id || legacyLabel === category.label.toLocaleLowerCase('id-ID');
+    }).length;
+    if (usedCount > 0) {
+      setError(`Kategori "${category.label}" masih dipakai ${usedCount} produk. Pindahkan kategori produk tersebut terlebih dahulu.`);
+      return;
+    }
+    if (categories.length <= 1) {
+      setError('Minimal satu kategori katalog harus tersedia.');
+      return;
+    }
+
+    const next = categories.filter((item) => item.id !== category.id);
+    setSavingCategories(true);
+    setError('');
+    setSuccess('');
+    try {
+      await saveShopProductCategories(next);
+      setCategories(next);
+      if (editingCategoryId === category.id) {
+        setEditingCategoryId('');
+        setCategoryDraft('');
+      }
+      setSuccess('Kategori berhasil dihapus dari katalog Shop.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Kategori gagal dihapus.');
+    } finally {
+      setSavingCategories(false);
     }
   };
 
@@ -206,6 +299,46 @@ export function ShopInsightsPanel({ products }: Props) {
             {!banner.enabled && <span className="relative z-10 mt-3 inline-flex rounded-full bg-slate-950/70 px-2 py-1 text-[9px] text-slate-200">Pratinjau · banner disembunyikan</span>}
           </div>
         </div>
+      </div>
+    </Card>
+
+    <Card className="overflow-hidden border-slate-800 bg-[#111B2C] p-0">
+      <div className="border-b border-slate-800 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300">Katalog Shop</p>
+            <h4 className="mt-1 text-sm font-bold text-slate-100">Kelola katalog produk</h4>
+            <p className="mt-1 text-xs text-slate-400">Tambahkan jenis/kategori yang akan menjadi tombol filter di Shop. Kategori dipilih pada formulir produk dan tidak mengubah alur pemrosesan pembelian.</p>
+          </div>
+          <Badge color="info">{categories.length} kategori</Badge>
+        </div>
+      </div>
+      <div className="space-y-4 p-4 sm:p-5">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <label className="block">
+            <span className="label">{editingCategoryId ? 'Ubah nama kategori' : 'Nama kategori baru'}</span>
+            <input className="input mt-1 w-full" maxLength={48} value={categoryDraft} onChange={(event) => setCategoryDraft(event.target.value)} placeholder="Contoh: Paket Belajar, Merchandise, Voucher" disabled={savingCategories}/>
+          </label>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => void saveCategoryDraft()} disabled={savingCategories || categoryDraft.trim().length < 2} loading={savingCategories} icon={editingCategoryId ? <Save size={13}/> : <Plus size={13}/>}>
+              {editingCategoryId ? 'Simpan perubahan' : 'Tambah kategori'}
+            </Button>
+            {editingCategoryId && <Button size="sm" variant="outline" onClick={() => { setEditingCategoryId(''); setCategoryDraft(''); }} disabled={savingCategories} icon={<X size={13}/>}>Batal</Button>}
+          </div>
+        </div>
+        {categories.length ? <div className="grid gap-2 sm:grid-cols-2">
+          {categories.map((category) => {
+            const usedCount = products.filter((product) => String(product.metadata?.shop_category_id ?? '') === category.id).length;
+            return <div key={category.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-slate-100">{category.label}</span>
+                <span className="mt-1 block text-[10px] text-slate-500">{usedCount} produk · Filter Shop</span>
+              </span>
+              <button type="button" className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-blue-300" onClick={() => editCategory(category)} aria-label={`Ubah kategori ${category.label}`} disabled={savingCategories}><Pencil size={14}/></button>
+              <button type="button" className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-red-300 disabled:opacity-30" onClick={() => void deleteCategory(category)} aria-label={`Hapus kategori ${category.label}`} disabled={savingCategories || usedCount > 0 || categories.length <= 1}><Trash2 size={14}/></button>
+            </div>;
+          })}
+        </div> : <p className="rounded-xl border border-dashed border-slate-700 p-5 text-center text-xs text-slate-500">Belum ada kategori katalog.</p>}
       </div>
     </Card>
 
