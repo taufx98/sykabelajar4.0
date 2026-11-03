@@ -320,6 +320,7 @@ test('Discount toolbar control is icon-only, sits after Whitelist, and reports u
 test('purchased voucher products are issued only after successful payment and remain idempotent per order item', () => {
   assert.match(productEditor, /value: 'VOUCHER'/);
   assert.match(productEditor, /shop_voucher_definition_id/);
+  assert.ok(ordersPage.includes("['EDU_COIN_TOPUP', 'DIGITAL_ITEM', 'DONATION', 'VOUCHER'].includes(selected.product_type)"));
   assert.match(ordersPage, /'VOUCHER'\]\?\.includes|VOUCHER/);
   assert.match(promotionsMigration, /commerce_products_product_type_check/i);
   assert.match(promotionsMigration, /shop_voucher_product_checkout_patch_failed/i);
