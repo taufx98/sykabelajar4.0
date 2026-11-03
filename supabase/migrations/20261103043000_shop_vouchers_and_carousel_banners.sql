@@ -499,7 +499,7 @@ begin
         (d.usage_type='DURATION' and uv.status='ACTIVE')
         or uv.id=any(coalesce(p_selected_voucher_ids,'{}'::uuid[]))
       )
-    order by case when d.usage_type='DURATION' then 0 else 1 end,uv.issued_at desc
+    order by case when d.usage_type='DURATION' then 0 else 1 end,uv.issued_at desc,d.benefit_group,uv.id
     for update of uv
   loop
     if v_row.usage_type='DURATION' then
@@ -980,8 +980,8 @@ begin
   if position('''VOUCHER''' in v_definition) = 0 then
     v_definition := replace(
       v_definition,
-      'if i.product_type in (''DIGITAL_ITEM'', ''DONATION'') then',
-      'if i.product_type in (''DIGITAL_ITEM'', ''DONATION'', ''VOUCHER'') then'
+      'if i.product_type in (''DIGITAL_ITEM'',''DONATION'') then',
+      'if i.product_type in (''DIGITAL_ITEM'',''DONATION'',''VOUCHER'') then'
     );
     if position('''VOUCHER''' in v_definition) = 0 then raise exception 'SHOP_VOUCHER_PRODUCT_GATEWAY_PATCH_FAILED'; end if;
     execute v_definition;
