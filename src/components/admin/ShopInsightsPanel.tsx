@@ -19,6 +19,7 @@ import {
   type ShopAdminInsights,
 } from '@/services/shopEngagement.service';
 import type { CommerceProduct } from '@/services/commerce.service';
+import { ShopPromotionManager } from '@/components/admin/ShopPromotionManager';
 
 type Props = { products: CommerceProduct[] };
 type ProductReviewState = { rows: ProductReview[]; hasMore: boolean; page: number; loading: boolean };
@@ -310,6 +311,8 @@ export function ShopInsightsPanel({ products }: Props) {
         </div>
       </div>
     </Card>
+
+    <ShopPromotionManager products={products}/>
 
     <Card className="overflow-hidden border-slate-800 bg-[#111B2C] p-0">
       <div className="border-b border-slate-800 p-4 sm:p-5">
