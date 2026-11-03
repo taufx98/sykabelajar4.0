@@ -137,7 +137,11 @@ export function createAuth(env: AuthWorkerEnv) {
       }),
       oauthProvider({
         scopes: ["openid", "profile", "email"],
-        validAudiences: [resourceAudience],
+        resources: [{
+          identifier: resourceAudience,
+          allowedScopes: ["openid", "profile", "email"],
+          accessTokenTtl: 5 * 60,
+        }],
         accessTokenExpiresIn: 5 * 60,
         customAccessTokenClaims: () => ({
           role: "authenticated",
