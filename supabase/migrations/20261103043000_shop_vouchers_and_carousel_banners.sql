@@ -343,6 +343,7 @@ as $function$
 declare
   v_product public.commerce_products%rowtype;
   v_group_active text[];
+  v_auto_ids uuid[] := '{}';
 begin
   if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
   if p_quantity is null or p_quantity < 1 or p_quantity > 100 then raise exception 'INVALID_QUANTITY'; end if;
@@ -350,18 +351,27 @@ begin
     where p.id=p_product_id and p.is_active=true;
   if not found then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
 
+  select coalesce(array_agg(chosen.id),'{}'::uuid[]) into v_auto_ids
+  from (
+    select distinct on (d.benefit_group) uv.id, d.benefit_group
+    from public.shop_user_vouchers uv
+    join public.shop_voucher_definitions d on d.id=uv.definition_id
+    where uv.user_id=auth.uid() and d.usage_type='DURATION' and uv.status='ACTIVE'
+      and uv.active_until > now() and d.is_active=true
+      and (d.ends_at is null or d.ends_at > now())
+      and d.starts_at <= now()
+      and private.shop_voucher_scope_matches(d.scope_type,d.product_ids,d.category_ids,p_product_id)
+      and p_subtotal >= d.min_purchase
+      and (d.benefit_type <> 'FIXED' or d.discount_currency=v_product.currency)
+      and (d.benefit_type <> 'FREE_SHIPPING' or p_shipping_cost > 0)
+      and (d.benefit_type <> 'BUY_X_GET_Y' or p_quantity >= d.buy_quantity+d.free_quantity)
+    order by d.benefit_group, uv.issued_at desc, uv.id
+  ) chosen;
+
   select coalesce(array_agg(distinct d.benefit_group),'{}') into v_group_active
   from public.shop_user_vouchers uv
   join public.shop_voucher_definitions d on d.id=uv.definition_id
-  where uv.user_id=auth.uid() and d.usage_type='DURATION' and uv.status='ACTIVE'
-    and uv.active_until > now() and d.is_active=true
-    and (d.ends_at is null or d.ends_at > now())
-    and d.starts_at <= now()
-    and private.shop_voucher_scope_matches(d.scope_type,d.product_ids,d.category_ids,p_product_id)
-    and p_subtotal >= d.min_purchase
-    and (d.benefit_type <> 'FIXED' or d.discount_currency=v_product.currency)
-    and (d.benefit_type <> 'FREE_SHIPPING' or p_shipping_cost > 0)
-    and (d.benefit_type <> 'BUY_X_GET_Y' or p_quantity >= d.buy_quantity+d.free_quantity);
+  where uv.id=any(v_auto_ids);
 
   return query
   select uv.id,d.name,d.description,d.usage_type,d.benefit_group,d.benefit_type,d.discount_value,d.discount_currency,
@@ -376,7 +386,7 @@ begin
       when not d.is_active then false
       when d.starts_at > now() then false
       when d.ends_at is not null and d.ends_at <= now() then false
-      when d.usage_type='DURATION' and (uv.status <> 'ACTIVE' or uv.active_until <= now()) then false
+      when d.usage_type='DURATION' and (uv.status <> 'ACTIVE' or uv.active_until <= now() or not (uv.id=any(v_auto_ids))) then false
       when d.usage_type='SINGLE_USE' and uv.status <> 'READY' then false
       when not private.shop_voucher_scope_matches(d.scope_type,d.product_ids,d.category_ids,p_product_id) then false
       when p_subtotal < d.min_purchase then false
@@ -391,6 +401,7 @@ begin
       when d.starts_at > now() then 'Voucher belum mulai berlaku'
       when d.ends_at is not null and d.ends_at <= now() then 'Voucher sudah kedaluwarsa'
       when d.usage_type='DURATION' and (uv.status <> 'ACTIVE' or uv.active_until <= now()) then 'Masa aktif voucher sudah habis'
+      when d.usage_type='DURATION' and not (uv.id=any(v_auto_ids)) then 'Voucher durasi sejenis sudah aktif'
       when d.usage_type='SINGLE_USE' and uv.status='RESERVED' then 'Voucher sedang dipakai pada pesanan lain'
       when d.usage_type='SINGLE_USE' and uv.status='USED' then 'Voucher sudah digunakan'
       when d.usage_type='SINGLE_USE' and uv.status <> 'READY' then 'Voucher belum tersedia'
@@ -402,7 +413,8 @@ begin
       when d.usage_type='SINGLE_USE' and d.benefit_group=any(v_group_active) then 'Manfaat sejenis sudah diterapkan otomatis'
       else 'Dapat digunakan'
     end,
-    d.usage_type='DURATION' and uv.status='ACTIVE' and uv.active_until > now()
+    d.usage_type='DURATION' and uv.id=any(v_auto_ids)
+      and uv.status='ACTIVE' and uv.active_until > now()
       and d.is_active and d.starts_at <= now() and (d.ends_at is null or d.ends_at > now())
       and private.shop_voucher_scope_matches(d.scope_type,d.product_ids,d.category_ids,p_product_id)
       and p_subtotal >= d.min_purchase
@@ -411,7 +423,7 @@ begin
       and (d.benefit_type <> 'BUY_X_GET_Y' or p_quantity >= d.buy_quantity+d.free_quantity),
     case
       when not d.is_active or d.starts_at > now() or (d.ends_at is not null and d.ends_at <= now())
-        or (d.usage_type='DURATION' and (uv.status <> 'ACTIVE' or uv.active_until <= now()))
+        or (d.usage_type='DURATION' and (uv.status <> 'ACTIVE' or uv.active_until <= now() or not (uv.id=any(v_auto_ids))))
         or (d.usage_type='SINGLE_USE' and uv.status <> 'READY')
         or not private.shop_voucher_scope_matches(d.scope_type,d.product_ids,d.category_ids,p_product_id)
         or p_subtotal < d.min_purchase or (d.benefit_type='FIXED' and d.discount_currency <> v_product.currency)
@@ -419,7 +431,11 @@ begin
         or (d.benefit_type='BUY_X_GET_Y' and p_quantity < d.buy_quantity+d.free_quantity)
         or (d.usage_type='SINGLE_USE' and d.benefit_group=any(v_group_active))
       then 0::numeric
-      when d.benefit_type='PERCENT' then round(least(p_subtotal,p_subtotal*d.discount_value/100),2)
+      when d.benefit_type='PERCENT' then
+        case when v_product.currency='EDU_COIN'
+          then trunc(least(p_subtotal,p_subtotal*d.discount_value/100))
+          else round(least(p_subtotal,p_subtotal*d.discount_value/100),2)
+        end
       when d.benefit_type='FIXED' then least(p_subtotal,d.discount_value)
       when d.benefit_type='BUY_X_GET_Y' then floor(p_quantity::numeric/(d.buy_quantity+d.free_quantity))*d.free_quantity*v_product.price
       when d.benefit_type='FREE_SHIPPING' then p_shipping_cost
