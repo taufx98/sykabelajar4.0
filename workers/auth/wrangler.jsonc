@@ -15,7 +15,7 @@
     {
       "binding": "DB",
       "database_name": "sykabelajar-auth-local",
-      "database_id": "local-development-only",
+      "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
     }
   ]
