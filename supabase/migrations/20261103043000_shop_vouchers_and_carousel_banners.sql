@@ -791,7 +791,7 @@ create table if not exists public.shop_promo_banners (
   image_url text not null,
   target_url text,
   slide_duration_seconds integer not null default 5 check (slide_duration_seconds between 2 and 60),
-  position integer not null default 1 check (position >= 1),
+  slide_position integer not null default 1 check (slide_position >= 1),
   is_active boolean not null default true,
   views_count bigint not null default 0,
   clicks_count bigint not null default 0,
@@ -799,7 +799,7 @@ create table if not exists public.shop_promo_banners (
   updated_at timestamptz not null default now()
 );
 create index if not exists shop_promo_banners_active_position_idx
-  on public.shop_promo_banners (is_active,position,created_at);
+  on public.shop_promo_banners (is_active,slide_position,created_at);
 create table if not exists public.shop_promo_banner_events (
   id uuid primary key default gen_random_uuid(),
   banner_id uuid not null references public.shop_promo_banners(id) on delete cascade,
@@ -815,17 +815,17 @@ revoke all on table public.shop_promo_banner_events from public,anon,authenticat
 
 create or replace function public.list_active_shop_promo_banners()
 returns table (
-  id uuid,image_url text,target_url text,slide_duration_seconds integer,position integer
+  id uuid,image_url text,target_url text,slide_duration_seconds integer,slide_position integer
 )
 language sql
 stable
 security definer
 set search_path = ''
 as $function$
-  select b.id,b.image_url,b.target_url,b.slide_duration_seconds,b.position
+  select b.id,b.image_url,b.target_url,b.slide_duration_seconds,b.slide_position
   from public.shop_promo_banners b
   where b.is_active=true
-  order by b.position asc,b.created_at desc;
+  order by b.slide_position asc,b.created_at desc;
 $function$;
 
 create or replace function public.record_shop_promo_banner_event(
@@ -858,7 +858,7 @@ $function$;
 
 create or replace function public.admin_list_shop_promo_banners()
 returns table (
-  id uuid,image_url text,target_url text,slide_duration_seconds integer,position integer,
+  id uuid,image_url text,target_url text,slide_duration_seconds integer,slide_position integer,
   is_active boolean,views_count bigint,clicks_count bigint,created_at timestamptz
 )
 language plpgsql
@@ -867,9 +867,9 @@ set search_path = ''
 as $function$
 begin
   if not private.current_user_is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
-  return query select b.id,b.image_url,b.target_url,b.slide_duration_seconds,b.position,
+  return query select b.id,b.image_url,b.target_url,b.slide_duration_seconds,b.slide_position,
     b.is_active,b.views_count,b.clicks_count,b.created_at
-  from public.shop_promo_banners b order by b.position,b.created_at desc;
+  from public.shop_promo_banners b order by b.slide_position,b.created_at desc;
 end;
 $function$;
 
@@ -891,14 +891,14 @@ begin
   if coalesce(p_image_url,'') !~* '^https://res\.cloudinary\.com/[^/]+/image/upload/.+' then raise exception 'INVALID_BANNER_IMAGE_URL'; end if;
   if p_target_url is not null and p_target_url !~* '^https://' then raise exception 'INVALID_BANNER_TARGET_URL'; end if;
   if p_slide_duration_seconds not between 2 and 60 then raise exception 'INVALID_BANNER_DURATION'; end if;
-  if p_position is null or p_position < 0 then raise exception 'INVALID_BANNER_POSITION'; end if;
+  if p_position is null or p_position < 1 then raise exception 'INVALID_BANNER_POSITION'; end if;
   if p_id is null then
-    insert into public.shop_promo_banners(image_url,target_url,slide_duration_seconds,position,is_active)
+    insert into public.shop_promo_banners(image_url,target_url,slide_duration_seconds,slide_position,is_active)
       values(p_image_url,nullif(btrim(p_target_url),''),p_slide_duration_seconds,p_position,coalesce(p_is_active,true))
       returning * into v_row;
   else
     update public.shop_promo_banners set image_url=p_image_url,target_url=nullif(btrim(p_target_url),''),
-      slide_duration_seconds=p_slide_duration_seconds,position=p_position,is_active=coalesce(p_is_active,true),
+      slide_duration_seconds=p_slide_duration_seconds,slide_position=p_position,is_active=coalesce(p_is_active,true),
       updated_at=now()
     where id=p_id returning * into v_row;
     if not found then raise exception 'SHOP_BANNER_NOT_FOUND'; end if;
