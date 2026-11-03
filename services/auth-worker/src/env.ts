@@ -10,4 +10,6 @@ export interface AuthWorkerEnv {
   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
   AUTH_EMAIL_FROM?: string;
   DEV_APP_ORIGIN?: string;
+  OAUTH_CLIENT_BOOTSTRAP_TOKEN?: string;
+  OAUTH_CALLBACK_URL?: string;
 }
