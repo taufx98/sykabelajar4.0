@@ -290,14 +290,15 @@ test('voucher checkout is server-priced and preserves the legacy checkout before
 });
 
 test('collective certificate checkout also validates and applies vouchers through its dedicated RPC wrapper', () => {
-  assert.match(promotionsMigration, /function public\\.create_shop_collective_certificate_order_with_vouchers/i);
-  assert.match(promotionsMigration, /function public\\.create_collective_certificate_order_with_proof/i);
-  assert.match(promotionsMigration, /collective_certificate_orders cco[\\s\\S]*?set amount=v_order\\.total/i);
-  assert.match(commerceService, /create_shop_collective_certificate_order_with_vouchers/);
-  assert.match(ordersPage, /shopProductId: selected\\.id/);
-  assert.match(ordersPage, /selectedCheckoutVoucherIds/);
-  assert.doesNotMatch(ordersPage, /selected\\.product_type === 'COLLECTIVE_CERTIFICATE'\\) \\{/);
-  assert.doesNotMatch(ordersPage, /selected\\.product_type !== 'COLLECTIVE_CERTIFICATE' && <div className="rounded-xl border border-slate-800 bg-slate-900\\/40 p-3">/);
+  assert.ok(promotionsMigration.includes('create_shop_collective_certificate_order_with_vouchers'));
+  assert.ok(promotionsMigration.includes('create_collective_certificate_order_with_proof'));
+  assert.ok(promotionsMigration.includes('update public.collective_certificate_orders cco'));
+  assert.ok(promotionsMigration.includes('set amount=v_order.total'));
+  assert.ok(commerceService.includes('create_shop_collective_certificate_order_with_vouchers'));
+  assert.ok(ordersPage.includes('shopProductId: selected.id'));
+  assert.ok(ordersPage.includes('voucherIds: selectedCheckoutVoucherIds'));
+  assert.ok(!ordersPage.includes("if (!selected || selected.product_type === 'COLLECTIVE_CERTIFICATE')"));
+  assert.ok(!ordersPage.includes("selected.product_type !== 'COLLECTIVE_CERTIFICATE' && <div"));
 });
 
 test('checkout Step 1 shows eligible and disabled vouchers in a picker with one bottom cancel action', () => {
