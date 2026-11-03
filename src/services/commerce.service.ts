@@ -65,14 +65,16 @@ export async function createProductOrderWithEduCoin(input: {
   quantity: number;
   whatsapp?: string;
   targetOrganizerId?: string | null;
+  voucherIds?: string[];
 }) {
   if (!input.productId) throw new Error('Produk tidak valid.');
   if (!Number.isInteger(input.quantity) || input.quantity < 1) throw new Error('Jumlah produk tidak valid.');
-  const { data, error } = await supabase.rpc('create_product_order_with_edu_coin', {
+  const { data, error } = await supabase.rpc('create_shop_product_order_with_edu_coin_vouchers', {
     p_product_id: input.productId,
     p_quantity: input.quantity,
     p_whatsapp: input.whatsapp?.trim() || null,
     p_target_organizer_id: input.targetOrganizerId ?? null,
+    p_voucher_ids: input.voucherIds ?? [],
   });
   if (error) {
     if (error.message.includes('INSUFFICIENT_EDU_COIN')) throw new Error('INSUFFICIENT_EDU_COIN');
@@ -99,9 +101,10 @@ export async function createProductOrderWithProof(input: {
   proofVersion?: string;
   proofResourceType?: string;
   targetOrganizerId?: string | null;
+  voucherIds?: string[];
 }) {
   if (!Number.isInteger(input.quantity) || input.quantity < 1) throw new Error('Jumlah produk tidak valid.');
-  const { data, error } = await supabase.rpc('create_product_order_with_proof', {
+  const { data, error } = await supabase.rpc('create_shop_product_order_with_vouchers', {
     p_product_id: input.productId,
     p_quantity: input.quantity,
     p_whatsapp: input.whatsapp.trim(),
@@ -113,6 +116,7 @@ export async function createProductOrderWithProof(input: {
     p_proof_version: input.proofVersion ?? null,
     p_proof_resource_type: input.proofResourceType ?? null,
     p_target_organizer_id: input.targetOrganizerId ?? null,
+    p_voucher_ids: input.voucherIds ?? [],
   });
   if (error) {
     if (error.message.includes('BADGE_ALREADY_OWNED')) throw new Error('Badge ini sudah ada di koleksimu.');
