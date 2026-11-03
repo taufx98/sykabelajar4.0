@@ -382,6 +382,7 @@ test('additional Shop banners support slides, direct links, Cloudinary, status, 
   assert.match(promotionsMigration, /create table if not exists public\.shop_promo_banners/i);
   assert.match(promotionsMigration, /create table if not exists public\.shop_promo_banner_events/i);
   assert.match(promotionsMigration, /slide_position integer not null default 1/i);
+  assert.match(promotionsMigration, /p_position is null or p_position < 1 then raise exception 'INVALID_BANNER_POSITION'/i);
   assert.match(promotionsMigration, /order by b\.slide_position/i);
   assert.match(promotionService, /Number\(row\.slide_position \?\? 0\)/);
   assert.match(promotionsMigration, /views_count=views_count\+1/);
