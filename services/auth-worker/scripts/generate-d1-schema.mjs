@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { getMissingBetterAuthTables } from "../src/schema-contract.mjs";
 
 const baseUrl = process.env.AUTH_WORKER_BASE_URL ?? "http://127.0.0.1:8787";
 const token = process.env.D1_SCHEMA_BOOTSTRAP_TOKEN;
@@ -21,15 +22,15 @@ if (!response.ok || payload.ok !== true || !Array.isArray(payload.ddl)) {
 }
 
 const tableNames = payload.table_names ?? [];
-const normalizedNames = tableNames.map((name) => String(name).toLowerCase());
-const required = ["user", "session", "account", "verification", "jwks", "ratelimit"];
-const missing = required.filter((name) => !normalizedNames.includes(name));
+const missing = getMissingBetterAuthTables(tableNames);
 
 if (missing.length > 0) {
-  throw new Error("Generated Better Auth schema is missing required tables: " + missing.join(", "));
-}
-if (!normalizedNames.some((name) => name.includes("oauth") && name.includes("application"))) {
-  throw new Error("Generated schema is missing the OAuth Provider application table.");
+  throw new Error(
+    "Generated Better Auth schema is incomplete. Missing models: " +
+    missing.join(", ") +
+    ". Actual D1 tables: " +
+    tableNames.join(", "),
+  );
 }
 
 const statements = payload.ddl
