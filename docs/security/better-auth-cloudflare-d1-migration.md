@@ -239,5 +239,5 @@ Snapshot retrieved on 2026-11-03:
 - Better Auth OAuth 2.1 Provider: https://better-auth.com/docs/plugins/oauth-provider
 - Better Auth JWT/JWKS: https://better-auth.com/docs/plugins/jwt
 - Better Auth Google OAuth: https://better-auth.com/docs/concepts/oauth
-- Better Auth Cloudflare: https://better-auth.com/docs/integrations/cloudflare
+- Better Auth Cloudflare: https://better-auth.com/docs/authentication/cloudflare
 - Cloudflare D1 migrations: https://developers.cloudflare.com/d1/reference/migrations/
