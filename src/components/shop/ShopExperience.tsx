@@ -74,6 +74,27 @@ function categoryForProduct(product: CommerceProduct): ShopCategory {
   return 'item';
 }
 
+function getWishlistErrorNotice(error: unknown) {
+  let code = '';
+  let message = '';
+
+  if (error instanceof Error) {
+    message = error.message;
+  } else if (typeof error === 'string') {
+    message = error;
+  } else if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    code = String(record.code ?? '');
+    message = String(record.message ?? '');
+  }
+
+  if (code === 'PGRST205' || message.includes('PGRST205') || message.includes('commerce_product_wishlist')) {
+    return 'Whitelist belum tersedia di database Shop. Migrasi Shop belum diterapkan atau schema API belum dimuat ulang.';
+  }
+
+  return message || 'Whitelist belum berhasil diperbarui.';
+}
+
 function Stars({ value, size = 13 }: { value: number; size?: number }) {
   return <span className="inline-flex items-center gap-0.5" aria-label={'Rating ' + value.toFixed(1) + ' dari 5'}>
     {Array.from({ length: 5 }, (_, index) => (
@@ -184,7 +205,7 @@ export function ShopExperience({
         setWishlistIds((current) => new Set(current).add(product.id));
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Whitelist belum berhasil diperbarui.');
+      setNotice(getWishlistErrorNotice(error));
     } finally {
       setWishlistBusyId('');
     }
