@@ -295,6 +295,8 @@ test('collective certificate checkout also validates and applies vouchers throug
   assert.ok(promotionsMigration.includes('update public.collective_certificate_orders cco'));
   assert.ok(promotionsMigration.includes('set amount=v_order.total'));
   assert.ok(commerceService.includes('create_shop_collective_certificate_order_with_vouchers'));
+  assert.ok(commerceService.includes('shopProductId?: string'));
+  assert.ok(commerceService.includes('create_collective_certificate_order_with_proof', commerceService.indexOf('else {')));
   assert.ok(ordersPage.includes('shopProductId: selected.id'));
   assert.ok(ordersPage.includes('voucherIds: selectedCheckoutVoucherIds'));
   assert.ok(!ordersPage.includes("if (!selected || selected.product_type === 'COLLECTIVE_CERTIFICATE')"));
