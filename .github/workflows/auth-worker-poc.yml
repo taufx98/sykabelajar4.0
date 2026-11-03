@@ -1,0 +1,53 @@
+name: Better Auth Worker POC CI
+
+on:
+  push:
+    branches: [feat/better-auth-cloudflare-worker-poc]
+  pull_request:
+    branches: [main]
+    paths:
+      - "workers/auth/**"
+      - ".github/workflows/auth-worker-poc.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-worker-poc-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  auth-worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/auth
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: workers/auth/package-lock.json
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Security contract tests
+        run: npm test
+      - name: Generate Better Auth schema
+        run: npm run generate:auth-schema
+      - name: Generate D1 migrations
+        run: npm run generate:d1-migration
+      - name: Dry-run Worker bundle (no deployment)
+        run: npm run build:worker
+      - name: Upload generated schema, migrations and lockfile
+        uses: actions/upload-artifact@v6
+        with:
+          name: auth-worker-generated
+          path: |
+            workers/auth/package-lock.json
+            workers/auth/src/auth-schema.ts
+            workers/auth/migrations/**
+          if-no-files-found: error
+          retention-days: 7
