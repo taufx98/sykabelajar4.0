@@ -16,6 +16,7 @@ migrations_dir = "migrations"
 BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
 APP_ORIGIN = "https://sykabelajar.my.id"
 SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
+OAUTH_CALLBACK_URL = "https://sykabelajar.my.id/auth/oidc/callback"
 
 [observability]
 enabled = true
