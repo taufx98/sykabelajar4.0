@@ -7,7 +7,8 @@ import { sendAuthEmail } from "./email";
 function requireHttpsOrigin(value: string, label: string, allowLocalhost = false): string {
   const url = new URL(value);
   const isLocalhost = allowLocalhost && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
-  if ((!isLocalhost && url.protocol !== "https:") || url.origin !== value.replace(/\/$/, "")) {
+  const protocolAllowed = url.protocol === "https:" || (isLocalhost && url.protocol === "http:");
+  if (!protocolAllowed || url.origin !== value.replace(/\/$/, "")) {
     throw new Error(label + "_MUST_BE_AN_ORIGIN");
   }
   return url.origin;
@@ -24,6 +25,11 @@ export function createAuth(env: AuthWorkerEnv) {
     env.SUPABASE_RESOURCE_AUDIENCE,
     "SUPABASE_RESOURCE_AUDIENCE",
   );
+  const trustedOrigins = [appOrigin];
+
+  if (env.DEV_APP_ORIGIN) {
+    trustedOrigins.push(requireHttpsOrigin(env.DEV_APP_ORIGIN, "DEV_APP_ORIGIN", true));
+  }
 
   const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
   const googleClientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
@@ -47,7 +53,7 @@ export function createAuth(env: AuthWorkerEnv) {
     basePath: "/api/auth",
     secret: env.BETTER_AUTH_SECRET,
     database: env.DB,
-    trustedOrigins: [appOrigin],
+    trustedOrigins,
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
@@ -87,6 +93,20 @@ export function createAuth(env: AuthWorkerEnv) {
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 12,
       cookieCache: { enabled: false },
+    },
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 60,
+      storage: "database",
+      customRules: {
+        "/sign-in/email": { window: 60, max: 5 },
+        "/sign-up/email": { window: 3600, max: 5 },
+        "/forget-password": { window: 3600, max: 3 },
+        "/send-verification-email": { window: 3600, max: 3 },
+        "/sign-in/social": { window: 60, max: 10 },
+        "/oauth2/token": { window: 60, max: 20 },
+      },
     },
     advanced: {
       useSecureCookies: true,
