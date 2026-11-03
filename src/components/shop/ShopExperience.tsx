@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { ChevronDown, Heart, Info, Loader2, MessageSquare, Receipt, Search, ShoppingCart, ShoppingBag, Sparkles, Star, Store, X } from 'lucide-react';
+import { ChevronDown, Heart, Info, Loader2, MessageSquare, Receipt, Search, ShoppingCart, ShoppingBag, Sparkles, Star, Store, Tag, X } from 'lucide-react';
 import { formatShortDate } from '@/lib/utils';
 import {
   DEFAULT_SHOP_HERO_BANNER,
@@ -21,8 +21,10 @@ import {
   type ShopProductCategory,
 } from '@/services/shopEngagement.service';
 import type { CommerceProduct } from '@/services/commerce.service';
+import { ShopBannerSlider } from '@/components/shop/ShopBannerSlider';
+import { listMyShopVouchers, markMyShopVouchersSeen, type ShopUserVoucher } from '@/services/shopPromotion.service';
 
-type ShopTab = 'catalog' | 'history' | 'wishlist';
+type ShopTab = 'catalog' | 'history' | 'wishlist' | 'vouchers';
 type ShopSort = 'default' | 'price-asc' | 'price-desc' | 'rating-desc' | 'rating-asc' | 'popular';
 type ProductReviewState = { rows: ProductReview[]; hasMore: boolean; page: number; loading: boolean };
 
@@ -40,6 +42,22 @@ type Props = {
 };
 
 const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80';
+
+function voucherTitle(voucher: ShopUserVoucher) {
+  if (voucher.benefit_type === 'PERCENT') return voucher.discount_value + '% OFF';
+  if (voucher.benefit_type === 'FIXED') return (voucher.discount_currency === 'EDU_COIN' ? 'Coin ' : 'Rp ') + voucher.discount_value.toLocaleString('id-ID');
+  if (voucher.benefit_type === 'BUY_X_GET_Y') return 'Beli X Gratis Y';
+  return 'Gratis Ongkir';
+}
+
+function formatVoucherCountdown(activeUntil: string | null, now: number) {
+  if (!activeUntil) return '';
+  const remaining = new Date(activeUntil).getTime() - now;
+  if (remaining <= 0) return 'Kedaluwarsa';
+  const hours = Math.floor(remaining / 3600000);
+  const minutes = Math.floor((remaining % 3600000) / 60000);
+  return hours > 0 ? hours + 'j ' + minutes + 'm tersisa' : minutes + 'm tersisa';
+}
 
 function typeLabel(type: string) {
   const labels: Record<string, string> = {
@@ -129,6 +147,8 @@ export function ShopExperience({
   const [sort, setSort] = useState<ShopSort>('default');
   const [banner, setBanner] = useState<ShopHeroBanner>(DEFAULT_SHOP_HERO_BANNER);
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  const [myVouchers, setMyVouchers] = useState<ShopUserVoucher[]>([]);
+  const [voucherNow, setVoucherNow] = useState(Date.now());
   const [wishlistBusyId, setWishlistBusyId] = useState('');
   const [reviewSummaries, setReviewSummaries] = useState<Map<string, ProductReviewSummary>>(new Map());
   const [salesCounts, setSalesCounts] = useState<Map<string, number>>(new Map());
@@ -158,6 +178,33 @@ export function ShopExperience({
     ]);
     return () => { active = false; };
   }, [userId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!userId) {
+      setMyVouchers([]);
+      return () => { active = false; };
+    }
+    void listMyShopVouchers()
+      .then((rows) => { if (active) setMyVouchers(rows); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (tab !== 'vouchers' || !userId) return;
+    void markMyShopVouchersSeen()
+      .then(() => setMyVouchers((current) => current.map((voucher) => ({ ...voucher, is_new: false, viewed_at: voucher.viewed_at ?? new Date().toISOString() }))))
+      .catch(() => undefined);
+  }, [tab, userId]);
+
+  useEffect(() => {
+    if (!myVouchers.some((voucher) => voucher.status === 'ACTIVE' && voucher.usage_type === 'DURATION')) return;
+    const timer = window.setInterval(() => setVoucherNow(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, [myVouchers]);
+
+  const newVoucherCount = myVouchers.filter((voucher) => voucher.is_new).length;
 
   const visibleProducts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('id-ID');
@@ -368,6 +415,8 @@ export function ShopExperience({
       </div>
     </section>}
 
+    <ShopBannerSlider />
+
     <section className="sticky top-[10px] z-10 bg-[#151F32]/95 backdrop-blur-md p-4 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-center justify-between gap-4 shadow-xl shadow-slate-950/50">
       <div className="relative w-full lg:w-80">
         <Search size={16} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -406,6 +455,17 @@ export function ShopExperience({
           <Heart size={16} className="text-rose-400" />
           Whitelist
           <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{wishlistIds.size}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('vouchers')}
+          disabled={!userId}
+          aria-label="Voucher saya"
+          title="Voucher saya"
+          className={'relative flex h-9 w-9 flex-none items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 ' + (tab === 'vouchers' ? 'border-blue-500 bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800')}
+        >
+          <img src="https://www.svgrepo.com/show/456865/discount-tag.svg" alt="" className="h-[18px] w-[18px] invert opacity-90"/>
+          {newVoucherCount > 0 && <span className="absolute -right-1.5 -top-1.5 min-w-[17px] rounded-full bg-rose-500 px-1 py-0.5 text-center text-[9px] font-bold leading-none text-white">{newVoucherCount > 99 ? '99+' : newVoucherCount}</span>}
         </button>
       </div>
     </section>
@@ -478,6 +538,36 @@ export function ShopExperience({
       </div> : <div className="text-center py-12 text-slate-500 text-xs">
         Produk yang kamu simpan akan tampil di sini.
       </div>}
+    </section>}
+
+    {tab === 'vouchers' && <section className="space-y-4 animate-section-in">
+      <div className="rounded-xl border border-slate-800 bg-[#151F32] p-4">
+        <h3 className="flex items-center gap-2 text-base font-bold text-white"><Tag size={16} className="text-amber-400"/>Voucher Saya</h3>
+        <p className="text-xs text-slate-400">Voucher hadiah dan promo yang tersimpan di akunmu.</p>
+      </div>
+      {myVouchers.length ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {myVouchers.map((voucher) => {
+          const expired = voucher.status === 'EXPIRED' || (voucher.ends_at && new Date(voucher.ends_at).getTime() <= voucherNow);
+          const activeDuration = voucher.usage_type === 'DURATION' && voucher.status === 'ACTIVE' && !expired;
+          const status = expired ? 'Kedaluwarsa' : voucher.status === 'USED' ? 'Sudah digunakan' : voucher.status === 'RESERVED' ? 'Menunggu pembayaran' : activeDuration ? 'Aktif · berulang' : 'Siap digunakan';
+          return <article key={voucher.id} className="rounded-xl border border-slate-800 bg-[#151F32] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-white">{voucher.name}</h4>
+                <p className="mt-1 text-lg font-extrabold text-emerald-300">{voucherTitle(voucher)}</p>
+              </div>
+              <span className={'shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ' + (expired || voucher.status === 'USED' ? 'bg-slate-800 text-slate-400' : activeDuration ? 'bg-emerald-500/15 text-emerald-300' : 'bg-blue-500/15 text-blue-300')}>{status}</span>
+            </div>
+            {voucher.description && <p className="mt-2 text-xs leading-5 text-slate-400">{voucher.description}</p>}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3 text-[10px] text-slate-500">
+              <span>{voucher.scope_type === 'ALL' ? 'Semua produk' : voucher.scope_type === 'PRODUCT' ? 'Produk tertentu' : 'Kategori tertentu'}</span>
+              {activeDuration && <strong className="text-emerald-300">{formatVoucherCountdown(voucher.active_until, voucherNow)}</strong>}
+              {!activeDuration && voucher.ends_at && <span>Berlaku sampai {new Date(voucher.ends_at).toLocaleString('id-ID')}</span>}
+            </div>
+            <p className="mt-2 text-[10px] text-slate-500">{activeDuration ? 'Diskon otomatis diterapkan pada pembelian yang memenuhi ketentuan selama masa aktif.' : voucher.usage_type === 'SINGLE_USE' && !expired && voucher.status === 'READY' ? 'Pilih voucher ini melalui tombol Gunakan Voucher di Step 1 pembelian.' : 'Status voucher mengikuti proses pesanan dan masa berlaku.'}</p>
+          </article>;
+        })}
+      </div> : <div className="rounded-xl border border-dashed border-slate-700 py-12 text-center text-xs text-slate-500">Belum ada voucher di akunmu.</div>}
     </section>}
 
     {selectedProduct && <div
