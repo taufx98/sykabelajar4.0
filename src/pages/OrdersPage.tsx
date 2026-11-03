@@ -50,6 +50,14 @@ function productBenefit(product: CommerceProduct, badges: Map<string, BadgeOptio
 function productErrorMessage(error: unknown) {
   const message = String((error as { message?: string } | null)?.message ?? '');
   if (message.includes('PRODUCT_NOT_AVAILABLE')) return 'Produk ini tidak tersedia untuk akunmu atau sudah tidak bisa dipesan.';
+  if (message.includes('SHOP_VOUCHER_STACK_CONFLICT')) return 'Voucher yang dipilih memiliki jenis manfaat yang sama. Pilih hanya satu voucher untuk setiap jenis manfaat.';
+  if (message.includes('SHOP_VOUCHER_NOT_AVAILABLE')) return 'Voucher sudah tidak tersedia atau sudah dipakai pada pesanan lain. Periksa kembali pilihan voucher.';
+  if (message.includes('SHOP_VOUCHER_EXPIRED')) return 'Voucher sudah kedaluwarsa.';
+  if (message.includes('SHOP_VOUCHER_PRODUCT_MISMATCH')) return 'Voucher tersebut tidak berlaku untuk produk ini.';
+  if (message.includes('SHOP_VOUCHER_MINIMUM_NOT_MET')) return 'Minimum pembelian untuk voucher belum terpenuhi.';
+  if (message.includes('SHOP_VOUCHER_REWARD_NOT_AVAILABLE')) return 'Voucher yang menjadi hadiah produk sedang tidak tersedia. Hubungi admin.';
+  if (message.includes('VOUCHER_PRODUCT_IDR_ONLY')) return 'Produk voucher hanya dapat dibayar menggunakan Rupiah.';
+  if (message.includes('VOUCHER_DEFINITION_NOT_AVAILABLE')) return 'Aturan voucher yang terhubung ke produk sudah tidak aktif.';
   if (message.includes('PRODUCT_TYPE_NOT_SUPPORTED')) return 'Jenis produk ini belum bisa dipesan melalui Shop.';
   if (message.includes('INSUFFICIENT_EDU_COIN')) return 'Saldo Edu Coin tidak mencukupi untuk pembelian ini.';
   if (message.includes('PRODUCT_CURRENCY_NOT_SUPPORTED')) return 'Produk ini tidak mendukung pembayaran Edu Coin.';
@@ -328,7 +336,7 @@ export function OrdersPage() {
   }, [user?.id]);
 
 
-  const isQuantityPackage = selected ? ['EDU_COIN_TOPUP', 'DIGITAL_ITEM', 'DONATION'].includes(selected.product_type) : false;
+  const isQuantityPackage = selected ? ['EDU_COIN_TOPUP', 'DIGITAL_ITEM', 'DONATION', 'VOUCHER'].includes(selected.product_type) : false;
   const displayPrice = (product: CommerceProduct) => product.product_type === 'COLLECTIVE_CERTIFICATE'
     ? Number(certificatePrice ?? 0)
     : Number(product.price ?? 0);
