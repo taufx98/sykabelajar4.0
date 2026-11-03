@@ -1,3 +1,4 @@
+import { getMigrations } from "better-auth/db/migration";
 import { createAuth } from "./auth";
 import type { AuthWorkerEnv } from "./env";
 import {
@@ -34,11 +35,61 @@ function bearerToken(request: Request): string | null {
   return header.slice("Bearer ".length);
 }
 
+async function generateD1Schema(request: Request, env: AuthWorkerEnv): Promise<Response> {
+  const expectedToken = env.D1_SCHEMA_BOOTSTRAP_TOKEN;
+  const suppliedToken = bearerToken(request);
+
+  // Enabled only by an ephemeral local .dev.vars value in CI.
+  if (
+    request.method !== "POST" ||
+    request.headers.has("Origin") ||
+    env.ALLOW_SCHEMA_BOOTSTRAP !== "true" ||
+    !expectedToken ||
+    expectedToken.length < 32 ||
+    !suppliedToken ||
+    !timingSafeEqualString(expectedToken, suppliedToken)
+  ) {
+    return json({ error: "NOT_FOUND" }, 404);
+  }
+
+  try {
+    // Cloudflare D1 bindings are request-scoped. Running Better Auth's
+    // supported migrator here avoids trying to initialize D1 from Node CLI.
+    const migrations = await getMigrations(getAuth(env).options);
+    await migrations.runMigrations();
+
+    const schema = await env.DB
+      .prepare(
+        "SELECT name, type, sql FROM sqlite_master " +
+        "WHERE type IN ('table', 'index') " +
+        "AND name NOT LIKE 'sqlite_%' " +
+        "AND name <> 'auth_worker_internal_config' " +
+        "AND sql IS NOT NULL " +
+        "ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END, name",
+      )
+      .all<{ name: string; type: string; sql: string }>();
+
+    const ddl = (schema.results ?? []).map((row) => ({
+      name: row.name,
+      type: row.type,
+      sql: row.sql,
+    }));
+
+    if (ddl.length === 0) return json({ error: "AUTH_SCHEMA_EMPTY" }, 503);
+    return json({
+      ok: true,
+      table_names: ddl.filter((item) => item.type === "table").map((item) => item.name),
+      ddl,
+    });
+  } catch {
+    return json({ error: "AUTH_SCHEMA_BOOTSTRAP_FAILED" }, 503);
+  }
+}
+
 async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): Promise<Response> {
   const expectedToken = env.OAUTH_CLIENT_BOOTSTRAP_TOKEN;
   const suppliedToken = bearerToken(request);
 
-  // This endpoint is server-to-server only. Never permit browser-origin calls.
   if (
     request.method !== "POST" ||
     request.headers.has("Origin") ||
@@ -159,6 +210,10 @@ export default {
       } catch {
         return applyResponseHeaders(json({ ok: false, service: "sykabelajar-auth-poc" }, 503), corsHeaders);
       }
+    }
+
+    if (url.pathname === "/_internal/schema-migrate") {
+      return applyResponseHeaders(await generateD1Schema(request, env), null);
     }
 
     if (url.pathname === "/_internal/bootstrap-first-party-client") {
