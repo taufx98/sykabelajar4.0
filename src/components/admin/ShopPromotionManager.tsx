@@ -267,7 +267,7 @@ export function ShopPromotionManager({ products }: Props) {
         <div className="space-y-3">
           <label className="block"><span className="label">Gambar banner</span><input className="input mt-1 w-full" value={bannerDraft.imageUrl} onChange={(event) => setBannerDraft((current) => ({ ...current, imageUrl: event.target.value }))} placeholder="URL Cloudinary atau unggah gambar"/></label>
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border surface-border px-3 py-2 text-xs font-semibold text-fg hover:bg-surface-elevated/40">
-            <Upload size={14}/>{uploadingBanner ? 'Mengunggah…' : 'Unggah gambar'}
+            <Upload size={14}/>{uploadingBanner ? 'Mengunggah…' : 'Unggah banner'}
             <input className="sr-only" type="file" accept="image/*" onChange={(event) => void uploadPromoBanner(event)} disabled={uploadingBanner || savingBanner}/>
           </label>
           <label className="block"><span className="label">Direct link tujuan (opsional)</span><input className="input mt-1 w-full" type="url" value={bannerDraft.targetUrl} onChange={(event) => setBannerDraft((current) => ({ ...current, targetUrl: event.target.value }))} placeholder="https://..."/></label>
