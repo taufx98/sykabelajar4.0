@@ -1,0 +1,22 @@
+{
+  "name": "@sykabelajar/auth-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build:worker": "wrangler deploy --dry-run --outdir ./.wrangler-dist",
+    "generate:auth-schema": "auth generate --adapter drizzle --dialect sqlite --config ./src/auth-schema.config.ts --output ./src/auth-schema.ts"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.15",
+    "@better-auth/oauth-provider": "1.7.15",
+    "better-auth": "1.7.15",
+    "drizzle-orm": "0.45.1"
+  },
+  "devDependencies": {
+    "auth": "1.7.15",
+    "wrangler": "4.156.2",
+    "drizzle-kit": "0.31.5"
+  }
+}
