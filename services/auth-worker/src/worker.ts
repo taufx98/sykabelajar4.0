@@ -163,7 +163,6 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
 
     try {
       const created = await getAuth(env).api.adminCreateOAuthClient({
-        headers: new Headers({ Origin: env.APP_ORIGIN }),
         body: {
           client_name: "SYKABELAJAR Web",
           redirect_uris: [callbackUrl],
@@ -171,6 +170,7 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
           grant_types: ["authorization_code"],
           response_types: ["code"],
           scope: "openid profile email",
+          resources: [env.SUPABASE_RESOURCE_AUDIENCE],
           client_secret_expires_at: 0,
           skip_consent: true,
         },
