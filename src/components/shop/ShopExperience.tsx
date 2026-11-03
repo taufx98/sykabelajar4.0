@@ -561,8 +561,11 @@ export function ShopExperience({
       {myVouchers.length ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {myVouchers.map((voucher) => {
           const expired = voucher.status === 'EXPIRED' || (voucher.ends_at && new Date(voucher.ends_at).getTime() <= voucherNow);
+          const scheduled = voucher.usage_type === 'DURATION' && voucher.status === 'READY'
+            && Number.isFinite(new Date(voucher.starts_at).getTime())
+            && new Date(voucher.starts_at).getTime() > voucherNow;
           const activeDuration = voucher.usage_type === 'DURATION' && voucher.status === 'ACTIVE' && !expired;
-          const status = expired ? 'Kedaluwarsa' : voucher.status === 'USED' ? 'Sudah digunakan' : voucher.status === 'RESERVED' ? 'Menunggu pembayaran' : activeDuration ? 'Aktif · berulang' : 'Siap digunakan';
+          const status = expired ? 'Kedaluwarsa' : voucher.status === 'USED' ? 'Sudah digunakan' : voucher.status === 'RESERVED' ? 'Menunggu pembayaran' : scheduled ? 'Belum dimulai' : activeDuration ? 'Aktif · berulang' : 'Siap digunakan';
           return <article key={voucher.id} className="rounded-xl border border-slate-800 bg-[#151F32] p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -574,10 +577,11 @@ export function ShopExperience({
             {voucher.description && <p className="mt-2 text-xs leading-5 text-slate-400">{voucher.description}</p>}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3 text-[10px] text-slate-500">
               <span>{voucher.scope_type === 'ALL' ? 'Semua produk' : voucher.scope_type === 'PRODUCT' ? 'Produk tertentu' : 'Kategori tertentu'}</span>
+              {scheduled && <strong className="text-blue-300">Mulai {new Date(voucher.starts_at).toLocaleString('id-ID')}</strong>}
               {activeDuration && <strong className="text-emerald-300">{formatVoucherCountdown(voucher.active_until, voucherNow)}</strong>}
               {!activeDuration && voucher.ends_at && <span>Berlaku sampai {new Date(voucher.ends_at).toLocaleString('id-ID')}</span>}
             </div>
-            <p className="mt-2 text-[10px] text-slate-500">{activeDuration ? 'Diskon otomatis diterapkan pada pembelian yang memenuhi ketentuan selama masa aktif.' : voucher.usage_type === 'SINGLE_USE' && !expired && voucher.status === 'READY' ? 'Pilih voucher ini melalui tombol Gunakan Voucher di Step 1 pembelian.' : 'Status voucher mengikuti proses pesanan dan masa berlaku.'}</p>
+            <p className="mt-2 text-[10px] text-slate-500">{scheduled ? 'Voucher ini akan aktif otomatis saat tanggal mulai tiba.' : activeDuration ? 'Diskon otomatis diterapkan pada pembelian yang memenuhi ketentuan selama masa aktif.' : voucher.usage_type === 'SINGLE_USE' && !expired && voucher.status === 'READY' ? 'Pilih voucher ini melalui tombol Gunakan Voucher di Step 1 pembelian.' : 'Status voucher mengikuti proses pesanan dan masa berlaku.'}</p>
           </article>;
         })}
       </div> : <div className="rounded-xl border border-dashed border-slate-700 py-12 text-center text-xs text-slate-500">Belum ada voucher di akunmu.</div>}
