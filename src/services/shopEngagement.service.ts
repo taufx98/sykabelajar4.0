@@ -8,6 +8,20 @@ export type ShopHeroBanner = {
   image_url: string;
 };
 
+export type ShopProductCategory = {
+  id: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export const DEFAULT_SHOP_PRODUCT_CATEGORIES: ShopProductCategory[] = [
+  { id: 'edu-coin', label: 'Edu Coin', sort_order: 0, is_active: true },
+  { id: 'item-lomba-bypass', label: 'Item Lomba & Bypass', sort_order: 1, is_active: true },
+  { id: 'sertifikat-barcode', label: 'Sertifikat & Barcode', sort_order: 2, is_active: true },
+  { id: 'voucher-diskon', label: 'Voucher Diskon', sort_order: 3, is_active: true },
+];
+
 export type ProductReview = {
   id: string;
   product_id: string;
@@ -87,6 +101,65 @@ export async function saveShopHeroBanner(input: ShopHeroBanner): Promise<void> {
   const { error } = await supabase
     .from('platform_settings')
     .upsert({ key: 'shop_hero_banner', value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  if (error) throw error;
+}
+
+function mapShopProductCategories(value: unknown): ShopProductCategory[] {
+  if (!Array.isArray(value)) return DEFAULT_SHOP_PRODUCT_CATEGORIES;
+  return value
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') return null;
+      const row = item as Record<string, unknown>;
+      const id = String(row.id ?? '').trim().toLowerCase();
+      const label = String(row.label ?? '').trim();
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || !label) return null;
+      return {
+        id,
+        label: label.slice(0, 48),
+        sort_order: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : index,
+        is_active: row.is_active !== false,
+      };
+    })
+    .filter((item): item is ShopProductCategory => Boolean(item))
+    .sort((left, right) => left.sort_order - right.sort_order || left.label.localeCompare(right.label, 'id'));
+}
+
+export async function getShopProductCategories(): Promise<ShopProductCategory[]> {
+  const { data, error } = await supabase
+    .from('platform_settings')
+    .select('value')
+    .eq('key', 'shop_product_categories')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return DEFAULT_SHOP_PRODUCT_CATEGORIES;
+  return mapShopProductCategories(data.value);
+}
+
+export async function saveShopProductCategories(categories: ShopProductCategory[]): Promise<void> {
+  if (!Array.isArray(categories) || categories.length < 1 || categories.length > 24) {
+    throw new Error('Katalog harus memiliki 1 sampai 24 kategori.');
+  }
+
+  const normalized = categories.map((category, index) => ({
+    id: String(category.id ?? '').trim().toLowerCase(),
+    label: String(category.label ?? '').trim().slice(0, 48),
+    sort_order: index,
+    is_active: category.is_active !== false,
+  }));
+
+  if (normalized.some((category) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(category.id) || category.label.length < 2)) {
+    throw new Error('Nama kategori minimal 2 karakter dan ID kategori harus valid.');
+  }
+
+  const ids = new Set(normalized.map((category) => category.id));
+  const labels = normalized.map((category) => category.label.toLocaleLowerCase('id-ID'));
+  if (ids.size !== normalized.length || new Set(labels).size !== normalized.length) {
+    throw new Error('Nama kategori tidak boleh duplikat.');
+  }
+
+  const { error } = await supabase
+    .from('platform_settings')
+    .upsert({ key: 'shop_product_categories', value: normalized, updated_at: new Date().toISOString() }, { onConflict: 'key' });
   if (error) throw error;
 }
 
