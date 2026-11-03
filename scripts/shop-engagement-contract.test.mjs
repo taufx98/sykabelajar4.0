@@ -393,3 +393,31 @@ test('the existing main Shop hero remains separately managed and the carousel is
   assert.match(shop, /<ShopBannerSlider \/>/);
   assert.match(promotionsMigration, /shop_promo_banners/);
 });
+
+
+test('scheduled duration vouchers are shown as ready and collective certificate amount stays synchronized without voucher', () => {
+  const myVoucherList = promotionsMigration.slice(
+    promotionsMigration.indexOf('create or replace function public.list_my_shop_vouchers()'),
+    promotionsMigration.indexOf('create or replace function public.mark_my_shop_vouchers_seen()'),
+  );
+  const checkoutVoucherList = promotionsMigration.slice(
+    promotionsMigration.indexOf('create or replace function public.list_shop_checkout_vouchers('),
+    promotionsMigration.indexOf('create or replace function private.calculate_shop_voucher_effects('),
+  );
+  const adminIssuedVoucherList = promotionsMigration.slice(
+    promotionsMigration.indexOf('create or replace function public.admin_list_issued_shop_vouchers()'),
+    promotionsMigration.indexOf('create or replace function public.list_my_shop_vouchers()'),
+  );
+  const scheduledState = /when uv\\.status='ACTIVE' and uv\\.activated_at > now\\(\\) then 'READY'/;
+  assert.match(myVoucherList, scheduledState);
+  assert.match(checkoutVoucherList, scheduledState);
+  assert.match(adminIssuedVoucherList, scheduledState);
+
+  const collectiveCheckout = promotionsMigration.slice(
+    promotionsMigration.indexOf('create or replace function public.create_shop_collective_certificate_order_with_vouchers('),
+  );
+  assert.match(
+    collectiveCheckout,
+    /end if;\\s+update public\\.collective_certificate_orders cco\\s+set amount=v_order\\.total,updated_at=now\\(\\)\\s+where cco\\.order_id=v_order\\.id;\\s+return v_order;/,
+  );
+});
