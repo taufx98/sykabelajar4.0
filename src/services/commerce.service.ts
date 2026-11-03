@@ -163,7 +163,7 @@ export async function createProductOrderWithProof(input: {
 
 export async function createCollectiveCertificateOrderWithProof(input: {
   certificateId: string;
-  shopProductId: string;
+  shopProductId?: string;
   paymentMethod: string;
   proofUrl?: string | null;
   whatsapp?: string;
@@ -174,9 +174,8 @@ export async function createCollectiveCertificateOrderWithProof(input: {
   proofResourceType?: string;
   voucherIds?: string[];
 }) {
-  let { data, error } = await supabase.rpc('create_shop_collective_certificate_order_with_vouchers', {
+  const proofArgs = {
     p_certificate_id: input.certificateId,
-    p_shop_product_id: input.shopProductId,
     p_payment_method: input.paymentMethod,
     p_proof_url: input.proofUrl ?? null,
     p_proof_public_id: input.proofPublicId ?? null,
@@ -185,24 +184,34 @@ export async function createCollectiveCertificateOrderWithProof(input: {
     p_proof_version: input.proofVersion ?? null,
     p_proof_resource_type: input.proofResourceType ?? null,
     p_whatsapp: input.whatsapp?.trim() || null,
-    p_voucher_ids: input.voucherIds ?? [],
-  });
-  if (isVoucherCheckoutRpcUnavailable(error)) {
-    if (input.voucherIds?.length) {
-      throw new Error('Fitur voucher Shop belum tersedia. Pesanan sertifikat tidak dikirim agar voucher pilihanmu tidak hilang.');
+  };
+
+  let data: unknown;
+  let error: { message: string; code?: string } | null = null;
+  if (input.shopProductId) {
+    const result = await supabase.rpc('create_shop_collective_certificate_order_with_vouchers', {
+      ...proofArgs,
+      p_shop_product_id: input.shopProductId,
+      p_voucher_ids: input.voucherIds ?? [],
+    });
+    data = result.data;
+    error = result.error;
+    if (isVoucherCheckoutRpcUnavailable(error)) {
+      if (input.voucherIds?.length) {
+        throw new Error('Fitur voucher Shop belum tersedia. Pesanan sertifikat tidak dikirim agar voucher pilihanmu tidak hilang.');
+      }
+      const fallback = await supabase.rpc('create_collective_certificate_order_with_proof', proofArgs);
+      data = fallback.data;
+      error = fallback.error;
     }
-    ({ data, error } = await supabase.rpc('create_collective_certificate_order_with_proof', {
-      p_certificate_id: input.certificateId,
-      p_payment_method: input.paymentMethod,
-      p_proof_url: input.proofUrl ?? null,
-      p_proof_public_id: input.proofPublicId ?? null,
-      p_proof_width: input.proofWidth ?? null,
-      p_proof_height: input.proofHeight ?? null,
-      p_proof_version: input.proofVersion ?? null,
-      p_proof_resource_type: input.proofResourceType ?? null,
-      p_whatsapp: input.whatsapp?.trim() || null,
-    }));
+  } else {
+    // The teacher certificate workspace is a separate legacy flow, not the Shop checkout.
+    // Keep it on its original RPC; Shop orders always provide shopProductId and use voucher validation.
+    const result = await supabase.rpc('create_collective_certificate_order_with_proof', proofArgs);
+    data = result.data;
+    error = result.error;
   }
+
   if (error) {
     if (error.message.includes('CERTIFICATE_SHOP_NOT_AVAILABLE')) throw new Error('Produk sertifikat peserta belum diaktifkan oleh admin di Shop.');
     if (error.message.includes('RESULT_NOT_FINALIZED')) throw new Error('Peserta belum menyelesaikan lomba. Sertifikat belum bisa dipesan.');
