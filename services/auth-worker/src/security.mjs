@@ -33,6 +33,19 @@ export function createCorsHeaders(request, allowedOrigins) {
   });
 }
 
+export function timingSafeEqualString(expected, supplied) {
+  if (typeof expected !== "string" || typeof supplied !== "string") return false;
+  const encoder = new TextEncoder();
+  const left = encoder.encode(expected);
+  const right = encoder.encode(supplied);
+  const maxLength = Math.max(left.length, right.length);
+  let difference = left.length ^ right.length;
+  for (let index = 0; index < maxLength; index += 1) {
+    difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
+  }
+  return difference === 0;
+}
+
 export function applyResponseHeaders(response, corsHeaders = null) {
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
