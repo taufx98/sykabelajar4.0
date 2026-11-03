@@ -207,6 +207,13 @@ export default {
     const allowedOrigins = [env.APP_ORIGIN, ...(env.DEV_APP_ORIGIN ? [env.DEV_APP_ORIGIN] : [])];
     const corsHeaders = createCorsHeaders(request, allowedOrigins);
 
+    if (url.pathname === "/bootz" && request.method === "GET") {
+      return applyResponseHeaders(
+        json({ status: "ok", service: "sykabelajar-auth-worker" }),
+        corsHeaders,
+      );
+    }
+
     if (request.method === "OPTIONS") {
       if (!corsHeaders) return new Response(null, { status: 403 });
       return applyResponseHeaders(new Response(null, { status: 204 }), corsHeaders);
