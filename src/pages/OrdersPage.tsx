@@ -347,14 +347,23 @@ export function OrdersPage() {
   const checkoutPaymentMethods = usablePaymentMethods.filter((method) => method.details?.global_gateway !== true || gatewayStatus?.checkoutEnabled);
   const checkoutQuantity = selected && isQuantityPackage ? quantity : 1;
   const checkoutSubtotal = selected ? displayPrice(selected) * checkoutQuantity : 0;
-  const checkoutVoucherDiscount = checkoutVoucherOptions.reduce((total, voucher) => {
-    const included = voucher.auto_applied || (voucher.eligible && selectedCheckoutVoucherIds.includes(voucher.id));
-    return total + (included ? Math.max(0, Number(voucher.estimated_discount ?? 0)) : 0);
-  }, 0);
-  const checkoutTotal = Math.max(0, checkoutSubtotal - checkoutVoucherDiscount);
   const appliedCheckoutVouchers = checkoutVoucherOptions.filter((voucher) =>
     voucher.auto_applied || (voucher.eligible && selectedCheckoutVoucherIds.includes(voucher.id))
   );
+  const checkoutPriceVoucherDiscount = appliedCheckoutVouchers
+    .filter((voucher) => voucher.benefit_group === 'PRICE_DISCOUNT')
+    .reduce((total, voucher) => total + Math.max(0, Number(voucher.estimated_discount ?? 0)), 0);
+  const checkoutBogoVoucherDiscount = Math.min(
+    Math.max(0, checkoutSubtotal - checkoutPriceVoucherDiscount),
+    appliedCheckoutVouchers
+      .filter((voucher) => voucher.benefit_group === 'BUY_X_GET_Y')
+      .reduce((total, voucher) => total + Math.max(0, Number(voucher.estimated_discount ?? 0)), 0),
+  );
+  const checkoutShippingVoucherDiscount = appliedCheckoutVouchers
+    .filter((voucher) => voucher.benefit_group === 'FREE_SHIPPING')
+    .reduce((total, voucher) => total + Math.max(0, Number(voucher.estimated_discount ?? 0)), 0);
+  const checkoutVoucherDiscount = checkoutPriceVoucherDiscount + checkoutBogoVoucherDiscount + checkoutShippingVoucherDiscount;
+  const checkoutTotal = Math.max(0, checkoutSubtotal - checkoutPriceVoucherDiscount - checkoutBogoVoucherDiscount);
   const checkoutManualVoucherOptions = checkoutVoucherOptions.filter((voucher) => voucher.usage_type === 'SINGLE_USE');
   const formatProductPrice = (price: number, currency: string) => currency === 'EDU_COIN'
     ? `${Number(price).toLocaleString('id-ID')} Edu Coin`
