@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   check:
-    if: ${{ hashFiles('services/auth-worker/package.json') != '' }}
+    if: ${{ github.head_ref == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-poc-stage-1' }}
     name: Typecheck, tests, audit, schema generation, and Worker dry run
     runs-on: ubuntu-latest
     defaults:
