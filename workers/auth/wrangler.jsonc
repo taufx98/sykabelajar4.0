@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sykabelajar-auth-poc",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "APP_ORIGIN": "https://sykabelajar.my.id",
+    "AUTH_BASE_URL": "https://auth.sykabelajar.my.id",
+    "SUPABASE_JWT_AUDIENCE": "https://mvdczyitbkxkldjughor.supabase.co"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sykabelajar-auth-local",
+      "database_id": "local-development-only",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
