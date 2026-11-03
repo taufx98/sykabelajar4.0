@@ -134,6 +134,13 @@ jobs:
         run: npm run generate:auth-schema
       - name: Generate D1 migrations
         run: npm run generate:d1-migration
+      - name: Generated schema contract tests
+        run: node --test test/generated-schema.test.mjs
+      - name: Apply schema migrations to local D1 emulator
+        run: npx wrangler d1 migrations apply sykabelajar-auth-local --local
+      - name: Verify core and OAuth tables exist in local D1
+        run: |
+          npx wrangler d1 execute sykabelajar-auth-local --local --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('user','session','account','verification','jwks','oauth_client','oauth_resource','oauth_client_resource','oauth_access_token','oauth_refresh_token','oauth_consent','rate_limit') ORDER BY name;"
       - name: Dry-run Worker bundle (no deployment)
         run: npm run build:worker
       - name: Upload generated schema, migrations and lockfile
