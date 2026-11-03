@@ -193,9 +193,22 @@ export function ShopExperience({
 
   useEffect(() => {
     if (tab !== 'vouchers' || !userId) return;
-    void markMyShopVouchersSeen()
-      .then(() => setMyVouchers((current) => current.map((voucher) => ({ ...voucher, is_new: false, viewed_at: voucher.viewed_at ?? new Date().toISOString() }))))
-      .catch(() => undefined);
+    let active = true;
+    void (async () => {
+      const rows = await listMyShopVouchers();
+      if (!active) return;
+      setMyVouchers(rows);
+      await markMyShopVouchersSeen();
+      if (active) {
+        const seenAt = new Date().toISOString();
+        setMyVouchers((current) => current.map((voucher) => ({
+          ...voucher,
+          is_new: false,
+          viewed_at: voucher.viewed_at ?? seenAt,
+        })));
+      }
+    })().catch(() => undefined);
+    return () => { active = false; };
   }, [tab, userId]);
 
   useEffect(() => {
