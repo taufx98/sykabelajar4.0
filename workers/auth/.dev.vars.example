@@ -1,0 +1,5 @@
+# Local-only placeholders for `wrangler dev` and tests.
+# Do not copy production secrets into this file.
+AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters-long
+GOOGLE_CLIENT_ID=local-google-client-id
+GOOGLE_CLIENT_SECRET=local-google-client-secret
