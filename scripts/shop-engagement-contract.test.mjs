@@ -332,7 +332,12 @@ test('purchased voucher products are issued only after successful payment and re
 });
 
 test('admin can create, issue, edit and disable voucher definitions with target scope and minimum purchase', () => {
-  assert.match(promotionAdmin, /adminSaveShopVoucherDefinition/);
+  assert.match(promotionService, /listMyShopVouchers/);
+  assert.match(promotionService, /listShopCheckoutVouchers/);
+  assert.match(promotionService, /adminListShopVoucherDefinitions/);
+  assert.match(promotionService, /adminIssueShopVoucher/);
+  assert.match(promotionService, /adminSaveShopPromoBanner/);
+    assert.match(promotionAdmin, /adminSaveShopVoucherDefinition/);
   assert.match(promotionAdmin, /adminIssueShopVoucher/);
   assert.match(promotionAdmin, /usage_type/);
   assert.match(promotionAdmin, /benefit_group/);
