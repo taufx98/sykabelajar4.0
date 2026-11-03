@@ -271,6 +271,7 @@ begin
       when uv.status='RESERVED' then 'RESERVED'
       when uv.status='ACTIVE' and uv.active_until <= now() then 'EXPIRED'
       when d.ends_at is not null and d.ends_at <= now() then 'EXPIRED'
+      when uv.status='ACTIVE' and uv.activated_at > now() then 'READY'
       when uv.status='ACTIVE' then 'ACTIVE'
       else uv.status
     end,
@@ -305,6 +306,7 @@ begin
       when uv.status='USED' then 'USED'
       when uv.status='RESERVED' then 'RESERVED'
       when (uv.status='ACTIVE' and uv.active_until <= now()) or (d.ends_at is not null and d.ends_at <= now()) then 'EXPIRED'
+      when uv.status='ACTIVE' and uv.activated_at > now() then 'READY'
       when uv.status='ACTIVE' then 'ACTIVE'
       else uv.status
     end,
@@ -386,6 +388,7 @@ begin
       when uv.status='USED' then 'USED'
       when uv.status='RESERVED' then 'RESERVED'
       when (uv.status='ACTIVE' and uv.active_until <= now()) or (d.ends_at is not null and d.ends_at <= now()) then 'EXPIRED'
+      when uv.status='ACTIVE' and uv.activated_at > now() then 'READY'
       when uv.status='ACTIVE' then 'ACTIVE'
       else uv.status
     end,
@@ -1208,13 +1211,16 @@ begin
       updated_at=now()
     where o.id=v_order.id returning * into v_order;
 
-    update public.collective_certificate_orders cco
-      set amount=v_order.total,updated_at=now()
-    where cco.order_id=v_order.id;
-
     perform private.write_audit('commerce.shop_voucher_reserved','order',v_order.id::text,
       'Shop voucher discount reserved for collective certificate order',null,to_jsonb(v_order),null);
   end if;
+
+  -- Keep the certificate-specific order record aligned even when a reused pending
+  -- order is checked out again without a voucher after a previous discounted attempt.
+  update public.collective_certificate_orders cco
+    set amount=v_order.total,updated_at=now()
+  where cco.order_id=v_order.id;
+
   return v_order;
 end;
 $function$;
