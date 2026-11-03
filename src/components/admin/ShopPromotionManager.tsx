@@ -374,7 +374,7 @@ export function ShopPromotionManager({ products }: Props) {
             <div><h5 className="text-xs font-semibold text-slate-200">Terbitkan voucher ke pengguna</h5><p className="mt-1 text-[10px] text-slate-500">Masukkan username pengguna yang menerima voucher ini.</p></div>
             <label className="block"><span className="label">Aturan voucher</span><select className="input mt-1 w-full" value={issueDefinitionId} onChange={(event) => setIssueDefinitionId(event.target.value)}><option value="">Pilih voucher aktif</option>{voucherDefinitions.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label className="block"><span className="label">Username penerima</span><input className="input mt-1 w-full" value={issueUsername} onChange={(event) => setIssueUsername(event.target.value)} placeholder="@username"/></label>
-            <Button size="sm" block onClick={() => void issueVoucher()} loading={busyVoucher} disabled={busyVoucher || !issueDefinitionId || !issueUsername.trim()}>Berikan voucher</Button>
+            <Button size="sm" className="w-full" onClick={() => void issueVoucher()} loading={busyVoucher} disabled={busyVoucher || !issueDefinitionId || !issueUsername.trim()}>Berikan voucher</Button>
             <p className="text-[10px] leading-5 text-slate-500">Voucher durasi otomatis mulai menghitung saat diterbitkan. Voucher sekali pakai masuk ke koleksi dan baru dapat dipilih di Step 1 checkout.</p>
             <div className="border-t border-slate-800 pt-3">
               <h5 className="mb-2 text-xs font-semibold text-slate-200">Riwayat penerbitan terbaru</h5>
