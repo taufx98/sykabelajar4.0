@@ -202,7 +202,7 @@ export async function saveProduct(input: AdminProductInput) {
     p_is_active: !!input.is_active,
     p_is_featured: !!input.is_featured,
     p_sort_order: Number.isInteger(input.sort_order) && Number(input.sort_order) >= 0 ? Number(input.sort_order) : 0,
-    p_metadata: productType === 'COLLECTIVE_CERTIFICATE' ? { fulfillment: 'COLLECTIVE_CERTIFICATE' } : metadata,
+    p_metadata: productType === 'COLLECTIVE_CERTIFICATE' ? { ...metadata, fulfillment: 'COLLECTIVE_CERTIFICATE' } : metadata,
   });
 
   if (error) {
