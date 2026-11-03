@@ -40,7 +40,7 @@ This is not ready for login cutover or deployment.
    npx wrangler d1 migrations apply sykabelajar-auth-local --local
    ```
 6. Run locally with `npx wrangler dev`.
-7. Run `npm test` and `npm run build:worker`.
+7. Run `npm test`, `node --test test/generated-schema.test.mjs`, and `npm run build:worker`.
 
 Do not run a remote D1 migration or `wrangler deploy` from this POC branch. The configured D1 ID is a local placeholder, there are no production routes, and CI only performs a dry-run bundle.
 
