@@ -1,0 +1,20 @@
+{
+  "name": "@sykabelajar/auth-worker-poc",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "1.7.15",
+    "better-auth": "1.7.15"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261102.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.156.2"
+  }
+}
