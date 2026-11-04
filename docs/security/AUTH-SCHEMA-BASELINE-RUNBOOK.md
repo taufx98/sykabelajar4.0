@@ -48,7 +48,7 @@ The script prints the temporary output directory. It contains:
 - `extensions.txt` and `postgres-version.txt` — local compatibility metadata.
 - `manifest.txt` and `SHA256SUMS` — provenance and integrity metadata.
 
-Keep the output directory outside the Git repository. Review it before using it for local tests; SQL function bodies can still contain application logic and should be treated as internal source code. Do not paste database URLs, passwords, service-role keys, user rows, or data dumps into chat.
+Keep the output directory outside the Git repository. The helper's static Bash/safety contract passed in [CI run #41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023), which also passed all 68 local pgTAP assertions. The actual export command has **not** been executed by CI. Review the artifacts before using them for local tests; SQL function bodies can still contain application logic and should be treated as internal source code. Do not paste database URLs, passwords, service-role keys, user rows, or data dumps into chat.
 
 ## Local baseline strategy
 
