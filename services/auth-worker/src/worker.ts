@@ -133,7 +133,7 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
     parsedCallback.hash ||
     parsedCallback.search ||
     parsedResource.protocol !== "https:" ||
-    parsedResource.origin !== resourceAudience.replace(/\\/$/, "")
+    parsedResource.origin !== resourceAudience.replace(/\/$/, "")
   ) {
     return json({ error: "OAUTH_CLIENT_BOOTSTRAP_URL_NOT_ALLOWED" }, 503);
   }
