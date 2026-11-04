@@ -19,8 +19,8 @@ This is the approved implementation order. Keep all work within these seven stag
 | Stage | Scope | Current status |
 |---|---|---|
 | 1 | Cloudflare foundation | **In progress.** Worker source and D1 schema/migrations are implemented and tested against disposable local D1 in CI. No remote D1 database or Worker deployment exists; custom domain and real email provider remain unconfigured. |
-| 2 | OIDC and JWT | **Local proof-of-concept complete; hosted Supabase acceptance blocked by the Free-project limit.** OAuth Provider, Authorization Code + PKCE S256, ES256 signing, discovery/JWKS and UUID/role/audience claims pass local tests. A disposable local Supabase CI fixture also passes seven pgTAP assertions for `auth.uid()` UUID mapping and owner/cross-user RLS behavior ([run #41772998109](https://github.com/taufx98/sykabelajar4.0/actions/runs/41772998109)). No Custom OIDC integration has been registered in production. |
-| 3 | Supabase identity foundation | **Not started.** No private.app_users, foreign-key transition, replacement auth trigger, referral/email-verification lifecycle migration, or issuer restrictions have been applied. |
+| 2 | OIDC and JWT | **Local proof-of-concept complete; hosted Supabase acceptance blocked by the Free-project limit.** OAuth Provider, Authorization Code + PKCE S256, ES256 signing, discovery/JWKS and UUID/role/audience claims pass local tests. A disposable local Supabase CI fixture also passes seven pgTAP assertions for `auth.uid()` UUID mapping and owner/cross-user RLS behavior ([pinned CLI run #41773164231](https://github.com/taufx98/sykabelajar4.0/actions/runs/41773164231)). No Custom OIDC integration has been registered in production. |
+| 3 | Supabase identity foundation | **Read-only dependency inventory prepared; migration not started.** The current catalog inventory is documented at [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTITY-DEPENDENCY-INVENTORY.md). No private.app_users, foreign-key transition, replacement auth trigger, referral/email-verification lifecycle migration, or issuer restrictions have been applied. |
 | 4 | Frontend | **Not started.** The React app still uses Supabase Auth directly. Better Auth client, token broker, global session adapter, and replacement of every supabase.auth call remain to be implemented. |
 | 5 | Backend | **Not started.** Edge Functions, auth.users-dependent RPC/functions/triggers, and authorization paths still use current Supabase Auth assumptions. |
 | 6 | Demo reset and full testing | **Not started.** No demo-account reset or admin bootstrap has occurred. Requires a reproducible local Supabase schema baseline and, when a Free project slot is available, hosted OIDC/RLS validation; also requires the two-user IDOR matrix, full feature regression tests, and rollback rehearsal. |
@@ -75,11 +75,14 @@ This is the approved implementation order. Keep all work within these seven stag
 
 ## Stage 3 — Supabase identity foundation
 
+- [x] Complete read-only inventory: 69 application FKs across 62 tables (42 CASCADE, 18 SET NULL, 8 NO ACTION, 1 RESTRICT), 10 SECURITY DEFINER functions depending on auth.users/metadata/verification, and 3 auth.users triggers. See [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTITY-DEPENDENCY-INVENTORY.md).
 - [ ] Create private.app_users as the canonical application identity anchor, keyed by the Better Auth UUID.
 - [ ] Inventory and migrate all application foreign keys currently referencing auth.users. Preserve application rows and relationships; do not bulk-delete application data.
 - [ ] Move profile/user-role/settings provisioning out of the Supabase Auth trigger into an authenticated, idempotent trusted provisioning operation.
 - [ ] Keep sign-up pending until both Better Auth account creation and Supabase application provisioning succeed.
-- [ ] Redesign referral attribution and email-verification lifecycle without querying auth.users.
+- [ ] Redesign referral attribution and email-verification lifecycle without querying auth.users; preserve the 24-hour referral qualification and idempotent Edu Coin reward logic.
+- [ ] Define a trusted phone-verification projection before migrating create_organizer, which currently requires both email and phone confirmation.
+- [ ] Preserve or deliberately version the referral RPC last_login_at response contract, which currently reads auth.users.last_sign_in_at.
 - [ ] Apply issuer restrictions to authenticated RLS policies and sensitive SECURITY DEFINER functions.
 - [ ] Keep business roles in existing application tables and preserve current role semantics.
 - [ ] Verify all constraints and provisioning rollback/retry behavior against the reproducible local Supabase test baseline and, when available, a separate Free-plan project before any production migration.
