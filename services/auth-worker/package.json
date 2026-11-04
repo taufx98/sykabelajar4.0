@@ -1,0 +1,24 @@
+{
+  "name": "@sykabelajar/auth-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "build": "wrangler deploy --dry-run --outdir=dist",
+    "check": "npm run typecheck && npm test && npm run build",
+    "auth:schema:generate": "node scripts/generate-d1-schema.mjs"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "1.7.16",
+    "better-auth": "1.7.16",
+    "@better-auth/core": "1.7.16",
+    "better-call": "1.4.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261103.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.156.2"
+  }
+}
