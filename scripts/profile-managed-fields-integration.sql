@@ -443,7 +443,7 @@ DO $test$
 BEGIN
   UPDATE public.profiles
   SET status = 'SUSPENDED',
-      verification_type = 'ADMIN_VERIFIED',
+      verification_type = 'gold',
       school_id = '10000000-0000-0000-0000-000000000003'
   WHERE id = auth.uid();
 
@@ -454,8 +454,8 @@ END;
 $test$;
 RESET ROLE;
 
--- The same style of SECURITY DEFINER RPC can update another user's row when
--- the caller's admin role is verified from the JWT-backed user_roles source.
+-- The actual production SECURITY DEFINER admin RPCs update another user's row
+-- only when the active role is verified from the JWT-backed user_roles source.
 SET LOCAL ROLE authenticated;
 SELECT set_config(
   'request.jwt.claims',
@@ -534,7 +534,7 @@ SELECT set_config(
   true
 );
 UPDATE public.profiles
-SET status = 'SERVICE_UPDATED'
+SET status = 'PENDING'::public.user_status
 WHERE id = '00000000-0000-0000-0000-000000000001';
 RESET ROLE;
 
