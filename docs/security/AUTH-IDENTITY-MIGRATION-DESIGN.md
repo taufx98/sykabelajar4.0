@@ -5,6 +5,14 @@ Snapshot date: 4 November 2026
 
 This document converts the current production catalog inventory into a proposed Stage 3 implementation. It does not authorize a production migration. The only SQL currently tested is the synthetic fixture under services/auth-worker/supabase-test/.
 
+## Legacy account and password continuity gate
+
+Existing users must keep the exact UUID that already anchors their application rows. Password continuity is a separate migration requirement: production Supabase Auth stores bcrypt hashes in `auth.users.encrypted_password`, while this Better Auth POC currently uses the default scrypt hasher. A bcrypt-in-Worker verifier cannot be assumed to fit the 10 ms CPU allowance on Cloudflare Workers Free.
+
+The options and required safeguards are documented in [AUTH-LEGACY-CREDENTIAL-MIGRATION.md](AUTH-LEGACY-CREDENTIAL-MIGRATION.md). The preferred prototype is a just-in-time migration that delegates legacy password verification to the existing Supabase Auth password endpoint, discards the returned Supabase tokens, and then creates the Better Auth credential using the native Better Auth hasher while preserving the exact existing UUID. A forced password-reset flow is the fallback if that path cannot be made safe.
+
+**This is not implemented yet.** Do not start Frontend integration or mark identity migration complete until the chosen path passes local tests for UUID preservation, idempotency, concurrency, failure recovery, password changes, and legacy-session isolation. No password hashes or user credentials may enter Git, CI, or chat.
+
 ## 1. Target responsibility split
 
 | System | Owns |
