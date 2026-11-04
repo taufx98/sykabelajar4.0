@@ -6,4 +6,4 @@ Migration 0001_better_auth.sql is exported by the isolated local Worker through 
 
 The generated output must include core Better Auth tables, JWKS storage, OAuth Provider tables, and the database-backed rate-limit table. Do not hand-write a partial Better Auth schema.
 
-Review the generated SQL, commit the SQL file here, and verify it against a disposable local D1 database. Never generate schema against a remote or production D1 database. Do not apply migrations to production.
+Review the generated SQL and verify it against disposable local D1. The PR validation workflow commits the generated SQL and matching npm lockfile back to the same branch after every full passing run. Never generate schema against a remote or production D1 database. Do not apply migrations to production.
