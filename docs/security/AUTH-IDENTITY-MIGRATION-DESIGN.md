@@ -137,11 +137,11 @@ Supabase's Custom OIDC integration requires an HTTPS issuer with discovery/JWKS,
 
 ## Business-role preservation\n\nA live read-only production catalog check confirmed `public.app_role` currently contains `student`, `teacher`, `organizer_member`, and `admin`, and `public.user_roles` remains the business-role authority. Keep all existing role values, role records, admin guards, and role-based RPC/RLS behavior. Do not place business roles in the JWT: its `role` claim remains only `authenticated`. Public signup can provision only `student`, `teacher`, or `organizer_member`; admin is never self-assignable. The first admin bootstrap belongs to Stage 6 and must be protected and auditable.\n\n## Local contract-test evidence
 
-The synthetic fixtures are now exercised by [Supabase Local Auth Claims CI #41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023), which passed **68/68 pgTAP assertions across three files**:
+The synthetic fixtures are exercised by [Supabase Local Auth Claims CI #41860723261](https://github.com/taufx98/sykabelajar4.0/actions/runs/41860723261), which passed **71/71 pgTAP assertions across three files** on 4 November 2026:
 
-- 7 JWT/RLS assertions for `auth.uid()` UUID mapping and owner/cross-user boundaries.
+- 8 JWT/RLS assertions for UUID `sub` → `auth.uid()`, owner/cross-user boundaries, and the invariant that JWT `role` is PostgreSQL `authenticated`.
 - 12 FK rehome assertions for UUID backfill, FK target replacement, and preservation of all four delete actions.
-- 49 provisioning/referral assertions for service-role-only execution, permitted business-role mapping, rejection of admin self-registration, retry safety, no `auth.users` shadow row, trusted email verification, 24-hour referral qualification, and idempotent Edu Coin reward behavior.
+- 51 provisioning/referral assertions for server-only execution, preservation of the business-role enum/table, permitted basic-role mapping, rejection of admin self-registration, retry safety, no `auth.users` shadow row, trusted email verification, referral qualification and idempotent Edu Coin rewards.
 
 These tests verify the proposed SQL contract in an isolated synthetic schema. They do **not** prove the live application schema can be rebuilt from scratch, the real Better Auth Worker can reach Supabase securely, hosted Custom OIDC is accepted, every production RLS policy behaves correctly, or the production migration is safe to execute. All Stage 3 exit criteria below therefore remain mandatory.
 
