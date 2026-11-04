@@ -36,7 +36,7 @@ Trusted server-side operations and admin SECURITY DEFINER RPCs remain able to up
 
 The PR now runs the actual migration in a disposable PostgreSQL 17 service during CI. The test runner accepts only the fixed localhost test URL, and the SQL fixture is wrapped in a transaction that rolls back all roles, schemas, tables, functions, triggers, and grants at the end. It does not connect to Supabase production.
 
-The fixture executes the trigger under `anon`, `authenticated`, an authorized admin identity, and `service_role`; it verifies effective grants, public/private profile reads, owner-only updates, managed-field rejection, cooldown enforcement, server-owned timestamps, non-admin denial, and an authorized `SECURITY DEFINER` admin RPC updating a different user's status and verification fields. It uses a minimal fixture for the relevant Postgres/Supabase auth contract, not a complete copy of the production schema.
+The fixture executes the trigger under `anon`, `authenticated`, the production-style active `user_roles` admin identity, and `service_role`; it verifies effective grants, public/private profile reads, owner-only updates, managed-field rejection, cooldown enforcement, server-owned timestamps, non-admin denial, and an authorized `SECURITY DEFINER` admin RPC updating a different user's status and verification fields. It uses a minimal fixture for the relevant Postgres/Supabase auth contract, not a complete copy of the production schema.
 
 ## Remaining verification before rollout
 
