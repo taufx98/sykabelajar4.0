@@ -1,0 +1,1317 @@
+{
+  "project_ref": "mvdczyitbkxkldjughor",
+  "foreign_keys": [
+    {
+      "name": "collective_chat_realtime_sessions_auth_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "collective_chat_realtime_sessions",
+      "target_table": "users",
+      "source_schema": "private",
+      "target_schema": "auth",
+      "source_columns": [
+        "auth_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "organizer_access_codes_rotated_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "organizer_access_codes",
+      "target_table": "users",
+      "source_schema": "private",
+      "target_schema": "auth",
+      "source_columns": [
+        "rotated_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "referral_program_settings_updated_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "referral_program_settings",
+      "target_table": "users",
+      "source_schema": "private",
+      "target_schema": "auth",
+      "source_columns": [
+        "updated_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "referral_tier_awards_referrer_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "referral_tier_awards",
+      "target_table": "users",
+      "source_schema": "private",
+      "target_schema": "auth",
+      "source_columns": [
+        "referrer_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "ad_banner_requests_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "ad_banner_requests",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "ad_banners_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "ad_banners",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "addresses_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "addresses",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "attempts_participant_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "attempts",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "participant_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "attempts_preview_owner_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "attempts",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "preview_owner_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "audit_logs_actor_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "audit_logs",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "actor_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "awards_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "awards",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "badge_audit_logs_actor_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "badge_audit_logs",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "actor_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "badges_created_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "badges",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "created_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "certificates_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "certificates",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_blocks_blocked_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_blocks",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "blocked_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_blocks_blocker_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_blocks",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "blocker_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_group_invites_created_by_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_group_invites",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "created_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_group_members_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_group_members",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_group_messages_sender_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_group_messages",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "sender_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_group_reads_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_group_reads",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_groups_owner_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_groups",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "owner_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_messages_sender_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_messages",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "sender_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_spam_controls_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_spam_controls",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_thread_hidden_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_thread_hidden",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_thread_reads_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_thread_reads",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_threads_handled_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_threads",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "handled_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_threads_participant_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_threads",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "participant_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "chat_threads_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "chat_threads",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "collective_certificate_orders_payer_user_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "collective_certificate_orders",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "payer_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "collective_registrations_teacher_user_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "collective_registrations",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "teacher_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "comment_likes_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "comment_likes",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "comment_reports_reporter_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "comment_reports",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "reporter_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "comments_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "comments",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "competition_status_history_changed_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "competition_status_history",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "changed_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "currency_adjustment_logs_admin_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "currency_adjustment_logs",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "admin_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "daily_checkin_settings_updated_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "daily_checkin_settings",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "updated_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "daily_checkins_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "daily_checkins",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "daily_task_claims_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "daily_task_claims",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "edu_coin_ledger_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "edu_coin_ledger",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "grading_items_grader_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "grading_items",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "grader_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "home_slides_created_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "home_slides",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "created_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "notification_preferences_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "notification_preferences",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "notifications_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "notifications",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "orders_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "orders",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "organizer_custom_plan_requests_requester_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "organizer_custom_plan_requests",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "requester_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "organizer_custom_plan_requests_reviewed_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "organizer_custom_plan_requests",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "reviewed_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "organizer_members_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "organizer_members",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "organizer_voucher_claims_claimed_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "organizer_voucher_claims",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "claimed_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "organizer_vouchers_created_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "organizer_vouchers",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "created_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "organizers_owner_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "organizers",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "owner_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "payment_gateway_configs_updated_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "payment_gateway_configs",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "updated_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "payment_gateway_state_updated_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "payment_gateway_state",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "updated_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "post_likes_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "post_likes",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "posts_author_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "posts",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "author_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "profiles_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "profiles",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "question_banks_owner_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "question_banks",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "owner_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "referral_codes_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "referral_codes",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "referral_events_referred_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "referral_events",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "referred_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "referral_events_referrer_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "referral_events",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "referrer_user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "registrations_approved_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "registrations",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "approved_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "registrations_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "registrations",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "system_error_events_user_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "system_error_events",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "user_achievements_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "user_achievements",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "user_badges_awarded_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "user_badges",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "awarded_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "user_order_history_archives_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "user_order_history_archives",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "user_product_entitlements_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "user_product_entitlements",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "user_roles_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "user_roles",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "user_settings_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "user_settings",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    },
+    {
+      "name": "xp_ledger_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "validated": true,
+      "deferrable": false,
+      "match_type": "SIMPLE",
+      "source_table": "xp_ledger",
+      "target_table": "users",
+      "source_schema": "public",
+      "target_schema": "auth",
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "initially_deferred": false
+    }
+  ],
+  "generated_at": "2026-11-04T15:22:09.718866+00:00"
+}
