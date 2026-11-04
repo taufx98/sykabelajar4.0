@@ -6,10 +6,12 @@ on:
       - security/auth-poc-stage-1
     paths:
       - "services/auth-worker/supabase-test/**"
+      - "scripts/auth-migration/**"
       - ".github/workflows/auth-supabase-local-ci.yml"
   pull_request:
     paths:
       - "services/auth-worker/supabase-test/**"
+      - "scripts/auth-migration/**"
       - ".github/workflows/auth-supabase-local-ci.yml"
 
 permissions:
@@ -30,6 +32,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate schema-only baseline exporter
+        run: |
+          bash -n ../../../scripts/auth-migration/export-schema-baseline.sh
+          node ../../../scripts/auth-migration/export-schema-baseline.contract.test.mjs
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v3
