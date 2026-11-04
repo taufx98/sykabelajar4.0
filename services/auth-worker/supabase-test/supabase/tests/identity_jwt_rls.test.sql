@@ -1,6 +1,6 @@
 begin;
 
-select extensions.plan(7);
+select extensions.plan(8);
 
 insert into private.auth_identity_rls_fixture (user_id, marker)
 values
@@ -21,6 +21,12 @@ select extensions.is(
   auth.uid(),
   '11111111-1111-4111-8111-111111111111'::uuid,
   'auth.uid() resolves the JWT sub UUID'
+);
+
+select extensions.is(
+  auth.jwt() ->> 'role',
+  'authenticated',
+  'JWT role is the PostgreSQL authenticated role, never a SYKABELAJAR business role'
 );
 
 select extensions.is(
