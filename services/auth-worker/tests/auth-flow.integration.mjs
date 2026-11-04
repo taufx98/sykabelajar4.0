@@ -99,6 +99,24 @@ function cookieUuid() {
   return "poc-" + randomUUID() + "@example.test";
 }
 
+async function exchangeAuthorizationCode({ clientId, code, verifier }) {
+  return fetch(new URL("/api/auth/oauth2/token", baseUrl), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Origin: appOrigin,
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      redirect_uri: callbackUrl,
+      code,
+      code_verifier: verifier,
+      resource: resourceAudience,
+    }),
+  });
+}
+
 async function createAuthorizationCode({ clientId, cookie, includePkce = true }) {
   const verifier = randomBytes(48).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -263,9 +281,37 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       includePkce: false,
     });
     assert.ok(
-      !publicClient.callback?.searchParams.has("code"),
-      "authorization must not issue a code to a public client without PKCE",
+      publicClient.location && publicClient.callback,
+      "authorization without PKCE must redirect to the exact registered callback",
     );
+    assert.equal(
+      publicClient.callback.searchParams.get("error"),
+      "invalid_request",
+      "authorization without PKCE must fail as invalid_request",
+    );
+    assert.match(
+      publicClient.callback.searchParams.get("error_description") ?? "",
+      /pkce/i,
+      "authorization without PKCE must report the PKCE requirement",
+    );
+
+    const invalidVerifierAuthorization = await createAuthorizationCode({
+      clientId: bootstrapData.client_id,
+      cookie,
+      includePkce: true,
+    });
+    assert.ok(
+      invalidVerifierAuthorization.callback?.searchParams.has("code"),
+      "valid PKCE setup must issue a code for the negative verifier test",
+    );
+    const invalidVerifierResponse = await exchangeAuthorizationCode({
+      clientId: bootstrapData.client_id,
+      code: invalidVerifierAuthorization.callback.searchParams.get("code"),
+      verifier: randomBytes(48).toString("base64url"),
+    });
+    assert.equal(invalidVerifierResponse.status, 400, "wrong PKCE verifier must be rejected");
+    const invalidVerifierBody = await parseJson(invalidVerifierResponse);
+    assert.equal(invalidVerifierBody?.error, "invalid_grant", "wrong verifier must fail with invalid_grant");
 
     const authorization = await createAuthorizationCode({
       clientId: bootstrapData.client_id,
@@ -285,25 +331,24 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.ok(code, "valid S256 authorization request must return an authorization code");
     assert.ok(!authorization.callback.searchParams.has("error"), "valid PKCE request must not return OAuth error");
 
-    const tokenResponse = await fetch(new URL("/api/auth/oauth2/token", baseUrl), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Origin: appOrigin,
-      },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: bootstrapData.client_id,
-        redirect_uri: callbackUrl,
-        code,
-        code_verifier: authorization.verifier,
-        resource: resourceAudience,
-      }),
+    const tokenResponse = await exchangeAuthorizationCode({
+      clientId: bootstrapData.client_id,
+      code,
+      verifier: authorization.verifier,
     });
     assert.equal(tokenResponse.status, 200, "valid authorization code and verifier must exchange successfully");
     const tokens = await parseJson(tokenResponse);
     assert.ok(tokens?.access_token, "token endpoint must return an access token");
     assert.equal(tokens.token_type?.toLowerCase(), "bearer");
+
+    const replayResponse = await exchangeAuthorizationCode({
+      clientId: bootstrapData.client_id,
+      code,
+      verifier: authorization.verifier,
+    });
+    assert.equal(replayResponse.status, 400, "an authorization code must not be redeemable twice");
+    const replayBody = await parseJson(replayResponse);
+    assert.equal(replayBody?.error, "invalid_grant", "replayed authorization code must fail with invalid_grant");
 
     const jwksUrl = new URL(discovery.jwks_uri);
     if (jwksUrl.hostname === "localhost") jwksUrl.hostname = "127.0.0.1";
