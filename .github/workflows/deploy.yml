@@ -117,7 +117,7 @@ jobs:
 
       # CI trigger marker: keep pull_request validation active on branch updates.
   profile-managed-fields-postgres:
-    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'security/profiles-managed-fields-guard'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'security/profiles-managed-fields-guard'
     runs-on: ubuntu-latest
     services:
       postgres:
