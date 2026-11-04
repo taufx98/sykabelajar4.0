@@ -82,7 +82,7 @@ This is the approved implementation order. Keep all work within these seven stag
 - [ ] Keep sign-up pending until both Better Auth account creation and Supabase application provisioning succeed.
 - [ ] Redesign referral attribution and email-verification lifecycle without querying auth.users; preserve the 24-hour referral qualification and idempotent Edu Coin reward logic.
 - [ ] Define a trusted phone-verification projection before migrating create_organizer, which currently requires both email and phone confirmation.
-- [ ] Preserve or deliberately version the referral RPC last_login_at response contract, which currently reads auth.users.last_sign_in_at.
+- [ ] Keep referral RPC contract compatible while removing its auth.users dependency; the active ReferralProgramPanel caller does not consume last_login_at, so a temporary NULL field may be sufficient without adding login-sync writes.
 - [ ] Apply issuer restrictions to authenticated RLS policies and sensitive SECURITY DEFINER functions.
 - [ ] Keep business roles in existing application tables and preserve current role semantics.
 - [ ] Verify all constraints and provisioning rollback/retry behavior against the reproducible local Supabase test baseline and, when available, a separate Free-plan project before any production migration.
