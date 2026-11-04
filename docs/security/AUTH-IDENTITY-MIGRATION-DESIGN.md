@@ -50,7 +50,7 @@ A single server-only, idempotent provisioning operation must create the applicat
 
 1. Better Auth creates the D1 user with a UUID ID.
 2. The Worker calls a protected Supabase provisioning endpoint/RPC using server-held credentials. No service-role key or provisioning secret is placed in the browser.
-3. Within one PostgreSQL transaction, provisioning inserts the `private.app_users` row, creates `public.profiles`, assigns only the allowed initial basic role in `public.user_roles`, and creates `public.user_settings`.
+3. Within one PostgreSQL transaction, provisioning inserts the `private.app_users` row, creates `public.profiles`, assigns only the allowed initial basic role in `public.user_roles`, and creates `public.user_settings`. Its server-only contract accepts an optional `p_email_verified` boolean (default false): true is permitted only when the Worker reads Better Auth's verified user state after a trusted provider check; email/password registration starts false.
 4. Treat D1 and Supabase as two independent stores: there is no cross-database transaction. A successful D1 user insert is not proof that the Supabase projection succeeded. Provisioning must be idempotent, retryable, and observable.
 5. Call provisioning after Better Auth user creation, and enforce a fail-closed gate in Better Auth's `session.create.before` hook: re-check/retry the Supabase projection for the session's user and return `false` (no session) until it is present and valid. This prevents an account with a failed initial projection from receiving an application session. The after hook is a fast path, not the only recovery path.
 6. For Google/OAuth sign-up, the Worker may pass a verified-email indicator only when Better Auth's server-side user record reports `emailVerified = true` after the provider's verified-email check. For email/password sign-up, the initial value must be false. The synthetic contract covers this initial verified-provider case. Do not accept an email-verification flag from browser input.
@@ -73,7 +73,7 @@ Replacement behavior:
 
 1. Resolve a referral code/ID server-side; do not trust a browser-provided referrer_user_id.
 2. Validate the referrer identity and active reward settings before creating referral_events.
-3. On Better Auth email verification, call a server-only idempotent event that writes email_verified_at in private.app_users.
+3. On Better Auth email verification, the Worker's `afterEmailVerification` callback calls a server-only idempotent event that writes `email_verified_at` in `private.app_users`. If the callback fails after Better Auth has marked the account verified, the next session-create gate must reconcile that state before allowing a session.
 4. Re-run pending referral qualification for that user, preserving the 24-hour limits, earliest eligible activity, row locking, status transitions, reward amount snapshot, unique ledger key, and credit_profile_currency idempotency.
 5. Rewrite verify_pending_referrals() to join private.app_users, not auth.users.
 6. The new registration flow is Better Auth only after Stage 4/7 cutover. Do not create new application accounts through the old Supabase Auth signup path after cutover; existing demo identities are handled in Stage 6, not migrated as credentials.
@@ -114,7 +114,7 @@ The current synthetic local test verifies the metadata-reconstruction idea and d
 
 ### Live catalog and review-only FK plan generator
 
-A fresh read-only catalog query against production on 4 November 2026 confirmed the same 69 constraints and action distribution. The sanitized catalog snapshot is committed at [live-auth-users-fk-catalog.json](../../scripts/auth-migration/live-auth-users-fk-catalog.json); it contains table/column/constraint metadata only, no user rows or UUIDs.
+A fresh read-only catalog query against production on 4 November 2026 confirmed the same 69 constraints and action distribution. A second full comparison against the committed snapshot found 69/69 identical records, zero added or removed constraints, and zero column/semantics drift. The sanitized catalog snapshot is committed at [live-auth-users-fk-catalog.json](../../scripts/auth-migration/live-auth-users-fk-catalog.json); it contains table/column/constraint metadata only, no user rows or UUIDs.
 
 The plan generator at [generate-app-users-fk-plan.mjs](../../scripts/auth-migration/generate-app-users-fk-plan.mjs) validates the snapshot and emits three SQL files outside the repository:
 
@@ -146,6 +146,8 @@ The synthetic fixtures are exercised by [Supabase Local Auth Claims CI #41860723
 - 8 JWT/RLS assertions for UUID `sub` → `auth.uid()`, owner/cross-user boundaries, and the invariant that JWT `role` is PostgreSQL `authenticated`.
 - 12 FK rehome assertions for UUID backfill, FK target replacement, and preservation of all four delete actions.
 - 51 provisioning/referral assertions for server-only execution, preservation of the business-role enum/table, permitted basic-role mapping, rejection of admin self-registration, retry safety, no `auth.users` shadow row, trusted email verification, referral qualification and idempotent Edu Coin rewards.
+
+A follow-on test change adds two assertions for initial email-verification projection from a trusted Google identity (`p_email_verified = true`). Its CI run is queued and is not counted in the 71 passing assertions yet.
 
 These tests verify the proposed SQL contract in an isolated synthetic schema. They do **not** prove the live application schema can be rebuilt from scratch, the real Better Auth Worker can reach Supabase securely, hosted Custom OIDC is accepted, every production RLS policy behaves correctly, or the production migration is safe to execute. All Stage 3 exit criteria below therefore remain mandatory.
 
