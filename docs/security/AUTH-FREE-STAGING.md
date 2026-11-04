@@ -30,7 +30,7 @@ The paid Supabase Branch option quoted earlier at USD $0.01344/hour is not appro
 
 ## Supabase local testing
 
-Use the CLI against a local Docker-backed stack. Do not link this checkout to production for test execution.
+Use the CLI against a local Docker-backed stack. Do not link this checkout to production for test execution. The dedicated identity smoke-test project lives under `services/auth-worker/supabase-test/` and has its own minimal fixture; it deliberately does not replay the application's historical migrations.
 
 ```bash
 # From the repository root
@@ -46,7 +46,7 @@ supabase test db --local
 supabase stop
 ```
 
-Always use explicit `--local` on database reset and test commands. Do not run `db reset --linked`, `db push --linked`, or a command with a production connection string during staging work.
+Always use explicit `--local` on database reset and test commands. Do not run `db reset --linked`, `db push --linked`, or a command with a production connection string during staging work. The fixture CI uses Supabase CLI 3.0.0, pins that version, and uses `[local_smtp]` (CLI v3 removed `[inbucket]`). The current GitHub Actions run [41772998109](https://github.com/taufx98/sykabelajar4.0/actions/runs/41772998109) completed successfully using only a disposable local stack.
 
 ### Existing migration-history warning
 
@@ -65,7 +65,7 @@ For each Stage 3 SQL change:
 5. Run the existing app contract tests and type/build checks.
 6. Do not mark hosted OIDC acceptance complete until it has been tested in a separate Supabase Free project.
 
-This focused fixture is a useful safety gate, but it is not a substitute for full application regression against a complete schema baseline.
+The automated smoke test in `services/auth-worker/supabase-test/supabase/tests/identity_jwt_rls.test.sql` passed all seven pgTAP assertions: JWT `sub` maps to `auth.uid()`, user A sees only their own row, cross-user reads return no rows, owner inserts succeed, and forged ownership/ownership transfer are rejected. The workflow is [Supabase Local Auth Claims CI](https://github.com/taufx98/sykabelajar4.0/actions/runs/41772998109). This fixture verifies PostgreSQL JWT-claim/RLS semantics only; it does not verify Supabase Custom OIDC, the application's full schema, or every production RLS policy. It is a focused safety gate, not a substitute for full application regression against a complete schema baseline.
 
 ## OIDC validation boundary
 
