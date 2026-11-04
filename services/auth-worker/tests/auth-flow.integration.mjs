@@ -128,9 +128,24 @@ async function createAuthorizationCode({ clientId, cookie, includePkce = true })
     },
   });
 
-  const location = response.headers.get("location");
+  const headerLocation = response.headers.get("location");
+  let responsePayload = null;
+  let diagnosticBody = "";
+  if (!headerLocation) {
+    diagnosticBody = (await response.clone().text()).slice(0, 2000);
+    try {
+      responsePayload = JSON.parse(diagnosticBody);
+    } catch {
+      responsePayload = null;
+    }
+  }
+  // Better Auth returns a JSON redirect envelope for programmatic/fetch
+  // requests. A real top-level browser navigation receives an HTTP redirect.
+  const location = headerLocation ??
+    (responsePayload?.redirect === true && typeof responsePayload.url === "string"
+      ? responsePayload.url
+      : null);
   const callback = location ? new URL(location) : null;
-  const diagnosticBody = location ? "" : (await response.clone().text()).slice(0, 2000);
   return { response, location, callback, verifier, state, nonce, diagnosticBody };
 }
 
