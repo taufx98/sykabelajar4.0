@@ -34,14 +34,14 @@ select extensions.ok(
 );
 
 insert into private.app_users (id, email_verified_at)
-values ('22222222-2222-4222-8222-222222222222', clock_timestamp()),
-       ('44444444-4444-4444-8444-444444444444', null);
+values ('99999999-9999-4999-8999-999999999999', clock_timestamp()),
+       ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', null);
 insert into public.profiles (id, full_name, username, account_type, edu_coin)
-values ('22222222-2222-4222-8222-222222222222', 'Referrer', 'referrer', 'student', 10),
-       ('44444444-4444-4444-8444-444444444444', 'Unverified', 'unverified', 'student', 0);
+values ('99999999-9999-4999-8999-999999999999', 'Referrer', 'referrer', 'student', 10),
+       ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'Unverified', 'unverified', 'student', 0);
 insert into public.referral_codes (user_id, code)
-values ('22222222-2222-4222-8222-222222222222', 'REF-VALID'),
-       ('44444444-4444-4444-8444-444444444444', 'REF-UNVERIFIED');
+values ('99999999-9999-4999-8999-999999999999', 'REF-VALID'),
+       ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'REF-UNVERIFIED');
 
 set local role service_role;
 
@@ -170,7 +170,7 @@ select extensions.is(
 );
 select extensions.is(
   (select count(*)::integer from public.referral_events
-   where referrer_user_id = '22222222-2222-4222-8222-222222222222'
+   where referrer_user_id = '99999999-9999-4999-8999-999999999999'
      and referred_user_id = '33333333-3333-4333-8333-333333333333'
      and status = 'PENDING' and reward_amount = 5),
   1, 'valid referral code resolves to a verified referrer and creates one pending event'
@@ -190,7 +190,7 @@ select extensions.is(
 );
 select extensions.is(
   (select count(*)::integer from public.edu_coin_ledger
-   where user_id = '22222222-2222-4222-8222-222222222222'),
+   where user_id = '99999999-9999-4999-8999-999999999999'),
   0, 'referrer receives no reward before referred email verification'
 );
 
@@ -211,19 +211,19 @@ select extensions.is(
 );
 select extensions.is(
   (select count(*)::integer from public.edu_coin_ledger
-   where user_id = '22222222-2222-4222-8222-222222222222'
+   where user_id = '99999999-9999-4999-8999-999999999999'
      and event_type = 'REFERRAL_REGISTRATION'),
   1, 'referral qualification creates exactly one Edu Coin ledger row'
 );
 select extensions.is(
   (select amount::integer from public.edu_coin_ledger
-   where user_id = '22222222-2222-4222-8222-222222222222'
+   where user_id = '99999999-9999-4999-8999-999999999999'
      and event_type = 'REFERRAL_REGISTRATION'),
   5, 'ledger records the reward amount captured at referral creation'
 );
 select extensions.is(
   (select edu_coin from public.profiles
-   where id = '22222222-2222-4222-8222-222222222222'),
+   where id = '99999999-9999-4999-8999-999999999999'),
   15, 'referrer profile is credited once after email verification'
 );
 select extensions.is(
@@ -233,13 +233,13 @@ select extensions.is(
 );
 select extensions.is(
   (select count(*)::integer from public.edu_coin_ledger
-   where user_id = '22222222-2222-4222-8222-222222222222'
+   where user_id = '99999999-9999-4999-8999-999999999999'
      and event_type = 'REFERRAL_REGISTRATION'),
   1, 'replayed verification does not create a second ledger entry'
 );
 select extensions.is(
   (select edu_coin from public.profiles
-   where id = '22222222-2222-4222-8222-222222222222'),
+   where id = '99999999-9999-4999-8999-999999999999'),
   15, 'replayed verification does not double-credit Edu Coin'
 );
 
@@ -273,7 +273,7 @@ values ('77777777-7777-4777-8777-777777777777', 'Expired Case', 'expired-case', 
 insert into public.referral_events
   (referrer_user_id, referred_user_id, reward_amount, status, created_at)
 values
-  ('22222222-2222-4222-8222-222222222222',
+  ('99999999-9999-4999-8999-999999999999',
    '77777777-7777-4777-8777-777777777777', 5, 'PENDING',
    clock_timestamp() - interval '26 hours');
 select extensions.lives_ok(
@@ -289,7 +289,7 @@ select extensions.is(
 );
 select extensions.is(
   (select count(*)::integer from public.edu_coin_ledger
-   where user_id = '22222222-2222-4222-8222-222222222222'
+   where user_id = '99999999-9999-4999-8999-999999999999'
      and event_id in (select id::text from public.referral_events
                       where referred_user_id = '77777777-7777-4777-8777-777777777777')),
   0, 'expired referral creates no Edu Coin ledger entry'
