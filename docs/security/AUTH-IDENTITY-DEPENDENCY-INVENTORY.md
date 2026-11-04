@@ -27,7 +27,7 @@ All 69 catalog entries observed were validated, non-deferrable foreign keys with
 
 ## Complete foreign-key inventory
 
-These are the exact referencing schema/table/column names from the catalog snapshot. Constraint names were not changed.
+The exact original constraint names, referencing columns, and `ON DELETE` actions are listed in [AUTH-FOREIGN-KEY-CATALOG.md](AUTH-FOREIGN-KEY-CATALOG.md). It includes all 69 catalog rows and confirms all 18 `SET NULL` source columns are nullable. The summary below groups the referencing schema/table/column names by delete action.
 
 ### ON DELETE CASCADE (42)
 
