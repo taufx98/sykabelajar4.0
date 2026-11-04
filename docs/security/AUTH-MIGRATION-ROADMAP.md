@@ -19,11 +19,11 @@ This is the approved implementation order. Keep all work within these seven stag
 | Stage | Scope | Current status |
 |---|---|---|
 | 1 | Cloudflare foundation | **In progress.** Worker source and D1 schema/migrations are implemented and tested against disposable local D1 in CI. No remote D1 database or Worker deployment exists; custom domain and real email provider remain unconfigured. |
-| 2 | OIDC and JWT | **Local proof-of-concept complete; Supabase acceptance pending.** OAuth Provider, Authorization Code + PKCE S256, ES256 signing, discovery/JWKS and UUID/role/audience claims pass local tests. Supabase Custom OIDC is not configured or validated. |
+| 2 | OIDC and JWT | **Local proof-of-concept complete; hosted Supabase acceptance blocked by the Free-project limit.** OAuth Provider, Authorization Code + PKCE S256, ES256 signing, discovery/JWKS and UUID/role/audience claims pass local tests. No Custom OIDC integration has been registered in production. |
 | 3 | Supabase identity foundation | **Not started.** No private.app_users, foreign-key transition, replacement auth trigger, referral/email-verification lifecycle migration, or issuer restrictions have been applied. |
 | 4 | Frontend | **Not started.** The React app still uses Supabase Auth directly. Better Auth client, token broker, global session adapter, and replacement of every supabase.auth call remain to be implemented. |
 | 5 | Backend | **Not started.** Edge Functions, auth.users-dependent RPC/functions/triggers, and authorization paths still use current Supabase Auth assumptions. |
-| 6 | Demo reset and full testing | **Not started.** No demo-account reset or admin bootstrap has occurred. Requires the isolated Supabase test environment, two-user IDOR matrix, full feature regression tests, and rollback rehearsal. |
+| 6 | Demo reset and full testing | **Not started.** No demo-account reset or admin bootstrap has occurred. Requires a reproducible local Supabase schema baseline and, when a Free project slot is available, hosted OIDC/RLS validation; also requires the two-user IDOR matrix, full feature regression tests, and rollback rehearsal. |
 | 7 | Production cutover | **Not started.** No production Worker/domain/OIDC configuration, Supabase Auth signup shutdown, traffic switch, or production monitoring changes have occurred. |
 
 ## Stage 1 — Cloudflare foundation
@@ -67,8 +67,8 @@ This is the approved implementation order. Keep all work within these seven stag
 ### Still required before Stage 2 is complete
 
 - [ ] Deploy the issuer on a non-production Cloudflare Worker and verify its exact issuer URL.
-- [ ] Register Supabase Custom OIDC only in an isolated Supabase environment.
-- [ ] Prove Supabase accepts valid ES256 tokens and rejects wrong issuer, wrong audience, wrong signature, expired token and altered sub.
+- [ ] Register Supabase Custom OIDC only in an isolated Free-plan Supabase project. Never register the test issuer in production.
+- [ ] Prove Supabase accepts valid ES256 tokens and rejects wrong issuer, wrong audience, wrong signature, expired token and altered sub. This hosted acceptance test remains blocked until a Free project slot is available; the current account-level create request was rejected at the two-active-Free-project limit.
 - [ ] Verify auth.uid() resolves the Better Auth UUID correctly in policies and RPCs.
 - [ ] Verify Data API, Storage, Realtime and Edge Functions with the external JWT.
 - [ ] Add a two-user RLS/IDOR test using two different Better Auth UUID subjects.
@@ -82,7 +82,7 @@ This is the approved implementation order. Keep all work within these seven stag
 - [ ] Redesign referral attribution and email-verification lifecycle without querying auth.users.
 - [ ] Apply issuer restrictions to authenticated RLS policies and sensitive SECURITY DEFINER functions.
 - [ ] Keep business roles in existing application tables and preserve current role semantics.
-- [ ] Verify all constraints and provisioning rollback/retry behavior in staging before migration.
+- [ ] Verify all constraints and provisioning rollback/retry behavior against the reproducible local Supabase test baseline and, when available, a separate Free-plan project before any production migration.
 
 ## Stage 4 — Frontend
 
@@ -110,6 +110,7 @@ This is the approved implementation order. Keep all work within these seven stag
 - [ ] Confirm the exact demo/test identities and dependent test rows eligible for cleanup. Preserve competitions, shop/payment configuration, application content and other production business data unless separately approved.
 - [ ] Clean up only the approved demo accounts and dependent rows.
 - [ ] Create the first admin through a protected, auditable bootstrap path. Never permit public registration to grant admin.
+- [ ] Do not use production as a staging substitute. If hosted Free OIDC validation is still unavailable, keep cutover blocked.
 - [ ] Run login, registration, email verification, Google login, session restore, token renewal and logout tests.
 - [ ] Run two-user IDOR tests for profiles, exams/attempts, Edu Coin, Shop/orders, chat, referrals, certificates, organizer and admin boundaries.
 - [ ] Run regression/smoke tests for all critical existing features and role types.
@@ -135,10 +136,13 @@ These are directly related prerequisites, not a replacement roadmap:
 - Production audit previously found 69 application foreign keys to auth.users, 109 RLS policies using auth.uid(), 188 SQL functions using auth.uid(), and 10 functions/triggers that read auth.users or its metadata. These must be individually mapped in Stages 3 and 5.
 - private.organizer_access_codes has RLS disabled in production. Do not simply enable RLS without first designing and testing its intended access policies and reviewing every privileged function that reads it.
 
-## External setup and staging costs
+## Free-only staging policy
 
-- Cloudflare GitHub Actions secrets are already installed; keep their values private.
-- The Worker config deliberately contains a placeholder D1 database ID. It is not deployable until a dedicated non-production D1 is created.
-- No Supabase development/staging branch exists at the last check.
-- The quoted Supabase branch cost is USD $0.01344 per hour. Obtain the owner's explicit approval of this recurring hourly cost before creating the branch.
-- No production Supabase migration, account deletion, custom-domain activation or login cutover has been performed.
+- **No paid staging resources.** Do not create Supabase paid branches, enable paid compute/add-ons, upgrade Cloudflare, or accept a nonzero recurring infrastructure quote for this migration. If a step has a nonzero cost or exceeds a free quota, stop and use a local alternative or report the blocker.
+- The previous Supabase Branch quote of USD $0.01344/hour is rejected; no branch was created.
+- The connected Supabase account currently exposes the production project `sykabelajar_db2`. A zero-monthly-cost Free project creation was attempted in the only listed organization, but Supabase rejected it because the owner has reached the two-active-Free-project limit. No project was created, no existing project was paused/deleted, and no plan was upgraded.
+- Supabase Custom OIDC cannot be configured through the Supabase CLI. Hosted issuer acceptance, including Data API/Storage/Realtime/Edge Function validation, therefore remains blocked until the owner frees an existing Free-project slot or another explicitly free isolated project becomes available. Never substitute the production project for this test.
+- Use Supabase CLI + Docker locally for database work. The local Supabase stack itself adds no hosted Supabase cost. However, the current `supabase/migrations` directory is a history of incremental feature changes, not a verified clean bootstrap: some early files share date prefixes and the first feature migrations assume existing application tables such as `organizers` and `auth.users`. Do not assume a blank `supabase db reset --local` can replay the complete production schema. Before Stage 3 integration tests, prepare and review a sanitized schema-only baseline or a purpose-built fixture containing the exact dependencies under test. Do not copy production rows or credentials into fixtures.
+- The current Auth Worker CI uses Wrangler's local mode and local D1. Keep it that way for automated auth/OIDC contract tests until a remote Worker/D1 test resource is verified to remain within Cloudflare's Free quota. No Worker deployment, production domain activation, email-provider subscription, or paid email service is required for local testing.
+- GitHub Actions on this public repository can run the local checks without purchasing hosted Supabase compute. Keep workflows bounded and avoid deploying from pull-request checks.
+- No production Supabase migration, account deletion, custom-domain activation, external OIDC registration, or login cutover has been performed.
