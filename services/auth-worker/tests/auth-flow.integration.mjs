@@ -174,6 +174,57 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
   });
 
   try {
+    const allowedPreflight = await fetch(new URL("/api/auth/get-session", baseUrl), {
+      method: "OPTIONS",
+      headers: {
+        Origin: appOrigin,
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "content-type",
+      },
+    });
+    assert.equal(allowedPreflight.status, 204, "allowlisted browser preflight must succeed");
+    assert.equal(
+      allowedPreflight.headers.get("access-control-allow-origin"),
+      appOrigin,
+      "CORS must return the exact allowlisted origin",
+    );
+    assert.equal(
+      allowedPreflight.headers.get("access-control-allow-credentials"),
+      "true",
+      "credentialed first-party requests must be supported",
+    );
+    assert.notEqual(
+      allowedPreflight.headers.get("access-control-allow-origin"),
+      "*",
+      "credentialed CORS must never use a wildcard origin",
+    );
+
+    const rejectedPreflight = await fetch(new URL("/api/auth/get-session", baseUrl), {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://attacker.example",
+        "Access-Control-Request-Method": "GET",
+      },
+    });
+    assert.equal(rejectedPreflight.status, 403, "untrusted browser preflight must be rejected");
+    assert.equal(
+      rejectedPreflight.headers.get("access-control-allow-origin"),
+      null,
+      "untrusted origin must not receive CORS permission",
+    );
+
+    const browserBootstrap = await fetch(new URL("/_internal/bootstrap-first-party-client", baseUrl), {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + clientBootstrapToken,
+        Origin: appOrigin,
+      },
+    });
+    assert.equal(
+      browserBootstrap.status,
+      404,
+      "internal OAuth bootstrap must reject browser-origin requests even with the bearer secret",
+    );
     const email = cookieUuid();
     const initialPassword = "Sykabelajar-PoC-Password-1";
     const resetPassword = "Sykabelajar-PoC-Password-2";
@@ -256,6 +307,11 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.match(sessionCookieHeader, /\bHttpOnly\b/i, "session cookie must be HttpOnly");
     assert.match(sessionCookieHeader, /\bSecure\b/i, "session cookie must be Secure");
     assert.match(sessionCookieHeader, /SameSite=Lax/i, "session cookie must use SameSite=Lax");
+    assert.doesNotMatch(
+      sessionCookieHeader,
+      /;\\s*Domain=/i,
+      "session cookie must remain host-only and must not set a Domain attribute",
+    );
 
     const bootstrap = await fetch(new URL("/_internal/bootstrap-first-party-client", baseUrl), {
       method: "POST",
