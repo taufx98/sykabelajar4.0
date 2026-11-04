@@ -245,7 +245,8 @@ create or replace function private.provision_better_auth_user(
   p_account_type text,
   p_full_name text,
   p_username text,
-  p_referral_code text default null
+  p_referral_code text default null,
+  p_email_verified boolean default false
 ) returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
@@ -268,7 +269,12 @@ begin
     else 'student'::public.app_role
   end;
 
-  insert into private.app_users (id) values (p_user_id)
+  insert into private.app_users (id, email_verified_at)
+  values (
+    p_user_id,
+    case when coalesce(p_email_verified, false)
+      then pg_catalog.clock_timestamp() else null end
+  )
   on conflict (id) do nothing;
 
   insert into public.profiles (id, full_name, username, account_type)
@@ -365,11 +371,11 @@ revoke all on function private.apply_referral_qualification(uuid, text, timestam
   from public, anon, authenticated, service_role;
 revoke all on function private.handle_referral_daily_checkin()
   from public, anon, authenticated, service_role;
-revoke all on function private.provision_better_auth_user(uuid, text, text, text, text)
+revoke all on function private.provision_better_auth_user(uuid, text, text, text, text, boolean)
   from public, anon, authenticated;
 revoke all on function private.complete_better_auth_email_verification(uuid, timestamptz)
   from public, anon, authenticated;
-grant execute on function private.provision_better_auth_user(uuid, text, text, text, text)
+grant execute on function private.provision_better_auth_user(uuid, text, text, text, text, boolean)
   to service_role;
 grant execute on function private.complete_better_auth_email_verification(uuid, timestamptz)
   to service_role;
