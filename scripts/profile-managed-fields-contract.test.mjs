@@ -75,7 +75,7 @@ test('isolated PostgreSQL integration tests execute the migration and exercise c
     import.meta.url,
   );
   const sql = await readFile(integrationPath, 'utf8');
-  assert.match(sql, /\\\\ir \.\.\\/supabase\\/migrations\\/20261104040000_profile_managed_fields_guard\\.sql/);
+  assert.match(sql, /\\ir \.\.\/supabase\/migrations\/20261104040000_profile_managed_fields_guard\.sql/);
   for (const marker of [
     'SET LOCAL ROLE anon',
     'SET LOCAL ROLE authenticated',
