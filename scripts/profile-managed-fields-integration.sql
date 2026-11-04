@@ -74,6 +74,7 @@ CREATE TABLE public.profiles (
   verification_type text NOT NULL,
   school_id uuid,
   created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
   last_name_change timestamptz,
   full_name text NOT NULL,
   bio text,
@@ -482,6 +483,15 @@ BEGIN
       AND verification_type = 'blue'
   ) THEN
     RAISE EXCEPTION 'TEST_FAILED: production admin RPCs could not update another profile';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.audit_logs
+    WHERE action = 'user.status_update'
+      AND entity_id = '00000000-0000-0000-0000-000000000001'
+      AND actor_user_id = '00000000-0000-0000-0000-000000000003'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAILED: production admin status RPC did not write its audit record';
   END IF;
 END;
 $test$;
