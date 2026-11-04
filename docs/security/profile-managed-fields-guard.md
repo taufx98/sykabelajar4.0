@@ -32,9 +32,15 @@ Existing protections for `account_type`, `edu_coin`, and `total_xp` remain uncha
 
 Trusted server-side operations and admin SECURITY DEFINER RPCs remain able to update managed fields because the trigger only applies client-role restrictions to `anon`/`authenticated`. Admin RPCs must continue to enforce their own authorization before writing. The migration does not grant clients direct insert or delete access.
 
-## Required integration tests before rollout
+## Isolated PostgreSQL integration coverage
 
-Run against an isolated Supabase environment using fixture users:
+The PR now runs the actual migration in a disposable PostgreSQL 17 service during CI. The test runner accepts only the fixed localhost test URL, and the SQL fixture is wrapped in a transaction that rolls back all roles, schemas, tables, functions, triggers, and grants at the end. It does not connect to Supabase production.
+
+The fixture executes the trigger under `anon`, `authenticated`, an authorized admin identity, and `service_role`; it verifies effective grants, public/private profile reads, owner-only updates, managed-field rejection, cooldown enforcement, server-owned timestamps, and trusted-role compatibility. It uses a minimal fixture for the relevant Postgres/Supabase auth contract, not a complete copy of the production schema.
+
+## Remaining verification before rollout
+
+The isolated test covers the trigger and table/RLS boundary. Before production rollout, also validate the migration against the complete current schema and exercise the existing application RPCs that intentionally update managed profile fields. Required cases include:
 1. Anonymous role retains public-profile SELECT access but has no direct INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, or TRIGGER privileges.
 2. Authenticated role retains SELECT and UPDATE only; RLS still restricts updates to the caller's own profile.
 3. Direct PATCH of `status`, `verification_type`, `school_id`, `created_at`, or `id` must fail with `PROFILE_FIELD_MANAGED_BY_BACKEND`.
