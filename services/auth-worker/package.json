@@ -11,8 +11,10 @@
     "auth:schema:generate": "node scripts/generate-d1-schema.mjs"
   },
   "dependencies": {
-    "@better-auth/oauth-provider": "1.7.15",
-    "better-auth": "1.7.15"
+    "@better-auth/oauth-provider": "1.7.16",
+    "better-auth": "1.7.16",
+    "@better-auth/core": "1.7.16",
+    "better-call": "1.4.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261103.1",
