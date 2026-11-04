@@ -84,6 +84,9 @@ jobs:
       - name: Shop wishlist and verified review contract tests
         run: npm run test:shop-engagement-contract
 
+      - name: Profile connections privacy contract tests
+        run: npm run test:profile-connections-privacy
+
       - name: Lint
         run: npm run lint
 
