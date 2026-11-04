@@ -1,6 +1,20 @@
 begin;
 
-select extensions.plan(49);
+select extensions.plan(51);
+
+select extensions.ok(
+  ARRAY['student', 'teacher', 'organizer_member', 'admin']::text[] <@
+    (select array_agg(e.enumlabel::text order by e.enumsortorder)
+     from pg_type t
+     join pg_namespace n on n.oid = t.typnamespace
+     join pg_enum e on e.enumtypid = t.oid
+     where n.nspname = 'public' and t.typname = 'app_role'),
+  'the business role enum retains student, teacher, organizer_member, and admin'
+);
+select extensions.ok(
+  to_regclass('public.user_roles') is not null,
+  'the existing user_roles table remains the source of business-role assignments'
+);
 
 select extensions.ok(
   not has_function_privilege('anon',
