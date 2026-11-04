@@ -1,0 +1,47 @@
+name: Supabase Local Auth Claims CI
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - "services/auth-worker/supabase-test/**"
+      - ".github/workflows/auth-supabase-local-ci.yml"
+  pull_request:
+    paths:
+      - "services/auth-worker/supabase-test/**"
+      - ".github/workflows/auth-supabase-local-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-local-auth-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-auth-claims:
+    name: Local Supabase JWT claims and RLS contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/auth-worker/supabase-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      - name: Start isolated local Supabase
+        run: supabase start
+
+      - name: Verify JWT sub and ownership RLS
+        run: supabase test db --local
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
