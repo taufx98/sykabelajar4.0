@@ -87,7 +87,9 @@ VALUES
    '10000000-0000-0000-0000-000000000002', clock_timestamp() - interval '1 day',
    null, 'Student B', 'Private B', false),
   ('00000000-0000-0000-0000-000000000003', 'ACTIVE', 'NONE',
-   null, clock_timestamp() - interval '1 day', null, 'Admin A', 'Admin', false);
+   null, clock_timestamp() - interval '1 day', null, 'Admin A', 'Admin', false),
+  ('00000000-0000-0000-0000-000000000004', 'ACTIVE', 'NONE',
+   null, clock_timestamp() - interval '1 day', null, 'Public Profile', 'Public', true);
 
 INSERT INTO public.profile_test_admins (user_id)
 VALUES ('00000000-0000-0000-0000-000000000003');
@@ -129,8 +131,8 @@ DO $test$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count FROM public.profiles;
-  IF v_count <> 0 THEN
-    RAISE EXCEPTION 'TEST_FAILED: anonymous users must not see private profiles';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'TEST_FAILED: anonymous users should see only the one public profile';
   END IF;
 END;
 $test$;
@@ -148,8 +150,8 @@ DECLARE
   v_rows integer;
 BEGIN
   SELECT count(*) INTO v_count FROM public.profiles;
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'TEST_FAILED: User A should see only their own private profile';
+  IF v_count <> 2 THEN
+    RAISE EXCEPTION 'TEST_FAILED: User A should see their own profile and the public profile';
   END IF;
 
   SELECT count(*) INTO v_count
