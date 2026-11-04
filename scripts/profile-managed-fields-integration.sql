@@ -31,20 +31,40 @@ AS $function$
   SELECT nullif(auth.jwt() ->> 'sub', '')::uuid;
 $function$;
 
-CREATE TABLE public.profile_test_admins (user_id uuid PRIMARY KEY);
+CREATE TYPE public.app_role AS ENUM ('student', 'teacher', 'organizer_member', 'admin');
+
+CREATE TABLE public.user_roles (
+  user_id uuid NOT NULL,
+  role public.app_role NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, role)
+);
+
+CREATE FUNCTION private.current_user_has_role(p_role public.app_role)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public', 'private'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles ur
+    WHERE ur.user_id = (SELECT auth.uid())
+      AND ur.role = p_role
+      AND ur.is_active = true
+  );
+$function$;
 
 CREATE FUNCTION private.current_user_is_admin()
 RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path TO ''
+SET search_path TO 'public', 'private'
 AS $function$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.profile_test_admins a
-    WHERE a.user_id = (SELECT auth.uid())
-  );
+  SELECT private.current_user_has_role('admin'::public.app_role);
 $function$;
 
 CREATE TABLE public.profiles (
@@ -122,8 +142,8 @@ VALUES
   ('00000000-0000-0000-0000-000000000004', 'ACTIVE', 'NONE',
    null, clock_timestamp() - interval '1 day', null, 'Public Profile', 'Public', true);
 
-INSERT INTO public.profile_test_admins (user_id)
-VALUES ('00000000-0000-0000-0000-000000000003');
+INSERT INTO public.user_roles (user_id, role, is_active)
+VALUES ('00000000-0000-0000-0000-000000000003', 'admin', true);
 
 \ir ../supabase/migrations/20261104040000_profile_managed_fields_guard.sql
 
