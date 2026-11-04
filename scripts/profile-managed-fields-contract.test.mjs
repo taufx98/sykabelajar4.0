@@ -68,3 +68,36 @@ test('ordinary authenticated profile updates remain available without insert or 
   assert.match(migration, /GRANT SELECT, UPDATE ON TABLE public\.profiles TO authenticated/i);
   assert.doesNotMatch(migration, /GRANT [^;]*(?:INSERT|DELETE|TRUNCATE|REFERENCES|TRIGGER|MAINTAIN)[^;]* TO authenticated/i);
 });
+
+test('isolated PostgreSQL integration tests execute the migration and exercise caller roles', async () => {
+  const integrationPath = new URL(
+    './profile-managed-fields-integration.sql',
+    import.meta.url,
+  );
+  const sql = await readFile(integrationPath, 'utf8');
+  assert.match(sql, /\\\\ir \.\.\\/supabase\\/migrations\\/20261104040000_profile_managed_fields_guard\\.sql/);
+  for (const marker of [
+    'SET LOCAL ROLE anon',
+    'SET LOCAL ROLE authenticated',
+    'SET LOCAL ROLE service_role',
+    'PROFILE_FIELD_MANAGED_BY_BACKEND',
+    'PROFILE_NAME_CHANGE_COOLDOWN',
+    'PROFILE_NAME_CHANGE_TIMESTAMP_MANAGED_BY_BACKEND',
+    'profile_test_admins',
+    'has_table_privilege',
+    'Attempted cross-user edit',
+  ]) {
+    assert.ok(sql.includes(marker), 'integration test must cover ' + marker);
+  }
+});
+
+test('integration runner only accepts the disposable localhost PostgreSQL URL', async () => {
+  const runnerPath = new URL(
+    './run-profile-managed-fields-integration.sh',
+    import.meta.url,
+  );
+  const runner = await readFile(runnerPath, 'utf8');
+  assert.match(runner, /postgres:\/\/postgres:postgres@localhost:5432\/postgres/);
+  assert.match(runner, /Refusing to run profile security integration SQL/);
+  assert.match(runner, /psql "\$PROFILE_SECURITY_TEST_DATABASE_URL"/);
+});
