@@ -46,7 +46,7 @@ supabase test db --local
 supabase stop
 ```
 
-Always use explicit `--local` on database reset and test commands. Do not run `db reset --linked`, `db push --linked`, or a command with a production connection string during staging work. The fixture CI uses Supabase CLI 3.0.0, pins that version, and uses `[local_smtp]` (CLI v3 removed `[inbucket]`). The current GitHub Actions run [41772998109](https://github.com/taufx98/sykabelajar4.0/actions/runs/41772998109) completed successfully using only a disposable local stack.
+Always use explicit `--local` on database reset and test commands. Do not run `db reset --linked`, `db push --linked`, or a command with a production connection string during staging work. The fixture CI uses Supabase CLI 3.0.0, pins that version, and uses `[local_smtp]` (CLI v3 removed `[inbucket]`). The latest GitHub Actions run [#41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023) completed successfully using only a disposable local stack and passed all 68 pgTAP assertions across three test files.
 
 ### Existing migration-history warning
 
@@ -62,7 +62,7 @@ A dedicated helper and runbook now exist:
 
 The helper pins Supabase CLI 3.0.0, exports the default schema-only dump, separately captures custom `auth`/`storage` DDL via `supabase db diff --linked`, and records PostgreSQL/extension versions. It writes to a temporary directory outside the Git repository and refuses a schema dump containing a `COPY ... FROM stdin` data block. It has no data export, role dump, restore, migration apply, or deploy step.
 
-The helper's Bash syntax and static safety contract are checked by the local Supabase CI workflow. **The export itself has not been run here** because the database connection string must stay on the owner's trusted local machine. Do not paste it into chat or commit it. The helper uses only existing infrastructure and does not create a project, branch, Worker, D1 database, or paid service.
+The helper's Bash syntax and static safety contract passed in [Supabase Local Auth Claims CI #41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023), alongside all 68 pgTAP assertions. **The export itself has not been run here** because the database connection string must stay on the owner's trusted local machine. Do not paste it into chat or commit it. The helper uses only existing infrastructure and does not create a project, branch, Worker, D1 database, or paid service.
 
 ### Focused database test approach
 
@@ -75,7 +75,7 @@ For each Stage 3 SQL change:
 5. Run the existing app contract tests and type/build checks.
 6. Do not mark hosted OIDC acceptance complete until it has been tested in a separate Supabase Free project.
 
-The latest workflow [Supabase Local Auth Claims CI #41776739736](https://github.com/taufx98/sykabelajar4.0/actions/runs/41776739736) passed **68/68 pgTAP assertions across three files** using the pinned Supabase CLI 3.0.0 and a disposable Docker-backed local stack:
+The latest workflow [Supabase Local Auth Claims CI #41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023) passed **68/68 pgTAP assertions across three files** using the pinned Supabase CLI 3.0.0 and a disposable Docker-backed local stack:
 
 - JWT/RLS (7 assertions): JWT `sub` maps to `auth.uid()`, owner-only read/insert, cross-user read denial, forged-owner insert and ownership-transfer denial.
 - Identity FK rehome (12 assertions): UUID backfill before FK swap, all four fixture constraints point to `private.app_users`, and `CASCADE`, `SET NULL`, `NO ACTION`, and `RESTRICT` behavior remains intact.
