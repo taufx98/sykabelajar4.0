@@ -4,8 +4,8 @@ select extensions.plan(12);
 
 -- Simulate the data-preserving root backfill that must happen before any
 -- child foreign key is changed.
-insert into private.app_users (id, email_verified_at, phone, phone_verified_at, created_at)
-select id, email_verified_at, phone, phone_verified_at, created_at
+insert into private.app_users (id, created_at)
+select id, created_at
 from private.legacy_auth_users
 on conflict (id) do nothing;
 
