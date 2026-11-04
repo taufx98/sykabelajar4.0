@@ -85,7 +85,7 @@ No paid SMS/WhatsApp provider is approved under the free-only rule. Until a viab
 
 ## 6. Foreign-key migration sequence
 
-Production currently has 69 validated, non-deferrable FKs across 62 application tables pointing to auth.users(id). Their exact delete actions are 42 CASCADE, 18 SET NULL, 8 NO ACTION, and 1 RESTRICT; all use ON UPDATE NO ACTION.
+Production currently has 69 validated, non-deferrable FKs across 62 application tables pointing to auth.users(id). Their exact names, source columns and delete actions are documented in [AUTH-FOREIGN-KEY-CATALOG.md](AUTH-FOREIGN-KEY-CATALOG.md). The distribution is 42 CASCADE, 18 SET NULL, 8 NO ACTION, and 1 RESTRICT; all use MATCH SIMPLE and ON UPDATE NO ACTION. All source/target columns are UUID, and all 18 SET NULL source columns are nullable.
 
 The eventual migration must:
 
