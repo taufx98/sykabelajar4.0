@@ -74,6 +74,37 @@ TO authenticated
 USING ((SELECT auth.uid()) = id)
 WITH CHECK ((SELECT auth.uid()) = id);
 
+-- Model the existing admin RPC pattern: SECURITY DEFINER plus a database
+-- authorization check, updating a different user's profile row.
+CREATE FUNCTION public.profile_test_admin_update(
+  p_user_id uuid,
+  p_status text,
+  p_verification_type text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+BEGIN
+  IF NOT coalesce(private.current_user_is_admin(), false) THEN
+    RAISE EXCEPTION 'ACCESS_DENIED' USING ERRCODE = '42501';
+  END IF;
+
+  UPDATE public.profiles
+  SET status = p_status,
+      verification_type = p_verification_type
+  WHERE id = p_user_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'USER_NOT_FOUND';
+  END IF;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.profile_test_admin_update(uuid, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.profile_test_admin_update(uuid, text, text) TO authenticated;
+
 -- Start broad: the migration must remove excessive client grants.
 GRANT ALL ON TABLE public.profiles TO anon, authenticated, service_role;
 
@@ -235,6 +266,17 @@ BEGIN
   EXCEPTION WHEN SQLSTATE 'P0001' THEN
     IF SQLERRM <> 'PROFILE_NAME_CHANGE_COOLDOWN' THEN RAISE; END IF;
   END;
+
+  BEGIN
+    PERFORM public.profile_test_admin_update(
+      '00000000-0000-0000-0000-000000000002',
+      'ADMIN_FORGED',
+      'ADMIN_VERIFIED'
+    );
+    RAISE EXCEPTION 'TEST_FAILED: non-admin caller executed admin profile RPC';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'ACCESS_DENIED' THEN RAISE; END IF;
+  END;
 END;
 $test$;
 RESET ROLE;
@@ -289,6 +331,34 @@ BEGIN
 END;
 $test$;
 RESET ROLE;
+
+-- The same style of SECURITY DEFINER RPC can update another user's row when
+-- the caller's admin role is verified from the JWT-backed user_roles source.
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  true
+);
+SELECT public.profile_test_admin_update(
+  '00000000-0000-0000-0000-000000000001',
+  'ADMIN_RPC_STATUS',
+  'ADMIN_VERIFIED'
+);
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{}', true);
+DO $test$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = '00000000-0000-0000-0000-000000000001'
+      AND status = 'ADMIN_RPC_STATUS'
+      AND verification_type = 'ADMIN_VERIFIED'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAILED: authorized admin RPC could not update another profile';
+  END IF;
+END;
+$test$;
 
 SET LOCAL ROLE service_role;
 SELECT set_config(
