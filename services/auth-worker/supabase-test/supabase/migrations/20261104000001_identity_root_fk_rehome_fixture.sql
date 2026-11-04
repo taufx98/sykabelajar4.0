@@ -12,9 +12,6 @@ create table private.legacy_auth_users (
 
 create table private.app_users (
   id uuid primary key,
-  email_verified_at timestamptz,
-  phone text,
-  phone_verified_at timestamptz,
   created_at timestamptz not null default now()
 );
 
