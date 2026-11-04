@@ -111,13 +111,18 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
   }
 
   const callbackUrl = env.OAUTH_CALLBACK_URL;
-  if (!callbackUrl) return json({ error: "OAUTH_CLIENT_BOOTSTRAP_NOT_CONFIGURED" }, 503);
+  const resourceAudience = env.SUPABASE_RESOURCE_AUDIENCE;
+  if (!callbackUrl || !resourceAudience) {
+    return json({ error: "OAUTH_CLIENT_BOOTSTRAP_NOT_CONFIGURED" }, 503);
+  }
 
   let parsedCallback: URL;
+  let parsedResource: URL;
   try {
     parsedCallback = new URL(callbackUrl);
+    parsedResource = new URL(resourceAudience);
   } catch {
-    return json({ error: "OAUTH_CALLBACK_URL_INVALID" }, 503);
+    return json({ error: "OAUTH_CLIENT_BOOTSTRAP_URL_INVALID" }, 503);
   }
 
   if (
@@ -126,79 +131,68 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
     parsedCallback.username ||
     parsedCallback.password ||
     parsedCallback.hash ||
-    parsedCallback.search
+    parsedCallback.search ||
+    parsedResource.protocol !== "https:" ||
+    parsedResource.origin !== resourceAudience.replace(/\\/$/, "")
   ) {
-    return json({ error: "OAUTH_CALLBACK_URL_NOT_ALLOWED" }, 503);
+    return json({ error: "OAUTH_CLIENT_BOOTSTRAP_URL_NOT_ALLOWED" }, 503);
   }
 
   try {
-    const existing = await env.DB
-      .prepare("SELECT value, created_at FROM auth_worker_internal_config WHERE key = ?1")
+    const seeded = await env.DB
+      .prepare(
+        "SELECT c.clientId AS client_id, c.clientSecret AS client_secret, " +
+        "c.disabled AS disabled, c.scopes AS scopes, c.redirectUris AS redirect_uris, " +
+        "c.tokenEndpointAuthMethod AS token_endpoint_auth_method, " +
+        "c.grantTypes AS grant_types, c.responseTypes AS response_types, " +
+        "c.requirePKCE AS require_pkce, r.resourceId AS resource_id " +
+        "FROM auth_worker_internal_config AS cfg " +
+        "JOIN oauthClient AS c ON c.clientId = cfg.value " +
+        "JOIN oauthClientResource AS r ON r.clientId = c.clientId " +
+        "WHERE cfg.key = ?1 AND cfg.value <> 'pending'",
+      )
       .bind("first_party_oauth_client_id")
-      .first<{ value: string; created_at: string }>();
+      .first<{
+        client_id: string;
+        client_secret: string | null;
+        disabled: number | null;
+        scopes: string;
+        redirect_uris: string;
+        token_endpoint_auth_method: string;
+        grant_types: string;
+        response_types: string;
+        require_pkce: number | null;
+        resource_id: string;
+      }>();
 
-    if (existing && existing.value !== "pending") {
-      return json({ client_id: existing.value, already_configured: true });
-    }
+    if (!seeded) return json({ error: "OAUTH_CLIENT_NOT_SEEDED" }, 503);
 
-    if (existing?.value === "pending") {
-      const insertedAt = Date.parse(existing.created_at);
-      const stale = Number.isFinite(insertedAt) && Date.now() - insertedAt > 10 * 60 * 1000;
-      if (!stale) return json({ error: "OAUTH_CLIENT_BOOTSTRAP_IN_PROGRESS" }, 409);
+    const scopes = JSON.parse(seeded.scopes) as string[];
+    const redirectUris = JSON.parse(seeded.redirect_uris) as string[];
+    const grantTypes = JSON.parse(seeded.grant_types) as string[];
+    const responseTypes = JSON.parse(seeded.response_types) as string[];
 
-      await env.DB
-        .prepare("DELETE FROM auth_worker_internal_config WHERE key = ?1 AND value = 'pending'")
-        .bind("first_party_oauth_client_id")
-        .run();
-    }
+    const valid =
+      seeded.client_secret === null &&
+      seeded.disabled === 0 &&
+      seeded.token_endpoint_auth_method === "none" &&
+      seeded.require_pkce === 1 &&
+      seeded.resource_id === resourceAudience &&
+      scopes.includes("openid") &&
+      scopes.includes("profile") &&
+      scopes.includes("email") &&
+      redirectUris.length === 1 &&
+      redirectUris[0] === callbackUrl &&
+      grantTypes.length === 1 &&
+      grantTypes[0] === "authorization_code" &&
+      responseTypes.length === 1 &&
+      responseTypes[0] === "code";
 
-    const reservation = await env.DB
-      .prepare("INSERT INTO auth_worker_internal_config (key, value, created_at) VALUES (?1, 'pending', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(key) DO NOTHING")
-      .bind("first_party_oauth_client_id")
-      .run();
+    if (!valid) return json({ error: "OAUTH_CLIENT_SEED_INVALID" }, 503);
 
-    if ((reservation.meta?.changes ?? 0) !== 1) {
-      return json({ error: "OAUTH_CLIENT_BOOTSTRAP_IN_PROGRESS" }, 409);
-    }
-
-    try {
-      const created = await getAuth(env).api.adminCreateOAuthClient({
-        body: {
-          client_name: "SYKABELAJAR Web",
-          redirect_uris: [callbackUrl],
-          token_endpoint_auth_method: "none",
-          grant_types: ["authorization_code"],
-          response_types: ["code"],
-          require_pkce: true,
-          scope: "openid profile email",
-          resources: [env.SUPABASE_RESOURCE_AUDIENCE],
-          client_secret_expires_at: 0,
-          skip_consent: true,
-        },
-      });
-
-      const clientId = created.client_id;
-      if (!clientId) throw new Error("OAUTH_CLIENT_ID_NOT_RETURNED");
-
-      const stored = await env.DB
-        .prepare("UPDATE auth_worker_internal_config SET value = ?1, created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE key = ?2 AND value = 'pending'")
-        .bind(clientId, "first_party_oauth_client_id")
-        .run();
-
-      if ((stored.meta?.changes ?? 0) !== 1) {
-        throw new Error("OAUTH_CLIENT_BOOTSTRAP_RESERVATION_LOST");
-      }
-
-      return json({ client_id: clientId, already_configured: false }, 201);
-    } catch {
-      await env.DB
-        .prepare("DELETE FROM auth_worker_internal_config WHERE key = ?1 AND value = 'pending'")
-        .bind("first_party_oauth_client_id")
-        .run();
-      return json({ error: "OAUTH_CLIENT_BOOTSTRAP_FAILED" }, 503);
-    }
+    return json({ client_id: seeded.client_id, already_configured: true });
   } catch {
-    return json({ error: "OAUTH_CLIENT_BOOTSTRAP_UNAVAILABLE" }, 503);
+    return json({ error: "OAUTH_CLIENT_SEED_UNAVAILABLE" }, 503);
   }
 }
 
