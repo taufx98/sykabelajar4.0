@@ -34,7 +34,7 @@ assert.match(expand, /LIVE_FK_DRIFT:/);
 assert.match(expand, /TEMP_FK_NAME_COLLISION:/);
 assert.match(expand, /ON UPDATE NO ACTION/);
 assert.match(expand, /ON DELETE SET NULL/);
-assert.match(cutover, /REPLACEMENT_FK_NOT_VALIDATED:/);
+assert.match(cutover, /REPLACEMENT_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED:/);
 assert.match(cutover, /LEGACY_FK_MISSING:/);
 
 for (const sql of Object.values(plan)) {
