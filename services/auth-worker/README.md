@@ -21,7 +21,7 @@ This service is deliberately isolated from the production frontend and database.
 - Email/password sign-up requires email verification. Configure the outbound email webhook before attempting sign-up or password reset.
 - The email webhook receives JSON with from, to, subject, text, and category. It must authenticate the bearer token and must not log verification or reset URLs.
 - Google-to-password implicit account linking is disabled. Users must explicitly link accounts after proving control of both methods.
-- The first-party OAuth public client is created only through the server-to-server endpoint /_internal/bootstrap-first-party-client. It requires OAUTH_CLIENT_BOOTSTRAP_TOKEN, rejects browser Origin headers, fixes the callback URI from server configuration, and stores the resulting client ID so the client cannot be created repeatedly.
+- The first-party OAuth public client is seeded by versioned migration `0002_seed_first_party_oauth_client.sql`: no client secret, exact fixed HTTPS callback, Authorization Code only, and `requirePKCE=1`. The `/_internal/bootstrap-first-party-client` endpoint is read-only; it requires `OAUTH_CLIENT_BOOTSTRAP_TOKEN`, rejects browser Origin headers, and verifies that the migrated client exactly matches the configured callback and audience. There is no public or unauthenticated client-creation endpoint.
 - The D1 schema bootstrap endpoint /_internal/schema-migrate is enabled only when ALLOW_SCHEMA_BOOTSTRAP=true and D1_SCHEMA_BOOTSTRAP_TOKEN are set. CI sets these only in an ephemeral local .dev.vars file. Never set ALLOW_SCHEMA_BOOTSTRAP in a shared or production environment.
 - The five-minute access token is not individually revocable at the JWT signature level. Ending a Better Auth session prevents future session-bound issuance, but a token already minted can remain cryptographically valid until its expiry. The short lifetime is intentional.
 - The generic JWT plugin /token endpoint is disabled in OAuth Provider mode. Do not re-enable it without revisiting the OAuth/OIDC design.
@@ -37,7 +37,7 @@ This service is deliberately isolated from the production frontend and database.
 | APP_ORIGIN | Worker variable | Exact allowed web origin, currently https://sykabelajar.my.id |
 | SUPABASE_RESOURCE_AUDIENCE | Worker variable | JWT audience/resource for the application |
 | OAUTH_CALLBACK_URL | Worker variable | Exact first-party SPA OAuth callback URI |
-| OAUTH_CLIENT_BOOTSTRAP_TOKEN | Worker secret | One-time server-to-server client registration token |
+| OAUTH_CLIENT_BOOTSTRAP_TOKEN | Worker secret | Internal bearer token for read-only verification of the migrated first-party client |
 | D1_SCHEMA_BOOTSTRAP_TOKEN | Local-only secret | Enables local schema export during CI only |
 | ALLOW_SCHEMA_BOOTSTRAP | Local-only variable | Must never be enabled on a shared or production Worker |
 | GOOGLE_CLIENT_ID | Worker secret/variable | Google OAuth client ID |
@@ -45,18 +45,17 @@ This service is deliberately isolated from the production frontend and database.
 | AUTH_EMAIL_WEBHOOK_URL | Worker variable | HTTPS endpoint that accepts the documented JSON email payload |
 | AUTH_EMAIL_WEBHOOK_TOKEN | Worker secret | Bearer credential for the email webhook |
 | AUTH_EMAIL_FROM | Worker variable | Verified sender identity |
-| SUPABASE_RESOURCE_AUDIENCE | Worker variable | OAuth resource and JWT audience for Supabase |
 | DEV_APP_ORIGIN | Worker variable | Optional exact localhost origin for local development only |
 
 ## Development
 
-1. Install dependencies with npm install.
-2. Copy .dev.vars.example to .dev.vars. Use test-only values; never commit this file.
-3. Apply migration 0000 to a disposable local D1 database.
-4. Start the Worker locally. Only in local development, set ALLOW_SCHEMA_BOOTSTRAP=true and a random D1_SCHEMA_BOOTSTRAP_TOKEN.
-5. Run npm run auth:schema:generate. The script calls the protected Worker endpoint; Better Auth's getMigrations() runs against the request-scoped D1 binding and the Worker exports the resulting DDL from sqlite_master.
-6. Review migrations/0001_better_auth.sql. Confirm core tables, JWKS, OAuth Provider, and database rate-limit tables are present. The custom bootstrap-state table is migration 0000.
-7. Run npm run check and verify /healthz, /api/auth/.well-known/openid-configuration, and the JWKS URL advertised by discovery.
+1. Install the exact dependency tree with `npm ci`.
+2. Copy `.dev.vars.example` to `.dev.vars`. Use test-only values; never commit this file.
+3. Start the Worker locally. Only in local development, set `ALLOW_SCHEMA_BOOTSTRAP=true` and a random `D1_SCHEMA_BOOTSTRAP_TOKEN`.
+4. Run `npm run auth:schema:generate`. The protected Worker endpoint invokes Better Auth's `getMigrations()` against the request-scoped D1 binding and exports the resulting DDL from `sqlite_master`.
+5. Review the generated `migrations/0001_better_auth.sql` and confirm core tables, JWKS, all OAuth Provider models, and database rate-limit storage are present.
+6. Apply all versioned migrations to disposable local D1 with `npx wrangler d1 migrations apply sykabelajar-auth-poc --local`. This applies the private bootstrap table, generated Better Auth schema, and fixed first-party OAuth client/resource seed.
+7. Keep the local Worker running while running the email/session/OAuth integration test. Then run `npm run check` and verify `/healthz`, OIDC discovery, and the advertised JWKS URL.
 
 Do not set the schema bootstrap flag or apply generated migrations to production. The generated migration must be reviewed and tested against a disposable D1 database first.
 
@@ -66,9 +65,9 @@ A complete PoC test must verify:
 
 - OIDC discovery issuer exactly matches the issuer that will be configured in Supabase.
 - Discovery jwks_uri returns a usable ES256 public key set with kid.
-- Authorization Code + PKCE S256 works for the registered first-party public client.
-- Access token contains UUID sub, expected iss, expected resource aud, role=authenticated, exp no more than five minutes in the future, and the Better Auth session identifier.
-- Missing, modified, expired, wrong-issuer, wrong-audience, and wrong-signature tokens are rejected.
+- Authorization Code + PKCE S256 works for the migration-seeded first-party public client, and an authorization request without PKCE is rejected.
+- Access token contains the Better Auth UUID `sub`, expected `iss`, expected resource `aud`, `role=authenticated`, and `exp` no more than five minutes after `iat`.
+- Missing-PKCE requests, wrong-audience tokens, and wrong-signature tokens are rejected. Wrong-issuer and expired-token negative cases remain additional test targets.
 - Google sign-in rejects unverified email identities.
 - Same-email Google sign-in does not implicitly attach to an existing password account.
 - Session revoke/logout prevents further refresh or authorization; an already issued JWT is never accepted beyond its five-minute lifetime.
@@ -78,22 +77,26 @@ A complete PoC test must verify:
 ## Not yet implemented in this stage
 
 - D1 cloud resource creation and staging deployment.
-- Email vendor selection/webhook deployment.
-- Supabase Custom OIDC configuration and live token acceptance test.
+- Production email vendor/webhook configuration and deliverability test (the CI flow uses a local mock webhook).
+- Google OAuth runtime test using isolated Google credentials.
+- Supabase Custom OIDC configuration and live token acceptance test in a non-production project.
 - Supabase schema/FK changes, account provisioning, Edge Function migration, or frontend auth replacement.
-- Cloudflare custom-domain deployment.
+- Cloudflare custom-domain deployment and two-user Supabase IDOR matrix.
 
 These are explicit gates, not implied successes.
 
 ## Current Stage 1 checkpoint — 4 November 2026
 
-The local Worker boots and reaches D1. CI run #100 passed the dependency audit (zero reported vulnerabilities), TypeScript, nine contract tests, local D1 bootstrap, Better Auth schema generation, OIDC discovery/JWKS ES256 smoke test, and Wrangler dry-run bundle. The generated Better Auth migration contains 13 expected auth/OAuth tables and 31 DDL statements; it excludes Cloudflare's `_cf_METADATA`, Wrangler's `d1_migrations`, and the Worker's private bootstrap table. The artifact was also replayed in SQLite with foreign-key enforcement; `PRAGMA foreign_key_check` returned no violations. The package set is aligned to Better Auth 1.7.16, OAuth Provider 1.7.16, core 1.7.16, and better-call 1.4.5.
+CI run #112 completed successfully, and run #113 repeated the full pipeline after switching installation to the committed lockfile via `npm ci`. The dependency audit reported zero vulnerabilities; TypeScript, nine security/schema contract tests, all local D1 migrations, OIDC discovery/JWKS ES256, the full email/session/OAuth integration test, and Wrangler dry-run bundle passed.
 
-The next CI layer has now been added but is not yet verified: a local mock mail webhook tests sign-up verification, password reset, session lookup/logout, public OAuth client registration, mandatory PKCE S256, code exchange, ES256 signature/JWKS validation, the `sub` UUID and `role=authenticated` claim, five-minute expiry, audience enforcement, modified-signature rejection, and session-bound UserInfo rejection after logout. The first-party OAuth client is explicitly registered with `require_pkce: true`; public clients are required to use PKCE regardless.
+The generated schema migration contains 13 expected Better Auth/OAuth tables and 31 DDL statements, excluding Cloudflare/Wrangler/internal Worker tables. The exact `package-lock.json` and reviewed `0001_better_auth.sql` are committed to this PR. Migration `0002_seed_first_party_oauth_client.sql` provisions the fixed public client/resource with no secret, exact HTTPS callback and mandatory PKCE. Its internal verification endpoint performs reads only.
 
-Remaining gates before this PoC is considered complete:
+The local integration test exercises email verification and password reset through a mock webhook, UUID identity/session persistence, logout, first-party client seed validation, OIDC Authorization Code + PKCE S256, ES256 JWT verification through JWKS, `sub`, `role=authenticated`, audience and five-minute expiry, wrong-audience/wrong-signature rejection, and UserInfo rejection after logout. This establishes a passing local proof of concept—not yet external Google, production mail, Supabase staging, or live Cloudflare deployment acceptance.
 
-- Complete the expanded CI integration suite and commit the generated `package-lock.json` and reviewed `0001_better_auth.sql` to this PR.
-- Test Google OAuth with isolated Google client credentials and callback URI.
-- Verify Supabase Custom OIDC in a dedicated non-production project; the production Supabase project is intentionally untouched.
-- Run two-user Supabase IDOR tests before beginning frontend migration.
+Remaining gates before Stage 1 is considered complete:
+
+- Test Google OAuth with isolated Google client credentials and verify unverified-email/explicit-linking behavior.
+- Configure a real email provider/webhook and verify delivery, verification links, and password resets.
+- Verify Supabase Custom OIDC and token acceptance in a dedicated non-production Supabase environment.
+- Test wrong-issuer and expired-token rejection, then run two-user Supabase IDOR tests before Stage 2.
+- Keep the PR draft; do not merge or deploy until these external security gates pass.
