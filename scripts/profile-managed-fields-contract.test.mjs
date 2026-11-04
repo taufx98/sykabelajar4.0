@@ -88,6 +88,7 @@ test('isolated PostgreSQL integration tests execute the migration and exercise c
     'is_active = false',
     'DISABLED_ADMIN_FORGED',
     'has_table_privilege',
+    'has_schema_privilege',
     'Attempted cross-user edit',
   ]) {
     assert.ok(sql.includes(marker), 'integration test must cover ' + marker);
