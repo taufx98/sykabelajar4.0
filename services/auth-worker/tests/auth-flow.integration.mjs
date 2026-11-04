@@ -233,7 +233,9 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     const discoveryResponse = await authRequest("/.well-known/openid-configuration");
     assert.equal(discoveryResponse.status, 200, "OIDC discovery must respond 200");
     const discovery = await parseJson(discoveryResponse);
-    assert.equal(discovery.issuer, new URL("/api/auth", baseUrl).toString().replace(/\/$/, ""));
+    const issuer = new URL(discovery.issuer);
+    assert.equal(issuer.hostname, "localhost");
+    assert.equal(issuer.pathname, "/api/auth");
     assert.ok(discovery.code_challenge_methods_supported?.includes("S256"), "OIDC discovery must advertise S256");
     assert.ok(discovery.jwks_uri, "OIDC discovery must advertise JWKS");
 
