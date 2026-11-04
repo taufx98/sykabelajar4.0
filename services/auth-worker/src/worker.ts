@@ -72,7 +72,7 @@ async function generateD1Schema(request: Request, env: AuthWorkerEnv): Promise<R
         "SELECT name, type, sql FROM sqlite_master " +
         "WHERE type IN ('table', 'index') " +
         "AND name NOT LIKE 'sqlite_%' " +
-        "AND name <> 'auth_worker_internal_config' " +
+        "AND name NOT IN ('auth_worker_internal_config', '_cf_METADATA', 'd1_migrations') " +
         "AND sql IS NOT NULL " +
         "ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END, name",
       )
