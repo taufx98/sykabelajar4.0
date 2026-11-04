@@ -44,7 +44,7 @@ test('RPC rejects invalid inputs and runs with a fixed search path', async () =>
   assert.match(migration, /SECURITY DEFINER\s+SET search_path TO ''/i);
 });
 
-test('RPC preserves only intended explicit API execute grants', async () => {
+test('profile connections RPC preserves only intended explicit API execute grants', async () => {
   const migration = await readMigration();
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.get_profile_connections\(uuid,\s*text\) FROM PUBLIC/i);
   assert.match(
@@ -53,13 +53,40 @@ test('RPC preserves only intended explicit API execute grants', async () => {
   );
 });
 
-test('only profile owners can see private or hidden connection lists', () => {
-  const canRead = ({ callerId, profileId, isPublic, showConnections }) =>
-    callerId === profileId || (isPublic === true && showConnections !== false);
+test('profile social summary hides private profiles from other authenticated users', async () => {
+  const migration = await readMigration();
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_public_profile_social\(p_profile_id uuid\)/i);
+  assert.match(
+    migration,
+    /FROM\s+public\.profiles\s+AS\s+profile\s+WHERE\s+profile\.id\s*=\s*p_profile_id\s+AND\s*\(profile\.is_public\s+IS\s+TRUE\s+OR\s+profile\.id\s*=\s*v_uid\)/i,
+  );
+  assert.match(
+    migration,
+    /IF\s+NOT\s+EXISTS\s*\(\s*SELECT[\s\S]*?profile\.is_public\s+IS\s+TRUE\s+OR\s+profile\.id\s*=\s*v_uid[\s\S]*?\)\s+THEN\s+RETURN;\s+END IF;/i,
+  );
+});
 
-  assert.equal(canRead({ callerId: null, profileId: 'a', isPublic: false, showConnections: true }), false);
-  assert.equal(canRead({ callerId: null, profileId: 'a', isPublic: true, showConnections: false }), false);
-  assert.equal(canRead({ callerId: 'b', profileId: 'a', isPublic: false, showConnections: true }), false);
-  assert.equal(canRead({ callerId: null, profileId: 'a', isPublic: true, showConnections: true }), true);
-  assert.equal(canRead({ callerId: 'a', profileId: 'a', isPublic: false, showConnections: false }), true);
+test('profile social summary is explicitly authenticated-only', async () => {
+  const migration = await readMigration();
+  assert.match(migration, /REVOKE ALL ON FUNCTION public\.get_public_profile_social\(uuid\) FROM PUBLIC/i);
+  assert.match(migration, /REVOKE ALL ON FUNCTION public\.get_public_profile_social\(uuid\) FROM anon, authenticated, service_role/i);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.get_public_profile_social\(uuid\) TO authenticated/i);
+});
+
+test('only profile owners can see private or hidden connection lists', () => {
+  const canReadConnections = ({ callerId, profileId, isPublic, showConnections }) =>
+    callerId === profileId || (isPublic === true && showConnections !== false);
+  const canReadSocialSummary = ({ callerId, profileId, isPublic }) =>
+    callerId === profileId || (isPublic === true && callerId !== null);
+
+  assert.equal(canReadConnections({ callerId: null, profileId: 'a', isPublic: false, showConnections: true }), false);
+  assert.equal(canReadConnections({ callerId: null, profileId: 'a', isPublic: true, showConnections: false }), false);
+  assert.equal(canReadConnections({ callerId: 'b', profileId: 'a', isPublic: false, showConnections: true }), false);
+  assert.equal(canReadConnections({ callerId: null, profileId: 'a', isPublic: true, showConnections: true }), true);
+  assert.equal(canReadConnections({ callerId: 'a', profileId: 'a', isPublic: false, showConnections: false }), true);
+
+  assert.equal(canReadSocialSummary({ callerId: 'b', profileId: 'a', isPublic: false }), false);
+  assert.equal(canReadSocialSummary({ callerId: 'b', profileId: 'a', isPublic: true }), true);
+  assert.equal(canReadSocialSummary({ callerId: 'a', profileId: 'a', isPublic: false }), true);
+  assert.equal(canReadSocialSummary({ callerId: null, profileId: 'a', isPublic: true }), false);
 });
