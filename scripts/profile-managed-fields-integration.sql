@@ -10,7 +10,7 @@ CREATE ROLE service_role NOLOGIN BYPASSRLS;
 
 CREATE SCHEMA auth;
 CREATE SCHEMA private;
-GRANT USAGE ON SCHEMA public, auth, private TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
 
 CREATE FUNCTION auth.jwt()
 RETURNS jsonb
@@ -172,6 +172,12 @@ BEGIN
   IF NOT has_table_privilege('service_role', 'public.profiles', 'UPDATE')
      OR NOT has_table_privilege('service_role', 'public.profiles', 'INSERT') THEN
     RAISE EXCEPTION 'TEST_FAILED: service_role privileges must remain intact';
+  END IF;
+
+  IF has_schema_privilege('anon', 'private', 'USAGE')
+     OR has_schema_privilege('authenticated', 'private', 'USAGE')
+     OR has_schema_privilege('service_role', 'private', 'USAGE') THEN
+    RAISE EXCEPTION 'TEST_FAILED: client roles must not have access to the private schema';
   END IF;
 END;
 $test$;
