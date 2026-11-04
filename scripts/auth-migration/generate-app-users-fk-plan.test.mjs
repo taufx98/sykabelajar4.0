@@ -30,6 +30,8 @@ assert.equal((cutover.match(/DROP CONSTRAINT/g) ?? []).length, 69);
 assert.equal((cutover.match(/RENAME CONSTRAINT/g) ?? []).length, 69);
 assert.match(expand, /IDENTITY_ROOT_MISSING_LEGACY_USERS/);
 assert.match(expand, /IDENTITY_ROOT_ORPHANS:/);
+assert.match(expand, /LIVE_FK_DRIFT:/);
+assert.match(expand, /TEMP_FK_NAME_COLLISION:/);
 assert.match(expand, /ON UPDATE NO ACTION/);
 assert.match(expand, /ON DELETE SET NULL/);
 assert.match(cutover, /REPLACEMENT_FK_NOT_VALIDATED:/);
