@@ -18,7 +18,7 @@ This is the retained task order for the Better Auth + Cloudflare D1 migration. U
 | Stage | Work | Status |
 |---|---|---|
 | 0 | Architecture baseline, threat model, auth dependency inventory, production safety boundary | Draft PR #176 |
-| 1 | Better Auth + Worker + D1; email/password and Google; cookies/session revoke; ES256/OIDC/JWKS; Supabase token validation; two-user IDOR tests | In progress — all local email/session/PKCE/JWT CI checks pass; Google credentials, real email provider, Supabase staging acceptance, wrong-issuer/expiry and two-user IDOR gates remain |
+| 1 | Better Auth + Worker + D1; email/password and Google; cookies/session revoke; ES256/OIDC/JWKS; Supabase token validation; two-user IDOR tests | In progress — local email/session/OAuth/ID-token/access-token/rate-limit CI checks pass; Google credentials, real email delivery, Supabase staging acceptance, and two-user IDOR gates remain |
 | 2 | Identity anchor schema and idempotent app-account provisioning design | Not started |
 | 3 | Frontend auth adapter; remove direct supabase.auth use while preserving AppContext, UI, cache and realtime behavior | Not started |
 | 4 | Migrate auth.users foreign keys, triggers, SQL functions, RPCs, and Edge Functions; issuer restrictions | Not started |
@@ -47,14 +47,18 @@ This is the retained task order for the Better Auth + Cloudflare D1 migration. U
 - [x] Test Worker session endpoints against disposable local D1: email verification, password reset, login, session lookup, logout and post-logout UserInfo rejection pass in CI.
 - [ ] Configure a test Google OAuth client and verify Google login/email-verified behavior.
 - [x] Test the email webhook contract with a local mock for verification and password reset.
+- [x] Verify the real `/request-password-reset` custom rate limit returns HTTP 429 after the configured three requests per hour.
 - [ ] Configure a production-grade email webhook/vendor and verify deliverability.
 - [x] Seed and verify the first-party public client using the exact callback URI and explicit mandatory PKCE configuration.
 - [x] Complete Authorization Code + PKCE S256 authorization and token exchange in local CI.
-- [x] Verify local OIDC issuer/discovery/JWKS, kid, ES256 signature, UUID sub, audience, role claim, and five-minute expiry.
+- [x] Verify local OIDC issuer/discovery/JWKS, kid, ES256 access-token signature, UUID sub, resource audience, role claim, and five-minute expiry.
+- [x] Verify OIDC ID-token ES256 signature, client-ID audience, UUID subject, and authorization-request nonce.
+- [x] Verify JWT rejection for wrong issuer, wrong audience, expired token, and modified signature.
 - [x] Verify Authorization Code + PKCE in the local runtime suite.
 - [ ] Verify the integrated frontend preserves one global Better Auth session without re-login on route changes (frontend adapter is Stage 3).
 - [ ] Prove Supabase Custom OIDC accepts the token in a non-production environment.
-- [ ] Run negative token tests: missing, altered sub, wrong signature/key, wrong issuer, wrong audience, expired token, and revoked session behavior.
+- [x] Run negative token tests for missing PKCE, wrong signature, wrong issuer, wrong audience, expired token, and UserInfo after session logout.
+- [ ] Add a dedicated altered-`sub` and audience-mismatch RLS test against Supabase staging; UserInfo-after-logout is not equivalent to instant revocation of an already-issued Supabase Data API JWT.
 - [ ] Run two-user IDOR tests for profiles, exams/attempts, Edu Coin, shop/orders, chat, referrals, certificates, and organizer/admin boundaries.
 - [ ] Record findings and close critical/high issues before starting Stage 2.
 
@@ -65,4 +69,5 @@ This is the retained task order for the Better Auth + Cloudflare D1 migration. U
 - Email webhook/provider credentials are not yet configured.
 - The D1 ID in the Worker config is a deliberate placeholder and is not a production database ID.
 - Cloudflare custom domain and Supabase Custom OIDC are not configured by this PoC.
-- Better Auth's November 3, 2026 security release is pinned consistently at v1.7.16 (core and OAuth Provider) with better-call 1.4.5. CI runs #112 and #113 passed, including the complete local email/session/PKCE/ES256 integration suite. Remaining gates: external Google credentials, production email delivery, non-production Supabase acceptance, extra negative JWT tests, and the two-user IDOR matrix.
+- No Supabase staging branch currently exists. Creating one was quoted at $0.01344/hour; do not create it until the owner approves that recurring cost.
+- Better Auth's November 3, 2026 security release is pinned consistently at v1.7.16 (core and OAuth Provider) with better-call 1.4.5. CI run #119 passed with `npm ci`, zero dependency vulnerabilities, nine schema/security contract tests, local email/password/session lifecycle, password-reset rate limiting, OAuth Authorization Code + PKCE S256, ES256 access-token and ID-token verification, wrong-issuer/audience/expiry/signature rejection, logout/UserInfo behavior, migrations, and Worker dry-run bundle. Remaining gates are external Google credentials, production email delivery, non-production Supabase acceptance, Cloudflare staging D1/Worker setup, and the two-user IDOR matrix.
