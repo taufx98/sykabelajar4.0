@@ -19,7 +19,9 @@
     "test:teacher-achievement-contract": "node --test scripts/teacher-achievement-contract.test.mjs",
     "test:admin-monitoring-contract": "node --test scripts/admin-monitoring-contract.test.mjs",
     "test:my-competitions-ui-contract": "node --test scripts/my-competitions-ui-contract.test.mjs",
-    "test:shop-engagement-contract": "node --test scripts/shop-engagement-contract.test.mjs"
+    "test:shop-engagement-contract": "node --test scripts/shop-engagement-contract.test.mjs",
+    "test:profile-managed-fields-contract": "node --test scripts/profile-managed-fields-contract.test.mjs",
+    "test:profile-managed-fields-integration": "bash scripts/run-profile-managed-fields-integration.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

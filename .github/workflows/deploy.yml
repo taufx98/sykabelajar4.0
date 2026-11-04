@@ -84,6 +84,9 @@ jobs:
       - name: Shop wishlist and verified review contract tests
         run: npm run test:shop-engagement-contract
 
+      - name: Profile managed-fields security contract tests
+        run: npm run test:profile-managed-fields-contract
+
       - name: Lint
         run: npm run lint
 
@@ -113,3 +116,34 @@ jobs:
         run: node scripts/rpd-smoke.mjs
 
       # CI trigger marker: keep pull_request validation active on branch updates.
+  profile-managed-fields-postgres:
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'security/profiles-managed-fields-guard'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PROFILE_SECURITY_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Profile managed-fields PostgreSQL integration tests
+        run: npm run test:profile-managed-fields-integration
+
