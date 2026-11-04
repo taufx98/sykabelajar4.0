@@ -8,11 +8,11 @@ SECURITY DEFINER
 SET search_path TO ''
 AS $function$
 DECLARE
-  v_request_role text := coalesce(auth.role(), '');
+  -- Read the signed JWT claim rather than current_user (changed by SECURITY DEFINER)
+  -- or the deprecated auth.role() helper.
+  v_request_role text := coalesce(auth.jwt() ->> 'role', '');
   v_is_admin boolean := false;
 BEGIN
-  -- Inspect the JWT role, not current_user: a normal caller may enter this
-  -- trigger through another SECURITY DEFINER RPC.
   IF v_request_role = 'authenticated' THEN
     v_is_admin := coalesce(private.current_user_is_admin(), false);
   END IF;
@@ -56,7 +56,12 @@ BEFORE UPDATE ON public.profiles
 FOR EACH ROW
 EXECUTE FUNCTION public.guard_profile_server_managed_fields();
 
-REVOKE INSERT, UPDATE, DELETE ON TABLE public.profiles FROM anon;
+-- Start from no client table privileges, then restore only the intended access.
+-- Anonymous visitors may read public profiles; signed-in users may read and
+-- update rows allowed by the existing RLS policies. No client can insert/delete.
+REVOKE ALL ON TABLE public.profiles FROM anon, authenticated;
+GRANT SELECT ON TABLE public.profiles TO anon;
+GRANT SELECT, UPDATE ON TABLE public.profiles TO authenticated;
 
 COMMENT ON FUNCTION public.guard_profile_server_managed_fields() IS
   'Blocks unprivileged direct updates to backend-managed profile fields and enforces the seven-day display-name cooldown.';
