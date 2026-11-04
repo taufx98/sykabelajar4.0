@@ -18,7 +18,7 @@ This is the retained task order for the Better Auth + Cloudflare D1 migration. U
 | Stage | Work | Status |
 |---|---|---|
 | 0 | Architecture baseline, threat model, auth dependency inventory, production safety boundary | Draft PR #176 |
-| 1 | Better Auth + Worker + D1; email/password and Google; cookies/session revoke; ES256/OIDC/JWKS; Supabase token validation; two-user IDOR tests | In progress — Worker scaffold and local security contract tests; request-context D1 generator implemented; CI re-running |
+| 1 | Better Auth + Worker + D1; email/password and Google; cookies/session revoke; ES256/OIDC/JWKS; Supabase token validation; two-user IDOR tests | In progress — Worker boot, D1 readiness, schema export route, and model-name contract tests implemented; CI validation pending |
 | 2 | Identity anchor schema and idempotent app-account provisioning design | Not started |
 | 3 | Frontend auth adapter; remove direct supabase.auth use while preserving AppContext, UI, cache and realtime behavior | Not started |
 | 4 | Migrate auth.users foreign keys, triggers, SQL functions, RPCs, and Edge Functions; issuer restrictions | Not started |
@@ -36,7 +36,9 @@ This is the retained task order for the Better Auth + Cloudflare D1 migration. U
 - [x] Configure ES256 JWT signing, OIDC scopes/discovery, a five-minute access-token lifetime, and the PostgreSQL authenticated role claim.
 - [x] Configure database-backed rate-limit rules.
 - [x] Add a guarded, one-time first-party public OAuth client bootstrap path; public dynamic client registration remains disabled.
-- [x] Add origin/CORS and bootstrap-secret contract tests; 5 local tests pass.
+- [x] Upgrade all Better Auth packages used by the PoC to the coordinated 1.7.16 security release; pin the matching core and better-call versions.
+- [x] Add origin/CORS and bootstrap-secret contract tests; 5 tests passed in the initial CI run.
+- [x] Add explicit schema-contract tests for the complete Better Auth + OAuth Provider model set.
 - [x] Add a guarded Worker request-context D1 schema export using Better Auth getMigrations(); the schema endpoint is disabled unless local-only environment flag and random token are present.
 - [x] Add CI to apply the bootstrap-state migration locally, generate/export the Better Auth schema from disposable D1, smoke-test Worker/OIDC/JWKS, and perform a dry-run bundle.
 - [ ] Confirm the revised CI run passes (typecheck, full dependency audit, request-context D1 schema generation, OIDC discovery/JWKS ES256 smoke test, Worker bundle).
@@ -60,4 +62,4 @@ This is the retained task order for the Better Auth + Cloudflare D1 migration. U
 - Email webhook/provider credentials are not yet configured.
 - The D1 ID in the Worker config is a deliberate placeholder and is not a production database ID.
 - Cloudflare custom domain and Supabase Custom OIDC are not configured by this PoC.
-- Better Auth maintainers announced a security release for November 3, 2026. The changelog still advertises v1.7.15 as latest, while the advance security notice has not yet been updated with fixed release versions/advisories. The current branch pins v1.7.15 but must not be merged/deployed until the security notice is updated and the full npm audit passes.
+- Better Auth maintainers announced a security release for November 3, 2026. The changelog still advertises v1.7.15 as latest, while the advance security notice has not yet been updated with fixed release versions/advisories. The current branch pins v1.7.16 and is still blocked on a clean reproducible install, completed Worker CI, token-flow tests, and staging validation.
