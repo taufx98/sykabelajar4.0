@@ -238,6 +238,7 @@ BEGIN
 END;
 $test$;
 RESET ROLE;
+SELECT set_config('request.jwt.claims', '{}', true);
 
 UPDATE public.profiles
 SET last_name_change = clock_timestamp() - interval '8 days'
