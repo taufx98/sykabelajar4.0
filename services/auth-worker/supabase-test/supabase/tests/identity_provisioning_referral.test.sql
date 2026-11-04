@@ -227,7 +227,7 @@ select extensions.is(
 select extensions.is(
   (select edu_coin from public.profiles
    where id = '99999999-9999-4999-8999-999999999999'),
-  15, 'referrer profile is credited once after email verification'
+  15::bigint, 'referrer profile is credited once after email verification'
 );
 select extensions.is(
   private.complete_better_auth_email_verification(
@@ -243,7 +243,7 @@ select extensions.is(
 select extensions.is(
   (select edu_coin from public.profiles
    where id = '99999999-9999-4999-8999-999999999999'),
-  15, 'replayed verification does not double-credit Edu Coin'
+  15::bigint, 'replayed verification does not double-credit Edu Coin'
 );
 
 select extensions.lives_ok(
