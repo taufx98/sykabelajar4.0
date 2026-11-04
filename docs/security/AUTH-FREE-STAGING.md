@@ -16,7 +16,7 @@ The migration must stay on free infrastructure while SYKABELAJAR is in its testi
 
 The Supabase account connected to this work currently lists the production project `sykabelajar_db2`. A separate Free project was considered because it would be useful for Custom OIDC acceptance. The project creation quote for the listed organization was USD $0/month, but Supabase rejected creation because the owner had reached the limit of two active Free projects. No new project was created, and no existing project was paused, deleted, or upgraded.
 
-The paid Supabase Branch option quoted earlier at USD $0.01344/hour is not approved and must not be created.
+The paid Supabase Branch option quoted earlier at USD $0.01344/hour is not approved and must not be created. Current Supabase pricing lists 50,000 Third-Party MAUs included on the Free plan; this migration must keep third-party auth usage within the Free quota and must not opt into paid overages or upgrade the organization.
 
 ## Test environment matrix
 
