@@ -85,7 +85,7 @@ This is the approved implementation order. Keep all work within these seven stag
 - [x] Re-query the live production PostgreSQL catalog read-only and commit a metadata-only snapshot of all 69 `auth.users` foreign keys, with exact `ON DELETE`/update/validation metadata and no user rows.
 - [x] Add a review-only generator that validates the 69-FK snapshot and emits separate preflight/expand, validate, and cutover SQL files outside the repository. It checks live catalog drift, identity-root coverage and orphan references; it never connects to a database or executes SQL. See [live-auth-users-fk-catalog.json](../../scripts/auth-migration/live-auth-users-fk-catalog.json) and [generate-app-users-fk-plan.mjs](../../scripts/auth-migration/generate-app-users-fk-plan.mjs).
 - [ ] Obtain CI validation for the new catalog/generator contract on the current PR head and review the generated SQL before treating it as an implementation artifact.
-- [ ] Select and test a legacy password continuity path (JIT verification through Supabase Auth or forced password reset) that preserves existing UUIDs without exceeding Workers Free CPU limits. See [AUTH-LEGACY-CREDENTIAL-MIGRATION.md](AUTH-LEGACY-CREDENTIAL-MIGRATION.md).
+- [x] Confirm the new-account-only decision: do not migrate demo-account credentials/sessions or build a legacy password bridge; new users receive fresh Better Auth UUIDs. See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md).
 - [ ] Run the schema-only export locally from the owner's trusted machine and review `schema.sql`, custom Auth/Storage DDL, extension versions, and dependency gaps. Keep artifacts outside Git and share only reviewed schema metadata as appropriate.
 - [ ] Design the executable production FK migration against a reviewed complete schema baseline; the fixture test and design document do not authorize or replace that migration.
 - [ ] Create private.app_users as the canonical application identity anchor, keyed by the Better Auth UUID.
@@ -96,6 +96,8 @@ This is the approved implementation order. Keep all work within these seven stag
 - [ ] Define a trusted phone-verification projection before migrating create_organizer, which currently requires both email and phone confirmation.
 - [ ] Keep referral RPC contract compatible while removing its auth.users dependency; the active ReferralProgramPanel caller does not consume last_login_at, so a temporary NULL field may be sufficient without adding login-sync writes.
 - [ ] Apply issuer restrictions to authenticated RLS policies and sensitive SECURITY DEFINER functions.
+- [x] Re-read the live production role catalog: `public.app_role` currently contains `student`, `teacher`, `organizer_member`, and `admin`; `public.user_roles` remains the business-role authority.
+- [ ] Preserve the existing role enum/table, role grants, RLS and admin guards in the identity-root migration. Public signup may create only student, teacher, or organizer_member; admin remains protected and must be bootstrapped in Stage 6.
 - [ ] Keep business roles in existing application tables and preserve current role semantics.
 - [ ] Verify all constraints and provisioning rollback/retry behavior against the reproducible local Supabase test baseline and, when available, a separate Free-plan project before any production migration.
 
@@ -122,7 +124,7 @@ This is the approved implementation order. Keep all work within these seven stag
 
 ## Stage 6 — Demo reset and full testing
 
-- [ ] Confirm the exact demo/test identities and dependent test rows eligible for cleanup. Preserve competitions, shop/payment configuration, application content and other production business data unless separately approved.
+- [ ] Confirm the exact demo/test identities and dependent test rows eligible for cleanup. Old login credentials are not migrated; clean only the approved demo identities and their dependent test rows. Preserve competitions, shop/payment configuration, application content and other production business data unless separately approved.
 - [ ] Clean up only the approved demo accounts and dependent rows.
 - [ ] Create the first admin through a protected, auditable bootstrap path. Never permit public registration to grant admin.
 - [ ] Do not use production as a staging substitute. If hosted Free OIDC validation is still unavailable, keep cutover blocked.
