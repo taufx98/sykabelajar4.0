@@ -32,7 +32,7 @@ The initial table should contain only fields that application-side SQL demonstra
 | Column | Type | Why it exists | Trusted writer |
 |---|---|---|---|
 | id | uuid primary key | Same UUID as Better Auth user ID and JWT sub; parent for application identity FKs | Provisioning RPC/Worker |
-| email_verified_at | timestamptz null | Required by referral qualification and verified-email gates | Better Auth verification event; legacy Auth sync only during transition |
+| email_verified_at | timestamptz null | Required by referral qualification and verified-email gates | Better Auth email-verification event for new accounts only |
 | phone_verified_at | timestamptz null | Preserves the verified-phone requirement in organizer creation | A trusted phone-verification event; remains NULL until that flow exists |
 | verified_phone_identity_hash | text null | Allows organizer eligibility/one-free-organizer-per-phone checks without storing a second raw phone number in Postgres | Server-only provisioning/phone-verification handler |
 | created_at | timestamptz not null | Identity-root creation audit | Database default |
@@ -55,7 +55,7 @@ A single server-only, idempotent provisioning operation must create the applicat
 5. Preserve the live `public.app_role` enum and `public.user_roles` table. The current live enum contains `student`, `teacher`, `organizer_member`, and `admin`; do not drop, replace, or narrow it. Only these account types may be selected at public self-registration: student, teacher, and organizer. The server-side mapping is student → student, teacher → teacher, and organizer → organizer_member. Never accept admin, super_admin, organizer workspace ownership, or arbitrary role names from user metadata. Privileged role grants remain protected.
 6. Organizer workspace creation remains a separate protected create_organizer operation after role, verification and uniqueness checks.
 
-The old handle_new_auth_user() currently upserts the profile from raw_user_meta_data, then provisions the basic role and settings. A transition version may create/update private.app_users before those records for legacy Supabase Auth registrations. The Better Auth Worker path must not rely on a trigger on auth.users.
+The old `handle_new_auth_user()` belongs to the current Supabase Auth registration path and is not the provisioning mechanism for new Better Auth users. After cutover, the Better Auth Worker path must call the new trusted provisioning operation directly; it must not rely on a trigger on `auth.users` or create shadow Auth rows.
 
 ## 4. Referral and email-verification lifecycle
 
@@ -74,7 +74,7 @@ Replacement behavior:
 5. Rewrite verify_pending_referrals() to join private.app_users, not auth.users.
 6. The new registration flow is Better Auth only after Stage 4/7 cutover. Do not create new application accounts through the old Supabase Auth signup path after cutover; existing demo identities are handled in Stage 6, not migrated as credentials.
 
-The current active frontend referral caller does not use the legacy login-time field, so the migration should not add sign-in synchronization as a side effect.
+The current active frontend referral caller does not use the legacy login-time field, so the new authentication flow should not add sign-in synchronization as a side effect.
 
 ## 5. Phone verification is a hard compatibility gate
 
@@ -89,7 +89,7 @@ The production public.create_organizer(text,text) function currently:
 
 The Better Auth Worker proof of concept does not yet provide a trusted phone-verification mechanism. Do not replace this requirement with a profile whatsapp value, an unchecked user claim, or email-only verification.
 
-No paid SMS/WhatsApp provider is approved under the free-only rule. Until a viable, trusted no-cost phone-verification path is established and tested, migration of create_organizer is blocked. It may continue to use the legacy verification state during a transition, but there must be an explicit, reviewed compatibility plan before its auth.users read is removed.
+No paid SMS/WhatsApp provider is approved under the free-only rule. Until a viable, trusted no-cost phone-verification path is established and tested, migration of create_organizer is blocked. Do not substitute profile WhatsApp data or an untrusted browser claim. Existing legacy phone-confirmation data may be consulted only during the explicitly approved overlap period, not copied as proof for newly created Better Auth users.
 
 ## 6. Foreign-key migration sequence
 
