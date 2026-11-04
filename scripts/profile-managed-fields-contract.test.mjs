@@ -15,11 +15,11 @@ async function readMigration() {
 
 test('guard is a fixed-search-path SECURITY DEFINER trigger function, not an exposed RPC', async () => {
   const migration = await readMigration();
-  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.guard_profile_server_managed_fields\(\)/i);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION private\.guard_profile_server_managed_fields\(\)/i);
   assert.match(migration, /RETURNS trigger\s+LANGUAGE plpgsql\s+SECURITY DEFINER\s+SET search_path TO ''/i);
   assert.match(
     migration,
-    /REVOKE ALL ON FUNCTION public\.guard_profile_server_managed_fields\(\) FROM PUBLIC, anon, authenticated/i,
+    /REVOKE ALL ON FUNCTION private\.guard_profile_server_managed_fields\(\) FROM PUBLIC, anon, authenticated/i,
   );
 });
 
