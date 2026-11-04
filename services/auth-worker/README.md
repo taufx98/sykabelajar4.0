@@ -45,6 +45,7 @@ This service is deliberately isolated from the production frontend and database.
 | AUTH_EMAIL_WEBHOOK_URL | Worker variable | HTTPS endpoint that accepts the documented JSON email payload |
 | AUTH_EMAIL_WEBHOOK_TOKEN | Worker secret | Bearer credential for the email webhook |
 | AUTH_EMAIL_FROM | Worker variable | Verified sender identity |
+| SUPABASE_RESOURCE_AUDIENCE | Worker variable | OAuth resource and JWT audience for Supabase |
 | DEV_APP_ORIGIN | Worker variable | Optional exact localhost origin for local development only |
 
 ## Development
@@ -86,12 +87,13 @@ These are explicit gates, not implied successes.
 
 ## Current Stage 1 checkpoint — 4 November 2026
 
-The local Worker now starts successfully, `/bootz` and `/healthz` both respond, and the bootstrap-state migration applies to ephemeral D1. OIDC discovery/JWKS checks are in CI but have not yet passed. Schema export revealed that the initial generator assumed a legacy `oauthApplication` table; the generator now checks the actual Better Auth 1.7 OAuth Provider model set (`oauthClient`, `oauthResource`, `oauthClientResource`, token/consent/assertion models) and reports the exact tables present. Dedicated schema-contract tests have been added. The branch also moves the whole Better Auth dependency set to the coordinated 1.7.16 security release after the 3 November 2026 advisory release. The newest CI attempt is validating this package install; do not treat the OAuth/PKCE flow, Supabase acceptance, or session lifecycle as complete until those tests pass.
+The local Worker boots and reaches D1. CI run #100 passed the dependency audit (zero reported vulnerabilities), TypeScript, nine contract tests, local D1 bootstrap, Better Auth schema generation, OIDC discovery/JWKS ES256 smoke test, and Wrangler dry-run bundle. The generated Better Auth migration contains 13 expected auth/OAuth tables and 31 DDL statements; it excludes Cloudflare's `_cf_METADATA`, Wrangler's `d1_migrations`, and the Worker's private bootstrap table. The artifact was also replayed in SQLite with foreign-key enforcement; `PRAGMA foreign_key_check` returned no violations. The package set is aligned to Better Auth 1.7.16, OAuth Provider 1.7.16, core 1.7.16, and better-call 1.4.5.
+
+The next CI layer has now been added but is not yet verified: a local mock mail webhook tests sign-up verification, password reset, session lookup/logout, public OAuth client registration, mandatory PKCE S256, code exchange, ES256 signature/JWKS validation, the `sub` UUID and `role=authenticated` claim, five-minute expiry, audience enforcement, modified-signature rejection, and session-bound UserInfo rejection after logout. The first-party OAuth client is explicitly registered with `require_pkce: true`; public clients are required to use PKCE regardless.
 
 Remaining gates before this PoC is considered complete:
 
-- Resolve local Wrangler Worker startup and generate/review the full D1 schema artifact.
-- Run live local email/password verification and session/logout tests using the webhook mock.
-- Run Authorization Code + PKCE end-to-end and verify the ES256 JWT against the discovered JWKS.
-- Test Google OAuth once isolated Google client credentials and callback URI are configured.
-- Verify Supabase Custom OIDC only in a dedicated staging project. The production Supabase project is intentionally untouched.
+- Complete the expanded CI integration suite and commit the generated `package-lock.json` and reviewed `0001_better_auth.sql` to this PR.
+- Test Google OAuth with isolated Google client credentials and callback URI.
+- Verify Supabase Custom OIDC in a dedicated non-production project; the production Supabase project is intentionally untouched.
+- Run two-user Supabase IDOR tests before beginning frontend migration.
