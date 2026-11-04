@@ -1,6 +1,6 @@
 begin;
 
-select extensions.plan(46);
+select extensions.plan(49);
 
 select extensions.ok(
   not has_function_privilege('anon',
