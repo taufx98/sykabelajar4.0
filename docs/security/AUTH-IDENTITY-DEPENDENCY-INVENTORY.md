@@ -138,6 +138,24 @@ There are exactly three non-internal triggers on `auth.users` in this snapshot:
 | `trg_referral_signup_attribution` | AFTER INSERT | `private.capture_signup_referral()` | Signup referral attribution after the user identity has been validated |
 | `trg_referral_email_confirmed` | AFTER UPDATE OF `email_confirmed_at`, null → non-null | `private.process_referral_email_confirmation()` | Trusted event after Better Auth email verification |
 
+## Supabase Edge Functions that call Auth getUser
+
+A repository-wide source search on the default application branch also found four current Edge Functions that call \`supabase.auth.getUser()\` with the caller's Bearer token. These are not additional SQL functions or foreign keys, but they are important Stage 5 compatibility points because the new identity provider will issue JWTs without creating matching \`auth.users\` rows.
+
+| Edge Function | Current identity dependency | Behavior that must be preserved |
+|---|---|---|
+| \`get-cloudinary-signature\` | Calls \`supabase.auth.getUser()\` before signing a Cloudinary upload request | Reject unauthenticated requests. Continue validating the caller before creating upload signatures; also retain upload folder/preset and allowed public ID restrictions. |
+| \`payment-gateway-create\` | Calls \`auth.getUser()\`, then uses service-role queries to load an order and compares \`orders.user_id\` to \`authData.user.id\` | A caller must only create a checkout session for their own order. Preserve the explicit ownership comparison before any service-role work. |
+| \`payment-gateway-reconcile\` | Calls \`auth.getUser()\`, then uses service-role order/payment intent lookups and compares order owner | A caller must only reconcile their own order. Keep provider verification, amount/currency checks, idempotency and fulfillment rules unchanged. |
+| \`payment-gateway-admin\` | Calls \`auth.getUser()\`, then calls \`is_active_admin(p_uid)\` with the caller-scoped JWT before creating a service-role client | Preserve the authenticated user's JWT context for the database admin check. Do not replace this with a caller-supplied UUID or a service-role-only lookup. Service role may be used only after the admin RPC approves the caller. |
+
+Supabase's current third-party-auth documentation says third-party JWTs are supported across Data API, Storage, Realtime and Edge Functions. Its current Edge Functions guide recommends verified user context and \`userClaims\` via \`@supabase/server\`'s \`withSupabase({ auth: 'user' })\` wrapper. That does **not** by itself prove that the existing \`supabase.auth.getUser()\` GoTrue lookup in these four older functions will return a Better Auth identity that is not present in \`auth.users\`. Stage 5 must therefore validate this exact behavior against a hosted isolated Free project when a slot is available, and can then move the handlers to platform-verified \`userClaims.sub\`/JWT context where appropriate. Do not disable platform JWT verification to work around a failing \`getUser()\` call, and do not trust an unverified decoded JWT.
+
+Official references:
+- [Supabase third-party auth overview](https://supabase.com/docs/guides/auth/third-party/overview) — documents third-party JWT support for Edge Functions.
+- [Supabase securing Edge Functions](https://supabase.com/docs/guides/functions/auth) — documents the \`user\` auth mode and verified \`userClaims\`.
+- [Supabase Custom OIDC](https://supabase.com/docs/guides/auth/third-party/custom-oidc) — documents external issuer, signature, \`kid\`, \`role\`, and JWT requirements.
+
 ## RLS and auth.uid() dependencies
 
 The current snapshot has **109 RLS policies** using `auth.uid()`. The earlier function inventory also recorded **188 SQL functions** using `auth.uid()`.
