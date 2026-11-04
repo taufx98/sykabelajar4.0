@@ -20,7 +20,7 @@ This finding is excessive write authority over the caller's own profile, not pro
 
 ## Prepared fix
 
-The migration adds a normal `BEFORE UPDATE` trigger that:
+The migration adds an internal `private`-schema `SECURITY DEFINER` trigger function and a normal `BEFORE UPDATE` trigger that:
 - Reads the JWT role claim using `auth.jwt() ->> 'role'`, not the deprecated `auth.role()` helper or `current_user` (which changes inside a SECURITY DEFINER trigger).
 - Blocks client roles `anon`/`authenticated` from changing `id`, `status`, `verification_type`, `school_id`, and `created_at`, except for an authenticated user whose admin role is confirmed by the database helper.
 - Enforces the seven-day display-name cooldown using the stored `OLD.last_name_change` value.
