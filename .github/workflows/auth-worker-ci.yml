@@ -46,9 +46,6 @@ jobs:
       - name: Security contract tests
         run: npm test
 
-      - name: Apply bootstrap-state migration to local D1
-        run: npx wrangler d1 migrations apply sykabelajar-auth-poc --local
-
       - name: Start local Worker and generate Better Auth D1 schema
         shell: bash
         run: |
@@ -99,6 +96,12 @@ jobs:
           console.log("OIDC issuer:", discovery.issuer);
           console.log("JWKS keys:", jwks.keys.length);
           NODE
+
+      - name: Apply all versioned D1 migrations to local D1
+        run: npx wrangler d1 migrations apply sykabelajar-auth-poc --local
+
+      - name: Exercise email, session, OAuth PKCE, and ES256 token lifecycle
+        run: |
           AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 \
             DEV_APP_ORIGIN=http://localhost:5173 \
             SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id \
