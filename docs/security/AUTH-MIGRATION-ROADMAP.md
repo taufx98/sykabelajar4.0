@@ -43,6 +43,7 @@ This is the approved implementation order. Keep all work within these seven stag
 - [x] Generated D1 schema reviewed: 13 expected tables, 31 DDL statements and 18 indexes; SQLite replay and foreign-key check passed.
 - [x] Local email verification, password reset, login, session lookup, logout, cookie attributes, CORS, rate-limit, and OAuth bootstrap checks.
 - [x] Local Worker deployment dry-run in Auth Worker CI.
+- [x] Add safe HTTP 503 handling for Cloudflare's documented D1 daily read/write Free-quota errors, including stable error codes and `Retry-After`; no automatic switch to a different auth issuer.
 
 ### Still required before Stage 1 is complete
 
@@ -114,6 +115,7 @@ This is the approved implementation order. Keep all work within these seven stag
 - [ ] Preserve login/register UI and existing page designs; no broad UI redesign.
 - [ ] Verify route changes do not prompt for login again, including page reload and expired-token renewal.
 - [ ] Ensure Realtime receives updated tokens and behaves correctly after session renewal/logout.
+- [ ] Handle temporary Better Auth/D1 quota 503 and Cloudflare Worker Error 1027 without clearing the user's active application state; show a recovery message and retry after the advertised reset/availability check.
 
 ## Stage 5 — Backend
 
