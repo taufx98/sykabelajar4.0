@@ -21,6 +21,8 @@ All 69 constraints have the same shape:
 - `NOT DEFERRABLE`, initially immediate
 - `VALIDATED`
 
+A separate catalog check confirmed all 69 source and target columns are UUID. All 18 `SET NULL` source columns are nullable (`NOT NULL` count = 0), so the existing delete action is structurally compatible with each current column definition.
+
 Only `ON DELETE` differs. The observed distribution is:
 - `CASCADE`: 42
 - `SET NULL`: 18
