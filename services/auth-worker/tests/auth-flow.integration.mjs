@@ -332,6 +332,23 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       undefined,
       "JWT must be rejected for the wrong audience",
     );
+    await assert.rejects(
+      jwtVerify(tokens.access_token, remoteJwks, {
+        issuer: "https://wrong-issuer.example/api/auth",
+        audience: resourceAudience,
+      }),
+      undefined,
+      "JWT must be rejected for the wrong issuer",
+    );
+    await assert.rejects(
+      jwtVerify(tokens.access_token, remoteJwks, {
+        issuer: discovery.issuer,
+        audience: resourceAudience,
+        currentDate: new Date((verifiedJwt.payload.exp + 1) * 1000),
+      }),
+      undefined,
+      "JWT must be rejected after its exp claim",
+    );
     const parts = tokens.access_token.split(".");
     const signature = parts[2];
     parts[2] = (signature[0] === "A" ? "B" : "A") + signature.slice(1);
