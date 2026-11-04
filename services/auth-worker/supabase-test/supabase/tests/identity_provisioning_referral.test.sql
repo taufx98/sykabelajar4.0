@@ -109,11 +109,14 @@ select extensions.is(
    from private.app_users where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   true, 'registration cannot assert phone verification or a verified-phone hash'
 );
+-- Inspect auth.users as the database owner; service_role intentionally has no read grant.
+reset role;
 select extensions.is(
   (select count(*)::integer from auth.users
    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   0, 'Better Auth provisioning does not create a shadow auth.users row'
 );
+set local role service_role;
 select extensions.is(
   (select count(*)::integer from information_schema.columns
    where table_schema = 'private' and table_name = 'app_users'
