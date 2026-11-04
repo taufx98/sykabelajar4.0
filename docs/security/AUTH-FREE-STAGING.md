@@ -54,6 +54,16 @@ The current `supabase/migrations` folder contains incremental feature migrations
 
 Do not rename the historical migration files or run a full blank replay just to make the CLI pass. Before Stage 3 integration testing, prepare a reviewed, sanitized schema-only baseline or a purpose-built fixture for the specific identity objects and dependent tables under test. Keep production row data out of that baseline. Validate the fixture and its assumptions before using it to approve any production migration.
 
+### Schema-only baseline export preparation
+
+A dedicated helper and runbook now exist:
+- Script: `scripts/auth-migration/export-schema-baseline.sh`
+- Runbook: [AUTH-SCHEMA-BASELINE-RUNBOOK.md](AUTH-SCHEMA-BASELINE-RUNBOOK.md)
+
+The helper pins Supabase CLI 3.0.0, exports the default schema-only dump, separately captures custom `auth`/`storage` DDL via `supabase db diff --linked`, and records PostgreSQL/extension versions. It writes to a temporary directory outside the Git repository and refuses a schema dump containing a `COPY ... FROM stdin` data block. It has no data export, role dump, restore, migration apply, or deploy step.
+
+The helper's Bash syntax and static safety contract are checked by the local Supabase CI workflow. **The export itself has not been run here** because the database connection string must stay on the owner's trusted local machine. Do not paste it into chat or commit it. The helper uses only existing infrastructure and does not create a project, branch, Worker, D1 database, or paid service.
+
 ### Focused database test approach
 
 For each Stage 3 SQL change:
