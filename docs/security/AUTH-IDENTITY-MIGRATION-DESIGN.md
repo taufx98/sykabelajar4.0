@@ -5,13 +5,13 @@ Snapshot date: 4 November 2026
 
 This document converts the current production catalog inventory into a proposed Stage 3 implementation. It does not authorize a production migration. The only SQL currently tested is the synthetic fixture under services/auth-worker/supabase-test/.
 
-## Legacy account and password continuity gate
+## New-account-only migration model
 
-Existing users must keep the exact UUID that already anchors their application rows. Password continuity is a separate migration requirement: production Supabase Auth stores bcrypt hashes in `auth.users.encrypted_password`, while this Better Auth POC currently uses the default scrypt hasher. A bcrypt-in-Worker verifier cannot be assumed to fit the 10 ms CPU allowance on Cloudflare Workers Free.
+Existing Supabase Auth identities are demo/testing accounts. The approved direction is **fresh Better Auth accounts only**: do not import old password hashes, credentials, OAuth tokens, sessions, or legacy login state; do not build a JIT password bridge or a password-reset campaign for demo users. New accounts receive a fresh Better Auth UUID, which is also used as Supabase `private.app_users.id` and JWT `sub`.
 
-The options and required safeguards are documented in [AUTH-LEGACY-CREDENTIAL-MIGRATION.md](AUTH-LEGACY-CREDENTIAL-MIGRATION.md). The preferred prototype is a just-in-time migration that delegates legacy password verification to the existing Supabase Auth password endpoint, discards the returned Supabase tokens, and then creates the Better Auth credential using the native Better Auth hasher while preserving the exact existing UUID. A forced password-reset flow is the fallback if that path cannot be made safe.
+The demo-account cleanup and linked test-data scope belong to Stage 6. Until then, do not delete old Auth identities or dependent application records. If the 69-FK move happens before cleanup, preserve referenced old UUIDs in `private.app_users` as identity-only references where needed to keep current application relationships valid. They are not imported as Better Auth login accounts.
 
-**This is not implemented yet.** Do not start Frontend integration or mark identity migration complete until the chosen path passes local tests for UUID preservation, idempotency, concurrency, failure recovery, password changes, and legacy-session isolation. No password hashes or user credentials may enter Git, CI, or chat.
+See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md) for the approved new-registration, identity and role rules. The superseded credential proposal is retained only as a decision record in [AUTH-LEGACY-CREDENTIAL-MIGRATION.md](AUTH-LEGACY-CREDENTIAL-MIGRATION.md).
 
 ## 1. Target responsibility split
 
@@ -20,7 +20,7 @@ The options and required safeguards are documented in [AUTH-LEGACY-CREDENTIAL-MI
 | Better Auth + Cloudflare D1 | Password hashes, OAuth accounts, authentication sessions, email verification tokens, password reset tokens, OIDC authorization grants, and the primary user account record |
 | Supabase private.app_users | Minimal, trusted identity projection needed by application SQL and FK integrity; it is not a credential store |
 | Supabase public.profiles | Public/private application profile and education/profile fields |
-| Supabase public.user_roles and business tables | Application permissions and business roles such as student, teacher, organizer member and admin |
+| Supabase public.user_roles and business tables | Application permissions and business roles such as student, teacher, organizer member and admin; existing enum/table must be preserved |
 | Better Auth-issued access JWT | UUID sub, PostgreSQL role=authenticated, trusted iss, aud, iat, exp, and ES256 kid; no business-role claim |
 
 Do not create Better Auth shadow accounts in auth.users. Supabase Auth may remain enabled internally because Supabase currently cannot disable the Auth service; after cutover, stop using its signup/providers for application login, not assume the service can be switched off.
@@ -52,7 +52,7 @@ A single server-only, idempotent provisioning operation must create the applicat
 2. The Worker calls a protected Supabase provisioning endpoint/RPC using server-held credentials. No service-role key or provisioning secret is placed in the browser.
 3. Within one database transaction, provisioning inserts the private.app_users row, creates the public.profiles row, assigns only the allowed initial basic role in public.user_roles, and creates public.user_settings.
 4. Retry behavior must be safe: a duplicate request for the same UUID returns the already-provisioned identity and must not reset an existing profile, revoke role changes, or overwrite user-edited fields.
-5. Only these account types may be selected at self-registration: student, teacher, and organizer, consistent with the existing trigger. The mapping is student → student, teacher → teacher, and organizer → organizer_member. Never accept admin, super_admin, organizer workspace ownership, or arbitrary role names from user metadata.
+5. Preserve the live `public.app_role` enum and `public.user_roles` table. The current live enum contains `student`, `teacher`, `organizer_member`, and `admin`; do not drop, replace, or narrow it. Only these account types may be selected at public self-registration: student, teacher, and organizer. The server-side mapping is student → student, teacher → teacher, and organizer → organizer_member. Never accept admin, super_admin, organizer workspace ownership, or arbitrary role names from user metadata. Privileged role grants remain protected.
 6. Organizer workspace creation remains a separate protected create_organizer operation after role, verification and uniqueness checks.
 
 The old handle_new_auth_user() currently upserts the profile from raw_user_meta_data, then provisions the basic role and settings. A transition version may create/update private.app_users before those records for legacy Supabase Auth registrations. The Better Auth Worker path must not rely on a trigger on auth.users.
@@ -72,7 +72,7 @@ Replacement behavior:
 3. On Better Auth email verification, call a server-only idempotent event that writes email_verified_at in private.app_users.
 4. Re-run pending referral qualification for that user, preserving the 24-hour limits, earliest eligible activity, row locking, status transitions, reward amount snapshot, unique ledger key, and credit_profile_currency idempotency.
 5. Rewrite verify_pending_referrals() to join private.app_users, not auth.users.
-6. Keep legacy Auth signup/verification behavior working during any approved dual-issuer transition, until old signup is actually disabled at the cutover.
+6. The new registration flow is Better Auth only after Stage 4/7 cutover. Do not create new application accounts through the old Supabase Auth signup path after cutover; existing demo identities are handled in Stage 6, not migrated as credentials.
 
 The current active frontend referral caller does not use the legacy login-time field, so the migration should not add sign-in synchronization as a side effect.
 
@@ -98,7 +98,7 @@ Production currently has 69 validated, non-deferrable FKs across 62 application 
 The eventual migration must:
 
 1. Create private.app_users with id as a UUID primary key and no public API exposure.
-2. Backfill the root with every existing user UUID needed by the application, including its trusted legacy verification projection. This is a metadata copy, not a copy of passwords or sessions.
+2. Backfill identity-only UUID references required by the existing application FK graph before cleanup. For old demo UUIDs, preserve only what is needed to maintain dependent business-row integrity until Stage 6 cleanup; do not import credentials, tokens, sessions, or old login state. New Better Auth registrations write their fresh UUID to the identity root.
 3. Check that there are zero child references without a corresponding identity-root row. Do not delete, null, or invent application rows to make the check pass.
 4. For each of the 69 relationships, add a replacement FK to private.app_users(id) with the exact source column, original MATCH, ON UPDATE, ON DELETE, deferrability and validation state.
 5. Validate the replacement constraints and prove row counts/integrity are unchanged.
@@ -135,7 +135,7 @@ Before adding a Custom OIDC issuer to Supabase, validate the hosted integration 
 
 Supabase's Custom OIDC integration requires an HTTPS issuer with discovery/JWKS, asymmetric signing, kid, and a JWT role claim set to authenticated. Supabase's current Free plan includes 50,000 Third-Party MAUs; stay within this allowance and do not enable paid overage or upgrade.
 
-## Local contract-test evidence
+## Business-role preservation\n\nA live read-only production catalog check confirmed `public.app_role` currently contains `student`, `teacher`, `organizer_member`, and `admin`, and `public.user_roles` remains the business-role authority. Keep all existing role values, role records, admin guards, and role-based RPC/RLS behavior. Do not place business roles in the JWT: its `role` claim remains only `authenticated`. Public signup can provision only `student`, `teacher`, or `organizer_member`; admin is never self-assignable. The first admin bootstrap belongs to Stage 6 and must be protected and auditable.\n\n## Local contract-test evidence
 
 The synthetic fixtures are now exercised by [Supabase Local Auth Claims CI #41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023), which passed **68/68 pgTAP assertions across three files**:
 
