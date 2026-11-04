@@ -23,6 +23,16 @@ See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](../../docs/security/AUTH-NEW-ACCOUNT
 - JWT access tokens live for five minutes. The offline_access scope is intentionally not enabled.
 - Supabase remains the business-data and authorization backend.
 
+## D1 Free-tier quota resilience
+
+D1 is the single Better Auth credential/session store; Supabase is the application data and authorization backend. Do not treat Supabase Auth as an automatic replacement database for Better Auth.
+
+The Worker catches Cloudflare's documented D1 daily rows-read/rows-written quota errors and returns a safe 503 with a stable error code and `Retry-After` until 00:00 UTC (07:00 WIB). It does not expose raw provider errors or redirect to Supabase Auth. Already-issued five-minute access JWTs can continue to access Supabase until they expire; minting a new token still requires the Better Auth/D1 session.
+
+Cloudflare's separate Workers Free 100,000 requests/day cap can return Error 1027 before Worker code runs. This cannot be caught by the Worker. Route fail-open bypasses the Worker to its origin and is not a Supabase Auth fallback; do not enable it for this security-critical Worker.
+
+The D1/Supabase quota/failover policy, monitoring bands and future frontend recovery requirements are documented in [AUTH-D1-QUOTA-RESILIENCE.md](../../docs/security/AUTH-D1-QUOTA-RESILIENCE.md). No second login issuer or credential mirror is enabled.
+
 ## Important safety boundaries
 
 - The D1 ID in wrangler.toml is intentionally a placeholder. The service cannot be deployed until it is replaced with a dedicated, non-production D1 database ID.
