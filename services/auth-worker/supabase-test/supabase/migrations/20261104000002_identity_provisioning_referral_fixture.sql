@@ -12,14 +12,11 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
-create table private.app_users (
-  id uuid primary key,
-  email_verified_at timestamptz,
-  phone_verified_at timestamptz,
-  verified_phone_identity_hash text,
-  created_at timestamptz not null default clock_timestamp(),
-  updated_at timestamptz not null default clock_timestamp()
-);
+alter table private.app_users
+  add column email_verified_at timestamptz,
+  add column phone_verified_at timestamptz,
+  add column verified_phone_identity_hash text,
+  add column updated_at timestamptz not null default clock_timestamp();
 
 create table public.profiles (
   id uuid primary key references private.app_users(id) on delete cascade,
