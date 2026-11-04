@@ -253,8 +253,8 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     cookie = sessionCookie(signIn);
     assert.ok(cookie, "successful sign-in must set the Better Auth session cookie");
     const sessionCookieHeader = getSetCookies(signIn).find((value) => /session_token=/i.test(value)) ?? "";
-    assert.match(sessionCookieHeader, /\\bHttpOnly\\b/i, "session cookie must be HttpOnly");
-    assert.match(sessionCookieHeader, /\\bSecure\\b/i, "session cookie must be Secure");
+    assert.match(sessionCookieHeader, /\bHttpOnly\b/i, "session cookie must be HttpOnly");
+    assert.match(sessionCookieHeader, /\bSecure\b/i, "session cookie must be Secure");
     assert.match(sessionCookieHeader, /SameSite=Lax/i, "session cookie must use SameSite=Lax");
 
     const bootstrap = await fetch(new URL("/_internal/bootstrap-first-party-client", baseUrl), {
