@@ -86,7 +86,7 @@ These are explicit gates, not implied successes.
 
 ## Current Stage 1 checkpoint — 4 November 2026
 
-The latest local CI attempt has verified the TypeScript contracts, security contract tests, and local D1 bootstrap migration. It then failed at the local Worker health check before the generated Better Auth D1 schema could be exported. The CI workflow now prints the complete Wrangler startup log when that health check fails. Do not treat OIDC runtime, PKCE token issuance, or Supabase acceptance as complete until those tests have run successfully.
+The local Worker now starts successfully, `/bootz` and `/healthz` both respond, and the bootstrap-state migration applies to ephemeral D1. OIDC discovery/JWKS checks are in CI but have not yet passed. Schema export revealed that the initial generator assumed a legacy `oauthApplication` table; the generator now checks the actual Better Auth 1.7 OAuth Provider model set (`oauthClient`, `oauthResource`, `oauthClientResource`, token/consent/assertion models) and reports the exact tables present. Dedicated schema-contract tests have been added. The branch also moves the whole Better Auth dependency set to the coordinated 1.7.16 security release after the 3 November 2026 advisory release. The newest CI attempt is validating this package install; do not treat the OAuth/PKCE flow, Supabase acceptance, or session lifecycle as complete until those tests pass.
 
 Remaining gates before this PoC is considered complete:
 
