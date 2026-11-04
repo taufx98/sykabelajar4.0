@@ -13,7 +13,22 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
+      PROFILE_SECURITY_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       TARGET_SUPABASE_URL: https://mvdczyitbkxkldjughor.supabase.co
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
@@ -86,6 +101,14 @@ jobs:
 
       - name: Profile managed-fields security contract tests
         run: npm run test:profile-managed-fields-contract
+
+      - name: Install PostgreSQL client for isolated security tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Profile managed-fields PostgreSQL integration tests
+        run: npm run test:profile-managed-fields-integration
 
       - name: Lint
         run: npm run lint
