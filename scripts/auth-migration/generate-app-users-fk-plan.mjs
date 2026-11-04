@@ -132,7 +132,38 @@ export function generatePlan(snapshot) {
   ) THEN
     RAISE EXCEPTION 'IDENTITY_ROOT_MISSING_LEGACY_USERS';
   END IF;`,
-    ...records.map(orphanCheck),
+    ...records.flatMap((fk, index) => {
+      const rel = quoteLiteral(fk.source_schema + "." + fk.source_table);
+      const tempName = temporaryName(fk, index);
+      const deleteCode = { CASCADE: "c", "SET NULL": "n", "NO ACTION": "a", RESTRICT: "r", "SET DEFAULT": "d" }[fk.on_delete];
+      const sourceColumn = quoteLiteral(fk.source_columns[0]);
+      return [
+        `  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint AS c
+    WHERE c.conrelid = ${rel}::regclass
+      AND c.conname = ${quoteLiteral(fk.name)}
+      AND c.contype = 'f'
+      AND c.confrelid = 'auth.users'::regclass
+      AND c.conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = ${rel}::regclass AND attname = ${sourceColumn})]::smallint[]
+      AND c.confkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'auth.users'::regclass AND attname = 'id')]::smallint[]
+      AND c.confmatchtype = 's'
+      AND c.confupdtype = 'a'
+      AND c.confdeltype = '${deleteCode}'
+      AND NOT c.condeferrable
+      AND NOT c.condeferred
+      AND c.convalidated
+  ) THEN
+    RAISE EXCEPTION ${quoteLiteral("LIVE_FK_DRIFT: " + fk.name)};
+  END IF;`,
+        `  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = ${rel}::regclass AND conname = ${quoteLiteral(tempName)}
+  ) THEN
+    RAISE EXCEPTION ${quoteLiteral("TEMP_FK_NAME_COLLISION: " + tempName)};
+  END IF;`,
+        orphanCheck(fk),
+      ];
+    }),
   ];
 
   const expandStatements = records.map((fk, index) => {
@@ -158,18 +189,28 @@ ALTER TABLE ${relation(fk)}
 
   const cutoverGuards = records.map((fk, index) => {
     const newName = temporaryName(fk, index);
+    const rel = quoteLiteral(fk.source_schema + "." + fk.source_table);
+    const deleteCode = { CASCADE: "c", "SET NULL": "n", "NO ACTION": "a", RESTRICT: "r", "SET DEFAULT": "d" }[fk.on_delete];
     return `  IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = ${quoteLiteral(relation(fk).replaceAll('"', ''))}::regclass
+    WHERE conrelid = ${rel}::regclass
       AND conname = ${quoteLiteral(newName)}
+      AND contype = 'f'
+      AND confrelid = 'private.app_users'::regclass
+      AND confmatchtype = 's'
+      AND confupdtype = 'a'
+      AND confdeltype = '${deleteCode}'
+      AND NOT condeferrable
+      AND NOT condeferred
       AND convalidated
   ) THEN
-    RAISE EXCEPTION ${quoteLiteral("REPLACEMENT_FK_NOT_VALIDATED: " + newName)};
+    RAISE EXCEPTION ${quoteLiteral("REPLACEMENT_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED: " + newName)};
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = ${quoteLiteral(relation(fk).replaceAll('"', ''))}::regclass
+    WHERE conrelid = ${rel}::regclass
       AND conname = ${quoteLiteral(fk.name)}
+      AND confrelid = 'auth.users'::regclass
   ) THEN
     RAISE EXCEPTION ${quoteLiteral("LEGACY_FK_MISSING: " + fk.name)};
   END IF;`;
