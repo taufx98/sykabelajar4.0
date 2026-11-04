@@ -316,6 +316,16 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.ok(verifiedJwt.protectedHeader.kid, "access token must contain a key ID");
     assert.equal(verifiedJwt.payload.sub, signupData.user.id, "JWT subject must be the Better Auth UUID");
     assert.equal(verifiedJwt.payload.role, "authenticated", "JWT role must be the PostgreSQL authenticated role");
+
+    assert.ok(tokens.id_token, "openid scope must return an OIDC ID token");
+    const verifiedIdToken = await jwtVerify(tokens.id_token, remoteJwks, {
+      issuer: discovery.issuer,
+      audience: bootstrapData.client_id,
+    });
+    assert.equal(verifiedIdToken.protectedHeader.alg, "ES256", "ID token must be signed using ES256");
+    assert.equal(verifiedIdToken.payload.sub, signupData.user.id, "ID token subject must match the Better Auth UUID");
+    assert.equal(verifiedIdToken.payload.nonce, authorization.nonce, "ID token nonce must match the original authorization request");
+
     assert.ok(
       Number.isInteger(verifiedJwt.payload.exp) &&
       Number.isInteger(verifiedJwt.payload.iat) &&
