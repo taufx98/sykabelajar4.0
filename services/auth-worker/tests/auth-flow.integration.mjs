@@ -353,6 +353,23 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(userInfoData.email, email);
     assert.equal(userInfoData.email_verified, true);
 
+    // One reset request was already made earlier in this test. The custom
+    // limit is three requests/hour, so the third additional attempt must be
+    // rejected without sending another reset email.
+    const additionalResetStatuses = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const limitedReset = await authRequest("/request-password-reset", {
+        method: "POST",
+        body: { email, redirectTo: appOrigin + "/auth/reset-password" },
+      });
+      additionalResetStatuses.push(limitedReset.status);
+    }
+    assert.ok(
+      additionalResetStatuses.includes(429),
+      "password-reset requests must be rate-limited on the real Better Auth endpoint; got " +
+        additionalResetStatuses.join(", "),
+    );
+
     const signOut = await authRequest("/sign-out", { method: "POST", body: {}, cookie });
     const signOutBody = await signOut.clone().text();
     assert.ok(
