@@ -6,6 +6,7 @@ import {
   createCorsHeaders,
   timingSafeEqualString,
 } from "./security.mjs";
+import { createD1QuotaResponse } from "./d1-quota.mjs";
 
 const authInstances = new WeakMap<object, ReturnType<typeof createAuth>>();
 
@@ -238,7 +239,11 @@ export default {
     try {
       const response = await getAuth(env).handler(request);
       return applyResponseHeaders(response, corsHeaders);
-    } catch {
+    } catch (error) {
+      const quotaResponse = createD1QuotaResponse(error);
+      if (quotaResponse) {
+        return applyResponseHeaders(quotaResponse, corsHeaders);
+      }
       return applyResponseHeaders(json({ error: "AUTH_SERVICE_UNAVAILABLE" }, 503), corsHeaders);
     }
   },
