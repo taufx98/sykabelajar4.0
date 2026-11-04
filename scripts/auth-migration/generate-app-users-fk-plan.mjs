@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -169,7 +169,6 @@ export function generatePlan(snapshot) {
   const expandStatements = records.map((fk, index) => {
     const newName = temporaryName(fk, index);
     const column = quoteIdentifier(fk.source_columns[0], "source_column");
-    const oldName = quoteIdentifier(fk.name, "constraint_name");
     const newNameSql = quoteIdentifier(newName, "temporary_constraint_name");
     return `-- ${fk.source_schema}.${fk.source_table}.${fk.source_columns[0]} (${fk.on_delete})
 ALTER TABLE ${relation(fk)}
@@ -255,14 +254,19 @@ async function main() {
     return;
   }
 
+  if (!path.isAbsolute(args.outDir)) {
+    throw new Error("--out-dir must be an absolute path outside the Git repository");
+  }
   const catalogPath = path.resolve(args.catalog);
   const outDir = path.resolve(args.outDir);
   const relativeToRepo = path.relative(repoRoot, outDir);
-  if (!path.isAbsolute(outDir) || (!relativeToRepo.startsWith("..") && relativeToRepo !== "")) {
+  const isInsideRepo = relativeToRepo === "" ||
+    (!path.isAbsolute(relativeToRepo) && relativeToRepo !== ".." && !relativeToRepo.startsWith(".." + path.sep));
+  if (isInsideRepo) {
     throw new Error("Output directory must be outside the Git repository");
   }
 
-  const snapshot = JSON.parse((await import("node:fs")).readFileSync(catalogPath, "utf8"));
+  const snapshot = JSON.parse(readFileSync(catalogPath, "utf8"));
   const plan = generatePlan(snapshot);
   mkdirSync(outDir, { recursive: true });
   for (const [filename, sql] of Object.entries(plan)) {
