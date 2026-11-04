@@ -1,5 +1,6 @@
 # Copy to .dev.vars for local-only testing. Never commit real credentials.
 BETTER_AUTH_URL=http://localhost:8787
+SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id
 BETTER_AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters
 DEV_APP_ORIGIN=http://localhost:5173
 D1_SCHEMA_BOOTSTRAP_TOKEN=replace-with-another-random-secret-at-least-32-characters
