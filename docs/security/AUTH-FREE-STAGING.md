@@ -14,7 +14,7 @@ The migration must stay on free infrastructure while SYKABELAJAR is in its testi
 
 ## Current account constraint
 
-The Supabase account connected to this work currently lists the production project \`sykabelajar_db2\`. A separate Free project was considered because it would be useful for Custom OIDC acceptance. The project creation quote for the listed organization was USD $0/month, but Supabase rejected creation because the owner had reached the limit of two active Free projects. No new project was created, and no existing project was paused, deleted, or upgraded.
+The Supabase account connected to this work currently lists the production project `sykabelajar_db2`. A separate Free project was considered because it would be useful for Custom OIDC acceptance. The project creation quote for the listed organization was USD $0/month, but Supabase rejected creation because the owner had reached the limit of two active Free projects. No new project was created, and no existing project was paused, deleted, or upgraded.
 
 The paid Supabase Branch option quoted earlier at USD $0.01344/hour is not approved and must not be created.
 
@@ -25,14 +25,14 @@ The paid Supabase Branch option quoted earlier at USD $0.01344/hour is not appro
 | Better Auth Worker | Wrangler local mode in GitHub Actions or a developer machine | Worker routes, cookies, Origin checks, session lifecycle, OIDC discovery, JWT signing, JWKS, OAuth + PKCE contracts | Does not validate a deployed hostname, external email delivery, or provider callbacks at a real domain |
 | Better Auth database | Wrangler/Miniflare local D1 | D1 schema, migrations, indexes, constraints, bootstrap and auth-flow behavior | No remote D1 database has been created |
 | Supabase PostgreSQL | Supabase CLI + Docker local stack | PostgreSQL functions, triggers, schema constraints, RLS behavior, pgTAP tests and application JWT claim simulation | Existing repository migrations are not a verified full schema bootstrap; a sanitized baseline or focused fixture is required first |
-| Supabase Custom OIDC | A separate Supabase Free project, only after a Free slot is available | Real issuer/JWKS discovery, Supabase JWT acceptance/rejection, \`auth.uid()\`, Data API, Storage, Realtime and Edge Functions | Supabase CLI does not configure Custom OIDC; hosted acceptance is currently blocked by the Free-project limit |
+| Supabase Custom OIDC | A separate Supabase Free project, only after a Free slot is available | Real issuer/JWKS discovery, Supabase JWT acceptance/rejection, `auth.uid()`, Data API, Storage, Realtime and Edge Functions | Supabase CLI does not configure Custom OIDC; hosted acceptance is currently blocked by the Free-project limit |
 | CI | GitHub Actions for this public repository | Repeatable local checks without paid Supabase compute | Keep jobs bounded; never deploy from pull-request validation |
 
 ## Supabase local testing
 
 Use the CLI against a local Docker-backed stack. Do not link this checkout to production for test execution.
 
-\`\`\`bash
+```bash
 # From the repository root
 supabase --help
 supabase start
@@ -44,13 +44,13 @@ supabase test db --local
 
 # Stop local containers when finished
 supabase stop
-\`\`\`
+```
 
-Always use explicit \`--local\` on database reset and test commands. Do not run \`db reset --linked\`, \`db push --linked\`, or a command with a production connection string during staging work.
+Always use explicit `--local` on database reset and test commands. Do not run `db reset --linked`, `db push --linked`, or a command with a production connection string during staging work.
 
 ### Existing migration-history warning
 
-The current \`supabase/migrations\` folder contains incremental feature migrations. It is not yet proven to recreate the entire application database from an empty local Supabase instance. The early files include repeated date-only prefixes (for example, several \`20260828_*\` and \`20260829_*\` files), and the early feature migrations refer to existing objects such as \`organizers\` and \`auth.users\`.
+The current `supabase/migrations` folder contains incremental feature migrations. It is not yet proven to recreate the entire application database from an empty local Supabase instance. The early files include repeated date-only prefixes (for example, several `20260828_*` and `20260829_*` files), and the early feature migrations refer to existing objects such as `organizers` and `auth.users`.
 
 Do not rename the historical migration files or run a full blank replay just to make the CLI pass. Before Stage 3 integration testing, prepare a reviewed, sanitized schema-only baseline or a purpose-built fixture for the specific identity objects and dependent tables under test. Keep production row data out of that baseline. Validate the fixture and its assumptions before using it to approve any production migration.
 
@@ -80,7 +80,7 @@ The Supabase Custom OIDC setup itself must be verified against a hosted Supabase
 
 ## Cloudflare local testing
 
-The current Auth Worker workflow runs Wrangler in local mode and applies D1 migrations to a local D1 database. Keep the D1 database ID in \`wrangler.toml\` as a non-deployable placeholder until a dedicated remote resource is verified to fit the Cloudflare Free quota.
+The current Auth Worker workflow runs Wrangler in local mode and applies D1 migrations to a local D1 database. Keep the D1 database ID in `wrangler.toml` as a non-deployable placeholder until a dedicated remote resource is verified to fit the Cloudflare Free quota.
 
 No remote Worker/D1 deployment is required to continue local code and protocol work. If a future remote test deployment exceeds free quotas or requests a paid feature, stop and retain local testing.
 
