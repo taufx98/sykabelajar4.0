@@ -1,0 +1,301 @@
+\set ON_ERROR_STOP on
+BEGIN;
+
+-- Disposable PostgreSQL 17 integration fixture. It models the profile/RLS
+-- boundary used by the migration without connecting to production.
+
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE ROLE service_role NOLOGIN BYPASSRLS;
+
+CREATE SCHEMA auth;
+CREATE SCHEMA private;
+GRANT USAGE ON SCHEMA public, auth, private TO anon, authenticated, service_role;
+
+CREATE FUNCTION auth.jwt()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+AS $function$
+  SELECT coalesce(
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb,
+    '{}'::jsonb
+  );
+$function$;
+
+CREATE FUNCTION auth.uid()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $function$
+  SELECT nullif(auth.jwt() ->> 'sub', '')::uuid;
+$function$;
+
+CREATE TABLE public.profile_test_admins (user_id uuid PRIMARY KEY);
+
+CREATE FUNCTION private.current_user_is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profile_test_admins a
+    WHERE a.user_id = (SELECT auth.uid())
+  );
+$function$;
+
+CREATE TABLE public.profiles (
+  id uuid PRIMARY KEY,
+  status text NOT NULL,
+  verification_type text NOT NULL,
+  school_id uuid,
+  created_at timestamptz NOT NULL,
+  last_name_change timestamptz,
+  full_name text NOT NULL,
+  bio text,
+  is_public boolean NOT NULL DEFAULT false
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY profiles_public_read
+ON public.profiles
+FOR SELECT
+TO anon, authenticated
+USING (is_public OR (SELECT auth.uid()) = id);
+
+CREATE POLICY profiles_self_update
+ON public.profiles
+FOR UPDATE
+TO authenticated
+USING ((SELECT auth.uid()) = id)
+WITH CHECK ((SELECT auth.uid()) = id);
+
+-- Start broad: the migration must remove excessive client grants.
+GRANT ALL ON TABLE public.profiles TO anon, authenticated, service_role;
+
+INSERT INTO public.profiles
+  (id, status, verification_type, school_id, created_at, last_name_change, full_name, bio, is_public)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'ACTIVE', 'NONE',
+   '10000000-0000-0000-0000-000000000001', clock_timestamp() - interval '1 day',
+   clock_timestamp() - interval '2 days', 'Student A', 'Original A', false),
+  ('00000000-0000-0000-0000-000000000002', 'ACTIVE', 'NONE',
+   '10000000-0000-0000-0000-000000000002', clock_timestamp() - interval '1 day',
+   null, 'Student B', 'Private B', false),
+  ('00000000-0000-0000-0000-000000000003', 'ACTIVE', 'NONE',
+   null, clock_timestamp() - interval '1 day', null, 'Admin A', 'Admin', false);
+
+INSERT INTO public.profile_test_admins (user_id)
+VALUES ('00000000-0000-0000-0000-000000000003');
+
+\ir ../supabase/migrations/20261104040000_profile_managed_fields_guard.sql
+
+DO $test$
+BEGIN
+  IF NOT has_table_privilege('anon', 'public.profiles', 'SELECT')
+     OR has_table_privilege('anon', 'public.profiles', 'INSERT')
+     OR has_table_privilege('anon', 'public.profiles', 'UPDATE')
+     OR has_table_privilege('anon', 'public.profiles', 'DELETE')
+     OR has_table_privilege('anon', 'public.profiles', 'TRUNCATE')
+     OR has_table_privilege('anon', 'public.profiles', 'REFERENCES')
+     OR has_table_privilege('anon', 'public.profiles', 'TRIGGER') THEN
+    RAISE EXCEPTION 'TEST_FAILED: anon must be read-only on profiles';
+  END IF;
+
+  IF NOT has_table_privilege('authenticated', 'public.profiles', 'SELECT')
+     OR NOT has_table_privilege('authenticated', 'public.profiles', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.profiles', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.profiles', 'DELETE')
+     OR has_table_privilege('authenticated', 'public.profiles', 'TRUNCATE')
+     OR has_table_privilege('authenticated', 'public.profiles', 'REFERENCES')
+     OR has_table_privilege('authenticated', 'public.profiles', 'TRIGGER') THEN
+    RAISE EXCEPTION 'TEST_FAILED: authenticated must retain only SELECT and UPDATE';
+  END IF;
+
+  IF NOT has_table_privilege('service_role', 'public.profiles', 'UPDATE')
+     OR NOT has_table_privilege('service_role', 'public.profiles', 'INSERT') THEN
+    RAISE EXCEPTION 'TEST_FAILED: service_role privileges must remain intact';
+  END IF;
+END;
+$test$;
+
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+DO $test$
+DECLARE v_count integer;
+BEGIN
+  SELECT count(*) INTO v_count FROM public.profiles;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAILED: anonymous users must not see private profiles';
+  END IF;
+END;
+$test$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+DO $test$
+DECLARE
+  v_count integer;
+  v_rows integer;
+BEGIN
+  SELECT count(*) INTO v_count FROM public.profiles;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'TEST_FAILED: User A should see only their own private profile';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.profiles
+  WHERE id = '00000000-0000-0000-0000-000000000002';
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAILED: User A must not read User B profile';
+  END IF;
+
+  UPDATE public.profiles SET bio = 'Allowed self edit' WHERE id = auth.uid();
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'TEST_FAILED: ordinary self profile update should work';
+  END IF;
+
+  UPDATE public.profiles
+  SET bio = 'Attempted cross-user edit'
+  WHERE id = '00000000-0000-0000-0000-000000000002';
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAILED: User A must not update User B profile';
+  END IF;
+END;
+$test$;
+
+DO $test$
+BEGIN
+  BEGIN
+    UPDATE public.profiles SET status = 'SUSPENDED' WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST_FAILED: status update unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'PROFILE_FIELD_MANAGED_BY_BACKEND' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    UPDATE public.profiles SET verification_type = 'VERIFIED' WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST_FAILED: verification_type update unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'PROFILE_FIELD_MANAGED_BY_BACKEND' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    UPDATE public.profiles
+    SET school_id = '10000000-0000-0000-0000-000000000099'
+    WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST_FAILED: school_id update unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'PROFILE_FIELD_MANAGED_BY_BACKEND' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    UPDATE public.profiles SET created_at = clock_timestamp() WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST_FAILED: created_at update unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'PROFILE_FIELD_MANAGED_BY_BACKEND' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    UPDATE public.profiles
+    SET id = '00000000-0000-0000-0000-000000000002'
+    WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST_FAILED: id update unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'PROFILE_FIELD_MANAGED_BY_BACKEND' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    UPDATE public.profiles
+    SET last_name_change = clock_timestamp() - interval '100 days'
+    WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST_FAILED: independent cooldown timestamp update unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'PROFILE_NAME_CHANGE_TIMESTAMP_MANAGED_BY_BACKEND' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    UPDATE public.profiles
+    SET full_name = 'Too Soon',
+        last_name_change = clock_timestamp() - interval '100 days'
+    WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST_FAILED: display name cooldown was bypassed';
+  EXCEPTION WHEN SQLSTATE 'P0001' THEN
+    IF SQLERRM <> 'PROFILE_NAME_CHANGE_COOLDOWN' THEN RAISE; END IF;
+  END;
+END;
+$test$;
+RESET ROLE;
+
+UPDATE public.profiles
+SET last_name_change = clock_timestamp() - interval '8 days'
+WHERE id = '00000000-0000-0000-0000-000000000001';
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+DO $test$
+DECLARE v_last_name_change timestamptz;
+BEGIN
+  UPDATE public.profiles
+  SET full_name = 'Allowed Rename',
+      last_name_change = '2000-01-01 00:00:00+00'
+  WHERE id = auth.uid();
+
+  SELECT last_name_change INTO v_last_name_change
+  FROM public.profiles
+  WHERE id = auth.uid();
+
+  IF v_last_name_change < statement_timestamp() - interval '1 minute' THEN
+    RAISE EXCEPTION 'TEST_FAILED: database did not replace the client timestamp';
+  END IF;
+END;
+$test$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  true
+);
+DO $test$
+BEGIN
+  UPDATE public.profiles
+  SET status = 'SUSPENDED',
+      verification_type = 'ADMIN_VERIFIED',
+      school_id = '10000000-0000-0000-0000-000000000003'
+  WHERE id = auth.uid();
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'TEST_FAILED: authorized admin profile update should work';
+  END IF;
+END;
+$test$;
+RESET ROLE;
+
+SET LOCAL ROLE service_role;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000001","role":"service_role"}',
+  true
+);
+UPDATE public.profiles
+SET status = 'SERVICE_UPDATED'
+WHERE id = '00000000-0000-0000-0000-000000000001';
+RESET ROLE;
+
+ROLLBACK;
