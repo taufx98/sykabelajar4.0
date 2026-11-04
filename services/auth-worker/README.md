@@ -66,11 +66,11 @@ A complete PoC test must verify:
 - OIDC discovery issuer exactly matches the issuer that will be configured in Supabase.
 - Discovery jwks_uri returns a usable ES256 public key set with kid.
 - Authorization Code + PKCE S256 works for the migration-seeded first-party public client, and an authorization request without PKCE is rejected.
-- Access token contains the Better Auth UUID `sub`, expected `iss`, expected resource `aud`, `role=authenticated`, and `exp` no more than five minutes after `iat`.
-- Missing-PKCE requests, wrong-audience tokens, and wrong-signature tokens are rejected. Wrong-issuer and expired-token negative cases remain additional test targets.
+- Access token contains the Better Auth UUID `sub`, expected `iss`, resource `aud`, `role=authenticated`, and `exp` no more than five minutes after `iat`. The OIDC ID token is separately signed with ES256, uses the first-party client ID as its audience, and carries the exact authorization-request `nonce`.
+- Missing-PKCE requests and wrong-audience, wrong-issuer, expired, and modified-signature access tokens are rejected.
 - Google sign-in rejects unverified email identities.
 - Same-email Google sign-in does not implicitly attach to an existing password account.
-- Session revoke/logout prevents further refresh or authorization; an already issued JWT is never accepted beyond its five-minute lifetime.
+- Session revoke/logout blocks further session-bound refresh and UserInfo access. A JWT already issued for Supabase Data API access remains cryptographically valid until its five-minute expiry, so logout does not imply instant revocation at Supabase.
 - CORS preflight succeeds only for exact allowlisted origins and never uses Access-Control-Allow-Origin: * with credentials.
 - The two-user Supabase IDOR matrix is tested before any frontend migration.
 
@@ -87,16 +87,26 @@ These are explicit gates, not implied successes.
 
 ## Current Stage 1 checkpoint — 4 November 2026
 
-CI run #112 completed successfully, and run #113 repeated the full pipeline after switching installation to the committed lockfile via `npm ci`. The dependency audit reported zero vulnerabilities; TypeScript, nine security/schema contract tests, all local D1 migrations, OIDC discovery/JWKS ES256, the full email/session/OAuth integration test, and Wrangler dry-run bundle passed.
+CI run #119 completed successfully using the committed lockfile with `npm ci`. The audit reported zero vulnerabilities. TypeScript, nine security/schema contract tests, local D1 migrations, OIDC discovery/JWKS ES256, the full email/session/OAuth integration suite, and the Wrangler dry-run bundle all passed.
 
-The generated schema migration contains 13 expected Better Auth/OAuth tables and 31 DDL statements, excluding Cloudflare/Wrangler/internal Worker tables. The exact `package-lock.json` and reviewed `0001_better_auth.sql` are committed to this PR. Migration `0002_seed_first_party_oauth_client.sql` provisions the fixed public client/resource with no secret, exact HTTPS callback and mandatory PKCE. Its internal verification endpoint performs reads only.
+The generated `0001_better_auth.sql` contains 13 Better Auth/OAuth tables and 31 DDL statements, excluding Cloudflare, Wrangler, and private Worker tables. The reviewed schema and exact `package-lock.json` are committed to this PR. Migration `0002_seed_first_party_oauth_client.sql` provisions one public client/resource with no client secret, exact HTTPS callback, Authorization Code grant only, and mandatory PKCE. The internal bootstrap endpoint only verifies the migrated rows.
 
-The local integration test exercises email verification and password reset through a mock webhook, UUID identity/session persistence, logout, first-party client seed validation, OIDC Authorization Code + PKCE S256, ES256 JWT verification through JWKS, `sub`, `role=authenticated`, audience and five-minute expiry, wrong-audience/wrong-signature rejection, and UserInfo rejection after logout. This establishes a passing local proof of concept—not yet external Google, production mail, Supabase staging, or live Cloudflare deployment acceptance.
+The local integration suite now covers:
+- Email/password sign-up, verification, login, password reset, session lookup, and logout using a local mock email webhook.
+- The real `/request-password-reset` rate-limit rule (three requests per hour); further attempts are rejected with HTTP 429.
+- OAuth Authorization Code + PKCE S256, including rejection when PKCE is omitted.
+- ES256 access-token verification through JWKS, UUID `sub`, resource `aud`, `role=authenticated`, and a maximum five-minute lifetime.
+- OIDC ID-token ES256 signature, client-ID audience, and exact nonce validation.
+- Rejection of wrong issuer, wrong audience, expired access token, and modified signature.
+- Valid UserInfo before logout and UserInfo rejection after the Better Auth session has been revoked.
 
-Remaining gates before Stage 1 is considered complete:
+This establishes a passing **local proof of concept**, not production readiness. A Supabase Data API JWT that was issued before logout can remain cryptographically valid until its five-minute expiry; the application must not treat session logout as instant revocation at Supabase.
 
-- Test Google OAuth with isolated Google client credentials and verify unverified-email/explicit-linking behavior.
+Remaining Stage 1 gates:
+- Test Google OAuth with isolated Google credentials, including verified-email enforcement and explicit account-linking behavior.
 - Configure a real email provider/webhook and verify delivery, verification links, and password resets.
-- Verify Supabase Custom OIDC and token acceptance in a dedicated non-production Supabase environment.
-- Test wrong-issuer and expired-token rejection, then run two-user Supabase IDOR tests before Stage 2.
-- Keep the PR draft; do not merge or deploy until these external security gates pass.
+- Create an isolated, non-production Supabase staging environment and verify Custom OIDC token acceptance and RLS identity mapping.
+- Run two-user Supabase IDOR tests before Stage 2.
+- Provision a dedicated Cloudflare D1 resource, deploy only to staging, and validate the real Worker domain before any production cutover.
+
+PR #177 remains a draft. No Cloudflare deployment, Supabase schema/configuration change, frontend auth replacement, or production account change has been performed.
