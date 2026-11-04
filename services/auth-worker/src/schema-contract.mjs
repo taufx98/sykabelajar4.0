@@ -14,6 +14,7 @@ const REQUIRED_BETTER_AUTH_MODELS = [
   "oauthClientAssertion",
 ];
 
+/** @param {string} value @returns {string} */
 function normalizeModelName(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -23,6 +24,7 @@ function normalizeModelName(value) {
  * Both Better Auth camelCase names and adapter-generated snake_case names
  * are accepted, but partial/legacy names are never treated as a match.
  */
+/** @param {string[]} tableNames @returns {string[]} */
 export function getMissingBetterAuthTables(tableNames) {
   const existing = new Set(
     (Array.isArray(tableNames) ? tableNames : []).map(normalizeModelName),
