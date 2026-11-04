@@ -108,6 +108,25 @@ The eventual migration must:
 
 The current synthetic local test verifies the metadata-reconstruction idea and delete behavior for the four FK actions. The exact production mapping is recorded in [AUTH-FOREIGN-KEY-CATALOG.md](AUTH-FOREIGN-KEY-CATALOG.md). A no-data schema export helper and runbook are available at [AUTH-SCHEMA-BASELINE-RUNBOOK.md](AUTH-SCHEMA-BASELINE-RUNBOOK.md); the export still needs to be run on the owner's trusted machine. The fixture test is not the actual 69-FK migration, and it does not replace full-schema tests or a migration review.
 
+### Live catalog and review-only FK plan generator
+
+A fresh read-only catalog query against production on 4 November 2026 confirmed the same 69 constraints and action distribution. The sanitized catalog snapshot is committed at [live-auth-users-fk-catalog.json](../../scripts/auth-migration/live-auth-users-fk-catalog.json); it contains table/column/constraint metadata only, no user rows or UUIDs.
+
+The plan generator at [generate-app-users-fk-plan.mjs](../../scripts/auth-migration/generate-app-users-fk-plan.mjs) validates the snapshot and emits three SQL files outside the repository:
+
+```sh
+node scripts/auth-migration/generate-app-users-fk-plan.mjs \\
+  --catalog scripts/auth-migration/live-auth-users-fk-catalog.json \\
+  --out-dir /tmp/sykabelajar-auth-fk-plan
+```
+
+- `01-preflight-expand.sql`: verifies the identity root contains every legacy Auth UUID, checks for orphaned child references, verifies the live FK catalog still matches the snapshot, and adds the 69 replacement constraints as `NOT VALID`.
+- `02-validate.sql`: validates each replacement constraint.
+- `03-cutover.sql`: checks that replacement constraints are validated and retain the expected semantics, then drops the old `auth.users` constraints and renames replacements to the original names.
+
+This is a **SQL generator only**. It has no database connection and never executes SQL. Its output is not yet an approved migration: it assumes `private.app_users` has already been created and backfilled, and must not be run until the complete local schema baseline, issuer/phone-verification gates, hosted OIDC acceptance and rollback review are complete. The CI contract checks all 69 entries, all four delete actions, catalog drift guards, the three phase outputs, and absence of application DML in generated SQL.
+
+
 ## 7. RLS and issuer separation
 
 Do not mass-rewrite the 109 policies and 188 functions that use auth.uid(). With a UUID sub, auth.uid() should continue to resolve the application identity. The local fixture proves the base Postgres JWT claim mapping and a two-user ownership policy only.
