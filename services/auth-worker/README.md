@@ -2,6 +2,18 @@
 
 This service is deliberately isolated from the production frontend and database. It is not a production deployment.
 
+## New-account and role contract
+
+- Existing Supabase Auth users in this migration are demo/testing accounts. Their password hashes, credentials, OAuth tokens and sessions are not imported into D1. There is no legacy password bridge.
+- New users receive a fresh UUID from Better Auth. That exact UUID will be provisioned to `private.app_users.id` and emitted as JWT `sub`.
+- The JWT `role` claim is always PostgreSQL `authenticated`. It is never an application role.
+- SYKABELAJAR business roles remain in the existing Supabase `public.user_roles` table and `public.app_role` enum. The live catalog currently contains `student`, `teacher`, `organizer_member`, and `admin`; preserve these and future protected additions.
+- Public signup may request only `student`, `teacher`, or `organizer`, mapped server-side to `student`, `teacher`, and `organizer_member`. Admin cannot be self-registered and must be granted through a protected, auditable process.
+- Provisioning retries must not overwrite existing profile edits or reactivate disabled roles.
+- The current isolated Worker POC does not yet perform the production Supabase provisioning call. That integration is a later Stage 3/5 deliverable and must be completed before the new login can serve the application.
+
+See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](../../docs/security/AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md).
+
 ## Responsibilities
 
 - Better Auth owns account credentials, Google identity, email verification, password recovery, and server-side sessions.
