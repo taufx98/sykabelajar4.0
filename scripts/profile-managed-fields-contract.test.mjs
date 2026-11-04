@@ -85,6 +85,8 @@ test('isolated PostgreSQL integration tests execute the migration and exercise c
     'PROFILE_NAME_CHANGE_TIMESTAMP_MANAGED_BY_BACKEND',
     'public.user_roles',
     'profile_test_admin_update',
+    'is_active = false',
+    'DISABLED_ADMIN_FORGED',
     'has_table_privilege',
     'Attempted cross-user edit',
   ]) {
