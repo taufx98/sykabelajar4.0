@@ -4,8 +4,8 @@
 create extension if not exists pgtap with schema extensions;
 
 create schema if not exists private;
-revoke all on schema private from public, anon, authenticated;
-grant usage on schema private to service_role;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated, service_role;
 
 do $$ begin
   create type public.app_role as enum ('student', 'teacher', 'organizer_member', 'admin');
@@ -109,10 +109,16 @@ alter table public.daily_checkins enable row level security;
 alter table private.app_users enable row level security;
 alter table private.referral_program_settings enable row level security;
 
-revoke all on all tables in schema public from public, anon, authenticated;
-revoke all on all tables in schema private from public, anon, authenticated;
-grant all on all tables in schema public to service_role;
-grant all on all tables in schema private to service_role;
+revoke all on table public.profiles, public.user_roles, public.user_settings,
+  public.referral_codes, public.referral_events, public.edu_coin_ledger,
+  public.daily_checkins from public, anon, authenticated;
+revoke all on table private.app_users, private.referral_program_settings
+  from public, anon, authenticated;
+grant all on table public.profiles, public.user_roles, public.user_settings,
+  public.referral_codes, public.referral_events, public.edu_coin_ledger,
+  public.daily_checkins to service_role;
+grant all on table private.app_users, private.referral_program_settings
+  to service_role;
 
 create or replace function private.credit_profile_currency(
   p_user_id uuid, p_currency text, p_amount numeric
