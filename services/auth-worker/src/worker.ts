@@ -169,6 +169,7 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
           token_endpoint_auth_method: "none",
           grant_types: ["authorization_code"],
           response_types: ["code"],
+          require_pkce: true,
           scope: "openid profile email",
           resources: [env.SUPABASE_RESOURCE_AUDIENCE],
           client_secret_expires_at: 0,
