@@ -32,10 +32,10 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: services/auth-worker/package.json
+          cache-dependency-path: services/auth-worker/package-lock.json
 
       - name: Install pinned direct dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Check dependency advisories
         run: npm audit --audit-level=high
