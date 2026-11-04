@@ -78,6 +78,10 @@ CREATE TABLE public.profiles (
   last_name_change timestamptz,
   full_name text NOT NULL,
   bio text,
+  institution text,
+  grade text,
+  birth_date date,
+  subjects text,
   is_public boolean NOT NULL DEFAULT false
 );
 
@@ -305,9 +309,27 @@ BEGIN
     RAISE EXCEPTION 'TEST_FAILED: User A must not read User B profile';
   END IF;
 
-  UPDATE public.profiles SET bio = 'Allowed self edit' WHERE id = auth.uid();
+  UPDATE public.profiles
+  SET bio = 'Allowed self edit',
+      institution = 'SMA Contoh',
+      grade = 'SMA 1',
+      birth_date = DATE '2009-01-01',
+      subjects = 'math,science'
+  WHERE id = auth.uid();
   IF NOT FOUND THEN
     RAISE EXCEPTION 'TEST_FAILED: ordinary self profile update should work';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+      AND bio = 'Allowed self edit'
+      AND institution = 'SMA Contoh'
+      AND grade = 'SMA 1'
+      AND birth_date = DATE '2009-01-01'
+      AND subjects = 'math,science'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAILED: normal Edit Profile fields must remain editable';
   END IF;
 
   UPDATE public.profiles
