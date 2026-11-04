@@ -38,6 +38,18 @@ jobs:
           bash -n ../../../scripts/auth-migration/export-schema-baseline.sh
           node ../../../scripts/auth-migration/export-schema-baseline.contract.test.mjs
 
+      - name: Validate live identity FK snapshot and dry-run plan generator
+        run: |
+          node ../../../scripts/auth-migration/generate-app-users-fk-plan.test.mjs
+          PLAN_DIR="$(mktemp -d)"
+          trap 'rm -rf "$PLAN_DIR"' EXIT
+          node ../../../scripts/auth-migration/generate-app-users-fk-plan.mjs \
+            --catalog ../../../scripts/auth-migration/live-auth-users-fk-catalog.json \
+            --out-dir "$PLAN_DIR"
+          test -s "$PLAN_DIR/01-preflight-expand.sql"
+          test -s "$PLAN_DIR/02-validate.sql"
+          test -s "$PLAN_DIR/03-cutover.sql"
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v3
         with:
