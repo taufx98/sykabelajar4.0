@@ -25,7 +25,6 @@ The migration adds a normal BEFORE UPDATE trigger that:
 - Enforces the seven-day display-name cooldown using OLD.last_name_change at the database boundary.
 - Sets last_name_change from statement_timestamp() when full_name changes, ignoring any client-supplied timestamp.
 - Rejects attempts to change last_name_change independently.
-- Runs after existing profile normalization triggers.
 - Revokes direct INSERT/UPDATE/DELETE privileges from anon while preserving public reads and public RPC use.
 
 Existing protections for account_type, edu_coin, and total_xp remain unchanged. Ordinary authenticated edits such as bio, username, avatar, education, privacy settings, and badge showcase remain permitted by the existing self-update policy.
