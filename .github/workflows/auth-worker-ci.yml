@@ -10,7 +10,7 @@ on:
       - ".github/workflows/auth-worker-ci.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: auth-worker-ci-${{ github.ref }}
@@ -101,6 +101,23 @@ jobs:
 
       - name: Bundle Worker without deploying
         run: npm run build
+
+
+      - name: Persist generated D1 schema and dependency lock
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json migrations/0001_better_auth.sql
+          if git diff --cached --quiet; then
+            echo "Generated schema and package lock are already committed."
+            exit 0
+          fi
+          git commit -m "chore(auth-poc): commit generated D1 schema and lockfile"
+          git push origin "HEAD:${HEAD_REF}"
 
       - name: Upload generated schema and dependency lock
         if: always()
