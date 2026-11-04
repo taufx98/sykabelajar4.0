@@ -379,6 +379,37 @@ BEGIN
   END IF;
 END;
 $test$;
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{}', true);
+
+-- A previously authorized admin whose role is disabled must lose the bypass.
+UPDATE public.user_roles
+SET is_active = false
+WHERE user_id = '00000000-0000-0000-0000-000000000003'
+  AND role = 'admin';
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  true
+);
+DO $test$
+BEGIN
+  BEGIN
+    PERFORM public.profile_test_admin_update(
+      '00000000-0000-0000-0000-000000000002',
+      'DISABLED_ADMIN_FORGED',
+      'ADMIN_VERIFIED'
+    );
+    RAISE EXCEPTION 'TEST_FAILED: disabled admin role retained profile RPC access';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'ACCESS_DENIED' THEN RAISE; END IF;
+  END;
+END;
+$test$;
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{}', true);
 
 SET LOCAL ROLE service_role;
 SELECT set_config(
