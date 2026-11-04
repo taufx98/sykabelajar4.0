@@ -4,10 +4,20 @@
 CREATE OR REPLACE FUNCTION public.guard_profile_server_managed_fields()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path TO ''
 AS $function$
+DECLARE
+  v_request_role text := coalesce(auth.role(), '');
+  v_is_admin boolean := false;
 BEGIN
-  IF current_user IN ('anon', 'authenticated') THEN
+  -- Inspect the JWT role, not current_user: a normal caller may enter this
+  -- trigger through another SECURITY DEFINER RPC.
+  IF v_request_role = 'authenticated' THEN
+    v_is_admin := coalesce(private.current_user_is_admin(), false);
+  END IF;
+
+  IF v_request_role IN ('anon', 'authenticated') AND NOT v_is_admin THEN
     IF NEW.id IS DISTINCT FROM OLD.id
        OR NEW.status IS DISTINCT FROM OLD.status
        OR NEW.verification_type IS DISTINCT FROM OLD.verification_type
@@ -29,6 +39,7 @@ BEGIN
     END IF;
   END IF;
 
+  -- Keep the timestamp authoritative even for trusted server-side name edits.
   IF NEW.full_name IS DISTINCT FROM OLD.full_name THEN
     NEW.last_name_change := statement_timestamp();
   END IF;
@@ -37,8 +48,9 @@ BEGIN
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS zz_profiles_server_managed_fields_guard ON public.profiles;
+REVOKE ALL ON FUNCTION public.guard_profile_server_managed_fields() FROM PUBLIC, anon, authenticated;
 
+DROP TRIGGER IF EXISTS zz_profiles_server_managed_fields_guard ON public.profiles;
 CREATE TRIGGER zz_profiles_server_managed_fields_guard
 BEFORE UPDATE ON public.profiles
 FOR EACH ROW
@@ -47,4 +59,4 @@ EXECUTE FUNCTION public.guard_profile_server_managed_fields();
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.profiles FROM anon;
 
 COMMENT ON FUNCTION public.guard_profile_server_managed_fields() IS
-  'Blocks direct client updates to backend-managed profile fields and enforces the seven-day display-name cooldown.';
+  'Blocks unprivileged direct updates to backend-managed profile fields and enforces the seven-day display-name cooldown.';
