@@ -354,7 +354,13 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(userInfoData.email_verified, true);
 
     const signOut = await authRequest("/sign-out", { method: "POST", cookie });
-    assert.ok(signOut.ok, "sign-out must revoke the session");
+    const signOutBody = await signOut.clone().text();
+    assert.ok(
+      signOut.ok,
+      "sign-out must revoke the session; HTTP " + signOut.status +
+        "; location=" + String(signOut.headers.get("location")) +
+        "; body=" + signOutBody.slice(0, 1500),
+    );
     const sessionAfterLogout = await authRequest("/get-session", { cookie });
     assert.equal(await parseJson(sessionAfterLogout), null, "revoked cookie must no longer resolve to a session");
 
