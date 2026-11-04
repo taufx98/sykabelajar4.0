@@ -23,7 +23,7 @@ Delete behavior is not uniform and must be preserved during any identity-root mi
 | `RESTRICT` | 1 |
 | **Total** | **69** |
 
-All 69 catalog entries observed were validated, non-deferrable foreign keys with `ON UPDATE NO ACTION`. Do not replace these constraints with one generic action. In particular, the 18 `SET NULL` relationships preserve audit/actor attribution rows when a user identity is removed; changing them to cascade could delete business history.
+All 69 catalog entries observed were validated, non-deferrable foreign keys with `ON UPDATE NO ACTION` (catalog recheck: not_validated=0, deferrable=0, non_no_action_updates=0). Do not replace these constraints with one generic action. In particular, the 18 `SET NULL` relationships preserve audit/actor attribution rows when a user identity is removed; changing them to cascade could delete business history.
 
 ## Complete foreign-key inventory
 
