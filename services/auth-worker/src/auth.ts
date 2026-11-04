@@ -102,7 +102,8 @@ export function createAuth(env: AuthWorkerEnv) {
       customRules: {
         "/sign-in/email": { window: 60, max: 5 },
         "/sign-up/email": { window: 3600, max: 5 },
-        "/forget-password": { window: 3600, max: 3 },
+        "/request-password-reset": { window: 3600, max: 3 },
+        "/reset-password": { window: 60, max: 10 },
         "/send-verification-email": { window: 3600, max: 3 },
         "/sign-in/social": { window: 60, max: 10 },
         "/oauth2/token": { window: 60, max: 20 },
