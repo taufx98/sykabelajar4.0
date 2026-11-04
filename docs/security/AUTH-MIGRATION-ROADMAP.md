@@ -7,9 +7,10 @@ This is the approved implementation order. Keep all work within these seven stag
 - Better Auth is the only account and session authority after cutover.
 - Cloudflare D1 stores authentication-only records: users, accounts, sessions, verification, OAuth grants, JWKS, and auth rate-limit state.
 - Supabase PostgreSQL remains the application database and authorization authority for profiles, business roles, competitions, exams, Shop, Edu Coin, chat, orders, certificates, and application data.
-- Better Auth user IDs are UUIDs. JWT sub must be that UUID.
-- The JWT role claim is the Postgres role authenticated, never a SYKABELAJAR business role.
-- Business roles continue to be loaded from Supabase application tables.
+- Better Auth creates fresh UUID identities for new registrations. Existing Supabase Auth demo/testing credentials, password hashes, and sessions are not migrated.
+- The UUID is shared by Better Auth `user.id`, Supabase `private.app_users.id`, and JWT `sub`.
+- The JWT role claim is the Postgres role `authenticated`, never a SYKABELAJAR business role.
+- Business roles continue to be loaded from the existing Supabase `public.user_roles` table and `public.app_role` enum. Preserve roles such as student, teacher, organizer_member, admin, and future protected role additions.
 - Preserve application data. Only demo/test accounts are candidates for reset under Stage 6.
 - Do not change production schema, delete accounts, activate the production auth domain, or switch the login flow until all preceding stages and rollback gates pass.
 - Existing Cloudflare GitHub Actions secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are already configured. Never ask for their values in chat.
