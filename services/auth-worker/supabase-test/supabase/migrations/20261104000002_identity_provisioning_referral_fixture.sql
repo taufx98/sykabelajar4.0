@@ -253,7 +253,7 @@ create or replace function private.provision_better_auth_user(
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  v_type text := pg_catalog.lower(pg_catalog.trim(coalesce(p_account_type, 'student')));
+  v_type text := pg_catalog.lower(pg_catalog.btrim(coalesce(p_account_type, 'student')));
   v_role public.app_role;
   v_referrer_id uuid;
   v_reward_amount integer;
@@ -275,8 +275,8 @@ begin
   on conflict (id) do nothing;
 
   insert into public.profiles (id, full_name, username, account_type)
-  values (p_user_id, coalesce(nullif(pg_catalog.trim(p_full_name), ''), ''),
-          nullif(pg_catalog.lower(pg_catalog.trim(p_username)), ''), v_type)
+  values (p_user_id, coalesce(nullif(pg_catalog.btrim(p_full_name), ''), ''),
+          nullif(pg_catalog.lower(pg_catalog.btrim(p_username)), ''), v_type)
   on conflict (id) do nothing;
 
   insert into public.user_roles (user_id, role, is_active)
@@ -286,11 +286,11 @@ begin
   insert into public.user_settings (user_id) values (p_user_id)
   on conflict (user_id) do nothing;
 
-  if nullif(pg_catalog.trim(p_referral_code), '') is not null then
+  if nullif(pg_catalog.btrim(p_referral_code), '') is not null then
     select rc.user_id into v_referrer_id
     from public.referral_codes rc
     join private.app_users au on au.id = rc.user_id
-    where rc.code = pg_catalog.trim(p_referral_code)
+    where rc.code = pg_catalog.btrim(p_referral_code)
       and rc.user_id <> p_user_id
       and au.email_verified_at is not null;
 
