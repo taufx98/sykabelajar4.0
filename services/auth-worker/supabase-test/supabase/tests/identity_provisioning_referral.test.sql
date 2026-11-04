@@ -1,6 +1,6 @@
 begin;
 
-select extensions.plan(51);
+select extensions.plan(53);
 
 select extensions.ok(
   ARRAY['student', 'teacher', 'organizer_member', 'admin']::text[] <@
@@ -18,17 +18,17 @@ select extensions.ok(
 
 select extensions.ok(
   not has_function_privilege('anon',
-    'private.provision_better_auth_user(uuid,text,text,text,text)', 'EXECUTE'),
+    'private.provision_better_auth_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
   'anonymous cannot execute the trusted provisioning function'
 );
 select extensions.ok(
   not has_function_privilege('authenticated',
-    'private.provision_better_auth_user(uuid,text,text,text,text)', 'EXECUTE'),
+    'private.provision_better_auth_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
   'authenticated users cannot execute the trusted provisioning function'
 );
 select extensions.ok(
   has_function_privilege('service_role',
-    'private.provision_better_auth_user(uuid,text,text,text,text)', 'EXECUTE'),
+    'private.provision_better_auth_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
   'service_role can execute the trusted provisioning function'
 );
 select extensions.ok(
@@ -122,6 +122,18 @@ select extensions.is(
   (select phone_verified_at is null and verified_phone_identity_hash is null
    from private.app_users where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   true, 'registration cannot assert phone verification or a verified-phone hash'
+);
+
+select extensions.lives_ok(
+  $select private.provision_better_auth_user(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'student',
+    'Verified Google', 'verified-google', null, true)$,
+  'a trusted Google identity can provision with verified email status'
+);
+select extensions.ok(
+  (select email_verified_at is not null from private.app_users
+   where id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
+  'verified Google email is projected during initial identity provisioning'
 );
 -- Inspect auth.users as the database owner; service_role intentionally has no read grant.
 reset role;
