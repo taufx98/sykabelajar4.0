@@ -353,7 +353,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(userInfoData.email, email);
     assert.equal(userInfoData.email_verified, true);
 
-    const signOut = await authRequest("/sign-out", { method: "POST", cookie });
+    const signOut = await authRequest("/sign-out", { method: "POST", body: {}, cookie });
     const signOutBody = await signOut.clone().text();
     assert.ok(
       signOut.ok,
