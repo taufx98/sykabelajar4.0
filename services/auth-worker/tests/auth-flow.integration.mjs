@@ -309,7 +309,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.match(sessionCookieHeader, /SameSite=Lax/i, "session cookie must use SameSite=Lax");
     assert.doesNotMatch(
       sessionCookieHeader,
-      /;\\s*Domain=/i,
+      /;\s*Domain=/i,
       "session cookie must remain host-only and must not set a Domain attribute",
     );
 
