@@ -87,14 +87,14 @@ These are explicit gates, not implied successes.
 
 ## Current Stage 1 checkpoint — 4 November 2026
 
-CI run #119 completed successfully using the committed lockfile with `npm ci`. The audit reported zero vulnerabilities. TypeScript, nine security/schema contract tests, local D1 migrations, OIDC discovery/JWKS ES256, the full email/session/OAuth integration suite, and the Wrangler dry-run bundle all passed.
+CI run #121 completed successfully on commit `e41557d` using the committed lockfile with `npm ci`. The audit reported zero vulnerabilities. TypeScript, nine security/schema contract tests, local D1 migrations, OIDC discovery/JWKS ES256, the full email/session/OAuth integration suite, and the Wrangler dry-run bundle all passed.
 
 The generated `0001_better_auth.sql` contains 13 Better Auth/OAuth tables and 31 DDL statements, excluding Cloudflare, Wrangler, and private Worker tables. The reviewed schema and exact `package-lock.json` are committed to this PR. Migration `0002_seed_first_party_oauth_client.sql` provisions one public client/resource with no client secret, exact HTTPS callback, Authorization Code grant only, and mandatory PKCE. The internal bootstrap endpoint only verifies the migrated rows.
 
 The local integration suite now covers:
 - Email/password sign-up, verification, login, password reset, session lookup, and logout using a local mock email webhook.
 - The real `/request-password-reset` rate-limit rule (three requests per hour); further attempts are rejected with HTTP 429.
-- OAuth Authorization Code + PKCE S256, including rejection when PKCE is omitted.
+- OAuth Authorization Code + PKCE S256, including exact `invalid_request` rejection when PKCE is omitted, `invalid_grant` rejection for a wrong verifier, and `invalid_grant` rejection when an authorization code is replayed.
 - ES256 access-token verification through JWKS, UUID `sub`, resource `aud`, `role=authenticated`, and a maximum five-minute lifetime.
 - OIDC ID-token ES256 signature, client-ID audience, and exact nonce validation.
 - Rejection of wrong issuer, wrong audience, expired access token, and modified signature.
