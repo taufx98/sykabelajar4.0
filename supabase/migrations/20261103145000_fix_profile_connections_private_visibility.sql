@@ -1,5 +1,6 @@
--- Fix anonymous NULL semantics in the profile connections privacy guard.
--- A NULL auth.uid() must be treated as a non-owner when a profile hides connections.
+-- Fix anonymous NULL semantics and enforce the full public-profile boundary.
+-- A SECURITY DEFINER function bypasses table RLS, so it must enforce both
+-- profile visibility and the per-profile connection-list setting itself.
 
 CREATE OR REPLACE FUNCTION public.get_profile_connections(
   p_profile_id uuid,
@@ -19,29 +20,36 @@ SET search_path TO ''
 AS $function$
 DECLARE
   v_uid uuid := auth.uid();
+  v_profile_is_public boolean;
   v_allow boolean;
 BEGIN
-  -- Invalid inputs fail closed; only the two UI-supported modes are accepted.
   IF p_profile_id IS NULL
      OR p_mode IS NULL
      OR p_mode NOT IN ('following', 'followers') THEN
     RETURN;
   END IF;
 
-  IF p_mode = 'following' THEN
-    SELECT coalesce(s.show_following_popup, true)
-      INTO v_allow
-    FROM public.profile_ui_settings AS s
-    WHERE s.user_id = p_profile_id;
-  ELSE
-    SELECT coalesce(s.show_social_popup, true)
-      INTO v_allow
-    FROM public.profile_ui_settings AS s
-    WHERE s.user_id = p_profile_id;
+  SELECT
+    coalesce(profile.is_public, false),
+    CASE
+      WHEN p_mode = 'following' THEN coalesce(settings.show_following_popup, true)
+      ELSE coalesce(settings.show_social_popup, true)
+    END
+  INTO v_profile_is_public, v_allow
+  FROM public.profiles AS profile
+  LEFT JOIN public.profile_ui_settings AS settings
+    ON settings.user_id = profile.id
+  WHERE profile.id = p_profile_id;
+
+  IF NOT FOUND THEN
+    RETURN;
   END IF;
 
-  -- IS DISTINCT FROM is NULL-safe: an anonymous caller is never considered
-  -- the owner of a UUID profile merely because auth.uid() is NULL.
+  IF v_uid IS DISTINCT FROM p_profile_id
+     AND NOT v_profile_is_public THEN
+    RETURN;
+  END IF;
+
   IF v_uid IS DISTINCT FROM p_profile_id
      AND NOT coalesce(v_allow, true) THEN
     RETURN;
@@ -49,12 +57,7 @@ BEGIN
 
   IF p_mode = 'following' THEN
     RETURN QUERY
-    SELECT
-      p.id,
-      p.username,
-      p.full_name,
-      p.avatar_url,
-      p.verification_type
+    SELECT p.id, p.username, p.full_name, p.avatar_url, p.verification_type
     FROM public.follows AS f
     JOIN public.profiles AS p ON p.id = f.following_id
     WHERE f.follower_id = p_profile_id
@@ -62,12 +65,7 @@ BEGIN
     ORDER BY p.username;
   ELSE
     RETURN QUERY
-    SELECT
-      p.id,
-      p.username,
-      p.full_name,
-      p.avatar_url,
-      p.verification_type
+    SELECT p.id, p.username, p.full_name, p.avatar_url, p.verification_type
     FROM public.follows AS f
     JOIN public.profiles AS p ON p.id = f.follower_id
     WHERE f.following_id = p_profile_id
@@ -77,10 +75,9 @@ BEGIN
 END;
 $function$;
 
--- Preserve the currently intended API callers, but avoid an implicit PUBLIC grant.
 REVOKE ALL ON FUNCTION public.get_profile_connections(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_profile_connections(uuid, text) FROM anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_profile_connections(uuid, text) TO anon, authenticated, service_role;
 
 COMMENT ON FUNCTION public.get_profile_connections(uuid, text) IS
-  'Returns public profile connections only when the profile visibility setting permits it; anonymous callers are treated as non-owners.';
+  'Returns connection lists only when the target profile is public and its corresponding connection visibility setting permits it; owners can always view their own lists.';
