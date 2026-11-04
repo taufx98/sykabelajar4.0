@@ -110,7 +110,7 @@ Supabase's Custom OIDC integration requires an HTTPS issuer with discovery/JWKS,
 
 ## Local contract-test evidence
 
-The synthetic fixtures are now exercised by [Supabase Local Auth Claims CI #41776739736](https://github.com/taufx98/sykabelajar4.0/actions/runs/41776739736), which passed **68/68 pgTAP assertions across three files**:
+The synthetic fixtures are now exercised by [Supabase Local Auth Claims CI #41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023), which passed **68/68 pgTAP assertions across three files**:
 
 - 7 JWT/RLS assertions for `auth.uid()` UUID mapping and owner/cross-user boundaries.
 - 12 FK rehome assertions for UUID backfill, FK target replacement, and preservation of all four delete actions.
