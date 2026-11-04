@@ -117,7 +117,7 @@ async function exchangeAuthorizationCode({ clientId, code, verifier }) {
   });
 }
 
-async function createAuthorizationCode({ clientId, cookie, includePkce = true }) {
+async function createAuthorizationCode({ clientId, cookie, includePkce = true, scope = "openid profile email" }) {
   const verifier = randomBytes(48).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   const state = randomUUID();
@@ -126,7 +126,7 @@ async function createAuthorizationCode({ clientId, cookie, includePkce = true })
     client_id: clientId,
     redirect_uri: callbackUrl,
     response_type: "code",
-    scope: "openid profile email",
+    scope,
     resource: resourceAudience,
     state,
     nonce,
@@ -252,6 +252,10 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.ok(signIn.ok, "user must sign in with the newly reset password");
     cookie = sessionCookie(signIn);
     assert.ok(cookie, "successful sign-in must set the Better Auth session cookie");
+    const sessionCookieHeader = getSetCookies(signIn).find((value) => /session_token=/i.test(value)) ?? "";
+    assert.match(sessionCookieHeader, /\\bHttpOnly\\b/i, "session cookie must be HttpOnly");
+    assert.match(sessionCookieHeader, /\\bSecure\\b/i, "session cookie must be Secure");
+    assert.match(sessionCookieHeader, /SameSite=Lax/i, "session cookie must use SameSite=Lax");
 
     const bootstrap = await fetch(new URL("/_internal/bootstrap-first-party-client", baseUrl), {
       method: "POST",
@@ -293,6 +297,22 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       publicClient.callback.searchParams.get("error_description") ?? "",
       /pkce/i,
       "authorization without PKCE must report the PKCE requirement",
+    );
+
+    const offlineAccessAuthorization = await createAuthorizationCode({
+      clientId: bootstrapData.client_id,
+      cookie,
+      includePkce: true,
+      scope: "openid profile email offline_access",
+    });
+    assert.ok(
+      offlineAccessAuthorization.callback,
+      "offline_access request must return an OAuth redirect response",
+    );
+    assert.equal(
+      offlineAccessAuthorization.callback.searchParams.get("error"),
+      "invalid_scope",
+      "offline_access must not be enabled for the short-lived Supabase client",
     );
 
     const invalidVerifierAuthorization = await createAuthorizationCode({
@@ -340,6 +360,11 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     const tokens = await parseJson(tokenResponse);
     assert.ok(tokens?.access_token, "token endpoint must return an access token");
     assert.equal(tokens.token_type?.toLowerCase(), "bearer");
+    assert.equal(
+      tokens.refresh_token,
+      undefined,
+      "first-party Supabase client must not receive refresh tokens; it uses short-lived access tokens only",
+    );
 
     const replayResponse = await exchangeAuthorizationCode({
       clientId: bootstrapData.client_id,
