@@ -130,7 +130,8 @@ async function createAuthorizationCode({ clientId, cookie, includePkce = true })
 
   const location = response.headers.get("location");
   const callback = location ? new URL(location) : null;
-  return { response, location, callback, verifier, state, nonce };
+  const diagnosticBody = location ? "" : (await response.clone().text()).slice(0, 2000);
+  return { response, location, callback, verifier, state, nonce, diagnosticBody };
 }
 
 test("email verification, session lifecycle, public OAuth PKCE, and ES256 access-token checks", async (t) => {
@@ -258,7 +259,9 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     });
     assert.ok(
       authorization.location && authorization.callback,
-      "valid S256 authorization request must return a redirect",
+      "valid S256 authorization request must return a redirect; HTTP " +
+        authorization.response.status + "; location=" +
+        String(authorization.location) + "; body=" + authorization.diagnosticBody,
     );
     assert.equal(authorization.callback.origin, new URL(callbackUrl).origin);
     assert.equal(authorization.callback.pathname, new URL(callbackUrl).pathname);
