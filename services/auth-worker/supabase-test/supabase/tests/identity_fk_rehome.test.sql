@@ -24,7 +24,7 @@ declare
   validation_clause text;
 begin
   for fk in
-    select c.oid, c.conrelid, c.conname, c.conkey, c.confkey,
+    select c.oid, c.conrelid, c.confrelid, c.conname, c.conkey, c.confkey,
            c.confmatchtype, c.confupdtype, c.confdeltype,
            c.condeferrable, c.condeferred, c.convalidated,
            src_ns.nspname as source_schema,
