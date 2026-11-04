@@ -108,6 +108,16 @@ Before adding a Custom OIDC issuer to Supabase, validate the hosted integration 
 
 Supabase's Custom OIDC integration requires an HTTPS issuer with discovery/JWKS, asymmetric signing, kid, and a JWT role claim set to authenticated. Supabase's current Free plan includes 50,000 Third-Party MAUs; stay within this allowance and do not enable paid overage or upgrade.
 
+## Local contract-test evidence
+
+The synthetic fixtures are now exercised by [Supabase Local Auth Claims CI #41776739736](https://github.com/taufx98/sykabelajar4.0/actions/runs/41776739736), which passed **68/68 pgTAP assertions across three files**:
+
+- 7 JWT/RLS assertions for `auth.uid()` UUID mapping and owner/cross-user boundaries.
+- 12 FK rehome assertions for UUID backfill, FK target replacement, and preservation of all four delete actions.
+- 49 provisioning/referral assertions for service-role-only execution, permitted business-role mapping, rejection of admin self-registration, retry safety, no `auth.users` shadow row, trusted email verification, 24-hour referral qualification, and idempotent Edu Coin reward behavior.
+
+These tests verify the proposed SQL contract in an isolated synthetic schema. They do **not** prove the live application schema can be rebuilt from scratch, the real Better Auth Worker can reach Supabase securely, hosted Custom OIDC is accepted, every production RLS policy behaves correctly, or the production migration is safe to execute. All Stage 3 exit criteria below therefore remain mandatory.
+
 ## 8. Stage 3 exit criteria
 
 Do not call Stage 3 complete until all are true:
