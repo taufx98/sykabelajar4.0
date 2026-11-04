@@ -1,10 +1,9 @@
 name: Auth Worker CI
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
-      - security/auth-migration-phase-0
+      - security/auth-poc-stage-1
     paths:
       - "services/auth-worker/**"
       - ".github/workflows/auth-worker-ci.yml"
@@ -18,7 +17,7 @@ concurrency:
 
 jobs:
   check:
-    if: ${{ github.head_ref == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-poc-stage-1' }}
+    if: ${{ github.ref_name == 'security/auth-poc-stage-1' }}
     name: Audit, tests, D1 migration, OIDC/JWKS smoke test, and Worker dry run
     runs-on: ubuntu-latest
     defaults:
@@ -113,9 +112,9 @@ jobs:
 
 
       - name: Persist generated D1 schema and dependency lock
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        if: ${{ github.event_name == 'push' }}
         env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REF: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
