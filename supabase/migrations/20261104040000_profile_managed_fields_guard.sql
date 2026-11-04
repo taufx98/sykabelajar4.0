@@ -1,7 +1,7 @@
 -- Protect backend/admin-managed profile fields from direct PostgREST updates.
 -- The existing profiles_self_update RLS policy is row-scoped, not column-scoped.
 
-CREATE OR REPLACE FUNCTION public.guard_profile_server_managed_fields()
+CREATE OR REPLACE FUNCTION private.guard_profile_server_managed_fields()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -48,13 +48,13 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.guard_profile_server_managed_fields() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION private.guard_profile_server_managed_fields() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS zz_profiles_server_managed_fields_guard ON public.profiles;
 CREATE TRIGGER zz_profiles_server_managed_fields_guard
 BEFORE UPDATE ON public.profiles
 FOR EACH ROW
-EXECUTE FUNCTION public.guard_profile_server_managed_fields();
+EXECUTE FUNCTION private.guard_profile_server_managed_fields();
 
 -- Start from no client table privileges, then restore only the intended access.
 -- Anonymous visitors may read public profiles; signed-in users may read and
@@ -63,5 +63,5 @@ REVOKE ALL ON TABLE public.profiles FROM anon, authenticated;
 GRANT SELECT ON TABLE public.profiles TO anon;
 GRANT SELECT, UPDATE ON TABLE public.profiles TO authenticated;
 
-COMMENT ON FUNCTION public.guard_profile_server_managed_fields() IS
+COMMENT ON FUNCTION private.guard_profile_server_managed_fields() IS
   'Blocks unprivileged direct updates to backend-managed profile fields and enforces the seven-day display-name cooldown.';
