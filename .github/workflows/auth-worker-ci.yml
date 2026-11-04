@@ -46,7 +46,7 @@ jobs:
       - name: Security contract tests
         run: npm test
 
-      - name: Start local Worker and generate Better Auth D1 schema
+      - name: Run local Worker, apply D1 migrations, and verify auth/OAuth flows
         shell: bash
         run: |
           set -euo pipefail
@@ -54,10 +54,6 @@ jobs:
           OAUTH_CLIENT_TOKEN="$(openssl rand -hex 32)"
           MAIL_TOKEN="$(openssl rand -hex 32)"
           printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\nOAUTH_CLIENT_BOOTSTRAP_TOKEN=%s\nOAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback\nAUTH_EMAIL_WEBHOOK_URL=http://localhost:8788/send\nAUTH_EMAIL_WEBHOOK_TOKEN=%s\nAUTH_EMAIL_FROM=noreply@example.test\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" "$OAUTH_CLIENT_TOKEN" "$MAIL_TOKEN" > .dev.vars
-          {
-            printf 'OAUTH_CLIENT_TOKEN=%s\n' "$OAUTH_CLIENT_TOKEN"
-            printf 'MAIL_TOKEN=%s\n' "$MAIL_TOKEN"
-          } >> "$GITHUB_ENV"
           npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
           WORKER_PID=$!
           trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
@@ -101,11 +97,9 @@ jobs:
           console.log("JWKS keys:", jwks.keys.length);
           NODE
 
-      - name: Apply all versioned D1 migrations to local D1
-        run: npx wrangler d1 migrations apply sykabelajar-auth-poc --local
+          npx wrangler d1 migrations apply sykabelajar-auth-poc --local
+          curl --silent --show-error --fail http://127.0.0.1:8787/healthz
 
-      - name: Exercise email, session, OAuth PKCE, and ES256 token lifecycle
-        run: |
           AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 \
             DEV_APP_ORIGIN=http://localhost:5173 \
             SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id \
