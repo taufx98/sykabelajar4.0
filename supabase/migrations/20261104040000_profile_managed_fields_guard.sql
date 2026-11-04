@@ -9,7 +9,7 @@ SET search_path TO ''
 AS $function$
 DECLARE
   -- Read the signed JWT claim rather than current_user (changed by SECURITY DEFINER)
-  -- or the deprecated auth.role() helper.
+  -- or the legacy role helper.
   v_request_role text := coalesce(auth.jwt() ->> 'role', '');
   v_is_admin boolean := false;
 BEGIN
