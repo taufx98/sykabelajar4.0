@@ -51,6 +51,7 @@ jobs:
           test -s "$PLAN_DIR/03-cutover.sql"
 
       - name: Setup Supabase CLI
+        id: setup_supabase_cli
         uses: supabase/setup-cli@v3
         with:
           version: 3.0.0
@@ -62,5 +63,5 @@ jobs:
         run: supabase test db --local
 
       - name: Stop local Supabase
-        if: always()
+        if: always() && steps.setup_supabase_cli.outcome == 'success'
         run: supabase stop
