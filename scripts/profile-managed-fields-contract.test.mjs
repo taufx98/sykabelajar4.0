@@ -13,24 +13,33 @@ async function readMigration() {
   return migration;
 }
 
-test('guard is a fixed-search-path trigger function, not an exposed SECURITY DEFINER RPC', async () => {
+test('guard is a fixed-search-path SECURITY DEFINER trigger function, not an exposed RPC', async () => {
   const migration = await readMigration();
   assert.match(migration, /CREATE OR REPLACE FUNCTION public\.guard_profile_server_managed_fields\(\)/i);
-  assert.match(migration, /RETURNS trigger\s+LANGUAGE plpgsql\s+SET search_path TO ''/i);
-  assert.doesNotMatch(migration, /SECURITY DEFINER/i);
+  assert.match(migration, /RETURNS trigger\s+LANGUAGE plpgsql\s+SECURITY DEFINER\s+SET search_path TO ''/i);
+  assert.match(
+    migration,
+    /REVOKE ALL ON FUNCTION public\.guard_profile_server_managed_fields\(\) FROM PUBLIC, anon, authenticated/i,
+  );
 });
 
-test('direct client updates cannot change server-managed profile columns', async () => {
+test('trigger checks the JWT role and authenticated admin status, not effective current_user', async () => {
+  const migration = await readMigration();
+  assert.match(migration, /v_request_role text := coalesce\(auth\.role\(\), ''\)/i);
+  assert.match(migration, /v_is_admin := coalesce\(private\.current_user_is_admin\(\), false\)/i);
+  assert.match(migration, /IF v_request_role IN \('anon', 'authenticated'\) AND NOT v_is_admin THEN/i);
+});
+
+test('non-admin client updates cannot change server-managed profile columns', async () => {
   const migration = await readMigration();
   for (const field of ['id', 'status', 'verification_type', 'school_id', 'created_at']) {
     const expected = new RegExp('NEW\\.' + field + '\\s+IS DISTINCT FROM\\s+OLD\\.' + field, 'i');
     assert.match(migration, expected);
   }
-  assert.match(migration, /current_user IN \('anon', 'authenticated'\)/i);
   assert.match(migration, /PROFILE_FIELD_MANAGED_BY_BACKEND/);
 });
 
-test('seven-day display-name cooldown is enforced server-side', async () => {
+test('seven-day display-name cooldown is enforced by the database', async () => {
   const migration = await readMigration();
   assert.match(migration, /OLD\.last_name_change\s*>\s*statement_timestamp\(\)\s*-\s*interval '7 days'/i);
   assert.match(migration, /PROFILE_NAME_CHANGE_COOLDOWN/);
