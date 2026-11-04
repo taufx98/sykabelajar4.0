@@ -223,12 +223,14 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       method: "POST",
       headers: { Authorization: "Bearer " + clientBootstrapToken },
     });
+    const bootstrapData = await parseJson(bootstrap);
     assert.ok(
       bootstrap.status === 200 || bootstrap.status === 201,
-      "first-party OAuth client bootstrap must succeed; HTTP " + bootstrap.status,
+      "first-party OAuth client bootstrap must succeed; HTTP " +
+        bootstrap.status + " " + JSON.stringify(bootstrapData),
     );
-    const bootstrapData = await parseJson(bootstrap);
     assert.ok(bootstrapData?.client_id, "first-party client bootstrap must return a client ID");
+    assert.equal(bootstrapData.already_configured, true, "the client must be provisioned by the versioned D1 migration");
 
     const discoveryResponse = await authRequest("/.well-known/openid-configuration");
     assert.equal(discoveryResponse.status, 200, "OIDC discovery must respond 200");
