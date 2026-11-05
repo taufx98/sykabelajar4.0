@@ -159,3 +159,9 @@ The latest isolated validation is green on commit `c129fb4038df840dd66b7b4204d9e
 - [Supabase Local Auth Claims CI #42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070): all **73/73 pgTAP assertions** passed (8 JWT/RLS + 12 FK rehome + 53 provisioning/referral). The test set includes the trusted Google verified-email projection and the isolated username-collision rollback case.
 
 These runs validate local disposable resources only. They do not create a remote Cloudflare D1 database, deploy a Worker, configure a custom domain, verify real email delivery or Google credentials, or prove hosted Supabase Custom OIDC acceptance. Stage 1 therefore remains in progress, and no production auth, Supabase schema, or user-account change has been made.
+
+## Email adapter validation — 5 November 2026
+
+The Worker now supports the official Resend `POST /emails` endpoint directly when `AUTH_EMAIL_PROVIDER=resend`; the existing webhook path remains the default for local CI. The adapter sends only plain-text transactional messages and keeps the Resend API key in a Worker secret. Six targeted Node tests passed locally, and an isolated strict TypeScript check passed. The full branch Worker CI run [#42013059966](https://github.com/taufx98/sykabelajar4.0/actions/runs/42013059966) is pending; do not claim it as a successful CI run until GitHub completes it.
+
+Real provider delivery is not yet configured. It still requires a Resend Free account, a verified `sykabelajar.my.id` sending domain with the provider's SPF/DKIM records, `AUTH_EMAIL_PROVIDER=resend`, `AUTH_EMAIL_FROM`, and the `RESEND_API_KEY` Worker secret. Do not enable paid overages or a paid Cloudflare Workers plan.
