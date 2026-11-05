@@ -10,7 +10,7 @@ The existing `scripts/supabase-full-migrate.sh` is **not** suitable for this tas
 
 ## Safe exporter
 
-Use `scripts/auth-migration/export-schema-baseline.sh`. It requires the existing Supabase CLI 3.0.0 and local Docker, creates a temporary output directory outside the repository, then:
+Use `scripts/auth-migration/export-schema-baseline.sh`. It requires Supabase CLI 3.0.0, Node.js (for a connection-target guard), local Docker and `psql`, creates a temporary output directory outside the repository, then:
 
 1. Links the existing project in local CLI metadata only.
 2. Runs the default `supabase db dump` schema export to create `schema.sql`. Supabase documents that the default dump does not contain data or custom roles.
@@ -25,7 +25,7 @@ Official references:
 
 ## Running it on a trusted local machine
 
-Use the production project's existing direct connection string (`db.<project-ref>.supabase.co`) or its session-pooler connection string (username `postgres.<project-ref>`) locally; do not send it in chat or commit it to Git. The exporter now checks that the URL host/user matches `SUPABASE_PROJECT_REF` before any export, preventing a schema dump from one project being combined with an Auth/Storage diff from another. You can enter it without placing the value in shell history:
+Use the production project's existing direct connection string (`db.<project-ref>.supabase.co`) or its session-pooler connection string (username `postgres.<project-ref>`) locally; do not send it in chat or commit it to Git. The exporter now checks that the URL host/user matches `SUPABASE_PROJECT_REF` before any export, preventing a schema dump from one project being combined with an Auth/Storage diff from another. Use either the direct connection URI (`db.mvdczyitbkxkldjughor.supabase.co`) or the session-pooler URI whose username contains `postgres.mvdczyitbkxkldjughor`. The exporter validates that the host/username matches the project ref before it runs. You can enter the URI without placing its value in shell history:
 
 ```bash
 export SUPABASE_PROJECT_REF='mvdczyitbkxkldjughor'
