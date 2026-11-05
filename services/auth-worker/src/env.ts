@@ -6,11 +6,13 @@ export interface AuthWorkerEnv {
   SUPABASE_RESOURCE_AUDIENCE: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
-  AUTH_EMAIL_PROVIDER?: "webhook" | "resend";
-  RESEND_API_KEY?: string;
+  AUTH_EMAIL_PROVIDER?: "webhook" | "zeptomail";
+  AUTH_EMAIL_ENCRYPTION_KEY?: string;
   AUTH_EMAIL_WEBHOOK_URL?: string;
   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
   AUTH_EMAIL_FROM?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
   DEV_APP_ORIGIN?: string;
   OAUTH_CLIENT_BOOTSTRAP_TOKEN?: string;
   OAUTH_CALLBACK_URL?: string;
