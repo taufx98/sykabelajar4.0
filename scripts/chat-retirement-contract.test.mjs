@@ -53,5 +53,5 @@ test('backend retirement revokes chat access and preserves historical data', asy
   assert.match(migration, /p\.oid::regprocedure as signature/i);
   assert.match(migration, /alter publication supabase_realtime drop table/i);
   assert.match(migration, /drop trigger if exists trg_referral_activity_chat/i);
-  assert.doesNotMatch(migration, /drop table|truncate table/i);
+  assert.doesNotMatch(migration, /^\\s*drop\\s+table\\b|^\\s*truncate\\s+table\\b/im);
 });
