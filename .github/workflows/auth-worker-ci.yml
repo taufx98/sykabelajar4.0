@@ -53,7 +53,7 @@ jobs:
           SCHEMA_TOKEN="$(openssl rand -hex 32)"
           OAUTH_CLIENT_TOKEN="$(openssl rand -hex 32)"
           MAIL_TOKEN="$(openssl rand -hex 32)"
-          printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\nOAUTH_CLIENT_BOOTSTRAP_TOKEN=%s\nOAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback\nAUTH_EMAIL_WEBHOOK_URL=http://localhost:8788/send\nAUTH_EMAIL_WEBHOOK_TOKEN=%s\nAUTH_EMAIL_FROM=noreply@example.test\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" "$OAUTH_CLIENT_TOKEN" "$MAIL_TOKEN" > .dev.vars
+          printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\nOAUTH_CLIENT_BOOTSTRAP_TOKEN=%s\nOAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback\nAUTH_EMAIL_PROVIDER=webhook\nAUTH_EMAIL_WEBHOOK_URL=http://localhost:8788/send\nAUTH_EMAIL_WEBHOOK_TOKEN=%s\nAUTH_EMAIL_FROM=noreply@example.test\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" "$OAUTH_CLIENT_TOKEN" "$MAIL_TOKEN" > .dev.vars
           npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
           WORKER_PID=$!
           trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
@@ -98,6 +98,10 @@ jobs:
           NODE
 
           npx wrangler d1 migrations apply sykabelajar-auth-poc --local
+          D1_TABLES="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_email_accounts','auth_email_settings','auth_email_admin_test_limits') ORDER BY name" 2>&1)"
+          printf '%s\\n' "$D1_TABLES"
+          TABLE_COUNT="$(printf '%s\\n' "$D1_TABLES" | grep -c 'auth_email_' || true)"
+          test "$TABLE_COUNT" -ge 3 || { echo "ZeptoMail D1 migration tables are missing." >&2; exit 1; }
           curl --silent --show-error --fail http://127.0.0.1:8787/healthz
 
           AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 \
