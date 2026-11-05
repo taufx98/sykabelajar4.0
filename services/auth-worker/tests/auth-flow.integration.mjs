@@ -199,6 +199,32 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       "credentialed CORS must never use a wildcard origin",
     );
 
+    const adminSettingsPreflight = await fetch(new URL("/api/admin/email-settings", baseUrl), {
+      method: "OPTIONS",
+      headers: {
+        Origin: appOrigin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type",
+      },
+    });
+    assert.equal(adminSettingsPreflight.status, 204, "allowlisted admin email settings preflight must succeed");
+    assert.equal(adminSettingsPreflight.headers.get("access-control-allow-origin"), appOrigin);
+    assert.match(adminSettingsPreflight.headers.get("access-control-allow-headers") ?? "", /authorization/i);
+    assert.match(adminSettingsPreflight.headers.get("access-control-allow-headers") ?? "", /content-type/i);
+
+    const publicEmailSettings = await fetch(new URL("/api/admin/email-settings", baseUrl), {
+      headers: { Origin: appOrigin },
+    });
+    assert.equal(publicEmailSettings.status, 401, "admin email settings must reject unauthenticated GET requests");
+    const publicEmailSettingsBody = await parseJson(publicEmailSettings);
+    assert.equal(publicEmailSettingsBody.error, "AUTH_REQUIRED");
+    assert.equal(JSON.stringify(publicEmailSettingsBody).includes("send_mail_token"), false, "unauthenticated response must not expose provider credentials");
+
+    const untrustedEmailSettings = await fetch(new URL("/api/admin/email-settings", baseUrl), {
+      headers: { Origin: "https://attacker.example" },
+    });
+    assert.equal(untrustedEmailSettings.status, 403, "admin email settings must reject untrusted origins");
+
     const rejectedPreflight = await fetch(new URL("/api/auth/get-session", baseUrl), {
       method: "OPTIONS",
       headers: {
