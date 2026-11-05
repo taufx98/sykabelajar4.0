@@ -1,0 +1,118 @@
+name: Auth Cloudflare Staging Preflight
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/workflows/auth-cloudflare-preflight.yml"
+      - "services/auth-worker/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-cloudflare-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    if: ${{ github.ref_name == 'security/auth-poc-stage-1' }}
+    name: Read-only Cloudflare account and staging resource inspection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Cloudflare credentials and inspect staging prerequisites
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN secret." >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID secret." >&2; exit 1; }
+          node --input-type=module <<'NODE'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const base = "https://api.cloudflare.com/client/v4";
+          const headers = { Authorization: "Bearer " + token, Accept: "application/json" };
+
+          async function read(path) {
+            try {
+              const response = await fetch(base + path, { headers });
+              const body = await response.json().catch(() => ({}));
+              return {
+                status: response.status,
+                success: response.ok && body.success === true,
+                result: body.result,
+                errorCodes: Array.isArray(body.errors) ? body.errors.map((item) => item.code) : [],
+              };
+            } catch {
+              return { status: 0, success: false, result: null, errorCodes: ["NETWORK_ERROR"] };
+            }
+          }
+
+          const [tokenCheck, accountZones, databases, scripts, workerDomains] = await Promise.all([
+            read("/user/tokens/verify"),
+            read("/zones?name=sykabelajar.my.id&per_page=50"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/d1/database?name=sykabelajar-auth-poc&per_page=100"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/workers/scripts"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/workers/domains?hostname=auth.sykabelajar.my.id"),
+          ]);
+
+          const zone = Array.isArray(accountZones.result)
+            ? accountZones.result.find((item) => item.name === "sykabelajar.my.id")
+            : null;
+          const routes = zone
+            ? await read("/zones/" + encodeURIComponent(zone.id) + "/workers/routes")
+            : { status: null, success: false, result: null, errorCodes: ["ZONE_NOT_FOUND_OR_UNREADABLE"] };
+
+          const dbRows = Array.isArray(databases.result) ? databases.result : [];
+          const workerRows = Array.isArray(scripts.result) ? scripts.result : [];
+          const domainRows = Array.isArray(workerDomains.result) ? workerDomains.result : [];
+          const routeRows = Array.isArray(routes.result) ? routes.result : [];
+
+          const summary = {
+            token: {
+              valid: tokenCheck.success && tokenCheck.result?.status === "active",
+              status: tokenCheck.result?.status ?? null,
+              httpStatus: tokenCheck.status,
+              errorCodes: tokenCheck.errorCodes,
+            },
+            accountIdPresent: Boolean(accountId),
+            zone: {
+              readable: accountZones.success,
+              found: Boolean(zone),
+              status: zone?.status ?? null,
+              idPresent: Boolean(zone?.id),
+              errorCodes: accountZones.errorCodes,
+            },
+            d1: {
+              readable: databases.success,
+              matchingDatabaseFound: dbRows.some((row) => row.name === "sykabelajar-auth-poc"),
+              databaseNames: dbRows.map((row) => row.name),
+              errorCodes: databases.errorCodes,
+            },
+            workers: {
+              scriptsReadable: scripts.success,
+              authWorkerFound: workerRows.some((row) => row.id === "sykabelajar-auth-poc"),
+              scriptNames: workerRows.map((row) => row.id),
+              customDomainReadable: workerDomains.success,
+              authDomainFound: domainRows.some((row) => row.hostname === "auth.sykabelajar.my.id" && row.service === "sykabelajar-auth-poc"),
+              customDomains: domainRows.map((row) => ({ hostname: row.hostname, service: row.service, enabled: row.enabled })),
+              errorCodes: [...scripts.errorCodes, ...workerDomains.errorCodes],
+            },
+            routes: {
+              readable: routes.success,
+              authHostRouteFound: routeRows.some((row) => row.pattern === "auth.sykabelajar.my.id/*" && row.script === "sykabelajar-auth-poc"),
+              matchingRoutes: routeRows.filter((row) => String(row.pattern ?? "").includes("auth.sykabelajar.my.id")),
+              errorCodes: routes.errorCodes,
+            },
+          };
+
+          console.log(JSON.stringify(summary, null, 2));
+
+          if (!summary.token.valid) {
+            console.error("Cloudflare API token did not pass read-only verification.");
+            process.exitCode = 1;
+          }
+          NODE
