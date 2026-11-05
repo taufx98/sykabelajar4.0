@@ -205,7 +205,6 @@ async function saveAccount(
   }
 
   const now = new Date().toISOString();
-  const createdBy = existing ? user.id : user.id;
   const { success } = await env.DB.prepare(
     "INSERT INTO auth_email_accounts " +
     "(id, label, sender_address, sender_name, bounce_address, send_mail_token_ciphertext, created_at, updated_at, created_by, updated_by) " +
@@ -213,7 +212,7 @@ async function saveAccount(
     "ON CONFLICT(id) DO UPDATE SET label = excluded.label, sender_address = excluded.sender_address, " +
     "sender_name = excluded.sender_name, bounce_address = excluded.bounce_address, " +
     "send_mail_token_ciphertext = excluded.send_mail_token_ciphertext, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-  ).bind(id, label, senderAddress, senderName, bounceAddress || null, tokenCiphertext, now, createdBy).run();
+  ).bind(id, label, senderAddress, senderName, bounceAddress || null, tokenCiphertext, now, user.id).run();
 
   if (!success) return json({ ok: false, error: "EMAIL_ACCOUNT_SAVE_FAILED" }, 500);
   return listSettings(env);
