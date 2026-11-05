@@ -159,15 +159,15 @@ PR #177 remains a draft. No Cloudflare deployment, Supabase schema/configuration
 
 ## Latest validation checkpoint — 5 November 2026
 
-The latest isolated validation is green on commit `15968371392f9be0443afd3b5acaecc25b28b6cc`:
+The latest ZeptoMail implementation validation is green on commit `e01d865c94f4d326bfbb38db58ee003b52ed548b`:
 
-- [Auth Worker CI #42013759439](https://github.com/taufx98/sykabelajar4.0/actions/runs/42013759439): dependency audit, strict TypeScript, security contracts, D1 migrations, email/session/OAuth integration, OIDC discovery/JWKS, and Wrangler dry-run all succeeded before ZeptoMail account-management integration.
+- [Auth Worker + Admin Frontend CI #42035044756](https://github.com/taufx98/sykabelajar4.0/actions/runs/42035044756): dependency audit, strict Worker TypeScript, 28 Worker security/email tests, local D1 migrations including ZeptoMail tables, unauthenticated admin-endpoint rejection, email/session/OAuth integration, OIDC discovery/JWKS, Worker dry-run bundle, and separate frontend lint/typecheck/build all passed. No deploy step exists.
 - [Supabase Local Auth Claims CI #42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070): all **73/73 pgTAP assertions** passed (8 JWT/RLS + 12 FK rehome + 53 provisioning/referral). The test set includes the trusted Google verified-email projection and the isolated username-collision rollback case.
 
 These runs validate local disposable resources only. They do not create a remote Cloudflare D1 database, deploy a Worker, configure a custom domain, verify real email delivery or Google credentials, or prove hosted Supabase Custom OIDC acceptance. Stage 1 therefore remains in progress, and no production auth, Supabase schema, or user-account change has been made.
 
 ## Email adapter validation — 5 November 2026
 
-The Worker now supports ZeptoMail Agent profiles, AES-GCM encryption, and server-side account switching. The latest branch CI checkpoint must be refreshed after the new admin endpoints and D1 migration pass.
+The Worker now supports ZeptoMail Agent profiles, AES-GCM encryption, and server-side account switching. The latest branch CI checkpoint [#42035044756](https://github.com/taufx98/sykabelajar4.0/actions/runs/42035044756) passes the ZeptoMail migration, Agent/token tests, admin endpoint access checks, and frontend build.
 
 Real ZeptoMail delivery still requires a non-production Worker, D1 migration 0003, a stable encryption secret, Supabase publishable-key/session verification settings, and an Agent profile entered by an active admin. No email has been sent and no credits have been purchased.
