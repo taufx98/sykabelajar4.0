@@ -40,8 +40,10 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 - Do not add secrets to this directory, source control, Vite variables, or browser code.
 - The Google provider is enabled only when both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured.
 - Google OAuth callback URL for the eventual provider console configuration: https://auth.sykabelajar.my.id/api/auth/callback/google
-- Email/password sign-up requires email verification. Configure the outbound email webhook before attempting sign-up or password reset.
-- The email webhook receives JSON with from, to, subject, text, and category. It must authenticate the bearer token and must not log verification or reset URLs.
+- Email/password sign-up requires email verification. Configure one supported delivery route before attempting sign-up or password reset: direct Resend API (`AUTH_EMAIL_PROVIDER=resend`) or the existing authenticated webhook (`AUTH_EMAIL_PROVIDER=webhook`, the default).
+- Free email recommendation: Resend's Free plan currently includes 3,000 transactional emails/month and 100/day. Add and verify `sykabelajar.my.id` in Resend, publish its SPF/DKIM records in DNS, set `AUTH_EMAIL_FROM` to an address on that verified domain, set `AUTH_EMAIL_PROVIDER=resend`, and store `RESEND_API_KEY` as a Worker secret. Do not enable paid overages or upgrade. The free limit is a hard ceiling; quota exhaustion must be treated as temporary email-delivery failure.
+- Resend sends directly to `https://api.resend.com/emails`; the key remains server-side and the Worker sends only the recipient, subject, and plain-text message. Provider response bodies are not exposed to users.
+- The webhook option receives JSON with from, to, subject, text, and category. It must authenticate the bearer token and must not log verification or reset URLs.
 - Google-to-password implicit account linking is disabled. Users must explicitly link accounts after proving control of both methods.
 - The first-party OAuth public client is seeded by versioned migration `0002_seed_first_party_oauth_client.sql`: no client secret, exact fixed HTTPS callback, Authorization Code only, and `requirePKCE=1`. The `/_internal/bootstrap-first-party-client` endpoint is read-only; it requires `OAUTH_CLIENT_BOOTSTRAP_TOKEN`, rejects browser Origin headers, and verifies that the migrated client exactly matches the configured callback and audience. There is no public or unauthenticated client-creation endpoint.
 - The D1 schema bootstrap endpoint /_internal/schema-migrate is enabled only when ALLOW_SCHEMA_BOOTSTRAP=true and D1_SCHEMA_BOOTSTRAP_TOKEN are set. CI sets these only in an ephemeral local .dev.vars file. Never set ALLOW_SCHEMA_BOOTSTRAP in a shared or production environment.
@@ -64,7 +66,7 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 | ALLOW_SCHEMA_BOOTSTRAP | Local-only variable | Must never be enabled on a shared or production Worker |
 | GOOGLE_CLIENT_ID | Worker secret/variable | Google OAuth client ID |
 | GOOGLE_CLIENT_SECRET | Worker secret | Google OAuth client secret |
-| AUTH_EMAIL_WEBHOOK_URL | Worker variable | HTTPS endpoint that accepts the documented JSON email payload |
+| AUTH_EMAIL_PROVIDER | Worker variable | `resend` for direct Resend API or `webhook` (default) for the existing relay |\n| RESEND_API_KEY | Worker secret | Resend API key; only needed when `AUTH_EMAIL_PROVIDER=resend` |\n| AUTH_EMAIL_WEBHOOK_URL | Worker variable | HTTPS endpoint that accepts the documented JSON email payload when using webhook provider |
 | AUTH_EMAIL_WEBHOOK_TOKEN | Worker secret | Bearer credential for the email webhook |
 | AUTH_EMAIL_FROM | Worker variable | Verified sender identity |
 | DEV_APP_ORIGIN | Worker variable | Optional exact localhost origin for local development only |
