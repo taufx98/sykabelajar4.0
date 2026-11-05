@@ -34,7 +34,7 @@ This is the approved implementation order. Keep all work within these seven stag
 - [x] Isolated Worker package under services/auth-worker.
 - [x] Better Auth configured with native D1 binding and UUID identity generation.
 - [x] Secure host-only session cookies, Origin/CSRF checks, exact-origin CORS, and disabled session cookie cache.
-- [x] Email verification and password reset wired to an authenticated outbound email-webhook contract.
+- [x] Email verification and password reset use a provider adapter with direct Resend Free API support and the existing authenticated webhook fallback; six provider contract tests cover payloads, missing secrets, sanitized failures, local webhook compatibility, unsupported providers and HTTPS enforcement.
 - [x] Google provider code configured to require verified email; credentials are external environment secrets.
 - [x] Implicit Google/password account linking disabled.
 - [x] Database-backed rate-limit configuration.
@@ -49,7 +49,7 @@ This is the approved implementation order. Keep all work within these seven stag
 
 - [ ] Create the dedicated non-production Cloudflare D1 database and replace the placeholder database ID.
 - [ ] Configure the actual Worker environment secrets in Cloudflare through the approved deployment workflow.
-- [ ] Configure the production-grade outbound email provider/webhook and verify deliverability.
+- [ ] Create the Resend Free account (or configure an already-owned free webhook provider), verify the `sykabelajar.my.id` sender domain and SPF/DKIM records, set `AUTH_EMAIL_PROVIDER=resend`, add `RESEND_API_KEY` as a Worker secret, and verify real delivery. Do not enable paid overages or Workers Paid email sending.
 - [ ] Configure a test Google OAuth client and verify verified-email behavior end to end.
 - [ ] Deploy the Worker to a non-production hostname and verify health, email, Google callback, session and cookie behavior.
 - [ ] Configure auth.sykabelajar.my.id only after staging Worker checks pass; do not point the production app at it yet.
