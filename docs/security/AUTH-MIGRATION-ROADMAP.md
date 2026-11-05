@@ -198,3 +198,10 @@ See [AUTH-STAGES-STATUS-AND-ROLLBACK.md](AUTH-STAGES-STATUS-AND-ROLLBACK.md) for
 - Worker/frontend CI #42057926474 passed after the branch D1 binding update. Local tests apply migrations to local D1 only; remote D1 schema migrations have not been applied.
 - Supabase Free staging remains blocked. The connected organization listing shows the Free organization sykabelajar; the project listing returns sykabelajar_db2. A fresh project quote was US$0/month, but Supabase rejected creation because the owner has reached the two-active-Free-project limit. Do not pause/delete/upgrade sykabelajar_db2. Locate the other counted active project in the Dashboard before taking action.
 - The schema-only export is still pending on the owner's trusted local machine. It is independent of the Supabase staging-project slot and can proceed using AUTH-SCHEMA-BASELINE-RUNBOOK.md.
+
+
+## Current checkpoint — 6 November 2026
+
+- Cloudflare D1 account access is verified and the empty Better Auth staging database has been created and bound in the branch; no Worker deployment or custom auth domain is active. See the 6 November Cloudflare recheck in [AUTH-STAGES-STATUS-AND-ROLLBACK.md](AUTH-STAGES-STATUS-AND-ROLLBACK.md).
+- Supabase Free staging is still blocked by the account-wide two-active-project limit. The connected tool can see one Free organization and `sykabelajar_db2`, but the project that consumes the other quota slot is not visible. A new project quote is US$0/month; the creation attempt was rejected. No existing project was paused/deleted/upgraded. The owner must inspect all Owner/Admin organizations from the Dashboard to find the other active project; never pause production.
+- The schema-only exporter has an additional preflight ensuring the direct DB host or session-pooler username matches `SUPABASE_PROJECT_REF`, so the dump and managed-schema diff cannot silently target different projects. Its static contract is checked in [Supabase Local Auth Claims CI #42131932960](https://github.com/taufx98/sykabelajar4.0/actions/runs/42131932960). The local Supabase CI run is still in progress; the actual export is pending on the owner's machine.
