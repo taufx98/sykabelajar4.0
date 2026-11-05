@@ -14,6 +14,7 @@ import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { ShopProductEditor, type ShopProductDraft } from '@/components/admin/ShopProductEditor';
 import { ReferralSettingsPanel } from '@/components/admin/ReferralSettingsPanel';
 import { ShopInsightsPanel } from '@/components/admin/ShopInsightsPanel';
+import { ZeptoMailSettingsPanel } from '@/components/admin/ZeptoMailSettingsPanel';
 
 type CoreAdminTab = 'dashboard' | 'competitions' | 'users' | 'posts' | 'orders' | 'shop' | 'settings' | 'referral';
 const tabs: { key: CoreAdminTab; label: string; icon: typeof Trophy }[] = [
@@ -340,7 +341,7 @@ export function AdminPage() {
               </div>}
         <ShopInsightsPanel products={products}/>
       </div>}
-      {tab === 'settings' && <Card className="p-5"><h3 className="font-semibold text-fg">Pengaturan Platform</h3><p className="text-sm text-fg-muted mt-1">Akses lanjutan tetap tersedia melalui modul admin khusus.</p><Link to="/admin/roles" className="inline-block mt-4"><Button icon={<ShieldCheck size={15}/>}>Role & Akses</Button></Link></Card>}
+      {tab === 'settings' && <div className="space-y-4"><ZeptoMailSettingsPanel /><Card className="p-5"><h3 className="font-semibold text-fg">Pengaturan Platform</h3><p className="text-sm text-fg-muted mt-1">Akses lanjutan tetap tersedia melalui modul admin khusus.</p><Link to="/admin/roles" className="inline-block mt-4"><Button icon={<ShieldCheck size={15}/>}>Role & Akses</Button></Link></Card></div>}
       {tab === 'referral' && <ReferralSettingsPanel />}
     </section>
     {usernameEditor&&<AdminUsernameModal user={usernameEditor} onClose={()=>setUsernameEditor(null)} onSaved={username=>{setUsers(rows=>rows.map(row=>row.id===usernameEditor.id?{...row,username}:row));setUsernameEditor(null);}}/>}
