@@ -11,8 +11,6 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 AUTH_EMAIL_WEBHOOK_URL=
 AUTH_EMAIL_WEBHOOK_TOKEN=
-AUTH_EMAIL_FROM=
-
 # Email provider: webhook (default) or resend. For Resend use a verified sender domain.
 AUTH_EMAIL_PROVIDER=webhook
 AUTH_EMAIL_FROM=noreply@example.test
