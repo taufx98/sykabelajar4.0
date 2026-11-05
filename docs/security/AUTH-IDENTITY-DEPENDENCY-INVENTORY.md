@@ -1,6 +1,6 @@
 # Supabase identity dependency inventory
 
-Snapshot date: 4 November 2026  
+Snapshot date: 5 November 2026 (revalidated)  
 Source: read-only PostgreSQL catalog queries against the current production project. No table rows or personal user records were exported.
 
 ## Executive summary
@@ -175,3 +175,31 @@ The migration should not mass-rewrite every use of `auth.uid()`. With the accept
 ## Safety boundary
 
 This document records catalog metadata only. It does not contain user rows, emails, credentials or production tokens. No migration, trigger replacement, role change, account deletion or production data write was performed. Production remains on Supabase Auth until all seven approved stages and rollback gates have passed.
+
+
+## Live catalog revalidation — 5 November 2026
+
+The live production catalog was queried again read-only and compared row by row with the committed metadata-only file `scripts/auth-migration/live-auth-users-fk-catalog.json`:
+
+- **69 current application FKs vs 69 snapshot FKs**.
+- Missing constraints: 0; added constraints: 0; changed semantics: 0.
+- All 18 `SET NULL` source columns remain nullable.
+- Internal `auth` schema FKs remain excluded from the application migration (10 internal constraints).
+- `private.app_users` still does not exist; `auth.users` currently has 10 rows (count only; no identity values were exported).
+- Three non-internal `auth.users` triggers remain.
+- 109 RLS policies still reference `auth.uid()`.
+
+The direct auth dependency recheck confirms these ten functions: `private.apply_referral_qualification`, `private.capture_signup_referral`, `private.process_referral_email_confirmation`, `public.create_organizer`, `public.get_my_referrals`, `public.get_my_referrals_v2`, `public.get_my_verified_referrals`, `public.handle_new_auth_user`, `public.register_for_competition`, and `public.verify_pending_referrals`.
+
+This is a catalog-only comparison. It does not apply a migration, export application rows, or prove a full schema restore. The complete schema-only baseline must still be created from the owner's trusted local machine and validated before writing an executable Stage 3 migration.
+
+## Security Advisor review snapshot — 5 November 2026
+
+The read-only Supabase Security Advisor reported:
+
+- 23 RLS-enabled tables with no policies (INFO). Verify intended private/internal use before creating any policy.
+- 46 `SECURITY DEFINER` functions callable by `anon` (WARN).
+- 202 `SECURITY DEFINER` functions callable by `authenticated` (WARN).
+- Leaked-password protection disabled (WARN).
+
+A linter warning is not enough to classify a function as exploitable. Stage 5 must inspect function bodies, owner checks, issuer checks and grants individually. Do not revoke all `EXECUTE` privileges or make all functions `SECURITY INVOKER` without understanding the contract; exam participant and public verification flows may intentionally support non-authenticated calls.
