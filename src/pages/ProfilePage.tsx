@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, ArrowUpRight, Award, Boxes, Calendar, Camera, Eye, EyeOff, Filter, LayoutDashboard, MessageCircle, School, Settings2, ShieldCheck, Store, Trophy, UserMinus, Users, X } from 'lucide-react';
+import { Activity, ArrowUpRight, Award, Boxes, Calendar, Camera, Eye, EyeOff, Filter, LayoutDashboard, School, Settings2, ShieldCheck, Store, Trophy, Users, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { VerifiedMark } from '@/components/ui/VerifiedMark';
@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { BadgeCard, type ProfileBadge } from '@/components/profile/BadgeCard';
 import { useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
-import { getFollowStatus, removeFollow, requestFollow, blockChatUser, type FollowStatus } from '@/services/chat.service';
+import { getFollowStatus, removeFollow, requestFollow, type FollowStatus } from '@/services/social.service';
 import { getProfileBadges, getProfileBadgeVisibility } from '@/services/badge.service';
 import { CATEGORY_LABELS, GRADE_OPTIONS } from '@/data/catalog';
 import { initials, avatarGradient } from '@/lib/utils';
@@ -30,10 +30,10 @@ function ProfilePortrait({ name, id, src }: { name: string; id: string; src?: st
   return <div className={`${common} bg-gradient-to-br ${avatarGradient(id)} flex items-center justify-center font-semibold text-white text-3xl md:text-4xl`} aria-label={name}>{initials(name)}</div>;
 }
 
-function ConnectionModal({ mode, rows, close, onBlock, onUnfollow }: { mode: Social; rows: any[]; close: () => void; onBlock: (id: string) => void; onUnfollow: (id: string) => void }) {
+function ConnectionModal({ mode, rows, close, onUnfollow }: { mode: Social; rows: any[]; close: () => void; onUnfollow: (id: string) => void }) {
   const [q, setQ] = useState('');
   const filtered = rows.filter((x) => `${x.full_name || ''} ${x.username || ''}`.toLowerCase().includes(q.toLowerCase()));
-  return <div className="fixed inset-0 z-[120] flex items-center justify-center p-4"><button className="absolute inset-0 bg-black/70" onClick={close} aria-label="Tutup"/><div className="relative w-full max-w-xl max-h-[82vh] overflow-hidden rounded-2xl surface-card-bg border surface-border"><div className="p-4 border-b surface-border flex items-center gap-3"><Users size={18} className="text-accent"/><div className="flex-1"><h3 className="font-semibold text-fg">{mode === 'following' ? 'Mengikuti' : 'Pengikut'}</h3><p className="text-xs text-fg-muted">{filtered.length} pengguna</p></div><button type="button" onClick={close} aria-label="Tutup"><X size={18}/></button></div><div className="p-3 border-b surface-border"><input className="input w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari username…"/></div><div className="max-h-[62vh] overflow-y-auto">{filtered.length === 0 ? <p className="p-8 text-center text-sm text-fg-muted">Belum ada pengguna.</p> : filtered.map((x) => <div key={x.id} className="flex items-center gap-3 p-3 border-b surface-border"><Link to={`/profile/@${x.username}`} onClick={close} className="flex-1 flex items-center gap-3 min-w-0"><Avatar name={x.full_name || x.username} id={x.id} size={40} src={x.avatar_url || undefined}/><div className="min-w-0"><p className="text-sm font-semibold text-fg truncate">{x.full_name || x.username}</p><p className="text-xs text-fg-muted">@{x.username}</p></div></Link><Button size="sm" variant="outline" onClick={() => onBlock(x.id)} icon={<UserMinus size={14}/>}>Blokir</Button>{mode === 'following' && <Button size="sm" variant="outline" onClick={() => onUnfollow(x.id)}>Unfollow</Button>}</div>)}</div></div></div>;
+  return <div className="fixed inset-0 z-[120] flex items-center justify-center p-4"><button className="absolute inset-0 bg-black/70" onClick={close} aria-label="Tutup"/><div className="relative w-full max-w-xl max-h-[82vh] overflow-hidden rounded-2xl surface-card-bg border surface-border"><div className="p-4 border-b surface-border flex items-center gap-3"><Users size={18} className="text-accent"/><div className="flex-1"><h3 className="font-semibold text-fg">{mode === 'following' ? 'Mengikuti' : 'Pengikut'}</h3><p className="text-xs text-fg-muted">{filtered.length} pengguna</p></div><button type="button" onClick={close} aria-label="Tutup"><X size={18}/></button></div><div className="p-3 border-b surface-border"><input className="input w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari username…"/></div><div className="max-h-[62vh] overflow-y-auto">{filtered.length === 0 ? <p className="p-8 text-center text-sm text-fg-muted">Belum ada pengguna.</p> : filtered.map((x) => <div key={x.id} className="flex items-center gap-3 p-3 border-b surface-border"><Link to={`/profile/@${x.username}`} onClick={close} className="flex-1 flex items-center gap-3 min-w-0"><Avatar name={x.full_name || x.username} id={x.id} size={40} src={x.avatar_url || undefined}/><div className="min-w-0"><p className="text-sm font-semibold text-fg truncate">{x.full_name || x.username}</p><p className="text-xs text-fg-muted">@{x.username}</p></div></Link>{mode === 'following' && <Button size="sm" variant="outline" onClick={() => onUnfollow(x.id)}>Unfollow</Button>}</div>)}</div></div></div>;
 }
 
 function ProfileBadgeCollection({ badges, own }: { badges: ProfileBadge[]; own: boolean }) {
@@ -186,7 +186,6 @@ export function ProfilePage() {
     catch (e: any) { setFollow(old); if (removing) setFollowers((v) => v + 1); else if (next === 'approved') setFollowers((v) => Math.max(0, v - 1)); toast(e?.message || 'Gagal memperbarui.', 'error'); }
     finally { setBusy(false); }
   };
-  const block = async (id: string) => { try { await blockChatUser(id); setRows((v) => v.filter((x) => x.id !== id)); toast('Pengguna diblokir.', 'success'); } catch (e: any) { toast(e?.message || 'Gagal memblokir.', 'error'); } };
   const unfollow = async (id: string) => { try { await removeFollow(id); setRows((v) => v.filter((x) => x.id !== id)); setFollowing((v) => Math.max(0, v - 1)); toast('Berhenti mengikuti.', 'success'); } catch (e: any) { toast(e?.message || 'Gagal berhenti mengikuti.', 'error'); } };
 
   if (loading) return <div className="p-6 text-sm text-fg-muted">Memuat profil…</div>;
@@ -232,7 +231,7 @@ export function ProfilePage() {
                     : isAdminProfile
                       ? null
                       : <Button size="sm" variant="outline" icon={<Eye size={14}/>} onClick={() => setPreviewGuest(true)}>{t('profile.viewAsVisitor')}</Button>}
-                </> : user && !isAdminProfile && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button>{(follow === 'approved' || follow === 'auto') && <Link to={`/pesan?user_id=${profile.id}`}><Button size="sm" variant="outline" icon={<MessageCircle size={14}/>}>Kirim Pesan</Button></Link>}</>}
+                </> : user && !isAdminProfile && <><Button size="sm" disabled={busy} variant={follow === 'approved' || follow === 'auto' ? 'outline' : 'primary'} onClick={() => void doFollow()}>{follow === 'pending' ? 'Diminta' : follow === 'approved' || follow === 'auto' ? 'Berhenti Mengikuti' : 'Ikuti'}</Button></>}
               </div>
             </div>
           </div>
@@ -320,5 +319,5 @@ export function ProfilePage() {
           </div>
         )}
       </Card></div>
-    {social && <ConnectionModal mode={social} rows={rows} close={() => setSocial(null)} onBlock={block} onUnfollow={unfollow}/>}</div>;
+    {social && <ConnectionModal mode={social} rows={rows} close={() => setSocial(null)} onUnfollow={unfollow}/>}</div>;
 }

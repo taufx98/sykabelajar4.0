@@ -4,7 +4,6 @@ import { AppProvider, useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { ChatUXBridge } from '@/components/chat/ChatUXBridge';
 import { OrganizerShell } from '@/components/layout/OrganizerShell';
 import { LandingPage } from '@/pages/LandingPage';
 import { RegisterPage } from '@/pages/RegisterPage';
@@ -29,9 +28,6 @@ const OrdersPage = lazy(() => import('@/pages/OrdersPage').then((module) => ({ d
 const ReferralPage = lazy(() => import('@/pages/ReferralPage').then((module) => ({ default: module.ReferralPage })));
 const SocialFeedPage = lazy(() => import('@/pages/SocialFeedPage').then((module) => ({ default: module.SocialFeedPage })));
 const TwibbonPage = lazy(() => import('@/pages/TwibbonPage').then((module) => ({ default: module.TwibbonPage })));
-const MessagesPage = lazy(() => import('@/pages/MessagesPage').then((module) => ({ default: module.MessagesPage })));
-const CollectiveMessagesPage = lazy(() => import('@/pages/CollectiveMessagesPage').then((module) => ({ default: module.CollectiveMessagesPage })));
-const AdminChatConsolePage = lazy(() => import('@/pages/AdminChatConsolePage').then((module) => ({ default: module.AdminChatConsolePage })));
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((module) => ({ default: module.AdminPage })));
 const AdminControlCenterPage = lazy(() => import('@/pages/AdminControlCenterPage').then((module) => ({ default: module.AdminControlCenterPage })));
 const AdminErrorIntelligencePage = lazy(() => import('@/pages/AdminErrorIntelligencePage').then((module) => ({ default: module.AdminErrorIntelligencePage })));
@@ -82,9 +78,8 @@ const CollectiveParticipantLoginPage = lazy(() => import('@/pages/CollectivePart
 function AuthGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading, isGuest } = useApp();
   const location = useLocation();
-  const collectiveChatSession = location.pathname === '/pesan' && typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token'));
   if (authLoading) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-fg-muted">Memuat sesi...</p></div>;
-  if (isAuthenticated || isGuest || collectiveChatSession) return <>{children}</>;
+  if (isAuthenticated || isGuest) return <>{children}</>;
   return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
 }
 
@@ -101,7 +96,7 @@ function OrganizerShellRoute({ children }: { children: ReactNode }) {
   return <RoleRoute role="organizer_member"><OrganizerShell>{children}</OrganizerShell></RoleRoute>;
 }
 
-function ChatSessionIsolation() {
+function AuthSessionIsolation() {
   useEffect(() => {
     let previousUserId: string | null = null;
     let reloading = false;
@@ -144,17 +139,24 @@ function RouteLoading() {
   );
 }
 
-function MessagesEntryPage() {
-  const { user, authLoading } = useApp();
-  const collectiveChatSession = typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token')) && !user;
-  if (authLoading) return <RouteLoading />;
-  return collectiveChatSession ? <CollectiveMessagesPage /> : <MessagesPage />;
-}
-
 function OwnProfileRedirect() {
   const { user, isGuest } = useApp();
   if (user?.username) return <Navigate to={`/profile/@${user.username}`} replace />;
   return <Navigate to={isGuest ? '/home' : '/login'} replace />;
+}
+
+function RetiredChatRedirect() {
+  const { isAuthenticated, isGuest } = useApp();
+  const hasCollectiveSession = typeof window !== 'undefined' && (
+    Boolean(window.sessionStorage.getItem('syka_collective_access_token')) ||
+    Boolean(window.sessionStorage.getItem('syka_collective_portal_token'))
+  );
+  const destination = hasCollectiveSession
+    ? '/peserta-kolektif'
+    : isAuthenticated || isGuest
+      ? '/home'
+      : '/login';
+  return <Navigate to={destination} replace />;
 }
 
 function AppRoutes() {
@@ -162,6 +164,7 @@ function AppRoutes() {
     <Suspense fallback={<RouteLoading />}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/pesan" element={<RetiredChatRedirect />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/verify/:code" element={<VerifyPage />} />
@@ -188,8 +191,7 @@ function AppRoutes() {
           <Route path="/profile/edit" element={<ProfileSettingsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/pesan" element={<MessagesEntryPage />} />
-          <Route path="/claim-peserta-kolektif" element={<CollectiveParticipantClaimPage />} />
+            <Route path="/claim-peserta-kolektif" element={<CollectiveParticipantClaimPage />} />
           <Route path="/profile/collective-history" element={<CollectiveHistoryPage />} />
           <Route path="/guru" element={<RoleRoute role="teacher"><GuruCollectivePage /></RoleRoute>} />
           <Route path="/guru/prestasi" element={<RoleRoute role="teacher"><GuruAchievementPage /></RoleRoute>} />
@@ -224,7 +226,6 @@ function AppRoutes() {
           <Route path="/admin/moderation" element={<RoleRoute role="admin"><AdminModerationPage /></RoleRoute>} />
           <Route path="/admin/fulfillment" element={<RoleRoute role="admin"><AdminFulfillmentPage /></RoleRoute>} />
           <Route path="/admin/banners" element={<RoleRoute role="admin"><AdminBannersPage /></RoleRoute>} />
-          <Route path="/admin/chat" element={<RoleRoute role="admin"><AdminChatConsolePage /></RoleRoute>} />
           <Route path="/admin/organizers" element={<RoleRoute role="admin"><AdminOrganizersPage /></RoleRoute>} />
           <Route path="/admin/currency" element={<RoleRoute role="admin"><AdminCurrencyPage /></RoleRoute>} />
           <Route path="/admin/social-notification-settings" element={<RoleRoute role="admin"><AdminSocialNotificationSettingsPage /></RoleRoute>} />
@@ -238,10 +239,10 @@ function AppRoutes() {
   );
 }
 
-function ChatAwareApp() {
-  return <><RouteMetadata /><AppRoutes /><ChatUXBridge /></>;
+function ApplicationRoutes() {
+  return <><RouteMetadata /><AppRoutes /></>;
 }
 
 export default function App() {
-  return <AppProvider><BrowserRouter><ChatSessionIsolation /><ChatAwareApp /><ToastContainer /></BrowserRouter></AppProvider>;
+  return <AppProvider><BrowserRouter><AuthSessionIsolation /><ApplicationRoutes /><ToastContainer /></BrowserRouter></AppProvider>;
 }

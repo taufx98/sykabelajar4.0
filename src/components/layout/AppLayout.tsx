@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Home, CalendarCheck, Activity, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Megaphone, MessageCircle, SlidersHorizontal, School, AlertTriangle, ClipboardList, FileCheck2, Users2, WalletCards } from 'lucide-react';
+import { Home, CalendarCheck, Activity, BarChart3, Award, Bell, ShoppingBag, User as UserIcon, LogOut, Menu, GraduationCap, LogIn, UserPlus, ShieldCheck, Building2, Megaphone, SlidersHorizontal, School, AlertTriangle, ClipboardList, FileCheck2, Users2, WalletCards } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { RankBadge } from '@/components/ui/Badge';
 import { supabase } from '@/lib/supabase';
-import { getUnreadChatCount, invalidateUnreadChatCount } from '@/services/chat.service';
 import { getPersistentCache, setPersistentCache } from '@/lib/persistentCache';
 import { GeneralSettingsButton } from '@/components/ui/GeneralSettingsButton';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -19,7 +18,6 @@ import { subscribeSykaEvents } from '@/lib/realtimeBus';
 
 type NavItem = [string, string, typeof Home, number | undefined];
 type NavGroup = { title?: string; items: NavItem[] };
-const CHAT_CACHE_TTL = 30 * 60_000;
 const ORDER_CACHE_TTL = 30 * 60_000;
 
 export function AppLayout() {
@@ -29,34 +27,22 @@ export function AppLayout() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [unreadOrders, setUnreadOrders] = useState(0);
-  const [unreadMessages, setUnreadMessages] = useState(0);
   const [liveUnreadNotifications, setLiveUnreadNotifications] = useState(unreadNotificationCount);
-  const collectiveMode = !user && !isGuest && typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token'));
   const isAdmin = user?.role === 'admin';
   const isOrganizer = user?.role === 'penyelenggara';
   const isTeacher = user?.role === 'guru';
-  const chatPath = '/pesan';
 
   useEffect(() => { setLiveUnreadNotifications(unreadNotificationCount); }, [unreadNotificationCount]);
 
   useEffect(() => {
     const stopPublic = startPublicRealtime();
     if (isGuest || !user) {
-      setUnreadMessages(0);
       setUnreadOrders(0);
       return () => stopPublic();
     }
 
     const stopUser = startUserRealtime(user.id, isAdmin);
-    const chatCacheKey = `chat.unread.${user.id}`;
     const orderCacheKey = `admin.orders.unread.${user.id}`;
-    const cachedChat = getPersistentCache<number>(chatCacheKey);
-    if (cachedChat) setUnreadMessages(Math.max(0, Number(cachedChat.data) || 0));
-
-    void getUnreadChatCount(true).then((count) => {
-      setUnreadMessages(count);
-      setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
-    }).catch(() => { if (!cachedChat) setUnreadMessages(0); });
 
     if (isAdmin) {
       const cachedOrders = getPersistentCache<number>(orderCacheKey);
@@ -72,32 +58,14 @@ export function AppLayout() {
           setPersistentCache(orderCacheKey, value, { ttlMs: ORDER_CACHE_TTL });
         }).catch(() => setUnreadOrders(0));
       }
-    } else setUnreadOrders(0);
-
-    let chatBadgeTimer: number | undefined;
-    const scheduleChatBadgeRefresh = () => {
-      if (chatBadgeTimer) window.clearTimeout(chatBadgeTimer);
-      chatBadgeTimer = window.setTimeout(() => {
-        void getUnreadChatCount(true).then((count) => {
-          setUnreadMessages(count);
-          setPersistentCache(chatCacheKey, count, { ttlMs: CHAT_CACHE_TTL });
-        }).catch(() => undefined);
-      }, 180);
-    };
+    } else {
+      setUnreadOrders(0);
+    }
 
     const unsubscribe = subscribeSykaEvents((event) => {
       if (event.type === 'notification-inserted') { setLiveUnreadNotifications((value) => value + 1); return; }
       if (event.type === 'notification-read') { setLiveUnreadNotifications((value) => Math.max(0, value - 1)); return; }
       if (event.type === 'notification-all-read') { setLiveUnreadNotifications(0); return; }
-      if (event.type === 'chat-message' || event.type === 'chat-unread' || event.type === 'chat-read' || event.type === 'chat-hidden' || event.type === 'chat-thread-updated') {
-        // A new durable chat signal invalidates any unread snapshot that started before the event.
-        // Bursts are debounced below, then reconciled with one fresh server count.
-        invalidateUnreadChatCount(user.id);
-        scheduleChatBadgeRefresh();
-        return;
-      }
-      // Reconnect reconciliation already fetches the authoritative unread count.
-      if (event.type === 'chat-reconciled' || (event.type === 'realtime-status' && event.scope === 'user' && event.reconnected)) return;
       if (event.type === 'order-changed' && isAdmin) {
         const order = event.order;
         if (String(order.payment_proof_status ?? '') !== 'SUBMITTED') return;
@@ -113,7 +81,6 @@ export function AppLayout() {
     });
 
     return () => {
-      if (chatBadgeTimer) window.clearTimeout(chatBadgeTimer);
       unsubscribe();
       stopUser();
       stopPublic();
@@ -133,11 +100,9 @@ export function AppLayout() {
   const userNav: NavItem[] = [['/home', t('nav.home'), Home, undefined], ['/lomba-saya', t('nav.myCompetitions'), ClipboardList, undefined], ['/daily-tasks', t('nav.dailyTasks'), CalendarCheck, undefined], ['/leaderboard', t('nav.leaderboard'), BarChart3, undefined], ['/awards', t('nav.awards'), Award, undefined], ['/notifications', t('nav.notifications'), Bell, liveUnreadNotifications > 0 ? liveUnreadNotifications : undefined], ['/orders', t('nav.orders'), ShoppingBag, unreadOrders > 0 ? unreadOrders : undefined]];
   if (isTeacher) userNav.push(['/guru', t('nav.teacher'), School, undefined], ['/guru/daftar', t('nav.collectiveRegister'), UserPlus, undefined], ['/guru/kartu', t('nav.accessCards'), ShieldCheck, undefined], ['/guru/monitoring', t('nav.monitoring'), BarChart3, undefined]);
   if (isOrganizer) userNav.push(['/organizer', t('nav.organizer'), Building2, undefined], ['/organizer/competition/new', t('nav.newCompetition'), Award, undefined], ['/organizer/registrations', t('nav.registrations'), ClipboardList, undefined], ['/organizer/members', t('nav.members'), Users2, undefined], ['/organizer/grading', t('nav.grading'), FileCheck2, undefined], ['/organizer/plan', t('nav.planUsage'), WalletCards, undefined], ['/organizer/serials', t('nav.serials'), ShieldCheck, undefined], ['/organizer/ads', t('nav.ads'), Megaphone, undefined]);
-  userNav.push([chatPath, t('nav.messages'), MessageCircle, unreadMessages > 0 ? unreadMessages : undefined]);
   if (isAdmin) userNav.push(['/admin', t('nav.admin'), ShieldCheck, undefined], ['/admin/monitoring', 'Monitoring & Investigasi', Activity, undefined], ['/admin/error-intelligence', t('nav.errorIntelligence'), AlertTriangle, undefined], ['/admin/plan-usage', t('nav.planUsage'), SlidersHorizontal, undefined], ['/admin/organizers', t('nav.organizations'), Building2, undefined]);
   userNav.push([profilePath, t('nav.profile'), UserIcon, undefined]);
-  const collectiveNav: NavItem[] = [['/peserta-kolektif', t('nav.portal'), School, undefined], ['/pesan', t('nav.messages'), MessageCircle, undefined]];
-  const nav: NavItem[] = isGuest ? guestNav : collectiveMode ? collectiveNav : userNav;
+  const nav: NavItem[] = isGuest ? guestNav : userNav;
   const specialFeaturePaths = new Set<string>(isAdmin
     ? ['/admin', '/admin/monitoring', '/admin/error-intelligence', '/admin/plan-usage', '/admin/organizers']
     : isOrganizer
@@ -156,7 +121,7 @@ export function AppLayout() {
   const logoutNow = () => { void logout(); navigate('/'); };
   const isAdminRoute = isAdmin && location.pathname.startsWith('/admin');
   const isHomeRoute = location.pathname === '/' || location.pathname === '/home';
-  const homePath = collectiveMode ? '/peserta-kolektif' : '/home';
+  const homePath = '/home';
   const normalizedPathname = location.pathname.replace(/\/+$/, '') || '/';
   const isLinearExamRoom = /^\/lomba\/[^/]+\/kerja$/.test(normalizedPathname)
     || /^\/organizer\/competition\/[^/]+\/simulation\/[^/]+$/.test(normalizedPathname);
@@ -165,5 +130,5 @@ export function AppLayout() {
     return <div className="min-h-screen w-full surface-bg"><Outlet /></div>;
   }
 
-  return <><div className="min-h-screen max-w-[1440px] mx-auto flex surface-bg"><aside className="hidden md:flex w-[250px] xl:w-[270px] shrink-0 sticky top-0 h-screen border-r surface-border p-3 flex-col"><Link to={homePath} onClick={() => notifyHomeNavigationClick(homePath)} className="flex items-center gap-2.5 px-3 py-3 mb-4"><div className="w-9 h-9 rounded-xl gradient-moss flex items-center justify-center shadow-lg shadow-moss-500/20"><GraduationCap size={19} className="text-fg"/></div><span className="font-display font-bold text-lg text-fg">sykabelajar</span></Link><nav className="space-y-2 flex-1">{navGroups.map(({ title, items }) => <div key={title || 'primary-nav'}>{title && <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-1.5"><span className="text-[10px] font-bold uppercase tracking-[0.16em] text-fg-muted">{title}</span><span className="h-px flex-1 border-t surface-border"/></div>}<div className="space-y-0.5">{items.map(([to,label,Icon,badge])=>{const isActive=active(to);return <Link key={to} to={to} onClick={() => notifyHomeNavigationClick(to)} className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive?(to==='/notifications'?'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20':'bg-accent-muted-strong text-accent shadow-sm shadow-accent/5'):'text-fg-muted hover:bg-white/5 hover:text-fg'}`}><Icon size={19} className={isActive?(to==='/notifications'?'text-[#3B82F6]':'text-accent'):'text-fg-muted group-hover:text-fg transition'}/><span className="flex-1">{label}</span>{badge!=null&&badge>0&&<span className={`min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full text-white px-1 shadow-sm ${to === '/notifications' ? 'bg-[#3B82F6] shadow-blue-500/20' : 'bg-red-500'}`}>{badge>99?'99+':badge}</span>}</Link>})}</div></div>)}</nav>{isGuest?<div className="card p-3 mt-2"><p className="text-sm font-semibold text-fg">Mode Tamu</p><p className="text-xs text-fg-muted mt-1 mb-3">Masuk untuk mengikuti lomba dan menyimpan progres.</p><Link to="/register"><Button fullWidth size="sm" className="mb-2" icon={<UserPlus size={15}/>}>Daftar Gratis</Button></Link><Link to="/login"><Button fullWidth size="sm" variant="outline" icon={<LogIn size={15}/>}>Masuk</Button></Link><GeneralSettingsButton className="mt-2 w-full" showLabel /></div>:user?<div className="mt-2 space-y-2 border-t surface-border pt-3"><Link to={profilePath} className="group flex items-center gap-3 p-2.5 rounded-xl transition-all duration-150 hover:bg-white/5"><Avatar name={user.displayName} id={user.id} size={40} src={user.profilePhoto||undefined}/><div className="min-w-0 flex-1"><p className="text-sm text-fg font-semibold truncate group-hover:text-accent transition">{user.displayName}</p><div className="flex items-center gap-2 mt-0.5"><p className="text-[11px] text-fg-muted truncate">@{user.username}</p><span className="text-[11px] font-bold text-accent tabular-nums">{user.points.toLocaleString('id-ID')} XP</span></div></div><RankBadge rank={user.rank} size="sm"/></Link><div className="flex items-center gap-2"><GeneralSettingsButton className="flex-1" showLabel /><button onClick={logoutNow} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-sm text-fg-muted hover:bg-red-500/10 hover:text-red-400 transition-all duration-150"><LogOut size={16}/><span>Keluar</span></button></div></div>:null}</aside><div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b surface-border surface-bg px-4 py-3 flex justify-between items-center"><Link to={homePath} onClick={() => notifyHomeNavigationClick(homePath)} className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-fg"/></div><b className="text-fg text-sm">sykabelajar</b></Link><div className="flex items-center gap-1.5"><GeneralSettingsButton /><button onClick={()=>setDrawerOpen(true)} className="relative p-1.5"><Menu size={21} className="text-fg"/></button></div></div>{drawerOpen&&<div className="md:hidden fixed inset-0 z-50"><div className="absolute inset-0 bg-black/70" onClick={()=>setDrawerOpen(false)}/><div className="absolute left-0 top-0 bottom-0 w-72 surface-card-bg border-r surface-border p-4 flex flex-col"><div className="flex justify-between items-center mb-5"><b className="text-fg font-display">Menu</b><button onClick={()=>setDrawerOpen(false)} className="text-fg-muted hover:text-fg p-1">✕</button></div><nav className="space-y-2 flex-1 overflow-y-auto">{navGroups.map(({ title, items }) => <div key={title || 'primary-nav'}>{title && <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5"><span className="text-[10px] font-bold uppercase tracking-[0.16em] text-fg-muted">{title}</span><span className="h-px flex-1 border-t surface-border"/></div>}<div className="space-y-0.5">{items.map(([to,label,Icon,badge])=>{const isActive=active(to);return <Link key={to} to={to} onClick={()=>{notifyHomeNavigationClick(to);setDrawerOpen(false)}} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive?(to==='/notifications'?'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20':'bg-accent-muted-strong text-accent'):'text-fg-muted hover:bg-white/5 hover:text-fg'}`}><Icon size={18} className={isActive && to === '/notifications' ? 'text-[#3B82F6]' : ''}/><span className="flex-1">{label}</span>{badge!=null&&badge>0&&<span className={`min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full text-white px-1 shadow-sm ${to === '/notifications' ? 'bg-[#3B82F6] shadow-blue-500/20' : 'bg-red-500'}`}>{badge>99?'99+':badge}</span>}</Link>})}</div></div>)}</nav></div></div>}<main className="flex-1 min-w-0 pt-14 md:pt-0 pb-16 md:pb-0 surface-bg">{!isHomeRoute&&<GlobalHeader navItems={globalHeaderNav}/>} {isAdminRoute&&shouldShowAdminModuleNav(location.pathname)&&<AdminModuleNav/>}<Outlet/></main></div><MobileNavigationOverride unreadChatCount={unreadMessages} unreadNotificationCount={liveUnreadNotifications}/></>;
+  return <><div className="min-h-screen max-w-[1440px] mx-auto flex surface-bg"><aside className="hidden md:flex w-[250px] xl:w-[270px] shrink-0 sticky top-0 h-screen border-r surface-border p-3 flex-col"><Link to={homePath} onClick={() => notifyHomeNavigationClick(homePath)} className="flex items-center gap-2.5 px-3 py-3 mb-4"><div className="w-9 h-9 rounded-xl gradient-moss flex items-center justify-center shadow-lg shadow-moss-500/20"><GraduationCap size={19} className="text-fg"/></div><span className="font-display font-bold text-lg text-fg">sykabelajar</span></Link><nav className="space-y-2 flex-1">{navGroups.map(({ title, items }) => <div key={title || 'primary-nav'}>{title && <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-1.5"><span className="text-[10px] font-bold uppercase tracking-[0.16em] text-fg-muted">{title}</span><span className="h-px flex-1 border-t surface-border"/></div>}<div className="space-y-0.5">{items.map(([to,label,Icon,badge])=>{const isActive=active(to);return <Link key={to} to={to} onClick={() => notifyHomeNavigationClick(to)} className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive?(to==='/notifications'?'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20':'bg-accent-muted-strong text-accent shadow-sm shadow-accent/5'):'text-fg-muted hover:bg-white/5 hover:text-fg'}`}><Icon size={19} className={isActive?(to==='/notifications'?'text-[#3B82F6]':'text-accent'):'text-fg-muted group-hover:text-fg transition'}/><span className="flex-1">{label}</span>{badge!=null&&badge>0&&<span className={`min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full text-white px-1 shadow-sm ${to === '/notifications' ? 'bg-[#3B82F6] shadow-blue-500/20' : 'bg-red-500'}`}>{badge>99?'99+':badge}</span>}</Link>})}</div></div>)}</nav>{isGuest?<div className="card p-3 mt-2"><p className="text-sm font-semibold text-fg">Mode Tamu</p><p className="text-xs text-fg-muted mt-1 mb-3">Masuk untuk mengikuti lomba dan menyimpan progres.</p><Link to="/register"><Button fullWidth size="sm" className="mb-2" icon={<UserPlus size={15}/>}>Daftar Gratis</Button></Link><Link to="/login"><Button fullWidth size="sm" variant="outline" icon={<LogIn size={15}/>}>Masuk</Button></Link><GeneralSettingsButton className="mt-2 w-full" showLabel /></div>:user?<div className="mt-2 space-y-2 border-t surface-border pt-3"><Link to={profilePath} className="group flex items-center gap-3 p-2.5 rounded-xl transition-all duration-150 hover:bg-white/5"><Avatar name={user.displayName} id={user.id} size={40} src={user.profilePhoto||undefined}/><div className="min-w-0 flex-1"><p className="text-sm text-fg font-semibold truncate group-hover:text-accent transition">{user.displayName}</p><div className="flex items-center gap-2 mt-0.5"><p className="text-[11px] text-fg-muted truncate">@{user.username}</p><span className="text-[11px] font-bold text-accent tabular-nums">{user.points.toLocaleString('id-ID')} XP</span></div></div><RankBadge rank={user.rank} size="sm"/></Link><div className="flex items-center gap-2"><GeneralSettingsButton className="flex-1" showLabel /><button onClick={logoutNow} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-sm text-fg-muted hover:bg-red-500/10 hover:text-red-400 transition-all duration-150"><LogOut size={16}/><span>Keluar</span></button></div></div>:null}</aside><div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b surface-border surface-bg px-4 py-3 flex justify-between items-center"><Link to={homePath} onClick={() => notifyHomeNavigationClick(homePath)} className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-fg"/></div><b className="text-fg text-sm">sykabelajar</b></Link><div className="flex items-center gap-1.5"><GeneralSettingsButton /><button onClick={()=>setDrawerOpen(true)} className="relative p-1.5"><Menu size={21} className="text-fg"/></button></div></div>{drawerOpen&&<div className="md:hidden fixed inset-0 z-50"><div className="absolute inset-0 bg-black/70" onClick={()=>setDrawerOpen(false)}/><div className="absolute left-0 top-0 bottom-0 w-72 surface-card-bg border-r surface-border p-4 flex flex-col"><div className="flex justify-between items-center mb-5"><b className="text-fg font-display">Menu</b><button onClick={()=>setDrawerOpen(false)} className="text-fg-muted hover:text-fg p-1">✕</button></div><nav className="space-y-2 flex-1 overflow-y-auto">{navGroups.map(({ title, items }) => <div key={title || 'primary-nav'}>{title && <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5"><span className="text-[10px] font-bold uppercase tracking-[0.16em] text-fg-muted">{title}</span><span className="h-px flex-1 border-t surface-border"/></div>}<div className="space-y-0.5">{items.map(([to,label,Icon,badge])=>{const isActive=active(to);return <Link key={to} to={to} onClick={()=>{notifyHomeNavigationClick(to);setDrawerOpen(false)}} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive?(to==='/notifications'?'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20':'bg-accent-muted-strong text-accent'):'text-fg-muted hover:bg-white/5 hover:text-fg'}`}><Icon size={18} className={isActive && to === '/notifications' ? 'text-[#3B82F6]' : ''}/><span className="flex-1">{label}</span>{badge!=null&&badge>0&&<span className={`min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full text-white px-1 shadow-sm ${to === '/notifications' ? 'bg-[#3B82F6] shadow-blue-500/20' : 'bg-red-500'}`}>{badge>99?'99+':badge}</span>}</Link>})}</div></div>)}</nav></div></div>}<main className="flex-1 min-w-0 pt-14 md:pt-0 pb-16 md:pb-0 surface-bg">{!isHomeRoute&&<GlobalHeader navItems={globalHeaderNav}/>} {isAdminRoute&&shouldShowAdminModuleNav(location.pathname)&&<AdminModuleNav/>}<Outlet/></main></div><MobileNavigationOverride unreadNotificationCount={liveUnreadNotifications}/></>;
 }

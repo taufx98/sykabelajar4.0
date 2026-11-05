@@ -1,25 +1,22 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Bell, Check, Eye, Grid2X2, KeyRound, Lock, RotateCcw, Save, ShieldCheck, UserRound, UsersRound, XCircle } from 'lucide-react';
+import { ArrowLeft, Bell, Check, Eye, Grid2X2, KeyRound, Lock, RotateCcw, Save, ShieldCheck, UserRound, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Avatar } from '@/components/ui/Avatar';
 import { BadgeShowcaseSelector } from '@/components/profile/BadgeShowcaseSelector';
 import { useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
-import { unblockChatUser } from '@/services/chat.service';
 import { getProfileBadges } from '@/services/badge.service';
 import { updateProfile as updateProfileRecord } from '@/services/profile.service';
 import type { ProfileBadge } from '@/components/profile/BadgeCard';
 
-const DEFAULT_MOBILE_NAV = ['home', 'myCompetitions', 'leaderboard', 'awards', 'chat'];
+const DEFAULT_MOBILE_NAV = ['home', 'myCompetitions', 'leaderboard', 'awards', 'notifications'];
 const MOBILE_ITEMS = [
   ['home', 'Beranda'],
   ['myCompetitions', 'Lomba Saya'],
   ['workspace', 'Ruang Kerja'],
   ['leaderboard', 'Peringkat'],
   ['awards', 'Piagam'],
-  ['chat', 'Pesan'],
   ['notifications', 'Notifikasi'],
   ['profile', 'Profil'],
 ] as const;
@@ -30,7 +27,6 @@ const SETTINGS_NAV = [
   { key: 'notifications', icon: Bell, label: 'Notifikasi', kind: 'link', to: '/notifications' },
   { key: 'appearance', icon: Grid2X2, label: 'Tampilan & Privasi', kind: 'anchor', to: '#appearance' },
   { key: 'social', icon: UsersRound, label: 'Sosial', kind: 'anchor', to: '#social' },
-  { key: 'blocked', icon: XCircle, label: 'Pengguna Diblokir', kind: 'anchor', to: '#blocked' },
 ] as const;
 
 type SavedState = {
@@ -38,7 +34,6 @@ type SavedState = {
   showFollowing: boolean;
   showBadges: boolean;
   showBadgeCollection: boolean;
-  acceptMessages: 'public' | 'followers' | 'private';
   mobileNav: string[];
   selectedBadges: string[];
 };
@@ -84,12 +79,9 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
   const [showFollowing, setShowFollowing] = useState(true);
   const [showBadges, setShowBadges] = useState(true);
   const [showBadgeCollection, setShowBadgeCollection] = useState(true);
-  const [acceptMessages, setAcceptMessages] = useState<'public' | 'followers' | 'private'>('public');
   const [mobileNav, setMobileNav] = useState<string[]>(DEFAULT_MOBILE_NAV);
   const [badges, setBadges] = useState<ProfileBadge[]>([]);
   const [selectedBadges, setSelectedBadges] = useState<string[]>([]);
-  const [blocked, setBlocked] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
@@ -99,7 +91,6 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
     showFollowing: true,
     showBadges: true,
     showBadgeCollection: true,
-    acceptMessages: 'public',
     mobileNav: [...DEFAULT_MOBILE_NAV],
     selectedBadges: [],
   });
@@ -108,13 +99,11 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
     if (!user) return;
     let live = true;
     (async () => {
-      setLoading(true);
       try {
-        const [settings, profile, profileBadges, blocks] = await Promise.all([
+        const [settings, profile, profileBadges] = await Promise.all([
           supabase.from('profile_ui_settings').select('show_social_popup,show_following_popup,show_badges,show_badge_collection,mobile_nav').eq('user_id', user.id).maybeSingle(),
-          supabase.from('profiles').select('badge_showcase,accept_messages').eq('id', user.id).maybeSingle(),
+          supabase.from('profiles').select('badge_showcase').eq('id', user.id).maybeSingle(),
           getProfileBadges(user.id).catch(() => [] as ProfileBadge[]),
-          supabase.from('chat_blocks').select('blocked_id,created_at').eq('blocker_id', user.id).order('created_at', { ascending: false }),
         ]);
         if (!live) return;
 
@@ -122,7 +111,6 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
         const nextShowFollowing = settings.data?.show_following_popup !== false;
         const nextShowBadges = settings.data?.show_badges !== false;
         const nextShowBadgeCollection = settings.data?.show_badge_collection !== false;
-        const nextAcceptMessages = profile.data?.accept_messages === 'followers' || profile.data?.accept_messages === 'private' ? profile.data.accept_messages : 'public';
         const nextMobileNav = Array.isArray(settings.data?.mobile_nav)
           ? settings.data.mobile_nav.map(String).filter((key: string) => MOBILE_ITEMS.some(([id]) => id === key)).slice(0, 5)
           : [...DEFAULT_MOBILE_NAV];
@@ -134,7 +122,6 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
         setShowFollowing(nextShowFollowing);
         setShowBadges(nextShowBadges);
         setShowBadgeCollection(nextShowBadgeCollection);
-        setAcceptMessages(nextAcceptMessages);
         setMobileNav(nextMobileNav.length ? nextMobileNav : [...DEFAULT_MOBILE_NAV]);
         setSelectedBadges(nextSelectedBadges);
         setSavedState({
@@ -142,22 +129,13 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
           showFollowing: nextShowFollowing,
           showBadges: nextShowBadges,
           showBadgeCollection: nextShowBadgeCollection,
-          acceptMessages: nextAcceptMessages,
           mobileNav: nextMobileNav.length ? [...nextMobileNav] : [...DEFAULT_MOBILE_NAV],
           selectedBadges: [...nextSelectedBadges],
         });
         setBadges(profileBadges);
 
-        const ids = (blocks.data ?? []).map((x) => x.blocked_id);
-        const { data: profiles } = ids.length
-          ? await supabase.from('profiles').select('id,username,full_name,avatar_url,verification_type').in('id', ids)
-          : { data: [] };
-        if (!live) return;
-        setBlocked((blocks.data ?? []).map((x) => ({ ...x, profile: (profiles ?? []).find((q) => q.id === x.blocked_id) })));
       } catch (e: any) {
         if (live) toast(e?.message ?? 'Pengaturan gagal dimuat.', 'error');
-      } finally {
-        if (live) setLoading(false);
       }
     })();
     return () => { live = false; };
@@ -188,7 +166,6 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
       await updateProfileRecord(user.id, {
         badge_showcase: currentShowcase,
         badge_showcase_manual: true,
-        accept_messages: acceptMessages,
       });
 
       setSelectedBadges(currentShowcase);
@@ -198,7 +175,6 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
         showFollowing,
         showBadges,
         showBadgeCollection,
-        acceptMessages,
         mobileNav: [...nextMobileNav],
         selectedBadges: [...currentShowcase],
       });
@@ -216,7 +192,6 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
     setShowFollowing(savedState.showFollowing);
     setShowBadges(savedState.showBadges);
     setShowBadgeCollection(savedState.showBadgeCollection);
-    setAcceptMessages(savedState.acceptMessages);
     setMobileNav([...savedState.mobileNav]);
     setSelectedBadges([...savedState.selectedBadges]);
   };
@@ -256,16 +231,6 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
     }
   };
 
-  const unBlock = async (id: string) => {
-    try {
-      await unblockChatUser(id);
-      setBlocked((current) => current.filter((value) => value.blocked_id !== id));
-      toast('Blokir chat dibuka.', 'success');
-    } catch (e: any) {
-      toast(e?.message ?? 'Gagal membuka blokir.', 'error');
-    }
-  };
-
   if (!user) return null;
 
   return <div className={embedded ? 'min-w-0' : 'min-h-screen bg-surface/30 p-4 md:p-6'}>
@@ -297,7 +262,7 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
           {!embedded && <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Profil</p>
             <h1 className="font-display text-2xl font-bold text-fg">Tampilan & Privasi</h1>
-            <p className="mt-1 text-sm text-fg-muted">Atur badge, privasi profil, pesan, navigasi mobile, dan kontrol akun.</p>
+            <p className="mt-1 text-sm text-fg-muted">Atur badge, privasi profil, navigasi mobile, dan keamanan akun.</p>
           </div>}
 
           <SectionCard id="appearance" title="Badge Showcase" description="Pilih maksimal 3 badge untuk ditampilkan pada identitas profil.">
@@ -312,21 +277,10 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
             </div>
           </SectionCard>
 
-          <SectionCard id="social" title="Profil sosial" description="Kontrol akses ke informasi koneksi sosial dan pesan.">
+          <SectionCard id="social" title="Profil sosial" description="Kontrol akses ke informasi koneksi sosial.">
             <div className="divide-y surface-border">
               <SettingRow title="Tampilkan popup sosial" description="Izinkan orang membuka daftar Penggemar dan koneksi sosial dari profil Anda." checked={showSocial} onChange={setShowSocial} disabled={saving}/>
               <SettingRow title="Tampilkan “Mengikuti”" description="Matikan untuk menyembunyikan akses daftar akun yang Anda ikuti dari profil publik." checked={showFollowing} onChange={setShowFollowing} disabled={saving}/>
-            </div>
-            <div className="mt-4 border-t surface-border pt-4">
-              <label className="block">
-                <span className="text-sm font-semibold text-fg">Siapa yang bisa mengirim pesan</span>
-                <span className="mt-1 block text-xs leading-relaxed text-fg-muted">Aturan ini juga diterapkan oleh backend chat saat pengguna mencoba membuka percakapan langsung.</span>
-                <select className="input mt-3 w-full max-w-md" value={acceptMessages} onChange={(e) => setAcceptMessages(e.target.value as 'public' | 'followers' | 'private')} disabled={saving}>
-                  <option value="public">Semua orang (Publik)</option>
-                  <option value="followers">Hanya Pengikut yang Disetujui</option>
-                  <option value="private">Tidak Ada (Privat)</option>
-                </select>
-              </label>
             </div>
           </SectionCard>
 
@@ -350,9 +304,7 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
             <div className="mt-3 flex justify-end"><Button size="sm" onClick={() => void changePassword()} disabled={passwordBusy} icon={<ShieldCheck size={14}/>}>{passwordBusy ? 'Mengubah…' : 'Ubah Password'}</Button></div>
           </SectionCard>
 
-          <SectionCard id="blocked" title="Pengguna diblokir" description="Kelola akun yang tidak boleh mengirim chat atau berinteraksi sesuai aturan blokir.">
-            {loading ? <p className="mt-4 text-sm text-fg-muted">Memuat…</p> : blocked.length === 0 ? <p className="mt-4 text-sm text-fg-muted">Belum ada pengguna yang diblokir.</p> : <div className="mt-3 divide-y surface-border">{blocked.map((item) => <div key={item.blocked_id} className="flex items-center gap-3 py-3"><Avatar name={item.profile?.full_name || item.profile?.username || 'User'} id={item.blocked_id} size={38} src={item.profile?.avatar_url || undefined}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{item.profile?.full_name || item.profile?.username}</p><p className="text-xs text-fg-muted">@{item.profile?.username}</p></div><Button size="sm" variant="outline" onClick={() => void unBlock(item.blocked_id)}>Buka Blokir</Button></div>)}</div>}
-          </SectionCard>
+
 
           <div className="flex flex-col-reverse gap-2 pb-4 sm:flex-row sm:items-center sm:justify-end">
             <Button variant="ghost" onClick={reset} disabled={saving} icon={<RotateCcw size={14}/>}>Batalkan Perubahan</Button>

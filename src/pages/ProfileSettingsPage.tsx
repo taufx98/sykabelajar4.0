@@ -80,10 +80,9 @@ export function ProfileSettingsPage() {
             {[
               ['#appearance', 'Badge Showcase'],
               ['#badge-visibility', 'Visibilitas Badge'],
-              ['#social', 'Sosial & Pesan'],
+              ['#social', 'Sosial'],
               ['#mobile-navigation', 'Navigasi Mobile'],
               ['#security', 'Keamanan'],
-              ['#blocked', 'Pengguna Diblokir'],
             ].map(([href, label]) => (
               <a key={href} href={href} className="rounded-full border surface-border surface-card-bg px-3 py-1.5 text-xs font-semibold text-fg-muted transition hover:border-accent/30 hover:text-accent">{label}</a>
             ))}

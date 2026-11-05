@@ -3,8 +3,6 @@ import { emitSykaEvent } from '@/lib/realtimeBus';
 import { clearPublicCache, invalidateForRealtime } from '@/lib/cacheRegistry';
 import { applyFeedRealtimeChange } from '@/lib/feedRealtime';
 import { applyCompetitionRealtimeChange, invalidateLeaderboardMemory } from '@/services/platform.service';
-import { applyChatRealtimeMessage, applyChatRealtimeThread, removeChatRealtimeThread } from '@/services/chat.service';
-import { reconcileAfterRealtimeReconnect } from '@/services/realtime-reconciliation.service';
 
 type Cleanup = () => void;
 let publicCleanup: Cleanup | null = null;
@@ -84,35 +82,6 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       emitSykaEvent({ type: 'organizer-changed', organizerId: String(row.organizer_id ?? '') || undefined });
     });
 
-  const handleThreadChange = (payload: { new?: unknown; old?: unknown; eventType: string }) => {
-    const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
-    const threadId = String(row.id ?? '');
-    if (threadId && payload.eventType === 'DELETE') removeChatRealtimeThread(threadId);
-    else if (threadId) applyChatRealtimeThread(row as never);
-    emitSykaEvent({ type: 'chat-thread-updated', thread: row });
-  };
-
-  const handleChatMessageInsert = (payload: { new?: unknown }) => {
-    const row = (payload.new ?? {}) as Record<string, unknown>;
-    const threadId = String(row.thread_id ?? '');
-    const messageId = String(row.id ?? '');
-    if (!threadId || !messageId) return;
-    const message = row as never;
-    applyChatRealtimeMessage(message, userId);
-    emitSykaEvent({ type: 'chat-message', message: row });
-  };
-
-  if (isAdmin) {
-    // Admin receives only its own DM/ticket endpoints, never other users' private chats.
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, handleThreadChange);
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, handleThreadChange);
-  } else {
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `user_id=eq.${userId}` }, handleThreadChange);
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `participant_id=eq.${userId}` }, handleThreadChange);
-  }
-
-  channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, handleChatMessageInsert);
-
   if (isAdmin) {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'payment_proof_status=eq.SUBMITTED' }, (payload) => {
       emitSykaEvent({ type: 'order-changed', order: payload.new as Record<string, unknown> });
@@ -124,7 +93,6 @@ export function startUserRealtime(userId: string, isAdmin = false): Cleanup {
       const reconnected = wasDegraded;
       emitSykaEvent({ type: 'realtime-status', scope: 'user', status: 'subscribed', reconnected });
       wasDegraded = false;
-      if (reconnected) void reconcileAfterRealtimeReconnect('user', userId);
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
       wasDegraded = true;
       console.warn('[SykaBelajar] user realtime degraded:', status, error);

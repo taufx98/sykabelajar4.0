@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { emitSykaEvent } from '@/lib/realtimeBus';
 
 export interface SocialPost { id:string; author_user_id:string; author_name:string; author_username:string; avatar_url:string|null; title:string; body:string; cover_url:string|null; created_at:string; competition_id:string|null; competition_slug:string|null; likes:number; liked:boolean; comments:number; }
 export interface SocialComment { id:string; postId:string; userId:string; authorName:string; authorUsername:string; authorId:string; body:string; createdAt:string; likes:number; liked:boolean; parentId:string|null; }
@@ -43,4 +44,40 @@ export async function reportPostComment(commentId: string, reason: string) {
   });
   if (error) throw error;
   return String(data);
+}
+
+ 
+// Follow and connection APIs belong to the social domain, not the retired chat service.
+export type FollowStatus = 'none' | 'pending' | 'approved' | 'auto';
+
+export async function getFollowStatus(followerId: string, followingId: string): Promise<FollowStatus> {
+  const { data, error } = await supabase.rpc('get_follow_status', {
+    p_follower_id: followerId,
+    p_following_id: followingId,
+  });
+  if (error) throw error;
+  return (data as FollowStatus) || 'none';
+}
+
+export async function requestFollow(targetUserId: string) {
+  const { data, error } = await supabase.rpc('create_follow_request', { p_target_user_id: targetUserId });
+  if (error) throw error;
+  emitSykaEvent({ type: 'follow-updated', userId: targetUserId, status: String((data as any)?.status ?? 'pending') });
+  return data as any;
+}
+
+export async function respondFollowRequest(followerId: string, accept: boolean) {
+  const { data, error } = await supabase.rpc('respond_follow_request', {
+    p_follower_id: followerId,
+    p_accept: accept,
+  });
+  if (error) throw error;
+  emitSykaEvent({ type: 'follow-updated', userId: followerId, status: accept ? 'approved' : 'none' });
+  return data;
+}
+
+export async function removeFollow(targetUserId: string) {
+  const { error } = await supabase.rpc('remove_follow', { p_target_user_id: targetUserId });
+  if (error) throw error;
+  emitSykaEvent({ type: 'follow-updated', userId: targetUserId, status: 'none' });
 }

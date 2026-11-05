@@ -4,7 +4,7 @@ import { useApp } from '@/store/AppContext';
 import { Card } from '@/components/ui/Card';
 import { timeAgo } from '@/lib/utils';
 import { listNotifications } from '@/services/notification.service';
-import { respondFollowRequest } from '@/services/chat.service';
+import { respondFollowRequest } from '@/services/social.service';
 import { emitSykaEvent, subscribeSykaEvents } from '@/lib/realtimeBus';
 import { showToast } from '@/lib/toast';
 import type { AppNotification } from '@/types';
