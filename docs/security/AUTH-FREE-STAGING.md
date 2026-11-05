@@ -132,9 +132,9 @@ Update the token in Cloudflare Dashboard and replace GitHub secret `CLOUDFLARE_A
 - Account `Workers Scripts Edit` (called `Write` in some current API/UI permission lists) for Worker deployment/updates. Creating a brand-new Worker may require product-level Workers Admin; to avoid a broad role, create the empty script once in the dashboard and keep automated deployment limited to editing that script.
 - Zone `Workers Routes Edit/Write` and `Zone Read` on `sykabelajar.my.id`; use `DNS Edit/Write` only when the deployment flow needs to create/manage the custom hostname's DNS record.
 
-Do not use Super Administrator or an unrelated account-wide role. Cloudflare documents these scopes in [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/) and [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/). Rerun the preflight after rotating the secret. The Worker config still has an all-zero D1 placeholder and is intentionally non-deployable.
+Do not use Super Administrator or an unrelated account-wide role. Cloudflare documents these scopes in [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/) and [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/). Rerun the preflight after rotating the secret. The Worker config now references the dedicated staging D1 UUID on the PoC branch, but the Worker is still not deployed.
 
-No Cloudflare database, Worker, DNS record, custom domain, or secret was created/changed by the preflight.
+The read-only preflight itself created or changed no Cloudflare resource. A separate guarded bootstrap subsequently created the dedicated empty staging D1; no Worker, DNS record, custom domain, route, or Worker secret was created/changed.
 
 
 ## Latest Cloudflare and Supabase status — 5 November 2026
@@ -143,3 +143,11 @@ No Cloudflare database, Worker, DNS record, custom domain, or secret was created
 - Cloudflare Workers Free D1 limits include 10 databases, 500 MB per database, 5 GB total account storage, 5 million rows read/day and 100,000 rows written/day. Once a daily limit is reached, queries fail until the daily reset; the migration will not upgrade automatically. See https://developers.cloudflare.com/d1/platform/limits/, https://developers.cloudflare.com/d1/platform/pricing/ and https://developers.cloudflare.com/changelog/post/2026-09-01-d1-free-tier-limit-enforcement/.
 - Auth Worker/frontend validation #42057926474 passed after the branch D1 binding update. Worker and frontend jobs did not deploy.
 - Supabase project creation was retried at a quoted US$0/month, but Supabase rejected it because the owner has reached the two-active-Free-project limit. The connector lists only sykabelajar_db2 in organization sykabelajar; the project responsible for the remaining quota is not visible through this connection. No project was created, paused, deleted or upgraded. Preserve production and inspect all projects from the Supabase Dashboard before taking action.
+
+
+## Supabase and schema export checkpoint — 6 November 2026
+
+- Supabase `list_organizations` shows the Free organization `sykabelajar`; `list_projects` shows only `sykabelajar_db2`. A new project quote returned US$0/month, but Supabase rejected creation because account `taufxacc11-sudo` has reached the two-active-Free-project limit. No project was created, paused, deleted or upgraded. The project consuming the other quota slot is not visible through the connected listing; inspect all organizations where the account is Owner/Admin in the Dashboard. Supabase counts Free project slots across those organizations, and paused projects do not count. Do not pause production.
+- The schema-only export helper now validates that the direct database hostname or session-pooler username matches `SUPABASE_PROJECT_REF` before export. This protects against combining artifacts from different Supabase projects. The actual export still must run on the owner's machine.
+- Use only `bash scripts/auth-migration/export-schema-baseline.sh` from the `security/auth-poc-stage-1` branch. Keep the generated folder outside Git. Do not run `scripts/supabase-full-migrate.sh`, `supabase db push`, `supabase db reset --linked`, restore commands, or any production migration.
+- The static exporter contract and FK-plan generator passed in the current Supabase Local Auth Claims CI [#42132183039](https://github.com/taufx98/sykabelajar4.0/actions/runs/42132183039); local Docker-backed Supabase assertions are still running.
