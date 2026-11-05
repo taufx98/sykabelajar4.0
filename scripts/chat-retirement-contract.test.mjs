@@ -20,10 +20,12 @@ test('follow and comment functionality is owned by the social service', async ()
   const profile = await read('../src/pages/ProfilePage.tsx');
   const followers = await read('../src/pages/FollowersPage.tsx');
   const notifications = await read('../src/pages/NotificationsPage.tsx');
+  const profileSettings = await read('../src/pages/ProfileSettingsPage.tsx');
   for (const method of ['getFollowStatus', 'requestFollow', 'respondFollowRequest', 'removeFollow']) {
     assert.ok(social.includes('export async function ' + method + '('), 'missing social method: ' + method);
   }
   assert.ok(social.includes('export async function addPostComment('), 'comment creation must remain available');
+  assert.doesNotMatch(profileSettings, /Sosial & Pesan|#blocked|Pengguna Diblokir/);
   for (const source of [profile, followers, notifications]) {
     assert.equal(source.includes('@/services/chat.service'), false);
   }
