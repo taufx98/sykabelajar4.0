@@ -25,6 +25,21 @@ Official references:
 
 ## Running it on a trusted local machine
 
+Start from the latest PoC branch so the exporter includes the project-identity guard:
+
+```bash
+git fetch origin
+git switch security/auth-poc-stage-1
+git pull --ff-only origin security/auth-poc-stage-1
+
+supabase --version
+node --version
+docker info
+psql --version
+```
+
+The Supabase CLI must report version `3.0.0`; Docker must be running, and Node.js plus the PostgreSQL `psql` client must be installed. If the local branch is not present yet, check it out from `origin/security/auth-poc-stage-1` before pulling.
+
 Use the production project's existing direct connection string (`db.<project-ref>.supabase.co`) or its session-pooler connection string (username `postgres.<project-ref>`) locally; do not send it in chat or commit it to Git. The exporter now checks that the URL host/user matches `SUPABASE_PROJECT_REF` before any export, preventing a schema dump from one project being combined with an Auth/Storage diff from another. Use either the direct connection URI (`db.mvdczyitbkxkldjughor.supabase.co`) or the session-pooler URI whose username contains `postgres.mvdczyitbkxkldjughor`. The exporter validates that the host/username matches the project ref before it runs. You can enter the URI without placing its value in shell history:
 
 ```bash
