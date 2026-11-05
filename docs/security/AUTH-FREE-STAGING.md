@@ -46,7 +46,7 @@ supabase test db --local
 supabase stop
 ```
 
-Always use explicit `--local` on database reset and test commands. Do not run `db reset --linked`, `db push --linked`, or a command with a production connection string during staging work. The fixture CI uses Supabase CLI 3.0.0, pins that version, and uses `[local_smtp]` (CLI v3 removed `[inbucket]`). The latest GitHub Actions run [#41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023) completed successfully using only a disposable local stack and passed all 68 pgTAP assertions across three test files.
+Always use explicit `--local` on database reset and test commands. Do not run `db reset --linked`, `db push --linked`, or a command with a production connection string during staging work. The fixture CI uses Supabase CLI 3.0.0, pins that version, and uses `[local_smtp]` (CLI v3 removed `[inbucket]`). The latest GitHub Actions run [#42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070) completed successfully on 5 November 2026 using only a disposable local stack and passed all 73 pgTAP assertions across three test files.
 
 ### Existing migration-history warning
 
@@ -62,7 +62,7 @@ A dedicated helper and runbook now exist:
 
 The helper pins Supabase CLI 3.0.0, exports the default schema-only dump, separately captures custom `auth`/`storage` DDL via `supabase db diff --linked`, and records PostgreSQL/extension versions. It writes to a temporary directory outside the Git repository and refuses a schema dump containing a `COPY ... FROM stdin` data block. It has no data export, role dump, restore, migration apply, or deploy step.
 
-The helper's Bash syntax and static safety contract passed in [Supabase Local Auth Claims CI #41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023), alongside all 68 pgTAP assertions. **The export itself has not been run here** because the database connection string must stay on the owner's trusted local machine. Do not paste it into chat or commit it. The helper uses only existing infrastructure and does not create a project, branch, Worker, D1 database, or paid service.
+The helper's Bash syntax and static safety contract passed in [Supabase Local Auth Claims CI #42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070), alongside all 73 pgTAP assertions. **The export itself has not been run here** because the database connection string must stay on the owner's trusted local machine. Do not paste it into chat or commit it. The helper uses only existing infrastructure and does not create a project, branch, Worker, D1 database, or paid service.
 
 ### Focused database test approach
 
@@ -75,11 +75,11 @@ For each Stage 3 SQL change:
 5. Run the existing app contract tests and type/build checks.
 6. Do not mark hosted OIDC acceptance complete until it has been tested in a separate Supabase Free project.
 
-The latest workflow [Supabase Local Auth Claims CI #41777930023](https://github.com/taufx98/sykabelajar4.0/actions/runs/41777930023) passed **68/68 pgTAP assertions across three files** using the pinned Supabase CLI 3.0.0 and a disposable Docker-backed local stack:
+The latest workflow [Supabase Local Auth Claims CI #42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070) passed **73/73 pgTAP assertions across three files** on 5 November 2026 using the pinned Supabase CLI 3.0.0 and a disposable Docker-backed local stack:
 
-- JWT/RLS (7 assertions): JWT `sub` maps to `auth.uid()`, owner-only read/insert, cross-user read denial, forged-owner insert and ownership-transfer denial.
+- JWT/RLS (8 assertions): JWT `sub` maps to `auth.uid()`, owner-only read/insert, cross-user read denial, forged-owner insert and ownership-transfer denial.
 - Identity FK rehome (12 assertions): UUID backfill before FK swap, all four fixture constraints point to `private.app_users`, and `CASCADE`, `SET NULL`, `NO ACTION`, and `RESTRICT` behavior remains intact.
-- Provisioning/referral (49 assertions): provisioning/email-verification RPCs are executable only by `service_role`; registration maps only basic student/teacher/organizer accounts to their allowed business role; admin self-registration is rejected; retry does not overwrite profile edits or reactivate a disabled role; no Better Auth shadow row is created in `auth.users`; identity projection stores no credentials; referral attribution requires a verified referrer; activity stays pending before email verification; trusted verification qualifies only within the 24-hour window; reward ledger and Edu Coin credit remain idempotent; unknown/unverified referral codes do not block signup.
+- Provisioning/referral (53 assertions): provisioning/email-verification RPCs are executable only by `service_role`; registration maps only basic student/teacher/organizer accounts to their allowed business role; admin self-registration is rejected; retry does not overwrite profile edits or reactivate a disabled role; no Better Auth shadow row is created in `auth.users`; identity projection stores no credentials; referral attribution requires a verified referrer; activity stays pending before email verification; trusted verification qualifies only within the 24-hour window; reward ledger and Edu Coin credit remain idempotent; unknown/unverified referral codes do not block signup.
 
 The matching Auth Worker CI run [#41776739761](https://github.com/taufx98/sykabelajar4.0/actions/runs/41776739761) also passed dependency audit, typecheck, security contracts, local Worker/D1, OAuth/PKCE, OIDC/JWKS smoke tests and bundle dry-run without deployment. These are synthetic, focused fixtures only: they do not migrate production tables, verify hosted Supabase Custom OIDC, recreate the full application's schema, validate all 109 production RLS policies, or prove the real Worker-to-Supabase provisioning network path. They are safety gates, not a substitute for full application regression against a complete schema baseline.
 
