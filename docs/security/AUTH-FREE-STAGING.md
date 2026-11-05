@@ -1,6 +1,6 @@
 # Free staging and test strategy for Better Auth migration
 
-Date: 4 November 2026
+Date: 5 November 2026
 
 ## Non-negotiable cost rule
 
@@ -23,7 +23,7 @@ Official references:
 
 ## Current account constraint
 
-The Supabase account connected to this work currently lists the production project `sykabelajar_db2`. A separate Free project was considered because it would be useful for Custom OIDC acceptance. The project creation quote for the listed organization was USD $0/month, but Supabase rejected creation because the owner had reached the limit of two active Free projects. No new project was created, and no existing project was paused, deleted, or upgraded.
+The Supabase organization connected to this work is on the Free plan and its production project `sykabelajar_db2` is active. A separate project quote returned USD $0/month, but creation was rejected because the owner had reached the limit of two active Free projects. No new project was created, and no existing project was paused, deleted, or upgraded.
 
 The paid Supabase Branch option quoted earlier at USD $0.01344/hour is not approved and must not be created. Current Supabase pricing lists 50,000 Third-Party MAUs included on the Free plan; this migration must keep third-party auth usage within the Free quota and must not opt into paid overages or upgrade the organization.
 
@@ -115,3 +115,17 @@ No remote Worker/D1 deployment is required to continue local code and protocol w
 - Supabase database testing: https://supabase.com/docs/guides/local-development/cli/testing-and-linting
 - Supabase Custom OIDC requirements and CLI limitation: https://supabase.com/docs/guides/auth/third-party/custom-oidc
 - Supabase Free-plan project limits: https://supabase.com/docs/guides/platform/billing-on-supabase
+
+
+## Cloudflare read-only preflight — 5 November 2026
+
+GitHub Actions run [#42043789820](https://github.com/taufx98/sykabelajar4.0/actions/runs/42043789820) inspected Cloudflare resources without writes or deployment:
+
+- Zone `sykabelajar.my.id` is active and readable.
+- Worker script listing is readable; only the existing `sykabelajar4-0` script was returned.
+- No `sykabelajar-auth-poc` Worker, D1 database with that name, Worker custom domain `auth.sykabelajar.my.id`, or Worker route was found.
+- D1 listing returned Cloudflare error `10000 Authentication error`, meaning the GitHub Actions token lacks D1 read permission for the account or resource scope.
+
+Before provisioning, update the token in Cloudflare Dashboard and replace GitHub secret `CLOUDFLARE_API_TOKEN` (never paste the token into chat). Required least-privilege scopes are Account D1: Edit, Account Workers Scripts: Edit, and Zone DNS: Edit + Zone: Read for `sykabelajar.my.id`. Rerun the read-only preflight before performing any create/deploy operation. The Worker config still has an all-zero D1 placeholder and is intentionally non-deployable.
+
+No Cloudflare database, Worker, DNS record, custom domain, or secret was created/changed by the preflight.
