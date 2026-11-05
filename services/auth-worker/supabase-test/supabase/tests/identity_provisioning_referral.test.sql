@@ -166,19 +166,19 @@ select extensions.is(
 
 select extensions.throws_ok(
   $$select private.provision_better_auth_user(
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'student',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'student',
     'Username Collision', 'organizer-one', null)$$,
   '23505', null,
   'username uniqueness failure aborts the whole provisioning transaction'
 );
 select extensions.is(
   (select count(*)::integer from private.app_users
-   where id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
+   where id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'),
   0, 'failed profile insert rolls back the new identity root'
 );
 select extensions.is(
   (select count(*)::integer from public.user_settings
-   where user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
+   where user_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'),
   0, 'failed provisioning does not leave partial settings'
 );
 
