@@ -12,6 +12,15 @@ The migration must stay on free infrastructure while SYKABELAJAR is in its testi
 - Never use the production Supabase project as a test environment.
 - Never use production rows, credentials, service-role keys, OAuth client secrets, or real user tokens in fixtures or CI.
 
+## Free transactional email choice
+
+Cloudflare Email Sending is intentionally not used for account verification because arbitrary-recipient outbound sending is only available on Workers Paid. The Better Auth Worker now has a direct Resend API adapter and keeps the existing webhook as a fallback. Resend's published Free plan currently provides 3,000 transactional emails per month and 100 per day; no paid overage or upgrade is permitted. Sender-domain verification and a server-side API key are still required before a real email can be delivered.
+
+Official references:
+- Cloudflare Email Service pricing: https://developers.cloudflare.com/email-service/platform/pricing/
+- Resend pricing: https://resend.com/pricing
+- Resend send-email API: https://resend.com/docs/api-reference/emails/send-email
+
 ## Current account constraint
 
 The Supabase account connected to this work currently lists the production project `sykabelajar_db2`. A separate Free project was considered because it would be useful for Custom OIDC acceptance. The project creation quote for the listed organization was USD $0/month, but Supabase rejected creation because the owner had reached the limit of two active Free projects. No new project was created, and no existing project was paused, deleted, or upgraded.
