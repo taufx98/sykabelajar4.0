@@ -7,6 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const script = readFileSync(path.join(here, 'export-schema-baseline.sh'), 'utf8');
 
 assert.ok(script.includes('supabase db dump --db-url "$SUPABASE_DB_URL" -f "$OUTPUT_DIR/schema.sql"'));
+assert.ok(script.includes('need_cmd node'));
 assert.ok(script.includes('const directMatch = host === `db.${ref}.supabase.co`'));
 assert.ok(script.includes('const poolerMatch = host.endsWith(".pooler.supabase.com") && username === `postgres.${ref}`'));
 assert.ok(script.includes('Connection string does not match SUPABASE_PROJECT_REF'));
