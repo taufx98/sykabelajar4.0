@@ -31,14 +31,17 @@ The read-only Cloudflare preflight is [run #42043789820](https://github.com/tauf
 
 ### Required permission correction
 
-Update the existing Cloudflare API token in the Cloudflare Dashboard, then replace the GitHub Actions secret `CLOUDFLARE_API_TOKEN` without pasting the token into chat. Use only the minimum permissions needed for staging:
+Update the existing Cloudflare API token in the Cloudflare Dashboard, then replace the GitHub Actions secret `CLOUDFLARE_API_TOKEN` without pasting the token into chat. Use resource-scoped permissions for the single account and zone:
 
-- Account — D1: Edit (includes the needed D1 read and create/migration operations).
-- Account — Workers Scripts: Edit (deploy the dedicated auth Worker and configure its custom domain).
-- Zone — Zone: Read and DNS: Edit for `sykabelajar.my.id` (inspect the zone and create the custom-domain DNS record).
+- **Preflight/read-only D1 inspection:** Account — D1: Read.
+- **Create/migrate the dedicated auth D1:** Account — D1: Edit (or the UI's current D1 write equivalent).
+- **Deploy/update the auth Worker:** Account — Workers Scripts: Edit (or Write in the UI's current permission naming). To create a brand-new Worker script, Cloudflare's Workers authorization guide says product-level Admin may be required; avoid broad account Admin by creating the empty script once in the dashboard, then use Editor for automated updates where possible.
+- **Custom hostname/route:** Zone — Workers Routes: Edit/Write for `sykabelajar.my.id`; Zone — Zone: Read; Zone — DNS: Edit/Write only if the deployment flow must create/manage the hostname's DNS record.
 - Keep `CLOUDFLARE_ACCOUNT_ID` scoped to the same account.
 
-Do not grant Account Super Administrator or unrelated account-wide permissions. After updating the secret, rerun the read-only preflight. Only then create one dedicated D1 database, bind its returned UUID, apply migrations 0000–0003, provision Worker secrets, deploy the isolated auth Worker, and attach `auth.sykabelajar.my.id`. Do not use the production frontend or existing production Worker as the auth origin.
+Do not grant Super Administrator or unrelated account-wide permissions. Cloudflare's permission names can appear as Edit or Write depending on the current UI/API generation; select the matching resource-level scope, not an all-account role. After updating the secret, rerun the read-only preflight. Only then create one dedicated D1 database, bind its returned UUID, apply migrations 0000–0003, provision Worker secrets, deploy the isolated auth Worker, and attach `auth.sykabelajar.my.id`. Do not use the production frontend or existing production Worker as the auth origin.
+
+Official permission references: [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/) and [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/).
 
 ### ZeptoMail
 
