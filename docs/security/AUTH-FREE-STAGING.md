@@ -14,12 +14,12 @@ The migration must stay on free infrastructure while SYKABELAJAR is in its testi
 
 ## Free transactional email choice
 
-Cloudflare Email Sending is intentionally not used for account verification because arbitrary-recipient outbound sending is only available on Workers Paid. The Better Auth Worker now has a direct Resend API adapter and keeps the existing webhook as a fallback. Resend's published Free plan currently provides 3,000 transactional emails per month and 100 per day; no paid overage or upgrade is permitted. Sender-domain verification and a server-side API key are still required before a real email can be delivered.
+Cloudflare Email Sending is intentionally not used for account verification because arbitrary-recipient outbound sending requires Workers Paid. The Better Auth Worker now uses ZeptoMail's Agent-specific Send Mail Token, encrypted at rest in D1 with AES-256-GCM. Admins can add multiple Agent profiles, rotate a token, and switch the active Agent in the Admin UI without a Worker redeploy. Local CI keeps its mock webhook and never sends a real email. Before real delivery, a verified sender domain, Agent token, stable encryption key, and non-production Worker/D1 configuration are required.
 
 Official references:
 - Cloudflare Email Service pricing: https://developers.cloudflare.com/email-service/platform/pricing/
-- Resend pricing: https://resend.com/pricing
-- Resend send-email API: https://resend.com/docs/api-reference/emails/send-email
+- ZeptoMail email sending API: https://www.zoho.com/zeptomail/help/api/email-sending.html
+- ZeptoMail pricing and introductory credit: https://www.zoho.com/zeptomail/pricing.html
 
 ## Current account constraint
 
