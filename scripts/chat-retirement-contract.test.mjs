@@ -9,6 +9,7 @@ test('legacy chat URLs redirect and no chat page or admin route is mounted', asy
   assert.ok(app.includes('path="/pesan" element={<RetiredChatRedirect />}'));
   assert.ok(app.includes("Boolean(window.sessionStorage.getItem('syka_collective_portal_token'))"));
   assert.ok(app.includes("? '/peserta-kolektif'"));
+  assert.ok(app.includes("Boolean(window.sessionStorage.getItem('syka_collective_access_token'))"));
   for (const retired of ['MessagesEntryPage', 'MessagesPage', 'CollectiveMessagesPage', 'AdminChatConsolePage', 'ChatUXBridge', 'path="/admin/chat"']) {
     assert.equal(app.includes(retired), false, 'retired route/reference remains: ' + retired);
   }

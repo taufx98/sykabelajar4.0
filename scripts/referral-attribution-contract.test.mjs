@@ -130,7 +130,7 @@ test('notifications visual contract follows the supplied Font Awesome reference 
   assert.match(globalHeader, /CalendarDays/);
   assert.match(globalHeader, /Asia\/Jakarta/);
   assert.match(globalHeader, /notifyHomeNavigationClick/);
-  assert.match(globalHeader, /AdminCommunicationLinks/);
+  assert.doesNotMatch(globalHeader, /AdminCommunicationLinks/);
   assert.doesNotMatch(styles, /\.notifications-global-header/);
   assert.match(notificationsPage, /fa-users-rays/);
   assert.match(notificationsPage, /fa-coins/);
