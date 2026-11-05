@@ -14,6 +14,7 @@ need_cmd docker
 need_cmd psql
 need_cmd git
 need_cmd mktemp
+need_cmd node
 
 : "${SUPABASE_PROJECT_REF:?Set SUPABASE_PROJECT_REF to the existing project ref}"
 : "${SUPABASE_DB_URL:?Set SUPABASE_DB_URL in your local shell; never commit it or paste it into chat}"
