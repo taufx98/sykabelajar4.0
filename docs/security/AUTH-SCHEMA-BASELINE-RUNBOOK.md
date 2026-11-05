@@ -25,7 +25,7 @@ Official references:
 
 ## Running it on a trusted local machine
 
-Use the production project's existing database connection string locally; do not send it in chat or commit it to Git. You can enter it without placing the value in shell history:
+Use the production project's existing direct connection string (`db.<project-ref>.supabase.co`) or its session-pooler connection string (username `postgres.<project-ref>`) locally; do not send it in chat or commit it to Git. The exporter now checks that the URL host/user matches `SUPABASE_PROJECT_REF` before any export, preventing a schema dump from one project being combined with an Auth/Storage diff from another. You can enter it without placing the value in shell history:
 
 ```bash
 export SUPABASE_PROJECT_REF='mvdczyitbkxkldjughor'
