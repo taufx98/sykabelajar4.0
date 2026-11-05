@@ -35,7 +35,7 @@ Production transactional email uses ZeptoMail. A Send Mail Token belongs to one 
 - Set `AUTH_EMAIL_PROVIDER=zeptomail`, a stable `AUTH_EMAIL_ENCRYPTION_KEY`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY` on the non-production Worker before enabling the admin API. Do not use a service-role key in the Worker or browser.
 - Local CI/dev still uses the authenticated webhook mock. It does not send real email or consume ZeptoMail credits.
 
-ZeptoMail uses pay-as-you-go credits, not a free monthly plan. One credit covers 10,000 emails and remains valid for six months. This implementation does not buy credits or activate a paid add-on: it can use only credits already available in the user's ZeptoMail account. If the balance is empty, delivery remains unavailable until the account owner decides whether to purchase more.
+ZeptoMail does not have a recurring free monthly plan. Its current pricing page advertises an introductory 10,000-email credit valid for one month for eligible new accounts; after that, one purchased credit covers 10,000 emails and is valid for six months. This implementation does not buy credits or enable auto top-up: it can use only credits already available in the user's ZeptoMail account. If the balance is empty, delivery remains unavailable until the account owner decides whether to purchase more.
 
 
 ## D1 Free-tier quota resilience
