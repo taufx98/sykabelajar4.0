@@ -7,6 +7,7 @@ import {
   timingSafeEqualString,
 } from "./security.mjs";
 import { createD1QuotaResponse } from "./d1-quota.mjs";
+import { handleEmailAdminRequest } from "./email-admin";
 
 const authInstances = new WeakMap<object, ReturnType<typeof createAuth>>();
 
@@ -73,7 +74,7 @@ async function generateD1Schema(request: Request, env: AuthWorkerEnv): Promise<R
         "SELECT name, type, sql FROM sqlite_master " +
         "WHERE type IN ('table', 'index') " +
         "AND name NOT LIKE 'sqlite_%' " +
-        "AND name NOT IN ('auth_worker_internal_config', '_cf_METADATA', 'd1_migrations') " +
+        "AND name NOT IN ('auth_worker_internal_config', 'auth_email_accounts', 'auth_email_settings', 'auth_email_admin_test_limits', '_cf_METADATA', 'd1_migrations') " +
         "AND sql IS NOT NULL " +
         "ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END, name",
       )
@@ -230,6 +231,15 @@ export default {
 
     if (url.pathname === "/_internal/bootstrap-first-party-client") {
       return applyResponseHeaders(await bootstrapFirstPartyClient(request, env), null);
+    }
+
+    if (url.pathname === "/api/admin/email-settings") {
+      try {
+        const response = await handleEmailAdminRequest(request, env);
+        return applyResponseHeaders(response, corsHeaders);
+      } catch {
+        return applyResponseHeaders(json({ ok: false, error: "EMAIL_SETTINGS_UNAVAILABLE" }, 503), corsHeaders);
+      }
     }
 
     if (!url.pathname.startsWith("/api/auth/") && url.pathname !== "/api/auth") {
