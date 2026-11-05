@@ -52,8 +52,7 @@ jobs:
             }
           }
 
-          const [tokenCheck, accountZones, databases, scripts, workerDomains] = await Promise.all([
-            read("/user/tokens/verify"),
+          const [accountZones, databases, scripts, workerDomains] = await Promise.all([
             read("/zones?name=sykabelajar.my.id&per_page=50"),
             read("/accounts/" + encodeURIComponent(accountId) + "/d1/database?name=sykabelajar-auth-poc&per_page=100"),
             read("/accounts/" + encodeURIComponent(accountId) + "/workers/scripts"),
@@ -73,13 +72,6 @@ jobs:
           const routeRows = Array.isArray(routes.result) ? routes.result : [];
 
           const summary = {
-            token: {
-              userTokenVerifyEndpointReadable: tokenCheck.success,
-              status: tokenCheck.result?.status ?? null,
-              httpStatus: tokenCheck.status,
-              errorCodes: tokenCheck.errorCodes,
-              note: "A 401 from /user/tokens/verify can indicate that this token lacks User-token verification permission; account-scoped resource reads below are the authority for this audit.",
-            },
             accountScopedReadProof: {
               zoneRead: accountZones.success,
               workerScriptsRead: scripts.success,
