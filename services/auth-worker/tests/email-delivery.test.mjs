@@ -9,56 +9,7 @@ const message = {
   action: "verify-email",
 };
 
-test("Resend uses the fixed API endpoint and keeps its API key server-side", async () => {
-  let captured;
-  await deliverAuthEmail({
-    AUTH_EMAIL_PROVIDER: "resend",
-    AUTH_EMAIL_FROM: "SYKABELAJAR <noreply@sykabelajar.my.id>",
-    RESEND_API_KEY: "re_test_only_secret",
-  }, message, async (url, init) => {
-    captured = { url: String(url), init };
-    return new Response(JSON.stringify({ id: "email-test-id" }), { status: 200 });
-  });
-
-  assert.equal(captured.url, "https://api.resend.com/emails");
-  assert.equal(captured.init.method, "POST");
-  assert.equal(captured.init.headers.Authorization, "Bearer re_test_only_secret");
-  assert.equal(captured.init.headers["Content-Type"], "application/json");
-  assert.deepEqual(JSON.parse(captured.init.body), {
-    from: "SYKABELAJAR <noreply@sykabelajar.my.id>",
-    to: ["student@example.com"],
-    subject: "Verifikasi akun SYKABELAJAR",
-    text: "Buka tautan verifikasi yang aman.",
-  });
-});
-
-test("Resend refuses to send when its secret or verified sender is missing", async () => {
-  let called = false;
-  await assert.rejects(
-    deliverAuthEmail({
-      AUTH_EMAIL_PROVIDER: "resend",
-      AUTH_EMAIL_FROM: "noreply@sykabelajar.my.id",
-    }, message, async () => {
-      called = true;
-      return new Response(null, { status: 200 });
-    }),
-    { message: "AUTH_EMAIL_DELIVERY_NOT_CONFIGURED" },
-  );
-  assert.equal(called, false);
-});
-
-test("Resend provider failures are sanitized", async () => {
-  await assert.rejects(
-    deliverAuthEmail({
-      AUTH_EMAIL_PROVIDER: "resend",
-      AUTH_EMAIL_FROM: "noreply@sykabelajar.my.id",
-      RESEND_API_KEY: "re_test_only_secret",
-    }, message, async () => new Response("private provider details", { status: 429 })),
-    { message: "AUTH_EMAIL_DELIVERY_FAILED" },
-  );
-});
-
-test("the existing authenticated webhook contract remains supported by default", async () => {
+test("the local authenticated webhook contract sends the expected payload", async () => {
   let captured;
   await deliverAuthEmail({
     AUTH_EMAIL_FROM: "noreply@example.test",
@@ -80,24 +31,36 @@ test("the existing authenticated webhook contract remains supported by default",
   });
 });
 
-test("unknown email providers fail closed", async () => {
+test("webhook fallback fails closed when its configuration is incomplete", async () => {
+  let called = false;
   await assert.rejects(
-    deliverAuthEmail({
-      AUTH_EMAIL_PROVIDER: "unknown",
-      AUTH_EMAIL_FROM: "noreply@example.test",
-    }, message, async () => new Response(null, { status: 200 })),
-    { message: "AUTH_EMAIL_PROVIDER_UNSUPPORTED" },
+    deliverAuthEmail({ AUTH_EMAIL_FROM: "noreply@example.test" }, message, async () => {
+      called = true;
+      return new Response(null, { status: 202 });
+    }),
+    { message: "AUTH_EMAIL_DELIVERY_NOT_CONFIGURED" },
   );
+  assert.equal(called, false);
 });
 
 test("remote webhook endpoints must use HTTPS", async () => {
   await assert.rejects(
     deliverAuthEmail({
-      AUTH_EMAIL_PROVIDER: "webhook",
       AUTH_EMAIL_FROM: "noreply@example.test",
       AUTH_EMAIL_WEBHOOK_URL: "http://mail.example.com/send",
       AUTH_EMAIL_WEBHOOK_TOKEN: "test-webhook-secret",
     }, message, async () => new Response(null, { status: 202 })),
     { message: "AUTH_EMAIL_ENDPOINT_MUST_USE_HTTPS" },
+  );
+});
+
+test("webhook provider failures are sanitized", async () => {
+  await assert.rejects(
+    deliverAuthEmail({
+      AUTH_EMAIL_FROM: "noreply@example.test",
+      AUTH_EMAIL_WEBHOOK_URL: "https://mail.example.test/send",
+      AUTH_EMAIL_WEBHOOK_TOKEN: "test-webhook-secret",
+    }, message, async () => new Response("private provider details", { status: 429 })),
+    { message: "AUTH_EMAIL_DELIVERY_FAILED" },
   );
 });
