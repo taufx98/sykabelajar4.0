@@ -5,11 +5,11 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 preview_urls = false
 
-# Non-deployable placeholder. Replace only after creating a dedicated NON-PRODUCTION D1 database.
+# Dedicated NON-PRODUCTION D1 database created for the Better Auth staging PoC. Do not point this binding at production.
 [[d1_databases]]
 binding = "DB"
 database_name = "sykabelajar-auth-poc"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"
 migrations_dir = "migrations"
 
 [vars]
