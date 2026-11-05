@@ -141,13 +141,13 @@ Supabase's Custom OIDC integration requires an HTTPS issuer with discovery/JWKS,
 
 ## Business-role preservation\n\nA live read-only production catalog check confirmed `public.app_role` currently contains `student`, `teacher`, `organizer_member`, and `admin`, and `public.user_roles` remains the business-role authority. Keep all existing role values, role records, admin guards, and role-based RPC/RLS behavior. Do not place business roles in the JWT: its `role` claim remains only `authenticated`. Public signup can provision only `student`, `teacher`, or `organizer_member`; admin is never self-assignable. The first admin bootstrap belongs to Stage 6 and must be protected and auditable.\n\n## Local contract-test evidence
 
-The synthetic fixtures are exercised by [Supabase Local Auth Claims CI #41860723261](https://github.com/taufx98/sykabelajar4.0/actions/runs/41860723261), which passed **71/71 pgTAP assertions across three files** on 4 November 2026:
+The synthetic fixtures are exercised by [Supabase Local Auth Claims CI #41860723261](https://github.com/taufx98/sykabelajar4.0/actions/runs/41860723261), which passed **73/73 pgTAP assertions across three files** on 5 November 2026:
 
 - 8 JWT/RLS assertions for UUID `sub` → `auth.uid()`, owner/cross-user boundaries, and the invariant that JWT `role` is PostgreSQL `authenticated`.
 - 12 FK rehome assertions for UUID backfill, FK target replacement, and preservation of all four delete actions.
-- 51 provisioning/referral assertions for server-only execution, preservation of the business-role enum/table, permitted basic-role mapping, rejection of admin self-registration, retry safety, no `auth.users` shadow row, trusted email verification, referral qualification and idempotent Edu Coin rewards.
+- 53 provisioning/referral assertions for server-only execution, preservation of the business-role enum/table, permitted basic-role mapping, rejection of admin self-registration, retry safety, no `auth.users` shadow row, trusted email verification, referral qualification and idempotent Edu Coin rewards.
 
-A follow-on test change adds two assertions for initial email-verification projection from a trusted Google identity (`p_email_verified = true`). Its CI run is queued and is not counted in the 71 passing assertions yet.
+The 53 provisioning/referral assertions include initial verified-email projection from a trusted Google identity (`p_email_verified = true`) and a fresh-UUID username-collision case proving the identity root and settings roll back together. These are synthetic SQL contract tests; the corresponding Worker provisioning hooks are still not implemented.
 
 These tests verify the proposed SQL contract in an isolated synthetic schema. They do **not** prove the live application schema can be rebuilt from scratch, the real Better Auth Worker can reach Supabase securely, hosted Custom OIDC is accepted, every production RLS policy behaves correctly, or the production migration is safe to execute. All Stage 3 exit criteria below therefore remain mandatory.
 
@@ -167,4 +167,6 @@ Do not call Stage 3 complete until all are true:
 
 ## 9. Current safety boundary
 
-No DDL or DML migration has been executed against the production project. No account was deleted, no auth.users row was created for Better Auth, no production trigger/function was replaced, and no live Edge Function was deployed. This is a design proposal to guide the next implementation step.
+A read-only production catalog revalidation on 5 November 2026 reconfirmed all 69 application foreign keys against the committed snapshot: zero additions, removals, or semantic changes. The 10 additional foreign keys in the `auth` schema are Supabase-internal and are deliberately excluded from the application FK migration. The 69 application FKs retain 42 CASCADE, 18 SET NULL, 8 NO ACTION, and 1 RESTRICT actions.
+
+No DDL or DML migration has been executed against the production project. No account was deleted, no auth.users row was created for Better Auth, no production trigger/function was replaced, and no live Edge Function was deployed. This remains a design and test proposal, not a production migration.
