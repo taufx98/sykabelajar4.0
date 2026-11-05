@@ -23,6 +23,18 @@ See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](../../docs/security/AUTH-NEW-ACCOUNT
 - JWT access tokens live for five minutes. The offline_access scope is intentionally not enabled.
 - Supabase remains the business-data and authorization backend.
 
+## Free email delivery
+
+Cloudflare Email Sending requires Workers Paid for sending to arbitrary recipients, so it is not used for SYKABELAJAR account verification under the free-only rule. The Worker supports Resend directly, without an extra relay:
+
+1. Create a Resend Free account and add `sykabelajar.my.id` as a sending domain.
+2. Publish the SPF/DKIM records Resend provides in Cloudflare DNS and wait until Resend reports the domain as verified.
+3. Set Worker variables `AUTH_EMAIL_PROVIDER=resend` and `AUTH_EMAIL_FROM=SYKABELAJAR <noreply@sykabelajar.my.id>`.
+4. Store the Resend API key as a Worker secret with `wrangler secret put RESEND_API_KEY`. Never put the key in Git, `.dev.vars.example`, Vite variables, or browser code.
+5. Keep the account on Resend Free. Its current allowance is 3,000 transactional emails/month and 100/day. Do not enable paid overages or upgrade; requests above the free ceiling must fail rather than incur a charge.
+
+The existing authenticated webhook route remains supported for self-hosted or alternative relays. Its default is still `webhook`, preserving local CI and mock delivery. Set `AUTH_EMAIL_PROVIDER=resend` only after the Resend sender domain and API key are ready.
+
 ## D1 Free-tier quota resilience
 
 D1 is the single Better Auth credential/session store; Supabase is the application data and authorization backend. Do not treat Supabase Auth as an automatic replacement database for Better Auth.
