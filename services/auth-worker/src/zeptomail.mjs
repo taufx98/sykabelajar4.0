@@ -23,7 +23,7 @@ const ZEPTOMAIL_SEND_ENDPOINT = "https://api.zeptomail.com/v1.1/email";
  */
 export async function sendZeptoMail(account, message, fetcher = fetch) {
   const token = typeof account?.sendMailToken === "string"
-    ? account.sendMailToken.replace(/^Zoho-enczapikey\\s+/i, "").trim()
+    ? account.sendMailToken.replace(/^Zoho-enczapikey\s+/i, "").trim()
     : "";
   const senderAddress = typeof account?.senderAddress === "string" ? account.senderAddress.trim() : "";
   const senderName = typeof account?.senderName === "string" ? account.senderName.trim() : "";
