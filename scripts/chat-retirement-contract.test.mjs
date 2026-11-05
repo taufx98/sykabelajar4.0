@@ -6,7 +6,9 @@ const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
 test('legacy chat URLs redirect and no chat page or admin route is mounted', async () => {
   const app = await read('../src/App.tsx');
-  assert.ok(app.includes('path="/pesan" element={<Navigate to="/home" replace />}'));
+  assert.ok(app.includes('path="/pesan" element={<RetiredChatRedirect />}'));
+  assert.ok(app.includes("Boolean(window.sessionStorage.getItem('syka_collective_portal_token'))"));
+  assert.ok(app.includes("? '/peserta-kolektif'"));
   for (const retired of ['MessagesEntryPage', 'MessagesPage', 'CollectiveMessagesPage', 'AdminChatConsolePage', 'ChatUXBridge', 'path="/admin/chat"']) {
     assert.equal(app.includes(retired), false, 'retired route/reference remains: ' + retired);
   }

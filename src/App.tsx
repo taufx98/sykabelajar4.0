@@ -145,12 +145,26 @@ function OwnProfileRedirect() {
   return <Navigate to={isGuest ? '/home' : '/login'} replace />;
 }
 
+function RetiredChatRedirect() {
+  const { isAuthenticated, isGuest } = useApp();
+  const hasCollectiveSession = typeof window !== 'undefined' && (
+    Boolean(window.sessionStorage.getItem('syka_collective_access_token')) ||
+    Boolean(window.sessionStorage.getItem('syka_collective_portal_token'))
+  );
+  const destination = hasCollectiveSession
+    ? '/peserta-kolektif'
+    : isAuthenticated || isGuest
+      ? '/home'
+      : '/login';
+  return <Navigate to={destination} replace />;
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/pesan" element={<Navigate to="/home" replace />} />
+        <Route path="/pesan" element={<RetiredChatRedirect />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/verify/:code" element={<VerifyPage />} />

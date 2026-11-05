@@ -44,14 +44,10 @@ export function MobileNavigationOverride({
   const { t } = useLanguage();
   const location = useLocation();
   const [items, setItems] = useState<string[]>(DEFAULT_MOBILE_NAV);
-  const collectiveMode =
-    !user &&
-    !isGuest &&
-    typeof window !== 'undefined' &&
-    Boolean(window.sessionStorage.getItem('syka_collective_access_token'));
+
 
   useEffect(() => {
-    if (!user || isGuest || collectiveMode) return;
+    if (!user || isGuest) return;
     let active = true;
 
     void supabase
@@ -70,10 +66,10 @@ export function MobileNavigationOverride({
     return () => {
       active = false;
     };
-  }, [user?.id, isGuest, collectiveMode]);
+  }, [user?.id, isGuest]);
 
   useEffect(() => {
-    if (!user || isGuest || collectiveMode) return;
+    if (!user || isGuest) return;
 
     const channel = supabase
       .channel(`mobile-ui-settings-${user.id}`)
@@ -99,9 +95,9 @@ export function MobileNavigationOverride({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [user?.id, isGuest, collectiveMode]);
+  }, [user?.id, isGuest]);
 
-  if (isGuest || (!user && !collectiveMode)) return null;
+  if (isGuest || !user) return null;
 
   const workspaceItem: MobileNavigationItem =
     user?.role === 'admin'
@@ -127,7 +123,7 @@ export function MobileNavigationOverride({
     portal: { label: t('nav.portal'), to: '/peserta-kolektif', icon: School },
   };
 
-  const visibleKeys = collectiveMode ? ['portal'] : items.filter((key) => key !== 'chat');
+  const visibleKeys = items;
   return (
     <nav
       aria-label="Navigasi bawah mobile"

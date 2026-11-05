@@ -28,7 +28,6 @@ export function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [unreadOrders, setUnreadOrders] = useState(0);
   const [liveUnreadNotifications, setLiveUnreadNotifications] = useState(unreadNotificationCount);
-  const collectiveMode = !user && !isGuest && typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token'));
   const isAdmin = user?.role === 'admin';
   const isOrganizer = user?.role === 'penyelenggara';
   const isTeacher = user?.role === 'guru';
@@ -103,8 +102,7 @@ export function AppLayout() {
   if (isOrganizer) userNav.push(['/organizer', t('nav.organizer'), Building2, undefined], ['/organizer/competition/new', t('nav.newCompetition'), Award, undefined], ['/organizer/registrations', t('nav.registrations'), ClipboardList, undefined], ['/organizer/members', t('nav.members'), Users2, undefined], ['/organizer/grading', t('nav.grading'), FileCheck2, undefined], ['/organizer/plan', t('nav.planUsage'), WalletCards, undefined], ['/organizer/serials', t('nav.serials'), ShieldCheck, undefined], ['/organizer/ads', t('nav.ads'), Megaphone, undefined]);
   if (isAdmin) userNav.push(['/admin', t('nav.admin'), ShieldCheck, undefined], ['/admin/monitoring', 'Monitoring & Investigasi', Activity, undefined], ['/admin/error-intelligence', t('nav.errorIntelligence'), AlertTriangle, undefined], ['/admin/plan-usage', t('nav.planUsage'), SlidersHorizontal, undefined], ['/admin/organizers', t('nav.organizations'), Building2, undefined]);
   userNav.push([profilePath, t('nav.profile'), UserIcon, undefined]);
-  const collectiveNav: NavItem[] = [['/peserta-kolektif', t('nav.portal'), School, undefined]];
-  const nav: NavItem[] = isGuest ? guestNav : collectiveMode ? collectiveNav : userNav;
+  const nav: NavItem[] = isGuest ? guestNav : userNav;
   const specialFeaturePaths = new Set<string>(isAdmin
     ? ['/admin', '/admin/monitoring', '/admin/error-intelligence', '/admin/plan-usage', '/admin/organizers']
     : isOrganizer
@@ -123,7 +121,7 @@ export function AppLayout() {
   const logoutNow = () => { void logout(); navigate('/'); };
   const isAdminRoute = isAdmin && location.pathname.startsWith('/admin');
   const isHomeRoute = location.pathname === '/' || location.pathname === '/home';
-  const homePath = collectiveMode ? '/peserta-kolektif' : '/home';
+  const homePath = '/home';
   const normalizedPathname = location.pathname.replace(/\/+$/, '') || '/';
   const isLinearExamRoom = /^\/lomba\/[^/]+\/kerja$/.test(normalizedPathname)
     || /^\/organizer\/competition\/[^/]+\/simulation\/[^/]+$/.test(normalizedPathname);
