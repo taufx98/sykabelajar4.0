@@ -225,6 +225,19 @@ async function activateAccount(body: Record<string, unknown>, user: SupabaseAdmi
     "SELECT id FROM auth_email_accounts WHERE id = ?1",
   ).bind(id).first<{ id: string }>();
   if (!exists) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
+  if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) {
+    return json({ ok: false, error: "EMAIL_ENCRYPTION_NOT_CONFIGURED" }, 503);
+  }
+
+  const candidate = await env.DB.prepare(
+    "SELECT send_mail_token_ciphertext FROM auth_email_accounts WHERE id = ?1",
+  ).bind(id).first<{ send_mail_token_ciphertext: string }>();
+  if (!candidate) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
+  try {
+    await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, candidate.send_mail_token_ciphertext);
+  } catch {
+    return json({ ok: false, error: "EMAIL_ACCOUNT_SECRET_UNAVAILABLE" }, 503);
+  }
 
   const now = new Date().toISOString();
   const result = await env.DB.prepare(
