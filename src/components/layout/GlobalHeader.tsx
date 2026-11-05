@@ -2,7 +2,6 @@ import type { LucideIcon } from 'lucide-react';
 import { ArrowLeft, CalendarDays, ShieldCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '@/store/AppContext';
-import { AdminCommunicationLinks } from '@/components/admin/AdminCommunicationLinks';
 import { notifyHomeNavigationClick } from '@/lib/homeNavigation';
 import { useLanguage } from '@/lib/LanguageContext';
 
@@ -34,18 +33,13 @@ export function GlobalHeader({ navItems }: GlobalHeaderProps) {
   if (location.pathname === '/' || location.pathname === '/home') return null;
 
   const activeItem = resolveActiveItem(navItems, location.pathname);
-  const isAdminChat = location.pathname === '/admin/chat';
   const isAdminBadges = location.pathname === '/admin/badges';
   const isDailyTasks = location.pathname === '/daily-tasks';
-  const label = isAdminChat
-    ? 'Kontrol Admin'
-    : isAdminBadges
-      ? 'Badge'
-      : isDailyTasks
-        ? 'Daily Tasks & Referral'
-        : activeItem?.label ?? 'SYKABELAJAR';
-  const showAdminCommunication = user?.role === 'admin'
-    && (location.pathname === '/pesan' || isAdminChat);
+  const label = isAdminBadges
+    ? 'Badge'
+    : isDailyTasks
+      ? 'Daily Tasks & Referral'
+      : activeItem?.label ?? 'SYKABELAJAR';
   const dateLabel = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'id-ID', {
     weekday: 'long',
     day: 'numeric',
@@ -75,7 +69,6 @@ export function GlobalHeader({ navItems }: GlobalHeaderProps) {
           <CalendarDays size={13} className="text-[#3B82F6]" />
           {dateLabel}
         </span>
-        {showAdminCommunication && <AdminCommunicationLinks />}
         {user?.role === 'admin' && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3B82F6]/30 bg-[#3B82F6]/10 px-2.5 py-1.5 text-[11px] font-semibold text-[#2563EB] dark:text-[#93C5FD]">
             <ShieldCheck size={14} aria-hidden="true" />

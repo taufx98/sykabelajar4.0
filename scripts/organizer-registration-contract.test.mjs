@@ -88,8 +88,6 @@ const organizerShell = await readFile(new URL('../src/components/layout/Organize
 const organizerControlCenter = await readFile(new URL('../src/pages/OrganizerControlCenterPage.tsx', import.meta.url), 'utf8');
 const realtimeBus = await readFile(new URL('../src/lib/realtimeBus.ts', import.meta.url), 'utf8');
 const competitionDetail = await readFile(new URL('../src/pages/CompetitionDetailPage.tsx', import.meta.url), 'utf8');
-const chatPolicyMigration = await readFile(new URL('../supabase/migrations/20261101034539_chat_moderation_policy_efficiency.sql', import.meta.url), 'utf8');
-const chatModerationGate = await readFile(new URL('../src/components/chat/ChatModerationGate.tsx', import.meta.url), 'utf8');
 
 test('referral qualification is event-driven and its hourly scanner is unscheduled', () => {
   assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION private\.apply_referral_qualification/i);
@@ -97,7 +95,6 @@ test('referral qualification is event-driven and its hourly scanner is unschedul
   assert.match(efficiencyMigration, /CREATE TRIGGER trg_referral_activity_daily_checkin[\s\S]*ON public\.daily_checkins/i);
   assert.match(efficiencyMigration, /CREATE TRIGGER trg_referral_activity_comment[\s\S]*ON public\.comments/i);
   assert.match(efficiencyMigration, /CREATE TRIGGER trg_referral_activity_follow[\s\S]*ON public\.follows/i);
-  assert.match(efficiencyMigration, /CREATE TRIGGER trg_referral_activity_chat[\s\S]*ON public\.chat_messages/i);
   assert.match(efficiencyMigration, /CREATE TRIGGER trg_referral_activity_daily_task[\s\S]*ON public\.daily_task_claims/i);
   assert.match(efficiencyMigration, /CREATE TRIGGER trg_referral_email_confirmed[\s\S]*ON auth\.users/i);
   assert.match(efficiencyMigration, /cron\.unschedule/i);
@@ -113,7 +110,7 @@ test('referral qualification is event-driven and its hourly scanner is unschedul
     efficiencyMigration.indexOf('CREATE OR REPLACE FUNCTION private.process_referral_email_confirmation'),
     efficiencyMigration.indexOf('REVOKE ALL ON FUNCTION private.apply_referral_qualification'),
   );
-  assert.doesNotMatch(emailConfirmation, /FROM public\.(daily_checkins|comments|follows|chat_messages|daily_task_claims)/i);
+  assert.doesNotMatch(emailConfirmation, /FROM public\.(daily_checkins|comments|follows|daily_task_claims)/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(p_competition_id\)/i);
   assert.match(efficiencyMigration, /PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
   assert.match(efficiencyMigration, /DROP FUNCTION IF EXISTS private\.sync_due_competition_registration_statuses/i);
@@ -188,24 +185,6 @@ test('competition registration phase is reconciled on demand rather than by cron
   assert.match(efficiencyMigration, /CREATE OR REPLACE FUNCTION public\.validate_registration_insert[\s\S]*?PERFORM public\.sync_competition_registration_status\(NEW\.competition_id\)/i);
 });
 
-test('chat moderation refreshes from owner-scoped Realtime events without periodic API polling', () => {
-  assert.match(chatModerationGate, /table: 'chat_user_moderation'/);
-  assert.match(chatModerationGate, /table: 'chat_spam_controls'/);
-  assert.match(chatModerationGate, /filter: `user_id=eq\.\$\{user\.id\}`/);
-  assert.match(chatModerationGate, /scheduleRefresh/);
-  assert.match(chatModerationGate, /visibilitychange/);
-  assert.doesNotMatch(chatModerationGate, /15000|15_000/);
-  assert.match(efficiencyMigration, /CREATE POLICY chat_user_moderation_self_read[\s\S]*USING \(user_id = auth\.uid\(\)\)/i);
-  assert.match(efficiencyMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.chat_user_moderation/i);
-  assert.match(efficiencyMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.chat_spam_controls/i);
-});
 
-test('chat moderation uses one SELECT policy and operation-specific admin write policies', () => {
-  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_read[\s\S]*FOR SELECT[\s\S]*public\.is_active_admin\(\(SELECT auth\.uid\(\)\)\)[\s\S]*user_id = \(SELECT auth\.uid\(\)\)/i);
-  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_insert[\s\S]*FOR INSERT/i);
-  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_update[\s\S]*FOR UPDATE/i);
-  assert.match(chatPolicyMigration, /CREATE POLICY chat_user_moderation_admin_delete[\s\S]*FOR DELETE/i);
-  assert.doesNotMatch(chatPolicyMigration, /^\s*FOR ALL\s*$/im);
-  assert.match(chatPolicyMigration, /DROP INDEX IF EXISTS public\.idx_follows_follower_created/i);
-  assert.match(chatPolicyMigration, /CREATE INDEX IF NOT EXISTS idx_chat_user_moderation_blocked_by/i);
-});
+
+

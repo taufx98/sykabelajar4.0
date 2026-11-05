@@ -81,7 +81,6 @@ function getPageMetadata(pathname: string): PageMetadata {
     path.startsWith('/admin') ||
     path.startsWith('/organizer') ||
     path.startsWith('/guru') ||
-    path.startsWith('/pesan') ||
     path.startsWith('/peserta-kolektif') ||
     path.startsWith('/verify/') ||
     path.startsWith('/sertifikat-kolektif/') ||

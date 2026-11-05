@@ -23,7 +23,7 @@ export const CACHE_VERSION = 'runtime-v3';
 export const userCacheKey = (resource: string, userId: string) => `user.${userId}.${resource}`;
 
 export function clearUserCache(userId: string, resources?: string[]): void {
-  const names = resources ?? ['notifications', 'awards', 'certificates', 'orders', 'chat.unread', 'profile'];
+  const names = resources ?? ['notifications', 'awards', 'certificates', 'orders', 'profile'];
   for (const resource of names) removePersistentCache(userCacheKey(resource, userId));
 }
 

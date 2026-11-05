@@ -7,7 +7,6 @@ import {
   CalendarCheck,
   ClipboardList,
   Home,
-  MessageCircle,
   School,
   ShieldCheck,
   User as UserIcon,
@@ -19,9 +18,9 @@ import { useApp } from '@/store/AppContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { notifyHomeNavigationClick } from '@/lib/homeNavigation';
 
-const DEFAULT_MOBILE_NAV = ['home', 'myCompetitions', 'leaderboard', 'awards', 'chat'];
+const DEFAULT_MOBILE_NAV = ['home', 'myCompetitions', 'leaderboard', 'awards', 'notifications'];
 const MOBILE_NAV_KEYS = new Set([
-  'home', 'myCompetitions', 'workspace', 'leaderboard', 'awards', 'chat', 'notifications', 'profile', 'admin', 'organizer', 'teacher', 'portal',
+  'home', 'myCompetitions', 'workspace', 'leaderboard', 'awards', 'notifications', 'profile', 'admin', 'organizer', 'teacher', 'portal',
 ]);
 
 function normalizeMobileNav(value: unknown): string[] {
@@ -37,10 +36,8 @@ type MobileNavigationItem = {
 };
 
 export function MobileNavigationOverride({
-  unreadChatCount = 0,
   unreadNotificationCount = 0,
 }: {
-  unreadChatCount?: number;
   unreadNotificationCount?: number;
 }) {
   const { user, isGuest } = useApp();
@@ -122,7 +119,6 @@ export function MobileNavigationOverride({
     workspace: workspaceItem,
     leaderboard: { label: t('nav.leaderboard'), to: '/leaderboard', icon: BarChart3 },
     awards: { label: t('nav.awards'), to: '/awards', icon: Award },
-    chat: { label: t('nav.messages'), to: '/pesan', icon: MessageCircle },
     notifications: { label: t('nav.notifications'), to: '/notifications', icon: Bell },
     profile: { label: t('nav.profile'), to: profilePath, icon: UserIcon },
     admin: { label: t('nav.admin'), to: '/admin', icon: ShieldCheck },
@@ -131,7 +127,7 @@ export function MobileNavigationOverride({
     portal: { label: t('nav.portal'), to: '/peserta-kolektif', icon: School },
   };
 
-  const visibleKeys = collectiveMode ? ['portal', 'chat'] : items;
+  const visibleKeys = collectiveMode ? ['portal'] : items.filter((key) => key !== 'chat');
   return (
     <nav
       aria-label="Navigasi bawah mobile"
@@ -146,7 +142,7 @@ export function MobileNavigationOverride({
           location.pathname === item.to ||
           (item.to === '/home' && location.pathname === '/') ||
           (item.to !== '/home' && location.pathname.startsWith(`${item.to}/`));
-        const badge = key === 'chat' ? unreadChatCount : key === 'notifications' ? unreadNotificationCount : 0;
+        const badge = key === 'notifications' ? unreadNotificationCount : 0;
 
         return (
           <Link
