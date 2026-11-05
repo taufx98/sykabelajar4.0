@@ -23,17 +23,20 @@ See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](../../docs/security/AUTH-NEW-ACCOUNT
 - JWT access tokens live for five minutes. The offline_access scope is intentionally not enabled.
 - Supabase remains the business-data and authorization backend.
 
-## Free email delivery
+## ZeptoMail transactional email and admin account switching
 
-Cloudflare Email Sending requires Workers Paid for sending to arbitrary recipients, so it is not used for SYKABELAJAR account verification under the free-only rule. The Worker supports Resend directly, without an extra relay:
+Production transactional email uses ZeptoMail. A Send Mail Token belongs to one Agent, so each Admin profile represents one ZeptoMail Agent and its verified sender identity.
 
-1. Create a Resend Free account and add `sykabelajar.my.id` as a sending domain.
-2. Publish the SPF/DKIM records Resend provides in Cloudflare DNS and wait until Resend reports the domain as verified.
-3. Set Worker variables `AUTH_EMAIL_PROVIDER=resend` and `AUTH_EMAIL_FROM=SYKABELAJAR <noreply@sykabelajar.my.id>`.
-4. Store the Resend API key as a Worker secret with `wrangler secret put RESEND_API_KEY`. Never put the key in Git, `.dev.vars.example`, Vite variables, or browser code.
-5. Keep the account on Resend Free. Its current allowance is 3,000 transactional emails/month and 100/day. Do not enable paid overages or upgrade; requests above the free ceiling must fail rather than incur a charge.
+- Official API: `POST https://api.zeptomail.com/v1.1/email`, authenticated with `Authorization: Zoho-enczapikey <send-mail-token>`.
+- The Admin UI is available at `/admin/core?tab=settings` under **Pengaturan Email**. Admins can add multiple Agent profiles, rotate a token, choose the active Agent, test delivery, and remove inactive profiles without editing code or redeploying the Worker.
+- Send Mail Tokens are encrypted at rest in D1 with AES-256-GCM using the server-only `AUTH_EMAIL_ENCRYPTION_KEY` Worker secret. The admin API never returns a token or ciphertext.
+- Admin access is verified against the current Supabase Auth user endpoint and `is_active_admin()` RPC. This is a migration bridge for the existing admin session; replace it with Better Auth admin verification during Stage 4.
+- The test action sends one real test email only to the signed-in admin's own email and is limited to one per minute per admin. It can consume ZeptoMail credits and requires an explicit click/confirmation.
+- Set `AUTH_EMAIL_PROVIDER=zeptomail`, a stable `AUTH_EMAIL_ENCRYPTION_KEY`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY` on the non-production Worker before enabling the admin API. Do not use a service-role key in the Worker or browser.
+- Local CI/dev still uses the authenticated webhook mock. It does not send real email or consume ZeptoMail credits.
 
-The existing authenticated webhook route remains supported for self-hosted or alternative relays. Its default is still `webhook`, preserving local CI and mock delivery. Set `AUTH_EMAIL_PROVIDER=resend` only after the Resend sender domain and API key are ready.
+ZeptoMail uses pay-as-you-go credits, not a free monthly plan. One credit covers 10,000 emails and remains valid for six months. This implementation does not buy credits or activate a paid add-on: it can use only credits already available in the user's ZeptoMail account. If the balance is empty, delivery remains unavailable until the account owner decides whether to purchase more.
+
 
 ## D1 Free-tier quota resilience
 
@@ -52,9 +55,9 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 - Do not add secrets to this directory, source control, Vite variables, or browser code.
 - The Google provider is enabled only when both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured.
 - Google OAuth callback URL for the eventual provider console configuration: https://auth.sykabelajar.my.id/api/auth/callback/google
-- Email/password sign-up requires email verification. Configure one supported delivery route before attempting sign-up or password reset: direct Resend API (`AUTH_EMAIL_PROVIDER=resend`) or the existing authenticated webhook (`AUTH_EMAIL_PROVIDER=webhook`, the default).
-- Free email recommendation: Resend's Free plan currently includes 3,000 transactional emails/month and 100/day. Add and verify `sykabelajar.my.id` in Resend, publish its SPF/DKIM records in DNS, set `AUTH_EMAIL_FROM` to an address on that verified domain, set `AUTH_EMAIL_PROVIDER=resend`, and store `RESEND_API_KEY` as a Worker secret. Do not enable paid overages or upgrade. The free limit is a hard ceiling; quota exhaustion must be treated as temporary email-delivery failure.
-- Resend sends directly to `https://api.resend.com/emails`; the key remains server-side and the Worker sends only the recipient, subject, and plain-text message. Provider response bodies are not exposed to users.
+- Email/password sign-up requires email verification. Production staging requires one active ZeptoMail Agent profile. The authenticated webhook is only the local CI/dev fallback.
+
+
 - The webhook option receives JSON with from, to, subject, text, and category. It must authenticate the bearer token and must not log verification or reset URLs.
 - Google-to-password implicit account linking is disabled. Users must explicitly link accounts after proving control of both methods.
 - The first-party OAuth public client is seeded by versioned migration `0002_seed_first_party_oauth_client.sql`: no client secret, exact fixed HTTPS callback, Authorization Code only, and `requirePKCE=1`. The `/_internal/bootstrap-first-party-client` endpoint is read-only; it requires `OAUTH_CLIENT_BOOTSTRAP_TOKEN`, rejects browser Origin headers, and verifies that the migrated client exactly matches the configured callback and audience. There is no public or unauthenticated client-creation endpoint.
@@ -78,10 +81,13 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 | ALLOW_SCHEMA_BOOTSTRAP | Local-only variable | Must never be enabled on a shared or production Worker |
 | GOOGLE_CLIENT_ID | Worker secret/variable | Google OAuth client ID |
 | GOOGLE_CLIENT_SECRET | Worker secret | Google OAuth client secret |
-| AUTH_EMAIL_PROVIDER | Worker variable | `resend` for direct Resend API or `webhook` (default) for the existing relay |\n| RESEND_API_KEY | Worker secret | Resend API key; only needed when `AUTH_EMAIL_PROVIDER=resend` |\n| AUTH_EMAIL_WEBHOOK_URL | Worker variable | HTTPS endpoint that accepts the documented JSON email payload when using webhook provider |
-| AUTH_EMAIL_WEBHOOK_TOKEN | Worker secret | Bearer credential for the email webhook |
-| AUTH_EMAIL_FROM | Worker variable | Verified sender identity |
-| DEV_APP_ORIGIN | Worker variable | Optional exact localhost origin for local development only |
+| AUTH_EMAIL_PROVIDER | Worker variable | `zeptomail` for staging/production; `webhook` for local CI/dev |
+| AUTH_EMAIL_ENCRYPTION_KEY | Worker secret | Stable random key (32+ characters) for AES-256-GCM encryption of Agent tokens |
+| SUPABASE_URL | Worker variable | Supabase URL for current admin session validation during the migration bridge |
+| SUPABASE_PUBLISHABLE_KEY | Worker variable | Publishable key for `auth/v1/user` and `is_active_admin()` checks; never service-role |
+| AUTH_EMAIL_WEBHOOK_URL | Local-only variable | Authenticated HTTPS relay used by local mock/fallback |
+| AUTH_EMAIL_WEBHOOK_TOKEN | Local-only secret | Bearer credential for the local email webhook |
+| AUTH_EMAIL_FROM | Local-only variable | Sender identity passed to the local webhook |
 
 ## Development
 
@@ -155,13 +161,13 @@ PR #177 remains a draft. No Cloudflare deployment, Supabase schema/configuration
 
 The latest isolated validation is green on commit `15968371392f9be0443afd3b5acaecc25b28b6cc`:
 
-- [Auth Worker CI #42013635841](https://github.com/taufx98/sykabelajar4.0/actions/runs/42013635841): dependency audit, strict TypeScript, security contracts, all six Resend/webhook adapter tests, local Worker/D1 migrations, email/session/OAuth integration, OIDC discovery/JWKS, and Wrangler dry-run all succeeded.
+- [Auth Worker CI #42013759439](https://github.com/taufx98/sykabelajar4.0/actions/runs/42013759439): dependency audit, strict TypeScript, security contracts, D1 migrations, email/session/OAuth integration, OIDC discovery/JWKS, and Wrangler dry-run all succeeded before ZeptoMail account-management integration.
 - [Supabase Local Auth Claims CI #42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070): all **73/73 pgTAP assertions** passed (8 JWT/RLS + 12 FK rehome + 53 provisioning/referral). The test set includes the trusted Google verified-email projection and the isolated username-collision rollback case.
 
 These runs validate local disposable resources only. They do not create a remote Cloudflare D1 database, deploy a Worker, configure a custom domain, verify real email delivery or Google credentials, or prove hosted Supabase Custom OIDC acceptance. Stage 1 therefore remains in progress, and no production auth, Supabase schema, or user-account change has been made.
 
 ## Email adapter validation — 5 November 2026
 
-The Worker now supports the official Resend `POST /emails` endpoint directly when `AUTH_EMAIL_PROVIDER=resend`; the existing webhook path remains the default for local CI. The adapter sends only plain-text transactional messages and keeps the Resend API key in a Worker secret. Six targeted Node tests passed locally, and an isolated strict TypeScript check passed. The full branch Worker CI run [#42013635841](https://github.com/taufx98/sykabelajar4.0/actions/runs/42013635841) has now completed successfully, including the six email adapter tests.
+The Worker now supports ZeptoMail Agent profiles, AES-GCM encryption, and server-side account switching. The latest branch CI checkpoint must be refreshed after the new admin endpoints and D1 migration pass.
 
-Real provider delivery is not yet configured. It still requires a Resend Free account, a verified `sykabelajar.my.id` sending domain with the provider's SPF/DKIM records, `AUTH_EMAIL_PROVIDER=resend`, `AUTH_EMAIL_FROM`, and the `RESEND_API_KEY` Worker secret. Do not enable paid overages or a paid Cloudflare Workers plan.
+Real ZeptoMail delivery still requires a non-production Worker, D1 migration 0003, a stable encryption secret, Supabase publishable-key/session verification settings, and an Agent profile entered by an active admin. No email has been sent and no credits have been purchased.
