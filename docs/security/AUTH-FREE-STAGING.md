@@ -124,8 +124,14 @@ GitHub Actions run [#42043789820](https://github.com/taufx98/sykabelajar4.0/acti
 - Zone `sykabelajar.my.id` is active and readable.
 - Worker script listing is readable; only the existing `sykabelajar4-0` script was returned.
 - No `sykabelajar-auth-poc` Worker, D1 database with that name, Worker custom domain `auth.sykabelajar.my.id`, or Worker route was found.
-- D1 listing returned Cloudflare error `10000 Authentication error`, meaning the GitHub Actions token lacks D1 read permission for the account or resource scope.
+- D1 listing returned Cloudflare error `10000 Authentication error`; the current GitHub token does not have the D1 read permission needed by this endpoint.
 
-Before provisioning, update the token in Cloudflare Dashboard and replace GitHub secret `CLOUDFLARE_API_TOKEN` (never paste the token into chat). Required least-privilege scopes are Account D1: Edit, Account Workers Scripts: Edit, and Zone DNS: Edit + Zone: Read for `sykabelajar.my.id`. Rerun the read-only preflight before performing any create/deploy operation. The Worker config still has an all-zero D1 placeholder and is intentionally non-deployable.
+Update the token in Cloudflare Dashboard and replace GitHub secret `CLOUDFLARE_API_TOKEN` (never paste the token into chat). Grant only the scopes needed:
+
+- Account `D1 Read` to pass the read-only preflight; Account `D1 Edit` when authorized to create/migrate the dedicated D1.
+- Account `Workers Scripts Edit` (called `Write` in some current API/UI permission lists) for Worker deployment/updates. Creating a brand-new Worker may require product-level Workers Admin; to avoid a broad role, create the empty script once in the dashboard and keep automated deployment limited to editing that script.
+- Zone `Workers Routes Edit/Write` and `Zone Read` on `sykabelajar.my.id`; use `DNS Edit/Write` only when the deployment flow needs to create/manage the custom hostname's DNS record.
+
+Do not use Super Administrator or an unrelated account-wide role. Cloudflare documents these scopes in [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/) and [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/). Rerun the preflight after rotating the secret. The Worker config still has an all-zero D1 placeholder and is intentionally non-deployable.
 
 No Cloudflare database, Worker, DNS record, custom domain, or secret was created/changed by the preflight.
