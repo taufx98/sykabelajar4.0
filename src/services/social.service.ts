@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { emitSykaEvent } from '@/lib/realtimeBus';
 
 export interface SocialPost { id:string; author_user_id:string; author_name:string; author_username:string; avatar_url:string|null; title:string; body:string; cover_url:string|null; created_at:string; competition_id:string|null; competition_slug:string|null; likes:number; liked:boolean; comments:number; }
 export interface SocialComment { id:string; postId:string; userId:string; authorName:string; authorUsername:string; authorId:string; body:string; createdAt:string; likes:number; liked:boolean; parentId:string|null; }
