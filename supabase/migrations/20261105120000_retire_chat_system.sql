@@ -32,7 +32,7 @@ begin
   -- Disable every explicitly named chat RPC, plus legacy support/DM RPC names
   -- whose return types or definitions depend on chat tables.
   for r in
-    select n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) as args
+    select p.oid::regprocedure as signature
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('public', 'private')
@@ -51,8 +51,8 @@ begin
       )
   loop
     execute format(
-      'revoke execute on function %I.%I(%s) from public, anon, authenticated',
-      r.nspname, r.proname, r.args
+      'revoke execute on function %s from public, anon, authenticated',
+      r.signature
     );
   end loop;
 

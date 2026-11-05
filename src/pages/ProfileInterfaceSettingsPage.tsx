@@ -136,7 +136,6 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
 
       } catch (e: any) {
         if (live) toast(e?.message ?? 'Pengaturan gagal dimuat.', 'error');
-      } finally {
       }
     })();
     return () => { live = false; };

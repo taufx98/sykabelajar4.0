@@ -47,6 +47,7 @@ test('backend retirement revokes chat access and preserves historical data', asy
   const migration = await read('../supabase/migrations/20261105120000_retire_chat_system.sql');
   assert.match(migration, /revoke all privileges on table/i);
   assert.match(migration, /revoke execute on function/i);
+  assert.match(migration, /p\.oid::regprocedure as signature/i);
   assert.match(migration, /alter publication supabase_realtime drop table/i);
   assert.match(migration, /drop trigger if exists trg_referral_activity_chat/i);
   assert.doesNotMatch(migration, /drop table|truncate table/i);
