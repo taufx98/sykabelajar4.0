@@ -21,6 +21,28 @@ need_cmd mktemp
 [[ "$SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || die 'SUPABASE_PROJECT_REF must be the 20-character project ref.'
 [[ "$SUPABASE_DB_URL" == postgres://* || "$SUPABASE_DB_URL" == postgresql://* ]] || die 'SUPABASE_DB_URL must be a PostgreSQL connection string.'
 
+# Prevent mixed-project artifacts: the schema dump and Auth/Storage diff must
+# refer to the same Supabase project. Accept direct DB hosts and session pooler.
+node --input-type=module <<'NODE'
+const ref = process.env.SUPABASE_PROJECT_REF;
+const raw = process.env.SUPABASE_DB_URL;
+let parsed;
+try {
+  parsed = new URL(raw);
+} catch {
+  console.error("SUPABASE_DB_URL is not a valid PostgreSQL URL.");
+  process.exit(1);
+}
+const host = parsed.hostname.toLowerCase();
+const username = decodeURIComponent(parsed.username);
+const directMatch = host === `db.${ref}.supabase.co`;
+const poolerMatch = host.endsWith(".pooler.supabase.com") && username === `postgres.${ref}`;
+if (!directMatch && !poolerMatch) {
+  console.error("Connection string does not match SUPABASE_PROJECT_REF. Use the direct host db.<project-ref>.supabase.co or the session pooler with username postgres.<project-ref>. No export was run.");
+  process.exit(1);
+}
+NODE
+
 CLI_VERSION="$(supabase --version 2>/dev/null || true)"
 [[ "$CLI_VERSION" == *"3.0.0"* ]] || die "Expected Supabase CLI 3.0.0 for a reproducible export; found: ${CLI_VERSION:-unknown}"
 
