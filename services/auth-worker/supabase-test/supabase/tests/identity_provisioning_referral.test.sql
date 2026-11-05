@@ -125,9 +125,9 @@ select extensions.is(
 );
 
 select extensions.lives_ok(
-  $select private.provision_better_auth_user(
+  $$select private.provision_better_auth_user(
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'student',
-    'Verified Google', 'verified-google', null, true)$,
+    'Verified Google', 'verified-google', null, true)$$,
   'a trusted Google identity can provision with verified email status'
 );
 select extensions.ok(
