@@ -45,6 +45,7 @@ jobs:
                 success: response.ok && body.success === true,
                 result: body.result,
                 errorCodes: Array.isArray(body.errors) ? body.errors.map((item) => item.code) : [],
+                errors: Array.isArray(body.errors) ? body.errors.map((item) => String(item.message ?? "").slice(0, 180)) : [],
               };
             } catch {
               return { status: 0, success: false, result: null, errorCodes: ["NETWORK_ERROR"] };
@@ -73,10 +74,15 @@ jobs:
 
           const summary = {
             token: {
-              valid: tokenCheck.success && tokenCheck.result?.status === "active",
+              userTokenVerifyEndpointReadable: tokenCheck.success,
               status: tokenCheck.result?.status ?? null,
               httpStatus: tokenCheck.status,
               errorCodes: tokenCheck.errorCodes,
+              note: "A 401 from /user/tokens/verify can indicate that this token lacks User-token verification permission; account-scoped resource reads below are the authority for this audit.",
+            },
+            accountScopedReadProof: {
+              zoneRead: accountZones.success,
+              workerScriptsRead: scripts.success,
             },
             accountIdPresent: Boolean(accountId),
             zone: {
@@ -91,6 +97,7 @@ jobs:
               matchingDatabaseFound: dbRows.some((row) => row.name === "sykabelajar-auth-poc"),
               databaseNames: dbRows.map((row) => row.name),
               errorCodes: databases.errorCodes,
+              errors: databases.errors,
             },
             workers: {
               scriptsReadable: scripts.success,
@@ -100,19 +107,21 @@ jobs:
               authDomainFound: domainRows.some((row) => row.hostname === "auth.sykabelajar.my.id" && row.service === "sykabelajar-auth-poc"),
               customDomains: domainRows.map((row) => ({ hostname: row.hostname, service: row.service, enabled: row.enabled })),
               errorCodes: [...scripts.errorCodes, ...workerDomains.errorCodes],
+              errors: [...scripts.errors, ...workerDomains.errors],
             },
             routes: {
               readable: routes.success,
               authHostRouteFound: routeRows.some((row) => row.pattern === "auth.sykabelajar.my.id/*" && row.script === "sykabelajar-auth-poc"),
               matchingRoutes: routeRows.filter((row) => String(row.pattern ?? "").includes("auth.sykabelajar.my.id")),
               errorCodes: routes.errorCodes,
+              errors: routes.errors,
             },
           };
 
           console.log(JSON.stringify(summary, null, 2));
 
-          if (!summary.token.valid) {
-            console.error("Cloudflare API token did not pass read-only verification.");
+          if (!summary.accountScopedReadProof.zoneRead || !summary.accountScopedReadProof.workerScriptsRead) {
+            console.error("Cloudflare API token cannot read the zone and Worker script resources needed for staging.");
             process.exitCode = 1;
           }
           NODE
