@@ -32,7 +32,7 @@ The paid Supabase Branch option quoted earlier at USD $0.01344/hour is not appro
 | Component | Free test method | What it can prove | Current limitation |
 |---|---|---|---|
 | Better Auth Worker | Wrangler local mode in GitHub Actions or a developer machine | Worker routes, cookies, Origin checks, session lifecycle, OIDC discovery, JWT signing, JWKS, OAuth + PKCE contracts | Does not validate a deployed hostname, external email delivery, or provider callbacks at a real domain |
-| Better Auth database | Wrangler/Miniflare local D1 | D1 schema, migrations, indexes, constraints, bootstrap and auth-flow behavior | No remote D1 database has been created |
+| Better Auth database | Dedicated Cloudflare D1 Free database plus Wrangler/Miniflare local D1 | Empty remote auth database now exists; local D1 proves schema, migrations, indexes, constraints, bootstrap and auth-flow behavior | Remote D1 is not yet migrated or bound to a deployed Worker; free daily read/write and storage quotas apply |
 | Supabase PostgreSQL | Supabase CLI + Docker local stack | PostgreSQL functions, triggers, schema constraints, RLS behavior, pgTAP tests and application JWT claim simulation | Existing repository migrations are not a verified full schema bootstrap; a sanitized baseline or focused fixture is required first |
 | Supabase Custom OIDC | A separate Supabase Free project, only after a Free slot is available | Real issuer/JWKS discovery, Supabase JWT acceptance/rejection, `auth.uid()`, Data API, Storage, Realtime and Edge Functions | Supabase CLI does not configure Custom OIDC; hosted acceptance is currently blocked by the Free-project limit |
 | CI | GitHub Actions for this public repository | Repeatable local checks without paid Supabase compute | Keep jobs bounded; never deploy from pull-request validation |
@@ -105,7 +105,7 @@ The Supabase Custom OIDC setup itself must be verified against a hosted Supabase
 
 ## Cloudflare local testing
 
-The current Auth Worker workflow runs Wrangler in local mode and applies D1 migrations to a local D1 database. Keep the D1 database ID in `wrangler.toml` as a non-deployable placeholder until a dedicated remote resource is verified to fit the Cloudflare Free quota.
+The current Auth Worker workflow runs Wrangler in local mode and applies D1 migrations to a local D1 database. A dedicated empty remote D1 database sykabelajar-auth-poc has now been created in APAC (UUID 7a4f9008-a1c6-42b6-8a04-abde12699248) and the branch wrangler.toml references it. This does not mean remote migrations or Worker deployment have occurred; keep deployment disabled until the remaining security and hosted-validation gates are satisfied.
 
 No remote Worker/D1 deployment is required to continue local code and protocol work. If a future remote test deployment exceeds free quotas or requests a paid feature, stop and retain local testing.
 
@@ -135,3 +135,11 @@ Update the token in Cloudflare Dashboard and replace GitHub secret `CLOUDFLARE_A
 Do not use Super Administrator or an unrelated account-wide role. Cloudflare documents these scopes in [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/) and [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/). Rerun the preflight after rotating the secret. The Worker config still has an all-zero D1 placeholder and is intentionally non-deployable.
 
 No Cloudflare database, Worker, DNS record, custom domain, or secret was created/changed by the preflight.
+
+
+## Latest Cloudflare and Supabase status — 5 November 2026
+
+- Cloudflare token read access passed in preflight #42057926397. The guarded staging bootstrap #42057812352 also proved Account D1 Write by creating exactly one empty database, sykabelajar-auth-poc, with APAC location hint and read replication disabled. The workflow checks the database count and refuses to create when the Workers Free 10-database cap would be exceeded.
+- Cloudflare Workers Free D1 limits include 10 databases, 500 MB per database, 5 GB total account storage, 5 million rows read/day and 100,000 rows written/day. Once a daily limit is reached, queries fail until the daily reset; the migration will not upgrade automatically. See https://developers.cloudflare.com/d1/platform/limits/, https://developers.cloudflare.com/d1/platform/pricing/ and https://developers.cloudflare.com/changelog/post/2026-09-01-d1-free-tier-limit-enforcement/.
+- Auth Worker/frontend validation #42057926474 passed after the branch D1 binding update. Worker and frontend jobs did not deploy.
+- Supabase project creation was retried at a quoted US$0/month, but Supabase rejected it because the owner has reached the two-active-Free-project limit. The connector lists only sykabelajar_db2 in organization sykabelajar; the project responsible for the remaining quota is not visible through this connection. No project was created, paused, deleted or upgraded. Preserve production and inspect all projects from the Supabase Dashboard before taking action.
