@@ -135,3 +135,13 @@ Remaining Stage 1 gates:
 - Provision a dedicated Cloudflare D1 resource, deploy only to staging, and validate the real Worker domain before any production cutover.
 
 PR #177 remains a draft. No Cloudflare deployment, Supabase schema/configuration change, frontend auth replacement, or production account change has been performed.
+
+
+## Latest validation checkpoint — 5 November 2026
+
+The latest isolated validation is green on commit `c129fb4038df840dd66b7b4204d9ec2e0013d387`:
+
+- [Auth Worker CI #42012012210](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012210): dependency audit, TypeScript, security contracts, local Worker/D1 migrations, email/session/OAuth integration, OIDC discovery/JWKS, and Wrangler dry-run all succeeded.
+- [Supabase Local Auth Claims CI #42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070): all **73/73 pgTAP assertions** passed (8 JWT/RLS + 12 FK rehome + 53 provisioning/referral). The test set includes the trusted Google verified-email projection and the isolated username-collision rollback case.
+
+These runs validate local disposable resources only. They do not create a remote Cloudflare D1 database, deploy a Worker, configure a custom domain, verify real email delivery or Google credentials, or prove hosted Supabase Custom OIDC acceptance. Stage 1 therefore remains in progress, and no production auth, Supabase schema, or user-account change has been made.
