@@ -1,3 +1,4 @@
+-- Covers server-only provisioning, trusted verification, and referral invariants.
 begin;
 
 select extensions.plan(53);
