@@ -49,7 +49,7 @@ test('app shell and collective features no longer expose or subscribe to chat', 
 });
 
 test('backend retirement revokes chat access and preserves historical data', async () => {
-  const migration = await read('../supabase/migrations/20261105050000_retire_chat_system.sql');
+  const migration = await read('../supabase/migrations/20261105053729_retire_chat_system.sql');
   assert.match(migration, /revoke all privileges on table/i);
   assert.match(migration, /revoke execute on function/i);
   assert.match(migration, /p\.oid::regprocedure as signature/i);
