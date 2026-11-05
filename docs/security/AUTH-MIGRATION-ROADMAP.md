@@ -168,3 +168,13 @@ These are directly related prerequisites, not a replacement roadmap:
 - The current Auth Worker CI uses Wrangler's local mode and local D1, with an explicit webhook mock so automated tests never consume ZeptoMail credits. Keep it that way until a remote Worker/D1 resource is verified to remain within Cloudflare's Free quota. ZeptoMail is pay-as-you-go: the current pricing page advertises one introductory 10,000-email credit valid for one month for eligible new accounts, then paid credits of 10,000 emails each valid six months. No credits are purchased or auto-top-up enabled by this implementation.
 - GitHub Actions on this public repository can run the local checks without purchasing hosted Supabase compute. Keep workflows bounded and avoid deploying from pull-request checks.
 - No production Supabase migration, account deletion, custom-domain activation, external OIDC registration, or login cutover has been performed.
+
+
+## ZeptoMail admin configuration validation — 5 November 2026
+
+- The Admin core **Pengaturan** tab now contains **Email Transaksional · ZeptoMail** at `/admin/core?tab=settings`.
+- Multiple Agent profiles can be saved, token-rotated, tested, activated, or removed (inactive profiles only). Changing the selected Agent takes effect for subsequent Better Auth verification and password-reset emails without a Worker redeploy.
+- Send Mail Tokens are encrypted at rest in D1 with AES-256-GCM under a stable Worker secret. API GET responses expose sender metadata and a boolean tokenConfigured flag only.
+- The admin API validates the current Supabase Auth session and the server-side `is_active_admin()` RPC. This is an intentional Stage 1 compatibility bridge; during Stage 4, its authentication verifier must be moved to the Better Auth OIDC/session model while preserving the role check.
+- The test action only sends to the currently signed-in admin's own verified address and is limited to one test per minute per admin.
+- [Auth Worker + Admin Frontend CI #42035044756](https://github.com/taufx98/sykabelajar4.0/actions/runs/42035044756) passed Worker audit/typecheck/tests, migration 0003, local auth/OAuth integration, Worker dry-run, frontend lint/typecheck/build. It did not send real email or deploy anything.
