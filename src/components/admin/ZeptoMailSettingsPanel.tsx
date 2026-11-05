@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CheckCircle2, CircleAlert, Mail, Pencil, Plus, RefreshCw, Send, ShieldCheck, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
@@ -106,11 +106,11 @@ export function ZeptoMailSettingsPanel() {
     return result;
   }, [baseUrl, getAccessToken]);
 
-  const applySettings = (settings: unknown) => {
+  const applySettings = useCallback((settings: unknown) => {
     const value = settings as SettingsResponse;
     setAccounts(Array.isArray(value?.accounts) ? value.accounts : []);
     setActiveAccountId(typeof value?.activeAccountId === 'string' ? value.activeAccountId : null);
-  };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,7 +124,7 @@ export function ZeptoMailSettingsPanel() {
     } finally {
       setLoading(false);
     }
-  }, [request]);
+  }, [request, applySettings]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -140,7 +140,7 @@ export function ZeptoMailSettingsPanel() {
     setEditing(true);
   };
 
-  const save = async (event: React.FormEvent<HTMLFormElement>) => {
+  const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!draft.label.trim() || !draft.senderAddress.trim()) {
       toast.warning('Nama Agent dan alamat pengirim wajib diisi.');
