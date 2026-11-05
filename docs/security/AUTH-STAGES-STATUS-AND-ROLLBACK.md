@@ -9,7 +9,7 @@ This is a verified status record, not authorization to deploy or migrate product
 
 | Stage | Completed locally | Still blocking completion |
 |---|---|---|
-| 1. Cloudflare foundation | Better Auth Worker package, D1 schema migrations, encrypted ZeptoMail Agent storage, admin API and admin UI; local D1 migrations and Worker dry-run pass | Cloudflare token currently cannot read D1; remote D1 not created; auth Worker not deployed; custom domain and Worker secrets not configured; real ZeptoMail delivery not tested |
+| 1. Cloudflare foundation | Better Auth Worker package, dedicated remote D1 created and bound, encrypted ZeptoMail Agent storage, admin API/UI; local migrations, Worker dry-run, Worker CI and frontend CI pass | Auth Worker not deployed; custom domain/route and Worker secrets not configured; real ZeptoMail delivery not tested |
 | 2. OIDC and JWT | Authorization Code + PKCE S256, ES256, discovery/JWKS, UUID `sub`, PostgreSQL `role=authenticated`, five-minute token and negative tests pass locally | Supabase hosted Custom OIDC acceptance test blocked by Free project limit; no production issuer registration |
 | 3. Supabase identity | Live metadata inventory, exact 69-FK catalog comparison, identity/referral/verification design and 73/73 local pgTAP fixture tests | Complete schema-only baseline not exported; `private.app_users` absent; no executable production identity/FK/trigger/RPC migration; organizer phone-verification replacement not available |
 | 4. Frontend | ZeptoMail Admin settings panel is implemented and frontend CI passes | Main app still uses Supabase Auth; Better Auth client/token adapter and global session integration not started |
@@ -113,3 +113,14 @@ Rollback trigger thresholds, operational owners, recovery communication, and reh
 - [Supabase local claims CI #42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070) — 73/73 pgTAP assertions using synthetic local fixtures only.
 
 PR #177 remains Draft and has not been merged. Its current base branch is behind/diverged and GitHub reports `mergeable_state=dirty`; do not merge until the branch/base relationship is reconciled and all stage gates are satisfied.
+
+
+## Latest verified update — 5 November 2026 (supersedes earlier Cloudflare blocker)
+
+- Cloudflare API token rotation is verified. Read-only preflight #42057926397 passed: D1 list, Zone, Worker scripts, custom-domain and route reads succeeded. The earlier D1 10000 Authentication error in #42043789820 is superseded.
+- Guarded bootstrap #42057812352 proved D1 Write and created the empty, dedicated staging database sykabelajar-auth-poc in APAC. UUID: 7a4f9008-a1c6-42b6-8a04-abde12699248. No existing database was changed.
+- services/auth-worker/wrangler.toml now binds to that D1 UUID on security/auth-poc-stage-1. It has not been deployed. No Worker script, production Worker, custom domain, route, DNS record, or Worker secret was created/changed.
+- Auth Worker + Frontend CI #42057926474 passed after the binding update: dependency audit, typecheck, security tests, local D1 migration/OIDC/JWKS flow, Worker bundle dry-run, frontend lint/typecheck/build. No deployment occurred.
+- Cloudflare Workers Free D1 quotas include 10 databases, 500 MB per database, 5 GB total storage, 5 million rows read/day and 100,000 rows written/day. The bootstrap checks the database count before creation. See https://developers.cloudflare.com/d1/platform/limits/ and https://developers.cloudflare.com/d1/platform/pricing/.
+- Supabase remains blocked: organization sykabelajar is Free. The connected project listing exposes sykabelajar_db2, but a fresh US$0/month staging project creation attempt was rejected because the owner has reached the two-active-Free-project limit. No project was created, paused, deleted or upgraded. The other counted active project could not be identified through the connected listing; locate it in the Supabase Dashboard before any action.
+- PR #177 remains Draft and unmerged. Production Supabase schema/data/auth settings and production Worker/domain remain untouched.
