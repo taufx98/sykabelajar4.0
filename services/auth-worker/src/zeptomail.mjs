@@ -33,6 +33,7 @@ export async function sendZeptoMail(account, message, fetcher = fetch) {
     throw new Error("ZEPTO_MAIL_CONFIGURATION_INCOMPLETE");
   }
 
+  /** @type {Record<string, unknown>} */
   const body = {
     from: { address: senderAddress, name: senderName },
     to: [{ email_address: { address: to, name: "" } }],
