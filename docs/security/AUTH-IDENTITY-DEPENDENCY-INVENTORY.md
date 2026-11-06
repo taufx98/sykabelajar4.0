@@ -219,7 +219,7 @@ The older `midtrans-create-payment` v10 is a compatibility delegator to `payment
 
 **Stage 5 implementation note (verified against current Supabase documentation, 6 November 2026):** do not merely decode a Better Auth JWT in an Edge Function, and do not assume `auth.getUser()` can resolve a Better Auth identity from `auth.users`. For user-invoked functions, evaluate the current `@supabase/server` `withSupabase({ auth: 'user' })` wrapper while keeping `verify_jwt = true`; it exposes verified `userClaims` / `jwtClaims` and an RLS-scoped client. Preserve privileged server-side operations only where explicitly required, with owner/business-role checks and secret keys held server-side. Validate the custom issuer, subject, audience and cross-user denial with two synthetic users in the isolated hosted Supabase acceptance environment before deploying any function changes. Official guide: https://supabase.com/docs/guides/functions/auth.
 
-Latest Security Advisor snapshot (observed 6 November 2026 09:13 UTC):
+Latest Security Advisor snapshot (observed 6 November 2026 09:44 UTC):
 - 23 RLS-enabled tables with no policies (INFO; review intended private/internal use individually).
 - 46 SECURITY DEFINER functions callable by `anon` and 202 callable by `authenticated` (WARN; audit each function body, grants, search_path and role/issuer checks; no blanket revoke).
 - Leaked-password protection disabled (WARN; confirm availability/cost before changing).
