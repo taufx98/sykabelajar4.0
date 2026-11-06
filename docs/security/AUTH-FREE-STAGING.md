@@ -32,7 +32,7 @@ The paid Supabase Branch option quoted earlier at USD $0.01344/hour is not appro
 | Component | Free test method | What it can prove | Current limitation |
 |---|---|---|---|
 | Better Auth Worker | Wrangler local mode in GitHub Actions or a developer machine | Worker routes, cookies, Origin checks, session lifecycle, OIDC discovery, JWT signing, JWKS, OAuth + PKCE contracts | Does not validate a deployed hostname, external email delivery, or provider callbacks at a real domain |
-| Better Auth database | Dedicated Cloudflare D1 Free database plus Wrangler/Miniflare local D1 | Empty remote auth database now exists; local D1 proves schema, migrations, indexes, constraints, bootstrap and auth-flow behavior | Remote D1 is not yet migrated or bound to a deployed Worker; free daily read/write and storage quotas apply |
+| Better Auth database | Dedicated Cloudflare D1 Free database plus Wrangler/Miniflare local D1 | Remote `sykabelajar-auth-poc` is migrated with four reviewed SQL migrations; manual run [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470) verified all 17 expected tables; local D1 proves schema and auth-flow behavior | Remote Worker is not yet deployed/bound to a hostname; free daily read/write and storage quotas apply |
 | Supabase PostgreSQL | Supabase CLI + Docker local stack | PostgreSQL functions, triggers, schema constraints, RLS behavior, pgTAP tests and application JWT claim simulation | Existing repository migrations are not a verified full schema bootstrap; a sanitized baseline or focused fixture is required first |
 | Supabase Custom OIDC | A separate Supabase Free project, only after a Free slot is available | Real issuer/JWKS discovery, Supabase JWT acceptance/rejection, `auth.uid()`, Data API, Storage, Realtime and Edge Functions | Supabase CLI does not configure Custom OIDC; hosted acceptance is currently blocked by the Free-project limit |
 | CI | GitHub Actions for this public repository | Repeatable local checks without paid Supabase compute | Keep jobs bounded; never deploy from pull-request validation |
@@ -105,7 +105,7 @@ The Supabase Custom OIDC setup itself must be verified against a hosted Supabase
 
 ## Cloudflare local testing
 
-The current Auth Worker workflow runs Wrangler in local mode and applies D1 migrations to a local D1 database. A dedicated empty remote D1 database sykabelajar-auth-poc has now been created in APAC (UUID 7a4f9008-a1c6-42b6-8a04-abde12699248) and the branch wrangler.toml references it. This does not mean remote migrations or Worker deployment have occurred; keep deployment disabled until the remaining security and hosted-validation gates are satisfied.
+The current Auth Worker workflow runs Wrangler in local mode for repeatable OAuth/JWT protocol tests. The dedicated remote D1 database `sykabelajar-auth-poc` in APAC (UUID `7a4f9008-a1c6-42b6-8a04-abde12699248`) is also migrated: manual workflow [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470) applied migrations 0000–0003 and verified all 17 expected tables. The Auth Worker itself is still not deployed; keep deployment disabled until Worker secrets, email, Google callback and custom-hostname gates are reviewed.
 
 No remote Worker/D1 deployment is required to continue local code and protocol work. If a future remote test deployment exceeds free quotas or requests a paid feature, stop and retain local testing.
 
