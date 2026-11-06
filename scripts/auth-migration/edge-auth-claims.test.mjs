@@ -83,7 +83,7 @@ test("rejects malformed, expired, future-issued, and overlong access tokens", ()
     "AUTH_TOKEN_LIFETIME_INVALID");
   assert.equal(validateBetterAuthClaims(validClaims({ iat: NOW + 31, exp: NOW + 35 }), options).reason,
     "AUTH_TOKEN_ISSUED_IN_FUTURE");
-  assert.equal(validateBetterAuthClaims(validClaims({ iat: NOW - 5, exp: NOW - 10 }), options).reason,
+  assert.equal(validateBetterAuthClaims(validClaims({ iat: NOW + 10, exp: NOW + 5 }), options).reason,
     "AUTH_TOKEN_LIFETIME_INVALID");
 });
 
