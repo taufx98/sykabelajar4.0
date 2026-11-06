@@ -7,6 +7,12 @@ on:
     paths:
       - "services/auth-worker/**"
       - "supabase/functions/_shared/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/payment-gateway-admin/**"
+      - "supabase/functions/payment-gateway-create/**"
+      - "supabase/functions/payment-gateway-reconcile/**"
+      - "supabase/functions/midtrans-create-payment/**"
+      - "supabase/functions/payment-gateway-webhook/**"
       - "supabase/config.toml"
       - "scripts/auth-migration/edge-auth-claims.test.mjs"
       - ".github/workflows/auth-worker-ci.yml"
