@@ -1,4 +1,4 @@
-import { createSupabaseContext } from "npm:@supabase/server";
+import { createSupabaseContext } from "npm:@supabase/server@1.9.2";
 import { validateBetterAuthClaims } from "./auth-claims.mjs";
 
 /**
