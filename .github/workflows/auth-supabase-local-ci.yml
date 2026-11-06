@@ -61,6 +61,9 @@ jobs:
       - name: Verify Cloudinary asset ownership boundaries
         run: node ../../../scripts/auth-migration/cloudinary-ownership.test.mjs
 
+      - name: Verify frontend Supabase Auth dependency inventory
+        run: node ../../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+
       - name: Set up pinned Deno for Edge Function type-check
         uses: denoland/setup-deno@v2.0.5
         with:
