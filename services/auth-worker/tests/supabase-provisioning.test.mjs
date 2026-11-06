@@ -41,6 +41,10 @@ test("registration attributes are normalized before a Better Auth user row is in
     accountType: "student",
     username: null,
     referralCode: null,
+    birthDate: null,
+    institution: null,
+    grade: null,
+    subjects: null,
   });
   assert.deepEqual(normalizeBetterAuthRegistration({
     accountType: "TEACHER",
@@ -50,6 +54,10 @@ test("registration attributes are normalized before a Better Auth user row is in
     accountType: "teacher",
     username: "teacher.name_1",
     referralCode: "REF-123",
+    birthDate: null,
+    institution: null,
+    grade: null,
+    subjects: null,
   });
   assert.deepEqual(normalizeBetterAuthRegistration({
     accountType: "organizer",
@@ -59,6 +67,10 @@ test("registration attributes are normalized before a Better Auth user row is in
     accountType: "organizer",
     username: null,
     referralCode: null,
+    birthDate: null,
+    institution: null,
+    grade: null,
+    subjects: null,
   });
 });
 
@@ -72,6 +84,13 @@ test("admin, unsupported account types and invalid registration metadata are rej
     { username: 123 },
     { referralCode: {} },
     { referralCode: "x".repeat(81) },
+    { birthDate: "31-12-2009" },
+    { birthDate: "2009-02-29" },
+    { institution: 123 },
+    { grade: "kelas-12" },
+    { subjects: [] },
+    { institution: "x".repeat(201) },
+    { subjects: "x".repeat(2001) },
   ]) {
     assert.throws(() => normalizeBetterAuthRegistration(input));
   }
@@ -99,6 +118,10 @@ test("a fresh unverified student account provisions with least-privilege default
     p_account_type: "student",
     p_full_name: "Student One",
     p_username: null,
+    p_birth_date: null,
+    p_institution: null,
+    p_grade: null,
+    p_subjects: null,
     p_referral_code: null,
     p_email_verified: false,
   });
@@ -119,9 +142,47 @@ test("teacher and organizer account types are passed only as the approved regist
     });
     assert.equal(body.p_account_type, accountType);
     assert.equal(body.p_username, "member.name_1");
+    assert.equal(body.p_birth_date, null);
+    assert.equal(body.p_institution, null);
+    assert.equal(body.p_grade, null);
+    assert.equal(body.p_subjects, null);
     assert.equal(body.p_referral_code, "REF-123");
     assert.equal(body.p_email_verified, false);
   }
+});
+
+test("profile details from the existing signup form reach the trusted Postgres projection", async () => {
+  const input = {
+    id: USER_ID,
+    name: "Profile One",
+    accountType: "student",
+    username: "profile.one",
+    birthDate: "2009-02-03",
+    institution: "  SMA Negeri 1 Bandung  ",
+    grade: "SMA",
+    subjects: "math,science",
+    referralCode: "REF-123",
+  };
+  const normalized = normalizeBetterAuthRegistration(input);
+  assert.deepEqual(normalized, {
+    accountType: "student",
+    username: "profile.one",
+    referralCode: "REF-123",
+    birthDate: "2009-02-03",
+    institution: "SMA Negeri 1 Bandung",
+    grade: "sma",
+    subjects: "math,science",
+  });
+
+  let payload;
+  await reconcileSupabaseApplicationIdentity(env, input, async (_url, init) => {
+    payload = JSON.parse(init.body);
+    return response({ user_id: USER_ID, account_type: "student" });
+  });
+  assert.equal(payload.p_birth_date, "2009-02-03");
+  assert.equal(payload.p_institution, "SMA Negeri 1 Bandung");
+  assert.equal(payload.p_grade, "sma");
+  assert.equal(payload.p_subjects, "math,science");
 });
 
 test("an admin or unknown account type is rejected before any Supabase request", async () => {
