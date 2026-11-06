@@ -3,17 +3,25 @@ import test from "node:test";
 import { stripRegistrationColumnsFromUserBaseline } from "../src/d1-schema-baseline.mjs";
 
 test("removes only registration attributes from the already-applied Better Auth baseline", () => {
-  const sql = 'CREATE TABLE "user" ("id" text not null primary key, "name" text not null, "email" text not null, "accountType" text, "username" text, "referralCode" text);';
+  const sql = 'CREATE TABLE "user" ("id" text not null primary key, "name" text not null, "email" text not null, "accountType" text, "username" text, "referralCode" text, "birthDate" text, "institution" text, "grade" text, "subjects" text);';
   const result = stripRegistrationColumnsFromUserBaseline(sql);
   assert.equal(result, 'CREATE TABLE "user" ("id" text not null primary key, "name" text not null, "email" text not null);');
 });
 
 test("removes custom attributes from CREATE TABLE IF NOT EXISTS form", () => {
-  const sql = 'CREATE TABLE IF NOT EXISTS "user" ("id" text, "accountType" text, "username" text, "referralCode" text);';
+  const sql = 'CREATE TABLE IF NOT EXISTS "user" ("id" text, "accountType" text, "username" text, "referralCode" text, "birthDate" text, "institution" text, "grade" text, "subjects" text);';
   assert.equal(
     stripRegistrationColumnsFromUserBaseline(sql),
     'CREATE TABLE IF NOT EXISTS "user" ("id" text);',
   );
+});
+
+test("strips all seven registration/profile-bootstrap fields from regenerated baseline DDL", () => {
+  const sql = 'CREATE TABLE "user" ("id" text, "accountType" text, "username" text, "referralCode" text, "birthDate" text, "institution" text, "grade" text, "subjects" text);';
+  const result = stripRegistrationColumnsFromUserBaseline(sql);
+  for (const field of ["accountType", "username", "referralCode", "birthDate", "institution", "grade", "subjects"]) {
+    assert.doesNotMatch(result, new RegExp('"' + field + '"'));
+  }
 });
 
 test("leaves other tables untouched even when they have similarly named columns", () => {
