@@ -51,7 +51,7 @@ Both operations are manual-only. Pushes and pull-request updates do not deploy a
    APPLY-TO-sykabelajar-auth-poc
    ```
 
-4. Verify the run applies only the reviewed migrations 0000–0004 to D1 `sykabelajar-auth-poc` (UUID `7a4f9008-a1c6-42b6-8a04-abde12699248`) and confirms 17 base tables plus columns `accountType`, `username`, and `referralCode`. This workflow does not deploy a Worker or touch Supabase.
+4. Verify the run applies only the reviewed migrations 0000–0004 to D1 `sykabelajar-auth-poc` (UUID `7a4f9008-a1c6-42b6-8a04-abde12699248`) and confirms 17 base tables plus all seven registration/profile bootstrap columns: `accountType`, `username`, `referralCode`, `birthDate`, `institution`, `grade`, and `subjects`. This workflow does not deploy a Worker or touch Supabase.
 
 ### Step 2 — redeploy the Worker with the exact preview Origin
 
@@ -63,7 +63,7 @@ Both operations are manual-only. Pushes and pull-request updates do not deploy a
    DEPLOY-STAGING-WORKER-sykabelajar-auth-poc
    ```
 
-4. Verify the workflow checks all 17 remote tables and the three registration columns, confirms zero staging users/sessions/accounts/verifications, deploys the isolated Worker, then tests:
+4. Verify the workflow checks all 17 remote tables and all seven registration/profile bootstrap columns, confirms zero staging users/sessions/accounts/verifications, deploys the isolated Worker, then tests:
    - hosted `/healthz`, exact OIDC issuer, discovery, PKCE S256 and public ES256 P-256 JWKS;
    - exact preview CORS allow for `https://security-auth-poc-stage-1.sykabelajar4.pages.dev`;
    - CORS denial for an unrelated origin such as `https://attacker.example`.
@@ -71,7 +71,7 @@ Both operations are manual-only. Pushes and pull-request updates do not deploy a
 The deployment workflow is manual-only and includes a sanitized diagnostic artifact on failure. It:
 - is locked to the dedicated Worker name and D1 UUID;
 - has `workers_dev=false`, exposing the service only through `auth.sykabelajar.my.id`;
-- requires the additive registration columns before deployment and refuses if staging D1 contains user/session/account/verification rows;
+- requires all seven additive registration/profile bootstrap columns before deployment and refuses if staging D1 contains user/session/account/verification rows;
 - preserves the already provisioned `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN`; it does not list, recreate, rotate, or delete Worker secrets and does not pass a replacement secrets file;
 - passes only the existing Supabase URL and publishable key as Worker variables for the temporary admin-email-settings bridge; it never uses a service-role key;
 - does not deploy or change the production frontend, production Worker, Supabase schema/data/Auth settings, or production users;
