@@ -16,6 +16,7 @@ on:
       - "supabase/config.toml"
       - "scripts/auth-migration/edge-auth-claims.test.mjs"
       - "scripts/auth-migration/cloudinary-ownership.test.mjs"
+      - "scripts/auth-migration/frontend-auth-inventory.test.mjs"
       - ".github/workflows/auth-worker-ci.yml"
 
 permissions:
