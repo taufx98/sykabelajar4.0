@@ -1,6 +1,6 @@
 # Supabase identity dependency inventory
 
-Snapshot date: 5 November 2026 (revalidated)  
+Snapshot date: originally 5 November 2026; selected catalog counters revalidated 6 November 2026  
 Source: read-only PostgreSQL catalog queries against the current production project. No table rows or personal user records were exported.
 
 ## Executive summary
