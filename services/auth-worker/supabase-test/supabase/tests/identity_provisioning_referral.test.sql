@@ -1,7 +1,7 @@
 -- Covers server-only provisioning, trusted verification, and referral invariants.
 begin;
 
-select extensions.plan(63);
+select extensions.plan(67);
 
 select extensions.ok(
   ARRAY['student', 'teacher', 'organizer_member', 'admin']::text[] <@
@@ -19,17 +19,17 @@ select extensions.ok(
 
 select extensions.ok(
   not has_function_privilege('anon',
-    'private.provision_better_auth_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+    'private.provision_better_auth_user(uuid,text,text,text,text,boolean,date,text,text,text)', 'EXECUTE'),
   'anonymous cannot execute the trusted provisioning function'
 );
 select extensions.ok(
   not has_function_privilege('authenticated',
-    'private.provision_better_auth_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+    'private.provision_better_auth_user(uuid,text,text,text,text,boolean,date,text,text,text)', 'EXECUTE'),
   'authenticated users cannot execute the trusted provisioning function'
 );
 select extensions.ok(
   has_function_privilege('service_role',
-    'private.provision_better_auth_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+    'private.provision_better_auth_user(uuid,text,text,text,text,boolean,date,text,text,text)', 'EXECUTE'),
   'service_role can execute the trusted provisioning function'
 );
 select extensions.ok(
@@ -50,17 +50,17 @@ select extensions.ok(
 
 select extensions.ok(
   not has_function_privilege('anon',
-    'public.better_auth_provision_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+    'public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)', 'EXECUTE'),
   'anon cannot execute the public PostgREST provisioning wrapper'
 );
 select extensions.ok(
   not has_function_privilege('authenticated',
-    'public.better_auth_provision_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+    'public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)', 'EXECUTE'),
   'authenticated cannot execute the public PostgREST provisioning wrapper'
 );
 select extensions.ok(
   has_function_privilege('service_role',
-    'public.better_auth_provision_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+    'public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)', 'EXECUTE'),
   'service_role can execute the public PostgREST provisioning wrapper'
 );
 select extensions.ok(
@@ -139,6 +139,35 @@ select extensions.is(
   (select count(*)::integer from public.user_settings
    where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   1, 'default settings are provisioned exactly once'
+);
+
+select extensions.lives_ok(
+  $select public.better_auth_provision_user(
+    '22222222-2222-4222-8222-222222222222',
+    'student', 'Profile Bootstrap', 'profile-bootstrap',
+    null, false, '2009-02-03', '  SMA Negeri 1 Bandung  ', 'sma', 'math,science'
+  )$,
+  'the PostgREST wrapper provisions all registration profile fields'
+);
+select extensions.is(
+  (select birth_date::text from public.profiles
+   where id = '22222222-2222-4222-8222-222222222222'),
+  '2009-02-03', 'birth date from the signup form is preserved'
+);
+select extensions.is(
+  (select institution from public.profiles
+   where id = '22222222-2222-4222-8222-222222222222'),
+  'SMA NEGERI 1 BANDUNG', 'institution retains the existing uppercase trigger behavior'
+);
+select extensions.is(
+  (select grade from public.profiles
+   where id = '22222222-2222-4222-8222-222222222222'),
+  'sma', 'education level from the signup form is preserved'
+);
+select extensions.is(
+  (select subjects from public.profiles
+   where id = '22222222-2222-4222-8222-222222222222'),
+  'math,science', 'favorite categories from the signup form are preserved'
 );
 
 update public.profiles set full_name = 'Edited Name'
