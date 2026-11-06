@@ -220,3 +220,14 @@ This supersedes the earlier Pages build-failed status for commit `0344a20077c5fe
 ## Full table/RLS and organizer access-code check — 6 November 2026
 
 Read-only verbose table metadata reports 125 application tables: 120 in `public`, five in `private`. RLS is enabled on 124; the sole RLS-disabled table is `private.organizer_access_codes`. A separate privilege query found no `USAGE` or `CREATE` privilege on the `private` schema for `anon` or `authenticated`, and no direct SELECT/INSERT grant on the access-code table. Four `SECURITY DEFINER` functions access it: `admin_create_organizer`, `create_organizer`, `join_organizer`, and `rotate_organizer_access_code`. All four deny execution to `anon`, are executable by `authenticated`, and have operation-specific admin/organizer/caller checks. Three pin `search_path` to `public,private`; the rotation function pins it to empty. No RLS or grant change was made. Stage 5 must review these function guards with the Better Auth UUID identity, preserving access-code hash-only storage and the current organizer role/business checks. The `create_organizer` phone/email-verification dependency remains a blocker; do not weaken it as a shortcut.
+
+
+## Anonymous SECURITY DEFINER RPC review — 6 November 2026
+
+A new first-pass triage of all 46 anon-callable SECURITY DEFINER functions is recorded in [AUTH-ANON-SECURITY-DEFINER-RPC-REVIEW.md](AUTH-ANON-SECURITY-DEFINER-RPC-REVIEW.md). Four are admin-only but currently have an anon-callable ACL; ten are signed-in/owner/public-profile projections; 15 are intentional guest participant/portal APIs secured by a separate hashed bearer token; and 17 are public read/telemetry APIs. The actual signatures, intended callers and required tests are listed in the review. No grants were changed.
+
+Confirmed prerequisite: production `get_profile_connections` has an anonymous NULL-semantics bypass and lacks a private-profile visibility check; `get_public_profile_social` also needs private-profile protection. PR #174 prepares the null-safe/visibility fix but remains Draft and requires isolated PostgreSQL validation. Do not say production is fixed yet.
+
+A second data-minimisation item: public competition results currently return and render `participant_code`; the collective portal also uses this as a second step after portal-token authentication. Evaluate masking/removal with product tests before altering this public contract. This check made no code or production data change.
+
+Of the 23 RLS-enabled/no-policy tables, 20 have no direct anon/authenticated SELECT/INSERT grants; three do have such table grants but remain default-deny to those roles because RLS has no policies. Treat advisor findings as review signals, not proof of public exposure.
