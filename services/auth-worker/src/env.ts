@@ -13,6 +13,10 @@ export interface AuthWorkerEnv {
   AUTH_EMAIL_FROM?: string;
   SUPABASE_URL?: string;
   SUPABASE_PUBLISHABLE_KEY?: string;
+  /** Server-only Supabase secret; never expose to browser bundles or logs. */
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  /** Explicit opt-in. Missing/false keeps the Worker in isolated auth-only mode. */
+  SUPABASE_PROVISIONING_ENABLED?: string;
   DEV_APP_ORIGIN?: string;
   OAUTH_CLIENT_BOOTSTRAP_TOKEN?: string;
   OAUTH_CALLBACK_URL?: string;
