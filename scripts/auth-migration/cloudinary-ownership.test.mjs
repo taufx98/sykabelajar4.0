@@ -13,6 +13,12 @@ test("a user can sign only their canonical avatar and cover assets", () => {
   assert.equal(isOwnedCloudinaryPublicId("sykabelajar/alice_1/cover", identity), true);
 });
 
+test("legacy mixed-case usernames keep their exact Cloudinary public ID namespace", () => {
+  const identity = { username: "Legacy.User_1", ownedOrganizers: [] };
+  assert.equal(isOwnedCloudinaryPublicId("sykabelajar/Legacy.User_1/profile", identity), true);
+  assert.equal(isOwnedCloudinaryPublicId("sykabelajar/legacy.user_1/profile", identity), false);
+});
+
 test("a user cannot sign another user's profile or cover namespace", () => {
   const identity = { username: "alice_1", ownedOrganizers: [] };
   assert.equal(isOwnedCloudinaryPublicId("sykabelajar/bob/profile", identity), false);
