@@ -50,7 +50,7 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 
 ## Important safety boundaries
 
-- The D1 ID in wrangler.toml is intentionally a placeholder. The service cannot be deployed until it is replaced with a dedicated, non-production D1 database ID.
+- The committed `wrangler.toml` binds the isolated staging D1 `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`). This database is non-production and must never be replaced with the production Supabase database or reused for application business data.
 - Do not point this service at the production Supabase database or add the Better Auth issuer to production Third-Party Auth yet.
 - Do not add secrets to this directory, source control, Vite variables, or browser code.
 - The Google provider is enabled only when both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured.
@@ -116,16 +116,15 @@ A complete PoC test must verify:
 - CORS preflight succeeds only for exact allowlisted origins and never uses Access-Control-Allow-Origin: * with credentials.
 - The two-user Supabase IDOR matrix is tested before any frontend migration.
 
-## Not yet implemented in this stage
+## Remaining beyond the initial Worker proof of concept
 
-- D1 cloud resource creation and staging deployment.
-- Production email vendor/webhook configuration and deliverability test (the CI flow uses a local mock webhook).
-- Google OAuth runtime test using isolated Google credentials.
-- Supabase Custom OIDC configuration and live token acceptance test in a non-production project.
-- Supabase schema/FK changes, account provisioning, Edge Function migration, or frontend auth replacement.
-- Cloudflare custom-domain deployment and two-user Supabase IDOR matrix.
+- Real ZeptoMail Agent configuration and email deliverability test. The deployed Worker has no Agent token configured; the CI flow still uses a local mock webhook.
+- Google OAuth runtime test using isolated Google credentials, only if Google sign-in is required for launch.
+- Supabase Custom OIDC configuration and full token acceptance in a non-production Supabase project.
+- Supabase schema/FK changes, identity provisioning, Edge Function migration, and frontend auth replacement.
+- Hosted two-user Supabase IDOR matrix across Data API, Storage, Realtime and Edge Functions.
 
-These are explicit gates, not implied successes.
+The isolated Worker, D1 schema and custom auth hostname are already deployed and smoke-tested; see the 6 November 2026 checkpoint below. These remaining items are explicit gates, not implied successes.
 
 ## Current Stage 1 checkpoint — 4 November 2026
 
@@ -170,3 +169,12 @@ These older runs validate local disposable resources only. The later dedicated r
 The Worker now supports ZeptoMail Agent profiles, AES-GCM encryption, and server-side account switching. The latest branch CI checkpoint [#42035044756](https://github.com/taufx98/sykabelajar4.0/actions/runs/42035044756) passes the ZeptoMail migration, Agent/token tests, admin endpoint access checks, and frontend build.
 
 Real ZeptoMail delivery still requires a non-production Worker, D1 migration 0003, a stable encryption secret, Supabase publishable-key/session verification settings, and an Agent profile entered by an active admin. No email has been sent and no credits have been purchased.
+
+
+## Latest verified staging checkpoint — 6 November 2026
+
+The isolated Cloudflare deployment is now successful. Manual GitHub Actions run [#42190609080](https://github.com/taufx98/sykabelajar4.0/actions/runs/42190609080) deployed Worker version `bd1feee3-4142-412e-9d05-e8eaa97de971` to `auth.sykabelajar.my.id`, bound to the dedicated D1 database `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`). The run checked all 17 remote tables, verified empty staging user/session/account/verification state and exactly one fixed first-party OAuth client, deployed the Worker, then passed the hosted `/healthz`, exact issuer, discovery endpoint hostname, PKCE S256 and public ES256 P-256 JWKS checks.
+
+The exact hosted issuer is `https://auth.sykabelajar.my.id/api/auth`. The smoke test explicitly reports `emailAgentConfigured=false`, `googleOAuthCredentialsConfigured=false`, and `noUserOrSessionSeeded=true`. Thus real email delivery and Google OAuth have not been tested. The frontend remains on Supabase Auth; this Worker is an isolated staging issuer only, not the application’s primary login.
+
+No production Supabase schema/data/Auth configuration, production Worker, production DNS, frontend login flow or user account was changed by this deployment.
