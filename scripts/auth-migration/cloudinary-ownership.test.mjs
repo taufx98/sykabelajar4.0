@@ -7,6 +7,15 @@ import { isOwnedCloudinaryPublicId } from "../../supabase/functions/_shared/clou
 const endpointPath = fileURLToPath(new URL("../../supabase/functions/get-cloudinary-signature/index.ts", import.meta.url));
 const endpoint = readFileSync(endpointPath, "utf8");
 
+test("legacy UUID-based avatar and cover assets are limited to the authenticated UUID", () => {
+  const identity = { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+  assert.equal(isOwnedCloudinaryPublicId("profile_pictures/user_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", identity), true);
+  assert.equal(isOwnedCloudinaryPublicId("profile_covers/user_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", identity), true);
+  assert.equal(isOwnedCloudinaryPublicId("profile_pictures/user_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", identity), false);
+  assert.equal(isOwnedCloudinaryPublicId("profile_covers/user_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", identity), false);
+  assert.equal(isOwnedCloudinaryPublicId("profile_pictures/user_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/extra", identity), false);
+});
+
 test("a user can sign only their canonical avatar and cover assets", () => {
   const identity = { username: "alice_1", ownedOrganizers: [] };
   assert.equal(isOwnedCloudinaryPublicId("sykabelajar/alice_1/profile", identity), true);
