@@ -14,7 +14,7 @@ import { validateBetterAuthClaims } from "./auth-claims.mjs";
  * ctx.supabaseAdmin bypasses RLS and must only be used after explicit
  * owner/business-role checks in the calling function.
  */
-export async function requireBetterAuthUser(request) {
+export async function requireBetterAuthUser(request: Request) {
   const issuer = Deno.env.get("BETTER_AUTH_ISSUER")?.trim();
   const audience = Deno.env.get("BETTER_AUTH_RESOURCE_AUDIENCE")?.trim();
   if (!issuer || !audience) {
