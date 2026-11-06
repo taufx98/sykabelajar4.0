@@ -1,10 +1,10 @@
 # Better Auth — Frontend auth migration inventory
 
-Status: read-only source inventory; no frontend auth source changes made. Snapshot date: 6 November 2026. Scope: `security/auth-poc-stage-1`.
+Status: reviewed source inventory with CI baseline guard; no frontend auth source changes made. Snapshot date: 6 November 2026. Scope: `security/auth-poc-stage-1`.
 
 ## Summary
 
-Repository code search for `supabase.auth` surfaced **35 direct callsites across 19 frontend files** (plus the existing Cloudinary-signature Edge Function). The app is still wired to Supabase Auth. This is not a complete substitute for a local AST/grep scan, but it establishes the core migration surface and the sensitive flows that must be preserved.
+A recursive source scan of the current branch found **38 direct `supabase.auth` callsites across 21 frontend files** (plus the Cloudinary-signature Edge Function). The initial search missed the ZeptoMail Admin panel and Admin Chat Console; the CI contract now records both. The app is still wired to Supabase Auth. This is an exact branch baseline, not an assertion that the migration is complete.
 
 The first migration must not be a mechanical global replacement. Several calls currently provide different responsibilities: credential sign-in/sign-up/reset, cross-tab session lifecycle, profile and business-role hydration, direct user-scoped data calls, email/phone verification, password update, signed Cloudinary upload authorization and admin Edge Function bearer tokens.
 
@@ -28,6 +28,8 @@ The first migration must not be a mechanical global replacement. Several calls c
 | `src/pages/OrganizerPlanPage.tsx` | 1 | Reads own organizer plan orders, filtered by current UUID. |
 | `src/pages/AdminPlanUsagePage.tsx` | 1 | Captures current admin UUID as reviewer when an organizer custom-plan request is reviewed. Keep the active-admin guard in the privileged server-side RPC/function; browser identity is audit attribution only. |
 | `src/pages/OrganizerControlCenterPage.tsx` | 2 | Uses current UUID for owner-filtered organizer reads and authenticated actions. Keep explicit owner/business-role authorization. |
+| `src/components/admin/ZeptoMailSettingsPanel.tsx` | 1 | Reads the current Supabase Auth session to call the staging Worker email-settings admin bridge. This is a Stage 1 compatibility bridge only; replace it with a Better Auth token after Custom OIDC and Stage 3 admin identity checks are accepted. |
+| `src/pages/AdminChatConsolePage.tsx` | 2 | Reads current viewer UUID for the Admin Chat Console. This file remains in the current branch inventory; the agreed removal of private chat must remove this page/route and its auth calls rather than migrate a private-chat feature into Better Auth. Preserve comments and other non-chat social features. |
 | `src/pages/AdminErrorIntelligencePage.tsx` | 2 | Retrieves Supabase access token for authorized Edge Function diagnostics. Replace with Better Auth resource token from the single token broker; preserve admin checks and redaction. |
 | `src/components/organizer/OrganizerWorkspaceOnboarding.tsx` | 4 | Reads verified email/phone state, starts phone change OTP, verifies `phone_change` OTP, re-reads verified user. This is a hard Stage 3 blocker: current `create_organizer` requires both email and phone verification from Supabase Auth. Do not remove/relax this gate until a trusted Better Auth phone-verification projection exists. |
 | `src/pages/ProfileInterfaceSettingsPage.tsx` | 1 | Uses `supabase.auth.updateUser({ password })` for password change. Requires a deliberate Better Auth change-password flow, current-password/security rules, session revocation and recovery UX. Do not silently remove this feature. |
