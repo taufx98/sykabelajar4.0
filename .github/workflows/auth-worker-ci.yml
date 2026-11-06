@@ -134,10 +134,10 @@ jobs:
           TABLE_COUNT="$(printf '%s\\n' "$D1_TABLES" | grep -c 'auth_email_' || true)"
           test "$TABLE_COUNT" -ge 3 || { echo "ZeptoMail D1 migration tables are missing." >&2; exit 1; }
 
-          D1_USER_COLUMNS="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode') ORDER BY name" 2>&1)"
+          D1_USER_COLUMNS="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name" 2>&1)"
           printf '%s\\n' "$D1_USER_COLUMNS"
-          COLUMN_COUNT="$(printf '%s\\n' "$D1_USER_COLUMNS" | grep -Ec 'accountType|username|referralCode' || true)"
-          test "$COLUMN_COUNT" -eq 3 || { echo "Better Auth registration columns are missing after the versioned migration chain." >&2; exit 1; }
+          COLUMN_COUNT="$(printf '%s\\n' "$D1_USER_COLUMNS" | grep -Ec 'accountType|username|referralCode|birthDate|institution|grade|subjects' || true)"
+          test "$COLUMN_COUNT" -eq 7 || { echo "Better Auth registration/profile columns are missing after the versioned migration chain." >&2; exit 1; }
 
           npx wrangler d1 execute sykabelajar-auth-poc --local --json --command "SELECT cfg.key AS config_key, cfg.value AS configured_client_id, c.clientId AS client_id, c.clientSecret AS client_secret, c.disabled AS disabled, c.scopes AS scopes, c.redirectUris AS redirect_uris, c.tokenEndpointAuthMethod AS token_endpoint_auth_method, c.grantTypes AS grant_types, c.responseTypes AS response_types, c.requirePKCE AS require_pkce, r.resourceId AS resource_id FROM auth_worker_internal_config AS cfg JOIN oauthClient AS c ON c.clientId = cfg.value JOIN oauthClientResource AS r ON r.clientId = c.clientId WHERE cfg.key = 'first_party_oauth_client_id' AND cfg.value <> 'pending';" > "$RUNNER_TEMP/auth-worker-oauth-seed.json"
 
