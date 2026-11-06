@@ -60,10 +60,12 @@ jobs:
           deno-version: "2.9.8"
           cache: false
 
-      - name: Type-check the shared Supabase Edge JWT adapter
+      - name: Type-check the shared Supabase Edge JWT and Cloudinary signer
         run: |
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/_shared/better-auth-user.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/get-cloudinary-signature/index.ts
 
       - name: Validate live identity FK snapshot and dry-run plan generator
         run: |
