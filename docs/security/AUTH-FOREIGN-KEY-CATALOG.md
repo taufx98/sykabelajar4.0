@@ -116,3 +116,13 @@ This mapping is the reference when constructing a replacement constraint to `pri
 7. Run the actual migration only against a complete reviewed local baseline first, then a separate hosted Free project when one is available. Production remains unchanged.
 
 No DDL/DML was executed, no FK was altered, and no application data was modified while producing this snapshot.
+
+
+## Exact FK catalog revalidation — 6 November 2026
+
+A new read-only comparison was performed against the live production PostgreSQL catalog and the committed snapshot `scripts/auth-migration/live-auth-users-fk-catalog.json`. Result: **69/69 foreign keys matched exactly**, zero missing/extra constraints and zero metadata differences across constraint name, source table/column, target table/column, ON DELETE, ON UPDATE, MATCH, validation, deferrability and initially-deferred state.
+
+The delete-action totals remain 42 CASCADE, 18 SET NULL, 8 NO ACTION and 1 RESTRICT. All 18 SET NULL source columns remain nullable in the committed snapshot's audited contract. The query selected catalog metadata only: no application rows, account IDs, credentials or tokens were read. Ten additional internal foreign keys within Supabase's own `auth` schema remain excluded.
+
+This is a verification checkpoint for the migration design, not permission to run the generated SQL. The schema-only baseline, isolated hosted OIDC acceptance, trusted phone-verification plan, reviewed local integration baseline and rollback rehearsal remain mandatory before production identity DDL.
+
