@@ -1,4 +1,12 @@
-const REGISTRATION_COLUMNS = ["accountType", "username", "referralCode"];
+const REGISTRATION_COLUMNS = [
+  "accountType",
+  "username",
+  "referralCode",
+  "birthDate",
+  "institution",
+  "grade",
+  "subjects",
+];
 
 /**
  * Keeps the first-party Better Auth baseline migration immutable after it has
