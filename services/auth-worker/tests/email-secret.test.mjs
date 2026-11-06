@@ -25,7 +25,11 @@ test("wrong key and tampered ciphertext fail without exposing plaintext", async 
     { message: "AUTH_EMAIL_SECRET_DECRYPT_FAILED" },
   );
   const parts = envelope.split(".");
-  parts[2] = parts[2].slice(0, -1) + (parts[2].endsWith("A") ? "B" : "A");
+  // Change a character in the middle so base64url unused trailing bits cannot
+  // decode to the same byte sequence and make this tamper test pass by accident.
+  const tamperIndex = Math.floor(parts[2].length / 2);
+  const replacement = parts[2][tamperIndex] === "A" ? "B" : "A";
+  parts[2] = parts[2].slice(0, tamperIndex) + replacement + parts[2].slice(tamperIndex + 1);
   await assert.rejects(
     decryptEmailSecret(masterKey, parts.join(".")),
     { message: "AUTH_EMAIL_SECRET_DECRYPT_FAILED" },
