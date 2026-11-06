@@ -379,3 +379,37 @@ grant execute on function private.provision_better_auth_user(uuid, text, text, t
   to service_role;
 grant execute on function private.complete_better_auth_email_verification(uuid, timestamptz)
   to service_role;
+
+-- Same PostgREST-facing RPC bridge proposed for the Cloudflare Worker.
+-- This lives only in the synthetic local fixture; no production migration is made.
+create or replace function public.better_auth_provision_user(
+  p_user_id uuid,
+  p_account_type text,
+  p_full_name text,
+  p_username text,
+  p_referral_code text,
+  p_email_verified boolean default false
+) returns jsonb
+language sql security definer set search_path = ''
+as $function$
+  select private.provision_better_auth_user(
+    p_user_id, p_account_type, p_full_name, p_username, p_referral_code, p_email_verified
+  );
+$function$;
+
+create or replace function public.better_auth_complete_email_verification(
+  p_user_id uuid, p_verified_at timestamptz
+) returns boolean
+language sql security definer set search_path = ''
+as $function$
+  select private.complete_better_auth_email_verification(p_user_id, p_verified_at);
+$function$;
+
+revoke all on function public.better_auth_provision_user(uuid,text,text,text,text,boolean)
+  from public, anon, authenticated;
+revoke all on function public.better_auth_complete_email_verification(uuid,timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.better_auth_provision_user(uuid,text,text,text,text,boolean)
+  to service_role;
+grant execute on function public.better_auth_complete_email_verification(uuid,timestamptz)
+  to service_role;
