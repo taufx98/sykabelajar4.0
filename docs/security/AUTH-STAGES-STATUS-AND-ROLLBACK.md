@@ -325,3 +325,19 @@ Verified CI:
 - [Cloudflare staging read-only preflight #42258255042](https://github.com/taufx98/sykabelajar4.0/actions/runs/42258255042) — **success**. It does not deploy or migrate remote resources.
 
 **Still not done:** remote D1 migration 0004, staging Worker redeployment with the seven-column/preview-origin gate, live CORS smoke, real ZeptoMail delivery, isolated hosted Supabase Custom OIDC, hosted two-user IDOR tests, production schema export, and the production identity/FK/RLS migration. No production database, Edge Function, secret, Cloudinary asset, or application login flow was changed. PR #177 remains Draft and unmerged; its base-branch state is still dirty, so no merge was attempted.
+
+
+## Read-only production identity revalidation — 7 November 2026
+
+A fresh read-only check was performed against the connected Supabase production project on 7 November 2026. No SQL DDL/DML, migration, Auth setting, Edge Function, secret, or user record was changed.
+
+- The connected Supabase inventory exposes one Free organization (`sykabelajar`) and one active project (`sykabelajar_db2`, production ref `mvdczyitbkxkldjughor`). No separate staging project is available through this connection. The organization is on the Free plan.
+- `private.app_users` is still absent.
+- Exactly 69 application foreign keys in `public`/`private` still reference `auth.users`: 42 `CASCADE`, 18 `SET NULL`, 8 `NO ACTION`, and 1 `RESTRICT`.
+- Three non-internal triggers remain attached to `auth.users`.
+- There are 109 RLS policies across all schemas whose expressions reference `auth.uid()` (108 in `public`, one in `private`).
+- `auth.users` contains 11 rows; only the aggregate count was queried, not account identities or credential fields.
+- The project still has 15 active Edge Functions. Production `cloudinary-delete-asset` remains deployed at version 9; the stronger owner-check replacement in the migration branch is not deployed. Do not claim that production endpoint is hardened until the replacement passes isolated two-user tests and a controlled deployment review.
+- The applied production migration list includes `20261105053729_retire_chat_system`; the chat-retirement change is separate from Better Auth and does not authorize any identity migration.
+
+The Stage 3 migration remains blocked by the private owner-local schema-only export/baseline, a separate isolated Supabase test project, reviewed executable migration plan, and trusted organizer phone-verification preservation. Stages 4–7 remain gated by those prerequisites and hosted two-user acceptance. Production identity tables, foreign keys, triggers, RLS, RPCs, Edge Functions and users remain unchanged.
