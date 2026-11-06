@@ -115,7 +115,7 @@ export function createAuth(env: AuthWorkerEnv) {
         create: {
           after: async (user) => {
             if (!isSupabaseProvisioningEnabled(env)) return;
-            await reconcileSupabaseApplicationIdentity(env, user);
+            await reconcileSupabaseApplicationIdentity(env, user as Record<string, unknown>);
           },
         },
         update: {
@@ -139,6 +139,11 @@ export function createAuth(env: AuthWorkerEnv) {
             // A previous after-hook may have failed after the D1 user row was
             // committed. Retry the idempotent Postgres projection here and
             // withhold this session until the identity exists.
+            if (!ctx?.context?.adapter) {
+              throw new APIError("INTERNAL_SERVER_ERROR", {
+                message: "APPLICATION_IDENTITY_NOT_READY",
+              });
+            }
             const user = await ctx.context.adapter.findOne({
               model: "user",
               where: [{ field: "id", value: session.userId }],
