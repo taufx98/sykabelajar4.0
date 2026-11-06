@@ -38,6 +38,19 @@ test("CORS allows credentials only for an exact allowlisted origin", () => {
   assert.equal(createCorsHeaders(rejectedRequest, ["https://sykabelajar.my.id"]), null);
 });
 
+test("the dedicated migration Pages preview is allowed only as an exact origin", () => {
+  const preview = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev";
+  const allowlist = ["https://sykabelajar.my.id", preview];
+  assert.equal(isAllowedOrigin(preview, allowlist), true);
+  assert.equal(isAllowedOrigin("https://attacker.security-auth-poc-stage-1.sykabelajar4.pages.dev", allowlist), false);
+  assert.equal(isAllowedOrigin("https://security-auth-poc-stage-1.sykabelajar4.pages.dev.evil.example", allowlist), false);
+  const allowed = createCorsHeaders(new Request("https://auth.sykabelajar.my.id/api/admin/email-settings", {
+    headers: { Origin: preview },
+  }), allowlist);
+  assert.equal(allowed?.get("Access-Control-Allow-Origin"), preview);
+  assert.equal(allowed?.get("Access-Control-Allow-Credentials"), "true");
+});
+
 test("development localhost is allowed only when explicitly listed", () => {
   assert.equal(isAllowedOrigin("http://localhost:5173", ["https://sykabelajar.my.id"]), false);
   assert.equal(isAllowedOrigin("http://localhost:5173", ["http://localhost:5173"]), true);
