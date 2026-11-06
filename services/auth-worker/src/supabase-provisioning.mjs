@@ -92,7 +92,7 @@ export function normalizeBetterAuthRegistration(input) {
   }
   const suppliedBirthDate = typeof input.birthDate === "string" ? input.birthDate.trim() : "";
   if (suppliedBirthDate) {
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(suppliedBirthDate)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(suppliedBirthDate)) {
       throw new Error("BETTER_AUTH_BIRTH_DATE_INVALID");
     }
     const parsedDate = new Date(suppliedBirthDate + "T00:00:00.000Z");
