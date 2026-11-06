@@ -14,6 +14,8 @@ on:
       - "supabase/functions/payment-gateway-reconcile/**"
       - "supabase/functions/midtrans-create-payment/**"
       - "supabase/functions/payment-gateway-webhook/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/_shared/cloudinary-ownership.mjs"
       - "supabase/config.toml"
       - ".github/workflows/auth-supabase-local-ci.yml"
   pull_request:
@@ -48,6 +50,9 @@ jobs:
 
       - name: Verify Better Auth Edge JWT adapter and webhook boundaries
         run: node ../../../scripts/auth-migration/edge-auth-claims.test.mjs
+
+      - name: Verify Cloudinary asset ownership boundaries
+        run: node ../../../scripts/auth-migration/cloudinary-ownership.test.mjs
 
       - name: Set up pinned Deno for Edge Function type-check
         uses: denoland/setup-deno@v2.0.5
