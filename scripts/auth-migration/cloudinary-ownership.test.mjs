@@ -106,6 +106,10 @@ test("missing profile identity or owned-organizer collection fails closed", () =
   }), false);
 });
 
+test("the new username-based signer passes the verified UUID for legacy assets", () => {
+  assert.match(endpoint, /isOwnedCloudinaryPublicId\(publicId, \{ userId: user\.id, username: profile\.username, ownedOrganizers \}\)/);
+});
+
 test("the Edge Function uses a pinned Supabase client and derives ownership from verified auth", () => {
   assert.match(endpoint, /npm:@supabase\/supabase-js@2\.57\.4/);
   assert.match(endpoint, /supabase\.auth\.getUser\(\)/);
