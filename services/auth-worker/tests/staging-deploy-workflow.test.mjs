@@ -7,6 +7,7 @@ const workflowPath = fileURLToPath(
   new URL("../../../.github/workflows/auth-worker-staging-deploy.yml", import.meta.url),
 );
 const workflow = readFileSync(workflowPath, "utf8");
+const wranglerConfig = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
 
 test("staging Worker deploy is manual-only and branch-guarded", () => {
   assert.match(workflow, /^on:\n  workflow_dispatch:/m);
@@ -20,8 +21,9 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /name = "sykabelajar-auth-poc"/);
   assert.match(workflow, /7a4f9008-a1c6-42b6-8a04-abde12699248/);
   assert.match(workflow, /auth\.sykabelajar\.my\.id/);
-  assert.match(workflow, /DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"/);
-  assert.doesNotMatch(workflow, /DEV_APP_ORIGIN = "https:\/\/\*\./);
+  assert.match(workflow, /DEV_APP_ORIGIN/);
+  assert.match(wranglerConfig, /^DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m);
+  assert.doesNotMatch(wranglerConfig, /^DEV_APP_ORIGIN = "https:\/\/\*\./m);
   assert.match(workflow, /workers_dev = false/);
   assert.match(workflow, /custom_domain = true/);
   assert.match(workflow, /SUPABASE_URL.*mvdczyitbkxkldjughor/);
