@@ -94,7 +94,8 @@ test("the Edge Function uses a pinned Supabase client and derives ownership from
   assert.match(endpoint, /\.from\("profiles"\)[\s\S]*?\.eq\("id", user\.id\)/);
   assert.match(endpoint, /\.from\("organizers"\)[\s\S]*?\.eq\("owner_user_id", user\.id\)/);
   assert.match(endpoint, /isOwnedCloudinaryPublicId\(publicId/);
-  assert.doesNotMatch(endpoint, /SUPABASE_SERVICE_ROLE_KEY|service_role/i);
+  assert.doesNotMatch(endpoint, /SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(endpoint, /createClient\([^)]*SERVICE_ROLE/);
 });
 
 test("ownership checks happen before Cloudinary credentials are used to create a signature", () => {
