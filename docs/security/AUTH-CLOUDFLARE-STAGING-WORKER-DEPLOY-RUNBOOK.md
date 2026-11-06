@@ -110,3 +110,10 @@ The redeploy path now has a strict preservation rule: it does not query/list Wor
 The Cloudflare API token currently returns HTTP 503 for Worker Scripts, Custom Domain and Routes list endpoints, while the zone and D1 reads work. Do not grant broad Account Admin only to satisfy these optional list calls. The read-only preflight now directly checks hosted health, exact issuer, PKCE and JWKS as the essential evidence; inventory API limitations are warnings.
 
 The Cloudflare Pages check for the latest branch commit `0344a20077c5feb6bfc42a60633cc0a6cd74c689` failed and the underlying Pages build log is not available through the connected GitHub repository interface. The last known Pages branch preview success is an older commit `064225dd07fbce066f848fec63676cf60fe91a84`. Do not assume the latest preview contains the current panel until Cloudflare Pages reports a successful build.
+
+
+## Latest Pages preview build — 6 November 2026
+
+Cloudflare Pages check for latest branch commit `bc8915cd3eb9f68c68ea8da20257b8feaeec2e3e` completed successfully. Use the branch preview at [https://security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev), then open `/admin/core?tab=settings` to reach the ZeptoMail Agent panel.
+
+The preview build success does not itself enable CORS: deploy the current `wrangler.toml` to the existing staging Worker with the manual-only workflow and verify the exact-origin smoke test before attempting to save or test a ZeptoMail Agent.
