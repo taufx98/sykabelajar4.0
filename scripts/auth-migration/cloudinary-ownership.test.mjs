@@ -88,7 +88,8 @@ test("missing profile identity or owned-organizer collection fails closed", () =
   }), false);
 });
 
-test("the Edge Function derives the profile UUID from verified auth and scopes organizer lookup to that UUID", () => {
+test("the Edge Function uses a pinned Supabase client and derives ownership from verified auth", () => {
+  assert.match(endpoint, /npm:@supabase\/supabase-js@2\.57\.4/);
   assert.match(endpoint, /supabase\.auth\.getUser\(\)/);
   assert.match(endpoint, /\.from\("profiles"\)[\s\S]*?\.eq\("id", user\.id\)/);
   assert.match(endpoint, /\.from\("organizers"\)[\s\S]*?\.eq\("owner_user_id", user\.id\)/);
