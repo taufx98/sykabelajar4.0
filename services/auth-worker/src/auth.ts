@@ -7,6 +7,7 @@ import { APIError } from "better-auth/api";
 import {
   completeSupabaseEmailVerification,
   isSupabaseProvisioningEnabled,
+  normalizeBetterAuthRegistration,
   reconcileSupabaseApplicationIdentity,
 } from "./supabase-provisioning.mjs";
 
@@ -113,6 +114,20 @@ export function createAuth(env: AuthWorkerEnv) {
     databaseHooks: {
       user: {
         create: {
+          // Validate user-controlled registration fields before the D1 user row
+          // is committed. This prevents invalid values from leaving an account
+          // that can never be projected into the application identity root.
+          before: async (user) => {
+            try {
+              const registration = normalizeBetterAuthRegistration(user as Record<string, unknown>);
+              return { data: { ...user, ...registration } };
+            } catch (error) {
+              const message = error instanceof Error
+                ? error.message
+                : "BETTER_AUTH_REGISTRATION_INVALID";
+              throw new APIError("BAD_REQUEST", { message });
+            }
+          },
           after: async (user) => {
             if (!isSupabaseProvisioningEnabled(env)) return;
             await reconcileSupabaseApplicationIdentity(env, user as Record<string, unknown>);
