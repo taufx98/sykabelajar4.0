@@ -60,6 +60,7 @@ jobs:
             "0001_better_auth.sql",
             "0002_seed_first_party_oauth_client.sql",
             "0003_zeptomail_agent_settings.sql",
+            "0004_better_auth_registration_attributes.sql",
           ].sort();
           const actual = readdirSync("migrations")
             .filter((name) => name.endsWith(".sql"))
