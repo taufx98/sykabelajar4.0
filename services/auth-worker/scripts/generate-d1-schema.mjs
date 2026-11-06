@@ -37,6 +37,9 @@ if (missing.length > 0) {
 const statements = payload.ddl
   .map((item) => String(item.sql ?? "").trim())
   .filter(Boolean)
+  // 0001 is already applied remotely. Keep it as the immutable core baseline;
+  // registration-only user columns are introduced by additive migration 0004.
+  .map((sql) => stripRegistrationColumnsFromUserBaseline(sql))
   .map((sql) => sql
     .replace(/^CREATE TABLE\s+/i, "CREATE TABLE IF NOT EXISTS ")
     .replace(/^CREATE (UNIQUE )?INDEX\s+/i, (_match, unique) => "CREATE " + (unique ?? "") + "INDEX IF NOT EXISTS "));
