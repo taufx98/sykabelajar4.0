@@ -34,6 +34,7 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
     "0001_better_auth.sql",
     "0002_seed_first_party_oauth_client.sql",
     "0003_zeptomail_agent_settings.sql",
+    "0004_better_auth_registration_attributes.sql",
   ]) {
     assert.ok(workflow.includes(file), "missing migration guard for " + file);
   }
@@ -42,6 +43,10 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
   assert.match(workflow, /d1 execute sykabelajar-auth-poc --remote --json/);
   assert.match(workflow, /auth_email_accounts/);
   assert.match(workflow, /oauthClient/);
+  assert.match(workflow, /better_auth_registration_attributes/);
+  assert.match(workflow, /pragma_table_info\('user'\)/);
+  assert.match(workflow, /accountType/);
+  assert.match(workflow, /referralCode/);
 });
 
 test("workflow cannot deploy the Worker or modify DNS, domains, or secrets", () => {
