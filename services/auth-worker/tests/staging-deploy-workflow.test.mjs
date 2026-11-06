@@ -64,4 +64,4 @@ test("routine redeploy preserves provisioned Worker secrets and cleans temporary
   assert.equal(workflow.includes("wrangler-deploy.log"), true);
   assert.equal(workflow.includes("wrangler-deploy-sanitized.log"), true);
   assert.match(workflow, /name: Remove temporary secret material from runner/);
-});;
+});
