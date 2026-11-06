@@ -8,8 +8,10 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const sourceRoot = join(repoRoot, "src");
 const expected = {
   "src/App.tsx": 2,
+  "src/components/admin/ZeptoMailSettingsPanel.tsx": 1,
   "src/components/organizer/OrganizerWorkspaceOnboarding.tsx": 4,
   "src/lib/cacheAuthLifecycle.ts": 1,
+  "src/pages/AdminChatConsolePage.tsx": 2,
   "src/pages/AdminErrorIntelligencePage.tsx": 2,
   "src/pages/AdminPlanUsagePage.tsx": 1,
   "src/pages/OrganizerControlCenterPage.tsx": 2,
@@ -51,14 +53,14 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 35);
-  assert.equal(Object.keys(actual).length, 19);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 38);
+  assert.equal(Object.keys(actual).length, 21);
 });
 
 test("the inventory document remains present next to its tracked source baseline", () => {
   const inventoryPath = join(repoRoot, "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md");
   const inventory = readFileSync(inventoryPath, "utf8");
-  assert.match(inventory, /35 direct callsites across 19 frontend files/);
+  assert.match(inventory, /38 direct callsites across 21 frontend files/);
   assert.match(inventory, /Organizer email\/phone verification/);
-  assert.match(inventory, /Cloudinary remains canonical media storage/);
+  assert.match(inventory, /Cloudinary remains the media system of record/);
 });
