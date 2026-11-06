@@ -23,12 +23,21 @@ function normalizePublicId(value) {
  */
 /**
  * @param {unknown} publicIdInput
- * @param {{ username?: string | null, ownedOrganizers?: Array<{ id?: string | null, slug?: string | null }> }} [identity]
+ * @param {{ userId?: string | null, username?: string | null, ownedOrganizers?: Array<{ id?: string | null, slug?: string | null }> }} [identity]
  */
 export function isOwnedCloudinaryPublicId(publicIdInput, identity = {}) {
-  const { username, ownedOrganizers = [] } = identity;
+  const { userId, username, ownedOrganizers = [] } = identity;
   const publicId = normalizePublicId(publicIdInput);
   if (!publicId) return false;
+
+  // Older deployed profile upload/delete functions use UUID-based public IDs.
+  // Keep these exact IDs valid only for the authenticated caller's UUID.
+  if (typeof userId === "string" && /^[0-9a-f-]{36}$/i.test(userId)) {
+    if (
+      publicId === `profile_pictures/user_${userId}` ||
+      publicId === `profile_covers/user_${userId}`
+    ) return true;
+  }
 
   // Cloudinary public IDs are case-sensitive. Preserve the exact username
   // returned by the caller-scoped profile lookup, including legacy casing.
