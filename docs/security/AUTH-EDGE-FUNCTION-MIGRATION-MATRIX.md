@@ -79,3 +79,55 @@ Any missing issuer/audience setting, unverified JWT, missing application identit
 The pinned Supabase Edge adapter was type-checked successfully with Deno 2.9.8 and `@supabase/server@1.9.2` in Supabase Local Auth Claims CI [#42214172513](https://github.com/taufx98/sykabelajar4.0/actions/runs/42214172513). The same run passed all 12 Edge JWT/webhook contract tests and 73/73 local pgTAP tests. The type-check caught and corrected the missing explicit `Request` parameter type before turning green.
 
 Stage 1 ZeptoMail Admin UI is a pre-cutover bridge: it currently reads the existing Supabase Auth session and the Worker verifies that access token via the current Supabase `/auth/v1/user` endpoint, then calls `is_active_admin()` under the same caller token. It stores only encrypted Agent Send Mail Tokens in the isolated D1 and the test operation sends only to the verified admin's email. This bridge has not been browser-tested with a live admin session and has not sent real mail. Stage 4/5 must replace this bridge with a verified Better Auth access token and the accepted Supabase Custom OIDC identity path before production cutover.
+
+
+## Full live Edge Function inventory — 6 November 2026
+
+## Full live Edge Function inventory — 6 November 2026
+
+A complete read-only download/source scan of all **15 currently active deployed Edge Functions** in production was performed on 6 November. The earlier four-function count described only direct `supabase.auth.getUser()` calls and was incomplete as a migration-surface count.
+
+### User identity / Cloudinary surface
+
+| Deployed function | Live version | Current live identity model | Authorization observation | Stage 5 action |
+|---|---:|---|---|---|
+| `get-cloudinary-signature` | 11 | `supabase.auth.getUser()` | The live production version accepts the caller's `public_id` after authentication but does not compare it with a caller-owned profile/organizer namespace. The branch now adds caller-scoped `profiles.username` and `organizers.owner_user_id` checks; not deployed. | Replace verifier with `requireBetterAuthUser` after OIDC/identity gates; keep owner-scoped signer and exact asset namespace. |
+| `cloudinary-profile-upload` | 9 | Manual `GET /auth/v1/user` | Derives `profile_pictures/user_{UUID}` or `profile_covers/user_{UUID}` from the verified Supabase Auth response; does not trust a body-supplied owner ID. | Migrate to verified Better Auth UUID; keep the UUID-based public-ID format during compatibility window. |
+| `cloudinary-profile-upload-v2` | 9 | Manual `GET /auth/v1/user` | Same caller-derived UUID path and image/size/kind checks. | Same as above; consolidate only after client callers are inventoried. |
+| `cloudinary-delete-asset` | 9 | Platform `verify_jwt=true`, but handler only checks that a Bearer header exists | **High-priority owner-check gap:** the live handler does not resolve the caller UUID or compare it to `public_id` before signing a Cloudinary destroy request. Any valid JWT could potentially request deletion of a guessed asset ID. | Branch now contains a replacement source that resolves caller identity from the legacy Auth endpoint and permits only the caller's exact UUID-based avatar/cover IDs; it validates resource/delivery types and uses no body-supplied owner ID. It is not deployed. |
+| `cloudinary-delete-asset-v2` | 9 | Manual `GET /auth/v1/user` | Restricts `public_id` to exactly `profile_pictures/user_{callerUUID}` or `profile_covers/user_{callerUUID}`. | Migrate auth verifier and retain exact owner check. |
+| `cloudinary-delete-profile` | 9 | Manual `GET /auth/v1/user` | Same exact UUID-owned profile/cover restriction; this is the endpoint currently invoked by `src/services/cloudinary.service.ts`. | Migrate auth verifier and retain its existing caller/asset contract. |
+| `payment-gateway-admin` | 5 | `supabase.auth.getUser()` then caller-context `is_active_admin()` | Business admin check exists; service-role is used only after admin check. | Use verified Better Auth user context, then re-run `is_active_admin()` under caller context before privileged access. |
+| `payment-gateway-create` | 5 | `supabase.auth.getUser()` | Checks order owner UUID against verified user; service-role order/payment work follows. | Use verified Better Auth UUID and preserve owner/status/idempotency checks. |
+| `payment-gateway-reconcile` | 1 | `supabase.auth.getUser()` | Constrains order/intent reads by verified user UUID; the branch explicitly pins `verify_jwt=true`. | Use verified Better Auth UUID, preserve owner and provider-verification/idempotency checks. |
+| `midtrans-create-payment` | 10 | Compatibility delegator | Forwards the authorization header to `payment-gateway-create`; it is not a second independent user verifier. | Keep `verify_jwt=true` and preserve the downstream Better Auth verifier until frontend callers migrate; remove only after callsite audit. |
+
+The remaining active functions are deliberately separate from user access-token migration:
+- `payment-webhook` v9 and `payment-gateway-webhook` v4 have `verify_jwt=false` and validate provider signatures; keep provider authentication, replay/idempotency, amount/currency and fulfillment checks. Do not replace signatures with user JWTs.
+- `payment-gateway-public` v2 is the intentionally public provider-status endpoint; keep its response free of secrets/order-private data.
+- `generate-collective-certificate-pdf` v8 exposes a public certificate output route; verify certificate code/visibility semantics separately, not by forcing user JWT onto public verification.
+- `cleanup-expired-chat-media` v9 is a service-role background cleanup endpoint with `verify_jwt=false`; its access/trigger should be retired with the already-approved private-chat removal, not treated as a general public API.
+
+### Current branch vs deployed production
+
+The branch contains:
+- a caller-owned profile/organizer guard in `get-cloudinary-signature` (the deployed v11 still predates the guard);
+- a replacement `cloudinary-delete-asset/index.ts` with caller UUID lookup and exact UUID asset ownership enforcement (the deployed v9 remains the weaker version);
+- unit/static ownership tests for new and legacy Cloudinary public-ID formats;
+- Deno type-check integration for `get-cloudinary-signature` and `cloudinary-delete-asset`.
+
+These are branch-only changes. Do not claim production protection until the exact sources are deployed and a hosted two-user test proves A cannot sign or delete B's assets.
+
+### Required two-user Cloudinary acceptance
+
+Use only isolated synthetic users A/B:
+1. A can upload/delete `profile_pictures/user_A` and `profile_covers/user_A`.
+2. A cannot sign or delete either of B's UUID-based asset IDs.
+3. A can sign only the username-derived avatar/cover matching A's profile row; a caller-supplied username does not grant access.
+4. A can sign an organizer logo only when the organizer row's `owner_user_id=A`.
+5. Malformed/traversal/encoded/unsupported public IDs, resource types and delivery types fail before any Cloudinary provider call.
+6. Missing, expired, wrong-issuer, wrong-audience or wrong-signature Better Auth tokens fail before the owner query.
+7. Browser response never returns Cloudinary API secret or signing key; only short-lived parameters/signature for an owned asset are returned.
+
+No deployed Edge Function, secret, Supabase setting, Cloudinary asset, or production data was changed during this inventory.
+
