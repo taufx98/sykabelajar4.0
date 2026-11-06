@@ -86,6 +86,7 @@ jobs:
             /^migrations_dir = "migrations"$/m,
             /^workers_dev = false$/m,
             /^BETTER_AUTH_URL = "https:\/\/auth\.sykabelajar\.my\.id"$/m,
+            /^DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m,
             /^pattern = "auth\.sykabelajar\.my\.id"$/m,
             /^custom_domain = true$/m,
           ];
