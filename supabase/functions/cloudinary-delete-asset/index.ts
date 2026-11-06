@@ -58,6 +58,7 @@ Deno.serve(async (request) => {
     authResponse = await fetch(supabaseUrl + "/auth/v1/user", {
       headers: { apikey: publishableKey, Authorization: "Bearer " + bearer },
       redirect: "error",
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     return json({ error: "AUTH_VERIFICATION_UNAVAILABLE" }, 503);
@@ -111,6 +112,7 @@ Deno.serve(async (request) => {
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: form,
         redirect: "error",
+        signal: AbortSignal.timeout(8000),
       },
     );
   } catch {
