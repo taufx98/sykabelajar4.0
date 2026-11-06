@@ -57,7 +57,7 @@ jobs:
 
       - name: Type-check the shared Supabase Edge JWT adapter
         run: |
-          deno check --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/_shared/better-auth-user.ts
 
       - name: Validate live identity FK snapshot and dry-run plan generator
