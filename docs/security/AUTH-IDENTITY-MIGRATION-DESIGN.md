@@ -1,9 +1,9 @@
 # Better Auth identity-root migration design
 
-Status: design proposal only — not an executable production migration
-Snapshot date: 4 November 2026
+Status: design proposal with a tested, opt-in Worker provisioning scaffold — not an executable production migration
+Snapshot date: 6 November 2026
 
-This document converts the current production catalog inventory into a proposed Stage 3 implementation. It does not authorize a production migration. The only SQL currently tested is the synthetic fixture under services/auth-worker/supabase-test/.
+This document converts the current production catalog inventory into a proposed Stage 3 implementation. It does not authorize a production migration. The SQL tested is the synthetic fixture under `services/auth-worker/supabase-test/`; the proposed production PostgREST wrapper contract is recorded separately in [AUTH-STAGE-3-POSTGREST-RPC-WRAPPERS.sql](AUTH-STAGE-3-POSTGREST-RPC-WRAPPERS.sql). That wrapper file is documentation/draft only, not a migration applied to production.
 
 ## New-account-only migration model
 
@@ -59,7 +59,7 @@ A single server-only, idempotent provisioning operation must create the applicat
 9. Preserve the live `public.app_role` enum and `public.user_roles` table. The current live enum contains `student`, `teacher`, `organizer_member`, and `admin`; do not drop, replace, or narrow it. Only these account types may be selected at public self-registration: student, teacher, and organizer. The server-side mapping is student → student, teacher → teacher, and organizer → organizer_member. Never accept admin, super_admin, organizer workspace ownership, or arbitrary role names from user metadata. Privileged role grants remain protected.
 10. Organizer workspace creation remains a separate protected `create_organizer` operation after role, verification and uniqueness checks.
 
-The old `handle_new_auth_user()` belongs to the current Supabase Auth registration path and is not the provisioning mechanism for new Better Auth users. After cutover, the Better Auth Worker path must call the new trusted provisioning operation directly; it must not rely on a trigger on `auth.users` or create shadow Auth rows. Better Auth's database `user.create.after` hook is suitable for the first provisioning attempt, while `session.create.before` is the fail-closed retry gate; its supported behavior is to stop session creation when the hook returns `false`. Email/password verification must use Better Auth's `afterEmailVerification` callback. These hooks are a planned integration contract, not yet implemented in the Worker.
+The old `handle_new_auth_user()` belongs to the current Supabase Auth registration path and is not the provisioning mechanism for new Better Auth users. The branch now contains an opt-in Worker implementation: Better Auth's `user.create.after` hook attempts the trusted RPC, `session.create.before` retries it and throws a fail-closed error until the Postgres identity is confirmed, and `afterEmailVerification` reconciles verified email state and referrals. The code requires `SUPABASE_PROVISIONING_ENABLED=true` plus a server-only `SUPABASE_SERVICE_ROLE_KEY`; the flag is absent/false by default, so the live staging Worker remains in auth-only mode. The hooks are locally type-checked and unit-tested but have not been enabled against any hosted Supabase project.
 
 ## 4. Referral and email-verification lifecycle
 
@@ -147,7 +147,7 @@ The synthetic fixtures are exercised by [Supabase Local Auth Claims CI #41860723
 - 12 FK rehome assertions for UUID backfill, FK target replacement, and preservation of all four delete actions.
 - 53 provisioning/referral assertions for server-only execution, preservation of the business-role enum/table, permitted basic-role mapping, rejection of admin self-registration, retry safety, no `auth.users` shadow row, trusted email verification, referral qualification and idempotent Edu Coin rewards.
 
-The 53 provisioning/referral assertions include initial verified-email projection from a trusted Google identity (`p_email_verified = true`) and a fresh-UUID username-collision case proving the identity root and settings roll back together. These are synthetic SQL contract tests; the corresponding Worker provisioning hooks are still not implemented.
+The provisioning/referral fixture now has 63 assertions, including wrapper grants and actual calls to the public PostgREST RPC wrappers as `service_role`, plus the original initial verified-email projection from a trusted provider, role mapping, idempotency, rollback, referral qualification and Edu Coin ledger cases. Across the three local SQL test files, Supabase Local Auth Claims CI [#42237270273](https://github.com/taufx98/sykabelajar4.0/actions/runs/42237270273) passed 83/83 pgTAP assertions. The corresponding Worker hooks are now implemented in the branch and have unit tests, but they remain disabled until the wrappers and identity migration exist in an isolated hosted Supabase project.
 
 These tests verify the proposed SQL contract in an isolated synthetic schema. They do **not** prove the live application schema can be rebuilt from scratch, the real Better Auth Worker can reach Supabase securely, hosted Custom OIDC is accepted, every production RLS policy behaves correctly, or the production migration is safe to execute. All Stage 3 exit criteria below therefore remain mandatory.
 
