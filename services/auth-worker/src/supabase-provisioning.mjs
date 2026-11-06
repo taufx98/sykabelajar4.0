@@ -191,6 +191,35 @@ async function invokeRpc(env, rpcName, payload, fetchImpl) {
 }
 
 /**
+ * Registration-only profile fields are needed to recover if the Postgres
+ * projection fails after the D1 user insert. Once the projection commits,
+ * remove them from D1; keep accountType/username as stable auth-side mapping
+ * metadata so later idempotent session checks cannot accidentally add a
+ * default student role to a teacher/organizer account.
+ *
+ * @param {AuthWorkerEnv} env
+ * @param {string} userId
+ */
+async function clearProfileBootstrapFields(env, userId) {
+  try {
+    const result = await env.DB.prepare(`
+      UPDATE "user"
+      SET "referralCode" = NULL,
+          "birthDate" = NULL,
+          "institution" = NULL,
+          "grade" = NULL,
+          "subjects" = NULL
+      WHERE "id" = ?
+    `).bind(userId).run();
+    if (!result.success || result.meta.changes !== 1) {
+      throw new Error("D1_BOOTSTRAP_CLEANUP_NOT_CONFIRMED");
+    }
+  } catch {
+    throw new Error("BETTER_AUTH_PROFILE_BOOTSTRAP_CLEANUP_FAILED");
+  }
+}
+
+/**
  * Ensures the application identity exists before a Better Auth session can
  * be created. RPCs are deliberately idempotent because D1 and Postgres cannot
  * participate in a single transaction.
@@ -226,6 +255,10 @@ export async function reconcileSupabaseApplicationIdentity(env, user, fetchImpl 
       p_verified_at: new Date().toISOString(),
     }, fetchImpl);
   }
+
+  // Postgres is now the canonical profile store. Do not retain the signup
+  // payload in D1 after a successful, atomic identity/profile projection.
+  await clearProfileBootstrapFields(env, identity.userId);
 
   return { enabled: true, userId: identity.userId };
 }
