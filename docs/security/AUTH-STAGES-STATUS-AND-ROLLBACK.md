@@ -1,6 +1,6 @@
 # Better Auth migration — live readiness and rollback record
 
-Status date: 5 November 2026  
+Status date: 6 November 2026  
 Scope: SYKABELAJAR 4.0, production Supabase project `mvdczyitbkxkldjughor`, isolated Better Auth branch `security/auth-poc-stage-1`.
 
 This is a verified status record, not authorization to deploy or migrate production. All Cloudflare and Supabase catalog checks described below were read-only. No production DDL/DML, auth-provider configuration, account deletion, DNS change, Worker deployment, or real email sending was performed.
@@ -9,7 +9,7 @@ This is a verified status record, not authorization to deploy or migrate product
 
 | Stage | Completed locally | Still blocking completion |
 |---|---|---|
-| 1. Cloudflare foundation | Better Auth Worker package, dedicated remote D1 created and bound, encrypted ZeptoMail Agent storage, admin API/UI; local migrations, Worker dry-run, Worker CI and frontend CI pass | Auth Worker not deployed; custom domain/route and Worker secrets not configured; real ZeptoMail delivery not tested |
+| 1. Cloudflare foundation | Better Auth Worker package, dedicated remote D1 created and bound, encrypted ZeptoMail Agent storage, admin API/UI; local migrations, Worker dry-run, Worker CI and frontend CI pass; guarded manual remote-D1 migration workflow added and its static contract tests pass | Remote D1 migrations still await manual dispatch; Auth Worker not deployed; custom domain/route and Worker secrets not configured; real ZeptoMail delivery not tested |
 | 2. OIDC and JWT | Authorization Code + PKCE S256, ES256, discovery/JWKS, UUID `sub`, PostgreSQL `role=authenticated`, five-minute token and negative tests pass locally | Supabase hosted Custom OIDC acceptance test blocked by Free project limit; no production issuer registration |
 | 3. Supabase identity | Live metadata inventory, exact 69-FK catalog comparison, identity/referral/verification design and 73/73 local pgTAP fixture tests | Complete schema-only baseline not exported; `private.app_users` absent; no executable production identity/FK/trigger/RPC migration; organizer phone-verification replacement not available |
 | 4. Frontend | ZeptoMail Admin settings panel is implemented and frontend CI passes | Main app still uses Supabase Auth; Better Auth client/token adapter and global session integration not started |
@@ -141,3 +141,13 @@ PR #177 remains Draft and has not been merged. Its current base branch is behind
 - The second project consuming the quota is not visible via the connected `list_projects`/`list_organizations` results. Supabase's billing rule counts projects across all organizations in which the user is Owner/Admin; paused projects do not count. The owner must inspect the Supabase Dashboard across every organization and identify the non-production project before considering a pause. Do not pause `sykabelajar_db2`.
 - The schema-only exporter now rejects a connection string that does not match `SUPABASE_PROJECT_REF`, accepting only the direct host `db.<project-ref>.supabase.co` or session-pooler host with user `postgres.<project-ref>`. This prevents producing a default schema dump from one project and an Auth/Storage diff from another. Bash syntax, static contract, FK-plan generator and all local Supabase assertions passed in [CI #42132183039](https://github.com/taufx98/sykabelajar4.0/actions/runs/42132183039). These remain local/synthetic tests; the actual production schema-only export has not been run.
 - The actual schema-only export has not been run because it must execute on the database owner's trusted local machine. No connection string was requested, exposed, or copied to GitHub. The helper still performs no remote schema/data mutation, restore, or deployment.
+
+
+## 6 November 2026 — guarded remote D1 migration preparation
+
+- Added manual-only workflow `.github/workflows/auth-cloudflare-d1-migrate.yml` and runbook [AUTH-CLOUDFLARE-D1-MIGRATION-RUNBOOK.md](AUTH-CLOUDFLARE-D1-MIGRATION-RUNBOOK.md).
+- The workflow is restricted to branch `security/auth-poc-stage-1`, requires the exact typed confirmation `APPLY-TO-sykabelajar-auth-poc`, checks the repository's Worker/D1 name and UUID, confirms the same name/UUID through the Cloudflare API, and refuses to run if the migration directory differs from the four reviewed SQL migrations.
+- It applies only D1 migrations 0000–0003 to the dedicated remote D1, then checks for all 17 expected Better Auth/OAuth/ZeptoMail tables. It does not deploy a Worker, set secrets, configure DNS/custom domains/routes, register Supabase OIDC, or access the production Supabase project.
+- This workflow has **not** been manually dispatched. Therefore the remote D1 schema must still be considered unapplied until a successful Actions run proves otherwise.
+- The workflow's four safety-contract tests and the complete Auth Worker CI passed in [#42136109104](https://github.com/taufx98/sykabelajar4.0/actions/runs/42136109104). The separate Cloudflare read-only preflight [#42136109088](https://github.com/taufx98/sykabelajar4.0/actions/runs/42136109088) also passed. Both CI jobs (Worker and frontend lint/typecheck/build) completed successfully; neither run deployed the Worker or migrated remote D1.
+- Supabase Local Auth Claims CI [#42132183039](https://github.com/taufx98/sykabelajar4.0/actions/runs/42132183039) still passes 73/73 local pgTAP assertions. The production schema-only export remains pending on the database owner's trusted local machine, and the separate Supabase Free staging project remains blocked by the account's active-project cap.
