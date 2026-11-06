@@ -95,9 +95,11 @@ jobs:
             },
             workers: {
               scriptsReadable: scripts.success,
+              scriptsStatus: scripts.status,
               authWorkerFound: workerRows.some((row) => row.id === "sykabelajar-auth-poc"),
               scriptNames: workerRows.map((row) => row.id),
               customDomainReadable: workerDomains.success,
+              customDomainStatus: workerDomains.status,
               authDomainFound: domainRows.some((row) => row.hostname === "auth.sykabelajar.my.id" && row.service === "sykabelajar-auth-poc"),
               customDomains: domainRows.map((row) => ({ hostname: row.hostname, service: row.service, enabled: row.enabled })),
               errorCodes: [...scripts.errorCodes, ...workerDomains.errorCodes],
@@ -105,6 +107,7 @@ jobs:
             },
             routes: {
               readable: routes.success,
+              status: routes.status,
               authHostRouteFound: routeRows.some((row) => row.pattern === "auth.sykabelajar.my.id/*" && row.script === "sykabelajar-auth-poc"),
               matchingRoutes: routeRows.filter((row) => String(row.pattern ?? "").includes("auth.sykabelajar.my.id")),
               errorCodes: routes.errorCodes,
@@ -112,12 +115,54 @@ jobs:
             },
           };
 
+          const origin = "https://auth.sykabelajar.my.id";
+          const expectedIssuer = origin + "/api/auth";
+          async function getJson(path) {
+            const response = await fetch(origin + path, { redirect: "error" });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data || typeof data !== "object") {
+              throw new Error(path + " returned HTTP " + response.status);
+            }
+            return data;
+          }
+
+          let hosted = { healthy: false, issuer: null, pkceS256: false, publicEs256Jwks: false, error: null };
+          try {
+            const health = await getJson("/healthz");
+            const discovery = await getJson("/api/auth/.well-known/openid-configuration");
+            const jwksUrl = new URL(discovery.jwks_uri);
+            const jwks = await getJson(jwksUrl.pathname + jwksUrl.search);
+            hosted = {
+              healthy: health.ok === true,
+              issuer: discovery.issuer ?? null,
+              pkceS256: Array.isArray(discovery.code_challenge_methods_supported) &&
+                discovery.code_challenge_methods_supported.includes("S256"),
+              publicEs256Jwks: Array.isArray(jwks.keys) && jwks.keys.some((key) =>
+                key.kty === "EC" && key.crv === "P-256" && key.alg === "ES256" &&
+                typeof key.kid === "string" && key.kid.length > 0 && !Object.hasOwn(key, "d")
+              ),
+              error: null,
+            };
+            hosted.healthy = hosted.healthy && hosted.issuer === expectedIssuer &&
+              hosted.pkceS256 && hosted.publicEs256Jwks;
+          } catch (error) {
+            hosted.error = String(error?.message ?? "hosted auth preflight failed").slice(0, 180);
+          }
+
+          summary.hostedIssuer = hosted;
+          summary.minimumReadPermissions = {
+            zoneRead: summary.accountScopedReadProof.zoneRead,
+            d1Read: summary.d1.readable,
+          };
           console.log(JSON.stringify(summary, null, 2));
           writeFileSync(process.env.RUNNER_TEMP + "/auth-cloudflare-preflight-summary.json", JSON.stringify(summary, null, 2), { mode: 0o600 });
 
-          if (!summary.accountScopedReadProof.zoneRead || !summary.accountScopedReadProof.workerScriptsRead) {
-            console.error("Cloudflare API token cannot read the zone and Worker script resources needed for staging.");
+          if (!summary.minimumReadPermissions.zoneRead || !summary.minimumReadPermissions.d1Read || !hosted.healthy) {
+            console.error("Cloudflare zone/D1 read or hosted Worker health/issuer checks failed.");
             process.exitCode = 1;
+          } else if (!summary.accountScopedReadProof.workerScriptsRead ||
+                     !summary.workers.customDomainReadable || !summary.routes.readable) {
+            console.warn("Worker Scripts/Custom Domain/Routes list APIs are not readable by this token. Hosted health, issuer, JWKS and D1 are verified; do not grant broad account Admin solely to read inventory.");
           }
           NODE
 
