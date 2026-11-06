@@ -1,6 +1,6 @@
 # Stage 2 — OIDC/JWT hosted acceptance runbook
 
-Status: protocol implementation and local security tests pass; hosted acceptance is pending. This runbook is for a future isolated staging deployment only. It is not authorization to deploy, register the issuer in production, or modify production Supabase.
+Status: **the non-production issuer is deployed and hosted discovery/JWKS smoke tests pass**. Supabase third-party Custom OIDC acceptance and downstream API/RLS tests remain pending in an isolated Supabase Free project. This runbook does not authorize registering the issuer in production or changing production Supabase.
 
 ## Fixed issuer contract
 
