@@ -260,3 +260,18 @@ The Supabase Local Auth Claims CI [#42214172513](https://github.com/taufx98/syka
 The frontend auth inventory is committed at [AUTH-FRONTEND-MIGRATION-INVENTORY.md](AUTH-FRONTEND-MIGRATION-INVENTORY.md): 41 direct `supabase.auth` callsites across 22 frontend files were surfaced. This is documentation/planning only; the React app remains on Supabase Auth. The shared Edge adapter is type-checked but still not wired into any existing endpoint.
 
 The latest Pages preview is green at [security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev). The actual staging Worker still predates the exact preview-Origin CORS allowlist; a new manual-only deployment is required before the browser-based ZeptoMail panel can connect. Real ZeptoMail Agent token/delivery and interactive session/email callbacks remain unverified.
+
+
+## Latest verified checkpoint — 6 November 2026 (Cloudinary ownership hardening + opt-in provisioning)
+
+## Latest verified checkpoint — 6 November 2026 (Cloudinary ownership hardening + opt-in provisioning)
+
+Auth Worker + frontend CI [#42247015051](https://github.com/taufx98/sykabelajar4.0/actions/runs/42247015051) completed **success** on `4c00fa315d0e8329d054b4d2d12feeea225ab4b2`. It passed the Worker TypeScript/build checks, 56 Worker unit tests, 12 Better Auth JWT claim tests, 15 Cloudinary ownership/source-contract tests, two frontend auth-inventory checks, the clean local D1 migration chain (0000–0004), fixed OAuth client seed validation, sign-up/email-verification/session/PKCE/ES256 integration, Worker dry-run, and frontend lint/typecheck/build.
+
+Supabase Local Auth Claims CI [#42247014985](https://github.com/taufx98/sykabelajar4.0/actions/runs/42247014985) completed **success** on the same commit. Deno type-check passed for the shared Better Auth verified-context adapter, `get-cloudinary-signature`, and the branch replacement for `cloudinary-delete-asset`. The isolated Supabase fixture passed **83/83 pgTAP assertions**.
+
+The registration integration now deliberately submits `accountType=admin` first and expects HTTP 400 with no verification email, then retries with a valid teacher account and verifies that `accountType`, `username`, and `referralCode` survive the Better Auth session. This proves the pre-insert validator rejects unsupported business roles before a D1 row is created.
+
+The complete 15-function production Edge Function inventory is recorded in [AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md](AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md). A branch-only replacement for the live `cloudinary-delete-asset` ownership gap now resolves the verified legacy caller UUID and restricts deletes to the exact UUID-owned avatar/cover asset IDs. The new and legacy Cloudinary ownership tests pass. **No Edge Function has been deployed**; production Cloudinary delete v9 remains unchanged until an isolated A/B hosted test and a controlled deployment review pass.
+
+The newest code is still branch-only. This CI did not apply migration 0004 to remote D1, redeploy the live Worker, configure ZeptoMail, register Supabase Custom OIDC, or modify production Supabase. PR #177 remains Draft and unmerged.
