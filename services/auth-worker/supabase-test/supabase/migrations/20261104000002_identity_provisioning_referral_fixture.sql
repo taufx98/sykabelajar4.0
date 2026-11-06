@@ -24,6 +24,10 @@ create table public.profiles (
   username text unique,
   account_type text not null default 'student'
     check (account_type in ('student', 'teacher', 'organizer')),
+  birth_date date,
+  institution text,
+  grade text,
+  subjects text,
   edu_coin bigint not null default 0,
   total_xp bigint not null default 0,
   updated_at timestamptz not null default clock_timestamp()
@@ -245,6 +249,10 @@ create or replace function private.provision_better_auth_user(
   p_account_type text,
   p_full_name text,
   p_username text,
+  p_birth_date date,
+  p_institution text,
+  p_grade text,
+  p_subjects text,
   p_referral_code text default null,
   p_email_verified boolean default false
 ) returns jsonb
@@ -277,9 +285,18 @@ begin
   )
   on conflict (id) do nothing;
 
-  insert into public.profiles (id, full_name, username, account_type)
-  values (p_user_id, coalesce(nullif(pg_catalog.btrim(p_full_name), ''), ''),
-          nullif(pg_catalog.lower(pg_catalog.btrim(p_username)), ''), v_type)
+  insert into public.profiles
+    (id, full_name, username, account_type, birth_date, institution, grade, subjects)
+  values (
+    p_user_id,
+    coalesce(nullif(pg_catalog.btrim(p_full_name), ''), ''),
+    nullif(pg_catalog.lower(pg_catalog.btrim(p_username)), ''),
+    v_type,
+    p_birth_date,
+    nullif(pg_catalog.upper(pg_catalog.btrim(p_institution)), ''),
+    nullif(pg_catalog.lower(pg_catalog.btrim(p_grade)), ''),
+    nullif(pg_catalog.btrim(p_subjects), '')
+  )
   on conflict (id) do nothing;
 
   insert into public.user_roles (user_id, role, is_active)
@@ -371,11 +388,11 @@ revoke all on function private.apply_referral_qualification(uuid, text, timestam
   from public, anon, authenticated, service_role;
 revoke all on function private.handle_referral_daily_checkin()
   from public, anon, authenticated, service_role;
-revoke all on function private.provision_better_auth_user(uuid, text, text, text, text, boolean)
+revoke all on function private.provision_better_auth_user(uuid, text, text, text, date, text, text, text, text, boolean)
   from public, anon, authenticated;
 revoke all on function private.complete_better_auth_email_verification(uuid, timestamptz)
   from public, anon, authenticated;
-grant execute on function private.provision_better_auth_user(uuid, text, text, text, text, boolean)
+grant execute on function private.provision_better_auth_user(uuid, text, text, text, date, text, text, text, text, boolean)
   to service_role;
 grant execute on function private.complete_better_auth_email_verification(uuid, timestamptz)
   to service_role;
@@ -387,13 +404,19 @@ create or replace function public.better_auth_provision_user(
   p_account_type text,
   p_full_name text,
   p_username text,
+  p_birth_date date,
+  p_institution text,
+  p_grade text,
+  p_subjects text,
   p_referral_code text,
   p_email_verified boolean default false
 ) returns jsonb
 language sql security definer set search_path = ''
 as $function$
   select private.provision_better_auth_user(
-    p_user_id, p_account_type, p_full_name, p_username, p_referral_code, p_email_verified
+    p_user_id, p_account_type, p_full_name, p_username,
+    p_birth_date, p_institution, p_grade, p_subjects,
+    p_referral_code, p_email_verified
   );
 $function$;
 
@@ -405,11 +428,11 @@ as $function$
   select private.complete_better_auth_email_verification(p_user_id, p_verified_at);
 $function$;
 
-revoke all on function public.better_auth_provision_user(uuid,text,text,text,text,boolean)
+revoke all on function public.better_auth_provision_user(uuid,text,text,text,date,text,text,text,text,boolean)
   from public, anon, authenticated;
 revoke all on function public.better_auth_complete_email_verification(uuid,timestamptz)
   from public, anon, authenticated;
-grant execute on function public.better_auth_provision_user(uuid,text,text,text,text,boolean)
+grant execute on function public.better_auth_provision_user(uuid,text,text,text,date,text,text,text,text,boolean)
   to service_role;
 grant execute on function public.better_auth_complete_email_verification(uuid,timestamptz)
   to service_role;
