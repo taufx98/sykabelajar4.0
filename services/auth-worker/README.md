@@ -148,13 +148,12 @@ The local integration suite now covers:
 This establishes a passing **local proof of concept**, not production readiness. A Supabase Data API JWT that was issued before logout can remain cryptographically valid until its five-minute expiry; the application must not treat session logout as instant revocation at Supabase.
 
 Remaining Stage 1 gates:
-- Test Google OAuth with isolated Google credentials, including verified-email enforcement and explicit account-linking behavior.
-- Configure a real email provider/webhook and verify delivery, verification links, and password resets.
-- Create an isolated, non-production Supabase staging environment and verify Custom OIDC token acceptance and RLS identity mapping.
-- Run two-user Supabase IDOR tests before Stage 2.
-- Provision a dedicated Cloudflare D1 resource, deploy only to staging, and validate the real Worker domain before any production cutover.
+- Resolve the Cloudflare Worker creation and Custom Domain permission gate in [AUTH-CLOUDFLARE-STAGING-WORKER-DEPLOY-RUNBOOK.md](../../docs/security/AUTH-CLOUDFLARE-STAGING-WORKER-DEPLOY-RUNBOOK.md). The dedicated remote D1 already exists and is migrated; the initial guarded Worker deploy passed all pre-deploy checks but failed at `wrangler deploy` because the current token does not yet have the verified create/domain permission set.
+- Run the manual-only staging Worker deployment and verify the hosted health endpoint, stable issuer, session cookie behavior, OIDC discovery, and public ES256 JWKS.
+- Enter a verified ZeptoMail Agent Send Mail Token through the secured Admin UI and verify delivery to the signed-in admin's own email. No Agent token has yet been entered and no real email or paid credit has been used.
+- Test Google OAuth with isolated credentials if Google sign-in is required for initial launch, including verified-email enforcement and explicit account-linking behavior.
 
-PR #177 remains a draft. No Cloudflare deployment, Supabase schema/configuration change, frontend auth replacement, or production account change has been performed.
+PR #177 remains a draft. No successful Cloudflare Worker deployment, Supabase schema/configuration change, frontend auth replacement, production account change, or production DNS/route change has been performed. The failed staging deployment left no partial Worker, custom domain, or route according to read-only preflight [#42179241229](https://github.com/taufx98/sykabelajar4.0/actions/runs/42179241229).
 
 
 ## Latest validation checkpoint — 5 November 2026
@@ -164,7 +163,7 @@ The latest ZeptoMail implementation validation is green on commit `e01d865c94f4d
 - [Auth Worker + Admin Frontend CI #42035044756](https://github.com/taufx98/sykabelajar4.0/actions/runs/42035044756): dependency audit, strict Worker TypeScript, 28 Worker security/email tests, local D1 migrations including ZeptoMail tables, unauthenticated admin-endpoint rejection, email/session/OAuth integration, OIDC discovery/JWKS, Worker dry-run bundle, and separate frontend lint/typecheck/build all passed. No deploy step exists.
 - [Supabase Local Auth Claims CI #42012012070](https://github.com/taufx98/sykabelajar4.0/actions/runs/42012012070): all **73/73 pgTAP assertions** passed (8 JWT/RLS + 12 FK rehome + 53 provisioning/referral). The test set includes the trusted Google verified-email projection and the isolated username-collision rollback case.
 
-These runs validate local disposable resources only. They do not create a remote Cloudflare D1 database, deploy a Worker, configure a custom domain, verify real email delivery or Google credentials, or prove hosted Supabase Custom OIDC acceptance. Stage 1 therefore remains in progress, and no production auth, Supabase schema, or user-account change has been made.
+These older runs validate local disposable resources only. The later dedicated remote D1 and manual schema migration are verified in [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470). The first guarded Worker deploy attempt [#42178992387](https://github.com/taufx98/sykabelajar4.0/actions/runs/42178992387) failed at the deployment step; post-failure preflight [#42179241229](https://github.com/taufx98/sykabelajar4.0/actions/runs/42179241229) confirmed no partial Worker/domain/route was created. Stage 1 remains in progress; no production auth, Supabase schema, or user-account change has been made.
 
 ## Email adapter validation — 5 November 2026
 
