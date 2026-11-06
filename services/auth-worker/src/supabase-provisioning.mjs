@@ -50,6 +50,49 @@ function requireProvisioningConfig(env) {
   return { baseUrl: url.origin, serviceKey };
 }
 
+/**
+ * Validate and normalize registration attributes before Better Auth writes the
+ * user row. The allowed business registration types are deliberately separate
+ * from Postgres JWT role=authenticated and cannot include admin.
+ *
+ * @param {Record<string, unknown>} input
+ * @returns {{ accountType: string, username: string | null, referralCode: string | null }}
+ */
+export function normalizeBetterAuthRegistration(input) {
+  const suppliedType = typeof input.accountType === "string"
+    ? input.accountType.trim().toLowerCase()
+    : "student";
+  if (!ACCOUNT_TYPES.has(suppliedType)) {
+    throw new Error("BETTER_AUTH_ACCOUNT_TYPE_NOT_ALLOWED");
+  }
+
+  if (input.username !== undefined && input.username !== null && typeof input.username !== "string") {
+    throw new Error("BETTER_AUTH_USERNAME_INVALID");
+  }
+  const suppliedUsername = typeof input.username === "string"
+    ? input.username.trim().toLowerCase()
+    : "";
+  if (suppliedUsername && !USERNAME_PATTERN.test(suppliedUsername)) {
+    throw new Error("BETTER_AUTH_USERNAME_INVALID");
+  }
+
+  if (input.referralCode !== undefined && input.referralCode !== null && typeof input.referralCode !== "string") {
+    throw new Error("BETTER_AUTH_REFERRAL_CODE_INVALID");
+  }
+  const suppliedReferralCode = typeof input.referralCode === "string"
+    ? input.referralCode.trim()
+    : "";
+  if (suppliedReferralCode.length > 80) {
+    throw new Error("BETTER_AUTH_REFERRAL_CODE_INVALID");
+  }
+
+  return {
+    accountType: suppliedType,
+    username: suppliedUsername || null,
+    referralCode: suppliedReferralCode || null,
+  };
+}
+
 /** @param {Record<string, unknown>} user */
 function normalizeUser(user) {
   if (!user || typeof user !== "object") throw new Error("BETTER_AUTH_USER_REQUIRED");
@@ -57,31 +100,13 @@ function normalizeUser(user) {
   const userId = typeof user.id === "string" ? user.id.trim() : "";
   if (!UUID_PATTERN.test(userId)) throw new Error("BETTER_AUTH_USER_ID_INVALID");
 
-  const suppliedType = typeof user.accountType === "string"
-    ? user.accountType.trim().toLowerCase()
-    : "student";
-  if (!ACCOUNT_TYPES.has(suppliedType)) {
-    throw new Error("BETTER_AUTH_ACCOUNT_TYPE_NOT_ALLOWED");
-  }
-
+  const registration = normalizeBetterAuthRegistration(user);
   const fullName = typeof user.name === "string" ? user.name.trim().slice(0, 120) : "";
-  const suppliedUsername = typeof user.username === "string"
-    ? user.username.trim().toLowerCase()
-    : "";
-  if (suppliedUsername && !USERNAME_PATTERN.test(suppliedUsername)) {
-    throw new Error("BETTER_AUTH_USERNAME_INVALID");
-  }
-
-  const referralCode = typeof user.referralCode === "string"
-    ? user.referralCode.trim().slice(0, 80)
-    : "";
 
   return {
     userId,
-    accountType: suppliedType,
+    ...registration,
     fullName,
-    username: suppliedUsername || null,
-    referralCode: referralCode || null,
     emailVerified: user.emailVerified === true,
   };
 }
