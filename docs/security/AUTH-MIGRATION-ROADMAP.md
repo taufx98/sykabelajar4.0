@@ -219,3 +219,14 @@ See [AUTH-STAGES-STATUS-AND-ROLLBACK.md](AUTH-STAGES-STATUS-AND-ROLLBACK.md) for
 
 
 - Stage 3 exact FK catalog comparison — 6 November 2026: fresh read-only production catalog matched the committed 69-entry snapshot exactly, with zero metadata drift.
+
+
+## Latest validation checkpoint — 6 November 2026 (after staging-preview hardening)
+
+- Worker/Frontend CI [#42195372638](https://github.com/taufx98/sykabelajar4.0/actions/runs/42195372638) passed. The Worker job completed dependency audit, TypeScript, all 40 unit/security contract tests, local D1 migrations, local email/session/OAuth integration and Worker dry-run bundle. The separate frontend job passed lint, typecheck and production build.
+- Read-only Cloudflare preflight [#42195372541](https://github.com/taufx98/sykabelajar4.0/actions/runs/42195372541) passed by checking the active zone, dedicated D1 and the public hosted issuer directly. It verified `https://auth.sykabelajar.my.id/api/auth`, PKCE S256 and public ES256 P-256 JWKS. Cloudflare API list calls for Worker Scripts, Custom Domains and Routes still return HTTP 503 to this token; these are recorded as inventory limitations, not proof that the already-hosted Worker is absent.
+- A deliberately narrow CORS origin was added to staging only: `https://security-auth-poc-stage-1.sykabelajar4.pages.dev`. The deploy workflow now tests that exact preview origin is allowed and an unrelated origin is denied. Worker tests passed, but **the live Worker has not yet been redeployed with this new allowlist**, so the preview-origin check is pending the next guarded manual deployment. Routine redeployment no longer enumerates or rotates existing Worker secrets.
+- Cloudflare Pages branch preview deployment failed for commit `0344a20077c5feb6bfc42a60633cc0a6cd74c689`; its check output exposes only “Deploy failed” and a dashboard log link, not the underlying build error through the available repository interface. The last recorded Pages preview success was earlier on commit `064225dd07fbce066f848fec63676cf60fe91a84`. Therefore do not claim the new preview panel is currently deployed or usable until Pages reports a successful build.
+- Stage 1 remains partially complete: ZeptoMail Agent token and real delivery have not been configured/tested; panel access from the latest preview awaits a successful Pages build and the guarded Worker redeployment. Google OAuth remains optional/unconfigured.
+- Stages 2–3 remain blocked on an isolated hosted Supabase Free project and owner-local schema-only export. Stages 4–7 remain unstarted. Production Supabase/Auth/data, demo accounts and main login remain untouched. PR #177 remains Draft and unmerged.
+
