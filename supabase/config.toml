@@ -38,6 +38,10 @@ verify_jwt = true
 [functions.payment-gateway-create]
 verify_jwt = true
 
+# Explicitly pin the order-owner reconciliation endpoint to JWT verification.
+[functions.payment-gateway-reconcile]
+verify_jwt = true
+
 # Payment providers must be able to send their callbacks without a Supabase JWT.
 [functions.payment-gateway-public]
 verify_jwt = false
