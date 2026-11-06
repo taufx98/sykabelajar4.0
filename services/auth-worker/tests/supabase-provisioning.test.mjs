@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   completeSupabaseEmailVerification,
   isSupabaseProvisioningEnabled,
+  normalizeBetterAuthRegistration,
   reconcileSupabaseApplicationIdentity,
 } from "../src/supabase-provisioning.mjs";
 
@@ -33,6 +34,47 @@ test("provisioning is opt-in and remains disabled by default", async () => {
   });
   assert.deepEqual(result, { enabled: false, userId: null });
   assert.equal(called, false);
+});
+
+test("registration attributes are normalized before a Better Auth user row is inserted", () => {
+  assert.deepEqual(normalizeBetterAuthRegistration({}), {
+    accountType: "student",
+    username: null,
+    referralCode: null,
+  });
+  assert.deepEqual(normalizeBetterAuthRegistration({
+    accountType: "TEACHER",
+    username: "  Teacher.Name_1 ",
+    referralCode: "  REF-123  ",
+  }), {
+    accountType: "teacher",
+    username: "teacher.name_1",
+    referralCode: "REF-123",
+  });
+  assert.deepEqual(normalizeBetterAuthRegistration({
+    accountType: "organizer",
+    username: null,
+    referralCode: null,
+  }), {
+    accountType: "organizer",
+    username: null,
+    referralCode: null,
+  });
+});
+
+test("admin, unsupported account types and invalid registration metadata are rejected before persistence", () => {
+  for (const input of [
+    { accountType: "admin" },
+    { accountType: "superadmin" },
+    { accountType: " ORGANIZER_ADMIN " },
+    { username: "../admin" },
+    { username: "ab" },
+    { username: 123 },
+    { referralCode: {} },
+    { referralCode: "x".repeat(81) },
+  ]) {
+    assert.throws(() => normalizeBetterAuthRegistration(input));
+  }
 });
 
 test("a fresh unverified student account provisions with least-privilege defaults", async () => {
