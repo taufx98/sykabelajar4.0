@@ -5,6 +5,7 @@ const VERIFY_EMAIL_RPC = "better_auth_complete_email_verification";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;
 const ACCOUNT_TYPES = new Set(["student", "teacher", "organizer"]);
+const EDUCATION_LEVELS = new Set(["sd", "smp", "sma", "alumni"]);
 
 /** @param {AuthWorkerEnv} env */
 export function isSupabaseProvisioningEnabled(env) {
@@ -56,7 +57,7 @@ function requireProvisioningConfig(env) {
  * from Postgres JWT role=authenticated and cannot include admin.
  *
  * @param {Record<string, unknown>} input
- * @returns {{ accountType: string, username: string | null, referralCode: string | null }}
+ * @returns {{ accountType: string, username: string | null, referralCode: string | null, birthDate: string | null, institution: string | null, grade: string | null, subjects: string | null }}
  */
 export function normalizeBetterAuthRegistration(input) {
   const suppliedType = typeof input.accountType === "string"
@@ -86,10 +87,43 @@ export function normalizeBetterAuthRegistration(input) {
     throw new Error("BETTER_AUTH_REFERRAL_CODE_INVALID");
   }
 
+  if (input.birthDate !== undefined && input.birthDate !== null && typeof input.birthDate !== "string") {
+    throw new Error("BETTER_AUTH_BIRTH_DATE_INVALID");
+  }
+  const suppliedBirthDate = typeof input.birthDate === "string" ? input.birthDate.trim() : "";
+  if (suppliedBirthDate) {
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(suppliedBirthDate)) {
+      throw new Error("BETTER_AUTH_BIRTH_DATE_INVALID");
+    }
+    const parsedDate = new Date(suppliedBirthDate + "T00:00:00.000Z");
+    if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== suppliedBirthDate) {
+      throw new Error("BETTER_AUTH_BIRTH_DATE_INVALID");
+    }
+  }
+
+  for (const field of ["institution", "grade", "subjects"]) {
+    if (input[field] !== undefined && input[field] !== null && typeof input[field] !== "string") {
+      throw new Error("BETTER_AUTH_" + field.replace(/[A-Z]/g, (letter) => "_" + letter).toUpperCase() + "_INVALID");
+    }
+  }
+  const institution = typeof input.institution === "string" ? input.institution.trim() : "";
+  const grade = typeof input.grade === "string" ? input.grade.trim().toLowerCase() : "";
+  const subjects = typeof input.subjects === "string" ? input.subjects.trim() : "";
+  if (institution.length > 200 || subjects.length > 2000) {
+    throw new Error("BETTER_AUTH_PROFILE_FIELD_TOO_LONG");
+  }
+  if (grade && !EDUCATION_LEVELS.has(grade)) {
+    throw new Error("BETTER_AUTH_GRADE_INVALID");
+  }
+
   return {
     accountType: suppliedType,
     username: suppliedUsername || null,
     referralCode: suppliedReferralCode || null,
+    birthDate: suppliedBirthDate || null,
+    institution: institution || null,
+    grade: grade || null,
+    subjects: subjects || null,
   };
 }
 
@@ -174,6 +208,10 @@ export async function reconcileSupabaseApplicationIdentity(env, user, fetchImpl 
     p_account_type: identity.accountType,
     p_full_name: identity.fullName,
     p_username: identity.username,
+    p_birth_date: identity.birthDate,
+    p_institution: identity.institution,
+    p_grade: identity.grade,
+    p_subjects: identity.subjects,
     p_referral_code: identity.referralCode,
     p_email_verified: identity.emailVerified,
   }, fetchImpl);
