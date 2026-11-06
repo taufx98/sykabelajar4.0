@@ -240,3 +240,13 @@ The branch now has a non-deployed shared adapter `supabase/functions/_shared/bet
 The claim helper has 7 pure Node tests; the complete static suite checks the adapter import/auth mode, the explicit `verify_jwt=true` boundary on four user-facing endpoints plus the legacy Midtrans delegate, and the webhook `verify_jwt=false` plus provider signature checks. `payment-gateway-reconcile` is now explicitly configured with `verify_jwt=true`, rather than relying on an implicit platform default. The helper is a scaffold only: none of the four production user-facing Edge Function source implementations has been switched from `auth.getUser()`, and no Edge Function/config deployment has occurred. See [AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md](AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md).
 
 CI is being extended to run this contract in both Auth Worker CI and Supabase Local Auth Claims CI. Hosted Custom OIDC/IDOR acceptance remains blocked by lack of an isolated hosted Supabase Free project; this scaffold does not remove that blocker.
+
+
+## Latest CI verification — 6 November 2026 (typed adapter and frontend inventory)
+
+- Auth Worker CI [#42214172430](https://github.com/taufx98/sykabelajar4.0/actions/runs/42214172430) passed: dependency audit, Worker typecheck, 40 Worker tests, D1/OAuth/Auth integration, dry-run bundle, frontend lint, frontend typecheck and frontend build.
+- Supabase Local Auth Claims CI [#42214172513](https://github.com/taufx98/sykabelajar4.0/actions/runs/42214172513) passed: 12/12 Edge JWT and webhook contract tests, Deno typecheck of `better-auth-user.ts` with pinned `@supabase/server@1.9.2`, schema-only export and FK-plan contract checks, and 73/73 local pgTAP tests.
+- Stage 4 frontend inventory now records 35 `supabase.auth` callsites across 19 frontend files. No app auth callsite has been switched; the 25-minute idle logout, guest mode, user/role hydration, organizer phone OTP, password update, Cloudinary upload, order ownership, admin diagnostics and auth-change cache invalidation remain to be migrated deliberately.
+- Stage 5 helper is now type-checked but is not called by the four existing user-facing Edge Functions. No Edge Function was deployed or changed. Provider webhooks remain separately signature-authenticated.
+- Pages branch preview is green on the latest documentation/CI commit: [security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev). Latest staging Worker still needs the manual redeploy that activates this exact preview Origin; ZeptoMail Agent token and actual mail delivery are pending.
+- No production Supabase schema/data/Auth, Edge Function, secret, user account, production Worker or main-site login changes were made.
