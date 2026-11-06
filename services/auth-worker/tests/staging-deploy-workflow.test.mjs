@@ -26,6 +26,11 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.doesNotMatch(wranglerConfig, /^DEV_APP_ORIGIN = "https:\/\/\*\./m);
   assert.match(workflow, /workers_dev = false/);
   assert.match(workflow, /custom_domain = true/);
+  assert.match(workflow, /pragma_table_info\('user'\)/);
+  assert.match(workflow, /accountType/);
+  assert.match(workflow, /username/);
+  assert.match(workflow, /referralCode/);
+  assert.match(workflow, /Run the guarded D1 migration workflow first/);
   assert.match(workflow, /SUPABASE_URL.*mvdczyitbkxkldjughor/);
   assert.doesNotMatch(workflow, /SERVICE_ROLE|service_role/i);
   assert.doesNotMatch(workflow, /wrangler\s+d1\s+(delete|create)/i);
