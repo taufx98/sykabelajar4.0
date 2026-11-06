@@ -208,3 +208,10 @@ For the staging Admin panel, Wrangler config now adds exactly one temporary `DEV
 Cloudflare Pages branch preview for latest commit `0344a20077c5feb6bfc42a60633cc0a6cd74c689` failed. The GitHub check exposes only the generic failure and dashboard log link; the actual Pages build log isn't accessible through the connected repository read interface. An older commit `064225dd07fbce066f848fec63676cf60fe91a84` had a successful Branch Preview, but it predates the exact-hostname Worker URL fallback. Do not state the current preview UI is deployed until a successful current Pages check is observed.
 
 These checks performed no production Supabase schema/data/Auth changes, no production Worker/DNS changes, no real ZeptoMail send, no account cleanup and no login cutover. PR #177 stays Draft/unmerged.
+
+
+## Latest Cloudflare Pages preview recovery — 6 November 2026
+
+The latest Cloudflare Pages check on commit `bc8915cd3eb9f68c68ea8da20257b8feaeec2e3e` completed **success**. Branch Preview URL: [https://security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev). The ZeptoMail UI is located at `/admin/core?tab=settings`.
+
+This supersedes the earlier Pages build-failed status for commit `0344a20077c5feb6bfc42a60633cc0a6cd74c689`. The Worker has not yet been redeployed with the exact preview `DEV_APP_ORIGIN`; hosted CORS validation is pending. Thus preview build is green, but the ZeptoMail panel-to-Worker browser connection is not yet verified.
