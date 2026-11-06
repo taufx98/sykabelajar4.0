@@ -1,6 +1,6 @@
 # Dedicated Cloudflare D1 staging migration runbook
 
-Status: **the initial migration 0000–0003 completed successfully on 6 November 2026; additive migration 0004 is still pending verification**. Manual workflow run [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470) applied migrations 0000–0003 and verified all 17 base tables. The current guarded workflow now expects the reviewed five-file set 0000–0004 and verifies the seven registration/profile columns. It still does not deploy the Auth Worker or configure a hostname.
+Status: **all five migrations 0000–0004 are now applied and the seven registration/profile columns are verified on the dedicated remote D1**. The original manual workflow [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470) applied 0000–0003. The one-time guarded delta workflow [#42265224273](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265224273) applied only 0004, then verified all 17 expected tables and all seven registration/profile columns. This D1 workflow did not deploy the Worker or configure a hostname.
 
 ## Fixed target
 
@@ -62,3 +62,15 @@ After migrations 0000–0004 succeed, D1 contains the reviewed Better Auth schem
 
 - Cloudflare D1 Wrangler commands: https://developers.cloudflare.com/d1/wrangler-commands/
 - `d1 migrations apply` documents a backup after applying and rollback of an individual failed migration.
+
+
+## Verified additive migration 0004 — 7 November 2026
+
+- Run: [Auth D1 Staging Schema Migration #42265224273](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265224273) — **success**.
+- Only pending file: `0004_better_auth_registration_attributes.sql`.
+- The workflow verified the exact D1 name/UUID and the reviewed migration SHA-256 before apply.
+- Wrangler reported `0004_better_auth_registration_attributes.sql ✅`.
+- Post-apply verification: all 17 expected tables and all seven columns (`accountType`, `username`, `referralCode`, `birthDate`, `institution`, `grade`, `subjects`) were present.
+- No Worker deployment, secret update, domain/DNS change, user seed, or production Supabase operation occurred in this migration run.
+
+The one-time push-marker mechanism is constrained to the exact marker path on `security/auth-poc-stage-1`, exact contents, exact D1 name/UUID, and the reviewed migration hash. The manual typed-confirmation path remains available as a fallback.
