@@ -201,6 +201,28 @@ jobs:
             try {
               const health = await getJson("/healthz");
               assert.equal(health.ok, true, "Worker must have a live D1 binding");
+
+              const previewOrigin = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev";
+              const allowedPreview = await fetch(origin + "/healthz", {
+                headers: { Origin: previewOrigin },
+                redirect: "error",
+              });
+              assert.equal(allowedPreview.status, 200, "the exact migration Pages preview must reach the staging Worker");
+              assert.equal(
+                allowedPreview.headers.get("Access-Control-Allow-Origin"),
+                previewOrigin,
+                "the staging Worker must allow credentials only for the exact migration preview origin",
+              );
+              const rejectedPreview = await fetch(origin + "/healthz", {
+                headers: { Origin: "https://attacker.example" },
+                redirect: "error",
+              });
+              assert.equal(
+                rejectedPreview.headers.get("Access-Control-Allow-Origin"),
+                null,
+                "untrusted preview origins must receive no CORS permission",
+              );
+
               const discovery = await getJson("/api/auth/.well-known/openid-configuration");
               assert.equal(discovery.issuer, expectedIssuer, "hosted issuer must exactly match the stable auth URL");
               assert.ok(discovery.authorization_endpoint?.startsWith(origin + "/"), "authorization endpoint must use auth hostname");
