@@ -1,6 +1,6 @@
 # Isolated Better Auth Worker staging deployment
 
-Status: **blocked by Cloudflare Worker creation/custom-domain permissions**. The staging D1 schema is already migrated and verified. The Worker has not been created or deployed.
+Status: **staging deployment is successful and the hosted issuer is live**. The remaining Stage 1 gates are real ZeptoMail delivery and (only if required for launch) Google OAuth callback verification. Historical permission and failed-deployment notes below are retained as history and are superseded by the verified deployment checkpoint at the end of this document.
 
 ## Current verified state — 6 November 2026
 
