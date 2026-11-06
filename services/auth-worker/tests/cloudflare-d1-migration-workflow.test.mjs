@@ -10,12 +10,18 @@ const configPath = fileURLToPath(new URL("../wrangler.toml", import.meta.url));
 const workflow = readFileSync(workflowPath, "utf8");
 const config = readFileSync(configPath, "utf8");
 
-test("remote D1 schema migration is manual-dispatch only", () => {
-  assert.match(workflow, /^on:\n  workflow_dispatch:/m);
-  assert.doesNotMatch(workflow, /^  (push|pull_request|schedule):/m);
-  assert.match(workflow, /github\.ref == 'refs\/heads\/security\/auth-poc-stage-1'/);
-  assert.match(workflow, /CONFIRMATION.*inputs\.confirmation/);
+test("remote D1 schema migration has one exact guarded push marker and manual fallback", () => {
+  assert.match(workflow, /^on:\\n  push:/m);
+  assert.match(workflow, /branches:\\n      - security\\/auth-poc-stage-1/);
+  assert.match(workflow, /paths:\\n      - "\\.github\\/auth-ops\\/APPLY-STAGING-D1-0004"/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /GITHUB_EVENT_NAME.*workflow_dispatch/);
+  assert.match(workflow, /GITHUB_EVENT_NAME.*push/);
+  assert.match(workflow, /APPLY-STAGING-D1-0004/);
   assert.match(workflow, /APPLY-TO-sykabelajar-auth-poc/);
+  assert.match(workflow, /github\\.ref == 'refs\\/heads\\/security\\/auth-poc-stage-1'/);
+  assert.match(workflow, /migrationSha256/);
+  assert.match(workflow, /c569ffe20088ba124c2eb1da19790b717715894dac7a373dd8a071b0aab2b778/);
 });
 
 test("workflow is hard-bound to the known isolated D1 name and UUID", () => {
