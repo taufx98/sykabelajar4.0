@@ -250,3 +250,12 @@ CI is being extended to run this contract in both Auth Worker CI and Supabase Lo
 - Stage 5 helper is now type-checked but is not called by the four existing user-facing Edge Functions. No Edge Function was deployed or changed. Provider webhooks remain separately signature-authenticated.
 - Pages branch preview is green on the latest documentation/CI commit: [security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev). Latest staging Worker still needs the manual redeploy that activates this exact preview Origin; ZeptoMail Agent token and actual mail delivery are pending.
 - No production Supabase schema/data/Auth, Edge Function, secret, user account, production Worker or main-site login changes were made.
+
+
+## Deno type-check and verified-session admin bridge — 6 November 2026
+
+## Deno type-check and verified-session admin bridge — 6 November 2026
+
+The pinned Supabase Edge adapter was type-checked successfully with Deno 2.9.8 and `@supabase/server@1.9.2` in Supabase Local Auth Claims CI [#42214172513](https://github.com/taufx98/sykabelajar4.0/actions/runs/42214172513). The same run passed all 12 Edge JWT/webhook contract tests and 73/73 local pgTAP tests. The type-check caught and corrected the missing explicit `Request` parameter type before turning green.
+
+Stage 1 ZeptoMail Admin UI is a pre-cutover bridge: it currently reads the existing Supabase Auth session and the Worker verifies that access token via the current Supabase `/auth/v1/user` endpoint, then calls `is_active_admin()` under the same caller token. It stores only encrypted Agent Send Mail Tokens in the isolated D1 and the test operation sends only to the verified admin's email. This bridge has not been browser-tested with a live admin session and has not sent real mail. Stage 4/5 must replace this bridge with a verified Better Auth access token and the accepted Supabase Custom OIDC identity path before production cutover.
