@@ -129,6 +129,8 @@ test("the legacy delete-asset endpoint verifies the caller and binds deletes to 
   assert.doesNotMatch(deleteEndpoint, /body\?\.user_id|body\?\.owner_id|user_id\s*\}/);
   assert.match(deleteEndpoint, /FORBIDDEN_PUBLIC_ID/);
   assert.match(deleteEndpoint, /INVALID_RESOURCE_TYPE/);
+  assert.match(deleteEndpoint, /RESOURCE_TYPES = new Set\(\["image"\]\)/);
+  assert.doesNotMatch(deleteEndpoint, /new Set\(\["image", "video", "raw"\]\)/);
   assert.match(deleteEndpoint, /METHOD_NOT_ALLOWED/);
   assert.match(deleteEndpoint, /request.method === "OPTIONS"/);
   assert.match(deleteEndpoint, /access-control-allow-origin/);
