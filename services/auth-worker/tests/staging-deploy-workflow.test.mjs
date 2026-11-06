@@ -36,7 +36,7 @@ test("Wrangler deploy command uses only supported arguments", () => {
     ?.split("      - name: Verify hosted health")[0];
   assert.ok(deployStep, "deploy step should exist");
   assert.match(deployStep, /npx wrangler deploy/);
-  assert.match(deployStep, /--secrets-file/);
+  assert.doesNotMatch(deployStep, /--secrets-file/);
   assert.match(deployStep, /--var "SUPABASE_URL:/);
   assert.match(deployStep, /--var "SUPABASE_PUBLISHABLE_KEY:/);
   assert.match(deployStep, /--message/);
