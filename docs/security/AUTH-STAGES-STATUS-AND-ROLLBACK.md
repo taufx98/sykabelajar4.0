@@ -60,7 +60,7 @@ Supabase's current third-party auth documentation states the provider must expos
 Latest read-only recheck on 5 November 2026 confirmed:
 
 - `private.app_users` does not exist.
-- `auth.users` contains 10 rows. These have not been classified as demo/test identities and none were deleted.
+- The 6 November read-only recheck counted 11 rows in `auth.users`. Their identities have not been classified as demo/test, no identity values were selected, and none were deleted.
 - 69 application foreign keys still reference `auth.users(id)`: 65 in `public`, 4 in `private`. There are 10 additional internal FKs within the `auth` schema, which are not part of the application FK rehome.
 - The latest catalog comparison against `scripts/auth-migration/live-auth-users-fk-catalog.json` is exactly **69/69**: zero missing, zero additional, zero semantic changes. All are single-column UUID, MATCH SIMPLE, validated, non-deferrable, ON UPDATE NO ACTION; the 18 SET NULL source columns remain nullable. Existing delete actions remain 42 CASCADE, 18 SET NULL, 8 NO ACTION, 1 RESTRICT.
 - Three non-internal triggers remain attached to `auth.users`.
@@ -86,7 +86,7 @@ Four Edge Functions still call `supabase.auth.getUser()`: `get-cloudinary-signat
 
 ## Stage 6 — demo reset and bootstrap rules
 
-The current 10 rows in `auth.users` are a count only; no identifying data was exported or inspected in this audit. Before deletion, classify each identity as disposable demo/test or required, produce a dry-run of dependent rows across the exact 69 FKs, review the plan, preserve official competition/order/payment/business records, and capture an auditable backup. Do not treat every current `auth.users` row as disposable by assumption.
+The current 11 rows in `auth.users` are a count only; no identifying data was exported or inspected in this audit. Before deletion, classify each identity as disposable demo/test or required, produce a dry-run of dependent rows across the exact 69 FKs, review the plan, preserve official competition/order/payment/business records, and capture an auditable backup. Do not treat every current `auth.users` row as disposable by assumption.
 
 The first admin must be provisioned through a server-only, auditable bootstrap with a fixed, explicitly approved identity. Public registration must never be able to create `admin`.
 
