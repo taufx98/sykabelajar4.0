@@ -1,7 +1,7 @@
 -- Covers server-only provisioning, trusted verification, and referral invariants.
 begin;
 
-select extensions.plan(53);
+select extensions.plan(63);
 
 select extensions.ok(
   ARRAY['student', 'teacher', 'organizer_member', 'admin']::text[] <@
@@ -48,6 +48,37 @@ select extensions.ok(
   'service_role can process trusted email verification events'
 );
 
+select extensions.ok(
+  not has_function_privilege('anon',
+    'public.better_auth_provision_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+  'anon cannot execute the public PostgREST provisioning wrapper'
+);
+select extensions.ok(
+  not has_function_privilege('authenticated',
+    'public.better_auth_provision_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+  'authenticated cannot execute the public PostgREST provisioning wrapper'
+);
+select extensions.ok(
+  has_function_privilege('service_role',
+    'public.better_auth_provision_user(uuid,text,text,text,text,boolean)', 'EXECUTE'),
+  'service_role can execute the public PostgREST provisioning wrapper'
+);
+select extensions.ok(
+  not has_function_privilege('anon',
+    'public.better_auth_complete_email_verification(uuid,timestamptz)', 'EXECUTE'),
+  'anon cannot execute the public PostgREST email-verification wrapper'
+);
+select extensions.ok(
+  not has_function_privilege('authenticated',
+    'public.better_auth_complete_email_verification(uuid,timestamptz)', 'EXECUTE'),
+  'authenticated cannot execute the public PostgREST email-verification wrapper'
+);
+select extensions.ok(
+  has_function_privilege('service_role',
+    'public.better_auth_complete_email_verification(uuid,timestamptz)', 'EXECUTE'),
+  'service_role can execute the public PostgREST email-verification wrapper'
+);
+
 insert into private.app_users (id, email_verified_at)
 values ('99999999-9999-4999-8999-999999999999', clock_timestamp()),
        ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', null);
@@ -61,7 +92,29 @@ values ('99999999-9999-4999-8999-999999999999', 'REF-VALID'),
 set local role service_role;
 
 select extensions.lives_ok(
-  $$select private.provision_better_auth_user(
+  $select public.better_auth_provision_user(
+    '12121212-1212-4121-8121-121212121212', 'student',
+    'Wrapper Student', 'wrapper-student', null, false)$,
+  'service_role can provision a fresh identity through the PostgREST wrapper'
+);
+select extensions.is(
+  (select role::text from public.user_roles
+   where user_id = '12121212-1212-4121-8121-121212121212'),
+  'student', 'the PostgREST wrapper preserves the permitted student business role'
+);
+select extensions.is(
+  public.better_auth_complete_email_verification(
+    '12121212-1212-4121-8121-121212121212', clock_timestamp()),
+  true, 'service_role can complete trusted email verification through the PostgREST wrapper'
+);
+select extensions.ok(
+  (select email_verified_at is not null from private.app_users
+   where id = '12121212-1212-4121-8121-121212121212'),
+  'the PostgREST email-verification wrapper updates the identity projection'
+);
+
+select extensions.lives_ok(
+  $select private.provision_better_auth_user(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'organizer',
     'Organizer One', 'organizer-one', null)$$,
   'organizer signup creates identity and application records'
