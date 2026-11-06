@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { getMissingBetterAuthTables } from "../src/schema-contract.mjs";
+import { stripRegistrationColumnsFromUserBaseline } from "../src/d1-schema-baseline.mjs";
 
 const baseUrl = process.env.AUTH_WORKER_BASE_URL ?? "http://127.0.0.1:8787";
 const token = process.env.D1_SCHEMA_BOOTSTRAP_TOKEN;
