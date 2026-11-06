@@ -230,3 +230,10 @@ See [AUTH-STAGES-STATUS-AND-ROLLBACK.md](AUTH-STAGES-STATUS-AND-ROLLBACK.md) for
 - Stage 1 remains partially complete: ZeptoMail Agent token and real delivery have not been configured/tested; panel access from the latest preview awaits a successful Pages build and the guarded Worker redeployment. Google OAuth remains optional/unconfigured.
 - Stages 2–3 remain blocked on an isolated hosted Supabase Free project and owner-local schema-only export. Stages 4–7 remain unstarted. Production Supabase/Auth/data, demo accounts and main login remain untouched. PR #177 remains Draft and unmerged.
 
+
+
+## Latest Cloudflare Pages preview recovery — 6 November 2026
+
+Cloudflare Pages has now successfully built the latest migration branch commit `bc8915cd3eb9f68c68ea8da20257b8feaeec2e3e`. The current branch preview is available at [https://security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev); the transactional email settings panel is under `/admin/core?tab=settings`.
+
+This clears the Pages build blocker recorded in the preceding checkpoint. The preview uses the exact hostname already allowlisted in the staging Worker configuration, but that allowlist has not yet been deployed to the live Worker. The preview panel must not be considered connected until the guarded Worker deployment succeeds and the hosted CORS smoke test confirms the exact preview origin. Real ZeptoMail setup/delivery still requires the owner's Agent token and an authenticated active admin session.
