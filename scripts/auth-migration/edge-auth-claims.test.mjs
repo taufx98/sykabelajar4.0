@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { validateBetterAuthClaims } from "../supabase/functions/_shared/auth-claims.mjs";
+import { validateBetterAuthClaims } from "../../supabase/functions/_shared/auth-claims.mjs";
 
 const ISSUER = "https://auth.sykabelajar.my.id/api/auth";
 const AUDIENCE = "https://sykabelajar.my.id";
