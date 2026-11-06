@@ -249,12 +249,12 @@ create or replace function private.provision_better_auth_user(
   p_account_type text,
   p_full_name text,
   p_username text,
-  p_birth_date date,
-  p_institution text,
-  p_grade text,
-  p_subjects text,
   p_referral_code text default null,
-  p_email_verified boolean default false
+  p_email_verified boolean default false,
+  p_birth_date date default null,
+  p_institution text default null,
+  p_grade text default null,
+  p_subjects text default null
 ) returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
@@ -388,11 +388,11 @@ revoke all on function private.apply_referral_qualification(uuid, text, timestam
   from public, anon, authenticated, service_role;
 revoke all on function private.handle_referral_daily_checkin()
   from public, anon, authenticated, service_role;
-revoke all on function private.provision_better_auth_user(uuid, text, text, text, date, text, text, text, text, boolean)
+revoke all on function private.provision_better_auth_user(uuid, text, text, text, text, boolean, date, text, text, text)
   from public, anon, authenticated;
 revoke all on function private.complete_better_auth_email_verification(uuid, timestamptz)
   from public, anon, authenticated;
-grant execute on function private.provision_better_auth_user(uuid, text, text, text, date, text, text, text, text, boolean)
+grant execute on function private.provision_better_auth_user(uuid, text, text, text, text, boolean, date, text, text, text)
   to service_role;
 grant execute on function private.complete_better_auth_email_verification(uuid, timestamptz)
   to service_role;
@@ -404,19 +404,19 @@ create or replace function public.better_auth_provision_user(
   p_account_type text,
   p_full_name text,
   p_username text,
-  p_birth_date date,
-  p_institution text,
-  p_grade text,
-  p_subjects text,
-  p_referral_code text,
-  p_email_verified boolean default false
+  p_referral_code text default null,
+  p_email_verified boolean default false,
+  p_birth_date date default null,
+  p_institution text default null,
+  p_grade text default null,
+  p_subjects text default null
 ) returns jsonb
 language sql security definer set search_path = ''
 as $function$
   select private.provision_better_auth_user(
     p_user_id, p_account_type, p_full_name, p_username,
-    p_birth_date, p_institution, p_grade, p_subjects,
-    p_referral_code, p_email_verified
+    p_referral_code, p_email_verified,
+    p_birth_date, p_institution, p_grade, p_subjects
   );
 $function$;
 
@@ -428,11 +428,11 @@ as $function$
   select private.complete_better_auth_email_verification(p_user_id, p_verified_at);
 $function$;
 
-revoke all on function public.better_auth_provision_user(uuid,text,text,text,date,text,text,text,text,boolean)
+revoke all on function public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)
   from public, anon, authenticated;
 revoke all on function public.better_auth_complete_email_verification(uuid,timestamptz)
   from public, anon, authenticated;
-grant execute on function public.better_auth_provision_user(uuid,text,text,text,date,text,text,text,text,boolean)
+grant execute on function public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)
   to service_role;
 grant execute on function public.better_auth_complete_email_verification(uuid,timestamptz)
   to service_role;
