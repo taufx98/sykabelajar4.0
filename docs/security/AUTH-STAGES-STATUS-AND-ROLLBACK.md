@@ -25,19 +25,19 @@ Historical read-only Cloudflare snapshots below are superseded by the latest rec
 
 - This section records an earlier 5 November permission snapshot. It was superseded by the 6 November token recheck: D1 listing now succeeds; the dedicated database has been created and migrated; `wrangler.toml` now contains its real isolated UUID. The current missing permission is the initial Worker creation/Custom Domain path, not D1 Read.
 
-### Required permission correction
+### Historical initial provisioning permission guidance — superseded
 
-Update the existing Cloudflare API token in the Cloudflare Dashboard, then replace the GitHub Actions secret `CLOUDFLARE_API_TOKEN` without pasting the token into chat. Use resource-scoped permissions for the single account and zone:
+The permission list below was written before the first successful deployment and is retained only as historical context. It is **not** an instruction to recreate the D1, Worker, route or hostname.
 
-- **Preflight/read-only D1 inspection:** Account — D1: Read.
-- **Create/migrate the dedicated auth D1:** Account — D1: Edit (or the UI's current D1 write equivalent).
-- **Deploy/update the auth Worker:** Account — Workers Scripts: Edit (or Write in the UI's current permission naming). To create a brand-new Worker script, Cloudflare's Workers authorization guide says product-level Admin may be required; avoid broad account Admin by creating the empty script once in the dashboard, then use Editor for automated updates where possible.
-- **Custom hostname/route:** Zone — Workers Routes: Edit/Write for `sykabelajar.my.id`; Zone — Zone: Read; Zone — DNS: Edit/Write only if the deployment flow must create/manage the hostname's DNS record.
-- Keep `CLOUDFLARE_ACCOUNT_ID` scoped to the same account.
+The dedicated D1 and remote schema migrations were completed, and the first Worker script plus custom domain were successfully deployed by [run #42190609080](https://github.com/taufx98/sykabelajar4.0/actions/runs/42190609080). The current staging Worker is live at `auth.sykabelajar.my.id`. The same run verified the health endpoint, exact OIDC issuer, PKCE S256 and public ES256 JWKS.
 
-Do not grant Super Administrator or unrelated account-wide permissions. Cloudflare's permission names can appear as Edit or Write depending on the current UI/API generation; select the matching resource-level scope, not an all-account role. After updating the secret, rerun the read-only preflight. Only then create one dedicated D1 database, bind its returned UUID, apply migrations 0000–0003, provision Worker secrets, deploy the isolated auth Worker, and attach `auth.sykabelajar.my.id`. Do not use the production frontend or existing production Worker as the auth origin.
+The current Cloudflare token can read the zone and D1. Cloudflare inventory-list APIs for Worker Scripts, Custom Domains and Routes have returned HTTP 503, but these list API failures do not negate the successful hosted Worker health/discovery/JWKS checks. The updated preflight uses the live hostname as evidence and reports the inventory-list limitations as warnings. Do not grant broad Account Admin solely to make those list APIs readable.
 
-Official permission references: [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/) and [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/).
+The next Worker operation is a routine code redeploy for the exact Pages preview CORS allowlist, not initial provisioning. The manual-only workflow checks the pinned Worker/D1/domain and all 17 remote tables, does not recreate the D1, does not enumerate secrets, and does not pass a replacement secrets file to Wrangler. It preserves the already provisioned `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN`. Its post-deploy smoke test verifies the approved preview Origin and rejects an unrelated Origin. See [the current staging deployment runbook](AUTH-CLOUDFLARE-STAGING-WORKER-DEPLOY-RUNBOOK.md).
+
+Do not rotate the Cloudflare API token or grant unrelated permissions unless a new deploy log demonstrates a specific missing permission. Never use the production Worker, production DNS, or production Supabase as a staging substitute.
+
+Official permission references remain useful if a specific future permission error occurs: [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/) and [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/).
 
 ### ZeptoMail
 
