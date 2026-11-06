@@ -1,7 +1,7 @@
 import { isOwnedCloudinaryPublicId } from "../_shared/cloudinary-ownership.mjs";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const RESOURCE_TYPES = new Set(["image", "video", "raw"]);
+const RESOURCE_TYPES = new Set(["image"]);
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers": "authorization, apikey, x-client-info, content-type",
