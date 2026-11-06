@@ -193,7 +193,11 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
     if (!valid) return json({ error: "OAUTH_CLIENT_SEED_INVALID" }, 503);
 
     return json({ client_id: seeded.client_id, already_configured: true });
-  } catch {
+  } catch (error) {
+    const safeReason = error instanceof Error
+      ? { name: error.name.slice(0, 60), message: error.message.replace(/[^a-zA-Z0-9 _.:/-]/g, "").slice(0, 160) }
+      : { name: "UnknownError", message: "unclassified" };
+    console.error("First-party OAuth client verification failed", safeReason);
     return json({ error: "OAUTH_CLIENT_SEED_UNAVAILABLE" }, 503);
   }
 }
