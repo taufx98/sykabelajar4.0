@@ -91,3 +91,22 @@ Hosted smoke checks confirmed:
 The deployment workflow reported `emailAgentConfigured=false` and `googleOAuthCredentialsConfigured=false`; no real email was sent and no OAuth login was performed. No staging user or session was seeded. The remaining Stage 1 tasks are to configure a ZeptoMail Agent Send Mail Token through the secured Admin UI and test delivery to the signed-in admin, plus optional Google OAuth callback testing if Google login is in launch scope.
 
 This successful isolated staging deployment did not modify the production website, production Worker, production DNS, Supabase production schema/data/Auth settings, or user accounts. Do not interpret this as permission to switch the frontend to the staging issuer.
+
+
+## Preview-origin update and safe redeploy — 6 November 2026
+
+## Preview-origin update and safe redeploy — 6 November 2026
+
+The staging Admin preview has a single exact temporary origin in `wrangler.toml`:
+
+`https://security-auth-poc-stage-1.sykabelajar4.pages.dev`
+
+The staging CORS and Better Auth trusted-origin lists accept this exact HTTPS origin in addition to the production app origin. Automated Worker tests verify the exact hostname and reject a nested/attacker hostname. The guarded deploy workflow's hosted smoke test now verifies that this preview receives an exact `Access-Control-Allow-Origin` response while `https://attacker.example` receives none.
+
+A **new manual deployment is required** before using the preview panel. The currently live Worker version predates this origin addition. Trigger [Auth Worker Staging Deploy](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-worker-staging-deploy.yml) on branch `security/auth-poc-stage-1` with confirmation `DEPLOY-STAGING-WORKER-sykabelajar-auth-poc`.
+
+The redeploy path now has a strict preservation rule: it does not query/list Worker secrets, does not generate replacement secrets, and does not pass a new secrets file to Wrangler. The first deployment already provisioned `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN`; a routine code redeploy must preserve these existing values. It still checks the exact Worker/D1/domain configuration, verifies all 17 remote D1 tables, requires zero staged users/sessions/accounts/verifications, and smoke-tests health/discovery/PKCE/JWKS plus exact-origin CORS.
+
+The Cloudflare API token currently returns HTTP 503 for Worker Scripts, Custom Domain and Routes list endpoints, while the zone and D1 reads work. Do not grant broad Account Admin only to satisfy these optional list calls. The read-only preflight now directly checks hosted health, exact issuer, PKCE and JWKS as the essential evidence; inventory API limitations are warnings.
+
+The Cloudflare Pages check for the latest branch commit `0344a20077c5feb6bfc42a60633cc0a6cd74c689` failed and the underlying Pages build log is not available through the connected GitHub repository interface. The last known Pages branch preview success is an older commit `064225dd07fbce066f848fec63676cf60fe91a84`. Do not assume the latest preview contains the current panel until Cloudflare Pages reports a successful build.
