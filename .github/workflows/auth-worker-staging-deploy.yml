@@ -1,6 +1,11 @@
 name: Auth Worker Staging Deploy
 
 on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0004"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -58,10 +63,25 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
-          test "$CONFIRMATION" = "DEPLOY-STAGING-WORKER-sykabelajar-auth-poc" || {
-            echo "Blocked: the exact staging Worker deployment confirmation was not supplied." >&2
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "DEPLOY-STAGING-WORKER-sykabelajar-auth-poc" || {
+              echo "Blocked: the exact staging Worker deployment confirmation was not supplied." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0004"
+            test -f "$marker" || {
+              echo "Blocked: the one-time staging Worker deployment marker is missing." >&2
+              exit 1
+            }
+            test "$(cat "$marker")" = "DEPLOY-STAGING-WORKER-sykabelajar-auth-poc" || {
+              echo "Blocked: the one-time staging Worker deployment marker is not exact." >&2
+              exit 1
+            }
+          else
+            echo "Blocked: this workflow accepts only guarded push or manual dispatch." >&2
             exit 1
-          }
+          fi
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN." >&2; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID." >&2; exit 1; }
           test "$VITE_SUPABASE_URL" = "https://mvdczyitbkxkldjughor.supabase.co" || {
