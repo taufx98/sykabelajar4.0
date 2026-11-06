@@ -45,8 +45,16 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
   assert.match(workflow, /oauthClient/);
   assert.match(workflow, /better_auth_registration_attributes/);
   assert.match(workflow, /pragma_table_info\('user'\)/);
-  assert.match(workflow, /accountType/);
-  assert.match(workflow, /referralCode/);
+  const requiredProfileColumns = [
+    "accountType", "username", "referralCode",
+    "birthDate", "institution", "grade", "subjects",
+  ];
+  for (const column of requiredProfileColumns) {
+    assert.match(workflow, new RegExp("'" + column + "'"));
+    assert.match(workflow, new RegExp('"' + column + '"'));
+  }
+  assert.match(workflow, /pragma_table_info\('user'\)/);
+  assert.match(workflow, /registration\/profile bootstrap columns/);
 });
 
 test("workflow cannot deploy the Worker or modify DNS, domains, or secrets", () => {
