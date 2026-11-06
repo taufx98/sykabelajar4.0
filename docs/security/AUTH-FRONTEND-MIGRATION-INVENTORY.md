@@ -4,7 +4,7 @@ Status: reviewed source inventory with CI baseline guard; no frontend auth sourc
 
 ## Summary
 
-A recursive source scan of the current branch found **38 direct `supabase.auth` callsites across 21 frontend files** (plus the Cloudinary-signature Edge Function). The initial search missed the ZeptoMail Admin panel and Admin Chat Console; the CI contract now records both. The app is still wired to Supabase Auth. This is an exact branch baseline, not an assertion that the migration is complete.
+A recursive source scan of the current branch found **41 direct `supabase.auth` callsites across 22 frontend files** (plus the Cloudinary-signature Edge Function). The CI contract now includes the ZeptoMail Admin panel, Admin Chat Console and legacy private-chat service. The app is still wired to Supabase Auth. This is an exact branch baseline, not an assertion that the migration is complete.
 
 The first migration must not be a mechanical global replacement. Several calls currently provide different responsibilities: credential sign-in/sign-up/reset, cross-tab session lifecycle, profile and business-role hydration, direct user-scoped data calls, email/phone verification, password update, signed Cloudinary upload authorization and admin Edge Function bearer tokens.
 
@@ -23,6 +23,7 @@ The first migration must not be a mechanical global replacement. Several calls c
 | `src/services/social.service.ts` | 1 | Reads current UUID for comment/post likes and interaction mapping. Keep comments and social features; use the Better Auth UUID. |
 | `src/pages/OrdersPage.tsx` | 1 | Reads session identity alongside catalog/payment configuration. Preserve order-owner checks and payment workflow. |
 | `src/services/cloudinary.service.ts` | 1 | Reads Supabase access token to call `get-cloudinary-signature`. Must obtain the Better Auth access token through the centralized token broker; keep Cloudinary as canonical media storage and do not move uploads to Supabase Storage. |
+| `src/services/chat.service.ts` | 3 | Legacy private-chat service. The approved product decision is to remove private chat, not migrate it to Better Auth. These callsites should disappear when the chat service, routes, subscriptions, polling and Admin Chat Console are removed; comments and other social features remain. |
 | `src/services/commerce.service.ts` | 1 | Reads UUID for own organizer-plan orders. Preserve user-specific filtering and server-side authorization. |
 | `src/services/shopEngagement.service.ts` | 1 | Requires current user for wishlist/rating/engagement actions. Preserve owner checks, duplicate prevention and RLS. |
 | `src/pages/OrganizerPlanPage.tsx` | 1 | Reads own organizer plan orders, filtered by current UUID. |
