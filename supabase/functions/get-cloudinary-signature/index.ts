@@ -45,7 +45,7 @@ serve(async (req: Request) => {
       ownedOrganizers = (data ?? []) as Array<{ id: string; slug: string }>;
     }
 
-    if (!isOwnedCloudinaryPublicId(publicId, { username: profile.username, ownedOrganizers })) {
+    if (!isOwnedCloudinaryPublicId(publicId, { userId: user.id, username: profile.username, ownedOrganizers })) {
       return new Response(JSON.stringify({ error: "CLOUDINARY_PUBLIC_ID_NOT_OWNED" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
     }
 
