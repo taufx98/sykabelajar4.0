@@ -1,6 +1,6 @@
 # Dedicated Cloudflare D1 staging migration runbook
 
-Status: prepared for a manually initiated staging-only schema migration. This does not deploy the Auth Worker or configure a hostname.
+Status: **completed successfully on 6 November 2026**. Manual workflow run [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470) applied the reviewed schema to the isolated staging D1 and verified all 17 expected tables. This workflow does not deploy the Auth Worker or configure a hostname.
 
 ## Fixed target
 
@@ -13,7 +13,13 @@ The workflow is permanently bound to one non-production D1 database:
 
 The workflow checks all four values against `wrangler.toml`, checks the remote Cloudflare D1 listing for an exact name/UUID match, and refuses to run on any branch other than `security/auth-poc-stage-1`. It also stops when the checked-in migration set differs from the four files reviewed for this run.
 
-## Run the migration
+## Verified execution
+
+The successful manual run used branch `security/auth-poc-stage-1` and completed all nine job steps, including exact D1 name/UUID verification, applying migrations 0000–0003, and checking all 17 expected table names. The earlier `main` run was correctly skipped by the branch guard; it did not change the database.
+
+[Open successful migration run #42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470).
+
+## Run or re-run the migration
 
 1. Open GitHub Actions in `taufx98/sykabelajar4.0`.
 2. Select **Auth D1 Staging Schema Migration**.
