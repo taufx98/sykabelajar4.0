@@ -170,3 +170,13 @@ Do not call Stage 3 complete until all are true:
 A read-only production catalog revalidation on 5 November 2026 reconfirmed all 69 application foreign keys against the committed snapshot: zero additions, removals, or semantic changes. The 10 additional foreign keys in the `auth` schema are Supabase-internal and are deliberately excluded from the application FK migration. The 69 application FKs retain 42 CASCADE, 18 SET NULL, 8 NO ACTION, and 1 RESTRICT actions.
 
 No DDL or DML migration has been executed against the production project. No account was deleted, no auth.users row was created for Better Auth, no production trigger/function was replaced, and no live Edge Function was deployed. This remains a design and test proposal, not a production migration.
+
+## Stage 5 Edge Function identity adapter — current implementation guidance (6 November 2026)
+
+The production Edge Function source audit shows four active user-facing functions still calling `supabase.auth.getUser()`: `get-cloudinary-signature`, `payment-gateway-create`, `payment-gateway-reconcile`, and `payment-gateway-admin`. Do not assume the Better Auth UUID has a corresponding row in `auth.users`; that assumption is explicitly removed by the migration architecture.
+
+For a user-invoked Edge Function, evaluate Supabase's current `@supabase/server` wrapper with `withSupabase({ auth: 'user' })`, keeping platform `verify_jwt = true`. The wrapper provides verified `userClaims` / `jwtClaims` and a user-RLS-scoped Supabase client. A function needing privileged operations may still use its server-only admin client, but it must derive the caller UUID from verified claims and preserve owner, business-role and issuer checks before every privileged operation. Do not decode bearer tokens without signature validation, do not trust user metadata as authorization, and do not switch a user endpoint to `auth: 'none'` to bypass the old verifier.
+
+Signed provider callbacks remain separate: `payment-webhook` and `payment-gateway-webhook` have `verify_jwt = false` and must continue to verify their provider signature, timestamp and event idempotency. They must not be converted into user-JWT endpoints.
+
+The four user-facing functions, webhook handlers and their exact deployed versions must be covered by the two-user hosted IDOR/authorization matrix before Stage 5 is complete. Current Supabase reference: https://supabase.com/docs/guides/functions/auth.
