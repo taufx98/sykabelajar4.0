@@ -7,6 +7,14 @@ on:
     paths:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/payment-gateway-admin/**"
+      - "supabase/functions/payment-gateway-create/**"
+      - "supabase/functions/payment-gateway-reconcile/**"
+      - "supabase/functions/midtrans-create-payment/**"
+      - "supabase/functions/payment-gateway-webhook/**"
+      - "supabase/config.toml"
       - ".github/workflows/auth-supabase-local-ci.yml"
   pull_request:
     paths:
@@ -37,6 +45,9 @@ jobs:
         run: |
           bash -n ../../../scripts/auth-migration/export-schema-baseline.sh
           node ../../../scripts/auth-migration/export-schema-baseline.contract.test.mjs
+
+      - name: Verify Better Auth Edge JWT adapter and webhook boundaries
+        run: node ../../../scripts/auth-migration/edge-auth-claims.test.mjs
 
       - name: Validate live identity FK snapshot and dry-run plan generator
         run: |
