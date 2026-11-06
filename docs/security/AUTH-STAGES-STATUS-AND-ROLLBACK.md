@@ -3,13 +3,13 @@
 Status date: 6 November 2026  
 Scope: SYKABELAJAR 4.0, production Supabase project `mvdczyitbkxkldjughor`, isolated Better Auth branch `security/auth-poc-stage-1`.
 
-This is a verified status record, not authorization to deploy or migrate production. All Cloudflare and Supabase catalog checks described below were read-only. No production DDL/DML, auth-provider configuration, account deletion, DNS change, Worker deployment, or real email sending was performed.
+This is a verified status record, not authorization to deploy or migrate production. Supabase catalog checks and Cloudflare preflight/diagnostic checks were read-only. One guarded deployment attempt targeted only the isolated Better Auth staging Worker and failed at `wrangler deploy`; a fresh read-only Cloudflare check confirmed no Worker/domain/route was created. No production DDL/DML, auth-provider configuration, account deletion, production DNS/route change, production Worker deployment, or real email sending was performed.
 
 ## Executive status
 
 | Stage | Completed locally | Still blocking completion |
 |---|---|---|
-| 1. Cloudflare foundation | Better Auth Worker package, dedicated remote D1 created/bound/migrated, 17 expected tables verified by manual run [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470); encrypted ZeptoMail Agent storage and admin API/UI; local migrations, Worker dry-run, Worker CI and frontend CI pass | Auth Worker not deployed; custom domain/route and Worker secrets not configured; real ZeptoMail delivery and Google callback not tested |
+| 1. Cloudflare foundation | Better Auth Worker package and dedicated remote D1 are created/bound/migrated; all 17 expected tables verified in [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470); Worker local tests and frontend CI pass. Guarded staging deploy [#42178992387](https://github.com/taufx98/sykabelajar4.0/actions/runs/42178992387) passed all pre-deploy checks but failed at `wrangler deploy`; read-only snapshot [#42179241229](https://github.com/taufx98/sykabelajar4.0/actions/runs/42179241229) proves no partial Worker/domain/route exists. | Cloudflare token needs product-level Workers Admin to create the new script and Zone Workers Routes Write to attach its custom domain. Worker, custom hostname and deployed secrets remain absent. ZeptoMail Agent delivery and optional Google callback are untested. See [staging deploy runbook](AUTH-CLOUDFLARE-STAGING-WORKER-DEPLOY-RUNBOOK.md) |
 | 2. OIDC and JWT | Authorization Code + PKCE S256, RFC 9207 issuer response, ES256, discovery/JWKS, UUID `sub`, PostgreSQL `role=authenticated`, five-minute access token/no refresh token, and negative security tests pass locally; explicit issuer/UUID assertions in commit `2073dbd` passed Worker and frontend CI [#42177805558](https://github.com/taufx98/sykabelajar4.0/actions/runs/42177805558) | Deploy staging issuer after Stage 1 secrets/deploy setup; hosted Supabase Custom OIDC acceptance, auth.uid(), Data API/Storage/Realtime/Edge Function and two-user IDOR tests remain blocked by no isolated Free Supabase project; no production issuer registration. See [Stage 2 acceptance runbook](AUTH-STAGE-2-OIDC-ACCEPTANCE-RUNBOOK.md) |
 | 3. Supabase identity | Live metadata inventory, exact 69-FK catalog comparison, identity/referral/verification design and 73/73 local pgTAP fixture tests | Complete schema-only baseline not exported; `private.app_users` absent; no executable production identity/FK/trigger/RPC migration; organizer phone-verification replacement not available |
 | 4. Frontend | ZeptoMail Admin settings panel is implemented and frontend CI passes | Main app still uses Supabase Auth; Better Auth client/token adapter and global session integration not started |
@@ -21,13 +21,9 @@ This is a verified status record, not authorization to deploy or migrate product
 
 ### What was verified
 
-The read-only Cloudflare preflight is [run #42043789820](https://github.com/taufx98/sykabelajar4.0/actions/runs/42043789820).
+Historical read-only Cloudflare snapshots below are superseded by the latest recheck and guarded deployment attempt recorded in the 6 November update at the end of this document.
 
-- Cloudflare API credentials are available to GitHub Actions and can read the `sykabelajar.my.id` zone; the zone status is `active`.
-- The same token can read Worker scripts. The account currently lists `sykabelajar4-0`; it does not list `sykabelajar-auth-poc`.
-- Worker custom domains and routes are readable, but no `auth.sykabelajar.my.id` custom domain or route is present.
-- The token's D1 database-list request is rejected with Cloudflare error code `10000`, message `Authentication error`. This shows the current token is not authorized for D1 read access. The `/user/tokens/verify` endpoint itself returned 401, but zone and Worker account-scoped reads succeeded; this endpoint result alone is not treated as proof that the account token is invalid.
-- `wrangler.toml` still contains the intentional all-zero D1 database placeholder. It must not be deployed as-is.
+- This section records an earlier 5 November permission snapshot. It was superseded by the 6 November token recheck: D1 listing now succeeds; the dedicated database has been created and migrated; `wrangler.toml` now contains its real isolated UUID. The current missing permission is the initial Worker creation/Custom Domain path, not D1 Read.
 
 ### Required permission correction
 
@@ -47,11 +43,11 @@ Official permission references: [API token permissions](https://developers.cloud
 
 The ZeptoMail implementation is local-code complete and passes Worker CI. The admin interface is under Admin → Pengaturan → Email Transaksional · ZeptoMail.
 
-Before staging delivery, set a stable `AUTH_EMAIL_ENCRYPTION_KEY` Worker secret and the Supabase publishable-key/session-verification bridge variables. Then add the verified ZeptoMail Agent and Send Mail Token through the admin panel. Keep the token server-side and encrypted in D1. The test button sends only to the signed-in admin's own email and can consume existing ZeptoMail credits. Do not purchase credits or enable auto top-up as part of this migration.
+The guarded deployment workflow will generate a stable `AUTH_EMAIL_ENCRYPTION_KEY` for this staging Worker and set the Supabase publishable-key/session-verification bridge variables (never a service-role key). Once it is deployed, add the verified ZeptoMail Agent and Send Mail Token through the admin panel. Keep the token server-side and encrypted in D1. The test button sends only to the signed-in admin's own email and can consume existing ZeptoMail credits. Do not purchase credits or enable auto top-up as part of this migration.
 
 ## Stage 2 — Supabase Custom OIDC blocker
 
-The local OIDC/JWT implementation has now passed Auth Worker CI [#42177805558](https://github.com/taufx98/sykabelajar4.0/actions/runs/42177805558), including the RFC 9207 authorization-response issuer check and UUID-subject format assertion. Hosted acceptance is still not complete: the Worker is not deployed to its stable staging hostname and the Supabase account has no available isolated Free project. The exact provider and token contract is recorded in [AUTH-STAGE-2-OIDC-ACCEPTANCE-RUNBOOK.md](AUTH-STAGE-2-OIDC-ACCEPTANCE-RUNBOOK.md).
+The local OIDC/JWT implementation has passed Auth Worker CI [#42179192864](https://github.com/taufx98/sykabelajar4.0/actions/runs/42179192864), including the RFC 9207 authorization-response issuer check, UUID-subject format assertion, local Worker/D1 integration and frontend checks. Hosted acceptance is still not complete: the staging Worker deploy is blocked by Cloudflare authorization and the Supabase account has no available isolated Free project. The exact provider and token contract is recorded in [AUTH-STAGE-2-OIDC-ACCEPTANCE-RUNBOOK.md](AUTH-STAGE-2-OIDC-ACCEPTANCE-RUNBOOK.md).
 
 The production Supabase organization is on the Free plan. The project creation quote returned **US$0/month**, but the create request was rejected with the account's maximum of two active Free projects reached. No project was created, paused, deleted, or upgraded. The organization currently has no development branches.
 
@@ -134,7 +130,7 @@ PR #177 remains Draft and has not been merged. Its current base branch is behind
 - D1 API is readable and returns the dedicated `sykabelajar-auth-poc` database. Zone `sykabelajar.my.id` is readable and active; Worker script list, custom-domain list, and Worker routes are readable. No Cloudflare API errors were returned.
 - The account currently lists only `sykabelajar-auth-poc` as a D1 database in this account-scoped query. The auth Worker script is not deployed (only `sykabelajar4-0` is listed); `auth.sykabelajar.my.id` custom domain and route are absent.
 - This recheck proves current D1/Zone/Worker read permissions. D1 Write was independently proven by successful empty-database creation in [#42057812352](https://github.com/taufx98/sykabelajar4.0/actions/runs/42057812352). Worker Scripts Write and Zone Workers Routes Write have not been exercised because no deployment or route creation was attempted.
-- No Worker deployment, remote D1 migration, DNS change, custom-domain assignment, route creation, production configuration change, or Supabase production change occurred.
+- No successful Worker deployment, DNS change, custom-domain assignment or route creation occurred. The later failed staging attempt left no partial Worker/domain/route per read-only preflight #42179241229. Remote staging D1 migration succeeded separately in #42159049470; no production configuration or Supabase production change occurred.
 
 
 ## Supabase quota and schema exporter recheck — 6 November 2026
@@ -159,3 +155,14 @@ PR #177 remains Draft and has not been merged. Its current base branch is behind
 - Auth Worker CI [#42177805558](https://github.com/taufx98/sykabelajar4.0/actions/runs/42177805558) completed successfully on the new OIDC assertions: OIDC authorization-response `iss` must equal discovery issuer (RFC 9207), and JWT `sub` must be a UUID matching the user identity. Both Worker/OIDC and frontend jobs passed.
 - No Worker was deployed, no Cloudflare secret/domain/DNS changed, and no Supabase production configuration or data was modified. Stage 2 remains pending hosted acceptance in an isolated Supabase Free project.
 - Supabase Local Auth Claims CI [#42132183039](https://github.com/taufx98/sykabelajar4.0/actions/runs/42132183039) still passes 73/73 local pgTAP assertions. The production schema-only export remains pending on the database owner's trusted local machine, and the separate Supabase Free staging project remains blocked by the account's active-project cap.
+
+
+## Current Cloudflare staging deploy blocker — 6 November 2026
+
+- The deployment workflow was changed to **manual-dispatch only** on branch `security/auth-poc-stage-1`; no push or PR update can trigger a Worker deployment. Exact confirmation is `DEPLOY-STAGING-WORKER-sykabelajar-auth-poc`.
+- Guarded deploy run [#42178992387](https://github.com/taufx98/sykabelajar4.0/actions/runs/42178992387) passed typecheck, tests, local dry-run, exact staging config, zone/DNS preflight, 17 remote D1 table checks, and empty staging user/session/account checks. It failed only at `wrangler deploy`; hosted OIDC checks were skipped.
+- The exact Wrangler error from that first attempt was not captured. Do not claim a proven error code. The current Cloudflare documentation says creating a new Worker requires **Workers product-level Admin**, while deploying an existing Worker requires **Workers Editor**. Adding a Custom Domain requires Worker Editor plus **Zone → Workers Routes → Write**, scoped to the `sykabelajar.my.id` zone. See [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/workers/) and [Cloudflare API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/).
+- The account owner can either temporarily grant Workers product-level Admin to the staging token for initial script creation, or create an empty `sykabelajar-auth-poc` Worker in the dashboard once and then use Workers Editor for deployment. The custom-domain attachment still needs Zone Workers Routes Write. After the custom domain is configured, remove the temporary creation Admin permission and retain the narrowest role needed for subsequent version deployments.
+- Read-only post-failure preflight [#42179241229](https://github.com/taufx98/sykabelajar4.0/actions/runs/42179241229) and its sanitized artifact confirmed: only existing Worker `sykabelajar4-0` is listed; `sykabelajar-auth-poc` Worker script, `auth.sykabelajar.my.id` custom domain, and matching Worker route are absent. D1 `sykabelajar-auth-poc` remains readable. No partial Cloudflare resource was left behind.
+- The latest Auth Worker CI [#42179192864](https://github.com/taufx98/sykabelajar4.0/actions/runs/42179192864) passed both Worker/OIDC and frontend jobs. This confirms the latest commit is green locally; it does not substitute for the hosted deployment.
+- Follow [AUTH-CLOUDFLARE-STAGING-WORKER-DEPLOY-RUNBOOK.md](AUTH-CLOUDFLARE-STAGING-WORKER-DEPLOY-RUNBOOK.md) to update the existing Cloudflare API token and GitHub Actions secret. Never paste the token in chat. Do not change production Supabase, DNS records unrelated to the auth hostname, or the production Worker.
