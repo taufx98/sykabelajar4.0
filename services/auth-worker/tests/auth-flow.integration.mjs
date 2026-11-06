@@ -288,6 +288,10 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
         accountType,
         username,
         referralCode,
+        birthDate: "2009-02-03",
+        institution: "SMA Negeri 1 Bandung",
+        grade: "sma",
+        subjects: "math,science",
         callbackURL: appOrigin + "/auth/verified",
       },
     });
@@ -330,10 +334,16 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(verifiedSession?.user?.id, signupData.user.id, "session and signup must refer to the same UUID");
     assert.equal(signupData.user.accountType, accountType, "registration accountType must be persisted by D1");
     assert.equal(signupData.user.username, username, "registration username must be persisted by D1");
-    assert.equal(signupData.user.referralCode, referralCode, "registration referralCode must be persisted by D1");
+    assert.equal(signupData.user.referralCode, undefined, "referral code must not be exposed in signup responses");
+    for (const field of ["birthDate", "institution", "grade", "subjects"]) {
+      assert.equal(signupData.user[field], undefined, "profile bootstrap field " + field + " must not be exposed in signup responses");
+    }
     assert.equal(verifiedSession?.user?.accountType, accountType, "session must expose the persisted registration accountType");
     assert.equal(verifiedSession?.user?.username, username, "session must expose the persisted registration username");
-    assert.equal(verifiedSession?.user?.referralCode, referralCode, "session must expose the persisted registration referral code");
+    assert.equal(verifiedSession?.user?.referralCode, undefined, "session must not expose the referral input");
+    for (const field of ["birthDate", "institution", "grade", "subjects"]) {
+      assert.equal(verifiedSession?.user?.[field], undefined, "profile bootstrap field " + field + " must not be exposed in sessions");
+    }
     assert.equal(verifiedSession?.user?.role, undefined, "application business roles must not be copied into Better Auth user metadata");
 
     const resetRequest = await authRequest("/request-password-reset", {
