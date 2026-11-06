@@ -64,4 +64,6 @@ test("the inventory document remains present next to its tracked source baseline
   assert.match(inventory, /41 direct callsites across 22 frontend files/);
   assert.match(inventory, /Organizer email\/phone verification/);
   assert.match(inventory, /Cloudinary remains the media system of record/);
+  assert.match(inventory, /Legacy private-chat service[\s\S]*not migrate to Better Auth/);
+  assert.match(inventory, /comments and other social features remain/);
 });
