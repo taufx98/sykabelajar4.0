@@ -62,6 +62,9 @@ jobs:
       - name: Verify Cloudinary signer ownership boundaries
         run: node ../../scripts/auth-migration/cloudinary-ownership.test.mjs
 
+      - name: Verify frontend Supabase Auth dependency inventory
+        run: node ../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+
       - name: Run local Worker, apply D1 migrations, and verify auth/OAuth flows
         shell: bash
         run: |
