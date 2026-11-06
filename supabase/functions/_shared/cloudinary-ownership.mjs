@@ -39,7 +39,7 @@ export function isOwnedCloudinaryPublicId(publicIdInput, { username, ownedOrgani
     if (!organizer || typeof organizer !== "object") continue;
     const candidates = [organizer.slug, organizer.id]
       .filter((value) => typeof value === "string")
-      .map((value) => value.trim().toLowerCase())
+      .map((value) => value.trim())
       .filter((value) => SAFE_SEGMENT.test(value));
 
     for (const candidate of candidates) {
