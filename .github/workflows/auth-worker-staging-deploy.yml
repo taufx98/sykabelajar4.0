@@ -1,12 +1,12 @@
 name: Auth Worker Staging Deploy
 
 on:
-  push:
-    branches:
-      - security/auth-poc-stage-1
-    paths:
-      - "services/auth-worker/**"
-      - ".github/workflows/auth-worker-staging-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type DEPLOY-STAGING-WORKER-sykabelajar-auth-poc to deploy only the isolated staging Worker"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -29,6 +29,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      CONFIRMATION: ${{ inputs.confirmation }}
 
     steps:
       - name: Checkout staging branch
@@ -59,6 +60,10 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
+          test "$CONFIRMATION" = "DEPLOY-STAGING-WORKER-sykabelajar-auth-poc" || {
+            echo "Blocked: the exact staging Worker deployment confirmation was not supplied." >&2
+            exit 1
+          }
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN." >&2; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID." >&2; exit 1; }
           test "$VITE_SUPABASE_URL" = "https://mvdczyitbkxkldjughor.supabase.co" || {
@@ -280,12 +285,21 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
+          set +e
           npx wrangler deploy \
             --secrets-file "$RUNNER_TEMP/auth-worker-staging-secrets.json" \
             --var "SUPABASE_URL:$VITE_SUPABASE_URL" \
             --var "SUPABASE_PUBLISHABLE_KEY:$VITE_SUPABASE_PUBLISHABLE_KEY" \
             --message "Isolated Better Auth staging deployment $GITHUB_SHA" \
-            --yes
+            --yes > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1
+          deploy_status=$?
+          set -e
+          sed -E \
+            -e 's/(Bearer )[A-Za-z0-9._-]+/\1[REDACTED]/g' \
+            -e 's/(Zoho-enczapikey )[A-Za-z0-9._-]+/\1[REDACTED]/g' \
+            -e 's/(SUPABASE_PUBLISHABLE_KEY:)[^ ]+/\1[REDACTED]/g' \
+            "$RUNNER_TEMP/wrangler-deploy.log" | tee "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
+          exit "$deploy_status"
 
       - name: Verify hosted health, issuer metadata, and public ES256 JWKS
         run: |
@@ -341,6 +355,15 @@ jobs:
           }
           if (!ready) throw lastError ?? new Error("Hosted Worker did not become ready.");
           NODE
+
+      - name: Upload sanitized deployment diagnostic when deployment fails
+        if: failure() && hashFiles('${{ runner.temp }}/wrangler-deploy-sanitized.log') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-worker-staging-deploy-diagnostic
+          path: ${{ runner.temp }}/wrangler-deploy-sanitized.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Remove temporary secret material from runner
         if: always()
