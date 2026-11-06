@@ -146,3 +146,14 @@ The connected Supabase app integration exposes project and SQL operations but no
 Do not register this issuer in the production project. Do not place a personal access token or secret in chat or source control.
 
 Official guide: https://supabase.com/docs/guides/auth/third-party/custom-oidc
+
+
+## Updated hosted issuer and CORS verification — 7 November 2026
+
+The updated Worker deployment [#42265308348](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265308348) succeeded after D1 migration 0004. It reconfirmed the fixed issuer, PKCE S256 and public ES256 P-256 JWKS, and added an exact CORS acceptance check: the branch Pages preview origin is allowed while `https://attacker.example` receives no `Access-Control-Allow-Origin` permission.
+
+Worker version: `ab04efd9-5750-48c0-8dbe-56c2a6d1118a`.
+
+The isolated Supabase Free project `ydamszdfsxqisanazdkb` now exists, and its synthetic owner/issuer RLS fixture is applied. Local Supabase CI [#42264325438](https://github.com/taufx98/sykabelajar4.0/actions/runs/42264325438) passes with the additional hosted-issuer fixture migration/test. The actual Supabase Auth Custom OIDC integration is still not registered; the current Supabase app connector does not expose the Management API or Dashboard provider-write operation. Real Better Auth tokens therefore have not yet been accepted by Supabase, and downstream Data API/Storage/Realtime/Edge Function acceptance remains pending.
+
+No user/session was seeded in staging D1. Email Agent is still unconfigured, so do not attempt an end-to-end verified registration until ZeptoMail is configured.
