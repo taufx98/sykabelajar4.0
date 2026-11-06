@@ -189,3 +189,10 @@ The repo now contains a non-deployed shared Edge Function adapter at `supabase/f
 A contract suite now tests valid/invalid claims, wrong issuer/audience, non-UUID subjects, business-role misuse, expiry/time/lifetime errors, platform JWT settings, and webhook signature boundaries. `supabase/config.toml` now explicitly sets `verify_jwt=true` for `payment-gateway-reconcile`, in addition to the other user-invoked payment/Cloudinary endpoints. Payment-provider webhooks remain `verify_jwt=false` and retain their independent signature verification.
 
 This adapter has **not** been wired into the four live user-facing Edge Function implementations, and no Edge Function was deployed. Do not deploy the adapter until Stage 2 Custom OIDC acceptance and Stage 3 identity projection are proven in an isolated Supabase project. See [AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md](AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md).
+
+
+## Registration schema compatibility check — 6 November 2026
+
+A fresh read-only catalog check confirms `public.profiles.account_type` is `text NOT NULL DEFAULT 'student'` with `profiles_account_type_check` allowing exactly `student`, `teacher`, and `organizer`. The existing business role enum remains `student`, `teacher`, `organizer_member`, and `admin`. The existing profile table also has a unique index on `username`, but no database username format/length check. The Better Auth mapping remains student → student, teacher → teacher, organizer → organizer_member; admin is never a self-registration type.
+
+The current registration frontend maps `pelajar/guru/penyelenggara` using `uiRoleToAccountType()` but only trims spaces/lowers case for username; it does not yet mirror the Worker validator. Stage 4 should add matching client-side validation without treating it as authorization. A metadata-only aggregate of the current 11 profile usernames found all 11 fit the new safe-segment rule (3–40, lower-case alphanumeric/dot/underscore/hyphen); no username values were selected. This is a compatibility snapshot only, not proof that future frontend input validation already exists.
