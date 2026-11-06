@@ -56,6 +56,17 @@ test("development localhost is allowed only when explicitly listed", () => {
   assert.equal(isAllowedOrigin("http://localhost:5173", ["http://localhost:5173"]), true);
 });
 
+test("CORS never treats a wildcard or opaque null origin as trusted", () => {
+  const wildcardRequest = new Request("https://auth.sykabelajar.my.id/api/admin/email-settings", {
+    headers: { Origin: "https://attacker.example" },
+  });
+  assert.equal(createCorsHeaders(wildcardRequest, ["*"]), null);
+  const nullRequest = new Request("https://auth.sykabelajar.my.id/api/admin/email-settings", {
+    headers: { Origin: "null" },
+  });
+  assert.equal(createCorsHeaders(nullRequest, ["https://sykabelajar.my.id"]), null);
+});
+
 test("bootstrap secret comparison accepts exact value and rejects wrong/empty values", () => {
   assert.equal(timingSafeEqualString("a".repeat(32), "a".repeat(32)), true);
   assert.equal(timingSafeEqualString("a".repeat(32), "a".repeat(31) + "b"), false);
