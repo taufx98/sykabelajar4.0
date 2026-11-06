@@ -195,3 +195,16 @@ The committed 69-entry application FK snapshot was compared against a fresh read
 The connected Supabase account lists one organization, `sykabelajar`, on the Free plan. The project listing exposes only the production project `sykabelajar_db2`; its development branch listing is empty. This connection therefore offers no isolated hosted Supabase database for Custom OIDC acceptance. The prior $0/month project-creation attempt was rejected by Supabase because the account was at the two-active-Free-project limit. No project, branch, plan, or production configuration was changed during this recheck.
 
 Do not create a paid branch, pause/delete the production project, or register the Better Auth staging issuer in production as a workaround. Stages 2–3 remain blocked on obtaining an isolated no-cost hosted Supabase test target and the trusted schema-only baseline export.
+
+
+## CI, hosted preflight and branch preview checkpoint — 6 November 2026
+
+Worker + frontend CI [#42195372638](https://github.com/taufx98/sykabelajar4.0/actions/runs/42195372638) passed on commit `0344a20077c5feb6bfc42a60633cc0a6cd74c689`: dependency audit, Worker TypeScript, all 40 Worker tests, local D1/Auth/OAuth integration, Worker dry-run bundle, and frontend lint/typecheck/build.
+
+Read-only Cloudflare preflight [#42195372541](https://github.com/taufx98/sykabelajar4.0/actions/runs/42195372541) passed. It verified Zone Read and dedicated D1 Read, and independently probed the live auth origin: health OK, exact issuer `https://auth.sykabelajar.my.id/api/auth`, PKCE S256 advertised, public ES256 P-256 JWKS. The current Cloudflare token receives HTTP 503 from list endpoints for Worker Scripts, Custom Domains and Routes. Because direct hosted health/discovery/JWKS and D1 checks pass, the preflight now treats these listing endpoints as warnings; it does not request broad Account Admin and it does not infer missing resources from an unreadable list.
+
+For the staging Admin panel, Wrangler config now adds exactly one temporary `DEV_APP_ORIGIN`: `https://security-auth-poc-stage-1.sykabelajar4.pages.dev`. Unit tests cover exact-origin CORS and reject an attacker origin. The staging deploy workflow's post-deploy smoke test also checks those two cases. **The currently deployed Worker predates this new origin value**; it must be updated via the manual-only Auth Worker Staging Deploy workflow before browser access from the preview can work. The redeploy workflow was changed to preserve the already provisioned Worker secrets: it no longer lists or rotates them and calls Wrangler without a replacement secrets file.
+
+Cloudflare Pages branch preview for latest commit `0344a20077c5feb6bfc42a60633cc0a6cd74c689` failed. The GitHub check exposes only the generic failure and dashboard log link; the actual Pages build log isn't accessible through the connected repository read interface. An older commit `064225dd07fbce066f848fec63676cf60fe91a84` had a successful Branch Preview, but it predates the exact-hostname Worker URL fallback. Do not state the current preview UI is deployed until a successful current Pages check is observed.
+
+These checks performed no production Supabase schema/data/Auth changes, no production Worker/DNS changes, no real ZeptoMail send, no account cleanup and no login cutover. PR #177 stays Draft/unmerged.
