@@ -92,9 +92,7 @@ values ('99999999-9999-4999-8999-999999999999', 'REF-VALID'),
 set local role service_role;
 
 select extensions.lives_ok(
-  $select public.better_auth_provision_user(
-    '12121212-1212-4121-8121-121212121212', 'student',
-    'Wrapper Student', 'wrapper-student', null, false)$,
+  'select public.better_auth_provision_user(''12121212-1212-4121-8121-121212121212'', ''student'', ''Wrapper Student'', ''wrapper-student'', null, false)',
   'service_role can provision a fresh identity through the PostgREST wrapper'
 );
 select extensions.is(
@@ -114,9 +112,7 @@ select extensions.ok(
 );
 
 select extensions.lives_ok(
-  $select private.provision_better_auth_user(
-    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'organizer',
-    'Organizer One', 'organizer-one', null)$$,
+  'select private.provision_better_auth_user(''aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'', ''organizer'', ''Organizer One'', ''organizer-one'', null)',
   'organizer signup creates identity and application records'
 );
 select extensions.is(
