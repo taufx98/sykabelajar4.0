@@ -21,6 +21,7 @@ const expected = {
   "src/pages/RegisterPage.tsx": 1,
   "src/services/ad.service.ts": 3,
   "src/services/auth.service.ts": 7,
+  "src/services/chat.service.ts": 3,
   "src/services/cloudinary.service.ts": 1,
   "src/services/commerce.service.ts": 1,
   "src/services/daily-task.service.ts": 1,
@@ -53,14 +54,14 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 38);
-  assert.equal(Object.keys(actual).length, 21);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 41);
+  assert.equal(Object.keys(actual).length, 22);
 });
 
 test("the inventory document remains present next to its tracked source baseline", () => {
   const inventoryPath = join(repoRoot, "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md");
   const inventory = readFileSync(inventoryPath, "utf8");
-  assert.match(inventory, /38 direct callsites across 21 frontend files/);
+  assert.match(inventory, /41 direct callsites across 22 frontend files/);
   assert.match(inventory, /Organizer email\/phone verification/);
   assert.match(inventory, /Cloudinary remains the media system of record/);
 });
