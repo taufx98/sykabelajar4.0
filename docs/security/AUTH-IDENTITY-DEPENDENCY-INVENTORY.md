@@ -203,3 +203,26 @@ The read-only Supabase Security Advisor reported:
 - Leaked-password protection disabled (WARN).
 
 A linter warning is not enough to classify a function as exploitable. Stage 5 must inspect function bodies, owner checks, issuer checks and grants individually. Do not revoke all `EXECUTE` privileges or make all functions `SECURITY INVOKER` without understanding the contract; exam participant and public verification flows may intentionally support non-authenticated calls.
+
+
+## Live recheck update — 6 November 2026
+
+A fresh read-only production query on 6 November confirmed the following selected counters: `private.app_users` is absent; 69 application FKs still target `auth.users(id)`; 3 non-internal triggers remain on `auth.users`; 109 policies reference `auth.uid()`; and `auth.users` contains 11 rows (count only). Eight public/private SQL functions directly reference `auth.users` in their function definitions. This direct-source count is not a replacement for the broader set of 10 functions/triggers that depend on the Auth metadata and email/phone verification lifecycle.
+
+The connected Supabase deployment currently exposes 15 active Edge Functions. A read-only source audit of the relevant current deployed versions found four user-facing functions still calling `supabase.auth.getUser()`:
+- `get-cloudinary-signature` v11
+- `payment-gateway-create` v5
+- `payment-gateway-reconcile` v1
+- `payment-gateway-admin` v5
+
+The older `midtrans-create-payment` v10 is a compatibility delegator to `payment-gateway-create`; it is not a separate identity verifier. `payment-webhook` and `payment-gateway-webhook` use their own signed-webhook authentication and must remain distinct from user-token verification. Do not replace their signature checks with user JWT checks.
+
+**Stage 5 implementation note (verified against current Supabase documentation, 6 November 2026):** do not merely decode a Better Auth JWT in an Edge Function, and do not assume `auth.getUser()` can resolve a Better Auth identity from `auth.users`. For user-invoked functions, evaluate the current `@supabase/server` `withSupabase({ auth: 'user' })` wrapper while keeping `verify_jwt = true`; it exposes verified `userClaims` / `jwtClaims` and an RLS-scoped client. Preserve privileged server-side operations only where explicitly required, with owner/business-role checks and secret keys held server-side. Validate the custom issuer, subject, audience and cross-user denial with two synthetic users in the isolated hosted Supabase acceptance environment before deploying any function changes. Official guide: https://supabase.com/docs/guides/functions/auth.
+
+Latest Security Advisor snapshot (observed 6 November 2026 09:13 UTC):
+- 23 RLS-enabled tables with no policies (INFO; review intended private/internal use individually).
+- 46 SECURITY DEFINER functions callable by `anon` and 202 callable by `authenticated` (WARN; audit each function body, grants, search_path and role/issuer checks; no blanket revoke).
+- Leaked-password protection disabled (WARN; confirm availability/cost before changing).
+- Performance review: 41 unindexed foreign keys, 13 auth-RLS init-plan findings, 86 unused indexes and 26 multiple-permissive-policy findings. These are separate, scoped optimization/security review items; do not mass-change indexes or policies as part of the identity migration.
+
+No schema, data, Auth provider settings, Edge Functions, secrets or production accounts were modified by these checks.
