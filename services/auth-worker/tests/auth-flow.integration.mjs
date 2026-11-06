@@ -429,6 +429,11 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(authorization.callback.origin, new URL(callbackUrl).origin);
     assert.equal(authorization.callback.pathname, new URL(callbackUrl).pathname);
     assert.equal(authorization.callback.searchParams.get("state"), authorization.state);
+    assert.equal(
+      authorization.callback.searchParams.get("iss"),
+      discovery.issuer,
+      "authorization response must identify its issuer to prevent mix-up attacks (RFC 9207)",
+    );
     const code = authorization.callback.searchParams.get("code");
     assert.ok(code, "valid S256 authorization request must return an authorization code");
     assert.ok(!authorization.callback.searchParams.has("error"), "valid PKCE request must not return OAuth error");
@@ -467,6 +472,11 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(verifiedJwt.protectedHeader.alg, "ES256", "access token must be signed using ES256");
     assert.ok(verifiedJwt.protectedHeader.kid, "access token must contain a key ID");
     assert.equal(verifiedJwt.payload.sub, signupData.user.id, "JWT subject must be the Better Auth UUID");
+    assert.match(
+      String(verifiedJwt.payload.sub),
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      "JWT subject must have a UUID shape accepted by the PostgreSQL identity contract",
+    );
     assert.equal(verifiedJwt.payload.role, "authenticated", "JWT role must be the PostgreSQL authenticated role");
 
     assert.ok(tokens.id_token, "openid scope must return an OIDC ID token");
