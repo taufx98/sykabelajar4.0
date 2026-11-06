@@ -207,5 +207,24 @@ jobs:
           console.log("Verified " + expected.length + " expected staging tables. No application rows or user accounts were seeded.");
           NODE
 
-          echo "Verified 17 expected staging tables. No application rows or user accounts were seeded."
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode') ORDER BY name;" > "$RUNNER_TEMP/auth-d1-user-columns.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-d1-user-columns.json", "utf8"));
+          const columns = new Set();
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") columns.add(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const expected = ["accountType", "username", "referralCode"];
+          const missing = expected.filter((name) => !columns.has(name));
+          if (missing.length) throw new Error("Better Auth registration columns are missing: " + missing.join(", "));
+          console.log("Verified all Better Auth registration metadata columns.");
+          NODE
+
+          echo "Verified 17 expected staging tables and additive registration columns. No application rows or user accounts were seeded."
           echo "This workflow did not deploy a Worker, set secrets, configure DNS, or attach a custom domain."
