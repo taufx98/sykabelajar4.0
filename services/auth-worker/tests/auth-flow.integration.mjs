@@ -252,6 +252,9 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       "internal OAuth bootstrap must reject browser-origin requests even with the bearer secret",
     );
     const email = cookieUuid();
+    const username = "poc-" + randomUUID().slice(0, 8);
+    const accountType = "teacher";
+    const referralCode = "AUTH-POC-REFERRAL";
     const initialPassword = "Sykabelajar-PoC-Password-1";
     const resetPassword = "Sykabelajar-PoC-Password-2";
 
@@ -261,6 +264,9 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
         name: "SYKABELAJAR Auth PoC",
         email,
         password: initialPassword,
+        accountType,
+        username,
+        referralCode,
         callbackURL: appOrigin + "/auth/verified",
       },
     });
@@ -301,6 +307,13 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(verifiedSession?.user?.email, email, "session must belong to the newly registered account");
     assert.equal(verifiedSession?.user?.emailVerified, true, "email must be marked verified before session is used");
     assert.equal(verifiedSession?.user?.id, signupData.user.id, "session and signup must refer to the same UUID");
+    assert.equal(signupData.user.accountType, accountType, "registration accountType must be persisted by D1");
+    assert.equal(signupData.user.username, username, "registration username must be persisted by D1");
+    assert.equal(signupData.user.referralCode, referralCode, "registration referralCode must be persisted by D1");
+    assert.equal(verifiedSession?.user?.accountType, accountType, "session must expose the persisted registration accountType");
+    assert.equal(verifiedSession?.user?.username, username, "session must expose the persisted registration username");
+    assert.equal(verifiedSession?.user?.referralCode, referralCode, "session must expose the persisted registration referral code");
+    assert.equal(verifiedSession?.user?.role, undefined, "application business roles must not be copied into Better Auth user metadata");
 
     const resetRequest = await authRequest("/request-password-reset", {
       method: "POST",
