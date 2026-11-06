@@ -231,3 +231,12 @@ Confirmed prerequisite: production `get_profile_connections` has an anonymous NU
 A second data-minimisation item: public competition results currently return and render `participant_code`; the collective portal also uses this as a second step after portal-token authentication. Evaluate masking/removal with product tests before altering this public contract. This check made no code or production data change.
 
 Of the 23 RLS-enabled/no-policy tables, 20 have no direct anon/authenticated SELECT/INSERT grants; three do have such table grants but remain default-deny to those roles because RLS has no policies. Treat advisor findings as review signals, not proof of public exposure.
+
+
+## Stage 5 verified Edge JWT adapter scaffold — 6 November 2026
+
+The branch now has a non-deployed shared adapter `supabase/functions/_shared/better-auth-user.ts` pinned to `@supabase/server@1.9.2`. It uses Supabase's `createSupabaseContext(..., { auth: 'user' })` for cryptographic verification, then enforces the exact configured Better Auth issuer/audience, UUID `sub`, matching `userClaims.id`, Postgres `role=authenticated`, and a maximum 300-second token lifetime. Missing issuer/audience environment configuration fails closed.
+
+The claim helper has 7 pure Node tests; the complete static suite checks the adapter import/auth mode, the explicit `verify_jwt=true` boundary on four user-facing endpoints plus the legacy Midtrans delegate, and the webhook `verify_jwt=false` plus provider signature checks. `payment-gateway-reconcile` is now explicitly configured with `verify_jwt=true`, rather than relying on an implicit platform default. The helper is a scaffold only: none of the four production user-facing Edge Function source implementations has been switched from `auth.getUser()`, and no Edge Function/config deployment has occurred. See [AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md](AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md).
+
+CI is being extended to run this contract in both Auth Worker CI and Supabase Local Auth Claims CI. Hosted Custom OIDC/IDOR acceptance remains blocked by lack of an isolated hosted Supabase Free project; this scaffold does not remove that blocker.
