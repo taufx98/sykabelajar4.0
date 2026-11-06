@@ -1,14 +1,17 @@
+/** @typedef {import("./env").AuthWorkerEnv} AuthWorkerEnv */
+
 const PROVISION_RPC = "better_auth_provision_user";
 const VERIFY_EMAIL_RPC = "better_auth_complete_email_verification";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;
 const ACCOUNT_TYPES = new Set(["student", "teacher", "organizer"]);
 
-/** @param {{ SUPABASE_PROVISIONING_ENABLED?: string }} env */
+/** @param {AuthWorkerEnv} env */
 export function isSupabaseProvisioningEnabled(env) {
   return env.SUPABASE_PROVISIONING_ENABLED === "true";
 }
 
+/** @param {AuthWorkerEnv} env */
 function requireProvisioningConfig(env) {
   if (!isSupabaseProvisioningEnabled(env)) {
     throw new Error("SUPABASE_PROVISIONING_DISABLED");
@@ -126,7 +129,7 @@ async function invokeRpc(env, rpcName, payload, fetchImpl) {
  * be created. RPCs are deliberately idempotent because D1 and Postgres cannot
  * participate in a single transaction.
  *
- * @param {object} env
+ * @param {AuthWorkerEnv} env
  * @param {Record<string, unknown>} user
  * @param {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} [fetchImpl]
  */
