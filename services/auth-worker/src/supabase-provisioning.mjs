@@ -211,7 +211,7 @@ async function clearProfileBootstrapFields(env, userId) {
           "subjects" = NULL
       WHERE "id" = ?
     `).bind(userId).run();
-    if (!result.success || result.meta.changes !== 1) {
+    if (!result.success) {
       throw new Error("D1_BOOTSTRAP_CLEANUP_NOT_CONFIRMED");
     }
   } catch {
@@ -258,7 +258,16 @@ export async function reconcileSupabaseApplicationIdentity(env, user, fetchImpl 
 
   // Postgres is now the canonical profile store. Do not retain the signup
   // payload in D1 after a successful, atomic identity/profile projection.
-  await clearProfileBootstrapFields(env, identity.userId);
+  // Skip the write on later idempotent session checks once those fields are null.
+  if (
+    identity.referralCode ||
+    identity.birthDate ||
+    identity.institution ||
+    identity.grade ||
+    identity.subjects
+  ) {
+    await clearProfileBootstrapFields(env, identity.userId);
+  }
 
   return { enabled: true, userId: identity.userId };
 }
