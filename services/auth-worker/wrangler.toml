@@ -2,7 +2,7 @@ name = "sykabelajar-auth-poc"
 main = "src/worker.ts"
 compatibility_date = "2026-10-31"
 compatibility_flags = ["nodejs_compat"]
-workers_dev = true
+workers_dev = false
 preview_urls = false
 
 # Dedicated NON-PRODUCTION D1 database created for the Better Auth staging PoC. Do not point this binding at production.
@@ -11,6 +11,11 @@ binding = "DB"
 database_name = "sykabelajar-auth-poc"
 database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"
 migrations_dir = "migrations"
+
+# Stable auth issuer hostname. Cloudflare creates the DNS record and TLS certificate.
+[[routes]]
+pattern = "auth.sykabelajar.my.id"
+custom_domain = true
 
 [vars]
 AUTH_EMAIL_PROVIDER = "zeptomail"
