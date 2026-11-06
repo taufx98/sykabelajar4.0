@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { validateBetterAuthClaims } from "../supabase/functions/_shared/auth-claims.mjs";
 
@@ -89,4 +90,61 @@ test("does not accept untrusted/non-object claims", () => {
     "AUTH_VERIFIED_CLAIMS_MISSING");
   assert.equal(validateBetterAuthClaims([], { issuer: ISSUER, audience: AUDIENCE }).reason,
     "AUTH_VERIFIED_CLAIMS_MISSING");
+});
+
+const edgeRoot = new URL("../../supabase/functions/", import.meta.url);
+const edgeAdapter = readFileSync(new URL("_shared/better-auth-user.ts", edgeRoot), "utf8");
+const supabaseConfig = readFileSync(new URL("../..//supabase/config.toml", import.meta.url), "utf8");
+const webhookSource = readFileSync(new URL("payment-gateway-webhook/index.ts", edgeRoot), "utf8");
+
+function functionConfig(name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = supabaseConfig.match(new RegExp(`\\[functions\\.${escaped}\\]\\s*\\n([\\s\\S]*?)(?=\\n\\[|$)`, "m"));
+  assert.ok(match, `missing explicit Supabase config block for ${name}`);
+  return match[1];
+}
+
+test("Edge adapter delegates cryptographic JWT verification to pinned @supabase/server", () => {
+  assert.match(edgeAdapter, /npm:@supabase\\/server@1\\.9\\.2/);
+  assert.match(edgeAdapter, /createSupabaseContext\\(request, \\{ auth: "user" \\}\\)/);
+  assert.match(edgeAdapter, /context\\.jwtClaims/);
+  assert.match(edgeAdapter, /context\\.userClaims\\?\\.id/);
+  assert.doesNotMatch(edgeAdapter, /jwt-decode|atob\\(|crypto\\.subtle|jsonwebtoken/i);
+  assert.doesNotMatch(edgeAdapter, /auth\\.getUser\\(/);
+});
+
+test("verified user adapter fails closed without exact issuer and resource audience config", () => {
+  assert.match(edgeAdapter, /BETTER_AUTH_ISSUER/);
+  assert.match(edgeAdapter, /BETTER_AUTH_RESOURCE_AUDIENCE/);
+  assert.match(edgeAdapter, /AUTH_IDENTITY_CONFIGURATION_MISSING/);
+  assert.match(edgeAdapter, /AUTH_SUBJECT_MISMATCH/);
+  assert.match(edgeAdapter, /AUTH_POSTGRES_ROLE_INVALID/);
+});
+
+test("user-invoked payment and Cloudinary functions keep platform JWT verification enabled", () => {
+  for (const name of [
+    "get-cloudinary-signature",
+    "payment-gateway-admin",
+    "payment-gateway-create",
+    "payment-gateway-reconcile",
+    "midtrans-create-payment",
+  ]) {
+    assert.match(functionConfig(name), /verify_jwt\\s*=\\s*true/);
+  }
+});
+
+test("provider webhook endpoints remain JWT-exempt but keep provider signature verification", () => {
+  for (const name of ["payment-webhook", "payment-gateway-webhook"]) {
+    assert.match(functionConfig(name), /verify_jwt\\s*=\\s*false/);
+  }
+  assert.match(webhookSource, /constantTimeEqual/);
+  assert.match(webhookSource, /sha512/);
+  assert.match(webhookSource, /hmacBase64/);
+  assert.match(webhookSource, /INVALID_SIGNATURE/);
+});
+
+test("Better Auth Postgres role remains separate from application business roles", () => {
+  assert.match(edgeAdapter, /userClaims\\?\\.role !== "authenticated"/);
+  assert.match(edgeAdapter, /userId: identity\\.userId/);
+  assert.match(supabaseConfig, /\\[functions\\.payment-gateway-reconcile\\][\\s\\S]*?verify_jwt = true/);
 });
