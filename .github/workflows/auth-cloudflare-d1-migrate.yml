@@ -1,0 +1,210 @@
+name: Auth D1 Staging Schema Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type APPLY-TO-sykabelajar-auth-poc to migrate only the dedicated staging D1 database"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-d1-staging-schema-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Apply reviewed Better Auth schema to isolated D1 only
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+
+      - name: Verify explicit target confirmation and repository guardrails
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1" || {
+            echo "Blocked: run this workflow only from security/auth-poc-stage-1." >&2
+            exit 1
+          }
+          test "$CONFIRMATION" = "APPLY-TO-sykabelajar-auth-poc" || {
+            echo "Blocked: the exact staging database confirmation was not supplied." >&2
+            exit 1
+          }
+
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from "node:fs";
+
+          const config = readFileSync("wrangler.toml", "utf8");
+          const requiredConfig = [
+            /^name = "sykabelajar-auth-poc"$/m,
+            /^database_name = "sykabelajar-auth-poc"$/m,
+            /^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m,
+            /^migrations_dir = "migrations"$/m,
+          ];
+          if (!requiredConfig.every((pattern) => pattern.test(config))) {
+            throw new Error("wrangler.toml does not match the single approved D1 staging target.");
+          }
+
+          const expected = [
+            "0000_auth_worker_internal_config.sql",
+            "0001_better_auth.sql",
+            "0002_seed_first_party_oauth_client.sql",
+            "0003_zeptomail_agent_settings.sql",
+          ].sort();
+          const actual = readdirSync("migrations")
+            .filter((name) => name.endsWith(".sql"))
+            .sort();
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+            throw new Error("The D1 migration set changed. Review and update this guarded workflow before running it.");
+          }
+
+          console.log("Repository guard passed: one fixed staging database and four reviewed migration files.");
+          NODE
+
+      - name: Install the pinned Wrangler toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify the remote database name and UUID through Cloudflare API
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || {
+            echo "Missing CLOUDFLARE_API_TOKEN repository secret." >&2
+            exit 1
+          }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || {
+            echo "Missing CLOUDFLARE_ACCOUNT_ID repository secret." >&2
+            exit 1
+          }
+
+          node --input-type=module <<'NODE'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const expectedName = "sykabelajar-auth-poc";
+          const expectedUuid = "7a4f9008-a1c6-42b6-8a04-abde12699248";
+          const endpoint = "https://api.cloudflare.com/client/v4/accounts/" +
+            encodeURIComponent(accountId) +
+            "/d1/database?name=" + encodeURIComponent(expectedName) +
+            "&per_page=100";
+
+          const response = await fetch(endpoint, {
+            headers: {
+              Authorization: "Bearer " + token,
+              Accept: "application/json",
+            },
+          });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok || body.success !== true || !Array.isArray(body.result)) {
+            const errors = (body.errors ?? []).map((item) => ({
+              code: item.code,
+              message: String(item.message ?? "").slice(0, 160),
+            }));
+            console.error(JSON.stringify({ status: response.status, errors }));
+            throw new Error("Cannot verify the approved Cloudflare D1 target; no migration was attempted.");
+          }
+
+          const matches = body.result.filter((row) => row.name === expectedName);
+          if (matches.length !== 1 || matches[0].uuid !== expectedUuid) {
+            throw new Error("Cloudflare D1 name/UUID mismatch or duplicate. No migration was attempted.");
+          }
+
+          console.log(JSON.stringify({
+            verified: true,
+            database: expectedName,
+            uuid: expectedUuid,
+            noWorkerDeployment: true,
+          }));
+          NODE
+
+      - name: Show pending remote migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations list sykabelajar-auth-poc --remote
+
+      - name: Apply the four reviewed migrations to the dedicated remote D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply sykabelajar-auth-poc --remote
+
+      - name: Verify Better Auth and ZeptoMail tables exist
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 migrations list sykabelajar-auth-poc --remote
+
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification') ORDER BY name;" > "$RUNNER_TEMP/auth-d1-tables.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const raw = readFileSync(process.env.RUNNER_TEMP + "/auth-d1-tables.json", "utf8");
+          let payload;
+          try {
+            payload = JSON.parse(raw);
+          } catch {
+            throw new Error("Wrangler did not return parseable JSON for the staging schema check.");
+          }
+
+          const names = new Set();
+          const visit = (value) => {
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") names.add(value.name);
+            for (const child of Object.values(value)) visit(child);
+          };
+          visit(payload);
+
+          const expected = [
+            "account",
+            "auth_email_accounts",
+            "auth_email_admin_test_limits",
+            "auth_email_settings",
+            "auth_worker_internal_config",
+            "jwks",
+            "oauthAccessToken",
+            "oauthClient",
+            "oauthClientAssertion",
+            "oauthClientResource",
+            "oauthConsent",
+            "oauthRefreshToken",
+            "oauthResource",
+            "rateLimit",
+            "session",
+            "user",
+            "verification",
+          ];
+          const missing = expected.filter((name) => !names.has(name));
+          if (missing.length) {
+            throw new Error("Required staging D1 tables are missing: " + missing.join(", "));
+          }
+          console.log("Verified " + expected.length + " expected staging tables. No application rows or user accounts were seeded.");
+          NODE
+
+          echo "Verified 17 expected staging tables. No application rows or user accounts were seeded."
+          echo "This workflow did not deploy a Worker, set secrets, configure DNS, or attach a custom domain."
