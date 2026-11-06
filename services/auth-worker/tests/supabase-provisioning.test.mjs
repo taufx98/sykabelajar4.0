@@ -9,10 +9,31 @@ import {
 
 const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SERVICE_KEY = "test-service-role-key-never-log";
+function createD1Mock({ fail = false, changes = 1 } = {}) {
+  const calls = [];
+  const DB = {
+    prepare(query) {
+      return {
+        bind(...values) {
+          return {
+            async run() {
+              calls.push({ query: String(query), values });
+              if (fail) throw new Error("internal D1 failure");
+              return { success: true, meta: { changes } };
+            },
+          };
+        },
+      };
+    },
+  };
+  return { DB, calls };
+}
+
 const env = {
   SUPABASE_PROVISIONING_ENABLED: "true",
   SUPABASE_URL: "https://mvdczyitbkxkldjughor.supabase.co",
   SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
+  DB: createD1Mock().DB,
 };
 
 function response(body, status = 200) {
@@ -258,6 +279,44 @@ test("afterEmailVerification retries provisioning before completing the verified
   assert.ok(calls[0].url.endsWith("/better_auth_provision_user"));
   assert.equal(calls[0].body.p_email_verified, true);
   assert.ok(calls[1].url.endsWith("/better_auth_complete_email_verification"));
+});
+
+test("successful Postgres projection clears transient profile fields from D1 but keeps role mapping metadata", async () => {
+  const d1 = createD1Mock();
+  await reconcileSupabaseApplicationIdentity({ ...env, DB: d1.DB }, {
+    id: USER_ID,
+    name: "Profile One",
+    accountType: "teacher",
+    username: "profile.one",
+    referralCode: "REF-123",
+    birthDate: "2009-02-03",
+    institution: "SMA Negeri 1 Bandung",
+    grade: "sma",
+    subjects: "math,science",
+  }, async () => response({ user_id: USER_ID, account_type: "teacher" }));
+
+  assert.equal(d1.calls.length, 1);
+  assert.match(d1.calls[0].query, /"referralCode" = NULL/);
+  assert.match(d1.calls[0].query, /"birthDate" = NULL/);
+  assert.match(d1.calls[0].query, /"institution" = NULL/);
+  assert.match(d1.calls[0].query, /"grade" = NULL/);
+  assert.match(d1.calls[0].query, /"subjects" = NULL/);
+  assert.doesNotMatch(d1.calls[0].query, /"accountType"|"username"/);
+  assert.deepEqual(d1.calls[0].values, [USER_ID]);
+});
+
+test("D1 bootstrap cleanup failure prevents the auth session projection from being treated as complete", async () => {
+  const d1 = createD1Mock({ fail: true });
+  await assert.rejects(
+    reconcileSupabaseApplicationIdentity({ ...env, DB: d1.DB }, {
+      id: USER_ID,
+      name: "Profile One",
+      accountType: "student",
+      birthDate: "2009-02-03",
+    }, async () => response({ user_id: USER_ID, account_type: "student" })),
+    /BETTER_AUTH_PROFILE_BOOTSTRAP_CLEANUP_FAILED/,
+  );
+  assert.equal(d1.calls.length, 1);
 });
 
 test("missing server secret and unsafe Supabase URL fail closed", async () => {
