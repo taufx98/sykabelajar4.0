@@ -40,7 +40,7 @@ Complete the authorization-code flow from the exact first-party callback and ins
 - Header: `alg=ES256`, with a `kid` present in the issuer's JWKS.
 - `iss`: exact issuer URL above.
 - `sub`: the Better Auth user UUID.
-- `aud`: includes exactly the configured SYKABELAJAR resource audience as required by the resource-server check.
+- `aud`: includes the configured SYKABELAJAR resource audience; verify it explicitly when validating the token for the protected API.
 - `role`: `authenticated` (PostgreSQL role only, never a business role).
 - `iat` and `exp`: valid; lifetime no longer than 300 seconds.
 - The public client receives no refresh token.
