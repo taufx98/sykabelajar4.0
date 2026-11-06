@@ -142,11 +142,11 @@ select extensions.is(
 );
 
 select extensions.lives_ok(
-  $select public.better_auth_provision_user(
+  $provision$select public.better_auth_provision_user(
     '22222222-2222-4222-8222-222222222222',
     'student', 'Profile Bootstrap', 'profile-bootstrap',
     null, false, '2009-02-03', '  SMA Negeri 1 Bandung  ', 'sma', 'math,science'
-  )$,
+  )$provision$,
   'the PostgREST wrapper provisions all registration profile fields'
 );
 select extensions.is(
