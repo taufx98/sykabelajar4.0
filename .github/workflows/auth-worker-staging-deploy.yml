@@ -19,7 +19,7 @@ jobs:
   deploy:
     if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
     name: Deploy isolated Better Auth Worker and verify hosted OIDC
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -33,10 +33,10 @@ jobs:
 
     steps:
       - name: Checkout staging branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -291,7 +291,7 @@ jobs:
             --var "SUPABASE_URL:$VITE_SUPABASE_URL" \
             --var "SUPABASE_PUBLISHABLE_KEY:$VITE_SUPABASE_PUBLISHABLE_KEY" \
             --message "Isolated Better Auth staging deployment $GITHUB_SHA" \
-            --yes > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1
+            > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1
           deploy_status=$?
           set -e
           sed -E \
@@ -357,7 +357,7 @@ jobs:
           NODE
 
       - name: Upload sanitized deployment diagnostic when deployment fails
-        if: failure() && hashFiles('${{ runner.temp }}/wrangler-deploy-sanitized.log') != ''
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: auth-worker-staging-deploy-diagnostic
@@ -367,4 +367,4 @@ jobs:
 
       - name: Remove temporary secret material from runner
         if: always()
-        run: rm -f "$RUNNER_TEMP/auth-worker-staging-secrets.json" "$RUNNER_TEMP/auth-worker-cloudflare-preflight.json" "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok"
+        run: rm -f "$RUNNER_TEMP/auth-worker-staging-secrets.json" "$RUNNER_TEMP/auth-worker-cloudflare-preflight.json" "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok" "$RUNNER_TEMP/wrangler-deploy.log" "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
