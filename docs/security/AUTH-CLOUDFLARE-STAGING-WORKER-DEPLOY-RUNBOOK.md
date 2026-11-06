@@ -18,23 +18,25 @@ The GitHub Actions token already proves it can read the active `sykabelajar.my.i
 
 Cloudflare currently documents these minimum permissions:
 
-1. **Create the new Worker script:** Workers product-level **Admin** permission scoped to the one Cloudflare account. Cloudflare's current roles documentation states that `wrangler deploy` for a Worker that does not yet exist requires product-level Admin. After the script has been created, normal updates can use Workers **Editor**.
-2. **Attach `auth.sykabelajar.my.id` as a Custom Domain:** Workers **Editor** for the Worker plus Zone `Workers Routes Write` scoped only to the `sykabelajar.my.id` zone.
-3. Keep the existing D1 Read/Edit, Zone Read, and read permissions needed for the preflight. Do not grant Platform Admin, Super Administrator, DNS-wide edit, or unrelated product permissions.
+1. **Create the new Worker script:** Cloudflare documents that `wrangler deploy` for a Worker that does not yet exist requires Workers product-level **Admin**. This is the likely missing permission in the first attempt; its exact Wrangler error text was not captured.
+2. **Attach `auth.sykabelajar.my.id` as a Custom Domain:** the deployment token needs Workers **Editor** access to the Worker plus Zone `Workers Routes Write` scoped only to the `sykabelajar.my.id` zone.
+3. Keep the existing D1 Read/Edit and Zone Read permissions. Do not grant Developer Platform Admin, Super Administrator, DNS-wide edit, or unrelated product permissions.
 
 Official references:
 - Cloudflare [Roles and permissions](https://developers.cloudflare.com/workers/authorization/) — new Worker creation requires Workers product Admin; existing Worker deployment uses Editor; Custom Domain/Routes changes also require Zone Workers Routes Write.
 - Cloudflare [Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/) — Cloudflare creates the DNS record and certificate after a Custom Domain is attached; a pre-existing CNAME on that hostname prevents creation.
 - Cloudflare [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/) — permissions are resource-scoped by Account, Zone, and User.
 
-### Least-privilege alternative
+### Least-privilege sequence
 
-Instead of granting Workers product Admin to CI, the account owner can create the empty Worker script `sykabelajar-auth-poc` once in the Cloudflare Dashboard. Then keep CI limited to Workers Editor for that Worker plus Zone `Workers Routes Write` for `sykabelajar.my.id`. This is the narrower ongoing deployment permission set.
+The account owner can avoid giving CI product-level Admin by creating the empty Worker script `sykabelajar-auth-poc` once through the Cloudflare Dashboard. Then add Workers **Editor** and Zone `Workers Routes Write` to the staging deployment token. Note that Cloudflare currently does not support per-Worker roles for Custom Domains, so Editor may need to be scoped at the Workers product level while the Custom Domain is being attached. After the hostname is attached, later version-only deployments need Editor and do not need Zone Workers Routes Write as long as the route/domain binding is not changed.
+
+Alternatively, the owner can temporarily grant product-level Workers Admin to the CI token for the first creation/deployment, then immediately reduce it to Workers Editor and remove Zone Workers Routes Write after the Custom Domain is successfully attached.
 
 ## Update the existing token
 
 1. In Cloudflare Dashboard, open **My Profile → API Tokens** and edit the token currently stored as the GitHub Actions secret `CLOUDFLARE_API_TOKEN`.
-2. Add only the Worker and route permissions above, scoped to this account and the `sykabelajar.my.id` zone. Keep the existing D1 permissions.
+2. Add only the Worker and route permissions above, scoped to this account and the `sykabelajar.my.id` zone. Keep the existing D1 permissions. Do not enable DNS Write: the latest preflight found no conflicting record, and Cloudflare Custom Domains manage their required DNS record/certificate.
 3. In GitHub, open **Settings → Secrets and variables → Actions** and replace the value of `CLOUDFLARE_API_TOKEN`. Do not paste the token into chat, an issue, or a commit. Keep `CLOUDFLARE_ACCOUNT_ID` unchanged.
 
 ## Run the guarded staging deployment
@@ -52,7 +54,7 @@ The workflow is manual-only now; pushes and PR updates cannot deploy it automati
 
 5. Inspect the run. It must pass the exact D1/hostname/DNS preflight, verify all 17 remote tables and empty auth user/session/account state, deploy the Worker, and verify health, exact issuer, discovery metadata, PKCE S256 advertisement, and public ES256 JWKS.
 
-The workflow:
+The workflow has been changed to manual dispatch only after the first failed deployment, and includes a sanitized deployment log artifact on failure. It:
 - is locked to the dedicated Worker name and D1 UUID;
 - has `workers_dev=false`, exposing the service only through `auth.sykabelajar.my.id`;
 - refuses to proceed if the auth hostname has a conflicting DNS record or Worker route;
@@ -69,5 +71,7 @@ A healthy Worker and hosted issuer do not by themselves finish the entire Cloudf
 - Add one ZeptoMail Agent's Send Mail Token through the secured admin settings panel and verify one test email to the signed-in admin's own email. The Worker has the encryption key but no Agent token has been configured. No email has been sent and no credits purchased.
 - Add a dedicated test Google OAuth client ID/secret if Google sign-in is required for the initial auth launch; verify the callback and verified-email behavior. No Google credential has been added.
 - Confirm `auth.sykabelajar.my.id` health and cookie/origin behavior. Do not point the main frontend at this issuer until Stages 2–5 and rollback gates pass.
+
+The `--secrets-file` generated by the workflow uses JSON, which Wrangler officially supports. The first deployment attempt did not retain its exact error log; the manual workflow now uploads a short-lived sanitized deployment diagnostic artifact if the next attempt fails.
 
 The hosted issuer will then be available for Stage 2 acceptance, but the Supabase account still needs an isolated Free project. Never register this issuer in the production Supabase project as a workaround.
