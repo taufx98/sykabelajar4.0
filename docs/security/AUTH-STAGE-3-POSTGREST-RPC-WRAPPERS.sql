@@ -4,7 +4,7 @@
 -- Free-plan Supabase project has accepted the Better Auth Custom OIDC issuer.
 --
 -- Required private implementations must already exist:
---   private.provision_better_auth_user(uuid,text,text,text,text,boolean)
+--   private.provision_better_auth_user(uuid,text,text,text,text,boolean,date,text,text,text)
 --   private.complete_better_auth_email_verification(uuid,timestamptz)
 --
 -- These public wrappers are intentionally the only PostgREST entry points used
@@ -19,8 +19,12 @@ create or replace function public.better_auth_provision_user(
   p_account_type text,
   p_full_name text,
   p_username text,
-  p_referral_code text,
-  p_email_verified boolean default false
+  p_referral_code text default null,
+  p_email_verified boolean default false,
+  p_birth_date date default null,
+  p_institution text default null,
+  p_grade text default null,
+  p_subjects text default null
 )
 returns jsonb
 language sql
@@ -33,7 +37,11 @@ as $function$
     p_full_name,
     p_username,
     p_referral_code,
-    p_email_verified
+    p_email_verified,
+    p_birth_date,
+    p_institution,
+    p_grade,
+    p_subjects
   );
 $function$;
 
@@ -52,17 +60,17 @@ as $function$
   );
 $function$;
 
-revoke all on function public.better_auth_provision_user(uuid,text,text,text,text,boolean)
+revoke all on function public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)
   from public, anon, authenticated;
 revoke all on function public.better_auth_complete_email_verification(uuid,timestamptz)
   from public, anon, authenticated;
 
-grant execute on function public.better_auth_provision_user(uuid,text,text,text,text,boolean)
+grant execute on function public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)
   to service_role;
 grant execute on function public.better_auth_complete_email_verification(uuid,timestamptz)
   to service_role;
 
-comment on function public.better_auth_provision_user(uuid,text,text,text,text,boolean)
+comment on function public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)
   is 'Server-only Better Auth identity projection; execute only via Cloudflare Worker service-role credential.';
 comment on function public.better_auth_complete_email_verification(uuid,timestamptz)
   is 'Server-only Better Auth email verification projection and referral qualification; execute only via Cloudflare Worker service-role credential.';
@@ -70,10 +78,10 @@ comment on function public.better_auth_complete_email_verification(uuid,timestam
 commit;
 
 -- Post-apply checks (run as a trusted database owner):
--- SELECT to_regprocedure('public.better_auth_provision_user(uuid,text,text,text,text,boolean)');
+-- SELECT to_regprocedure('public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)');
 -- SELECT to_regprocedure('public.better_auth_complete_email_verification(uuid,timestamp with time zone)');
--- SELECT has_function_privilege('service_role','public.better_auth_provision_user(uuid,text,text,text,text,boolean)','EXECUTE');
+-- SELECT has_function_privilege('service_role','public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)','EXECUTE');
 -- SELECT has_function_privilege('service_role','public.better_auth_complete_email_verification(uuid,timestamp with time zone)','EXECUTE');
--- SELECT has_function_privilege('anon','public.better_auth_provision_user(uuid,text,text,text,text,boolean)','EXECUTE');
--- SELECT has_function_privilege('authenticated','public.better_auth_provision_user(uuid,text,text,text,text,boolean)','EXECUTE');
+-- SELECT has_function_privilege('anon','public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)','EXECUTE');
+-- SELECT has_function_privilege('authenticated','public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)','EXECUTE');
 -- The last two results must be false. Repeat for the email-verification wrapper.
