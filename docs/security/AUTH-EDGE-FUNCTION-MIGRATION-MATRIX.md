@@ -70,3 +70,12 @@ Any missing issuer/audience setting, unverified JWT, missing application identit
 - Custom OIDC issuer, asymmetric JWKS, `role=authenticated`, UUID subject and RLS: https://supabase.com/docs/guides/auth/third-party/custom-oidc
 - `@supabase/server` user-mode context and RLS-scoped/admin clients: https://supabase.com/docs/guides/functions/auth
 - Pinned server package release: https://github.com/supabase/server/releases/tag/server-v1.9.2
+
+
+## Deno type-check and verified-session admin bridge — 6 November 2026
+
+## Deno type-check and verified-session admin bridge — 6 November 2026
+
+The pinned Supabase Edge adapter was type-checked successfully with Deno 2.9.8 and `@supabase/server@1.9.2` in Supabase Local Auth Claims CI [#42214172513](https://github.com/taufx98/sykabelajar4.0/actions/runs/42214172513). The same run passed all 12 Edge JWT/webhook contract tests and 73/73 local pgTAP tests. The type-check caught and corrected the missing explicit `Request` parameter type before turning green.
+
+Stage 1 ZeptoMail Admin UI is a pre-cutover bridge: it currently reads the existing Supabase Auth session and the Worker verifies that access token via the current Supabase `/auth/v1/user` endpoint, then calls `is_active_admin()` under the same caller token. It stores only encrypted Agent Send Mail Tokens in the isolated D1 and the test operation sends only to the verified admin's email. This bridge has not been browser-tested with a live admin session and has not sent real mail. Stage 4/5 must replace this bridge with a verified Better Auth access token and the accepted Supabase Custom OIDC identity path before production cutover.
