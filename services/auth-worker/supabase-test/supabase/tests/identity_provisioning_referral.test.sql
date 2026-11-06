@@ -1,7 +1,7 @@
 -- Covers server-only provisioning, trusted verification, and referral invariants.
 begin;
 
-select extensions.plan(67);
+select extensions.plan(68);
 
 select extensions.ok(
   ARRAY['student', 'teacher', 'organizer_member', 'admin']::text[] <@
