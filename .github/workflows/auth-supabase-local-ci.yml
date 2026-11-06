@@ -49,6 +49,17 @@ jobs:
       - name: Verify Better Auth Edge JWT adapter and webhook boundaries
         run: node ../../../scripts/auth-migration/edge-auth-claims.test.mjs
 
+      - name: Set up pinned Deno for Edge Function type-check
+        uses: denoland/setup-deno@v2.0.5
+        with:
+          deno-version: "2.9.8"
+          cache: true
+
+      - name: Type-check the shared Supabase Edge JWT adapter
+        run: |
+          deno check --lock "$RUNNER_TEMP/auth-edge-deno.lock" --lock-write \
+            ../../../supabase/functions/_shared/better-auth-user.ts
+
       - name: Validate live identity FK snapshot and dry-run plan generator
         run: |
           node ../../../scripts/auth-migration/generate-app-users-fk-plan.test.mjs
