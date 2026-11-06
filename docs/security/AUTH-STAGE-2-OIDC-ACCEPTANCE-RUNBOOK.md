@@ -82,8 +82,8 @@ Use at least two synthetic Better Auth accounts with distinct UUIDs. Do not use 
 
 ## Current blockers and safe continuation
 
-- Stage 1 still needs staging Worker secrets, a reviewed non-production Worker deployment, real ZeptoMail delivery test, a test Google OAuth callback if Google sign-in is to be supported at launch, and the stable auth hostname.
-- The connected Supabase account has reached its two-active-Free-project limit. No separate staging project was created. Do not pause/delete the production project or register this issuer in production to work around that limit.
+- Stage 1's dedicated D1, Worker, custom auth hostname, hosted discovery/PKCE/JWKS smoke test and current branch Pages preview are complete. A redeploy of the live Worker with the newly allowlisted exact branch-preview Origin and the corresponding CORS smoke test are still pending. Real ZeptoMail Agent delivery and interactive session/email callback tests are also pending; Google OAuth is optional if not in launch scope.
+- The connected Supabase account has reached its two-active-Free-project limit. Its visible project list contains only the production project, and no separate staging project or development branch is available through the connection. Do not pause/delete the production project or register this issuer in production to work around that limit.
 - Until both blockers are cleared, hosted Custom OIDC acceptance is pending. Local CI success is not evidence that Supabase has accepted the issuer.
 - Production Supabase schema, OIDC settings, users, application data, and frontend login remain unchanged.
 
