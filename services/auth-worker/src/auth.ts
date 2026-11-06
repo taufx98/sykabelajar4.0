@@ -3,6 +3,12 @@ import { jwt } from "better-auth/plugins";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import type { AuthWorkerEnv } from "./env";
 import { sendAuthEmail } from "./email";
+import { APIError } from "better-auth/api";
+import {
+  completeSupabaseEmailVerification,
+  isSupabaseProvisioningEnabled,
+  reconcileSupabaseApplicationIdentity,
+} from "./supabase-provisioning.mjs";
 
 function requireHttpsOrigin(value: string, label: string, allowLocalhost = false): string {
   const url = new URL(value);
@@ -70,6 +76,10 @@ export function createAuth(env: AuthWorkerEnv) {
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
+      afterEmailVerification: async (user) => {
+        if (!isSupabaseProvisioningEnabled(env)) return;
+        await completeSupabaseEmailVerification(env, user);
+      },
       sendVerificationEmail: async ({ user, url }) => {
         await sendAuthEmail(env, {
           to: user.email,
@@ -80,6 +90,77 @@ export function createAuth(env: AuthWorkerEnv) {
       },
     },
     socialProviders,
+    user: {
+      additionalFields: {
+        accountType: {
+          type: "string",
+          required: false,
+          defaultValue: "student",
+          input: true,
+        },
+        username: {
+          type: "string",
+          required: false,
+          input: true,
+        },
+        referralCode: {
+          type: "string",
+          required: false,
+          input: true,
+        },
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            if (!isSupabaseProvisioningEnabled(env)) return;
+            await reconcileSupabaseApplicationIdentity(env, user);
+          },
+        },
+        update: {
+          before: async (data) => {
+            // Registration attributes are immutable after first provisioning.
+            // Profile edits must use the application profile flow, not Better Auth
+            // user-update endpoints, to avoid desynchronizing the identity root.
+            const safeData = { ...data } as Record<string, unknown>;
+            delete safeData.accountType;
+            delete safeData.username;
+            delete safeData.referralCode;
+            return { data: safeData };
+          },
+        },
+      },
+      session: {
+        create: {
+          before: async (session, ctx) => {
+            if (!isSupabaseProvisioningEnabled(env)) return { data: session };
+
+            // A previous after-hook may have failed after the D1 user row was
+            // committed. Retry the idempotent Postgres projection here and
+            // withhold this session until the identity exists.
+            const user = await ctx.context.adapter.findOne({
+              model: "user",
+              where: [{ field: "id", value: session.userId }],
+            });
+            if (!user) {
+              throw new APIError("INTERNAL_SERVER_ERROR", {
+                message: "APPLICATION_IDENTITY_NOT_READY",
+              });
+            }
+
+            try {
+              await reconcileSupabaseApplicationIdentity(env, user);
+            } catch {
+              throw new APIError("INTERNAL_SERVER_ERROR", {
+                message: "APPLICATION_IDENTITY_NOT_READY",
+              });
+            }
+            return { data: session };
+          },
+        },
+      },
+    },
     account: {
       encryptOAuthTokens: true,
       accountLinking: {
