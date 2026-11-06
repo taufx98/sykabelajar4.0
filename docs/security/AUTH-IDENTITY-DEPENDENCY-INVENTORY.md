@@ -226,3 +226,12 @@ Latest Security Advisor snapshot (observed 6 November 2026 09:13 UTC):
 - Performance review: 41 unindexed foreign keys, 13 auth-RLS init-plan findings, 86 unused indexes and 26 multiple-permissive-policy findings. These are separate, scoped optimization/security review items; do not mass-change indexes or policies as part of the identity migration.
 
 No schema, data, Auth provider settings, Edge Functions, secrets or production accounts were modified by these checks.
+
+
+## Full table/RLS and private organizer-code access recheck — 6 November 2026
+
+A metadata-only Supabase table inventory via `list_tables(verbose=true)` reports 125 application tables across `public` (120) and `private` (5). RLS is enabled on 124; the only table reported without RLS is `private.organizer_access_codes`. No table rows or personal records were read by this inventory.
+
+A separate permission query confirms `anon` and `authenticated` have neither `USAGE` nor `CREATE` on the `private` schema and have no direct SELECT/INSERT grants on `private.organizer_access_codes`. The table is accessed by four `SECURITY DEFINER` functions: `public.admin_create_organizer`, `public.create_organizer`, `public.join_organizer` and `public.rotate_organizer_access_code`. None is executable by `anon`; all four are executable by `authenticated`. Their authorization guards and fixed `search_path` settings were inspected read-only. Three use `search_path=public,private`; `rotate_organizer_access_code` uses an empty search path and schema-qualified references.
+
+This does not by itself establish an exploitable exposure: direct schema/table privileges deny public access and the functions contain operation-specific caller checks. Do not blanket-enable RLS on this private table or revoke function grants without evaluating every intended organizer flow. Stage 5 must preserve the access-code hash-only storage, admin/organizer-manager authorization, and UUID caller checks while replacing the `auth.users` dependency in `create_organizer` with a separately verified email/phone projection. The phone-confirmation requirement remains a hard migration gate.
