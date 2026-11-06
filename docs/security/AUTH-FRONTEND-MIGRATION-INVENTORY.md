@@ -78,3 +78,12 @@ Signed profile upload must call the Cloudinary signing endpoint with a Better Au
 - Do not move media storage to Supabase Storage; Cloudinary remains the media system of record.
 - Do not disable the app's server-side ownership/role checks when replacing client auth calls.
 
+
+
+## Registration contract cross-check — 6 November 2026
+
+The current registration UI uses `ROLE_OPTIONS` in `src/pages/RegisterPage.tsx` with UI values `pelajar`, `guru`, and `penyelenggara`. `src/store/AppContext.tsx` already maps these through `uiRoleToAccountType()` to the Better Auth-compatible values `student`, `teacher`, and `organizer`. Keep this mapping at the single auth-service boundary in Stage 4; never send `admin` as a self-service account type.
+
+The current username input in `RegisterPage` removes whitespace and lowercases the value but does not provide a format/length validator. The new Worker pre-insert validation accepts only a lower-case safe segment (first character alphanumeric; remaining characters alphanumeric, dot, underscore or hyphen; 3–40 characters). Stage 4 must mirror the server validation in the form with inline feedback before submission, while treating the server response as authoritative. Do not loosen the server rule based on browser input, and do not copy a client-supplied role into a privileged role grant.
+
+A metadata-only production check found 11 profiles with usernames; all 11 match the current Worker safe-segment rule, with no username shorter than three characters, longer than 40, mixed-case, or containing an out-of-pattern character. No usernames or profile rows were selected. The live `public.profiles` table has a unique index on `username`, a check constraint limiting `account_type` to `student`, `teacher`, `organizer`, and no database-level username format/length constraint. The Worker validator is therefore a deliberate new registration contract, not a mirror of an existing database regex. Keep uniqueness handling atomic in the trusted provisioning transaction.
