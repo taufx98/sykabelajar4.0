@@ -74,9 +74,9 @@ jobs:
           OAUTH_CLIENT_TOKEN="$(openssl rand -hex 32)"
           MAIL_TOKEN="$(openssl rand -hex 32)"
           printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\nOAUTH_CLIENT_BOOTSTRAP_TOKEN=%s\nOAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback\nAUTH_EMAIL_PROVIDER=webhook\nAUTH_EMAIL_WEBHOOK_URL=http://localhost:8788/send\nAUTH_EMAIL_WEBHOOK_TOKEN=%s\nAUTH_EMAIL_FROM=noreply@example.test\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" "$OAUTH_CLIENT_TOKEN" "$MAIL_TOKEN" > .dev.vars
-          npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
+          setsid npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
           WORKER_PID=$!
-          trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
+          trap 'kill -- -"$WORKER_PID" 2>/dev/null || true' EXIT
           WORKER_READY=false
           for attempt in $(seq 1 30); do
             if curl --silent --fail http://127.0.0.1:8787/bootz > /dev/null; then
@@ -122,7 +122,7 @@ jobs:
           # the checked-in versioned migration chain from an empty database; otherwise
           # migration 0004 correctly reports duplicate columns already created by the
           # schema exporter. This keeps the 0001 baseline immutable and proves 0004.
-          kill "$WORKER_PID" 2>/dev/null || true
+          kill -- -"$WORKER_PID" 2>/dev/null || true
           wait "$WORKER_PID" 2>/dev/null || true
           WORKER_PID=""
           rm -rf .wrangler/state/v3/d1
@@ -169,7 +169,7 @@ jobs:
           console.log("Verified the fixed first-party OAuth client seed, PKCE, resource and exact callback in the migrated D1 database.");
           NODE
 
-          npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker-migrated.log" 2>&1 &
+          setsid npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker-migrated.log" 2>&1 &
           WORKER_PID=$!
           WORKER_READY=false
           for attempt in $(seq 1 30); do
@@ -188,13 +188,17 @@ jobs:
             exit 1
           fi
 
-          AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 \
+          if ! AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 \
             DEV_APP_ORIGIN=http://localhost:5173 \
             SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id \
             OAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback \
             OAUTH_CLIENT_BOOTSTRAP_TOKEN="$OAUTH_CLIENT_TOKEN" \
             AUTH_EMAIL_WEBHOOK_TOKEN="$MAIL_TOKEN" \
-            node tests/auth-flow.integration.mjs
+            node tests/auth-flow.integration.mjs; then
+            echo "Auth integration failed. Worker runtime diagnostics follow:"
+            cat "$RUNNER_TEMP/auth-worker-migrated.log"
+            exit 1
+          fi
 
       - name: Bundle Worker without deploying
         run: npm run build
