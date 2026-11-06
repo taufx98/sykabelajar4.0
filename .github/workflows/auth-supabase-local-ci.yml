@@ -53,11 +53,11 @@ jobs:
         uses: denoland/setup-deno@v2.0.5
         with:
           deno-version: "2.9.8"
-          cache: true
+          cache: false
 
       - name: Type-check the shared Supabase Edge JWT adapter
         run: |
-          deno check --lock "$RUNNER_TEMP/auth-edge-deno.lock" --lock-write \
+          deno check --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/_shared/better-auth-user.ts
 
       - name: Validate live identity FK snapshot and dry-run plan generator
