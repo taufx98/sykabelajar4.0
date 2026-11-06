@@ -302,3 +302,12 @@ Current official Supabase billing guidance says the Free plan includes two activ
 4. Keep production `mvdczyitbkxkldjughor` untouched and never register the staging issuer there.
 
 The connected Supabase tools in this session expose list/get/create-project actions but no create-organization or team-role update action. Thus I cannot create the new Free organization or change team membership from this connection. This is a dashboard prerequisite, not permission to use a paid project. Hosted Custom OIDC and two-user IDOR acceptance remain blocked until an isolated Free project exists.
+
+
+## PR/base-branch integration gate — 6 November 2026
+
+## PR/base-branch integration gate — 6 November 2026
+
+PR [#177](https://github.com/taufx98/sykabelajar4.0/pull/177) remains **open, Draft, and unmerged**. The current head is `346c5094db462d55406ecef02200954926037618`; the PR's base is `security/auth-migration-phase-0`, and GitHub currently reports `mergeable_state=dirty`. A comparison against `main` reports the migration branch as diverged, 522 commits ahead and six behind.
+
+Green CI proves the branch's tested source works in isolation; it does not make a dirty/diverged PR safe to merge. Do not force-merge, change the base blindly, or overwrite files from `main`. Before any merge, perform a reviewed three-way base reconciliation, resolve conflicts by preserving newer production app changes, then rerun full Worker/Supabase/frontend CI and the production impact review. No merge was attempted.
