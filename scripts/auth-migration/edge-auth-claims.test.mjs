@@ -94,7 +94,7 @@ test("does not accept untrusted/non-object claims", () => {
 
 const edgeRoot = new URL("../../supabase/functions/", import.meta.url);
 const edgeAdapter = readFileSync(new URL("_shared/better-auth-user.ts", edgeRoot), "utf8");
-const supabaseConfig = readFileSync(new URL("../..//supabase/config.toml", import.meta.url), "utf8");
+const supabaseConfig = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
 const webhookSource = readFileSync(new URL("payment-gateway-webhook/index.ts", edgeRoot), "utf8");
 
 function functionConfig(name) {
@@ -105,12 +105,12 @@ function functionConfig(name) {
 }
 
 test("Edge adapter delegates cryptographic JWT verification to pinned @supabase/server", () => {
-  assert.match(edgeAdapter, /npm:@supabase\\/server@1\\.9\\.2/);
-  assert.match(edgeAdapter, /createSupabaseContext\\(request, \\{ auth: "user" \\}\\)/);
-  assert.match(edgeAdapter, /context\\.jwtClaims/);
-  assert.match(edgeAdapter, /context\\.userClaims\\?\\.id/);
-  assert.doesNotMatch(edgeAdapter, /jwt-decode|atob\\(|crypto\\.subtle|jsonwebtoken/i);
-  assert.doesNotMatch(edgeAdapter, /auth\\.getUser\\(/);
+  assert.match(edgeAdapter, /npm:@supabase\/server@1\.9\.2/);
+  assert.match(edgeAdapter, /createSupabaseContext\(request, \{ auth: "user" \}\)/);
+  assert.match(edgeAdapter, /context\.jwtClaims/);
+  assert.match(edgeAdapter, /context\.userClaims\?\.id/);
+  assert.doesNotMatch(edgeAdapter, /jwt-decode|atob\(|crypto\.subtle|jsonwebtoken/i);
+  assert.doesNotMatch(edgeAdapter, /auth\.getUser\(/);
 });
 
 test("verified user adapter fails closed without exact issuer and resource audience config", () => {
@@ -129,13 +129,13 @@ test("user-invoked payment and Cloudinary functions keep platform JWT verificati
     "payment-gateway-reconcile",
     "midtrans-create-payment",
   ]) {
-    assert.match(functionConfig(name), /verify_jwt\\s*=\\s*true/);
+    assert.match(functionConfig(name), /verify_jwt\s*=\s*true/);
   }
 });
 
 test("provider webhook endpoints remain JWT-exempt but keep provider signature verification", () => {
   for (const name of ["payment-webhook", "payment-gateway-webhook"]) {
-    assert.match(functionConfig(name), /verify_jwt\\s*=\\s*false/);
+    assert.match(functionConfig(name), /verify_jwt\s*=\s*false/);
   }
   assert.match(webhookSource, /constantTimeEqual/);
   assert.match(webhookSource, /sha512/);
@@ -144,7 +144,7 @@ test("provider webhook endpoints remain JWT-exempt but keep provider signature v
 });
 
 test("Better Auth Postgres role remains separate from application business roles", () => {
-  assert.match(edgeAdapter, /userClaims\\?\\.role !== "authenticated"/);
-  assert.match(edgeAdapter, /userId: identity\\.userId/);
-  assert.match(supabaseConfig, /\\[functions\\.payment-gateway-reconcile\\][\\s\\S]*?verify_jwt = true/);
+  assert.match(edgeAdapter, /userClaims\?\.role !== "authenticated"/);
+  assert.match(edgeAdapter, /userId: identity\.userId/);
+  assert.match(supabaseConfig, /\[functions\.payment-gateway-reconcile\][\s\S]*?verify_jwt = true/);
 });
