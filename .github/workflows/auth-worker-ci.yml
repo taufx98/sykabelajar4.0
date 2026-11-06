@@ -6,6 +6,9 @@ on:
       - security/auth-poc-stage-1
     paths:
       - "services/auth-worker/**"
+      - "supabase/functions/_shared/**"
+      - "supabase/config.toml"
+      - "scripts/auth-migration/edge-auth-claims.test.mjs"
       - ".github/workflows/auth-worker-ci.yml"
 
 permissions:
@@ -45,6 +48,9 @@ jobs:
 
       - name: Security contract tests
         run: npm test
+
+      - name: Verify Supabase Custom OIDC and Edge Function auth contract
+        run: node ../../scripts/auth-migration/edge-auth-claims.test.mjs
 
       - name: Run local Worker, apply D1 migrations, and verify auth/OAuth flows
         shell: bash
