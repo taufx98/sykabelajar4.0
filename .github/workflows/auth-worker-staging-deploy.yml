@@ -131,7 +131,7 @@ jobs:
           console.log("Verified all " + expected.length + " remote staging D1 tables.");
           NODE
 
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-user-columns.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-user-columns.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -144,10 +144,10 @@ jobs:
             Object.values(value).forEach(visit);
           };
           visit(payload);
-          const expected = ["accountType", "username", "referralCode"];
+          const expected = ["accountType", "username", "referralCode", "birthDate", "institution", "grade", "subjects"];
           const missing = expected.filter((name) => !columns.has(name));
           if (missing.length) throw new Error("Remote staging D1 lacks Better Auth registration columns: " + missing.join(", ") + ". Run the guarded D1 migration workflow first.");
-          console.log("Verified Better Auth registration metadata columns before Worker deployment.");
+          console.log("Verified all seven Better Auth registration/profile bootstrap columns before Worker deployment.");
           NODE
 
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM user) AS users, (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM account) AS accounts, (SELECT COUNT(*) FROM verification) AS verifications, (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
