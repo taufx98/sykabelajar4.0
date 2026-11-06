@@ -30,7 +30,9 @@ export function isOwnedCloudinaryPublicId(publicIdInput, identity = {}) {
   const publicId = normalizePublicId(publicIdInput);
   if (!publicId) return false;
 
-  const normalizedUsername = typeof username === "string" ? username.trim().toLowerCase() : "";
+  // Cloudinary public IDs are case-sensitive. Preserve the exact username
+  // returned by the caller-scoped profile lookup, including legacy casing.
+  const normalizedUsername = typeof username === "string" ? username.trim() : "";
   if (SAFE_SEGMENT.test(normalizedUsername)) {
     const ownProfilePrefix = `sykabelajar/${normalizedUsername}/`;
     if (
