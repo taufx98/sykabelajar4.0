@@ -356,3 +356,24 @@ The isolated project's `public.auth_oidc_acceptance_rows` fixture uses synthetic
 This is a Postgres RLS contract test—not hosted OIDC cryptographic acceptance. The provider issuer has not yet been registered on the staging project's Third-Party Auth settings, and no Better Auth user token has been accepted by the hosted Supabase Auth/Data API. The Supabase connector available in this session can provision projects and run SQL but does not expose the third-party auth configuration write API. Production Custom OIDC remains untouched.
 
 The Stage 2 runbook now records this corrected blocker and exact project details. Stages 3–7 remain gated by schema-only production baseline export, hosted token acceptance, identity/FK/provisioning design validation, frontend/backend migration, regression and rollback. No production data, identity rows, FK, trigger, RLS, Auth configuration, Edge Function, or login route was changed.
+
+
+## Stage 1 refresh — 7 November 2026
+
+The previous staging checkpoint is superseded by the following verified deployment sequence:
+
+- Remote D1 migration 0004 applied successfully in [run #42265224273](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265224273). All 17 expected tables and seven registration/profile columns were verified.
+- Staging Worker deployed successfully in [run #42265308348](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265308348). Current deployed version: `ab04efd9-5750-48c0-8dbe-56c2a6d1118a`.
+- Hosted health, exact issuer, PKCE S256, ES256 P-256 public JWKS and CORS allow/deny checks passed.
+- The staging D1 still has no user, session, account or verification rows. No production Supabase/Cloudflare resources were mutated.
+- Both remote operations were run by exact one-time marker commits on the staging branch. The prior successful 0000–0003 migration and initial Worker deployment were not repeated.
+
+## Stage 2 current state — 7 November 2026
+
+- Free Supabase staging project `sykabelajar-auth-staging` (`ydamszdfsxqisanazdkb`, APAC) is healthy and quoted at US$0/month.
+- Hosted synthetic RLS fixture exists with two synthetic owner UUIDs, FORCE RLS, four owner policies plus a restrictive exact-issuer policy. Transactional SQL acceptance checks passed; only the two fixture rows remain.
+- Local Supabase CI #42264325438 is successful with the corresponding issuer/RLS fixture test.
+- **Still blocked:** Supabase Third-Party Auth Custom OIDC issuer registration and actual Better Auth token exchange/acceptance. The connected Supabase tool does not expose the provider-write Management API operation; production issuer registration remains prohibited.
+- **Still pending:** real ZeptoMail Agent setup and end-to-end verified registration. The staging Worker reports `emailAgentConfigured=false`.
+
+Stage 3 production changes remain blocked by the owner-local schema-only application baseline, a complete dry-run/reviewed migration plan and the organizer phone-verification compatibility proof. Stages 4–7 remain gated by hosted issuer acceptance and identity provisioning. Production schema/auth/users/Edge Functions/login have not been changed.
