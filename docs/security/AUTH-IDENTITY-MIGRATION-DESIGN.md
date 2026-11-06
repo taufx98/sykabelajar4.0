@@ -180,3 +180,12 @@ For a user-invoked Edge Function, evaluate Supabase's current `@supabase/server`
 Signed provider callbacks remain separate: `payment-webhook` and `payment-gateway-webhook` have `verify_jwt = false` and must continue to verify their provider signature, timestamp and event idempotency. They must not be converted into user-JWT endpoints.
 
 The four user-facing functions, webhook handlers and their exact deployed versions must be covered by the two-user hosted IDOR/authorization matrix before Stage 5 is complete. Current Supabase reference: https://supabase.com/docs/guides/functions/auth.
+
+
+## Stage 5 implementation scaffold checkpoint — 6 November 2026
+
+The repo now contains a non-deployed shared Edge Function adapter at `supabase/functions/_shared/better-auth-user.ts`, backed by pure claim validation at `auth-claims.mjs`. It pins `npm:@supabase/server@1.9.2`, calls `createSupabaseContext(request, { auth: "user" })`, then enforces exact configured issuer/audience, UUID subject and matching `userClaims.id`, Postgres `role=authenticated`, integer token times and a maximum 300-second lifetime. It does not decode JWTs or implement cryptographic verification manually.
+
+A contract suite now tests valid/invalid claims, wrong issuer/audience, non-UUID subjects, business-role misuse, expiry/time/lifetime errors, platform JWT settings, and webhook signature boundaries. `supabase/config.toml` now explicitly sets `verify_jwt=true` for `payment-gateway-reconcile`, in addition to the other user-invoked payment/Cloudinary endpoints. Payment-provider webhooks remain `verify_jwt=false` and retain their independent signature verification.
+
+This adapter has **not** been wired into the four live user-facing Edge Function implementations, and no Edge Function was deployed. Do not deploy the adapter until Stage 2 Custom OIDC acceptance and Stage 3 identity projection are proven in an isolated Supabase project. See [AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md](AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md).
