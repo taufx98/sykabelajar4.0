@@ -1,6 +1,6 @@
 # Isolated Better Auth Worker staging deployment
 
-Status: **initial staging Worker and hosted issuer are live, but the final Stage 1 update is not yet deployed**. Remote D1 currently has migrations 0000–0003; additive migration 0004 for registration metadata is pending. After that migration is verified, redeploy the Worker to activate the exact Pages preview Origin and verify CORS. Real ZeptoMail delivery and (only if required for launch) Google OAuth callback verification remain pending. Historical permission/deployment notes below are marked where superseded.
+Status: **Stage 1 remote D1 migrations 0000–0004 are complete and the updated staging Worker is deployed**. Deployment [#42265308348](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265308348) verified all 17 D1 tables, seven registration/profile columns, empty staging identity tables, Worker health, exact OIDC issuer, PKCE S256, public ES256 P-256 JWKS, and exact-preview CORS allow/attacker-origin rejection. Real ZeptoMail delivery and (only if required for launch) Google OAuth callback verification remain pending. Historical permission/deployment notes below are marked where superseded.
 
 ## Current verified state — 6 November 2026
 
@@ -143,3 +143,19 @@ The Stage 1 Admin panel currently gets the administrator's access token from the
 This is a **temporary pre-cutover admin bridge** to configure ZeptoMail while the existing production login remains on Supabase Auth. It is not the final Better Auth login architecture. During Stage 4/5, migrate this panel to obtain the Better Auth resource access token and update the Worker-side admin verifier to validate the Better Auth issuer/audience/UUID through the accepted Custom OIDC path, then re-check the application admin role using the same verified identity. Preserve the active-admin check, token encryption, no-token-in-GET behavior, and admin-only test-mail recipient. Do not remove Supabase Auth or treat the ZeptoMail panel as cutover-ready merely because it works with the legacy session.
 
 The panel has not yet completed a real admin browser session, Agent save/activation, or test email send. No Agent Send Mail Token is stored in this repository or sent to chat.
+
+
+## Verified Stage 1 refresh — 7 November 2026
+
+- Remote D1 additive migration 0004 succeeded and its seven columns were verified before deployment.
+- Guarded Worker redeploy: [#42265308348](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265308348) — **success**.
+- Deployed Worker version: `ab04efd9-5750-48c0-8dbe-56c2a6d1118a`.
+- Hosted `/healthz`: OK.
+- Discovery issuer: `https://auth.sykabelajar.my.id/api/auth`.
+- Public JWKS: ES256 / P-256 / non-empty `kid`; no private key material.
+- PKCE S256 remains advertised.
+- Exact Pages preview Origin is allowed with credentials; `https://attacker.example` is not granted CORS permission.
+- All 17 D1 tables and seven custom user columns were checked before deployment. Staging still has zero users, sessions, accounts, or verification rows; the fixed public OAuth client is the only seeded client.
+- The deploy preserved existing Worker secrets and made no DNS, route, domain or production-site change.
+
+ZeptoMail remains unconfigured (`emailAgentConfigured=false`). No real email, registration, authorization-code exchange, session, or Supabase Custom OIDC acceptance has yet been completed. Configure an Agent Send Mail Token via the admin email settings panel; never store it in Git or send it in chat.
