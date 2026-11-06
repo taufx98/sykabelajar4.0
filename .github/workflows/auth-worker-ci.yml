@@ -15,6 +15,7 @@ on:
       - "supabase/functions/payment-gateway-webhook/**"
       - "supabase/config.toml"
       - "scripts/auth-migration/edge-auth-claims.test.mjs"
+      - "scripts/auth-migration/cloudinary-ownership.test.mjs"
       - ".github/workflows/auth-worker-ci.yml"
 
 permissions:
@@ -57,6 +58,9 @@ jobs:
 
       - name: Verify Supabase Custom OIDC and Edge Function auth contract
         run: node ../../scripts/auth-migration/edge-auth-claims.test.mjs
+
+      - name: Verify Cloudinary signer ownership boundaries
+        run: node ../../scripts/auth-migration/cloudinary-ownership.test.mjs
 
       - name: Run local Worker, apply D1 migrations, and verify auth/OAuth flows
         shell: bash
