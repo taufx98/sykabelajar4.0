@@ -1,6 +1,11 @@
 name: Auth D1 Staging Schema Migration
 
 on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/APPLY-STAGING-D1-0004"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -36,13 +41,35 @@ jobs:
             echo "Blocked: run this workflow only from security/auth-poc-stage-1." >&2
             exit 1
           }
-          test "$CONFIRMATION" = "APPLY-TO-sykabelajar-auth-poc" || {
-            echo "Blocked: the exact staging database confirmation was not supplied." >&2
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "APPLY-TO-sykabelajar-auth-poc" || {
+              echo "Blocked: the exact staging database confirmation was not supplied." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker="../../.github/auth-ops/APPLY-STAGING-D1-0004"
+            test -f "$marker" || {
+              echo "Blocked: the one-time staging migration marker is missing." >&2
+              exit 1
+            }
+            test "$(cat "$marker")" = "APPLY-TO-sykabelajar-auth-poc" || {
+              echo "Blocked: the one-time staging migration marker is not exact." >&2
+              exit 1
+            }
+          else
+            echo "Blocked: this workflow accepts only guarded push or manual dispatch." >&2
             exit 1
-          }
+          fi
 
           node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
           import { readFileSync, readdirSync } from "node:fs";
+
+          const migration = readFileSync("migrations/0004_better_auth_registration_attributes.sql");
+          const migrationSha256 = createHash("sha256").update(migration).digest("hex");
+          if (migrationSha256 !== "c569ffe20088ba124c2eb1da19790b717715894dac7a373dd8a071b0aab2b778") {
+            throw new Error("Migration 0004 content changed after review. Refusing remote D1 mutation.");
+          }
 
           const config = readFileSync("wrangler.toml", "utf8");
           const requiredConfig = [
