@@ -21,7 +21,12 @@ function normalizePublicId(value) {
  * an organizer workspace they own. Callers must pass profile/organizer rows
  * fetched with the caller-scoped Supabase client (never service-role rows).
  */
-export function isOwnedCloudinaryPublicId(publicIdInput, { username, ownedOrganizers = [] } = {}) {
+/**
+ * @param {unknown} publicIdInput
+ * @param {{ username?: string | null, ownedOrganizers?: Array<{ id?: string | null, slug?: string | null }> }} [identity]
+ */
+export function isOwnedCloudinaryPublicId(publicIdInput, identity = {}) {
+  const { username, ownedOrganizers = [] } = identity;
   const publicId = normalizePublicId(publicIdInput);
   if (!publicId) return false;
 
