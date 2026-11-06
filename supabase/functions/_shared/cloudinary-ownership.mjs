@@ -1,4 +1,4 @@
-const SAFE_SEGMENT = /^[a-z0-9][a-z0-9_-]{0,79}$/i;
+const SAFE_SEGMENT = /^[a-z0-9][a-z0-9._-]{0,79}$/i;
 
 function normalizePublicId(value) {
   if (typeof value !== "string") return null;
