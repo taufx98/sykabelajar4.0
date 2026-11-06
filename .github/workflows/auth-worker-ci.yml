@@ -138,6 +138,37 @@ jobs:
           COLUMN_COUNT="$(printf '%s\\n' "$D1_USER_COLUMNS" | grep -Ec 'accountType|username|referralCode' || true)"
           test "$COLUMN_COUNT" -eq 3 || { echo "Better Auth registration columns are missing after the versioned migration chain." >&2; exit 1; }
 
+          npx wrangler d1 execute sykabelajar-auth-poc --local --json --command "SELECT cfg.key AS config_key, cfg.value AS configured_client_id, c.clientId AS client_id, c.clientSecret AS client_secret, c.disabled AS disabled, c.scopes AS scopes, c.redirectUris AS redirect_uris, c.tokenEndpointAuthMethod AS token_endpoint_auth_method, c.grantTypes AS grant_types, c.responseTypes AS response_types, c.requirePKCE AS require_pkce, r.resourceId AS resource_id FROM auth_worker_internal_config AS cfg JOIN oauthClient AS c ON c.clientId = cfg.value JOIN oauthClientResource AS r ON r.clientId = c.clientId WHERE cfg.key = 'first_party_oauth_client_id' AND cfg.value <> 'pending';" > "$RUNNER_TEMP/auth-worker-oauth-seed.json"
+
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const raw = readFileSync(process.env.RUNNER_TEMP + "/auth-worker-oauth-seed.json", "utf8");
+          const payload = JSON.parse(raw);
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "client_id")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          assert.ok(row, "versioned D1 migrations must seed and link the first-party OAuth client");
+          assert.equal(row.config_key, "first_party_oauth_client_id");
+          assert.equal(row.client_id, "sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y");
+          assert.equal(row.configured_client_id, row.client_id);
+          assert.equal(row.client_secret, null);
+          assert.equal(Number(row.disabled), 0);
+          assert.equal(row.token_endpoint_auth_method, "none");
+          assert.equal(Number(row.require_pkce), 1);
+          assert.equal(row.resource_id, "https://sykabelajar.my.id");
+          assert.deepEqual(JSON.parse(row.scopes), ["openid", "profile", "email"]);
+          assert.deepEqual(JSON.parse(row.grant_types), ["authorization_code"]);
+          assert.deepEqual(JSON.parse(row.response_types), ["code"]);
+          assert.deepEqual(JSON.parse(row.redirect_uris), ["https://sykabelajar.my.id/auth/oidc/callback"]);
+          console.log("Verified the fixed first-party OAuth client seed, PKCE, resource and exact callback in the migrated D1 database.");
+          NODE
+
           npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker-migrated.log" 2>&1 &
           WORKER_PID=$!
           WORKER_READY=false
