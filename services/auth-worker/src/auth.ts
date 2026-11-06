@@ -108,6 +108,34 @@ export function createAuth(env: AuthWorkerEnv) {
           type: "string",
           required: false,
           input: true,
+          returned: false,
+        },
+        // These fields are a short-lived signup payload for the trusted
+        // Postgres profile projection, not user/session claims. They are never
+        // returned by Better Auth session APIs.
+        birthDate: {
+          type: "string",
+          required: false,
+          input: true,
+          returned: false,
+        },
+        institution: {
+          type: "string",
+          required: false,
+          input: true,
+          returned: false,
+        },
+        grade: {
+          type: "string",
+          required: false,
+          input: true,
+          returned: false,
+        },
+        subjects: {
+          type: "string",
+          required: false,
+          input: true,
+          returned: false,
         },
       },
     },
@@ -142,6 +170,10 @@ export function createAuth(env: AuthWorkerEnv) {
             delete safeData.accountType;
             delete safeData.username;
             delete safeData.referralCode;
+            delete safeData.birthDate;
+            delete safeData.institution;
+            delete safeData.grade;
+            delete safeData.subjects;
             return { data: safeData };
           },
         },
