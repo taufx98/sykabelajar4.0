@@ -117,19 +117,52 @@ jobs:
           console.log("JWKS keys:", jwks.keys.length);
           NODE
 
+          # The schema export endpoint runs Better Auth's supported migrator on the
+          # scratch D1 used by wrangler dev. Discard that scratch DB before testing
+          # the checked-in versioned migration chain from an empty database; otherwise
+          # migration 0004 correctly reports duplicate columns already created by the
+          # schema exporter. This keeps the 0001 baseline immutable and proves 0004.
+          kill "$WORKER_PID" 2>/dev/null || true
+          wait "$WORKER_PID" 2>/dev/null || true
+          WORKER_PID=""
+          rm -rf .wrangler/state/v3/d1
+
           npx wrangler d1 migrations apply sykabelajar-auth-poc --local
           D1_TABLES="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_email_accounts','auth_email_settings','auth_email_admin_test_limits') ORDER BY name" 2>&1)"
           printf '%s\\n' "$D1_TABLES"
           TABLE_COUNT="$(printf '%s\\n' "$D1_TABLES" | grep -c 'auth_email_' || true)"
           test "$TABLE_COUNT" -ge 3 || { echo "ZeptoMail D1 migration tables are missing." >&2; exit 1; }
-          curl --silent --show-error --fail http://127.0.0.1:8787/healthz
 
-          AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 \
-            DEV_APP_ORIGIN=http://localhost:5173 \
-            SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id \
-            OAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback \
-            OAUTH_CLIENT_BOOTSTRAP_TOKEN="$OAUTH_CLIENT_TOKEN" \
-            AUTH_EMAIL_WEBHOOK_TOKEN="$MAIL_TOKEN" \
+          D1_USER_COLUMNS="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode') ORDER BY name" 2>&1)"
+          printf '%s\\n' "$D1_USER_COLUMNS"
+          COLUMN_COUNT="$(printf '%s\\n' "$D1_USER_COLUMNS" | grep -Ec 'accountType|username|referralCode' || true)"
+          test "$COLUMN_COUNT" -eq 3 || { echo "Better Auth registration columns are missing after the versioned migration chain." >&2; exit 1; }
+
+          npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker-migrated.log" 2>&1 &
+          WORKER_PID=$!
+          WORKER_READY=false
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8787/healthz > /dev/null; then
+              WORKER_READY=true
+              break
+            fi
+            if ! kill -0 "$WORKER_PID" 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          if [ "$WORKER_READY" != "true" ]; then
+            echo "Worker did not restart against the versioned migrated D1. Log follows:"
+            cat "$RUNNER_TEMP/auth-worker-migrated.log"
+            exit 1
+          fi
+
+          AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 \\
+            DEV_APP_ORIGIN=http://localhost:5173 \\
+            SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id \\
+            OAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback \\
+            OAUTH_CLIENT_BOOTSTRAP_TOKEN="$OAUTH_CLIENT_TOKEN" \\
+            AUTH_EMAIL_WEBHOOK_TOKEN="$MAIL_TOKEN" \\
             node tests/auth-flow.integration.mjs
 
       - name: Bundle Worker without deploying
