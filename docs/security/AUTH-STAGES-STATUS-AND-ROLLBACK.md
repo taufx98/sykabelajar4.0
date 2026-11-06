@@ -341,3 +341,18 @@ A fresh read-only check was performed against the connected Supabase production 
 - The applied production migration list includes `20261105053729_retire_chat_system`; the chat-retirement change is separate from Better Auth and does not authorize any identity migration.
 
 The Stage 3 migration remains blocked by the private owner-local schema-only export/baseline, a separate isolated Supabase test project, reviewed executable migration plan, and trusted organizer phone-verification preservation. Stages 4–7 remain gated by those prerequisites and hosted two-user acceptance. Production identity tables, foreign keys, triggers, RLS, RPCs, Edge Functions and users remain unchanged.
+
+
+## Supabase staging and OIDC fixture — 7 November 2026
+
+The previously recorded absence of a separate Supabase staging project is superseded. A separate Free project was created successfully at US$0/month:
+
+- `sykabelajar-auth-staging` / `ydamszdfsxqisanazdkb` / APAC `ap-southeast-1`
+- Status at creation: `ACTIVE_HEALTHY`
+- Production project `mvdczyitbkxkldjughor` was not modified.
+
+The isolated project's `public.auth_oidc_acceptance_rows` fixture uses synthetic UUIDs only, FORCE RLS, five policies (four ownership policies plus a restrictive exact-issuer guard), and two fixture records. SQL acceptance checks executed in a transaction and rolled back successfully: owner-specific read, permitted own insert/update, forged cross-user insert/update denial, second-user isolation, and denial for an untrusted `iss`. The two fixture rows remain seeded; the attempted test mutations did not persist.
+
+This is a Postgres RLS contract test—not hosted OIDC cryptographic acceptance. The provider issuer has not yet been registered on the staging project's Third-Party Auth settings, and no Better Auth user token has been accepted by the hosted Supabase Auth/Data API. The Supabase connector available in this session can provision projects and run SQL but does not expose the third-party auth configuration write API. Production Custom OIDC remains untouched.
+
+The Stage 2 runbook now records this corrected blocker and exact project details. Stages 3–7 remain gated by schema-only production baseline export, hosted token acceptance, identity/FK/provisioning design validation, frontend/backend migration, regression and rollback. No production data, identity rows, FK, trigger, RLS, Auth configuration, Edge Function, or login route was changed.
