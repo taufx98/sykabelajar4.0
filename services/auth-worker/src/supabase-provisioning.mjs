@@ -50,6 +50,7 @@ function requireProvisioningConfig(env) {
   return { baseUrl: url.origin, serviceKey };
 }
 
+/** @param {Record<string, unknown>} user */
 function normalizeUser(user) {
   if (!user || typeof user !== "object") throw new Error("BETTER_AUTH_USER_REQUIRED");
 
@@ -85,6 +86,12 @@ function normalizeUser(user) {
   };
 }
 
+/**
+ * @param {AuthWorkerEnv} env
+ * @param {string} rpcName
+ * @param {Record<string, unknown>} payload
+ * @param {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} fetchImpl
+ */
 async function invokeRpc(env, rpcName, payload, fetchImpl) {
   const { baseUrl, serviceKey } = requireProvisioningConfig(env);
   const endpoint = new URL(`/rest/v1/rpc/${rpcName}`, baseUrl);
@@ -165,7 +172,7 @@ export async function reconcileSupabaseApplicationIdentity(env, user, fetchImpl 
  * the idempotent provisioning call first, so a failed create.after hook can
  * recover from the verification callback without a shadow auth.users row.
  *
- * @param {object} env
+ * @param {AuthWorkerEnv} env
  * @param {Record<string, unknown>} user
  * @param {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} [fetchImpl]
  */
