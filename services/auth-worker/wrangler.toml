@@ -23,6 +23,9 @@ custom_domain = true
 AUTH_EMAIL_PROVIDER = "zeptomail"
 BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
 APP_ORIGIN = "https://sykabelajar.my.id"
+# Exact Cloudflare Pages preview origin for the isolated migration branch.
+# Remove this value after the temporary Admin ZeptoMail staging setup is complete.
+DEV_APP_ORIGIN = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev"
 SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
 OAUTH_CALLBACK_URL = "https://sykabelajar.my.id/auth/oidc/callback"
 
