@@ -155,7 +155,7 @@ export function createAuth(env: AuthWorkerEnv) {
             }
 
             try {
-              await reconcileSupabaseApplicationIdentity(env, user);
+              await reconcileSupabaseApplicationIdentity(env, user as Record<string, unknown>);
             } catch {
               throw new APIError("INTERNAL_SERVER_ERROR", {
                 message: "APPLICATION_IDENTITY_NOT_READY",
