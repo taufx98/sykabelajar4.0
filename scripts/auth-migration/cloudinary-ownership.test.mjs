@@ -125,6 +125,11 @@ test("the legacy delete-asset endpoint verifies the caller and binds deletes to 
   assert.doesNotMatch(deleteEndpoint, /body\?\.user_id|body\?\.owner_id|user_id\s*\}/);
   assert.match(deleteEndpoint, /FORBIDDEN_PUBLIC_ID/);
   assert.match(deleteEndpoint, /INVALID_RESOURCE_TYPE/);
+  assert.match(deleteEndpoint, /METHOD_NOT_ALLOWED/);
+  assert.match(deleteEndpoint, /request.method === "OPTIONS"/);
+  assert.match(deleteEndpoint, /access-control-allow-origin/);
+  assert.match(deleteEndpoint, /AbortSignal.timeout\(5000\)/);
+  assert.match(deleteEndpoint, /AbortSignal.timeout\(8000\)/);
   assert.match(deleteEndpoint, /CLOUDINARY_API_SECRET/);
   assert.match(deleteEndpoint, /\/destroy/);
   assert.match(supabaseConfig, /\[functions\.cloudinary-delete-asset\][\s\S]*?verify_jwt = true/);
