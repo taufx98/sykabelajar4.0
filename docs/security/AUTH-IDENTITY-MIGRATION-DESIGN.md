@@ -179,7 +179,7 @@ For a user-invoked Edge Function, evaluate Supabase's current `@supabase/server`
 
 Signed provider callbacks remain separate: `payment-webhook` and `payment-gateway-webhook` have `verify_jwt = false` and must continue to verify their provider signature, timestamp and event idempotency. They must not be converted into user-JWT endpoints.
 
-The four user-facing functions, webhook handlers and their exact deployed versions must be covered by the two-user hosted IDOR/authorization matrix before Stage 5 is complete. Current Supabase reference: https://supabase.com/docs/guides/functions/auth.
+All nine identity/ownership-sensitive user-facing Edge Function implementations (six Cloudinary and three payment), the legacy Midtrans delegate, and the separate provider webhook/public certificate handlers must be covered by the appropriate two-user hosted IDOR, provider-signature, and public-visibility matrices before Stage 5 is complete. Current Supabase reference: https://supabase.com/docs/guides/functions/auth.
 
 
 ## Stage 5 implementation scaffold checkpoint — 6 November 2026
