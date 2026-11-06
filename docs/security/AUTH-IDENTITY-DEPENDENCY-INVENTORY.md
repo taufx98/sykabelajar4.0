@@ -247,3 +247,24 @@ This is a source/ACL triage, not a completed pen-test of all 46. No grants were 
 - Of 23 RLS-enabled tables without policies, 20 deny direct SELECT/INSERT to anon/authenticated; three tables have table grants but no policy and therefore remain default-deny for these API roles under RLS. No blanket policy or grant change is appropriate.
 
 Stage 5 still requires isolated tests for admin-only ACLs, token-bound guest endpoints (wrong/expired/revoked/cross-participant tokens and replay), public endpoints against private/unpublished records, PR #174, and the new issuer's two-user IDOR matrix.
+
+
+## Full deployed Edge Function recheck — 6 November 2026
+
+## Full deployed Edge Function recheck — 6 November 2026
+
+A fresh read-only source download covered all 15 currently active production Edge Functions. The earlier `auth.getUser()`-only search found four endpoints but missed four Cloudinary functions that call `/auth/v1/user` directly, plus a delete endpoint that checks only for Bearer-header presence.
+
+The current user-identity migration surface is therefore:
+- `get-cloudinary-signature` v11 — Supabase `auth.getUser()`; live version does not bind the requested `public_id` to the caller. The branch adds profile/organizer ownership checks, not deployed.
+- `cloudinary-profile-upload` v9 and `cloudinary-profile-upload-v2` v9 — manual `/auth/v1/user` verification; both derive UUID-based profile/cover IDs from the returned user.
+- `cloudinary-delete-asset` v9 — platform `verify_jwt=true`, but handler only checks for a Bearer header and does not resolve a caller UUID or compare it to the requested `public_id`. This is a high-priority owner-check gap. The branch now carries a replacement that validates the legacy Supabase Auth caller and restricts deletion to that caller's exact UUID-based avatar/cover IDs; not deployed.
+- `cloudinary-delete-asset-v2` v9 and `cloudinary-delete-profile` v9 — manual `/auth/v1/user` verification and exact owner UUID path restrictions.
+- `payment-gateway-admin` v5, `payment-gateway-create` v5 and `payment-gateway-reconcile` v1 — direct `supabase.auth.getUser()` calls. Keep caller-context `is_active_admin()`, order owner UUID checks and payment provider signature/amount/idempotency checks when migrating.
+- `midtrans-create-payment` v10 — authorization-header compatibility delegator to `payment-gateway-create`, not a second independent user verifier.
+
+The six Cloudinary endpoints plus three payment endpoints produce **nine active user-facing Edge Function implementations** that depend on the Supabase Auth identity model or require caller-ownership enforcement, plus one legacy payment delegate. The four direct `auth.getUser()` endpoints are a subset, not the complete count.
+
+The following deployed endpoints retain independent/public authentication and are not user-JWT migrations: `payment-webhook` v9 and `payment-gateway-webhook` v4 (provider signatures, `verify_jwt=false`); `payment-gateway-public` v2 (deliberately public status); `generate-collective-certificate-pdf` v8 (public certificate output); `cleanup-expired-chat-media` v9 (service-role cleanup with `verify_jwt=false`, to be retired with the approved private-chat removal).
+
+No production Edge Function code, config, secret, Cloudinary asset or Supabase Auth setting was modified. The exact per-function details and required synthetic A/B tests are in [AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md](AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md).
