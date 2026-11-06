@@ -57,9 +57,11 @@ test("runner and first-party actions use a stable Node 24-compatible toolchain",
   assert.doesNotMatch(workflow, /actions\/(checkout|setup-node)@v4/);
 });
 
-test("temporary generated secret files and deploy logs are removed", () => {
-  assert.match(workflow, /auth-worker-staging-secrets\.json/);
-  assert.match(workflow, /wrangler-deploy\.log/);
-  assert.match(workflow, /wrangler-deploy-sanitized\.log/);
+test("routine redeploy preserves provisioned Worker secrets and cleans temporary logs", () => {
+  assert.doesNotMatch(workflow, /auth-worker-staging-secrets\\.json/);
+  assert.doesNotMatch(workflow, /Prepare only missing Worker secrets/);
+  assert.match(workflow, /Wrangler preserves existing Worker secrets/);
+  assert.match(workflow, /wrangler-deploy\\.log/);
+  assert.match(workflow, /wrangler-deploy-sanitized\\.log/);
   assert.match(workflow, /name: Remove temporary secret material from runner/);
-});
+});;
