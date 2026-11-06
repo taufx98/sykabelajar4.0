@@ -249,3 +249,14 @@ Read-only verbose table metadata reports 125 application tables: 120 in `public`
 
 The 46 anon-callable SECURITY DEFINER RPCs have a first-pass caller/guard classification in [AUTH-ANON-SECURITY-DEFINER-RPC-REVIEW.md](AUTH-ANON-SECURITY-DEFINER-RPC-REVIEW.md). Preserve intentionally public read endpoints and guest exam/portal endpoints authenticated by separate hashed bearer tokens. Tighten admin-only or signed-in-only anonymous ACLs only after verifying every caller and running the isolated negative tests. PR #174 addresses the confirmed private-profile RPC issue but remains Draft and requires isolated PostgreSQL validation. Public `participant_code` exposure in published competition results is a data-minimisation review item; no behavior has been changed. The 23 RLS-enabled/no-policy tables also require per-table intended-access review; no blanket RLS or grant changes are authorized.
 
+
+
+## Latest CI verification — 6 November 2026 (Stage 4 inventory + typed Stage 5 scaffold)
+
+The Auth Worker CI [#42214172430](https://github.com/taufx98/sykabelajar4.0/actions/runs/42214172430) completed successfully on commit `ff37cc91c948fed323627a7fffd5252d27cc1ee1`: Worker dependency audit, TypeScript, 40 Worker tests, local D1/auth/OAuth integration, dry-run bundle, and frontend lint/typecheck/build all passed.
+
+The Supabase Local Auth Claims CI [#42214172513](https://github.com/taufx98/sykabelajar4.0/actions/runs/42214172513) also completed successfully: all 12 JWT/Edge/webhook contract tests, Deno type-check of the shared `@supabase/server@1.9.2` adapter, schema-exporter/FK-plan contract checks, and 73/73 isolated local pgTAP assertions passed.
+
+The frontend auth inventory is committed at [AUTH-FRONTEND-MIGRATION-INVENTORY.md](AUTH-FRONTEND-MIGRATION-INVENTORY.md): 35 direct `supabase.auth` callsites across 19 frontend files were surfaced. This is documentation/planning only; the React app remains on Supabase Auth. The shared Edge adapter is type-checked but still not wired into any existing endpoint.
+
+The latest Pages preview is green at [security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev). The actual staging Worker still predates the exact preview-Origin CORS allowlist; a new manual-only deployment is required before the browser-based ZeptoMail panel can connect. Real ZeptoMail Agent token/delivery and interactive session/email callbacks remain unverified.
