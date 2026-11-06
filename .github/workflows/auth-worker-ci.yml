@@ -19,6 +19,8 @@ on:
       - "scripts/auth-migration/cloudinary-ownership.test.mjs"
       - "scripts/auth-migration/frontend-auth-inventory.test.mjs"
       - ".github/workflows/auth-worker-ci.yml"
+      - ".github/workflows/auth-worker-staging-deploy.yml"
+      - ".github/workflows/auth-cloudflare-d1-migrate.yml"
 
 permissions:
   contents: write
