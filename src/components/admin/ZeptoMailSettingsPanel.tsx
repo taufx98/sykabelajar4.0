@@ -56,8 +56,19 @@ const ERROR_LABELS: Record<string, string> = {
   ACTIVE_EMAIL_ACCOUNT_CANNOT_BE_DELETED: 'Pilih Agent lain sebelum menghapus Agent aktif.',
 };
 
+const STAGING_PREVIEW_HOST = 'security-auth-poc-stage-1.sykabelajar4.pages.dev';
+const STAGING_AUTH_WORKER_URL = 'https://auth.sykabelajar.my.id';
+
 function authWorkerUrl() {
-  return String(import.meta.env.VITE_AUTH_WORKER_URL ?? '').trim().replace(/\/+$/, '');
+  const configured = String(import.meta.env.VITE_AUTH_WORKER_URL ?? '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
+
+  // The migration branch preview is isolated from the production site.
+  // Keep the fallback pinned to this exact Pages hostname, never a wildcard.
+  if (typeof window !== 'undefined' && window.location.hostname === STAGING_PREVIEW_HOST) {
+    return STAGING_AUTH_WORKER_URL;
+  }
+  return '';
 }
 
 function formatDate(value: string) {
