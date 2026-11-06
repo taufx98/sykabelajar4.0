@@ -123,3 +123,26 @@ Current official Supabase billing guidance says the Free plan includes two activ
 4. Keep production `mvdczyitbkxkldjughor` untouched and never register the staging issuer there.
 
 The connected Supabase tools in this session expose list/get/create-project actions but no create-organization or team-role update action. Thus I cannot create the new Free organization or change team membership from this connection. This is a dashboard prerequisite, not permission to use a paid project. Hosted Custom OIDC and two-user IDOR acceptance remain blocked until an isolated Free project exists.
+
+
+## Supabase staging project created — 7 November 2026
+
+The earlier Free-project quota blocker is superseded by this verified staging resource:
+
+- Project: `sykabelajar-auth-staging`
+- Ref: `ydamszdfsxqisanazdkb`
+- Region: `ap-southeast-1`
+- Plan/cost quote: Free, **US$0/month**
+- Status at creation: `ACTIVE_HEALTHY`
+
+This project is separate from production project `mvdczyitbkxkldjughor`. Its initial database was empty. A dedicated staging-only table `public.auth_oidc_acceptance_rows` was added with FORCE RLS, owner-only access, and a restrictive issuer predicate for `https://auth.sykabelajar.my.id/api/auth`. Two synthetic UUID owner rows were inserted. A SQL transaction tested owner A and owner B isolation, owner-only insert/update, forged cross-user insert rejection, and rejection for an untrusted issuer; the transaction was rolled back. A final inventory confirmed two seeded synthetic fixture rows, five RLS policies, and RLS enabled/forced.
+
+**Important scope:** this proves PostgreSQL RLS behavior for supplied JWT claims in the isolated project. It does not prove Supabase Auth has accepted the Better Auth issuer cryptographically. The Custom OIDC integration is still not registered, and no real Better Auth user token was sent through Supabase Data API, Storage, Realtime, or Edge Functions.
+
+The connected Supabase app integration exposes project and SQL operations but not the Management API endpoint or Dashboard mutation for Third-Party Auth. Therefore the remaining Stage 2 configuration is one of:
+1. Add `https://auth.sykabelajar.my.id/api/auth` at this staging project's **Authentication → Sign In / Providers → Third-Party Auth → Custom OIDC**; or
+2. Use a Supabase Management API personal access token with the documented `auth:write` permission to create the integration on project ref `ydamszdfsxqisanazdkb`.
+
+Do not register this issuer in the production project. Do not place a personal access token or secret in chat or source control.
+
+Official guide: https://supabase.com/docs/guides/auth/third-party/custom-oidc
