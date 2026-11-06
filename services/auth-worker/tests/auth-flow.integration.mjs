@@ -258,6 +258,27 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     const initialPassword = "Sykabelajar-PoC-Password-1";
     const resetPassword = "Sykabelajar-PoC-Password-2";
 
+    // The same email is retried with valid data below. A successful retry proves
+    // an invalid business role was rejected before Better Auth committed a D1
+    // user row; a post-insert rejection would leave this email unusable.
+    const invalidSignup = await authRequest("/sign-up/email", {
+      method: "POST",
+      body: {
+        name: "SYKABELAJAR Invalid Auth PoC",
+        email,
+        password: initialPassword,
+        accountType: "admin",
+        username: "invalid-admin",
+        callbackURL: appOrigin + "/auth/verified",
+      },
+    });
+    assert.equal(invalidSignup.status, 400, "admin must be rejected before D1 user creation");
+    assert.equal(
+      mailMessages.some((message) => message.category === "verify-email" && message.to === email),
+      false,
+      "invalid registration must not dispatch a verification email",
+    );
+
     const signup = await authRequest("/sign-up/email", {
       method: "POST",
       body: {
