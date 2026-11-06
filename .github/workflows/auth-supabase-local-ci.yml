@@ -9,6 +9,7 @@ on:
       - "scripts/auth-migration/**"
       - "supabase/functions/_shared/**"
       - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/cloudinary-delete-asset/**"
       - "supabase/functions/payment-gateway-admin/**"
       - "supabase/functions/payment-gateway-create/**"
       - "supabase/functions/payment-gateway-reconcile/**"
@@ -70,12 +71,14 @@ jobs:
           deno-version: "2.9.8"
           cache: false
 
-      - name: Type-check the shared Supabase Edge JWT and Cloudinary signer
+      - name: Type-check Supabase Edge JWT and Cloudinary endpoints
         run: |
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/_shared/better-auth-user.ts
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/get-cloudinary-signature/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/cloudinary-delete-asset/index.ts
 
       - name: Validate live identity FK snapshot and dry-run plan generator
         run: |
