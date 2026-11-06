@@ -117,3 +117,14 @@ The Cloudflare Pages check for the latest branch commit `0344a20077c5feb6bfc42a6
 Cloudflare Pages check for latest branch commit `bc8915cd3eb9f68c68ea8da20257b8feaeec2e3e` completed successfully. Use the branch preview at [https://security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev), then open `/admin/core?tab=settings` to reach the ZeptoMail Agent panel.
 
 The preview build success does not itself enable CORS: deploy the current `wrangler.toml` to the existing staging Worker with the manual-only workflow and verify the exact-origin smoke test before attempting to save or test a ZeptoMail Agent.
+
+
+## Admin ZeptoMail panel — current identity bridge and post-cutover requirement
+
+## Admin ZeptoMail panel — current identity bridge and post-cutover requirement
+
+The Stage 1 Admin panel currently gets the administrator's access token from the existing Supabase Auth session. The Worker validates that token through the configured Supabase project's `/auth/v1/user` endpoint and calls the existing `is_active_admin()` RPC in the caller's authorization context before allowing account settings changes. It does not use the service-role key. Only after the active-admin check does it store encrypted Agent configuration in the isolated auth D1.
+
+This is a **temporary pre-cutover admin bridge** to configure ZeptoMail while the existing production login remains on Supabase Auth. It is not the final Better Auth login architecture. During Stage 4/5, migrate this panel to obtain the Better Auth resource access token and update the Worker-side admin verifier to validate the Better Auth issuer/audience/UUID through the accepted Custom OIDC path, then re-check the application admin role using the same verified identity. Preserve the active-admin check, token encryption, no-token-in-GET behavior, and admin-only test-mail recipient. Do not remove Supabase Auth or treat the ZeptoMail panel as cutover-ready merely because it works with the legacy session.
+
+The panel has not yet completed a real admin browser session, Agent save/activation, or test email send. No Agent Send Mail Token is stored in this repository or sent to chat.
