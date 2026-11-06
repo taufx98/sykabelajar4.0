@@ -32,6 +32,7 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN secret." >&2; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID secret." >&2; exit 1; }
           node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
           const token = process.env.CLOUDFLARE_API_TOKEN;
           const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
           const base = "https://api.cloudflare.com/client/v4";
@@ -112,9 +113,19 @@ jobs:
           };
 
           console.log(JSON.stringify(summary, null, 2));
+          writeFileSync(process.env.RUNNER_TEMP + "/auth-cloudflare-preflight-summary.json", JSON.stringify(summary, null, 2), { mode: 0o600 });
 
           if (!summary.accountScopedReadProof.zoneRead || !summary.accountScopedReadProof.workerScriptsRead) {
             console.error("Cloudflare API token cannot read the zone and Worker script resources needed for staging.");
             process.exitCode = 1;
           }
           NODE
+
+      - name: Upload sanitized Cloudflare resource snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-cloudflare-preflight-snapshot
+          path: ${{ runner.temp }}/auth-cloudflare-preflight-summary.json
+          if-no-files-found: ignore
+          retention-days: 3
