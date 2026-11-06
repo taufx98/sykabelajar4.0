@@ -97,3 +97,12 @@ The Auth Worker CI run [#42177805558](https://github.com/taufx98/sykabelajar4.0/
 - Better Auth OAuth Provider: https://better-auth.com/docs/plugins/oauth-provider
 - Better Auth tokens, scopes, resources and PKCE: https://better-auth.com/docs/plugins/oauth-provider/tokens
 - Better Auth JWT plugin and ES256/JWKS: https://better-auth.com/docs/plugins/jwt
+
+
+## Verified staging issuer — 6 November 2026
+
+Deployment [#42190609080](https://github.com/taufx98/sykabelajar4.0/actions/runs/42190609080) now verifies the hosted issuer and public signing key. The issuer is `https://auth.sykabelajar.my.id/api/auth`; hosted discovery, hostname consistency, PKCE S256 advertisement and public ES256 P-256 JWKS all passed.
+
+This does **not** yet prove a complete hosted authorization-code exchange, minted access/ID-token claims, token renewal/session behavior, or Supabase acceptance. No staging user/session has been seeded.
+
+The connected Supabase project inventory exposes only the production project `mvdczyitbkxkldjughor`. Do not register the staging issuer there. Stage 2 remains blocked until an isolated Supabase Free project is available and the complete acceptance matrix above passes. Supabase documents Custom OIDC registration through Dashboard or Management API, not CLI: https://supabase.com/docs/guides/auth/third-party/custom-oidc.
