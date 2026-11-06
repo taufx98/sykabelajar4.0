@@ -1,6 +1,6 @@
 # Isolated Better Auth Worker staging deployment
 
-Status: **staging deployment is successful and the hosted issuer is live**. The remaining Stage 1 gates are real ZeptoMail delivery and (only if required for launch) Google OAuth callback verification. Historical permission and failed-deployment notes below are retained as history and are superseded by the verified deployment checkpoint at the end of this document.
+Status: **initial staging Worker and hosted issuer are live, but the final Stage 1 update is not yet deployed**. Remote D1 currently has migrations 0000–0003; additive migration 0004 for registration metadata is pending. After that migration is verified, redeploy the Worker to activate the exact Pages preview Origin and verify CORS. Real ZeptoMail delivery and (only if required for launch) Google OAuth callback verification remain pending. Historical permission/deployment notes below are marked where superseded.
 
 ## Current verified state — 6 November 2026
 
@@ -12,7 +12,7 @@ Status: **staging deployment is successful and the hosted issuer is live**. The 
 - Latest read-only resource snapshot [#42182078460](https://github.com/taufx98/sykabelajar4.0/actions/runs/42182078460) confirms the dedicated D1 and Worker script `sykabelajar-auth-poc` now exist; `auth.sykabelajar.my.id` Custom Domain and any matching Worker route are still absent. No new deployment occurred during that check.
 - The deployment workflow is now fixed: removed `--yes`, changed diagnostic upload to `if: ${{ failure() }}`, and pinned the runner/action runtimes. CI [#42182078655](https://github.com/taufx98/sykabelajar4.0/actions/runs/42182078655) passed both Worker/OIDC and frontend jobs. The workflow is ready for another manual staging dispatch.
 
-## Required Cloudflare API token permission
+## Historical initial Cloudflare permission guidance — superseded
 
 The GitHub Actions token already proves it can read the active `sykabelajar.my.id` zone, list Workers, read Worker domains/routes, and read/write the dedicated D1. The initial Worker creation hurdle has now been cleared: the latest preflight sees `sykabelajar-auth-poc`. The remaining action is to upload the actual Worker bundle and attach its Custom Domain. The most recent failure was a local Wrangler CLI argument error, not evidence of an outstanding permission failure.
 
@@ -35,34 +35,49 @@ Alternatively, the owner can temporarily grant product-level Workers Admin to th
 
 ## Update the existing token
 
-Token update is not required again unless the next run returns a Cloudflare authorization error. The script-creation permission has already been cleared and the latest read-only preflight can see the target Worker. Do not rotate credentials unnecessarily.
+This section belongs to the initial Worker creation period and is superseded by the successful hosted Worker/domain check. Current Cloudflare Worker Scripts, Custom Domain and Route inventory list APIs may still return HTTP 503 to this token, but the live hosted health/discovery/JWKS checks and D1/zone read checks pass. Do not expand token scope merely to satisfy optional inventory endpoints. Do not rotate credentials unnecessarily.
 
 ## Run the guarded staging deployment
 
-The workflow is manual-only now; pushes and PR updates cannot deploy it automatically.
+Both operations are manual-only. Pushes and pull-request updates do not deploy a Worker or migrate remote D1.
+
+### Step 1 — apply the additive D1 registration migration
+
+1. Open [Auth D1 Staging Schema Migration](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-cloudflare-d1-migrate.yml).
+2. Choose **Run workflow** on `security/auth-poc-stage-1`.
+3. Enter the exact confirmation:
+
+   ```text
+   APPLY-TO-sykabelajar-auth-poc
+   ```
+
+4. Verify the run applies only the reviewed migrations 0000–0004 to D1 `sykabelajar-auth-poc` (UUID `7a4f9008-a1c6-42b6-8a04-abde12699248`) and confirms 17 base tables plus columns `accountType`, `username`, and `referralCode`. This workflow does not deploy a Worker or touch Supabase.
+
+### Step 2 — redeploy the Worker with the exact preview Origin
 
 1. Open [Auth Worker Staging Deploy](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-worker-staging-deploy.yml).
-2. Choose **Run workflow**.
-3. Set branch to `security/auth-poc-stage-1`.
-4. Enter the exact confirmation:
+2. Choose **Run workflow** on `security/auth-poc-stage-1`.
+3. Enter the exact confirmation:
 
    ```text
    DEPLOY-STAGING-WORKER-sykabelajar-auth-poc
    ```
 
-5. Inspect the run. It must pass the exact D1/hostname/DNS preflight, verify all 17 remote tables and empty auth user/session/account state, deploy the Worker, and verify health, exact issuer, discovery metadata, PKCE S256 advertisement, and public ES256 JWKS.
+4. Verify the workflow checks all 17 remote tables and the three registration columns, confirms zero staging users/sessions/accounts/verifications, deploys the isolated Worker, then tests:
+   - hosted `/healthz`, exact OIDC issuer, discovery, PKCE S256 and public ES256 P-256 JWKS;
+   - exact preview CORS allow for `https://security-auth-poc-stage-1.sykabelajar4.pages.dev`;
+   - CORS denial for an unrelated origin such as `https://attacker.example`.
 
-The workflow has been changed to manual dispatch only after the first failed deployment, and includes a sanitized deployment log artifact on failure. It:
+The deployment workflow is manual-only and includes a sanitized diagnostic artifact on failure. It:
 - is locked to the dedicated Worker name and D1 UUID;
 - has `workers_dev=false`, exposing the service only through `auth.sykabelajar.my.id`;
-- refuses to proceed if the auth hostname has a conflicting DNS record or Worker route;
-- creates missing `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN` values inside the CI runner and adds them as Worker secrets;
-- preserves existing secret values on later deployments; it never rotates them automatically;
+- requires the additive registration columns before deployment and refuses if staging D1 contains user/session/account/verification rows;
+- preserves the already provisioned `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN`; it does not list, recreate, rotate, or delete Worker secrets and does not pass a replacement secrets file;
 - passes only the existing Supabase URL and publishable key as Worker variables for the temporary admin-email-settings bridge; it never uses a service-role key;
 - does not deploy or change the production frontend, production Worker, Supabase schema/data/Auth settings, or production users;
 - does not send email or call Google OAuth.
 
-## Remaining Stage 1 gates after a successful Worker deployment
+## Remaining Stage 1 gates after a successful Worker redeployment
 
 A healthy Worker and hosted issuer do not by themselves finish the entire Cloudflare foundation stage. The following still need owner-provided provider credentials and real tests:
 
@@ -70,7 +85,7 @@ A healthy Worker and hosted issuer do not by themselves finish the entire Cloudf
 - Add a dedicated test Google OAuth client ID/secret if Google sign-in is required for the initial auth launch; verify the callback and verified-email behavior. No Google credential has been added.
 - Confirm `auth.sykabelajar.my.id` health and cookie/origin behavior. Do not point the main frontend at this issuer until Stages 2–5 and rollback gates pass.
 
-The `--secrets-file` generated by the workflow uses JSON. The prior deploy error was confirmed as `Unknown argument: yes`; that unsupported CLI argument has been removed. The failure diagnostic condition has also been corrected, and the workflow now uploads a short-lived sanitized deploy log if a future attempt fails.
+The prior first-deployment `--secrets-file` provisioning path is historical. The current routine redeploy does not read or regenerate existing secrets and does not pass a secrets file to Wrangler. The earlier unsupported `--yes` argument has been removed; future deploy failures upload only a short-lived sanitized log.
 
 The hosted issuer will then be available for Stage 2 acceptance, but the Supabase account still needs an isolated Free project. Never register this issuer in the production Supabase project as a workaround.
 
