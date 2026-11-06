@@ -10,6 +10,8 @@ The generated Better Auth output must include core Better Auth tables, JWKS stor
 
 Review the generated SQL and verify it against disposable local D1. The PR validation workflow applies migrations 0000–0003, runs the full email/session/OAuth/PKCE/JWT integration suite, and commits the generated 0001 SQL and matching npm lockfile only after the entire pipeline passes. The checked-in lockfile is installed with npm ci. Never generate schema against a remote or production D1 database. Do not apply migrations to production.
 
+Migration 0001 remains the immutable initial Better Auth core schema. Registration metadata columns `accountType`, `username`, and `referralCode` are introduced by additive migration 0004, because the original 0001 has already been applied to the remote staging D1. The generator explicitly strips these three extension columns from the regenerated 0001 output so local tests and remote migration history remain consistent. These attributes are registration inputs only; they are not authentication roles or authorization claims.
+
 
 Migration 0003 creates the encrypted ZeptoMail Agent profile store, the selected active Agent pointer, and an admin test-email rate limit. Send Mail Tokens are encrypted by the Worker with AES-256-GCM using the `AUTH_EMAIL_ENCRYPTION_KEY` Worker secret. This key must be stable across deployments; changing it without re-encrypting saved profiles makes existing tokens unreadable. Never export the ciphertext or key to frontend code.
 
