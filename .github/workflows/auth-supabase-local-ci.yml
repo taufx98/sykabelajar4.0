@@ -23,6 +23,7 @@ on:
       - "supabase/functions/_shared/cloudinary-ownership.mjs"
       - "supabase/config.toml"
       - ".github/workflows/auth-supabase-local-ci.yml"
+      - ".github/workflows/auth-supabase-staging-oidc.yml"
   pull_request:
     paths:
       - "services/auth-worker/supabase-test/**"
