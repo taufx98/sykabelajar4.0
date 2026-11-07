@@ -20,5 +20,10 @@ assert.match(sql,/SET LOCAL ROLE authenticated/);
 assert.match(sql,/SET LOCAL ROLE anon/);
 assert.match(sql,/SET is_public=\(id = u_expired\)/i);
 assert.match(sql,/STAGE3_RLS_ANON_PUBLIC_PROFILE_READ_FAILED/);
+assert.match(sql,/STAGE3_RLS_NON_ADMIN_AUDIT_LOG_READ_ALLOWED/);
+assert.match(sql,/STAGE3_RLS_ADMIN_AUDIT_LOG_READ_FAILED/);
+assert.match(sql,/STAGE3_RLS_ADMIN_USER_ROLES_OVERLAY_FAILED/);
+assert.match(sql,/STAGE3_RLS_ADMIN_ORGANIZER_UPDATE_FAILED/);
+assert.match(sql,/u_admin constant uuid/);
 
 console.log("Stage 3 behavior regression contract passed: read-only PL/pgSQL production-mode guard, verified organizer gates, RLS role coverage, and rollback.");
