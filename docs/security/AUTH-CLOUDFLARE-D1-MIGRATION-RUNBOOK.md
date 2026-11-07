@@ -30,9 +30,9 @@ The historical successful manual run used branch `security/auth-poc-stage-1` and
    APPLY-TO-sykabelajar-auth-poc
    ```
 
-5. Inspect the run. It must pass the exact-target check, show the pending migration list, apply only reviewed pending migrations 0000–0005 and verify all 18 expected table names, including `auth_phone_verification_challenges`.
+5. Inspect the run. It must pass the exact-target check, show the pending migration list, apply only reviewed migrations that are still pending from the approved set 0000–0006, then verify all 18 expected table names, including `auth_phone_verification_challenges`.
 
-The current workflow applies only migrations that Wrangler reports as pending from the reviewed set 0000–0005. It verifies all 18 expected tables and confirms that `pragma_table_info('user')` contains all seven registration/profile columns. As of 7 November 2026, the known remote staging state remains migrations 0000–0004 (17 tables), while 0005 is pending. The workflow needs the existing GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token requires Account D1 Read (to verify the target) and Account D1 Edit/Write (to apply migrations). Never paste or commit either secret.
+The current workflow applies only migrations that Wrangler reports as pending from the reviewed set 0000–0006. It verifies all 18 expected tables, the seven registration/profile columns, and `auth_email_accounts.provider`. As of 7 November 2026, remote staging D1 is verified through migration 0006; no reviewed migration in this set remains pending. The workflow needs the existing GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Never paste or commit either secret.
 
 ## What gets applied
 
@@ -57,7 +57,7 @@ This workflow does not:
 - read or modify the production Supabase project;
 - create, update or delete users or application data.
 
-After migrations 0000–0004 succeed, D1 contains the reviewed Better Auth schema, fixed public OAuth client/resource seed, and seven registration/profile bootstrap columns. Migration 0005 remains pending; do not claim its challenge table exists remotely until the guarded migration run succeeds. The Worker hostname and hosted OIDC core acceptance are already complete on isolated staging. Remaining separate gates include deployment of the newer Telegram-capable Worker, owner BotFather credentials, the staging provisioning secret, real hosted phone-consent/callback acceptance, and real email signup/verification/reset on a verified 100%-free provider path. Do not switch the frontend to this issuer yet.
+Remote D1 migrations 0000–0006 are applied. The database contains the Better Auth schema, fixed public OAuth client/resource seed, seven registration/profile bootstrap columns, Telegram challenge table and provider-aware email column. The provider-aware/Telegram-capable Worker is deployed on isolated staging. Remaining operational gates are owner BotFather credentials and hosted phone-consent/callback acceptance, Brevo Free sender-domain/API Key setup, and real email signup/verification/reset acceptance. Do not switch the production frontend to this issuer yet.
 
 ## References
 
@@ -79,7 +79,7 @@ The one-time push-marker mechanism is constrained to the exact marker path on `s
 
 ## Migration 0005 — Telegram phone-verification challenge (applied to staging)
 
-**Remote status as of 7 November 2026:** migrations 0000–0004 are applied to the dedicated non-production D1 and the 17-table schema is verified. Migration 0005 is in the branch and covered by local D1/Worker tests, but the remote apply is still pending. No remote migration or Worker deployment is implied by this documentation update.
+**Remote status as of 7 November 2026:** migrations 0000–0006 are applied to the dedicated non-production D1; all 18 expected tables, seven Better Auth user columns and `auth_email_accounts.provider` are verified. Migration 0005 was applied by [#42339140591](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339140591), and migration 0006 by [#42339767786](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339767786). No production schema or users were touched.
 
 Migration 0005 creates `auth_phone_verification_challenges` with:
 - a SHA-256 hash of a random OAuth `state` as the primary key;
@@ -93,7 +93,7 @@ The associated Worker flow is only an optional **phone-verification step for an 
 The current guarded workflow:
 - accepts only `security/auth-poc-stage-1` and the fixed D1 name/UUID above;
 - checks reviewed checksums for migrations 0004, 0005 and 0006;
-- expects the exact six migration files 0000–0005;
+- expects the exact seven migration files 0000–0006;
 - verifies 18 tables after apply, including `auth_phone_verification_challenges`;
 - does not deploy the Worker, change DNS, create secrets, or touch production Supabase.
 
