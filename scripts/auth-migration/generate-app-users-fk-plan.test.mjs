@@ -51,7 +51,7 @@ assert.match(expand, /TEMP_FK_NAME_COLLISION:/);
 assert.match(expand, /ON UPDATE NO ACTION/);
 assert.match(expand, /ON DELETE SET NULL/);
 assert.match(cutover, /REPLACEMENT_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED:/);
-assert.match(cutover, /LEGACY_FK_MISSING:/);
+assert.match(cutover, /LEGACY_FK_MISSING_OR_SEMANTICS_CHANGED:/);
 
 for (const sql of Object.values(plan)) {
   assert.doesNotMatch(sql, /\b(?:INSERT\s+INTO|UPDATE\s+[a-z_]+\s+SET|DELETE\s+FROM|COPY\s+)\b/i);
