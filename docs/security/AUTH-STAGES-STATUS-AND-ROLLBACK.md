@@ -377,3 +377,19 @@ The previous staging checkpoint is superseded by the following verified deployme
 - **Still pending:** real ZeptoMail Agent setup and end-to-end verified registration. The staging Worker reports `emailAgentConfigured=false`.
 
 Stage 3 production changes remain blocked by the owner-local schema-only application baseline, a complete dry-run/reviewed migration plan and the organizer phone-verification compatibility proof. Stages 4–7 remain gated by hosted issuer acceptance and identity provisioning. Production schema/auth/users/Edge Functions/login have not been changed.
+
+
+
+## Stage 2 hosted acceptance and clean staging restore — 7 November 2026
+
+**Stage 2 core hosted acceptance: passed.** The issuer was registered only in the isolated Free staging project and the live Better Auth token was accepted by its Supabase Data API.
+
+- Custom OIDC registration [#42324487931](https://github.com/taufx98/sykabelajar4.0/actions/runs/42324487931) succeeded. Exactly one issuer was registered on `sykabelajar-auth-staging` (`ydamszdfsxqisanazdkb`), integration ID `ecb9da1f-ba63-445a-9585-bb9385099b13`.
+- Hosted token and two-user RLS acceptance [#42328168345](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328168345) succeeded. It verified Authorization Code + PKCE S256, ES256/JWKS, RFC 9207 `iss`, access-token claims, ID-token audience/nonce, Data API acceptance, `auth.uid()` UUID identity, two-user row isolation, cross-user insert rejection, modified-signature rejection, and session-bound UserInfo denial after logout.
+- Synthetic Better Auth identities/sessions were deleted. Remote D1 cleanup verified zero test users, sessions, and accounts. Temporary `OIDC_ACCEPTANCE_TEST_TOKEN` was removed and its absence verified.
+- Temporary acceptance route, test utilities, test scripts, and workflow were removed from the source branch.
+- Clean staging Worker redeployment [#42328371754](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328371754) succeeded. Version: `49495d57-d039-4a0e-9767-5963225f398b`. Health, stable issuer, PKCE S256, public ES256 JWKS, exact preview CORS, 17 remote D1 tables, and empty staging identity tables were verified.
+
+**Not covered by this acceptance:** normal hosted email/password registration, email verification, and password reset remain pending because ZeptoMail setup was intentionally deferred. Storage has no staging buckets; Realtime has no staging authorization policy/channel fixture; the staging project has no Edge Functions. Do not report those services as tested. Any later Edge Function work must remain limited to the login identity integration under Stage 5 and must not spill into Cloudinary/payment endpoints.
+
+Production Supabase issuer settings, auth users, schema, RLS, Edge Functions, secrets, and application login flow remain unchanged. PR #177 remains Draft and unmerged.
