@@ -374,3 +374,24 @@ Branch source now calls the resolver from `get-cloudinary-signature`, `cloudinar
 Validation on 7 November: [Auth Worker CI #42354115154](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354115154) passed Worker/typecheck/security, Cloudinary and payment static contracts, local D1/OIDC integration and frontend lint/typecheck/build. [Supabase Local CI #42354068011](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354068011) passed the expanded Deno checks, staging anonymous Edge probe, live-FK dry-run plan generation and disposable local Supabase UUID/two-user RLS fixture. These are branch/CI checks, not a hosted positive Better Auth token test for each application Edge endpoint.
 
 **Still blocked:** the seven handlers default to the old Supabase Auth mode until an isolated project explicitly sets `AUTH_IDENTITY_MODE=better-auth`; no production Edge function was deployed. The two older `cloudinary-profile-upload-v2` and `cloudinary-delete-asset-v2` aliases remain outside this source migration because no current frontend caller was found; keep them on their current behavior until a complete caller inventory confirms they can be retired. Full production SQL function/trigger migration and endpoint A/B IDOR acceptance remain open.
+
+
+## Authoritative progress update — 7 November 2026
+
+The current state supersedes earlier roadmap bullets that still showed the remote D1 migrations, Worker deployment, Telegram challenge table or phone-compatibility candidate as pending.
+
+| Stage | Verified state | Remaining gate |
+|---|---|---|
+| 1 — Cloudflare | Dedicated staging D1 migrations 0000–0006 applied (18 tables); Worker deployed and healthy at `auth.sykabelajar.my.id`. | Configure and test a free email sender; optional Google/Facebook/X credentials; BotFather registration and real Telegram phone-consent test. |
+| 2 — OIDC/JWT | Hosted Custom OIDC core acceptance passed on isolated Free Supabase staging; Data API and two-user RLS checks passed. | Positive Edge acceptance with a Better Auth token, real Storage API upload/download, and Realtime WebSocket join/broadcast. |
+| 3 — Identity foundation | Production catalog revalidated read-only: PostgreSQL 17.6, no `private.app_users`, 69 FKs/62 tables, 3 Auth triggers, 109 `auth.uid()` policies; hosted synthetic pgTAP 80/80 + phone/organizer 26/26. | Owner-local complete schema-only export; disposable full-schema restore; production-shaped regression of functions, triggers, profile shape, FKs and RLS; review-only FK plan and bounded-lock/resume strategy. |
+| 4 — Frontend | Disabled Better Auth transport exists; current app remains on Supabase Auth. | One session coordinator and safe migration of all 41 direct Auth callsites; preserve AppContext, guest behavior, caches, Realtime and idle logout. |
+| 5 — Backend | Shared fail-closed identity resolver and seven handler adaptations exist in branch source. | Hosted positive Better Auth-token/IDOR tests for each affected Edge handler, then a separate deployment review. |
+| 6 — Testing/reset | Not started. | Account classification, approved demo reset, admin bootstrap, full regression and rollback rehearsal. |
+| 7 — Production | Not started. | Controlled cutover, monitoring and verified rollback. |
+
+### Staging/production boundary
+
+D1 migration run [#42339767786](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339767786) and Worker deploy [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803) succeeded on the isolated Cloudflare staging resources. Hosted OIDC core acceptance passed on the separate Free Supabase staging project [#42328168345](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328168345). The latest Worker/frontend CI [#42354587388](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354587388) and Supabase Local CI [#42354587327](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354587327) passed.
+
+The schema-only production export and full-schema local restore have **not** been completed. No production identity table, FK, trigger, RPC, RLS policy, Edge Function, user, secret, issuer setting or login path has been changed. PR #177 remains Draft/unmerged; retain the seven-stage order and do not merge or cut over until the baseline, hosted surface tests, base-branch reconciliation and rollback gates pass.

@@ -557,3 +557,43 @@ Seven branch Edge handlers now use it: `get-cloudinary-signature`, `cloudinary-d
 Validation passed: [Auth Worker CI #42354115154](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354115154) (Worker/security/Cloudinary/payment contracts, frontend lint/typecheck/build) and [Supabase Local CI #42354068011](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354068011) (Deno Edge checks, staging anonymous probe, FK dry-run generator, disposable local two-user UUID/RLS fixture). Older deployed `cloudinary-profile-upload-v2` and `cloudinary-delete-asset-v2` aliases remain unchanged; the current frontend source search found no callers, but they are not removed.
 
 This is source-only. No Supabase Edge Function was deployed and no Better Auth mode flag was enabled. Branch `supabase/config.toml` uses `verify_jwt=false` only for the seven handlers (plus the Midtrans delegate) that call the shared fail-closed identity resolver; the legacy v2 aliases retain `true` and webhooks remain provider-signature authenticated. The handler—not the Supabase gateway—therefore performs the Supabase/Better Auth JWT verification for those migrated routes. No production secrets, SQL functions/triggers/RLS/FKs, login paths, payment settings or Cloudinary assets were touched. Keep PR #177 Draft/unmerged. Positive hosted Better Auth-token A/B tests for each endpoint, schema-compatible staging endpoint deployment, full SQL function/trigger migration, and production baseline/restore remain open.
+
+
+## Authoritative reconciliation — 7 November 2026 (after hosted staging and CI recheck)
+
+This checkpoint supersedes earlier pending statements above where later runs or live read-only checks now prove completion.
+
+### Stage 1 — Cloudflare staging
+
+- Dedicated D1 `sykabelajar-auth-poc` has migrations **0000–0006** applied and all **18 expected tables** verified by [D1 migration run #42339767786](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339767786).
+- The isolated Worker is deployed at `https://auth.sykabelajar.my.id` by [Worker staging deploy #42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803). Hosted health, OIDC discovery, PKCE S256, ES256/P-256 JWKS and CORS checks passed.
+- The staging D1 has no Better Auth users, sessions, accounts, verification records, or phone challenges. Email dispatch is deployed in managed mode but has no active Brevo/ZeptoMail sender account; real signup/reset email delivery is untested and remains fail-closed. Google, Facebook and Twitter/X credentials remain absent, so those sign-in providers remain disabled.
+- Telegram phone verification is a separate opt-in phone-consent step for an already-authenticated Better Auth account, not a social-login provider. Migration 0005 and the Worker route are deployed, but the route remains disabled: BotFather OIDC app/callback registration, Worker Client ID/Secret, the isolated staging provisioning secret/enablement, and a real consent/callback test are still required.
+
+### Stage 2 — OIDC/JWT and Supabase surface acceptance
+
+- Hosted Custom OIDC core acceptance passed on the isolated Free project `sykabelajar-auth-staging` in [run #42328168345](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328168345). The project remains separate from production.
+- Data API/JWT subject and two-user ownership checks passed. Storage policy semantics and Realtime topic policy semantics passed rollback-only fixtures.
+- **Still open:** a real Better Auth token has not yet completed a positive invocation of the staging Edge acceptance probe; real Storage API upload/download and a Realtime WebSocket join/broadcast have not been accepted with that token. SQL policy fixtures are not substitutes for those hosted protocol-level tests.
+
+### Stage 3 — Supabase identity foundation
+
+A fresh read-only production catalog check on 7 November returned PostgreSQL **17.6**, `private.app_users` **absent**, `auth.users` count **11** (count only), **69** application FKs across **62** source tables to `auth.users(id)`, **3** non-internal `auth.users` triggers, and **109** policies across **61** tables that use `auth.uid()`. Eight function bodies directly reference `auth.users`; the complete dependency inventory remains ten functions when the two trigger functions consuming `NEW/OLD` are included. No identity values, emails, credentials, or application rows were selected.
+
+- Hosted synthetic tests passed **80/80** FK/provisioning/referral assertions and **26/26** phone/organizer assertions. They run against a deliberately reduced schema and roll back their test mutations; they do not establish a full production-schema restore.
+- Read-only staging recheck confirms `private.app_users` has **0 rows** and the Better Auth phone-verification wrapper is executable by `service_role`, not `anon`. The staging fixture is isolated from the live production identity tables.
+- **Still blocking completion:** the owner's production schema-only export has not been produced; a disposable full-schema restore has not been proven; and production-shaped regression is still needed for all ten Auth-dependent functions, three Auth triggers, four `profiles` triggers and its 36-column shape, referral activity/competition registration behavior, all 69 FK relationships, and the 109 `auth.uid()` policies.
+- Continue to use `scripts/auth-migration/export-schema-baseline.sh` from the owner's trusted machine. Keep the database URI private. The dump and custom Auth/Storage diff must remain outside Git until reviewed; restore only into a disposable local PostgreSQL/Supabase environment. The FK generator remains review-only and no generated SQL may be executed against production in this preparation stage.
+
+### Stages 4–7
+
+- **Stage 4:** disabled Better Auth frontend transport exists, but is not imported into the app. All **41** direct `supabase.auth` callsites, `AppContext`, `auth.service.ts`, session subscription, guest state and idle logout remain on the current Supabase Auth path. No session coordinator or callsite migration is complete.
+- **Stage 5:** the shared fail-closed `requireApplicationUser()` resolver and seven source handlers are present on the branch. `AUTH_IDENTITY_MODE=supabase` remains the default; `better-auth` is opt-in only. No application Edge Function has been deployed from this branch and no Better Auth mode flag has been enabled. Positive hosted Better Auth-token/IDOR tests for every affected handler and a deployment review remain required.
+- **Stage 6:** demo-account classification/reset, admin bootstrap and end-to-end regression have not started.
+- **Stage 7:** production cutover, monitoring and rollback rehearsal have not started.
+
+### Current CI and PR safety
+
+- [Auth Worker CI #42354587388](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354587388) and [Supabase Local Auth Claims CI #42354587327](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354587327) both passed. They tested code at `345e641d50b39a81722302e79f66839d4e5460d2`; the three commits between that SHA and the then-current PR head `d434e3a` changed documentation only.
+- PR #177 remains **open, Draft and unmerged**. GitHub still reports it as non-mergeable/dirty against `security/auth-migration-phase-0`. Do not force-merge or cut over; base reconciliation and all seven acceptance gates remain mandatory.
+- No production Supabase schema/data/Auth setting, production Worker/DNS, frontend login, Edge Function deployment, payment configuration or Cloudinary asset was changed by this checkpoint.
