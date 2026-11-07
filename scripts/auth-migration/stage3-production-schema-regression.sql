@@ -627,7 +627,7 @@ BEGIN
 
   -- Make synthetic profiles private before RLS tests below.
   UPDATE public.profiles
-  SET is_public=false
+  SET is_public=(id = u_expired)
   WHERE id IN (
     u_referrer,u_referred,u_expired,u_fallback,u_organizer,
     u_duplicate_organizer,u_no_phone,u_no_email,u_participant,
@@ -866,6 +866,11 @@ BEGIN
 
   IF v_count <> 0 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ANON_PRIVATE_PROFILE_READ_ALLOWED';
+  END IF;
+
+  IF (SELECT count(*) FROM public.profiles
+      WHERE id='00000000-0000-4000-8000-00000000a003') <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANON_PUBLIC_PROFILE_READ_FAILED';
   END IF;
 
   -- PUBLIC/anon has EXECUTE by production design, but no auth.uid() means
