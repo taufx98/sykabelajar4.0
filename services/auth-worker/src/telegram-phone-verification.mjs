@@ -12,6 +12,7 @@ const START_COOLDOWN_MS = 60 * 1000;
 const PHONE_HASH_PATTERN = /^[a-f0-9]{64}$/;
 const TELEGRAM_SUBJECT_PATTERN = /^[0-9]{1,32}$/;
 
+/** @param {Uint8Array} bytes */
 function base64Url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -24,14 +25,17 @@ function randomToken(byteLength = 32) {
   return base64Url(bytes);
 }
 
+/** @param {string} value */
 async function sha256Bytes(value) {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
 }
 
+/** @param {string} value */
 export async function sha256Hex(value) {
   return Array.from(await sha256Bytes(value), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** @param {unknown} value */
 export function normalizeTelegramPhone(value) {
   if (typeof value !== "string") throw new Error("TELEGRAM_PHONE_INVALID");
   const normalized = value.trim();
@@ -48,6 +52,7 @@ export function normalizeTelegramPhone(value) {
   return { e164: "+" + digits, digits, digitsCount: digits.length };
 }
 
+/** @param {{clientId:string,redirectUri:string,state:string,nonce:string,codeChallenge:string}} options */
 export function buildTelegramAuthorizationUrl({
   clientId,
   redirectUri,
@@ -87,6 +92,7 @@ export function buildTelegramAuthorizationUrl({
   return url.toString();
 }
 
+/** @param {string} authUrl */
 export function getTelegramPhoneRedirectUri(authUrl) {
   let base;
   try {
@@ -105,6 +111,7 @@ export function getTelegramPhoneRedirectUri(authUrl) {
   return new URL("/phone-verification/telegram/callback", base.origin).toString();
 }
 
+/** @param {import("./env").AuthWorkerEnv} env */
 export function isTelegramPhoneVerificationConfigured(env) {
   return Boolean(
     typeof env?.AUTH_TELEGRAM_CLIENT_ID === "string" &&
@@ -116,12 +123,18 @@ export function isTelegramPhoneVerificationConfigured(env) {
   );
 }
 
+/** @param {import("./env").AuthWorkerEnv} env @param {string} userId @param {number} [now] */
 export async function createTelegramPhoneChallenge(env, userId, now = Date.now()) {
   if (!isTelegramPhoneVerificationConfigured(env)) {
     throw new Error("TELEGRAM_PHONE_VERIFICATION_NOT_CONFIGURED");
   }
   if (typeof userId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
     throw new Error("BETTER_AUTH_USER_ID_INVALID");
+  }
+
+  const clientId = env.AUTH_TELEGRAM_CLIENT_ID?.trim();
+  if (!clientId || !env.AUTH_TELEGRAM_CLIENT_SECRET?.trim()) {
+    throw new Error("TELEGRAM_PHONE_VERIFICATION_NOT_CONFIGURED");
   }
 
   const state = randomToken();
@@ -157,7 +170,7 @@ export async function createTelegramPhoneChallenge(env, userId, now = Date.now()
     state,
     expiresAt,
     authorizationUrl: buildTelegramAuthorizationUrl({
-      clientId: env.AUTH_TELEGRAM_CLIENT_ID.trim(),
+      clientId,
       redirectUri,
       state,
       nonce,
@@ -170,6 +183,7 @@ export async function createTelegramPhoneChallenge(env, userId, now = Date.now()
  * Atomically consumes a challenge so duplicate callbacks cannot reuse it.
  * D1 supports DELETE ... RETURNING on the deployed SQLite engine.
  */
+/** @param {import("./env").AuthWorkerEnv} env @param {string} state @param {number} [now] */
 export async function consumeTelegramPhoneChallenge(env, state, now = Date.now()) {
   if (typeof state !== "string" || !/^[A-Za-z0-9_-]{40,64}$/.test(state)) return null;
   const stateHash = await sha256Hex(state);
@@ -180,6 +194,7 @@ export async function consumeTelegramPhoneChallenge(env, state, now = Date.now()
   ).bind(stateHash, now).first();
 }
 
+/** @param {{code:string,codeVerifier:string,clientId:string,clientSecret:string,redirectUri:string,fetchImpl?:typeof fetch}} options */
 export async function exchangeTelegramAuthorizationCode({
   code,
   codeVerifier,
@@ -234,13 +249,14 @@ export async function exchangeTelegramAuthorizationCode({
   return payload.id_token;
 }
 
+/** @param {{idToken:string,clientId:string,expectedNonce:string,now?:number,jwks?:Parameters<typeof jwtVerify>[1]}} options */
 export async function verifyTelegramPhoneIdToken({
   idToken,
   clientId,
   expectedNonce,
   now = Date.now(),
   jwks,
-}) {
+} = {}) {
   if (
     typeof idToken !== "string" || idToken.length < 32 || idToken.length > 16384 ||
     typeof clientId !== "string" || !/^[0-9]{1,32}$/.test(clientId) ||
