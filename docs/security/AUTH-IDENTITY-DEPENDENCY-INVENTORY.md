@@ -453,3 +453,32 @@ Stage 3 hosted pgTAP phone/organizer compatibility fixture passed **26/26 assert
 **Activation gates still outstanding:** the owner must create/register the Telegram bot OIDC application in BotFather, add the exact allowed callback URL, and provision its Client ID/Secret as Cloudflare Worker secrets. Keep the feature disabled until those steps and a real-device hosted acceptance test succeed. Telegram must not be added to the social-login priority list. No SMS/WhatsApp vendor or paid provider is introduced.
 
 Reference: https://core.telegram.org/bots/telegram-login
+
+### Read-only policy/trigger/function revalidation — 7 November 2026 (detailed breakdown)
+
+A fresh catalog-only query of production `pg_policies` confirms the same **109 RLS policies across 61 tables**:
+
+| Schema | Policies with `auth.uid()` in either expression |
+|---|---:|
+| `public` | 108 |
+| `private` | 1 |
+| **Total** | **109** |
+
+Breakdown by expression location (these categories are mutually exclusive):
+
+| Expression pattern | Policy count |
+|---|---:|
+| `USING` only | 67 |
+| `WITH CHECK` only | 19 |
+| Both `USING` and `WITH CHECK` | 23 |
+| **Total** | **109** |
+
+The direct expression set contains no `auth.jwt()` checks and no policy that directly names `auth.users`; the identity dependency is the UUID resolved by `auth.uid()`. Do not bulk-edit these policies. The migration contract must preserve UUID `sub` → `auth.uid()`, exact issuer validation, and PostgreSQL `role=authenticated`; test policy patterns by ownership, role, operation and table relationship.
+
+The same read-only revalidation found exactly **3 non-internal triggers on `auth.users`**: `on_auth_user_created`, `trg_referral_email_confirmed`, and `trg_referral_signup_attribution`. It found **4 non-internal triggers on `public.profiles`**: account-type backend guard, currency backend guard, field normalization, and `updated_at`. All seven were enabled (`tgenabled='O'`). These are not to be disabled during overlap; the Better Auth provisioning path must coexist until a deliberate cutover.
+
+The direct dependency query re-confirmed **8 function bodies that explicitly name `auth.users`** and **2 trigger functions that consume the `auth.users` row through `NEW`/`OLD` rather than querying the table by name**. Together with `create_organizer()`'s verified-phone fields, the existing ten-function inventory remains correct. The read-only function metadata check also confirmed all ten are SECURITY DEFINER; the functions' per-function `search_path` settings differ and must be preserved/reviewed individually.
+
+One important test-planning detail: `public.register_for_competition(...)` is part of the identity migration surface because its optional referral flow reads the referrer's `email_confirmed_at`. It must be tested against the real restored schema and retain referral/self-referral checks, competition registration behavior, audit/notification side effects, and its existing output contract. Do not omit it merely because only `create_organizer()` blocks on verified phone.
+
+These checks selected catalog definitions and policy expressions only. No user rows, account data, credentials, trigger state, policy, function, grant, or production schema object was modified.
