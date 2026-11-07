@@ -1,6 +1,6 @@
 # Isolated Better Auth Worker staging deployment
 
-Status: **Stage 1 remote D1 migrations 0000–0004 are complete and the updated staging Worker is deployed**. Deployment [#42265308348](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265308348) verified all 17 D1 tables, seven registration/profile columns, empty staging identity tables, Worker health, exact OIDC issuer, PKCE S256, public ES256 P-256 JWKS, and exact-preview CORS allow/attacker-origin rejection. Real ZeptoMail delivery and (only if required for launch) Google OAuth callback verification remain pending. Historical permission/deployment notes below are marked where superseded.
+Status as of 7 November 2026: **Remote D1 is verified through migrations 0000–0004 (17 tables); migration 0005 is still pending remote apply.** The latest deployed Worker run [#42328371754](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328371754) succeeded before the Telegram route was added to the source branch. Auth Worker CI [#42334387328](https://github.com/taufx98/sykabelajar4.0/actions/runs/42334387328) has since passed on the newer source commit with the Telegram route, but that code is **not deployed**. The guarded deploy workflow has now been updated to require all 18 tables, including `auth_phone_verification_challenges`, and a zero-challenge check. No deploy was triggered by this documentation/code update. Real email delivery remains deferred pending a verified 100%-free provider path; Google OAuth remains optional.
 
 ## Current verified state — 6 November 2026
 
@@ -41,7 +41,7 @@ This section belongs to the initial Worker creation period and is superseded by 
 
 Both operations are manual-only. Pushes and pull-request updates do not deploy a Worker or migrate remote D1.
 
-### Step 1 — apply the additive D1 registration migration
+### Step 1 — apply reviewed D1 migrations through Telegram challenge 0005
 
 1. Open [Auth D1 Staging Schema Migration](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-cloudflare-d1-migrate.yml).
 2. Choose **Run workflow** on `security/auth-poc-stage-1`.
@@ -51,7 +51,7 @@ Both operations are manual-only. Pushes and pull-request updates do not deploy a
    APPLY-TO-sykabelajar-auth-poc
    ```
 
-4. Verify the run applies only the reviewed migrations 0000–0004 to D1 `sykabelajar-auth-poc` (UUID `7a4f9008-a1c6-42b6-8a04-abde12699248`) and confirms 17 base tables plus all seven registration/profile bootstrap columns: `accountType`, `username`, `referralCode`, `birthDate`, `institution`, `grade`, and `subjects`. This workflow does not deploy a Worker or touch Supabase.
+4. Verify the run applies only pending reviewed migrations through `0005` to D1 `sykabelajar-auth-poc` (UUID `7a4f9008-a1c6-42b6-8a04-abde12699248`), and confirms all 18 tables plus the seven registration/profile columns: `accountType`, `username`, `referralCode`, `birthDate`, `institution`, `grade`, and `subjects`. The remote `0005` migration is still pending as of this runbook update. This workflow does not deploy a Worker or touch Supabase.
 
 ### Step 2 — redeploy the Worker with the exact preview Origin
 
@@ -63,17 +63,19 @@ Both operations are manual-only. Pushes and pull-request updates do not deploy a
    DEPLOY-STAGING-WORKER-sykabelajar-auth-poc
    ```
 
-4. Verify the workflow checks all 17 remote tables and all seven registration/profile bootstrap columns, confirms zero staging users/sessions/accounts/verifications, deploys the isolated Worker, then tests:
+4. Verify the workflow checks all 18 remote tables (including `auth_phone_verification_challenges`), all seven registration/profile bootstrap columns, zero staging users/sessions/accounts/verifications and zero pending phone challenges, then deploys the isolated Worker and tests:
    - hosted `/healthz`, exact OIDC issuer, discovery, PKCE S256 and public ES256 P-256 JWKS;
    - exact preview CORS allow for `https://security-auth-poc-stage-1.sykabelajar4.pages.dev`;
    - CORS denial for an unrelated origin such as `https://attacker.example`.
 
-The deployment workflow is manual-only and includes a sanitized diagnostic artifact on failure. It:
+The deployment workflow is manual-only and includes a sanitized diagnostic artifact on failure. Its guarded push marker has been versioned to `.github/auth-ops/DEPLOY-STAGING-WORKER-0005`; no marker file is committed by this change, so this update cannot trigger a deployment. It:
 - is locked to the dedicated Worker name and D1 UUID;
 - has `workers_dev=false`, exposing the service only through `auth.sykabelajar.my.id`;
-- requires all seven additive registration/profile bootstrap columns before deployment and refuses if staging D1 contains user/session/account/verification rows;
+- requires all seven additive registration/profile bootstrap columns and all 18 reviewed tables (including the Telegram challenge table); it also refuses if staging D1 contains user/session/account/verification/phone-challenge rows;
 - preserves the already provisioned `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN`; it does not list, recreate, rotate, or delete Worker secrets and does not pass a replacement secrets file;
-- passes only the existing Supabase URL and publishable key as Worker variables for the temporary admin-email-settings bridge; it never uses a service-role key;
+- keeps `SUPABASE_URL` pinned to the current production Supabase project solely for the temporary legacy Admin-session bridge, and does not pass a service-role key;
+- sets a separate non-secret `SUPABASE_PROVISIONING_URL` in `wrangler.toml`, hard-pinned to the isolated Free staging project `https://ydamszdfsxqisanazdkb.supabase.co`; the provisioning module rejects any other project origin and never falls back to `SUPABASE_URL`;
+- leaves `SUPABASE_PROVISIONING_ENABLED` unset and `SUPABASE_SERVICE_ROLE_KEY` absent by default; Better Auth provisioning and Telegram phone projection therefore remain disabled until the owner completes the isolated staging secret/configuration gate;
 - does not deploy or change the production frontend, production Worker, Supabase schema/data/Auth settings, or production users;
 - does not send email or call Google OAuth.
 
@@ -87,7 +89,7 @@ A healthy Worker and hosted issuer do not by themselves finish the entire Cloudf
 
 The prior first-deployment `--secrets-file` provisioning path is historical. The current routine redeploy does not read or regenerate existing secrets and does not pass a secrets file to Wrangler. The earlier unsupported `--yes` argument has been removed; future deploy failures upload only a short-lived sanitized log.
 
-The hosted issuer will then be available for Stage 2 acceptance, but the Supabase account still needs an isolated Free project. Never register this issuer in the production Supabase project as a workaround.
+Stage 2 hosted OIDC/Data API/two-user RLS acceptance is already complete on the isolated Free project `sykabelajar-auth-staging` (`ydamszdfsxqisanazdkb`). Storage, Realtime and Edge Functions were not covered by that fixture. Never register the staging issuer in the production Supabase project as a workaround.
 
 
 ## Verified deployment checkpoint — 6 November 2026
@@ -118,9 +120,9 @@ The staging Admin preview has a single exact temporary origin in `wrangler.toml`
 
 The staging CORS and Better Auth trusted-origin lists accept this exact HTTPS origin in addition to the production app origin. Automated Worker tests verify the exact hostname and reject a nested/attacker hostname. The guarded deploy workflow's hosted smoke test now verifies that this preview receives an exact `Access-Control-Allow-Origin` response while `https://attacker.example` receives none.
 
-A **new manual deployment is required** before using the preview panel. The currently live Worker version predates this origin addition. Trigger [Auth Worker Staging Deploy](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-worker-staging-deploy.yml) on branch `security/auth-poc-stage-1` with confirmation `DEPLOY-STAGING-WORKER-sykabelajar-auth-poc`.
+The current live Worker is older than the branch source that contains Telegram phone verification. A new manual deployment is required only after migration 0005 is applied to the isolated D1 and the owner has configured the required staging credentials. The guarded workflow now checks 18 D1 tables and the separate staging provisioning URL. Trigger [Auth Worker Staging Deploy](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-worker-staging-deploy.yml) on branch `security/auth-poc-stage-1` with confirmation `DEPLOY-STAGING-WORKER-sykabelajar-auth-poc`.
 
-The redeploy path now has a strict preservation rule: it does not query/list Worker secrets, does not generate replacement secrets, and does not pass a new secrets file to Wrangler. The first deployment already provisioned `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN`; a routine code redeploy must preserve these existing values. It still checks the exact Worker/D1/domain configuration, verifies all 17 remote D1 tables, requires zero staged users/sessions/accounts/verifications, and smoke-tests health/discovery/PKCE/JWKS plus exact-origin CORS.
+The redeploy path has a strict preservation rule: it does not query/list Worker secrets, generate replacements, or pass a replacement secrets file to Wrangler. The first deployment already provisioned `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN`; routine deployments preserve these. The new deploy gate also checks all 18 D1 tables and zero staged users/sessions/accounts/verifications/phone challenges. It smoke-tests health/discovery/PKCE/JWKS and exact-origin CORS. It does not enable provisioning or Telegram credentials.
 
 The Cloudflare API token currently returns HTTP 503 for Worker Scripts, Custom Domain and Routes list endpoints, while the zone and D1 reads work. Do not grant broad Account Admin only to satisfy these optional list calls. The read-only preflight now directly checks hosted health, exact issuer, PKCE and JWKS as the essential evidence; inventory API limitations are warnings.
 
@@ -159,3 +161,17 @@ The panel has not yet completed a real admin browser session, Agent save/activat
 - The deploy preserved existing Worker secrets and made no DNS, route, domain or production-site change.
 
 ZeptoMail remains unconfigured (`emailAgentConfigured=false`). No real email, registration, authorization-code exchange, session, or Supabase Custom OIDC acceptance has yet been completed. Configure an Agent Send Mail Token via the admin email settings panel; never store it in Git or send it in chat.
+
+
+## Current Telegram/provisioning deployment gate — 7 November 2026
+
+The deployed Worker and the tested branch source are not yet the same revision:
+
+- Last verified deployed Worker run: [#42328371754](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328371754), source SHA `42323e092e85250f4485e2de611207310a481b34`.
+- Later Auth Worker CI passed on source SHA `ec291a6b70d1418146275b982ec542cfff416184`, including the Telegram route and security tests, but used a Worker dry-run only.
+- Remote D1 remains at migrations 0000–0004 (17 tables). Migration 0005 must be applied to the isolated D1 before the updated Worker can be deployed.
+- The current deploy workflow has been changed to require 18 tables and zero challenge rows. The one-time marker name is now `.github/auth-ops/DEPLOY-STAGING-WORKER-0005`; the marker file itself is not present.
+
+**Critical destination split, now enforced in source:** the legacy Admin bridge keeps `SUPABASE_URL` bound to production while the provisioning module uses only `SUPABASE_PROVISIONING_URL`, pinned to `https://ydamszdfsxqisanazdkb.supabase.co`. The code rejects the production project origin and will not fall back to the legacy URL. `SUPABASE_PROVISIONING_ENABLED` remains unset, and no `SUPABASE_SERVICE_ROLE_KEY` is installed as part of this change.
+
+Do not run the deploy until remote migration 0005 exists. Do not set the provisioning flag or Telegram secrets until the owner has registered the OIDC app, allowlisted the exact callback, confirmed staging RPC permissions and completed the isolated hosted consent/callback test plan. No remote D1 migration, Worker deployment, production Supabase change or secret operation was performed by this update.
