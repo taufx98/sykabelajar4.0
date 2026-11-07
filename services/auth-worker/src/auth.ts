@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { jwt, testUtils } from "better-auth/plugins";
+import { jwt } from "better-auth/plugins";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import type { AuthWorkerEnv } from "./env";
 import { sendAuthEmail } from "./email";
@@ -21,7 +21,7 @@ function requireHttpsOrigin(value: string, label: string, allowLocalhost = false
   return url.origin;
 }
 
-export function createAuth(env: AuthWorkerEnv, enableAcceptanceTestUtils = false) {
+export function createAuth(env: AuthWorkerEnv) {
   if (!env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < 32) {
     throw new Error("BETTER_AUTH_SECRET_MUST_BE_AT_LEAST_32_CHARACTERS");
   }
@@ -286,7 +286,6 @@ export function createAuth(env: AuthWorkerEnv, enableAcceptanceTestUtils = false
           claims_supported: ["role"],
         },
       }),
-      ...(enableAcceptanceTestUtils ? [testUtils()] : []),
     ],
   });
 }
