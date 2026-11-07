@@ -16,8 +16,14 @@ assert.match(sql,/EMAIL_VERIFICATION_REQUIRED/);
 assert.match(sql,/PHONE_VERIFICATION_REQUIRED/);
 assert.match(sql,/FREE_ORGANIZER_ALREADY_CLAIMED/);
 assert.match(sql,/ROLLBACK;/);
-const rlsSection = sql.split("$stage3_regression$;")[1] ?? "";
-assert.doesNotMatch(rlsSection, /\\bv_(?:follow_id|award_id|certificate_id|product_id|review_id|collective_participant_id)\\b/);
+const firstFixtureBoundary = sql.indexOf("$stage3_regression$;");
+assert.notEqual(firstFixtureBoundary, -1, "first production-shaped fixture boundary exists");
+const fixtureDeclarations = sql.slice(0, firstFixtureBoundary).matchAll(/^\\s*([uv]_[a-z0-9_]+)\\s+constant\\s+uuid\\s*:=/gmi);
+const rlsSection = sql.slice(firstFixtureBoundary + "$stage3_regression$;".length);
+for (const match of fixtureDeclarations) {
+  assert.doesNotMatch(rlsSection, new RegExp("\\\\b" + match[1] + "\\\\b"),
+    "first fixture-local variable must not leak into later independent DO blocks: " + match[1]);
+}
 
 assert.match(sql,/SET LOCAL ROLE authenticated/);
 assert.match(sql,/SET LOCAL ROLE anon/);
