@@ -107,7 +107,16 @@ test("missing profile identity or owned-organizer collection fails closed", () =
 });
 
 test("the new username-based signer passes the verified UUID for legacy assets", () => {
-  assert.match(endpoint, /isOwnedCloudinaryPublicId\(publicId, \{ userId: user\.id, username: profile\.username, ownedOrganizers \}\)/);
+  assert.match(endpoint, /isOwnedCloudinaryPublicId\(publicId, \{ userId, username: profile\.username, ownedOrganizers \}\)/);
+});
+
+test("Cloudinary signer supports an explicit Better Auth identity mode and defaults to legacy Supabase Auth", () => {
+  assert.match(endpoint, /AUTH_IDENTITY_MODE/);
+  assert.match(endpoint, /\?\.trim\(\) \|\| "supabase"/);
+  assert.match(endpoint, /authMode === "better-auth"/);
+  assert.match(endpoint, /requireBetterAuthUser\(req\)/);
+  assert.match(endpoint, /AUTH_IDENTITY_MODE_INVALID/);
+  assert.match(endpoint, /authMode === "supabase"/);
 });
 
 test("the Edge Function uses a pinned Supabase client and derives ownership from verified auth", () => {
@@ -124,7 +133,7 @@ test("the legacy delete-asset endpoint verifies the caller and binds deletes to 
   assert.match(deleteEndpoint, /SUPABASE_URL/);
   assert.match(deleteEndpoint, /\/auth\/v1\/user/);
   assert.match(deleteEndpoint, /Authorization: "Bearer " \+ bearer/);
-  assert.match(deleteEndpoint, /const userId = typeof authUser\?\.id === "string" \? authUser\.id : ""/);
+  assert.match(deleteEndpoint, /userId = typeof authUser\?\.id === "string" \? authUser\.id : ""/);
   assert.match(deleteEndpoint, /isOwnedCloudinaryPublicId\(publicId, \{ userId \}\)/);
   assert.doesNotMatch(deleteEndpoint, /body\?\.user_id|body\?\.owner_id|user_id\s*\}/);
   assert.match(deleteEndpoint, /FORBIDDEN_PUBLIC_ID/);
@@ -139,6 +148,15 @@ test("the legacy delete-asset endpoint verifies the caller and binds deletes to 
   assert.match(deleteEndpoint, /CLOUDINARY_API_SECRET/);
   assert.match(deleteEndpoint, /\/destroy/);
   assert.match(supabaseConfig, /\[functions\.cloudinary-delete-asset\][\s\S]*?verify_jwt = true/);
+});
+
+test("Cloudinary delete supports an explicit Better Auth mode while preserving legacy default", () => {
+  assert.match(deleteEndpoint, /AUTH_IDENTITY_MODE/);
+  assert.match(deleteEndpoint, /\?\.trim\(\) \|\| "supabase"/);
+  assert.match(deleteEndpoint, /authMode === "better-auth"/);
+  assert.match(deleteEndpoint, /requireBetterAuthUser\(request\)/);
+  assert.match(deleteEndpoint, /AUTH_IDENTITY_MODE_INVALID/);
+  assert.match(deleteEndpoint, /authMode === "supabase"/);
 });
 
 test("Cloudinary delete authorization executes before the provider secret and remote destroy call", () => {
