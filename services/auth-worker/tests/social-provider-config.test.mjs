@@ -24,7 +24,10 @@ test("Facebook login requests email and rejects profiles without a usable email"
   assert.match(auth, /scope:\s*\["email",\s*"public_profile"\]/);
   assert.match(auth, /FACEBOOK_EMAIL_REQUIRED/);
   assert.match(auth, /profile\.email\.trim\(\)/);
-  assert.match(auth, /requireEmailVerification:\s*true/);
+  const facebookBlock = auth.slice(auth.indexOf("facebook:"), auth.indexOf("twitter:"));
+  assert.doesNotMatch(facebookBlock, /requireEmailVerification/);
+  assert.match(auth, /EMAIL_VERIFICATION_REQUIRED/);
+  assert.match(auth, /user\.emailVerified !== true/);
 });
 
 test("X login uses the built-in Twitter provider and verified-email gate", () => {
@@ -35,6 +38,15 @@ test("X login uses the built-in Twitter provider and verified-email gate", () =>
   assert.match(auth, /Better Auth 1\.7\.16 requests users\.email by default/);
   assert.match(auth, /TWITTER_CONFIRMED_EMAIL_REQUIRED/);
   assert.match(auth, /profile\.data\.email\.trim\(\)/);
+});
+
+test("all password and social sessions are blocked until SYKABELAJAR email verification", () => {
+  const hookStart = auth.indexOf("session: {");
+  const hook = auth.slice(hookStart, auth.indexOf("account: {", hookStart));
+  assert.match(hook, /user\.emailVerified !== true/);
+  assert.match(hook, /EMAIL_VERIFICATION_REQUIRED/);
+  assert.match(auth, /sendOnSignUp: true/);
+  assert.match(auth, /autoSignInAfterVerification: true/);
 });
 
 test("Telegram phone verification is not registered as a social login provider", () => {
