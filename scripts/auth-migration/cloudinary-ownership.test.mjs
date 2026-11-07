@@ -144,7 +144,7 @@ test("the delete endpoint uses the shared verifier and binds assets to its verif
   assert.match(deleteEndpoint, /request.method === "OPTIONS"/);
   assert.match(deleteEndpoint, /access-control-allow-origin/);
   assert.match(deleteEndpoint, /CLOUDINARY_API_SECRET/);
-  assert.match(deleteEndpoint, /AbortSignal.timeout\(5000\)/);
+  assert.match(identityResolver, /AbortSignal.timeout\(5000\)/);
   assert.match(deleteEndpoint, /AbortSignal.timeout\(8000\)/);
   assert.match(deleteEndpoint, /\/destroy/);
   assert.match(supabaseConfig, /\[functions\.cloudinary-delete-asset\][\s\S]*?verify_jwt = true/);
