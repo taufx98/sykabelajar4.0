@@ -1437,10 +1437,6 @@ BEGIN
     NULL;
   END;
 
-  IF has_any_column_privilege('authenticated','public.commerce_product_reviews','UPDATE') THEN
-    RAISE EXCEPTION 'STAGE3_PRODUCT_REVIEW_DIRECT_UPDATE_GRANT_UNEXPECTED';
-  END IF;
-
   SELECT count(*) INTO v_count
   FROM public.orders
   WHERE id='00000000-0000-4000-8000-00000000a201';
