@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0004"
+      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0005"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -69,7 +69,7 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0004"
+            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0005"
             test -f "$marker" || {
               echo "Blocked: the one-time staging Worker deployment marker is missing." >&2
               exit 1
@@ -107,6 +107,7 @@ jobs:
             /^APP_ORIGIN = "https:\/\/sykabelajar\.my\.id"$/m,
             /^DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m,
             /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
+            /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
             /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
             /^pattern = "auth\.sykabelajar\.my\.id"$/m,
             /^custom_domain = true$/m,
@@ -118,14 +119,15 @@ jobs:
             throw new Error("Local-only schema bootstrap settings must never be deployed.");
           }
           writeFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-config-ok", "ok");
-          console.log("Verified the exact isolated Worker, D1, issuer, resource audience, OAuth callback and one approved Pages preview origin.");
+          console.log("Verified the exact isolated Worker, D1, issuer, resource audience, OAuth callback, one approved Pages preview origin and Stage 3 Supabase provisioning target.");
+          console.log("The legacy SUPABASE_URL remains production-only for the temporary Admin bridge; provisioning has a separate hard-pinned staging URL and remains disabled by default.");
           console.log("Existing Worker secrets will be preserved: this deployment does not enumerate, recreate, rotate, or delete secrets.");
           NODE
 
-      - name: Verify all 17 remote D1 tables and empty staging identity state
+      - name: Verify all 18 remote D1 tables and empty staging identity state
         run: |
           set -euo pipefail
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -144,11 +146,12 @@ jobs:
             "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
             "auth_worker_internal_config","jwks","oauthAccessToken","oauthClient","oauthClientAssertion",
             "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
-            "session","user","verification"
+            "session","user","verification","auth_phone_verification_challenges"
           ];
           const missing = expected.filter((name) => !found.has(name));
           if (missing.length) throw new Error("Remote staging D1 is missing tables: " + missing.join(", "));
-          console.log("Verified all " + expected.length + " remote staging D1 tables.");
+          if (expected.length !== 18) throw new Error("The reviewed staging schema contract must contain exactly 18 tables.");
+          console.log("Verified all " + expected.length + " remote staging D1 tables, including the Telegram phone-verification challenge table.");
           NODE
 
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-user-columns.json"
@@ -170,7 +173,7 @@ jobs:
           console.log("Verified all seven Better Auth registration/profile bootstrap columns before Worker deployment.");
           NODE
 
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM user) AS users, (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM account) AS accounts, (SELECT COUNT(*) FROM verification) AS verifications, (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM user) AS users, (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM account) AS accounts, (SELECT COUNT(*) FROM verification) AS verifications, (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges, (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -185,11 +188,11 @@ jobs:
           }
           visit(payload);
           if (!row) throw new Error("Could not parse remote staging identity-state check.");
-          for (const field of ["users","sessions","accounts","verifications"]) {
+          for (const field of ["users","sessions","accounts","verifications","phone_challenges"]) {
             if (Number(row[field]) !== 0) throw new Error("Staging D1 unexpectedly contains " + field + " rows; refusing deployment.");
           }
           if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one fixed first-party public OAuth client.");
-          console.log("Staging identity tables contain no users, sessions, accounts or verification records; one fixed public OAuth client is seeded.");
+          console.log("Staging identity/challenge tables contain no users, sessions, accounts, verifications or pending phone challenges; one fixed public OAuth client is seeded.");
           NODE
 
       # BETTER_AUTH_SECRET, AUTH_EMAIL_ENCRYPTION_KEY, and OAUTH_CLIENT_BOOTSTRAP_TOKEN
