@@ -192,7 +192,7 @@ export async function consumeTelegramPhoneChallenge(env, state, now = Date.now()
     "WHERE state_hash = ?1 AND expires_at > ?2 " +
     "RETURNING user_id, nonce, code_verifier, created_at, expires_at",
   ).bind(stateHash, now).first();
-  return /** @type {{user_id:string,nonce:string,code_verifier:string,created_at:number,expires_at:number}|null} */ (row);
+  return row;
 }
 
 /** @param {{code:string,codeVerifier:string,clientId:string,clientSecret:string,redirectUri:string,fetchImpl?:typeof fetch}} options */
