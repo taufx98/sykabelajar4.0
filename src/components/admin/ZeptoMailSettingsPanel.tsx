@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 type EmailAccount = {
   id: string;
   label: string;
+  provider: 'zeptomail' | 'brevo';
   senderAddress: string;
   senderName: string;
   bounceAddress: string | null;
@@ -24,6 +25,7 @@ type SettingsResponse = {
 
 type AccountDraft = {
   id: string | null;
+  provider: 'zeptomail' | 'brevo';
   label: string;
   senderAddress: string;
   senderName: string;
@@ -33,6 +35,7 @@ type AccountDraft = {
 
 const EMPTY_DRAFT: AccountDraft = {
   id: null,
+  provider: 'brevo',
   label: '',
   senderAddress: '',
   senderName: 'SYKABELAJAR',
@@ -49,8 +52,11 @@ const ERROR_LABELS: Record<string, string> = {
   INVALID_SENDER_ADDRESS: 'Alamat pengirim tidak valid.',
   INVALID_SENDER_NAME: 'Nama pengirim terlalu panjang.',
   INVALID_BOUNCE_ADDRESS: 'Alamat bounce tidak valid.',
-  SEND_MAIL_TOKEN_REQUIRED: 'Send Mail Token wajib diisi untuk Agent baru.',
-  INVALID_SEND_MAIL_TOKEN: 'Format atau panjang Send Mail Token tidak valid.',
+  SEND_MAIL_TOKEN_REQUIRED: 'Kredensial email wajib diisi untuk akun baru.',
+  EMAIL_PROVIDER_CREDENTIAL_REQUIRED: 'Kredensial wajib diisi saat menambah akun atau mengganti penyedia.',
+  INVALID_EMAIL_PROVIDER: 'Penyedia email tidak didukung.',
+  INVALID_SEND_MAIL_TOKEN: 'Format atau panjang kredensial tidak valid.',
+  BREVO_AUTH_FAILED: 'Brevo menolak API Key. Periksa API Key dari akun Brevo.',
   ZEPTO_MAIL_AUTH_FAILED: 'ZeptoMail menolak token Agent. Periksa kembali token yang dipasang.',
   EMAIL_TEST_RATE_LIMITED: 'Tes email dibatasi satu kali per menit untuk setiap admin.',
   ACTIVE_EMAIL_ACCOUNT_CANNOT_BE_DELETED: 'Pilih Agent lain sebelum menghapus Agent aktif.',
@@ -142,6 +148,7 @@ export function ZeptoMailSettingsPanel() {
   const editAccount = (account: EmailAccount) => {
     setDraft({
       id: account.id,
+      provider: account.provider,
       label: account.label,
       senderAddress: account.senderAddress,
       senderName: account.senderName,
@@ -157,14 +164,17 @@ export function ZeptoMailSettingsPanel() {
       toast.warning('Nama Agent dan alamat pengirim wajib diisi.');
       return;
     }
-    if (!draft.id && !draft.sendMailToken.trim()) {
-      toast.warning('Send Mail Token wajib diisi untuk Agent baru.');
+    const existingAccount = draft.id ? accounts.find((account) => account.id === draft.id) : undefined;
+    const credentialRequired = !existingAccount || existingAccount.provider !== draft.provider;
+    if (credentialRequired && !draft.sendMailToken.trim()) {
+      toast.warning('API Key / Send Mail Token wajib diisi untuk penyedia yang dipilih.');
       return;
     }
     setSaving(true);
     try {
       const result = await request('save', {
         id: draft.id ?? undefined,
+        provider: draft.provider,
         label: draft.label.trim(),
         senderAddress: draft.senderAddress.trim(),
         senderName: draft.senderName.trim() || 'SYKABELAJAR',
@@ -174,7 +184,7 @@ export function ZeptoMailSettingsPanel() {
       applySettings(result);
       setDraft(EMPTY_DRAFT);
       setEditing(false);
-      toast.success('Profil ZeptoMail berhasil disimpan. Token tetap terenkripsi di server.');
+      toast.success('Akun email berhasil disimpan. Kredensial tetap terenkripsi di server.');
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Gagal menyimpan Agent ZeptoMail.');
     } finally {
@@ -202,7 +212,7 @@ export function ZeptoMailSettingsPanel() {
 
   const test = async (account: EmailAccount) => {
     const confirmed = window.confirm(
-      'Kirim satu email tes ke alamat email akun admin yang sedang login menggunakan Agent "' + account.label + '"? Tes ini menggunakan kredit ZeptoMail.',
+      'Kirim satu email tes ke alamat email admin yang sedang login menggunakan ' + (account.provider === 'brevo' ? 'Brevo' : 'ZeptoMail') + ' · ' + account.label + '?',
     );
     if (!confirmed) return;
     setTestingId(account.id);
@@ -246,11 +256,11 @@ export function ZeptoMailSettingsPanel() {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold text-fg">Email Transaksional · ZeptoMail</h3>
+            <h3 className="font-semibold text-fg">Email Transaksional</h3>
             <span className="text-[10px] rounded-full border border-accent/20 bg-accent-muted-strong text-accent px-2 py-0.5 font-semibold">Server-side</span>
           </div>
           <p className="text-xs text-fg-muted mt-1">
-            Kelola beberapa Agent ZeptoMail dan ganti pengirim aktif tanpa mengubah kode atau redeploy Worker.
+            Kelola akun Brevo Free atau ZeptoMail, simpan kredensial terenkripsi, dan ganti pengirim aktif tanpa redeploy Worker.
           </p>
         </div>
         <Button size="sm" variant="outline" icon={<RefreshCw size={13} />} onClick={() => void load()} disabled={loading}>
@@ -295,8 +305,8 @@ export function ZeptoMailSettingsPanel() {
         ) : accounts.length === 0 ? (
           <div className="rounded-xl border border-dashed surface-border p-5 text-center">
             <Mail size={20} className="mx-auto text-fg-muted mb-2"/>
-            <p className="text-sm text-fg">Belum ada Agent ZeptoMail.</p>
-            <p className="text-xs text-fg-muted mt-1">Tambahkan Send Mail Token dari Agent yang ingin dipakai untuk email SYKABELAJAR.</p>
+            <p className="text-sm text-fg">Belum ada akun email transaksional.</p>
+            <p className="text-xs text-fg-muted mt-1">Tambahkan akun Brevo atau ZeptoMail. Akun baru menggunakan Brevo Free sebagai pilihan awal.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -306,6 +316,7 @@ export function ZeptoMailSettingsPanel() {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-fg truncate">{account.label}</p>
+                      <span className="text-[10px] rounded-full border surface-border px-2 py-0.5 font-semibold">{account.provider === 'brevo' ? 'BREVO' : 'ZEPTOMAIL'}</span>
                       {account.active && <span className="text-[10px] rounded-full bg-emerald-500/10 text-emerald-400 px-2 py-0.5 font-semibold">AKTIF</span>}
                     </div>
                     <p className="text-xs text-fg-muted mt-1">{account.senderName} · {account.senderAddress}</p>
@@ -330,8 +341,8 @@ export function ZeptoMailSettingsPanel() {
         <form className="rounded-xl border border-accent/20 bg-accent-muted/10 p-3 md:p-4 space-y-3" onSubmit={(event) => void save(event)}>
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h4 className="text-sm font-semibold text-fg">{draft.id ? 'Edit profil Agent' : 'Tambah Agent ZeptoMail'}</h4>
-              <p className="text-[11px] text-fg-muted mt-0.5">Satu profil mewakili satu Agent beserta Send Mail Token-nya.</p>
+              <h4 className="text-sm font-semibold text-fg">{draft.id ? 'Edit akun email' : 'Tambah akun email'}</h4>
+              <p className="text-[11px] text-fg-muted mt-0.5">Setiap akun menyimpan penyedia, alamat pengirim, dan kredensial terenkripsi.</p>
             </div>
             <button type="button" className="p-2 rounded-lg text-fg-muted hover:text-fg hover:bg-white/5" onClick={() => { setEditing(false); setDraft(EMPTY_DRAFT); }} aria-label="Tutup form">
               <X size={15}/>
@@ -340,7 +351,14 @@ export function ZeptoMailSettingsPanel() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-xs text-fg-muted">
-              Nama profil / Agent
+              Penyedia email
+              <select className="input mt-1 w-full" value={draft.provider} onChange={(event) => setDraft((current) => ({ ...current, provider: event.target.value as AccountDraft['provider'], sendMailToken: '' }))}>
+                <option value="brevo">Brevo Free · 300 email/hari</option>
+                <option value="zeptomail">ZeptoMail · kredit / pay-as-you-go</option>
+              </select>
+            </label>
+            <label className="block text-xs text-fg-muted">
+              Nama profil / akun
               <input className="input mt-1 w-full" value={draft.label} onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))} placeholder="Contoh: Agent Utama" maxLength={80} required />
             </label>
             <label className="block text-xs text-fg-muted">
@@ -358,14 +376,20 @@ export function ZeptoMailSettingsPanel() {
           </div>
 
           <label className="block text-xs text-fg-muted">
-            Send Mail Token
-            <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.sendMailToken} onChange={(event) => setDraft((current) => ({ ...current, sendMailToken: event.target.value }))} placeholder={draft.id ? 'Kosongkan jika tidak mengganti token' : 'Tempel Send Mail Token dari Agent'} required={!draft.id} />
-            <span className="block text-[10px] mt-1.5">Token hanya dikirim saat disimpan, dienkripsi di Worker, dan tidak pernah ditampilkan kembali. Anda dapat menempelkan token mentah atau header lengkap <code>Zoho-enczapikey</code>.</span>
+            {draft.provider === 'brevo' ? 'Brevo API Key (v3)' : 'ZeptoMail Send Mail Token'}
+            <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.sendMailToken} onChange={(event) => setDraft((current) => ({ ...current, sendMailToken: event.target.value }))} placeholder={draft.provider === 'brevo' ? (draft.id ? 'Kosongkan jika tidak mengganti API Key' : 'Tempel API Key Brevo v3') : (draft.id ? 'Kosongkan jika tidak mengganti token' : 'Tempel Send Mail Token dari Agent')} required={!draft.id || accounts.find((account) => account.id === draft.id)?.provider !== draft.provider} />
+            <span className="block text-[10px] mt-1.5">Kredensial hanya dikirim saat disimpan, dienkripsi di Worker, dan tidak pernah ditampilkan kembali. Mengganti jenis penyedia mewajibkan kredensial baru.</span>
           </label>
 
-          <div className="rounded-lg bg-surface-elevated/70 px-3 py-2 text-[11px] text-fg-muted">
-            Ambil token di ZeptoMail: <strong>Agents → pilih Agent → SMTP/API → API → Send Mail Token</strong>. Pastikan domain pengirim sudah diverifikasi pada Agent tersebut.
-          </div>
+          {draft.provider === 'brevo' ? (
+            <div className="rounded-lg bg-surface-elevated/70 px-3 py-2 text-[11px] text-fg-muted">
+              Brevo Free menyediakan transactional email hingga <strong>300 email per hari</strong>. Ambil API Key v3 dari akun Brevo dan verifikasi domain pengirim sebelum mengaktifkannya. Batas gratis harian tidak di-bypass otomatis; email yang melewati kuota dapat tertahan.
+            </div>
+          ) : (
+            <div className="rounded-lg bg-surface-elevated/70 px-3 py-2 text-[11px] text-fg-muted">
+              Ambil token di ZeptoMail: <strong>Agents → pilih Agent → SMTP/API → API → Send Mail Token</strong>. ZeptoMail pay-as-you-go; kredit gratis pertama hanya promosi terbatas waktu. Jangan aktifkan auto top-up atau membeli kredit pada proyek Free-only.
+            </div>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => { setEditing(false); setDraft(EMPTY_DRAFT); }} disabled={saving}>Batal</Button>
@@ -376,7 +400,7 @@ export function ZeptoMailSettingsPanel() {
 
       <div className="border-t surface-border pt-3 flex items-start gap-2 text-[11px] text-fg-muted">
         <ShieldCheck size={14} className="shrink-0 mt-0.5 text-accent"/>
-        <p>Token tidak dapat dibaca lewat API admin. Tes email hanya dikirim ke email akun admin yang sedang login dan dibatasi satu kali per menit. Mengganti Agent aktif berlaku untuk email verifikasi dan reset password berikutnya.</p>
+        <p>Kredensial tidak dapat dibaca lewat API admin. Tes hanya dikirim ke email admin yang sedang login dan dibatasi satu kali per menit. Mengganti akun aktif berlaku untuk email verifikasi dan reset password berikutnya.</p>
       </div>
     </Card>
   );
