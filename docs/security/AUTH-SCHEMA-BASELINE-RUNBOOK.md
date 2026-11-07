@@ -138,3 +138,15 @@ Extended owner/admin tests for commerce, payment events, shipments, canonical pa
 
 The successful baseline does not authorize production changes. No production SQL migration, FK rehome, DDL/DML, trigger/function/RLS update, user reset, issuer switch, Edge deployment, or login cutover has been performed. The 109-policy matrix is not exhaustive; see AUTH-RLS-POLICY-TEST-MATRIX.md for the coverage still required.
 
+
+
+## Expanded production-shaped RLS regression — 7 November 2026
+
+[Auth Production Schema Baseline #42379783008](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379783008) completed successfully on the production schema-only disposable restore. In addition to the previously passing Auth/referral/organizer/competition/admin checks, it validated:
+- Commerce: order owner can read their order, line item, payment intent and shipment; unrelated users cannot read the rows; payment events remain admin-only; admin can read/update the allowed commerce/payment metadata.
+- Exams: an individual participant can read their canonical participant record and active attempt; unrelated users cannot read the attempt; admin can read it.
+- Teacher rosters: the teacher owner can read the roster and its external roster entry; an unrelated student cannot; admin can read both.
+- The fixed synthetic UUIDs passed collision checks, the regression transaction rolled back, local Supabase was stopped, and temporary schema files were removed.
+- Matching [Supabase Local Auth Claims CI #42379783126](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379783126) passed.
+
+This raises representative policy-family coverage; it does not establish that all 109 policies across 61 tables are behaviorally proven. Organizer active/inactive member separation and remaining certificates/answers/collective/public-content policies still need explicit cases. Production identity/FK/RLS/issuer/login state remains unchanged.
