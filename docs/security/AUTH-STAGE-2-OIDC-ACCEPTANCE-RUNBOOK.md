@@ -1,6 +1,6 @@
 # Stage 2 — OIDC/JWT hosted acceptance runbook
 
-Status: **the non-production issuer is deployed and hosted discovery/JWKS smoke tests pass**. Supabase third-party Custom OIDC acceptance and downstream API/RLS tests remain pending in an isolated Supabase Free project. This runbook does not authorize registering the issuer in production or changing production Supabase.
+Status as of 7 November 2026: **Supabase Custom OIDC, hosted Better Auth token acceptance, Data API and two-user RLS acceptance have passed on the isolated Free staging project.** Storage owner/issuer RLS and Realtime private-topic policy semantics have now passed transaction-scoped synthetic tests. A read-only Edge Function acceptance probe is deployed to staging, and its source/contract is checked in CI. Full hosted Storage API and Realtime WebSocket tests, plus a positive Edge Function invocation with a real Better Auth access token, remain pending until the staging Brevo sender is configured and a verified synthetic user/session can be created. This runbook never authorizes production OIDC changes.
 
 ## Fixed issuer contract
 
