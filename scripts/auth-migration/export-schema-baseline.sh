@@ -65,7 +65,7 @@ supabase db dump --db-url "$SUPABASE_DB_URL" -f "$OUTPUT_DIR/schema.sql"
 
 printf 'Capturing custom Auth/Storage DDL separately...\n'
 # `db diff` is a read-only comparison; output is saved locally, not applied.
-supabase db diff --linked --schema auth,storage > "$OUTPUT_DIR/auth-storage-custom.sql"
+supabase db diff --to=remote --schema auth,storage > "$OUTPUT_DIR/auth-storage-custom.sql"
 
 printf 'Recording PostgreSQL version and installed extension versions...\n'
 psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
