@@ -136,7 +136,7 @@ COMMIT;
 SQL
 )
 
-psql -X --no-psqlrc --set=ON_ERROR_STOP=1 --no-align --tuples-only --quiet --command "$SQL" > "$RAW_JSON"
+psql -X --set=ON_ERROR_STOP=1 --no-align --tuples-only --quiet --command "$SQL" > "$RAW_JSON"
 
 node --input-type=module - "$RAW_JSON" "$FINAL_JSON" "$SUPABASE_PROJECT_REF" "$EXPECTED_FK_COUNT" <<'NODE'
 import { readFileSync, writeFileSync } from "node:fs";
