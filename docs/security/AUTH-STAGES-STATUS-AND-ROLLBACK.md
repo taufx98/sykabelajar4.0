@@ -473,3 +473,6 @@ New details now recorded in [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTIT
 - The trusted phone-verification and SHA-256 identity-claim contract for organizer creation remains mandatory.
 
 All evidence is from PostgreSQL catalogs/definitions only, without selecting user rows, emails, UUIDs or secrets. No production data/schema/trigger/function/grant/policy/auth configuration was changed.
+
+
+A current source/production recheck further confirms `ReferralProgramPanel.tsx` is the active frontend consumer of `get_my_referrals_v2()`, but it does not use `last_login_at`. No active frontend consumer for `get_my_verified_referrals()` was found, despite its live anonymous EXECUTE grant. A read-only production query of `cron.job` found no current scheduler job invoking `verify_pending_referrals()`. These are now explicit API/ACL and scheduler compatibility checks for Stage 3; no grants or cron jobs were changed.
