@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireBetterAuthUser } from "../_shared/better-auth-user.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { isOwnedCloudinaryPublicId } from "../_shared/cloudinary-ownership.mjs";
 
 const CORS_HEADERS = {
@@ -10,21 +10,12 @@ const CORS_HEADERS = {
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   try {
-    const identity = await requireBetterAuthUser(req);
-    if (!identity.ok) {
-      return new Response(JSON.stringify({ error: identity.error }), {
-        status: identity.status,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
-    }
-    const { userId } = identity;
-    const supabase = identity.supabase;
-    if (!supabase) {
-      return new Response(JSON.stringify({ error: "AUTH_SUPABASE_CONTEXT_UNAVAILABLE" }), {
-        status: 503,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
-    }
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return new Response(JSON.stringify({ error: "Missing authorization" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+
+    const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", { global: { headers: { Authorization: authHeader } } });
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
 
     const body = await req.json().catch(() => ({}));
     const publicId = typeof body.public_id === 'string' ? body.public_id.trim() : '';
@@ -36,7 +27,7 @@ serve(async (req: Request) => {
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("username")
-      .eq("id", userId)
+      .eq("id", user.id)
       .maybeSingle();
     if (profileError || !profile) {
       return new Response(JSON.stringify({ error: "PROFILE_NOT_FOUND" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
@@ -47,14 +38,14 @@ serve(async (req: Request) => {
       const { data, error } = await supabase
         .from("organizers")
         .select("id,slug")
-        .eq("owner_user_id", userId);
+        .eq("owner_user_id", user.id);
       if (error) {
         return new Response(JSON.stringify({ error: "ORGANIZER_OWNERSHIP_CHECK_FAILED" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
       }
       ownedOrganizers = (data ?? []) as Array<{ id: string; slug: string }>;
     }
 
-    if (!isOwnedCloudinaryPublicId(publicId, { userId, username: profile.username, ownedOrganizers })) {
+    if (!isOwnedCloudinaryPublicId(publicId, { userId: user.id, username: profile.username, ownedOrganizers })) {
       return new Response(JSON.stringify({ error: "CLOUDINARY_PUBLIC_ID_NOT_OWNED" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
     }
 
