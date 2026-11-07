@@ -833,6 +833,9 @@ BEGIN
     v_admin_answer_attempt_id,v_competition_id,u_admin,1,'SUBMITTED'
   );
 
+  -- Question bank creation must run as the actual organizer owner, because
+  -- its production trigger checks organizer membership using auth.uid().
+  PERFORM set_config('request.jwt.claim.sub',u_organizer::text,true);
   INSERT INTO public.question_banks (
     id,organizer_id,owner_user_id,name,status
   )
