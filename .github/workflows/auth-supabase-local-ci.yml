@@ -88,6 +88,12 @@ jobs:
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/cloudinary-profile-upload/index.ts
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/payment-gateway-admin/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/payment-gateway-create/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/payment-gateway-reconcile/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             supabase/functions/better-auth-oidc-acceptance/index.ts
 
       - name: Verify deployed staging OIDC Edge probe rejects anonymous requests
