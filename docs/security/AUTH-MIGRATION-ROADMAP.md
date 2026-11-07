@@ -326,3 +326,18 @@ Verified CI:
 - [Cloudflare staging read-only preflight #42258255042](https://github.com/taufx98/sykabelajar4.0/actions/runs/42258255042) — **success**. It does not deploy or migrate remote resources.
 
 **Still not done:** remote D1 migration 0004, staging Worker redeployment with the seven-column/preview-origin gate, live CORS smoke, real ZeptoMail delivery, isolated hosted Supabase Custom OIDC, hosted two-user IDOR tests, production schema export, and the production identity/FK/RLS migration. No production database, Edge Function, secret, Cloudinary asset, or application login flow was changed. PR #177 remains Draft and unmerged; its base-branch state is still dirty, so no merge was attempted.
+
+
+## Latest Stage 3 continuation — 7 November 2026
+
+This checkpoint supersedes earlier notes in this file that say hosted Supabase OIDC acceptance is still blocked or that only one Supabase project is visible.
+
+- **Stage 2 remains complete for hosted OIDC core acceptance** on isolated Free project `sykabelajar-auth-staging` (`ydamszdfsxqisanazdkb`). The existing OIDC fixture remains intact.
+- Production identity catalog was revalidated read-only: PostgreSQL 17.6; `private.app_users` absent; `auth.users` count 11; 69 application FKs still reference `auth.users`; 3 non-internal triggers remain on `auth.users`; and 109 `auth.uid()` policies cover 61 tables (108 public, 1 private). No user rows or identity values were selected.
+- The 10 function dependencies are now differentiated: 8 functions directly query `auth.users`; 2 consume its row through trigger `NEW`/`OLD` context. No application views reference `auth.users` or `auth.uid()`.
+- The synthetic fixture remains narrower than production and does not yet cover every production trigger/guard or all referral/organizer function replacements. The expanded coverage gaps are documented in [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTITY-DEPENDENCY-INVENTORY.md).
+- A second dedicated Free project for Stage 3 was quoted at **US$0/month** but creation was rejected: the account already has two active Free projects, production `sykabelajar_db2` and `sykabelajar-auth-staging`. No project was created, paused, deleted, or upgraded. Do not pause OIDC staging and do not use a paid branch. The existing isolated staging project can be reused for future namespaced auth test objects after a collision check; it is not a replacement for the complete production schema-only baseline.
+- **Stage 3 is still in preparation, not ready for an executable/production migration.** The complete schema-only `pg_dump` baseline is not available through the connected Supabase catalog/query interface. The organizer verified-phone compatibility requirement also remains unresolved. No production identity table, FK, trigger, function, RLS policy, user, secret, or login setting has been changed.
+- Stages 4–7 remain gated in their approved order. Do not begin frontend or backend cutover while Stage 3 identity/FK/provisioning acceptance remains incomplete.
+
+The work in this checkpoint is limited to the seven-stage Better Auth migration. No Cloudinary, payment, media-storage, Shop, or unrelated application behavior was changed.
