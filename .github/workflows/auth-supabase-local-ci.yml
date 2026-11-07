@@ -57,6 +57,8 @@ jobs:
         run: |
           bash -n ../../../scripts/auth-migration/export-schema-baseline.sh
           node ../../../scripts/auth-migration/export-schema-baseline.contract.test.mjs
+          node ../../../scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs
+          node ../../../scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs
           bash -n ../../../scripts/auth-migration/export-live-auth-users-fk-plan.sh
           node ../../../scripts/auth-migration/export-live-auth-users-fk-plan.contract.test.mjs
 
