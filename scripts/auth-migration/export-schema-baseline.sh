@@ -110,9 +110,11 @@ source "$PG_ENV"
 
 # Capture only definitions and schema metadata needed for Stage 3 restore parity.
 # This query does not select application rows, identity values, or credentials.
+CATALOG_METADATA_SQL="$(cat "$REPO_ROOT/scripts/auth-migration/stage3-baseline-metadata.sql")"
 psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align \
-  --file "$REPO_ROOT/scripts/auth-migration/stage3-baseline-metadata.sql" \
+  --command "$CATALOG_METADATA_SQL" \
   > "$OUTPUT_DIR/production-catalog-metadata.json"
+unset CATALOG_METADATA_SQL
 
 printf 'Output folder: %s\n' "$OUTPUT_DIR"
 printf 'Exporting schema-only custom database objects using Supabase CLI v3 remote mode...\n'
