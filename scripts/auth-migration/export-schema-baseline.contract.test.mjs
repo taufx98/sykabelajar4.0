@@ -13,6 +13,8 @@ assert.ok(script.includes('PGPASSFILE="$OUTPUT_DIR/.schema-baseline.pgpass"'));
 assert.ok(script.includes('source "$PG_ENV"'));
 assert.ok(script.includes('stage3-baseline-metadata.sql'));
 assert.ok(script.includes('production-catalog-metadata.json'));
+assert.ok(script.includes('CATALOG_METADATA_SQL="$(cat "$REPO_ROOT/scripts/auth-migration/stage3-baseline-metadata.sql")"'));
+assert.ok(script.includes('--command "$CATALOG_METADATA_SQL"'));
 assert.ok(script.includes('Stage 3 production catalog metadata snapshot is empty'));
 assert.ok(script.includes('production-catalog-metadata.json manifest.txt > SHA256SUMS'));
 assert.doesNotMatch(script, /psql\s+["']?\$SUPABASE_DB_URL/);
