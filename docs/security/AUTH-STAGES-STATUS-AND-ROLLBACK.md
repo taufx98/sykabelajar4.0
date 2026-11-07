@@ -487,3 +487,18 @@ Supabase Security Advisor reports 14 `RLS enabled, no policy` informational find
 Performance Advisor still reports six unindexed FKs in the small synthetic fixture and one initialization-plan warning on the pre-existing Stage 2 OIDC issuer policy. No production performance finding was modified. Indexes were briefly trialed and then removed from the synthetic tables because the advisor marked all six as unused; no index change was made to production. The Stage 2 policy warning is retained for a separate issuer-policy performance review and does not change the accepted issuer restriction.
 
 No production schema/data/auth change was made.
+
+
+## Stage 3 phone-verification progress — 7 November 2026
+
+A free verified-phone candidate has been implemented using Telegram's official OIDC `phone` scope. It is separate from SYKABELAJAR social login. Worker code validates RS256 signature, issuer, audience, nonce, expiry/freshness, and `phone_number_verified=true`; D1 challenges are one-use, short-lived, atomically rate-limited, and expired rows are deleted on demand. Only a digits-only SHA-256 hash and trusted Telegram subject reach the service-role-only Supabase RPC.
+
+Hosted synthetic pgTAP organizer/phone compatibility passed **26/26 assertions**. The test preserves the existing verified-email and active `organizer_member` gates, rejects forged client verification, prevents duplicate Telegram-subject linking, and preserves the global FREE organizer identity claim.
+
+Still required before this phone gate is operationally closed:
+1. Owner-created BotFather OIDC app with the exact callback `https://auth.sykabelajar.my.id/phone-verification/telegram/callback`.
+2. Add `AUTH_TELEGRAM_CLIENT_ID` and `AUTH_TELEGRAM_CLIENT_SECRET` to the Worker as encrypted Cloudflare secrets; do not put them in repo, Pages variables or chat.
+3. Apply D1 migration 0005 to the dedicated staging D1 through the hash-guarded workflow, then run real hosted user-consent/callback acceptance tests before any enablement.
+4. Keep production `create_organizer()` and identity tables unchanged until the full schema-only production baseline and disposable restore are complete.
+
+The UI guidance note (shadcn/ui Skills) is recorded for the later Admin panel; no UI implementation or Stage 4 work has started.
