@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0005"
+      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0006"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -69,7 +69,7 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0005"
+            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0006"
             test -f "$marker" || {
               echo "Blocked: the one-time staging Worker deployment marker is missing." >&2
               exit 1
@@ -108,6 +108,7 @@ jobs:
             /^DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m,
             /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
             /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
+            /^AUTH_EMAIL_PROVIDER = "managed"$/m,
             /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
             /^pattern = "auth\.sykabelajar\.my\.id"$/m,
             /^custom_domain = true$/m,
@@ -171,6 +172,23 @@ jobs:
           const missing = expected.filter((name) => !columns.has(name));
           if (missing.length) throw new Error("Remote staging D1 lacks Better Auth registration columns: " + missing.join(", ") + ". Run the guarded D1 migration workflow first.");
           console.log("Verified all seven Better Auth registration/profile bootstrap columns before Worker deployment.");
+          NODE
+
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('auth_email_accounts') WHERE name = 'provider';" > "$RUNNER_TEMP/auth-worker-staging-email-provider.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-email-provider.json", "utf8"));
+          const columns = new Set();
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") columns.add(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (!columns.has("provider")) throw new Error("Transactional email provider migration 0006 is missing; refusing deployment.");
+          console.log("Verified provider-aware transactional email schema.");
           NODE
 
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM user) AS users, (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM account) AS accounts, (SELECT COUNT(*) FROM verification) AS verifications, (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges, (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
@@ -308,4 +326,4 @@ jobs:
 
       - name: Remove temporary secret material from runner
         if: always()
-        run: rm -f "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok" "$RUNNER_TEMP/wrangler-deploy.log" "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
+        run: rm -f "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-user-columns.json" "$RUNNER_TEMP/auth-worker-staging-email-provider.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok" "$RUNNER_TEMP/wrangler-deploy.log" "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
