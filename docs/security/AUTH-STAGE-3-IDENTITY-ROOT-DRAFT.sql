@@ -788,8 +788,9 @@ END;
 $function$;
 
 
--- These functions are taken from synthetic Stage 3 fixtures and remain
--- server-only. Only the Cloudflare Worker service credential may invoke them.
+-- Trusted provisioning functions are copied from the isolated Stage 3 fixture
+-- and delimited independently. Public wrappers/internal helpers remain callable
+-- only by service_role (the Cloudflare Worker).
 create or replace function private.provision_better_auth_user(
   p_user_id uuid,
   p_account_type text,
@@ -845,14 +846,8 @@ begin
   )
   on conflict (id) do nothing;
 
-  -- Provision only the first basic role. A retry must not add a second role
-  -- or reactivate a role that an administrator has already disabled.
   insert into public.user_roles (user_id, role, is_active)
-  select p_user_id, v_role, true
-  where not exists (
-    select 1 from public.user_roles existing_role
-    where existing_role.user_id = p_user_id
-  )
+  values (p_user_id, v_role, true)
   on conflict (user_id, role) do nothing;
 
   insert into public.user_settings (user_id) values (p_user_id)
@@ -933,122 +928,6 @@ begin
   return true;
 end;
 $$;
-
-revoke all on function private.credit_profile_currency(uuid, text, numeric)
-  from public, anon, authenticated;
-revoke all on function private.apply_referral_qualification(uuid, text, timestamptz)
-  from public, anon, authenticated, service_role;
-revoke all on function private.handle_referral_daily_checkin()
-  from public, anon, authenticated, service_role;
-revoke all on function private.provision_better_auth_user(uuid, text, text, text, text, boolean, date, text, text, text)
-  from public, anon, authenticated;
-revoke all on function private.complete_better_auth_email_verification(uuid, timestamptz)
-  from public, anon, authenticated;
-grant execute on function private.provision_better_auth_user(uuid, text, text, text, text, boolean, date, text, text, text)
-  to service_role;
-grant execute on function private.complete_better_auth_email_verification(uuid, timestamptz)
-  to service_role;
-
--- Same PostgREST-facing RPC bridge proposed for the Cloudflare Worker.
--- This lives only in the synthetic local fixture; no production migration is made.
-create or replace function public.better_auth_provision_user(
-  p_user_id uuid,
-  p_account_type text,
-  p_full_name text,
-  p_username text,
-  p_referral_code text default null,
-  p_email_verified boolean default false,
-  p_birth_date date default null,
-  p_institution text default null,
-  p_grade text default null,
-  p_subjects text default null
-) returns jsonb
-language sql security definer set search_path = ''
-as $function$
-  select private.provision_better_auth_user(
-    p_user_id, p_account_type, p_full_name, p_username,
-    p_referral_code, p_email_verified,
-    p_birth_date, p_institution, p_grade, p_subjects
-  );
-$function$;
-
-create or replace function private.complete_better_auth_email_verification(
-  p_user_id uuid, p_verified_at timestamptz
-) returns boolean
-language plpgsql security definer set search_path = ''
-as $$
-declare
-  v_event public.referral_events%rowtype;
-begin
-  if p_user_id is null or p_verified_at is null then
-    raise exception using errcode = '22023', message = 'VERIFICATION_INPUT_REQUIRED';
-  end if;
-
-  update private.app_users
-  set email_verified_at = p_verified_at,
-      updated_at = pg_catalog.clock_timestamp()
-  where id = p_user_id and email_verified_at is null;
-  if not found then
-    if exists (select 1 from private.app_users where id = p_user_id) then
-      return false;
-    end if;
-    raise exception 'USER_IDENTITY_NOT_FOUND';
-  end if;
-
-  select re.* into v_event
-  from public.referral_events re
-  where re.referred_user_id = p_user_id
-    and re.status = 'PENDING'
-    and re.verified_at is null
-    and re.verified_activity is not null
-    and re.last_checked_at is not null
-  for update;
-  if found then
-    perform private.apply_referral_qualification(
-      p_user_id, v_event.verified_activity, v_event.last_checked_at
-    );
-  end if;
-  return true;
-end;
-$$;
-
-revoke all on function private.credit_profile_currency(uuid, text, numeric)
-  from public, anon, authenticated;
-revoke all on function private.apply_referral_qualification(uuid, text, timestamptz)
-  from public, anon, authenticated, service_role;
-revoke all on function private.handle_referral_daily_checkin()
-  from public, anon, authenticated, service_role;
-revoke all on function private.provision_better_auth_user(uuid, text, text, text, text, boolean, date, text, text, text)
-  from public, anon, authenticated;
-revoke all on function private.complete_better_auth_email_verification(uuid, timestamptz)
-  from public, anon, authenticated;
-grant execute on function private.provision_better_auth_user(uuid, text, text, text, text, boolean, date, text, text, text)
-  to service_role;
-grant execute on function private.complete_better_auth_email_verification(uuid, timestamptz)
-  to service_role;
-
--- Same PostgREST-facing RPC bridge proposed for the Cloudflare Worker.
--- This lives only in the synthetic local fixture; no production migration is made.
-create or replace function public.better_auth_provision_user(
-  p_user_id uuid,
-  p_account_type text,
-  p_full_name text,
-  p_username text,
-  p_referral_code text default null,
-  p_email_verified boolean default false,
-  p_birth_date date default null,
-  p_institution text default null,
-  p_grade text default null,
-  p_subjects text default null
-) returns jsonb
-language sql security definer set search_path = ''
-as $function$
-  select private.provision_better_auth_user(
-    p_user_id, p_account_type, p_full_name, p_username,
-    p_referral_code, p_email_verified,
-    p_birth_date, p_institution, p_grade, p_subjects
-  );
-$function$;
 
 CREATE OR REPLACE FUNCTION private.complete_better_auth_phone_verification(
   p_user_id uuid,
@@ -1168,6 +1047,46 @@ AS $function$
     p_provider_subject, p_phone_digits_count
   );
 $function$;
+
+REVOKE ALL ON FUNCTION private.provision_better_auth_user(
+  uuid,text,text,text,text,boolean,date,text,text,text
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.complete_better_auth_email_verification(
+  uuid,timestamptz
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.complete_better_auth_phone_verification(
+  uuid,timestamptz,text,text,text,integer
+) FROM PUBLIC, anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.better_auth_provision_user(
+  uuid,text,text,text,text,boolean,date,text,text,text
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.better_auth_complete_email_verification(
+  uuid,timestamptz
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.better_auth_complete_phone_verification(
+  uuid,timestamptz,text,text,text,integer
+) FROM PUBLIC, anon, authenticated, service_role;
+
+GRANT EXECUTE ON FUNCTION private.provision_better_auth_user(
+  uuid,text,text,text,text,boolean,date,text,text,text
+) TO service_role;
+GRANT EXECUTE ON FUNCTION private.complete_better_auth_email_verification(
+  uuid,timestamptz
+) TO service_role;
+GRANT EXECUTE ON FUNCTION private.complete_better_auth_phone_verification(
+  uuid,timestamptz,text,text,text,integer
+) TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.better_auth_provision_user(
+  uuid,text,text,text,text,boolean,date,text,text,text
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.better_auth_complete_email_verification(
+  uuid,timestamptz
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.better_auth_complete_phone_verification(
+  uuid,timestamptz,text,text,text,integer
+) TO service_role;
 
 COMMIT;
 
