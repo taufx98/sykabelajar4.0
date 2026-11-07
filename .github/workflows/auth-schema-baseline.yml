@@ -14,6 +14,8 @@ on:
       - "scripts/auth-migration/verify-stage3-baseline-metadata.mjs"
       - "scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs"
       - "scripts/auth-migration/stage3-production-schema-regression.sql"
+      - "scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs"
+      - "supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql"
       - "scripts/auth-migration/generate-stage3-function-acl-restore.mjs"
       - "scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs"
       - ".github/workflows/auth-schema-baseline.yml"
@@ -134,6 +136,10 @@ jobs:
       - name: Test Stage 3 function ACL restore generator contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
+
+      - name: Test create_organizer PL/pgSQL ambiguity fix contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs
 
       - name: Prepare an empty disposable Supabase project
         if: steps.credentials.outputs.available == 'true'
@@ -390,6 +396,19 @@ jobs:
           node scripts/auth-migration/verify-stage3-baseline-metadata.mjs \
             --production "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json" \
             --restored "$RUNNER_TEMP/restored-stage3-baseline-metadata.json"
+
+      - name: Apply reviewed create_organizer ambiguity fix to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql:/baseline/create-organizer-fix.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/create-organizer-fix.sql
+          echo "- Applied the pending create_organizer ambiguity fix to the disposable restore only, after original production metadata parity passed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run rollback-only production-shaped Stage 3 behavior and RLS regression
         if: steps.credentials.outputs.available == 'true'
