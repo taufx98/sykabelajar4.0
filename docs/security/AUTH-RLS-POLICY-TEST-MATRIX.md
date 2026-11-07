@@ -31,14 +31,14 @@ The current local disposable-schema regression is `scripts/auth-migration/stage3
 | `profiles` owner/self | Owner reads own private profile; cross-user private profile is hidden; cross-user update changes zero rows | Covered |
 | `profiles` public-or-owner | Anon reads one explicitly public synthetic profile and cannot read private profiles; the public legacy referral RPC returns no referral rows to anon | Covered |
 | Profile backend guards | Authenticated update of `edu_coin` or `account_type` is rejected with the production guard error | Covered |
-| `user_roles` owner/self | User can read own role; related users' role rows remain hidden | Covered |
+| `user_roles` owner/self and admin overlay | User can read own role; related role rows remain hidden; a trusted synthetic admin can read the test roles | Covered for owner and representative admin overlay |
 | `referral_events` owner/self | Referrer and referred user can see their own relationship; unrelated user is not part of the tested fixture | Representative coverage |
 | `get_my_verified_referrals()` PUBLIC/anon grant | Referrer gets its own verified referral results; referred non-referrer and anon get zero rows | Covered |
 | `user_settings` owner/self | Own theme update succeeds; cross-user update changes zero rows | Covered |
 | `registrations` owner/self | Participant can read own registration; direct insert with forged `user_id` fails `AUTHORIZATION_REQUIRED` | Covered |
 | `notifications` owner/self | Own read/update succeeds; cross-user update changes zero rows | Covered |
 | `daily_checkins` owner/self | User sees own check-in row and not another user's row | Covered |
-| `organizers` admin/owner overlay | Non-owner update is denied | Negative case covered; positive owner and admin cases remain |
+| `organizers` admin/owner overlay | Normal user cannot update another organizer; a database-provisioned admin can update it | Covered for admin overlay and non-owner denial |
 | `create_organizer` authorization | Anon cannot execute; authenticated user still must satisfy business verification checks | Covered with function ACL and behavior checks |
 
 The current set is representative, not exhaustive. It does **not** establish that all 109 policies pass under Better Auth JWTs.
