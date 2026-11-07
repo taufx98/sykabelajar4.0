@@ -35,8 +35,10 @@ CREATE UNIQUE INDEX app_users_phone_provider_subject_uidx
     AND phone_verification_subject IS NOT NULL;
 
 ALTER TABLE private.app_users ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE private.app_users FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE private.app_users TO service_role;
+-- Production intentionally denies direct private-schema access even to
+-- service_role. Cloudflare Worker must call the public SECURITY DEFINER RPCs;
+-- their owner (postgres) performs the narrowly scoped projection writes.
+REVOKE ALL ON TABLE private.app_users FROM PUBLIC, anon, authenticated, service_role;
 
 -- Preserve old Auth UUID parents without copying emails, phone values,
 -- credentials, tokens or session rows. Phone is hashed transiently only when
