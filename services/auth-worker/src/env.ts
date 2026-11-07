@@ -14,7 +14,10 @@ export interface AuthWorkerEnv {
   AUTH_EMAIL_WEBHOOK_URL?: string;
   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
   AUTH_EMAIL_FROM?: string;
+  /** Legacy production Supabase URL used only by the pre-cutover Admin bridge. */
   SUPABASE_URL?: string;
+  /** Hard-pinned isolated Free Stage 3 destination for Better Auth provisioning. */
+  SUPABASE_PROVISIONING_URL?: string;
   SUPABASE_PUBLISHABLE_KEY?: string;
   /** Server-only Supabase secret; never expose to browser bundles or logs. */
   SUPABASE_SERVICE_ROLE_KEY?: string;
