@@ -59,15 +59,20 @@ jobs:
           const ref = process.env.SUPABASE_PROJECT_REF;
           let supplied = (process.env.SUPABASE_DB_URL ?? "").trim();
 
-          // Dashboard snippets may wrap the URI as: psql 'postgresql://...'.
-          // Accept that common wrapper, but never echo the URI or password.
-          const command = supplied.match(/^psql\\s+(['"])(postgres(?:ql)?:\\/\\/.*)\\1\\s*$/s);
-          if (command) supplied = command[2];
-
-          if (!/^postgres(?:ql)?:\\/\\//i.test(supplied)) {
-            throw new Error("SUPABASE_DB_URL is not a raw PostgreSQL URI. Store only the connection URI starting with postgresql:// (or postgres://), not the database password alone, an export command, or the surrounding psql command.");
+          // Accept the raw URI, or the common Dashboard terminal snippet: psql 'URI'.
+          if (supplied.startsWith("psql ")) {
+            supplied = supplied.slice(5).trim();
+            if ((supplied.startsWith("'") && supplied.endsWith("'")) ||
+                (supplied.startsWith('"') && supplied.endsWith('"'))) {
+              supplied = supplied.slice(1, -1);
+            }
           }
-          if (/[\\r\\n]/.test(supplied)) {
+
+          if (!supplied.toLowerCase().startsWith("postgresql://") &&
+              !supplied.toLowerCase().startsWith("postgres://")) {
+            throw new Error("SUPABASE_DB_URL is not a raw PostgreSQL URI. Store only the connection URI starting with postgresql:// (or postgres://), not the database password alone, an export command, or a surrounding terminal command.");
+          }
+          if (supplied.includes("\\n") || supplied.includes("\\r")) {
             throw new Error("SUPABASE_DB_URL must be a single-line URI.");
           }
 
@@ -76,13 +81,15 @@ jobs:
           if (!url.hostname.endsWith(".pooler.supabase.com") || username !== "postgres." + ref || url.port !== "5432") {
             throw new Error("Use the full URI copied from Supabase Connect → Session pooler: port 5432, username postgres.<project-ref>, and the exact copied pooler host.");
           }
-          if (!url.password || !url.pathname || url.pathname === "/" ||
-              /^(?:\\[YOUR-PASSWORD\\]|<[^>]+>)$/i.test(decodeURIComponent(url.password))) {
+          const decodedPassword = decodeURIComponent(url.password);
+          if (!decodedPassword || !url.pathname || url.pathname === "/" ||
+              decodedPassword === "[YOUR-PASSWORD]" || decodedPassword === "[DB-PASSWORD]") {
             throw new Error("SUPABASE_DB_URL is incomplete. Replace the password placeholder with the database password before saving the secret.");
           }
 
           // Normalize the accepted form for following steps without printing it.
-          appendFileSync(process.env.GITHUB_ENV, "SUPABASE_DB_URL=" + supplied.replace(/%/g, "%25").replace(/\\r/g, "%0D").replace(/\\n/g, "%0A") + "\\n");
+          const safeEnvValue = supplied.replaceAll("%", "%25").replaceAll("\\r", "%0D").replaceAll("\\n", "%0A");
+          appendFileSync(process.env.GITHUB_ENV, "SUPABASE_DB_URL=" + safeEnvValue + "\\n");
           console.log("Secret format verified without printing its value.");
           NODE
           echo "available=true" >> "$GITHUB_OUTPUT"
