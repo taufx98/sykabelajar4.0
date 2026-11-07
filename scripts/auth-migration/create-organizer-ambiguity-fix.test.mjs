@@ -14,6 +14,7 @@ assert.match(sql,/RETURNS TABLE\(id uuid, name text, slug text, access_code text
 assert.match(sql,/FROM auth\.users AS au\s+WHERE au\.id = v_uid/);
 assert.doesNotMatch(sql,/FROM auth\.users\s+WHERE id\s*=\s*v_uid/i);
 assert.match(sql,/INSERT INTO public\.organizers AS inserted_organizer[\s\S]*?RETURNING inserted_organizer\.id INTO v_id/);
+assert.match(sql,/INSERT INTO public\.organizers AS inserted_organizer[\s\S]*?RETURNING inserted_organizer\.id INTO v_id/);
 assert.match(sql,/plpgsql\.variable_conflict setting is "error"/);
 assert.match(sql,/EMAIL_VERIFICATION_REQUIRED/);
 assert.match(sql,/PHONE_VERIFICATION_REQUIRED/);
