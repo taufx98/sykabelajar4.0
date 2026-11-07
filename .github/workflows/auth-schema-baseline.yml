@@ -89,8 +89,12 @@ jobs:
 
           const url = new URL(supplied);
           const username = decodeURIComponent(url.username);
-          if (!url.hostname.endsWith(".pooler.supabase.com") || username !== "postgres." + ref || url.port !== "5432") {
-            throw new Error("Use the full URI copied from Supabase Connect → Session pooler: port 5432, username postgres.<project-ref>, and the exact copied pooler host.");
+          const endpointMismatches = [];
+          if (!url.hostname.endsWith(".pooler.supabase.com")) endpointMismatches.push("HOST");
+          if (username !== "postgres." + ref) endpointMismatches.push("USERNAME");
+          if (url.port !== "5432") endpointMismatches.push("PORT");
+          if (endpointMismatches.length) {
+            throw new Error("Supabase Session Pooler connection details do not match: " + endpointMismatches.join(", ") + ". Correct only the listed fields using the exact URI from Supabase Connect → Session pooler; the secret value is never printed.");
           }
           const decodedPassword = decodeURIComponent(url.password);
           if (!decodedPassword || !url.pathname || url.pathname === "/" ||
