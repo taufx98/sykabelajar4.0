@@ -1,6 +1,6 @@
 # Dedicated Cloudflare D1 staging migration runbook
 
-Status as of 7 November 2026: **migrations 0000–0004 (17 tables) and the seven registration/profile columns are verified on the dedicated remote D1; migration 0005 remains pending remote apply.** The original manual workflow [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470) applied 0000–0003. The guarded delta workflow [#42265224273](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265224273) applied only 0004. Migration 0005 is committed, hash-locked, and tested against clean local D1 in Auth Worker CI; no remote 0005 migration or Worker deployment was run during this update.
+Status as of 7 November 2026: **remote staging D1 has migrations 0000–0006 applied; all 18 expected tables, the seven Better Auth registration columns, and the Telegram challenge table are verified. Migration 0006 is committed and locally tested but is still pending remote apply.** The guarded run [#42339140591](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339140591) applied only pending migration 0005 after verifying the exact D1 name/UUID and checksum. It did not deploy the Worker or touch Supabase.
 
 ## Fixed target
 
@@ -11,7 +11,7 @@ The workflow is permanently bound to one non-production D1 database:
 - Wrangler binding: `DB`
 - Migrations directory: `services/auth-worker/migrations`
 
-The workflow checks all four values against `wrangler.toml`, checks the remote Cloudflare D1 listing for an exact name/UUID match, and refuses to run on any branch other than `security/auth-poc-stage-1`. It also stops when the checked-in migration set differs from the six reviewed files 0000–0005.
+The workflow checks all four values against `wrangler.toml`, checks the remote Cloudflare D1 listing for an exact name/UUID match, and refuses to run on any branch other than `security/auth-poc-stage-1`. It also stops when the checked-in migration set differs from the seven reviewed files 0000–0006.
 
 ## Verified execution
 
@@ -92,7 +92,7 @@ The associated Worker flow is only an optional **phone-verification step for an 
 
 The current guarded workflow:
 - accepts only `security/auth-poc-stage-1` and the fixed D1 name/UUID above;
-- checks reviewed checksums for migrations 0004 and 0005;
+- checks reviewed checksums for migrations 0004, 0005 and 0006;
 - expects the exact six migration files 0000–0005;
 - verifies 18 tables after apply, including `auth_phone_verification_challenges`;
 - does not deploy the Worker, change DNS, create secrets, or touch production Supabase.
@@ -105,3 +105,11 @@ The current guarded workflow:
 5. Perform a real hosted Telegram consent/callback test on the isolated staging environment, including denied consent, expiry/replay, cooldown, duplicate identity and the existing organizer email/phone/role requirements.
 
 Until those manual prerequisites and hosted acceptance tests are complete, keep Telegram credentials unset and the feature disabled. Do not deploy or enable this phone-verification flow on production, and do not weaken the existing email, active organizer-role or verified-phone checks in `create_organizer`.
+
+## Migration 0006 — transactional email provider selection (reviewed; remote apply pending)
+
+Migration 0006 is an additive `ALTER TABLE` on the existing `auth_email_accounts` table. It adds `provider TEXT NOT NULL DEFAULT 'zeptomail' CHECK (provider IN ('zeptomail','brevo'))`. Existing Agent rows remain ZeptoMail and retain their ciphertext; the migration does not rewrite accounts, tokens, or user records. No table count changes (still 18 expected D1 tables).
+
+The current migration workflow checks the SHA-256 of 0004, 0005 and 0006, the exact non-production D1 name/UUID, and the exact seven migration files 0000–0006. After apply it verifies all 18 tables, the seven Better Auth user columns, and `auth_email_accounts.provider`. The separate deploy workflow refuses to deploy unless that provider column is present.
+
+Apply through [Auth D1 Staging Schema Migration](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-cloudflare-d1-migrate.yml) on branch `security/auth-poc-stage-1`, using exact confirmation `APPLY-TO-sykabelajar-auth-poc` or the one-time `.github/auth-ops/APPLY-STAGING-D1-0006` marker. This action applies only pending reviewed staging migrations; it never deploys the Worker or touches production.
