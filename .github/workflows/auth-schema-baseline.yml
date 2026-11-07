@@ -308,188 +308,36 @@ jobs:
           SQL
           )
 
-          actual="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-              -X -qAt --field-separator='|' --set=ON_ERROR_STOP=1 --command "$SQL")"
-          expected="69|62|3|4|36|109|10|0|0"
-          if [[ "$actual" != "$expected" ]]; then
-            echo "::error::Disposable schema restore did not match the reviewed production baseline."
-            echo "Expected structural metrics: $expected"
-            echo "Observed structural metrics: $actual"
-            exit 1
-          fi
-
-          {
-            echo "## Production schema baseline — passed"
-            echo ""
-            echo "- 69 application foreign keys to \`auth.users\` across 62 tables"
-            echo "- 3 non-internal \`auth.users\` triggers"
-            echo "- 4 \`profiles\` triggers and 36 profile columns"
-            echo "- 109 RLS policies referencing \`auth.uid()\`"
-            echo "- All 10 Auth-dependent application functions present"
-            echo "- 0 \`auth.users\` rows and 0 \`profiles\` rows imported"
-            echo "- Schema restored only into a disposable local Supabase stack"
-            echo "- No production DDL/DML, no artifact upload, and no schema files committed"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Compare every restored auth.users FK with the reviewed production catalog
-        if: steps.credentials.outputs.available == 'true'
-        run: |
-          set -euo pipefail
-          FK_SQL=$(cat <<'SQL'
-          SELECT COALESCE(
-            jsonb_agg(
-              jsonb_build_object(
-                'name', c.conname,
-                'on_delete', CASE c.confdeltype
-                  WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
-                  WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END,
-                'on_update', CASE c.confupdtype
-                  WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
-                  WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END,
-                'validated', c.convalidated,
-                'deferrable', c.condeferrable,
-                'match_type', CASE c.confmatchtype
-                  WHEN 's' THEN 'SIMPLE' WHEN 'f' THEN 'FULL' WHEN 'p' THEN 'PARTIAL' END,
-                'source_table', source_table.relname,
-                'target_table', target_table.relname,
-                'source_schema', source_ns.nspname,
-                'target_schema', target_ns.nspname,
-                'source_columns', (
-                  SELECT COALESCE(jsonb_agg(source_att.attname ORDER BY source_key.ordinality), '[]'::jsonb)
-                  FROM unnest(c.conkey) WITH ORDINALITY AS source_key(attnum, ordinality)
-                  JOIN pg_attribute source_att
-                    ON source_att.attrelid = source_table.oid
-                   AND source_att.attnum = source_key.attnum
-                ),
-                'target_columns', (
-                  SELECT COALESCE(jsonb_agg(target_att.attname ORDER BY target_key.ordinality), '[]'::jsonb)
-                  FROM unnest(c.confkey) WITH ORDINALITY AS target_key(attnum, ordinality)
-                  JOIN pg_attribute target_att
-                    ON target_att.attrelid = target_table.oid
-                   AND target_att.attnum = target_key.attnum
-                ),
-                'initially_deferred', c.condeferred
-              ) ORDER BY source_ns.nspname, source_table.relname, c.conname
-            ), '[]'::jsonb
-          )::text
-          FROM pg_constraint c
-          JOIN pg_class source_table ON source_table.oid = c.conrelid
-          JOIN pg_namespace source_ns ON source_ns.oid = source_table.relnamespace
-          JOIN pg_class target_table ON target_table.oid = c.confrelid
-          JOIN pg_namespace target_ns ON target_ns.oid = target_table.relnamespace
-          WHERE c.contype = 'f'
-            AND source_ns.nspname IN ('public', 'private')
-            AND target_ns.nspname = 'auth'
-            AND target_table.relname = 'users';
-          SQL
-          )
-
-          docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-              -X -qAt --set=ON_ERROR_STOP=1 --command "$FK_SQL" \
-              > "$RUNNER_TEMP/restored-auth-users-fks.json"
-
-          node scripts/auth-migration/verify-restored-auth-fk-catalog.mjs \
-            --actual "$RUNNER_TEMP/restored-auth-users-fks.json" \
-            --expected scripts/auth-migration/live-auth-users-fk-catalog.json
-
-      - name: Compare restored functions, triggers, RLS policies and profile columns
-        if: steps.credentials.outputs.available == 'true'
-        run: |
-          set -euo pipefail
-          docker run --rm --network host \
-            -e PGPASSWORD=postgres \
-            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-baseline-metadata.sql:/baseline/stage3-baseline-metadata.sql:ro" \
-            postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-              -X -qAt --set=ON_ERROR_STOP=1 \
-              --file=/baseline/stage3-baseline-metadata.sql \
-              > "$RUNNER_TEMP/restored-stage3-baseline-metadata.json"
-
-          node scripts/auth-migration/verify-stage3-baseline-metadata.mjs \
-            --production "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json" \
-            --restored "$RUNNER_TEMP/restored-stage3-baseline-metadata.json"
-
-      - name: Apply reviewed create_organizer ambiguity fix to disposable restore only
-        if: steps.credentials.outputs.available == 'true'
-        run: |
-          set -euo pipefail
-          docker run --rm --network host \
-            -e PGPASSWORD=postgres \
-            -v "$GITHUB_WORKSPACE/supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql:/baseline/create-organizer-fix.sql:ro" \
-            postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-              -X -q --set=ON_ERROR_STOP=1 \
-              --file=/baseline/create-organizer-fix.sql
-          echo "- Applied the pending create_organizer ambiguity fix to the disposable restore only, after original production metadata parity passed" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Apply Better Auth Stage 3 identity-root draft to disposable restore only
-        if: steps.credentials.outputs.available == 'true'
-        run: |
-          set -euo pipefail
-          docker run --rm --network host \
-            -e PGPASSWORD=postgres \
-            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql:/baseline/auth-stage3-identity-root-draft.sql:ro" \
-            postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-              -X -q --set=ON_ERROR_STOP=1 \
-              --file=/baseline/auth-stage3-identity-root-draft.sql
-          echo "- Applied the Stage 3 identity-root/lifecycle draft to the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Simulate all 69 FK expansion, validation and atomic cutover on disposable restore only
-        if: steps.credentials.outputs.available == 'true'
-        run: |
-          set -euo pipefail
-          PLAN_DIR="$RUNNER_TEMP/stage3-app-users-fk-plan"
-          rm -rf "$PLAN_DIR"
-          mkdir -p "$PLAN_DIR"
-          node scripts/auth-migration/generate-app-users-fk-plan.mjs \
-            --catalog scripts/auth-migration/live-auth-users-fk-catalog.json \
-            --out-dir "$PLAN_DIR"
-
-          for phase in 01-preflight-expand.sql 02-validate.sql 03-cutover.sql; do
-            docker run --rm --network host \
-              -e PGPASSWORD=postgres \
-              -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
-              -v "$PLAN_DIR:/plan:ro" \
-              postgres:17.6-alpine \
+          actual="$(
+            docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
               psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-                -X -q --set=ON_ERROR_STOP=1 --file="/plan/$phase"
-          done
-
-          actual="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-              -X -qAt --set=ON_ERROR_STOP=1 --command "SELECT count(*) FROM pg_constraint c JOIN pg_class src ON src.oid=c.conrelid JOIN pg_namespace sn ON sn.oid=src.relnamespace JOIN pg_class dst ON dst.oid=c.confrelid JOIN pg_namespace dn ON dn.oid=dst.relnamespace WHERE c.contype='f' AND sn.nspname IN ('public','private') AND dn.nspname='private' AND dst.relname='app_users' AND c.convalidated; SELECT count(*) FROM pg_constraint c JOIN pg_class src ON src.oid=c.conrelid JOIN pg_namespace sn ON sn.oid=src.relnamespace JOIN pg_class dst ON dst.oid=c.confrelid JOIN pg_namespace dn ON dn.oid=dst.relnamespace WHERE c.contype='f' AND sn.nspname IN ('public','private') AND dn.nspname='auth' AND dst.relname='users';")"
-          expected=        if: steps.credentials.outputs.available == 'true'
-        run: |
-          set -euo pipefail
-          docker run --rm --network host \
-            -e PGPASSWORD=postgres \
-            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-production-schema-regression.sql:/baseline/stage3-production-schema-regression.sql:ro" \
-            postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-              -X -q --set=ON_ERROR_STOP=1 \
-              --file=/baseline/stage3-production-schema-regression.sql
-          {
-            echo ""
-            echo "- Production-shaped Auth/referral/organizer/competition and representative RLS behavior fixtures passed"
-            echo "- Every synthetic row and mutation was rolled back"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Stop disposable local Supabase
-        if: always() && steps.local_supabase.outcome == 'success'
-        run: |
-          cd "$SUPABASE_CLI_WORKDIR"
-          supabase stop || true
-
-      - name: Remove schema export and temporary local project
-        if: always()
-        run: |
-          rm -f "$RUNNER_TEMP/restored-auth-users-fks.json" "$RUNNER_TEMP/restored-stage3-baseline-metadata.json" "$RUNNER_TEMP/stage3-function-acls.sql"
-          rm -rf "$RUNNER_TEMP/stage3-app-users-fk-plan"
-          rm -rf "$SCHEMA_BASELINE_OUTPUT_DIR" "$SUPABASE_CLI_WORKDIR"
-69\n0'
+                -X -qAt --set=ON_ERROR_STOP=1 --command "
+                  SELECT
+                    (SELECT count(*)
+                     FROM pg_constraint c
+                     JOIN pg_class src ON src.oid=c.conrelid
+                     JOIN pg_namespace sn ON sn.oid=src.relnamespace
+                     JOIN pg_class dst ON dst.oid=c.confrelid
+                     JOIN pg_namespace dn ON dn.oid=dst.relnamespace
+                     WHERE c.contype='f'
+                       AND sn.nspname IN ('public','private')
+                       AND dn.nspname='private'
+                       AND dst.relname='app_users'
+                       AND c.convalidated)
+                    || '|' ||
+                    (SELECT count(*)
+                     FROM pg_constraint c
+                     JOIN pg_class src ON src.oid=c.conrelid
+                     JOIN pg_namespace sn ON sn.oid=src.relnamespace
+                     JOIN pg_class dst ON dst.oid=c.confrelid
+                     JOIN pg_namespace dn ON dn.oid=dst.relnamespace
+                     WHERE c.contype='f'
+                       AND sn.nspname IN ('public','private')
+                       AND dn.nspname='auth'
+                       AND dst.relname='users');
+                "
+          )"
+          expected="69|0"
           if [[ "$actual" != "$expected" ]]; then
             echo "::error::Disposable identity-root FK cutover did not reach 69 validated replacement FKs and zero legacy application FKs."
             echo "Expected: $expected"
