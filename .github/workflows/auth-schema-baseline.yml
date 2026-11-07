@@ -104,7 +104,12 @@ jobs:
           cat > "$RUNNER_TEMP/pg17-bin/psql" <<'SH'
           #!/usr/bin/env bash
           set -Eeuo pipefail
-          docker run --rm --network host -e PGPASSWORD="${PGPASSWORD:-}" postgres:17.6-alpine psql "$@"
+          : "${PGPASSFILE:?The exporter must provide a private PGPASSFILE.}"
+          docker run --rm --network host \
+            -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGSSLMODE \
+            -e PGPASSFILE=/run/secrets/pgpass \
+            -v "$PGPASSFILE:/run/secrets/pgpass:ro" \
+            postgres:17.6-alpine psql "$@"
           SH
           chmod 700 "$RUNNER_TEMP/pg17-bin/psql"
           echo "$RUNNER_TEMP/pg17-bin" >> "$GITHUB_PATH"
