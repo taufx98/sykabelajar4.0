@@ -59,13 +59,18 @@ jobs:
           const ref = process.env.SUPABASE_PROJECT_REF;
           let supplied = (process.env.SUPABASE_DB_URL ?? "").trim();
 
-          // Accept the raw URI, or the common Dashboard terminal snippet: psql 'URI'.
-          if (supplied.startsWith("psql ")) {
-            supplied = supplied.slice(5).trim();
-            if ((supplied.startsWith("'") && supplied.endsWith("'")) ||
-                (supplied.startsWith('"') && supplied.endsWith('"'))) {
-              supplied = supplied.slice(1, -1);
+          // Normalize common copy formats without displaying the secret.
+          if (supplied.startsWith("export ")) supplied = supplied.slice(7).trim();
+          for (const prefix of ["SUPABASE_DB_URL=", "DATABASE_URL=", "DB_URL="]) {
+            if (supplied.startsWith(prefix)) {
+              supplied = supplied.slice(prefix.length).trim();
+              break;
             }
+          }
+          if (supplied.startsWith("psql ")) supplied = supplied.slice(5).trim();
+          if ((supplied.startsWith("'") && supplied.endsWith("'")) ||
+              (supplied.startsWith('"') && supplied.endsWith('"'))) {
+            supplied = supplied.slice(1, -1);
           }
 
           if (!supplied.toLowerCase().startsWith("postgresql://") &&
