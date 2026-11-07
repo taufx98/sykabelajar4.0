@@ -20,6 +20,8 @@ export interface AuthWorkerEnv {
   DEV_APP_ORIGIN?: string;
   OAUTH_CLIENT_BOOTSTRAP_TOKEN?: string;
   OAUTH_CALLBACK_URL?: string;
+  /** Temporary secret gate for the staging-only OIDC acceptance helper. */
+  OIDC_ACCEPTANCE_TEST_TOKEN?: string;
   D1_SCHEMA_BOOTSTRAP_TOKEN?: string;
   ALLOW_SCHEMA_BOOTSTRAP?: string;
 }
