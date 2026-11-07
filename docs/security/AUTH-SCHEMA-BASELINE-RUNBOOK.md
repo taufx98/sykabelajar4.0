@@ -82,7 +82,7 @@ The committed `scripts/auth-migration/live-auth-users-fk-catalog.json` is a read
 ```bash
 export SUPABASE_PROJECT_REF='mvdczyitbkxkldjughor'
 read -r -s -p 'Supabase database connection string: ' SUPABASE_DB_URL
-printf '\\n'
+printf '\n'
 export SUPABASE_DB_URL
 mkdir -p /tmp/sykabelajar-auth-stage3-review
 bash scripts/auth-migration/export-live-auth-users-fk-plan.sh /tmp/sykabelajar-auth-stage3-review
