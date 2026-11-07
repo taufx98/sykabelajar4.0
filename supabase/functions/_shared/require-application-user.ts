@@ -84,8 +84,15 @@ export async function requireApplicationUser(
     };
   }
 
+  const fetchWithAuthTimeout: typeof fetch = (input, init) => {
+    const signal = init?.signal ?? AbortSignal.timeout(5000);
+    return fetch(input, { ...init, signal });
+  };
   const supabase = createClient(supabaseUrl, publishableKey, {
-    global: { headers: { Authorization: "Bearer " + bearer } },
+    global: {
+      headers: { Authorization: "Bearer " + bearer },
+      fetch: fetchWithAuthTimeout,
+    },
   });
 
   let user: { id: string; email?: string | null } | null = null;
