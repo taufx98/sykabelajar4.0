@@ -255,3 +255,16 @@ The fixture remains a contract test for the new Better Auth callback/provisionin
 
 
 The currently active frontend caller of `get_my_referrals_v2()` is `ReferralProgramPanel.tsx`; it does not consume `last_login_at`. No active frontend caller for `get_my_verified_referrals()` was found in the branch. Live ACLs nevertheless show an anonymous EXECUTE grant on the latter RPC, which should be treated as a separate review candidate, not copied into the new function grants. A live read-only check of `cron.job` found no current job calling `verify_pending_referrals()`; any scheduling assumption must be verified rather than copied from a historical migration.
+
+
+## Verified-phone compatibility design — Telegram OIDC candidate (7 November 2026)
+
+The new Worker phone-verification flow uses Telegram's official OIDC Authorization Code flow with PKCE S256 and the `phone` scope. It does **not** add Telegram as an account sign-in method. The user is already authenticated to Better Auth and explicitly starts the phone-verification route; the Worker binds the challenge to the session's UUID and consumes the state once.
+
+The callback validates the signed ID token against Telegram's RS256 JWKS, exact issuer and Bot ID audience, nonce, expiry and freshness. It requires `phone_number_verified=true`, normalizes the international number, then hashes the digits with SHA-256. Only the hash, provider subject, provider name and trusted verification timestamp are passed to the service-role-only Postgres wrapper. Raw phone, ID token and access token are not persisted.
+
+The new `0005_telegram_phone_verification.sql` D1 migration stores only short-lived state/nonce/PKCE challenge material; the remote D1 workflow now has a hash-locked guard for migration 0005 and checks the exact isolated D1 name/UUID. It remains unexecuted remotely until explicitly activated.
+
+The hosted synthetic SQL fixture and pgTAP test passed 26/26 assertions while preserving the `create_organizer()` gates and one-FREE-organizer uniqueness. The fixture uses a fixed empty search path for its SECURITY DEFINER organizer function and never grants clients direct access to phone-verification tables or functions.
+
+This is a technically validated candidate, not an operationally enabled provider. BotFather registration, Cloudflare secrets, the remote staging D1 migration, and an actual hosted consent/callback test remain required before marking the verified-phone blocker closed. Production `create_organizer()` remains untouched.
