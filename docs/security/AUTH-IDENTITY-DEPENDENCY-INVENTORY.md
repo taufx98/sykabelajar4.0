@@ -430,3 +430,26 @@ These exact production findings make the current 80/80 hosted synthetic assertio
 A branch source recheck confirms `src/components/referrals/ReferralProgramPanel.tsx` is the current frontend caller of `public.get_my_referrals_v2()`. The component stores the RPC rows as `ReferralRow[]`; it does not reference or render `last_login_at`. No current frontend reference to `public.get_my_verified_referrals()` was found in the branch source search; the function name remains in its historical SQL migration. The live catalog still reports its EXECUTE grant to `anon`, so retain this as an ACL cleanup/review candidate rather than treating it as an active product requirement.
 
 A read-only query of production `cron.job` returned no job whose command calls `verify_pending_referrals()` at this checkpoint. The SQL function exists, and its exact body still scans five fallback activity sources, but do not assume an hourly pg_cron invocation is currently active. Check the intended scheduler owner and deployment mechanism before restoring or changing scheduling as part of the identity migration.
+
+
+## Trusted organizer phone verification — Telegram OIDC (7 November 2026)
+
+A free, consent-based candidate for the production verified-phone requirement has now been implemented as a **phone-verification step only**, not as a SYKABELAJAR sign-in provider. Official Telegram Login documentation confirms Authorization Code + PKCE S256, the `openid phone` scopes, a signed ID token, and the `phone_number_verified: true` claim when the user consents to share a verified phone number. It documents the issuer `https://oauth.telegram.org`, token endpoint `https://oauth.telegram.org/token`, and JWKS endpoint `https://oauth.telegram.org/.well-known/jwks.json`.
+
+Worker-side implementation added on this branch:
+- one-use 10-minute D1 challenge with random state (stored as SHA-256), nonce, and PKCE verifier;
+- atomic per-user cooldown reservation and on-demand expiry cleanup;
+- server-only token exchange using BotFather client credentials;
+- RS256-only ID-token signature, issuer, audience, nonce, expiration and freshness validation;
+- require `phone_number_verified === true` and a valid international 8–15 digit number;
+- project only the digits-only SHA-256 phone identity hash, Telegram subject and verification timestamp to a service-role-only Supabase RPC; do not store the raw phone or Telegram access token;
+- preserve email verification, active `organizer_member`, eight-digit minimum, global FREE-claim uniqueness and organizer account limit in `create_organizer()`.
+
+The exact callback to register with BotFather is:
+`https://auth.sykabelajar.my.id/phone-verification/telegram/callback`.
+
+Stage 3 hosted pgTAP phone/organizer compatibility fixture passed **26/26 assertions**. The fixture verifies service-role-only execution, provider subject uniqueness, phone-hash projection, trusted email and phone requirements, role requirement, one FREE identity claim, no second organizer workspace/claim, and denial of client-forged verification.
+
+**Activation gates still outstanding:** the owner must create/register the Telegram bot OIDC application in BotFather, add the exact allowed callback URL, and provision its Client ID/Secret as Cloudflare Worker secrets. Keep the feature disabled until those steps and a real-device hosted acceptance test succeed. Telegram must not be added to the social-login priority list. No SMS/WhatsApp vendor or paid provider is introduced.
+
+Reference: https://core.telegram.org/bots/telegram-login
