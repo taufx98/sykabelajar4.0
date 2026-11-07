@@ -24,12 +24,15 @@ jobs:
     timeout-minutes: 45
     env:
       SUPABASE_PROJECT_REF: mvdczyitbkxkldjughor
-      SUPABASE_CLI_WORKDIR: ${{ runner.temp }}/sykabelajar-auth-baseline
-      SCHEMA_BASELINE_OUTPUT_DIR: ${{ runner.temp }}/sykabelajar-auth-schema-export
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set isolated workspace paths
+        run: |
+          echo "SUPABASE_CLI_WORKDIR=$RUNNER_TEMP/sykabelajar-auth-baseline" >> "$GITHUB_ENV"
+          echo "SCHEMA_BASELINE_OUTPUT_DIR=$RUNNER_TEMP/sykabelajar-auth-schema-export" >> "$GITHUB_ENV"
 
       - name: Check whether the one-time database secret is configured
         id: credentials
