@@ -619,3 +619,25 @@ This checkpoint supersedes earlier entries in this document that said the produc
 - A stricter verifier and negative contract tests have been added. The verifier compares every restored FK's name, source/target schema-table-column mapping, ON DELETE, ON UPDATE, validation, match type and deferrability against the reviewed metadata snapshot. The contract tests, repeat export/restore, exact 69/69 FK comparison, stack stop and temporary-file cleanup all passed in run #42370809198.
 - The schema dump is not uploaded as an artifact or committed. No production DDL/DML, identity row, role, policy, trigger, function, Auth setting or login route was changed. Production private.app_users remains absent.
 - Still open: production-shaped regression of Auth-dependent functions, Auth/profile triggers, referral and organizer paths, and the 109 auth.uid() policies; end-to-end Telegram phone-consent acceptance; review of the resumable/atomic FK migration plan; and rollback rehearsal. Stage 3 is not complete and production must remain unchanged until these gates pass.
+
+## Superseding production-shaped Stage 3 regression checkpoint — 7 November 2026
+
+This section supersedes earlier entries in this document that said the schema-only production export/restore or core production-shaped regression was still missing.
+
+Verified on disposable restore:
+- [Run #42378450476](https://github.com/taufx98/sykabelajar4.0/actions/runs/42378450476) completed full export/restore, exact 69/69 FK comparison, 10-function ACL parity, function/trigger/RLS/profile metadata parity, local-only create_organizer ambiguity fix, and core rollback-only behavior regression successfully.
+- [Run #42379192223](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379192223) repeated the baseline with a database-provisioned synthetic admin and passed owner/admin/anon checks for role visibility, audit logs, organizer update, public/private profile access and the existing referral/organizer/competition behavior.
+- [Run #42379195281](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379195281) passed local Edge/Auth/Cloudinary checks, FK plan dry-run, and two-user JWT ownership RLS.
+- The create_organizer forward migration exists in source but is applied only to the disposable restore during this workflow. Its two SQL name qualifications do not alter the business rules. Production has not received the migration.
+- All test identities, order/referral/organizer/competition fixtures and role assignments were synthetic and rolled back. The local Supabase stack was stopped and temporary exports deleted.
+
+Current expanded test in progress: [Baseline #42379783008](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379783008) adds commerce owner/admin checks (orders, order_items, payment_intents, payment_events, shipments), canonical individual participant/attempt access, and teacher-owned external roster visibility. [Local CI #42379783126](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379783126) passed its code/contract checks and local JWT/RLS setup; do not count the new production-shaped cases as passed until #42379783008 succeeds.
+
+The representative regression still does not prove every one of the 109 RLS policies across 61 tables. Remaining coverage includes answers, collective exams, certificates/certificate assets/awards, organizer active/inactive member and unrelated-organizer isolation, remaining admin-gated application tables, commerce reviews/wishlist/entitlements, and additional public/content policies. See AUTH-RLS-POLICY-TEST-MATRIX.md.
+
+Production boundary remains unchanged. private.app_users has not been created in production; the 69 Auth FKs have not been rehomed; production Auth/profile triggers, functions, RLS, users, issuer, login flow and Edge deployments have not been changed. The generated FK migration plan remains review-only, with no SQL applied to production. No production cutover or account reset has occurred.
+
+Stages 2, 4–7 still retain independent gates. Stage 4 has not migrated the 41 direct frontend Auth callsites. Stage 5 positive hosted Better Auth-token/IDOR tests and deployment remain open. Stage 6 account classification/reset and rollback rehearsal are not started. Stage 7 production cutover/monitoring/rollback is not started.
+
+PR #177 remains Draft, open, unmerged, and dirty against security/auth-migration-phase-0. Do not force-merge, change the base blindly, or cut over until reviewed three-way base reconciliation and all remaining acceptance gates pass.
+
