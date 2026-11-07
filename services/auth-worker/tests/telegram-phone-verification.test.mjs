@@ -22,7 +22,7 @@ const CLIENT_ID = "123456789";
 const CLIENT_SECRET = "test-telegram-client-secret";
 const NONCE = "n".repeat(43);
 
-function createD1Mock({ existing = null, changes = 1, consumed = null } = {}) {
+function createD1Mock({ reservation = { state_hash: "test-state-hash" }, consumed = null } = {}) {
   const calls = [];
   const DB = {
     prepare(query) {
@@ -31,13 +31,13 @@ function createD1Mock({ existing = null, changes = 1, consumed = null } = {}) {
           return {
             async first() {
               calls.push({ method: "first", query: String(query), values });
-              return String(query).startsWith("SELECT created_at")
-                ? existing
+              return String(query).includes("RETURNING state_hash")
+                ? reservation
                 : consumed;
             },
             async run() {
               calls.push({ method: "run", query: String(query), values });
-              return { success: true, meta: { changes } };
+              return { success: true, meta: { changes: 1 } };
             },
           };
         },
@@ -138,17 +138,23 @@ test("challenge stores only a state hash and one-time nonce/PKCE verifier in D1"
   }, USER_ID, 1_800_000_000_000);
   assert.equal(new URL(result.authorizationUrl).searchParams.get("state"), result.state);
   assert.equal(d1.calls.length, 2);
-  assert.match(d1.calls[0].query, /SELECT created_at/);
+  assert.equal(d1.calls[0].method, "run");
+  assert.match(d1.calls[0].query, /DELETE FROM auth_phone_verification_challenges WHERE expires_at <=/);
+  assert.equal(d1.calls[0].values[0], 1_800_000_000_000);
+  assert.equal(d1.calls[1].method, "first");
   assert.match(d1.calls[1].query, /ON CONFLICT\(user_id\) DO UPDATE/);
+  assert.match(d1.calls[1].query, /created_at <= \?7/);
+  assert.match(d1.calls[1].query, /RETURNING state_hash/);
   assert.equal(d1.calls[1].values[0], await sha256Hex(result.state));
   assert.notEqual(d1.calls[1].values[0], result.state);
   assert.equal(d1.calls[1].values[1], USER_ID);
   assert.equal(d1.calls[1].values[2].length, 43);
   assert.equal(d1.calls[1].values[3].length, 43);
+  assert.equal(d1.calls[1].values[6], 1_800_000_000_000 - 60_000);
 });
 
 test("challenge start is rate limited and never overwrites a recent active challenge", async () => {
-  const d1 = createD1Mock({ existing: { created_at: 1_800_000_000_000 - 1000 } });
+  const d1 = createD1Mock({ reservation: null });
   await assert.rejects(
     createTelegramPhoneChallenge({
       DB: d1.DB,
@@ -158,7 +164,10 @@ test("challenge start is rate limited and never overwrites a recent active chall
     }, USER_ID, 1_800_000_000_000),
     /TELEGRAM_PHONE_VERIFICATION_RATE_LIMITED/,
   );
-  assert.equal(d1.calls.length, 1);
+  assert.equal(d1.calls.length, 2);
+  assert.equal(d1.calls[0].method, "run");
+  assert.equal(d1.calls[1].method, "first");
+  assert.match(d1.calls[1].query, /created_at <= \?7/);
 });
 
 test("challenge consumption hashes state and uses one atomic delete-returning statement", async () => {
