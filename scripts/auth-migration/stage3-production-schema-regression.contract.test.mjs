@@ -16,6 +16,9 @@ assert.match(sql,/EMAIL_VERIFICATION_REQUIRED/);
 assert.match(sql,/PHONE_VERIFICATION_REQUIRED/);
 assert.match(sql,/FREE_ORGANIZER_ALREADY_CLAIMED/);
 assert.match(sql,/ROLLBACK;/);
+const rlsSection = sql.split("$stage3_regression$;")[1] ?? "";
+assert.doesNotMatch(rlsSection, /\\bv_(?:follow_id|award_id|certificate_id|product_id|review_id|collective_participant_id)\\b/);
+
 assert.match(sql,/SET LOCAL ROLE authenticated/);
 assert.match(sql,/SET LOCAL ROLE anon/);
 assert.match(sql,/SET is_public=\(id = u_expired\)/i);
