@@ -256,7 +256,7 @@ export async function verifyTelegramPhoneIdToken({
   expectedNonce,
   now = Date.now(),
   jwks,
-} = {}) {
+}) {
   if (
     typeof idToken !== "string" || idToken.length < 32 || idToken.length > 16384 ||
     typeof clientId !== "string" || !/^[0-9]{1,32}$/.test(clientId) ||
