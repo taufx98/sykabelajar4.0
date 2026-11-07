@@ -143,3 +143,11 @@ The delete endpoint replacement is **not deployed**. The live production `cloudi
 ## Latest delete endpoint regression — 6 November 2026
 
 The latest regression run [#42247915763](https://github.com/taufx98/sykabelajar4.0/actions/runs/42247915763) passed all 15 Cloudinary ownership/source tests, and [Supabase Local CI #42247915859](https://github.com/taufx98/sykabelajar4.0/actions/runs/42247915859) passed Deno type-check for the branch replacement endpoint. The replacement now rejects non-image resource types, preserves the existing browser CORS/OPTIONS contract, limits the auth lookup to five seconds and Cloudinary destroy request to eight seconds, resolves identity from Supabase's verified `/auth/v1/user` response, and permits only the exact UUID-based profile/cover paths for that caller. The generic deletion function is not yet deployed; live production version 9 remains unchanged.
+
+## Staging-only OIDC Edge acceptance probe — 7 November 2026
+
+A read-only function `better-auth-oidc-acceptance` is deployed on isolated Free project `ydamszdfsxqisanazdkb`, version 1, status ACTIVE. Its source is kept under `services/auth-worker/supabase-test/supabase/functions/better-auth-oidc-acceptance/index.ts` so it cannot be mistaken for a production application function.
+
+The probe uses `createSupabaseContext(request, { auth: 'user' })` from pinned `@supabase/server@1.9.2` to verify a third-party Better Auth token inside the handler. Its platform `verify_jwt=false` setting is intentional: the Supabase gateway must not reject a third-party issuer before the SDK can validate it. The handler then independently checks exact issuer, resource audience, UUID subject, PostgreSQL role `authenticated`, `iat` and a maximum 300-second token lifetime. It reads only `public.auth_oidc_acceptance_rows` through the caller-scoped `ctx.supabase`; it does not use `ctx.supabaseAdmin`, and it contains no write operation.
+
+The positive hosted function invocation still requires a real Better Auth access token from a synthetic staging account. It is not a migrated application endpoint, and must never be copied into the production functions deployment list. CI has a static contract test for the probe and a Deno type-check step.
