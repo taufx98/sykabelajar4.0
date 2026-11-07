@@ -11,6 +11,22 @@ WITH function_meta AS (
     p.proretset AS returns_set,
     COALESCE(to_jsonb(p.proconfig), '[]'::jsonb) AS function_config,
     COALESCE(p.proacl::text, 'DEFAULT') AS function_acl,
+    COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'grantee',
+          CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE grantee.rolname::text END,
+          'privilege_type', acl.privilege_type,
+          'is_grantable', acl.is_grantable,
+          'grantor', grantor.rolname::text
+        )
+        ORDER BY CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE grantee.rolname::text END,
+          acl.privilege_type
+      )
+      FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+      LEFT JOIN pg_roles AS grantee ON grantee.oid = acl.grantee
+      JOIN pg_roles AS grantor ON grantor.oid = acl.grantor
+    ), '[]'::jsonb) AS function_acl_entries,
     has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_execute,
     has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_execute,
     has_function_privilege('service_role', p.oid, 'EXECUTE') AS service_role_execute,
