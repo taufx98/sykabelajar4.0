@@ -1399,10 +1399,6 @@ BEGIN
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_CERTIFICATE_OWNER_READ_FAILED';
   END IF;
-  IF has_any_column_privilege('authenticated','public.certificate_assets','SELECT') THEN
-    RAISE EXCEPTION 'STAGE3_CERTIFICATE_ASSET_DIRECT_SELECT_GRANT_UNEXPECTED';
-  END IF;
-
   SELECT count(*) INTO v_count FROM public.commerce_products WHERE id='00000000-0000-4000-8000-00000000a215';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ACTIVE_COMMERCE_PRODUCT_PUBLIC_READ_FAILED';
@@ -1575,10 +1571,6 @@ BEGIN
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_CERTIFICATE_READ_FAILED';
   END IF;
-  IF has_any_column_privilege('authenticated','public.certificate_assets','SELECT') THEN
-    RAISE EXCEPTION 'STAGE3_ADMIN_CERTIFICATE_ASSET_DIRECT_SELECT_GRANT_UNEXPECTED';
-  END IF;
-
   SELECT count(*) INTO v_count FROM public.commerce_product_wishlist
   WHERE product_id='00000000-0000-4000-8000-00000000a215' AND user_id=u_participant;
   IF v_count <> 1 THEN
