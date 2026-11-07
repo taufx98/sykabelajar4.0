@@ -144,26 +144,27 @@ export async function createTelegramPhoneChallenge(env, userId, now = Date.now()
   const stateHash = await sha256Hex(state);
   const redirectUri = getTelegramPhoneRedirectUri(env.BETTER_AUTH_URL);
 
-  const prior = await env.DB.prepare(
-    "SELECT created_at FROM auth_phone_verification_challenges WHERE user_id = ?1",
-  ).bind(userId).first();
-  if (prior && Number(prior.created_at) > now - START_COOLDOWN_MS) {
-    throw new Error("TELEGRAM_PHONE_VERIFICATION_RATE_LIMITED");
-  }
+  // Remove expired challenges on demand; this endpoint needs no cron job.
+  await env.DB.prepare(
+    "DELETE FROM auth_phone_verification_challenges WHERE expires_at <= ?1",
+  ).bind(now).run();
 
   const expiresAt = now + CHALLENGE_TTL_MS;
-  const inserted = await env.DB.prepare(
+  // The UPSERT and cooldown predicate are one SQLite statement. Concurrent
+  // requests for the same user cannot both reserve a fresh challenge.
+  const reservation = await env.DB.prepare(
     "INSERT INTO auth_phone_verification_challenges " +
     "(state_hash, user_id, nonce, code_verifier, created_at, expires_at) " +
     "VALUES (?1, ?2, ?3, ?4, ?5, ?6) " +
     "ON CONFLICT(user_id) DO UPDATE SET " +
     "state_hash = excluded.state_hash, nonce = excluded.nonce, " +
     "code_verifier = excluded.code_verifier, created_at = excluded.created_at, " +
-    "expires_at = excluded.expires_at",
-  ).bind(stateHash, userId, nonce, codeVerifier, now, expiresAt).run();
-
-  if (!inserted?.success || (inserted.meta?.changes ?? 0) !== 1) {
-    throw new Error("TELEGRAM_PHONE_CHALLENGE_UNAVAILABLE");
+    "expires_at = excluded.expires_at " +
+    "WHERE auth_phone_verification_challenges.created_at <= ?7 " +
+    "RETURNING state_hash",
+  ).bind(stateHash, userId, nonce, codeVerifier, now, expiresAt, now - START_COOLDOWN_MS).first();
+  if (!reservation) {
+    throw new Error("TELEGRAM_PHONE_VERIFICATION_RATE_LIMITED");
   }
 
   return {
