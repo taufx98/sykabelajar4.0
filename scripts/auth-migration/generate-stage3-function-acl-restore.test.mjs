@@ -31,10 +31,10 @@ assert.match(sql,/REVOKE ALL PRIVILEGES ON FUNCTION "public"."create_organizer"|
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_organizer\(text,text\) TO "authenticated"/);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.register_for_competition/);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.handle_new_auth_user\(\) TO "service_role"/);
-assert.doesNotMatch(sql,/GRANT EXECUTE ON FUNCTION public\\.create_organizer\\(text,text\\) TO "anon"/);
-assert.doesNotMatch(sql,/GRANT EXECUTE ON FUNCTION private\\.apply_referral_qualification\\(uuid,text,timestamptz\\) TO "anon"/);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.get_my_verified_referrals\\(\\) TO PUBLIC/);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.get_my_verified_referrals\\(\\) TO "anon"/);
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.get_my_verified_referrals() TO PUBLIC;'));
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.get_my_verified_referrals() TO "anon";'));
+assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.create_organizer(text,text) TO "anon";'), false);
+assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.apply_referral_qualification(uuid,text,timestamptz) TO "anon";'), false);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
 assert.throws(()=>renderFunctionAclRestore({auth_dependent_functions:metadata.auth_dependent_functions.slice(1)}),/all 10/);
