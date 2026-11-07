@@ -6,7 +6,15 @@
 -- The entire test suite is rolled back; never run it against a hosted project.
 
 BEGIN;
-SET LOCAL plpgsql.variable_conflict = 'error';
+
+DO $stage3_conflict_mode$
+BEGIN
+  IF current_setting('plpgsql.variable_conflict') IS DISTINCT FROM 'error' THEN
+    RAISE EXCEPTION 'STAGE3_PLPGSQL_VARIABLE_CONFLICT_MODE_MUST_MATCH_PRODUCTION: expected error, found %',
+      current_setting('plpgsql.variable_conflict');
+  END IF;
+END;
+$stage3_conflict_mode$;
 
 DO $stage3_regression$
 DECLARE
