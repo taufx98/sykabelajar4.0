@@ -804,12 +804,13 @@ create or replace function private.provision_better_auth_user(
   p_subjects text default null
 ) returns jsonb
 language plpgsql security definer set search_path = ''
-as $$
+as $
 declare
   v_type text := pg_catalog.lower(pg_catalog.btrim(coalesce(p_account_type, 'student')));
   v_role public.app_role;
   v_referrer_id uuid;
   v_reward_amount integer;
+  v_profile_rows integer := 0;
 begin
   if p_user_id is null then
     raise exception using errcode = '22023', message = 'USER_ID_REQUIRED';
@@ -818,12 +819,6 @@ begin
     raise exception using errcode = '22023', message = 'UNSUPPORTED_ACCOUNT_TYPE';
   end if;
 
-  v_role := case v_type
-    when 'teacher' then 'teacher'::public.app_role
-    when 'organizer' then 'organizer_member'::public.app_role
-    else 'student'::public.app_role
-  end;
-
   insert into private.app_users (id, email_verified_at)
   values (
     p_user_id,
@@ -831,6 +826,17 @@ begin
       then pg_catalog.clock_timestamp() else null end
   )
   on conflict (id) do nothing;
+
+  -- Hooks can run concurrently after the D1 user row is committed. Serialize
+  -- projection retries for this UUID before deciding whether initial role
+  -- creation is still appropriate.
+  perform 1
+  from private.app_users
+  where id = p_user_id
+  for update;
+  if not found then
+    raise exception 'USER_IDENTITY_NOT_FOUND';
+  end if;
 
   insert into public.profiles
     (id, full_name, username, account_type, birth_date, institution, grade, subjects)
@@ -845,10 +851,35 @@ begin
     nullif(pg_catalog.btrim(p_subjects), '')
   )
   on conflict (id) do nothing;
+  get diagnostics v_profile_rows = row_count;
 
-  insert into public.user_roles (user_id, role, is_active)
-  values (p_user_id, v_role, true)
-  on conflict (user_id, role) do nothing;
+  -- A retry must use the original persisted profile/account type, not mutable
+  -- metadata. Only the transaction that creates a profile may create its
+  -- initial basic role; later retries never add, replace or reactivate roles.
+  select pg_catalog.lower(p.account_type)
+    into v_type
+  from public.profiles p
+  where p.id = p_user_id;
+  if not found then
+    raise exception 'APPLICATION_PROFILE_NOT_READY';
+  end if;
+
+  v_role := case v_type
+    when 'teacher' then 'teacher'::public.app_role
+    when 'organizer' then 'organizer_member'::public.app_role
+    else 'student'::public.app_role
+  end;
+
+  if v_profile_rows > 0 then
+    insert into public.user_roles (user_id, role, is_active)
+    select p_user_id, v_role, true
+    where not exists (
+      select 1
+      from public.user_roles existing_role
+      where existing_role.user_id = p_user_id
+    )
+    on conflict (user_id, role) do nothing;
+  end if;
 
   insert into public.user_settings (user_id) values (p_user_id)
   on conflict (user_id) do nothing;
@@ -887,7 +918,7 @@ begin
     'user_id', p_user_id, 'account_type', v_type, 'role', v_role
   );
 end;
-$$;
+$;
 
 create or replace function private.complete_better_auth_email_verification(
   p_user_id uuid, p_verified_at timestamptz
