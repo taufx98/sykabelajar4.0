@@ -363,3 +363,63 @@ A post-install security inventory found five newly created test tables without R
 **Scope limitation:** this is hosted PostgreSQL behavior against a synthetic schema, not a production schema rehearsal. It does not validate the exact production `create_organizer`, `register_for_competition`, or `verify_pending_referrals` definitions; the three production Auth-trigger overlap behaviors; every production profile trigger/constraint; or all 109 production `auth.uid()` policies. The trusted verified-phone path for `create_organizer` remains unresolved. The fixture's simplified function bodies must not be mistaken for replacements ready to deploy.
 
 No production schema, data, Auth user, FK, trigger, function, RLS policy, issuer setting, secret, or login route was changed.
+
+
+## Production definition-level revalidation — 7 November 2026
+
+The following details were read directly from PostgreSQL catalogs using `pg_get_functiondef`, `pg_get_triggerdef`, `information_schema.columns`, and function ACL checks. Queries were metadata-only; no application rows, email addresses, identity UUIDs, or secrets were selected.
+
+### Auth-trigger behavior that must be replaced as a lifecycle
+
+The three production `auth.users` triggers and their exact timing are:
+
+| Trigger | Timing | Important behavior |
+|---|---|---|
+| `on_auth_user_created` | AFTER INSERT | Calls `public.handle_new_auth_user()`; bootstraps profile, mapped business role and settings. |
+| `trg_referral_signup_attribution` | AFTER INSERT | Calls `private.capture_signup_referral()`; reads `raw_user_meta_data.referral_id` as a UUID, checks that the referrer email is confirmed, snapshots reward settings, and inserts one pending referral event. |
+| `trg_referral_email_confirmed` | AFTER UPDATE OF `email_confirmed_at`, only NULL → non-NULL | Calls `private.process_referral_email_confirmation()`; locks the pending event, checks the first eligible activity occurred inside 24 hours, then asks the qualification function to award the referral. |
+
+The new Better Auth flow does not create an `auth.users` row and has no `raw_user_meta_data` trigger context. Therefore these are not triggers that can simply be recreated on `private.app_users` without changing their event model. Better Auth's trusted provisioning callback and trusted email-verification callback must own the equivalent lifecycle. The current synthetic fixture exercises the new callback model, not these legacy Auth triggers.
+
+### Referral activity sources and exact trigger surface
+
+The production function `private.capture_referral_activity()` is attached to:
+- `daily_checkins` AFTER INSERT;
+- `comments` AFTER INSERT;
+- `follows` AFTER INSERT;
+- `daily_task_claims` AFTER INSERT when status is COMPLETED and `completed_at` is non-NULL;
+- `daily_task_claims` AFTER UPDATE OF status/completed_at when the row transitions into a completed state.
+
+The function body also contains a `chat_messages` branch, but the catalog query did not find an active trigger on that table at this checkpoint. Separately, `public.verify_pending_referrals()` still scans `chat_messages` as one of its five fallback activity sources. Preserve or retire that legacy activity treatment only after checking the product's chat-removal/data-retention state; it must not be silently changed as part of the auth-provider swap.
+
+`private.apply_referral_qualification()` still accepts the activity names `daily_checkin`, `comment`, `follow`, `chat`, and `daily_task`. It locks the pending event, records the first eligible activity, enforces the 24-hour window, reads the trusted email-confirmation field, and uses the unique Edu Coin ledger key before crediting the referrer. The hosted fixture tested the reduced new callback flow, not every production activity trigger.
+
+### Signup referral input is not identical across old call paths
+
+The existing `private.capture_signup_referral()` expects `raw_user_meta_data.referral_id` to contain a UUID. The existing `public.register_for_competition(..., p_referral_code)` accepts either an upper-cased referral code resolved through `public.referral_codes` or a UUID string, rejects self-referral, then checks the referrer's `auth.users.email_confirmed_at` before creating a pending event.
+
+The Better Auth registration fixture resolves a referral **code** from `public.referral_codes` and checks the trusted identity projection. Before production replacement, define one explicit server-side resolver for registration and competition attribution; retain any required UUID compatibility, case handling, self-referral exclusion, reward-setting snapshot, and the unique referred-user/registration constraints. Do not trust client-provided referrer UUIDs without resolving and checking them server-side.
+
+### Profile projection and trigger compatibility
+
+The production `public.profiles` table has **36 columns**, not the simplified fixture shape. Its four non-internal triggers are:
+- `trg_profiles_normalize_fields`: normalizes username, institution and full name;
+- `profiles_account_type_backend_guard`: blocks client-side account_type mutation;
+- `profiles_currency_backend_guard`: blocks client-side Edu Coin/XP mutation;
+- `trg_profiles_updated_at`: maintains updated_at.
+
+The legacy `handle_new_auth_user()` inserts profile fields including full name, username, grade, birth date, institution, school ID, guardian name, account type, WhatsApp and subjects. Its conflict path updates most of those values on retry. It also uses `ON CONFLICT ... DO UPDATE SET is_active = true` for the mapped business role. The Better Auth provisioning contract intentionally differs for safety: retries must not overwrite an already-created profile and must not reactivate a role an administrator disabled. Tests must still verify the real production profile triggers and every relevant column/default/constraint after restoring the full schema.
+
+Profile fields also include Cloudinary asset references and dimensions/versions for avatar and cover. Keep these as application metadata/references; do not migrate binary media into Supabase Storage or change the media provider as part of this auth work.
+
+### Function execution grants are part of the migration contract
+
+A live ACL check found:
+- The three private Auth/referral trigger functions and `private.apply_referral_qualification()` are not directly executable by `anon`, `authenticated`, or `service_role`; they are owned/executable by `postgres` and reached through trusted trigger/internal calls.
+- `public.handle_new_auth_user()` is directly executable by `service_role`, not by `anon` or `authenticated`.
+- `public.create_organizer`, `public.register_for_competition`, and `public.get_my_referrals()` / `v2` are executable by `authenticated` and `service_role`, not `anon`.
+- **`public.get_my_verified_referrals()` is currently executable by `anon`, `authenticated`, and `service_role`.** Its query filters on `auth.uid()`, so an anonymous caller normally has a NULL caller UUID and should not receive another user's referrals, but the anonymous EXECUTE grant is broader than the other referral RPCs. Review its actual external callers and the identity/RLS contract before replacing it; do not blindly copy the ACL into a Better Auth migration.
+
+All new provisioning/email-verification PostgREST wrappers must remain service-role-only, while user-facing RPCs must retain caller-scoped `auth.uid()` checks and operation-specific authorization. Do not use a broad default grant for new SECURITY DEFINER functions.
+
+These exact production findings make the current 80/80 hosted synthetic assertions useful but insufficient for a full-schema production migration. No production function, trigger, grant, profile column, or policy was changed.
