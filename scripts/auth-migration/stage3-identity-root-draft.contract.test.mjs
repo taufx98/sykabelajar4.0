@@ -81,6 +81,8 @@ assert.match(draft, /UNSUPPORTED_ACCOUNT_TYPE/);
 assert.match(draft, /'teacher'::public\.app_role/);
 assert.match(draft, /'organizer_member'::public\.app_role/);
 assert.match(draft, /where not exists \([\s\S]{0,180}existing_role\.user_id = p_user_id[\s\S]{0,100}\)/i);
+assert.match(draft, /FOR UPDATE[\s\S]{0,100}APPLICATION_PROFILE_NOT_READY/);
+assert.match(draft, /IF v_profile_rows > 0 THEN[\s\S]{0,260}existing_role\.user_id = p_user_id/i);
 assert.doesNotMatch(draft, /ON CONFLICT \(user_id, role\) DO UPDATE SET is_active = true/i);
 
 // Privileged provisioning/verification is server-only.
