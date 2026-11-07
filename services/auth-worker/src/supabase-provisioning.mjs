@@ -6,6 +6,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;
 const ACCOUNT_TYPES = new Set(["student", "teacher", "organizer"]);
 const EDUCATION_LEVELS = new Set(["sd", "smp", "sma", "alumni"]);
+// This branch may provision only into the isolated Free Stage 3 Supabase project.
+// The legacy SUPABASE_URL remains bound to production for the pre-cutover admin bridge.
+const STAGING_PROVISIONING_ORIGIN = "https://ydamszdfsxqisanazdkb.supabase.co";
 
 /** @param {AuthWorkerEnv} env */
 export function isSupabaseProvisioningEnabled(env) {
@@ -18,7 +21,9 @@ function requireProvisioningConfig(env) {
     throw new Error("SUPABASE_PROVISIONING_DISABLED");
   }
 
-  const urlValue = typeof env.SUPABASE_URL === "string" ? env.SUPABASE_URL.trim() : "";
+  const urlValue = typeof env.SUPABASE_PROVISIONING_URL === "string"
+    ? env.SUPABASE_PROVISIONING_URL.trim()
+    : "";
   const serviceKey = typeof env.SUPABASE_SERVICE_ROLE_KEY === "string"
     ? env.SUPABASE_SERVICE_ROLE_KEY.trim()
     : "";
@@ -43,7 +48,8 @@ function requireProvisioningConfig(env) {
     url.password ||
     url.pathname !== "/" ||
     url.search ||
-    url.hash
+    url.hash ||
+    url.origin !== STAGING_PROVISIONING_ORIGIN
   ) {
     throw new Error("SUPABASE_PROVISIONING_URL_NOT_ALLOWED");
   }
