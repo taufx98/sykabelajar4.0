@@ -40,18 +40,59 @@ export function createAuth(env: AuthWorkerEnv) {
 
   const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
   const googleClientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
-  if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
-    throw new Error("GOOGLE_OAUTH_REQUIRES_BOTH_CLIENT_ID_AND_CLIENT_SECRET");
+  const facebookClientId = env.FACEBOOK_CLIENT_ID?.trim();
+  const facebookClientSecret = env.FACEBOOK_CLIENT_SECRET?.trim();
+  const twitterClientId = env.TWITTER_CLIENT_ID?.trim();
+  const twitterClientSecret = env.TWITTER_CLIENT_SECRET?.trim();
+
+  for (const [provider, clientId, clientSecret] of [
+    ["GOOGLE", googleClientId, googleClientSecret],
+    ["FACEBOOK", facebookClientId, facebookClientSecret],
+    ["TWITTER", twitterClientId, twitterClientSecret],
+  ] as const) {
+    if (Boolean(clientId) !== Boolean(clientSecret)) {
+      throw new Error(provider + "_OAUTH_REQUIRES_BOTH_CLIENT_ID_AND_CLIENT_SECRET");
+    }
   }
 
-  const socialProviders = googleClientId && googleClientSecret
-    ? {
-        google: {
-          clientId: googleClientId,
-          clientSecret: googleClientSecret,
-          requireEmailVerification: true,
-        },
-      }
+  // Providers are enabled only when the owner has installed both credentials.
+  // Never ship social client secrets in Pages/frontend variables.
+  const configuredSocialProviders = {
+    ...(googleClientId && googleClientSecret
+      ? {
+          google: {
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+            requireEmailVerification: true,
+          },
+        }
+      : {}),
+    ...(facebookClientId && facebookClientSecret
+      ? {
+          facebook: {
+            clientId: facebookClientId,
+            clientSecret: facebookClientSecret,
+            scope: ["email", "public_profile"],
+            // Meta does not expose a trustworthy email_verified flag for every
+            // Facebook Graph profile. Require SYKABELAJAR's own email challenge.
+            requireEmailVerification: true,
+          },
+        }
+      : {}),
+    ...(twitterClientId && twitterClientSecret
+      ? {
+          twitter: {
+            clientId: twitterClientId,
+            clientSecret: twitterClientSecret,
+            // Better Auth 1.7.16 requests users.email by default and maps only
+            // X's confirmed_email response to emailVerified=true.
+            requireEmailVerification: true,
+          },
+        }
+      : {}),
+  };
+  const socialProviders = Object.keys(configuredSocialProviders).length > 0
+    ? configuredSocialProviders
     : undefined;
 
   return betterAuth({
