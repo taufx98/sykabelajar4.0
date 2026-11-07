@@ -339,3 +339,27 @@ A second read-only scan classified all policies whose `USING` or `WITH CHECK` ex
 - No policy expression in this 109-policy set directly references `auth.users`.
 
 This is a measurable regression surface for the identity cutover. Tests must include at least one positive and negative ownership case per materially distinct policy pattern and cover the high-risk data domains; the Stage 2 synthetic two-user fixture is not a substitute for this 61-table policy review. Keep the accepted Better Auth JWT contract (`sub` = identity UUID, PostgreSQL `role=authenticated`, exact issuer) and do not rewrite `auth.uid()` policy expressions merely to change the identity provider.
+
+
+## Hosted Stage 3 fixture validation — 7 November 2026
+
+The existing isolated Free project `sykabelajar-auth-staging` (`ydamszdfsxqisanazdkb`) was reused for namespaced synthetic Stage 3 tests after a catalog collision check. It already contained the Stage 2 `public.auth_oidc_acceptance_rows` fixture; that table and its two synthetic rows were preserved.
+
+The following Stage 3-only fixture migrations were applied to this staging project:
+- A protected `private` schema and synthetic `private.legacy_auth_users` / `private.app_users` identity-root tables.
+- Four synthetic public FK child tables covering `CASCADE`, `SET NULL`, `NO ACTION`, and `RESTRICT`.
+- Simplified synthetic `profiles`, `user_roles`, `user_settings`, referral settings/codes/events, Edu Coin ledger, daily check-ins, and trusted provisioning/referral functions.
+- pgTAP 1.3.3 for hosted assertions.
+
+Hosted pgTAP results, run with `extensions.finish(true)` so a failed assertion aborts the test:
+- `identity_fk_rehome.test.sql`: **12/12 assertions passed**.
+- `identity_provisioning_referral.test.sql`: **68/68 assertions passed**.
+- **Total hosted Stage 3 synthetic coverage: 80/80 assertions passed.**
+
+Both test scripts wrap their assertions and test mutations in transactions and roll back. A read-only post-test catalog check confirmed the four fixture FKs still reference the legacy synthetic parent (four legacy, zero replacement FKs), `private.app_users` contains zero rows, and the two pre-existing OIDC fixture rows remain. Thus the tests did not leave the rehome operation or test-created identities in place.
+
+A post-install security inventory found five newly created test tables without RLS (the four public FK child fixtures and the private legacy parent). These were hardened in the staging project: RLS is enabled and forced on all five, and direct grants to `PUBLIC`, `anon`, and `authenticated` are revoked. A subsequent table inventory confirmed RLS enabled on every fixture table. The private app identity and provisioning tables also retain their service-role-only table privileges.
+
+**Scope limitation:** this is hosted PostgreSQL behavior against a synthetic schema, not a production schema rehearsal. It does not validate the exact production `create_organizer`, `register_for_competition`, or `verify_pending_referrals` definitions; the three production Auth-trigger overlap behaviors; every production profile trigger/constraint; or all 109 production `auth.uid()` policies. The trusted verified-phone path for `create_organizer` remains unresolved. The fixture's simplified function bodies must not be mistaken for replacements ready to deploy.
+
+No production schema, data, Auth user, FK, trigger, function, RLS policy, issuer setting, secret, or login route was changed.
