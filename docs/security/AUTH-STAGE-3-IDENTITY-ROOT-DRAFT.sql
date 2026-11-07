@@ -439,9 +439,9 @@ begin
     raise exception 'FREE_ORGANIZER_ALREADY_CLAIMED';
   end if;
 
-  insert into public.organizers(name, slug, owner_user_id, status)
+  insert into public.organizers AS inserted_organizer(name, slug, owner_user_id, status)
   values (trim(p_name), trim(both '-' from v_slug), v_uid, 'ACTIVE')
-  returning id into v_id;
+  returning inserted_organizer.id into v_id;
 
   insert into public.organizer_members(organizer_id, user_id, member_role, is_active, role, status)
   values (v_id, v_uid, 'owner', true, 'owner', 'ACTIVE')
@@ -845,8 +845,14 @@ begin
   )
   on conflict (id) do nothing;
 
+  -- Provision only the first basic role. A retry must not add a second role
+  -- or reactivate a role that an administrator has already disabled.
   insert into public.user_roles (user_id, role, is_active)
-  values (p_user_id, v_role, true)
+  select p_user_id, v_role, true
+  where not exists (
+    select 1 from public.user_roles existing_role
+    where existing_role.user_id = p_user_id
+  )
   on conflict (user_id, role) do nothing;
 
   insert into public.user_settings (user_id) values (p_user_id)
