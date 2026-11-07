@@ -327,7 +327,24 @@ export function generatePlan(snapshot) {
   const cutoverGuards = records.map((fk, index) => {
     const rel = quoteLiteral(fk.source_schema + "." + fk.source_table);
     const newName = temporaryName(fk, index);
+    const sourceColumn = quoteLiteral(fk.source_columns[0]);
+    const deleteCode = deleteActionCode(fk.on_delete);
     const validatedReplacement = replacementConstraintQuery(fk, index, true);
+    const exactLegacy = [
+      "SELECT 1 FROM pg_constraint AS c",
+      "WHERE c.conrelid = " + rel + "::regclass",
+      "  AND c.conname = " + quoteLiteral(fk.name),
+      "  AND c.contype = 'f'",
+      "  AND c.confrelid = 'auth.users'::regclass",
+      "  AND c.conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = " + rel + "::regclass AND attname = " + sourceColumn + ")]::smallint[]",
+      "  AND c.confkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'auth.users'::regclass AND attname = 'id')]::smallint[]",
+      "  AND c.confmatchtype = 's'",
+      "  AND c.confupdtype = 'a'",
+      "  AND c.confdeltype = '" + deleteCode + "'",
+      "  AND NOT c.condeferrable",
+      "  AND NOT c.condeferred",
+      "  AND c.convalidated",
+    ].join("\n");
     return [
       "  IF NOT EXISTS (",
       "    " + validatedReplacement.replaceAll("\n", "\n    "),
@@ -335,12 +352,9 @@ export function generatePlan(snapshot) {
       "    RAISE EXCEPTION " + quoteLiteral("REPLACEMENT_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED: " + newName) + ";",
       "  END IF;",
       "  IF NOT EXISTS (",
-      "    SELECT 1 FROM pg_constraint",
-      "    WHERE conrelid = " + rel + "::regclass",
-      "      AND conname = " + quoteLiteral(fk.name),
-      "      AND confrelid = 'auth.users'::regclass",
+      "    " + exactLegacy.replaceAll("\n", "\n    "),
       "  ) THEN",
-      "    RAISE EXCEPTION " + quoteLiteral("LEGACY_FK_MISSING: " + fk.name) + ";",
+      "    RAISE EXCEPTION " + quoteLiteral("LEGACY_FK_MISSING_OR_SEMANTICS_CHANGED: " + fk.name) + ";",
       "  END IF;",
     ].join("\n");
   });
@@ -353,7 +367,7 @@ export function generatePlan(snapshot) {
   return {
     "01-preflight-expand.sql": header("full preflight + resumable bounded expansion") +
       boundedTimeoutGuard() + "\n\n" +
-      "DO $\nBEGIN\n" + preflightChecks.join("\n\n") + "\nEND\n$;\n\n" +
+      "DO " + "$" + "\nBEGIN\n" + preflightChecks.join("\n\n") + "\nEND\n" + "$;\n\n" +
       expandBatches.join("\n\n") + "\n",
     "02-validate.sql": header("resumable bounded replacement validation") +
       validateBatches.join("\n\n") + "\n",
