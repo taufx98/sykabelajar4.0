@@ -318,7 +318,11 @@ async function testAccount(
       senderAddress: account.sender_address,
       senderName: account.sender_name,
       bounceAddress: account.bounce_address,
-    }, testMessage);
+    }, {
+      to: testMessage.to,
+      subject: testMessage.subject,
+      text: testMessage.text,
+    });
     return json({ ok: true, message: "Email tes ZeptoMail dikirim ke alamat admin yang sedang masuk.", requestId: sent.requestId });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
