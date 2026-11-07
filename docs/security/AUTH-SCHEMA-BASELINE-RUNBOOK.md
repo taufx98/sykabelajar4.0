@@ -73,4 +73,28 @@ After a clean local baseline can be rebuilt reproducibly, add the actual identit
 
 ## Safety boundary
 
-This script does not create or modify remote schema, users, rows, migrations, triggers, RLS policies, Edge Functions, projects, branches, or Cloudflare resources. It does not export `data.sql`, passwords, access tokens, or custom role definitions. The actual production migration remains blocked until the local baseline and hosted isolated Custom OIDC validation are both complete.\n## Re-capture the live 69-FK catalog and generate a review-only plan\n\nThe committed `scripts/auth-migration/live-auth-users-fk-catalog.json` is a read-only snapshot, not an eternal source of truth. Immediately before any production migration review, recapture the current production catalog from the same validated project connection used for the schema-only baseline:\n\n```bash\nexport SUPABASE_PROJECT_REF='mvdczyitbkxkldjughor'\nread -r -s -p 'Supabase database connection string: ' SUPABASE_DB_URL\nprintf '\\n'\nexport SUPABASE_DB_URL\nmkdir -p /tmp/sykabelajar-auth-stage3-review\nbash scripts/auth-migration/export-live-auth-users-fk-plan.sh /tmp/sykabelajar-auth-stage3-review\nunset SUPABASE_DB_URL\n```\n\nThe helper accepts either the direct `db.<project-ref>.supabase.co` connection or the matching session-pooler username `postgres.<project-ref>`. It uses a private temporary `.pgpass` file, validates the exact production project ref, runs a `BEGIN READ ONLY` catalog query, rejects drift from the audited 69 FKs / 62 source tables, writes the catalog plus SHA-256 under the absolute output directory, and invokes the existing generator to create three SQL files under `fk-plan/`. It exports no application rows and does not execute any generated SQL.\n\nExpected local output:\n\n- `live-auth-users-fk-catalog.json` and `.sha256` — the fresh catalog snapshot.\n- `fk-plan/01-preflight-expand.sql` — full 69-FK preflight plus per-source-table bounded expand transactions.\n- `fk-plan/02-validate.sql` — per-source-table validation transactions with exact semantic/reconciliation guards.\n- `fk-plan/03-cutover.sql` — the single global atomic cutover transaction; never split into a partially migrated FK graph.\n\nThe helper stops if count, source-table shape, target, columns, or constraint-validation semantics differ from the reviewed snapshot. Investigate drift manually; never lower the expected count or bypass guards to make a plan generate. Output stays outside the Git repository and is mode 0600. The script does not execute even the preflight SQL.\n
+This script does not create or modify remote schema, users, rows, migrations, triggers, RLS policies, Edge Functions, projects, branches, or Cloudflare resources. It does not export `data.sql`, passwords, access tokens, or custom role definitions. The actual production migration remains blocked until the local baseline and hosted isolated Custom OIDC validation are both complete.
+## Re-capture the live 69-FK catalog and generate a review-only plan
+
+The committed `scripts/auth-migration/live-auth-users-fk-catalog.json` is a read-only snapshot, not an eternal source of truth. Immediately before any production migration review, recapture the current production catalog from the same validated project connection used for the schema-only baseline:
+
+```bash
+export SUPABASE_PROJECT_REF='mvdczyitbkxkldjughor'
+read -r -s -p 'Supabase database connection string: ' SUPABASE_DB_URL
+printf '\\n'
+export SUPABASE_DB_URL
+mkdir -p /tmp/sykabelajar-auth-stage3-review
+bash scripts/auth-migration/export-live-auth-users-fk-plan.sh /tmp/sykabelajar-auth-stage3-review
+unset SUPABASE_DB_URL
+```
+
+The helper accepts either the direct `db.<project-ref>.supabase.co` connection or the matching session-pooler username `postgres.<project-ref>`. It uses a private temporary `.pgpass` file, validates the exact production project ref, runs a `BEGIN READ ONLY` catalog query, rejects drift from the audited 69 FKs / 62 source tables, writes the catalog plus SHA-256 under the absolute output directory, and invokes the existing generator to create three SQL files under `fk-plan/`. It exports no application rows and does not execute any generated SQL.
+
+Expected local output:
+
+- `live-auth-users-fk-catalog.json` and `.sha256` — the fresh catalog snapshot.
+- `fk-plan/01-preflight-expand.sql` — full 69-FK preflight plus per-source-table bounded expand transactions.
+- `fk-plan/02-validate.sql` — per-source-table validation transactions with exact semantic/reconciliation guards.
+- `fk-plan/03-cutover.sql` — the single global atomic cutover transaction; never split into a partially migrated FK graph.
+
+The helper stops if count, source-table shape, target, columns, or constraint-validation semantics differ from the reviewed snapshot. Investigate drift manually; never lower the expected count or bypass guards to make a plan generate. Output stays outside the Git repository and is mode 0600. The script does not execute even the preflight SQL.
