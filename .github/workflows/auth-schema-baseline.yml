@@ -227,7 +227,7 @@ jobs:
             (SELECT count(*)
              FROM pg_proc p
              JOIN pg_namespace n ON n.oid = p.pronamespace
-             WHERE n.nspname = 'public'
+             WHERE n.nspname IN ('public', 'private')
                AND p.proname IN (
                  'apply_referral_qualification',
                  'capture_signup_referral',
