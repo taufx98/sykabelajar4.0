@@ -354,3 +354,12 @@ The new test-only tables were secured with RLS enabled/forced and client-role gr
 **Stage 3 remains in preparation, not approved for production DDL.** The owner-local full schema-only baseline and disposable full-schema restore remain outstanding; exact production function/trigger/RLS regression remains outstanding; and the trusted verified-phone compatibility for `create_organizer` is still a hard blocker. The 69-FK generator also requires a reviewed bounded-lock/resume plan before use. No production schema/data/auth/issuer/login change was made.
 
 Stages 4–7 remain gated in the agreed order. PR #177 remains Draft and unmerged; do not merge or cut over based on synthetic fixture success alone.
+
+
+## Stage 3 continuation — trusted verified-phone candidate (7 November 2026)
+
+The production organizer phone-verification dependency now has a free candidate: Telegram's official OIDC `phone` permission. It is a phone-verification step for an already authenticated Better Auth user, not a Telegram social-login option. The Worker code, D1 challenge migration 0005, Supabase service-role projection contract, and isolated hosted fixture are committed. Hosted pgTAP phone/organizer coverage passed 26/26 assertions. Exact implementation and remaining activation gates are in [AUTH-IDENTITY-MIGRATION-DESIGN.md](AUTH-IDENTITY-MIGRATION-DESIGN.md).
+
+This does **not** close the blocker operationally yet: BotFather app registration and callback allowlisting, Cloudflare secrets, applying migration 0005 to isolated remote D1, and real hosted consent/callback acceptance remain outstanding. Keep it disabled; do not deploy or enable it in production.
+
+The owner-local full schema-only production baseline and disposable restore are still outstanding, as is a full production-shaped regression of all ten Auth-dependent functions, three Auth triggers, four profile triggers, the 69 FK relationships and all 109 `auth.uid()` policies. Stage 3 remains in progress and production remains unchanged.
