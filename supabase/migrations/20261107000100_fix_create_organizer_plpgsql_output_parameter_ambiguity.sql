@@ -81,9 +81,9 @@ BEGIN
     RAISE EXCEPTION 'FREE_ORGANIZER_ALREADY_CLAIMED';
   END IF;
 
-  INSERT INTO public.organizers(name, slug, owner_user_id, status)
+  INSERT INTO public.organizers AS inserted_organizer(name, slug, owner_user_id, status)
   VALUES (trim(p_name), trim(both '-' from v_slug), v_uid, 'ACTIVE')
-  RETURNING id INTO v_id;
+  RETURNING inserted_organizer.id INTO v_id;
 
   INSERT INTO public.organizer_members(organizer_id, user_id, member_role, is_active, role, status)
   VALUES (v_id, v_uid, 'owner', true, 'owner', 'ACTIVE')
