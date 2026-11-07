@@ -72,7 +72,9 @@ jobs:
               !supplied.toLowerCase().startsWith("postgres://")) {
             throw new Error("SUPABASE_DB_URL is not a raw PostgreSQL URI. Store only the connection URI starting with postgresql:// (or postgres://), not the database password alone, an export command, or a surrounding terminal command.");
           }
-          if (supplied.includes("\\n") || supplied.includes("\\r")) {
+          const lf = String.fromCharCode(10);
+          const cr = String.fromCharCode(13);
+          if (supplied.includes(lf) || supplied.includes(cr)) {
             throw new Error("SUPABASE_DB_URL must be a single-line URI.");
           }
 
@@ -88,8 +90,8 @@ jobs:
           }
 
           // Normalize the accepted form for following steps without printing it.
-          const safeEnvValue = supplied.replaceAll("%", "%25").replaceAll("\\r", "%0D").replaceAll("\\n", "%0A");
-          appendFileSync(process.env.GITHUB_ENV, "SUPABASE_DB_URL=" + safeEnvValue + "\\n");
+          const safeEnvValue = supplied.replaceAll("%", "%25").replaceAll(cr, "%0D").replaceAll(lf, "%0A");
+          appendFileSync(process.env.GITHUB_ENV, "SUPABASE_DB_URL=" + safeEnvValue + lf);
           console.log("Secret format verified without printing its value.");
           NODE
           echo "available=true" >> "$GITHUB_OUTPUT"
