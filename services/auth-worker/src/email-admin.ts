@@ -1,12 +1,15 @@
 import type { AuthWorkerEnv } from "./env";
 import { decryptEmailSecret, encryptEmailSecret } from "./email-secret.mjs";
 import { isAllowedOrigin } from "./security.mjs";
+import { sendBrevoEmail } from "./brevo.mjs";
 import { sendZeptoMail } from "./zeptomail.mjs";
 
 type SupabaseAdminUser = { id: string; email: string };
+type EmailProvider = "zeptomail" | "brevo";
 type EmailAccountRow = {
   id: string;
   label: string;
+  provider: EmailProvider;
   sender_address: string;
   sender_name: string;
   bounce_address: string | null;
@@ -19,6 +22,7 @@ type EmailAccountRow = {
 type PublicEmailAccount = {
   id: string;
   label: string;
+  provider: EmailProvider;
   senderAddress: string;
   senderName: string;
   bounceAddress: string | null;
@@ -135,12 +139,13 @@ async function listSettings(env: AuthWorkerEnv): Promise<Response> {
       "SELECT active_account_id FROM auth_email_settings WHERE id = 1",
     ).first<{ active_account_id: string | null }>(),
     env.DB.prepare(
-      "SELECT id, label, sender_address, sender_name, bounce_address, " +
+      "SELECT id, label, provider, sender_address, sender_name, bounce_address, " +
       "CASE WHEN length(send_mail_token_ciphertext) > 0 THEN 1 ELSE 0 END AS token_configured, " +
       "created_at, updated_at FROM auth_email_accounts ORDER BY updated_at DESC, label ASC",
     ).all<{
       id: string;
       label: string;
+      provider: EmailProvider;
       sender_address: string;
       sender_name: string;
       bounce_address: string | null;
@@ -154,6 +159,7 @@ async function listSettings(env: AuthWorkerEnv): Promise<Response> {
   const safeAccounts: PublicEmailAccount[] = (accounts.results ?? []).map((row) => ({
     id: row.id,
     label: row.label,
+    provider: row.provider,
     senderAddress: row.sender_address,
     senderName: row.sender_name,
     bounceAddress: row.bounce_address,
@@ -172,10 +178,13 @@ async function saveAccount(
 ): Promise<Response> {
   const id = nonEmpty(body.id) || crypto.randomUUID();
   const label = nonEmpty(body.label);
+  const provider = nonEmpty(body.provider) || "zeptomail";
+  if (provider !== "zeptomail" && provider !== "brevo") return json({ ok: false, error: "INVALID_EMAIL_PROVIDER" }, 422);
   const senderAddress = nonEmpty(body.senderAddress).toLowerCase();
   const senderName = nonEmpty(body.senderName) || "SYKABELAJAR";
   const bounceAddress = nonEmpty(body.bounceAddress);
-  const submittedToken = normalizeSendMailToken(nonEmpty(body.sendMailToken));
+  const suppliedCredential = nonEmpty(body.sendMailToken);
+  const submittedToken = provider === "zeptomail" ? normalizeSendMailToken(suppliedCredential) : suppliedCredential;
 
   if (!label || label.length > 80) return json({ ok: false, error: "INVALID_ACCOUNT_LABEL" }, 422);
   if (!validEmail(senderAddress)) return json({ ok: false, error: "INVALID_SENDER_ADDRESS" }, 422);
@@ -186,11 +195,11 @@ async function saveAccount(
   }
 
   const existing = await env.DB.prepare(
-    "SELECT id, send_mail_token_ciphertext FROM auth_email_accounts WHERE id = ?1",
-  ).bind(id).first<{ id: string; send_mail_token_ciphertext: string }>();
+    "SELECT id, provider, send_mail_token_ciphertext FROM auth_email_accounts WHERE id = ?1",
+  ).bind(id).first<{ id: string; provider: EmailProvider; send_mail_token_ciphertext: string }>();
 
   if (body.id && !existing) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
-  if (!existing && !submittedToken) return json({ ok: false, error: "SEND_MAIL_TOKEN_REQUIRED" }, 422);
+  if ((!existing || existing.provider !== provider) && !submittedToken) return json({ ok: false, error: "EMAIL_PROVIDER_CREDENTIAL_REQUIRED" }, 422);
   if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) {
     return json({ ok: false, error: "EMAIL_ENCRYPTION_NOT_CONFIGURED" }, 503);
   }
@@ -207,12 +216,12 @@ async function saveAccount(
   const now = new Date().toISOString();
   const { success } = await env.DB.prepare(
     "INSERT INTO auth_email_accounts " +
-    "(id, label, sender_address, sender_name, bounce_address, send_mail_token_ciphertext, created_at, updated_at, created_by, updated_by) " +
-    "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?8) " +
-    "ON CONFLICT(id) DO UPDATE SET label = excluded.label, sender_address = excluded.sender_address, " +
+    "(id, label, provider, sender_address, sender_name, bounce_address, send_mail_token_ciphertext, created_at, updated_at, created_by, updated_by) " +
+    "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?9, ?9) " +
+    "ON CONFLICT(id) DO UPDATE SET label = excluded.label, provider = excluded.provider, sender_address = excluded.sender_address, " +
     "sender_name = excluded.sender_name, bounce_address = excluded.bounce_address, " +
     "send_mail_token_ciphertext = excluded.send_mail_token_ciphertext, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-  ).bind(id, label, senderAddress, senderName, bounceAddress || null, tokenCiphertext, now, user.id).run();
+  ).bind(id, label, provider, senderAddress, senderName, bounceAddress || null, tokenCiphertext, now, user.id).run();
 
   if (!success) return json({ ok: false, error: "EMAIL_ACCOUNT_SAVE_FAILED" }, 500);
   return listSettings(env);
@@ -275,7 +284,7 @@ async function testAccount(
   }
 
   const account = await env.DB.prepare(
-    "SELECT id, sender_address, sender_name, bounce_address, send_mail_token_ciphertext " +
+    "SELECT id, provider, sender_address, sender_name, bounce_address, send_mail_token_ciphertext " +
     "FROM auth_email_accounts WHERE id = ?1",
   ).bind(id).first<EmailAccountRow>();
   if (!account) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
@@ -290,26 +299,39 @@ async function testAccount(
 
   try {
     const token = await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, account.send_mail_token_ciphertext);
+    const testMessage = {
+      to: user.email,
+      subject: "Tes pengiriman email SYKABELAJAR",
+      text: "Ini adalah email tes dari pengaturan email transaksional SYKABELAJAR.",
+      action: "admin-test",
+    };
+    if (account.provider === "brevo") {
+      const sent = await sendBrevoEmail({
+        apiKey: token,
+        senderAddress: account.sender_address,
+        senderName: account.sender_name,
+      }, testMessage);
+      return json({ ok: true, message: "Email tes Brevo dikirim ke alamat admin yang sedang masuk.", requestId: sent.messageId });
+    }
     const sent = await sendZeptoMail({
       sendMailToken: token,
       senderAddress: account.sender_address,
       senderName: account.sender_name,
       bounceAddress: account.bounce_address,
-    }, {
-      to: user.email,
-      subject: "Tes pengiriman email SYKABELAJAR",
-      text: "Ini adalah email tes dari pengaturan email transaksional SYKABELAJAR. Jika Anda menerima pesan ini, koneksi ZeptoMail Agent berhasil.",
-    });
-    return json({ ok: true, message: "Email tes dikirim ke alamat admin yang sedang masuk.", requestId: sent.requestId });
+    }, testMessage);
+    return json({ ok: true, message: "Email tes ZeptoMail dikirim ke alamat admin yang sedang masuk.", requestId: sent.requestId });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
+    if (code === "BREVO_AUTH_FAILED") {
+      return json({ ok: false, error: "BREVO_AUTH_FAILED", message: "Brevo menolak API Key. Periksa API Key akun yang dipilih." }, 422);
+    }
     if (code === "ZEPTO_MAIL_AUTH_FAILED") {
       return json({ ok: false, error: "ZEPTO_MAIL_AUTH_FAILED", message: "ZeptoMail menolak Send Mail Token. Periksa token Agent yang dipilih." }, 422);
     }
     if (code === "ZEPTO_MAIL_CONFIGURATION_INCOMPLETE" || code === "AUTH_EMAIL_SECRET_DECRYPT_FAILED") {
       return json({ ok: false, error: "EMAIL_ACCOUNT_CONFIGURATION_INVALID" }, 422);
     }
-    return json({ ok: false, error: "ZEPTO_MAIL_TEST_FAILED", message: "ZeptoMail gagal mengirim email tes. Periksa Agent, domain pengirim, dan saldo kredit." }, 502);
+    return json({ ok: false, error: account.provider === "brevo" ? "BREVO_TEST_FAILED" : "ZEPTO_MAIL_TEST_FAILED", message: account.provider === "brevo" ? "Brevo gagal mengirim email tes. Periksa API Key, domain pengirim, dan kuota gratis harian." : "ZeptoMail gagal mengirim email tes. Periksa Agent dan status kredit; jangan aktifkan auto top-up." }, 502);
   }
 }
 
