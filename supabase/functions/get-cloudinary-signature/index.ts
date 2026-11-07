@@ -17,7 +17,14 @@ serve(async (req: Request) => {
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
     }
-    const { userId, supabase } = identity;
+    const { userId } = identity;
+    const supabase = identity.supabase;
+    if (!supabase) {
+      return new Response(JSON.stringify({ error: "AUTH_SUPABASE_CONTEXT_UNAVAILABLE" }), {
+        status: 503,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
 
     const body = await req.json().catch(() => ({}));
     const publicId = typeof body.public_id === 'string' ? body.public_id.trim() : '';
