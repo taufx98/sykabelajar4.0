@@ -72,6 +72,9 @@ jobs:
       - name: Verify Cloudinary signer ownership boundaries
         run: node ../../scripts/auth-migration/cloudinary-ownership.test.mjs
 
+      - name: Verify payment Edge Function identity migration boundaries
+        run: node ../../scripts/auth-migration/payment-edge-auth-migration.test.mjs
+
       - name: Verify frontend Supabase Auth dependency inventory
         run: node ../../scripts/auth-migration/frontend-auth-inventory.test.mjs
 
