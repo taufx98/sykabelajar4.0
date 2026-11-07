@@ -193,3 +193,17 @@ After the owner saves and activates the verified Brevo account, use the one-per-
 - The new Admin selector offers Brevo Free and ZeptoMail. For the free-only launch, use Brevo Free (300 email sends/day); no paid provider fallback is configured. Real email remains intentionally blocked until a verified sender and Brevo API Key are saved/activated through the staging Admin panel.
 - The Telegram OIDC phone route is deployed but disabled while BotFather credentials are unset. It is not a login provider.
 - The deploy did not rotate secrets, enable Supabase provisioning, install a service-role key, or change production domains/data/auth. The staging Admin bridge still uses the existing Supabase Auth session; do not remove it until Stage 4/5 is complete.
+
+## Optional Google, Facebook and X social login providers
+
+The current source supports optional Google, Facebook and Twitter/X sign-in. A provider is omitted from discovery/login configuration unless both its client ID and client secret are installed as Cloudflare Worker secrets. Partial credential pairs fail Worker initialization; no social provider credential is written in `wrangler.toml`, Pages environment variables, Git, or chat.
+
+Configure each provider only when the owner has created the relevant developer app and accepted its scopes:
+
+- Google: callback `https://auth.sykabelajar.my.id/api/auth/callback/google`; secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+- Facebook: callback `https://auth.sykabelajar.my.id/api/auth/callback/facebook`; secrets `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`; request `email` and `public_profile` only.
+- Twitter/X: callback `https://auth.sykabelajar.my.id/api/auth/callback/twitter`; secrets `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET`; the Better Auth 1.7.16 built-in provider requests `users.email` and uses only `confirmed_email` as a verification signal.
+
+After the owner enters the credentials through Cloudflare Worker secrets, run the guarded staging deployment and verify the corresponding OAuth callback with a synthetic staging account. No provider is enabled from a client-side variable. Every session is gated by local `emailVerified` state. Facebook's provider metadata is not treated as verified; all new Facebook sign-ins must complete SYKABELAJAR's own email challenge. Automatic implicit account linking is disabled for all providers.
+
+Instagram is intentionally not included for ordinary personal accounts: Meta's current Instagram Login API is for professional Business/Creator accounts and the Basic Display API for personal accounts was shut down on 4 December 2024. An Instagram Business/Creator connection is a separate product decision and must not be represented as general consumer Instagram login.
