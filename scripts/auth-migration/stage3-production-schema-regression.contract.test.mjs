@@ -42,6 +42,15 @@ assert.match(sql,/v_order_id constant uuid/);
 assert.match(sql,/v_roster_id constant uuid/);
 assert.match(sql,/u_active_member constant uuid/);
 assert.match(sql,/u_inactive_member constant uuid/);
+assert.match(sql,/v_collective_participant_id constant uuid/);
+assert.match(sql,/STAGE3_RLS_TEACHER_COLLECTIVE_PARTICIPANT_CREATE_FAILED/);
+assert.match(sql,/STAGE3_RLS_TEACHER_COLLECTIVE_PARTICIPANT_UPDATE_FAILED/);
+assert.match(sql,/STAGE3_RLS_COLLECTIVE_CANONICAL_SYNC_STATE_FAILED/);
+assert.match(sql,/STAGE3_RLS_STUDENT_COLLECTIVE_MANAGER_INSERT_ALLOWED/);
+assert.match(sql,/STAGE3_RLS_STUDENT_COLLECTIVE_PARTICIPANT_READ_ALLOWED/);
+assert.match(sql,/STAGE3_RLS_UNRELATED_COLLECTIVE_MANAGER_READ_ALLOWED/);
+assert.match(sql,/STAGE3_RLS_ADMIN_COLLECTIVE_PARTICIPANT_READ_FAILED/);
+
 assert.match(sql,/STAGE3_ORGANIZER_MEMBER_ROLE_SYNC_FAILED/);
 assert.match(sql,/STAGE3_RLS_ORGANIZER_OWNER_UPDATE_FAILED/);
 assert.match(sql,/STAGE3_RLS_ACTIVE_ORGANIZER_MEMBER_PLAN_READ_FAILED/);
