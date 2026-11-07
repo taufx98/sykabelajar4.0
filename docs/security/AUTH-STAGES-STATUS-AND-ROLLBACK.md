@@ -393,3 +393,20 @@ Stage 3 production changes remain blocked by the owner-local schema-only applica
 **Not covered by this acceptance:** normal hosted email/password registration, email verification, and password reset remain pending because ZeptoMail setup was intentionally deferred. Storage has no staging buckets; Realtime has no staging authorization policy/channel fixture; the staging project has no Edge Functions. Do not report those services as tested. Any later Edge Function work must remain limited to the login identity integration under Stage 5 and must not spill into Cloudinary/payment endpoints.
 
 Production Supabase issuer settings, auth users, schema, RLS, Edge Functions, secrets, and application login flow remain unchanged. PR #177 remains Draft and unmerged.
+
+
+## Stage 3 production catalog revalidation — 7 November 2026
+
+A further read-only scan was performed through the connected Supabase database interface. This is a catalog revalidation only; it is not the missing full schema-only `pg_dump` baseline.
+
+- Production PostgreSQL is 17.6. `private.app_users` remains absent. The `auth.users` table has 11 rows (count only; no user data was selected).
+- The application FK count remains 69, the `auth.uid()` RLS policy count remains 109, and the three non-internal triggers on `auth.users` remain present.
+- Ten application functions remain in the Auth dependency inventory. Eight function definitions directly query `auth.users`; two additional functions consume the Auth row through trigger `NEW`/`OLD` context.
+- No views were found that reference `auth.users` or `auth.uid()`.
+- Production table metadata confirms that the synthetic fixture is narrower than the live schema: `profiles` has existing backend guard/normalization triggers, `referral_program_settings` has additional event/milestone/promo fields, and the referral/ledger uniqueness constraints must be preserved.
+- `public.create_organizer` still depends on verified email and verified phone fields from the legacy Auth identity. No trusted Free-only Better Auth phone verification path has been accepted; this remains a hard compatibility blocker.
+- Supabase's read-only inventory also surfaced a critical RLS-disabled advisory for `private.organizer_access_codes`. No policy or access change was made as part of this auth migration work.
+
+The dependency inventory now records the exact function-level migration treatment and fixture coverage gaps in [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTITY-DEPENDENCY-INVENTORY.md).
+
+**Stage 3 remains not ready for executable migration.** The owner-local complete schema-only baseline, a realistic full-schema disposable local restore/test, expanded regression coverage for the ten function dependencies, and trusted phone-verification compatibility proof are still required. No production schema, data, identity, FK, trigger, RLS, function, secret, issuer setting, or login path was changed.
