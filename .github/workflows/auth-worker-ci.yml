@@ -124,7 +124,7 @@ jobs:
           # scratch D1 used by wrangler dev. Discard that scratch DB before testing
           # the checked-in versioned migration chain from an empty database; otherwise
           # migration 0004 correctly reports duplicate columns already created by the
-          # schema exporter. This keeps the 0001 baseline immutable and proves 0004.
+          # schema exporter. This keeps the 0001 baseline immutable and proves the additive migrations through 0005.
           kill -- -"$WORKER_PID" 2>/dev/null || true
           wait "$WORKER_PID" 2>/dev/null || true
           WORKER_PID=""
@@ -140,6 +140,13 @@ jobs:
           printf '%s\\n' "$D1_USER_COLUMNS"
           COLUMN_COUNT="$(printf '%s\\n' "$D1_USER_COLUMNS" | grep -Ec 'accountType|username|referralCode|birthDate|institution|grade|subjects' || true)"
           test "$COLUMN_COUNT" -eq 7 || { echo "Better Auth registration/profile columns are missing after the versioned migration chain." >&2; exit 1; }
+
+          D1_PHONE_TABLE="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM sqlite_master WHERE type='table' AND name='auth_phone_verification_challenges'" 2>&1)"
+          printf '%s\\n' "$D1_PHONE_TABLE"
+          printf '%s\\n' "$D1_PHONE_TABLE" | grep -q 'auth_phone_verification_challenges' || {
+            echo "Telegram verified-phone challenge migration 0005 is missing." >&2
+            exit 1
+          }
 
           npx wrangler d1 execute sykabelajar-auth-poc --local --json --command "SELECT cfg.key AS config_key, cfg.value AS configured_client_id, c.clientId AS client_id, c.clientSecret AS client_secret, c.disabled AS disabled, c.scopes AS scopes, c.redirectUris AS redirect_uris, c.tokenEndpointAuthMethod AS token_endpoint_auth_method, c.grantTypes AS grant_types, c.responseTypes AS response_types, c.requirePKCE AS require_pkce, r.resourceId AS resource_id FROM auth_worker_internal_config AS cfg JOIN oauthClient AS c ON c.clientId = cfg.value JOIN oauthClientResource AS r ON r.clientId = c.clientId WHERE cfg.key = 'first_party_oauth_client_id' AND cfg.value <> 'pending';" > "$RUNNER_TEMP/auth-worker-oauth-seed.json"
 
