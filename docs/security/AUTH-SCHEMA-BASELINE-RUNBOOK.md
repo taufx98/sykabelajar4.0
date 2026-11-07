@@ -1,6 +1,6 @@
 # Auth migration schema-only baseline runbook
 
-Status: automated read-only export and disposable restore are prepared in GitHub Actions. The workflow is currently safely skipping because the required repository secret `SUPABASE_DB_URL` is not configured. This runbook does not authorize a production migration.
+Status: automated read-only export and disposable restore are prepared in GitHub Actions. GitHub detects the repository secret `SUPABASE_DB_URL`, but its current value fails the URI-format preflight; the workflow therefore stops before installing CLI, opening a database connection, or exporting anything. Replace the value with the full raw Session pooler URI. This runbook does not authorize a production migration.
 
 ## Purpose
 
