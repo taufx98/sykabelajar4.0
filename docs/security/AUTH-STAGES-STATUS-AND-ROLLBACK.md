@@ -476,3 +476,14 @@ All evidence is from PostgreSQL catalogs/definitions only, without selecting use
 
 
 A current source/production recheck further confirms `ReferralProgramPanel.tsx` is the active frontend consumer of `get_my_referrals_v2()`, but it does not use `last_login_at`. No active frontend consumer for `get_my_verified_referrals()` was found, despite its live anonymous EXECUTE grant. A read-only production query of `cron.job` found no current scheduler job invoking `verify_pending_referrals()`. These are now explicit API/ACL and scheduler compatibility checks for Stage 3; no grants or cron jobs were changed.
+
+
+## Stage 3 staging fixture final security inventory — 7 November 2026
+
+A final read-only inventory in `sykabelajar-auth-staging` confirmed RLS is enabled on **all 15** application/fixture tables in the inspected `public` and `private` schemas. The Stage 2 OIDC fixture still has its two synthetic rows; the Stage 3 `private.app_users` table has zero rows. The four FK-action child fixtures still reference the four-row synthetic legacy parent; the transactional rehome test left no replacement constraint behind on those four child tables. The separate provisioning fixtures have their expected schema FK relationships to the empty synthetic app identity table.
+
+Supabase Security Advisor reports 14 `RLS enabled, no policy` informational findings. This is intentional fail-closed behavior for the isolated test tables: RLS is enabled and direct `PUBLIC`/`anon`/`authenticated` table grants are revoked; no client access policy was intended for these fixtures.
+
+Performance Advisor still reports six unindexed FKs in the small synthetic fixture and one initialization-plan warning on the pre-existing Stage 2 OIDC issuer policy. No production performance finding was modified. Indexes were briefly trialed and then removed from the synthetic tables because the advisor marked all six as unused; no index change was made to production. The Stage 2 policy warning is retained for a separate issuer-policy performance review and does not change the accepted issuer restriction.
+
+No production schema/data/auth change was made.
