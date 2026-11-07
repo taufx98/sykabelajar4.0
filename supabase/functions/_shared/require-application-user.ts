@@ -56,15 +56,15 @@ export async function requireApplicationUser(
     if (!identity.ok) {
       return {
         ok: false,
-        status: identity.status,
-        error: identity.error,
+        status: identity.status ?? 401,
+        error: identity.error ?? "AUTH_REQUIRED",
       };
     }
 
     return {
       ok: true,
       userId: identity.userId,
-      userEmail: identity.userEmail,
+      userEmail: identity.userEmail ?? null,
       mode,
       supabase: identity.supabase as CallerSupabaseClient,
     };
