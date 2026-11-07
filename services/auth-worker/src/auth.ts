@@ -4,6 +4,7 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import type { AuthWorkerEnv } from "./env";
 import { sendAuthEmail } from "./email";
 import { APIError } from "better-auth/api";
+import type { FacebookProfile, TwitterProfile } from "better-auth/social-providers";
 import {
   completeSupabaseEmailVerification,
   isSupabaseProvisioningEnabled,
@@ -75,7 +76,7 @@ export function createAuth(env: AuthWorkerEnv) {
             scope: ["email", "public_profile"],
             // Facebook's profile can omit email; do not accept an unusable or
             // placeholder address. Local SYKABELAJAR email verification follows.
-            mapProfileToUser: (profile) => {
+            mapProfileToUser: (profile: FacebookProfile) => {
               if (!("email" in profile) || typeof profile.email !== "string" || !profile.email.trim()) {
                 throw new APIError("BAD_REQUEST", { message: "FACEBOOK_EMAIL_REQUIRED" });
               }
@@ -95,7 +96,7 @@ export function createAuth(env: AuthWorkerEnv) {
             // Better Auth 1.7.16 requests users.email by default and maps only
             // X's confirmed_email response to emailVerified=true. Never let the
             // built-in .invalid placeholder bypass the account email challenge.
-            mapProfileToUser: (profile) => {
+            mapProfileToUser: (profile: TwitterProfile) => {
               if (typeof profile.data.email !== "string" || !profile.data.email.trim()) {
                 throw new APIError("BAD_REQUEST", { message: "TWITTER_CONFIRMED_EMAIL_REQUIRED" });
               }
