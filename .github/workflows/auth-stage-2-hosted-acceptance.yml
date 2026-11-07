@@ -152,7 +152,7 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          printf '{"OIDC_ACCEPTANCE_TEST_TOKEN":null}\\n' > "$RUNNER_TEMP/auth-acceptance-secret-cleanup.json"
+          printf '%s' '{"OIDC_ACCEPTANCE_TEST_TOKEN":null}' > "$RUNNER_TEMP/auth-acceptance-secret-cleanup.json"
           npx wrangler secret bulk "$RUNNER_TEMP/auth-acceptance-secret-cleanup.json" --name sykabelajar-auth-poc
           npx wrangler secret list --name sykabelajar-auth-poc > "$RUNNER_TEMP/auth-worker-secret-names.json"
           node --input-type=module <<'NODE'
