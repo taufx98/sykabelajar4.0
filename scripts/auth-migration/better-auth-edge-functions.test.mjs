@@ -66,7 +66,6 @@ for (const name of [
 }
 
 for (const name of [
-  "cloudinary-delete-asset",
   "cloudinary-delete-asset-v2",
   "cloudinary-delete-profile",
 ]) {
