@@ -15,9 +15,9 @@ test("Google, Facebook and X provider credentials are optional and validated as 
     assert.match(env, new RegExp(provider + "_CLIENT_SECRET\\?: string"));
   }
   assert.match(auth, /Boolean\(clientId\) !== Boolean\(clientSecret\)/);
-  assert.match(auth, /GOOGLE_OAUTH_REQUIRES_BOTH_CLIENT_ID_AND_CLIENT_SECRET/);
-  assert.match(auth, /FACEBOOK_OAUTH_REQUIRES_BOTH_CLIENT_ID_AND_CLIENT_SECRET/);
-  assert.match(auth, /TWITTER_OAUTH_REQUIRES_BOTH_CLIENT_ID_AND_CLIENT_SECRET/);
+  for (const provider of ["GOOGLE", "FACEBOOK", "TWITTER"]) {
+    assert.match(auth, new RegExp('provider + "_OAUTH_REQUIRES_BOTH_CLIENT_ID_AND_CLIENT_SECRET"'));
+  }
   assert.match(auth, /Object\.keys\(configuredSocialProviders\)\.length > 0/);
 });
 
