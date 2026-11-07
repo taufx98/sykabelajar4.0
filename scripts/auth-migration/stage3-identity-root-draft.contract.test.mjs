@@ -11,9 +11,9 @@ const draft = readFileSync(
 
 // The reviewed SQL stays outside supabase/migrations until all Stage 3 gates pass.
 
-assert.match(draft, /ALTER TABLE private\\.app_users ENABLE ROW LEVEL SECURITY/i);
-assert.match(draft, /REVOKE ALL ON TABLE private\\.app_users FROM PUBLIC, anon, authenticated, service_role/i);
-assert.doesNotMatch(draft, /GRANT ALL ON TABLE private\\.app_users TO service_role/i,
+assert.match(draft, /ALTER TABLE private\.app_users ENABLE ROW LEVEL SECURITY/i);
+assert.match(draft, /REVOKE ALL ON TABLE private\.app_users FROM PUBLIC, anon, authenticated, service_role/i);
+assert.doesNotMatch(draft, /GRANT ALL ON TABLE private\.app_users TO service_role/i,
   "the Worker must call public SECURITY DEFINER RPCs and have no direct private-schema access");
 
 const functionNames = [...draft.matchAll(/CREATE OR REPLACE FUNCTION\s+([a-z_0-9]+\.[a-z_0-9]+)/gi)]
