@@ -10,6 +10,14 @@ const draft = readFileSync(
 );
 
 // The reviewed SQL stays outside supabase/migrations until all Stage 3 gates pass.
+
+const functionStartCount = (draft.match(/CREATE OR REPLACE FUNCTION/gi) ?? []).length;
+const functionTerminatorCount = (draft.match(/\\$function\\$;/g) ?? []).length;
+assert.equal(
+  functionTerminatorCount,
+  functionStartCount,
+  "every SQL function definition must be terminated before the next statement",
+);
 assert.match(draft, /DRAFT ONLY[\s\S]*NOT approved/i);
 assert.match(draft, /CREATE TABLE private\.app_users/);
 assert.match(draft, /id uuid PRIMARY KEY/);
