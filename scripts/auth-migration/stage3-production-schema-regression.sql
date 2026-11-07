@@ -924,15 +924,15 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_REFERRER_SIDE_REFERRAL_READ_FAILED';
   END IF;
 
-  SELECT count(*) INTO v_count FROM public.follows WHERE id=v_follow_id;
+  SELECT count(*) INTO v_count FROM public.follows WHERE id='00000000-0000-4000-8000-00000000a221';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_FOLLOWER_SIDE_RELATIONSHIP_READ_FAILED';
   END IF;
-  SELECT count(*) INTO v_count FROM public.awards WHERE id=v_award_id;
+  SELECT count(*) INTO v_count FROM public.awards WHERE id='00000000-0000-4000-8000-00000000a212';
   IF v_count <> 0 THEN
     RAISE EXCEPTION 'STAGE3_RLS_CROSS_USER_AWARD_READ_ALLOWED';
   END IF;
-  SELECT count(*) INTO v_count FROM public.certificates WHERE id=v_certificate_id;
+  SELECT count(*) INTO v_count FROM public.certificates WHERE id='00000000-0000-4000-8000-00000000a213';
   IF v_count <> 0 THEN
     RAISE EXCEPTION 'STAGE3_RLS_CROSS_USER_CERTIFICATE_READ_ALLOWED';
   END IF;
@@ -978,7 +978,7 @@ BEGIN
     participant_code,full_name,class_name,grade,status
   )
   VALUES (
-    v_collective_participant_id,'00000000-0000-4000-8000-00000000a101',
+    '00000000-0000-4000-8000-00000000a222','00000000-0000-4000-8000-00000000a101',
     '00000000-0000-4000-8000-00000000a206',
     '00000000-0000-4000-8000-00000000a001',
     'STAGE3-COLLECTIVE-001','Stage3 External Student','12 IPA 1','12','ACTIVE'
@@ -986,7 +986,7 @@ BEGIN
 
   SELECT count(*) INTO v_count
   FROM public.collective_participants
-  WHERE id=v_collective_participant_id
+  WHERE id='00000000-0000-4000-8000-00000000a222'
     AND managed_by_user_id='00000000-0000-4000-8000-00000000a001'
     AND user_id IS NULL
     AND status='ACTIVE';
@@ -997,7 +997,7 @@ BEGIN
 
   UPDATE public.collective_participants
   SET full_name='Stage3 External Student Updated'
-  WHERE id=v_collective_participant_id;
+  WHERE id='00000000-0000-4000-8000-00000000a222';
   GET DIAGNOSTICS v_affected=ROW_COUNT;
 
   IF v_affected <> 1 THEN
@@ -1006,7 +1006,7 @@ BEGIN
 
   SELECT count(*) INTO v_count
   FROM public.collective_participants
-  WHERE id=v_collective_participant_id
+  WHERE id='00000000-0000-4000-8000-00000000a222'
     AND full_name='Stage3 External Student Updated'
     AND user_id IS NULL;
 
@@ -1390,12 +1390,12 @@ BEGIN
   IF v_count <> 0 THEN
   END IF;
 
-  SELECT count(*) INTO v_count FROM public.awards WHERE id=v_award_id;
+  SELECT count(*) INTO v_count FROM public.awards WHERE id='00000000-0000-4000-8000-00000000a212';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_AWARD_OWNER_READ_FAILED';
   END IF;
 
-  SELECT count(*) INTO v_count FROM public.certificates WHERE id=v_certificate_id;
+  SELECT count(*) INTO v_count FROM public.certificates WHERE id='00000000-0000-4000-8000-00000000a213';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_CERTIFICATE_OWNER_READ_FAILED';
   END IF;
@@ -1403,11 +1403,11 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_CERTIFICATE_ASSET_DIRECT_SELECT_GRANT_UNEXPECTED';
   END IF;
 
-  SELECT count(*) INTO v_count FROM public.commerce_products WHERE id=v_product_id;
+  SELECT count(*) INTO v_count FROM public.commerce_products WHERE id='00000000-0000-4000-8000-00000000a215';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ACTIVE_COMMERCE_PRODUCT_PUBLIC_READ_FAILED';
   END IF;
-  SELECT count(*) INTO v_count FROM public.commerce_product_reviews WHERE id=v_review_id;
+  SELECT count(*) INTO v_count FROM public.commerce_product_reviews WHERE id='00000000-0000-4000-8000-00000000a216';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_PRODUCT_REVIEW_PUBLIC_READ_FAILED';
   END IF;
@@ -1425,17 +1425,17 @@ BEGIN
   END IF;
 
   INSERT INTO public.commerce_product_wishlist(product_id,user_id)
-  VALUES (v_product_id,u_participant);
+  VALUES ('00000000-0000-4000-8000-00000000a215',u_participant);
 
   SELECT count(*) INTO v_count FROM public.commerce_product_wishlist
-  WHERE product_id=v_product_id AND user_id=u_participant;
+  WHERE product_id='00000000-0000-4000-8000-00000000a215' AND user_id=u_participant;
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_WISHLIST_OWNER_INSERT_READ_FAILED';
   END IF;
 
   BEGIN
     INSERT INTO public.commerce_product_wishlist(product_id,user_id)
-    VALUES (v_product_id,u_referrer);
+    VALUES ('00000000-0000-4000-8000-00000000a215',u_referrer);
     RAISE EXCEPTION 'STAGE3_EXPECTED_WISHLIST_OWNER_GUARD';
   EXCEPTION WHEN insufficient_privilege THEN
     NULL;
@@ -1567,11 +1567,11 @@ BEGIN
   IF v_count <> 0 THEN
   END IF;
 
-  SELECT count(*) INTO v_count FROM public.awards WHERE id=v_award_id;
+  SELECT count(*) INTO v_count FROM public.awards WHERE id='00000000-0000-4000-8000-00000000a212';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_AWARD_READ_FAILED';
   END IF;
-  SELECT count(*) INTO v_count FROM public.certificates WHERE id=v_certificate_id;
+  SELECT count(*) INTO v_count FROM public.certificates WHERE id='00000000-0000-4000-8000-00000000a213';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_CERTIFICATE_READ_FAILED';
   END IF;
@@ -1580,7 +1580,7 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_count FROM public.commerce_product_wishlist
-  WHERE product_id=v_product_id AND user_id=u_participant;
+  WHERE product_id='00000000-0000-4000-8000-00000000a215' AND user_id=u_participant;
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_WISHLIST_READ_FAILED';
   END IF;
