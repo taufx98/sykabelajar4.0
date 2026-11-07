@@ -98,6 +98,15 @@ const edgeRoot = new URL("../../supabase/functions/", import.meta.url);
 const edgeAdapter = readFileSync(new URL("_shared/better-auth-user.ts", edgeRoot), "utf8");
 const supabaseConfig = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
 const webhookSource = readFileSync(new URL("payment-gateway-webhook/index.ts", edgeRoot), "utf8");
+const applicationIdentityResolver = readFileSync(new URL("_shared/require-application-user.ts", edgeRoot), "utf8");
+const cloudinarySignerSource = readFileSync(new URL("get-cloudinary-signature/index.ts", edgeRoot), "utf8");
+const cloudinaryDeleteSource = readFileSync(new URL("cloudinary-delete-asset/index.ts", edgeRoot), "utf8");
+const cloudinaryUploadSource = readFileSync(new URL("cloudinary-profile-upload/index.ts", edgeRoot), "utf8");
+const cloudinaryProfileDeleteSource = readFileSync(new URL("cloudinary-delete-profile/index.ts", edgeRoot), "utf8");
+const paymentAdminSource = readFileSync(new URL("payment-gateway-admin/index.ts", edgeRoot), "utf8");
+const paymentCreateSource = readFileSync(new URL("payment-gateway-create/index.ts", edgeRoot), "utf8");
+const paymentReconcileSource = readFileSync(new URL("payment-gateway-reconcile/index.ts", edgeRoot), "utf8");
+const midtransDelegateSource = readFileSync(new URL("midtrans-create-payment/index.ts", edgeRoot), "utf8");
 
 function functionConfig(name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -123,14 +132,40 @@ test("verified user adapter fails closed without exact issuer and resource audie
   assert.match(edgeAdapter, /AUTH_POSTGRES_ROLE_INVALID/);
 });
 
-test("user-invoked payment and Cloudinary functions keep platform JWT verification enabled", () => {
+test("migrated handlers bypass gateway JWT verification only because the shared resolver verifies every request", () => {
   for (const name of [
     "get-cloudinary-signature",
+    "cloudinary-profile-upload",
+    "cloudinary-delete-asset",
+    "cloudinary-delete-profile",
     "payment-gateway-admin",
     "payment-gateway-create",
     "payment-gateway-reconcile",
     "midtrans-create-payment",
   ]) {
+    assert.match(functionConfig(name), /verify_jwt\s*=\s*false/);
+  }
+
+  for (const source of [
+    cloudinarySignerSource,
+    cloudinaryDeleteSource,
+    cloudinaryUploadSource,
+    cloudinaryProfileDeleteSource,
+    paymentAdminSource,
+    paymentCreateSource,
+    paymentReconcileSource,
+  ]) {
+    assert.match(source, /requireApplicationUser\(/);
+  }
+
+  assert.match(midtransDelegateSource, /Authorization/);
+  assert.match(midtransDelegateSource, /payment-gateway-create/);
+  assert.match(paymentCreateSource, /requireApplicationUser\(/);
+  assert.doesNotMatch(applicationIdentityResolver, /SUPABASE_SERVICE_ROLE_KEY|service_role/i);
+});
+
+test("unmigrated legacy Cloudinary v2 aliases retain gateway JWT verification", () => {
+  for (const name of ["cloudinary-profile-upload-v2", "cloudinary-delete-asset-v2"]) {
     assert.match(functionConfig(name), /verify_jwt\s*=\s*true/);
   }
 });
