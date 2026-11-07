@@ -11,6 +11,7 @@ on:
       - "supabase/functions/get-cloudinary-signature/**"
       - "supabase/functions/cloudinary-delete-asset/**"
       - "supabase/functions/cloudinary-profile-upload/**"
+      - "supabase/functions/cloudinary-delete-profile/**"
       - "supabase/functions/payment-gateway-admin/**"
       - "supabase/functions/payment-gateway-create/**"
       - "supabase/functions/payment-gateway-reconcile/**"
@@ -87,6 +88,8 @@ jobs:
             ../../../supabase/functions/cloudinary-delete-asset/index.ts
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/cloudinary-profile-upload/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/cloudinary-delete-profile/index.ts
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/payment-gateway-admin/index.ts
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
