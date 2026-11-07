@@ -29,6 +29,7 @@ DECLARE
   u_participant constant uuid := '00000000-0000-4000-8000-00000000a009';
   u_unverified_referrer constant uuid := '00000000-0000-4000-8000-00000000a010';
   u_bad_referral constant uuid := '00000000-0000-4000-8000-00000000a011';
+  u_admin constant uuid := '00000000-0000-4000-8000-00000000a012';
 
   v_event_id uuid;
   v_fallback_event_id uuid;
@@ -55,7 +56,7 @@ BEGIN
     WHERE id IN (
       u_referrer,u_referred,u_expired,u_fallback,u_organizer,
       u_duplicate_organizer,u_no_phone,u_no_email,u_participant,
-      u_unverified_referrer,u_bad_referral
+      u_unverified_referrer,u_bad_referral,u_admin
     )
   ) THEN
     RAISE EXCEPTION 'STAGE3_FIXTURE_UUID_COLLISION';
@@ -66,7 +67,7 @@ BEGIN
     WHERE id IN (
       u_referrer,u_referred,u_expired,u_fallback,u_organizer,
       u_duplicate_organizer,u_no_phone,u_no_email,u_participant,
-      u_unverified_referrer,u_bad_referral
+      u_unverified_referrer,u_bad_referral,u_admin
     )
   ) THEN
     RAISE EXCEPTION 'STAGE3_FIXTURE_PROFILE_COLLISION';
@@ -379,6 +380,27 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_UNVERIFIED_REFERRER_WAS_ACCEPTED';
   END IF;
 
+  -- Simulate an already-approved admin assigned by a trusted database owner.
+  -- Signup metadata itself remains student-only and cannot self-assign admin.
+  INSERT INTO auth.users (
+    id,aud,role,email,encrypted_password,email_confirmed_at,
+    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
+  )
+  VALUES (
+    u_admin,'authenticated','authenticated','stage3-admin@example.invalid','',
+    clock_timestamp(),'{}'::jsonb,
+    jsonb_build_object(
+      'account_type','student',
+      'full_name','Stage3 Admin Fixture',
+      'username','stage3_admin_fixture'
+    ),
+    clock_timestamp(),clock_timestamp()
+  );
+
+  INSERT INTO public.user_roles(user_id,role,is_active)
+  VALUES (u_admin,'admin'::public.app_role,true);
+
+
   -- Trusted organizer path: both verification timestamps are required, the
   -- phone hash is based on normalized verified phone digits, and all related
   -- business rows must be created as a single protected operation.
@@ -631,7 +653,7 @@ BEGIN
   WHERE id IN (
     u_referrer,u_referred,u_expired,u_fallback,u_organizer,
     u_duplicate_organizer,u_no_phone,u_no_email,u_participant,
-    u_unverified_referrer,u_bad_referral
+    u_unverified_referrer,u_bad_referral,u_admin
   );
 
   RAISE NOTICE 'Stage 3 production-shaped behavior fixtures passed: signup/role mapping, email/referral lifecycle, 24-hour expiry, scheduled referral verifier, organizer phone/email gates, one-FREE-phone claim, registration/referral/audit/notification.';
@@ -677,6 +699,15 @@ BEGIN
 
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_REFERRER_SIDE_REFERRAL_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.audit_logs
+  WHERE actor_user_id='00000000-0000-4000-8000-00000000a009'
+    AND action='registration.create';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_NON_ADMIN_AUDIT_LOG_READ_ALLOWED';
   END IF;
 
   -- This legacy RPC is intentionally executable by PUBLIC/anon in production.
@@ -844,6 +875,47 @@ BEGIN
   END;
 END;
 $stage3_rls_participant$;
+
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a012',true);
+
+DO $stage3_rls_admin$
+DECLARE
+  v_count integer;
+  v_affected integer;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM public.user_roles
+  WHERE user_id IN (
+    '00000000-0000-4000-8000-00000000a001',
+    '00000000-0000-4000-8000-00000000a002',
+    '00000000-0000-4000-8000-00000000a005',
+    '00000000-0000-4000-8000-00000000a009',
+    '00000000-0000-4000-8000-00000000a012'
+  );
+
+  IF v_count <> 6 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_USER_ROLES_OVERLAY_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.audit_logs
+  WHERE actor_user_id='00000000-0000-4000-8000-00000000a009'
+    AND action='registration.create';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_AUDIT_LOG_READ_FAILED';
+  END IF;
+
+  UPDATE public.organizers
+  SET description='Admin overlay regression passed'
+  WHERE owner_user_id='00000000-0000-4000-8000-00000000a005';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+
+  IF v_affected <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ORGANIZER_UPDATE_FAILED';
+  END IF;
+END;
+$stage3_rls_admin$;
 
 RESET ROLE;
 
