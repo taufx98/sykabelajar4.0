@@ -71,6 +71,7 @@ assert.match(sql,/STAGE3_RLS_FOLLOWED_SIDE_RELATIONSHIP_READ_FAILED/);
 assert.match(sql,/STAGE3_RLS_ANON_PRODUCT_REVIEW_PUBLIC_READ_FAILED/);
 assert.match(sql,/STAGE3_CERTIFICATE_ASSET_DIRECT_SELECT_GRANT_UNEXPECTED/);
 assert.match(sql,/v_question_id constant uuid/);
+assert.match(sql,/set_config\('request\.jwt\.claim\.sub',u_organizer::text,true\);\s*INSERT INTO public\.question_banks/);
 assert.match(sql,/v_certificate_id constant uuid/);
 assert.match(sql,/v_product_id constant uuid/);
 assert.match(sql,/has_any_column_privilege\('authenticated','public\.certificate_assets','SELECT'\)/);
