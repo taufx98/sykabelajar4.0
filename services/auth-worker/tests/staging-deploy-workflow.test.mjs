@@ -12,11 +12,11 @@ const wranglerConfig = readFileSync(new URL("../wrangler.toml", import.meta.url)
 test("staging Worker deploy has one exact guarded push marker and manual fallback", () => {
   assert.match(workflow, /^on:\n  push:/m);
   assert.match(workflow, /branches:\n      - security\/auth-poc-stage-1/);
-  assert.match(workflow, /paths:\n      - "\.github\/auth-ops\/DEPLOY-STAGING-WORKER-0004"/);
+  assert.match(workflow, /paths:\n      - "\.github\/auth-ops\/DEPLOY-STAGING-WORKER-0005"/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /GITHUB_EVENT_NAME.*workflow_dispatch/);
   assert.match(workflow, /GITHUB_EVENT_NAME.*push/);
-  assert.match(workflow, /DEPLOY-STAGING-WORKER-0004/);
+  assert.match(workflow, /DEPLOY-STAGING-WORKER-0005/);
   assert.match(workflow, /DEPLOY-STAGING-WORKER-sykabelajar-auth-poc/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/security\/auth-poc-stage-1'/);
 });
@@ -41,6 +41,11 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   }
   assert.match(workflow, /Run the guarded D1 migration workflow first/);
   assert.match(workflow, /SUPABASE_URL.*mvdczyitbkxkldjughor/);
+  assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m);
+  assert.doesNotMatch(wranglerConfig, /^SUPABASE_PROVISIONING_ENABLED = "true"$/m);
+  assert.match(workflow, /Verify all 18 remote D1 tables/);
+  assert.match(workflow, /auth_phone_verification_challenges/);
+  assert.match(workflow, /phone_challenges/);
   assert.doesNotMatch(workflow, /SERVICE_ROLE|service_role/i);
   assert.doesNotMatch(workflow, /wrangler\s+d1\s+(delete|create)/i);
 });
