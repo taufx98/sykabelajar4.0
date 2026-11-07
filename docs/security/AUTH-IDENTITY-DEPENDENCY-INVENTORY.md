@@ -268,3 +268,62 @@ The six Cloudinary endpoints plus three payment endpoints produce **nine active 
 The following deployed endpoints retain independent/public authentication and are not user-JWT migrations: `payment-webhook` v9 and `payment-gateway-webhook` v4 (provider signatures, `verify_jwt=false`); `payment-gateway-public` v2 (deliberately public status); `generate-collective-certificate-pdf` v8 (public certificate output); `cleanup-expired-chat-media` v9 (service-role cleanup with `verify_jwt=false`, to be retired with the approved private-chat removal).
 
 No production Edge Function code, config, secret, Cloudinary asset or Supabase Auth setting was modified. The exact per-function details and required synthetic A/B tests are in [AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md](AUTH-EDGE-FUNCTION-MIGRATION-MATRIX.md).
+
+
+## Live dependency and schema revalidation — 7 November 2026
+
+Source: read-only catalog queries against production project `mvdczyitbkxkldjughor`. No application rows, UUID values, email addresses, credentials, or tokens were selected. No DDL/DML was executed.
+
+### Current identity-root and Auth dependency state
+
+- PostgreSQL server version: **17.6**.
+- `private.app_users`: **does not exist**.
+- `auth.users`: **11 rows** (count only; no user records were read).
+- Application foreign keys from `public`/`private` to `auth.users(id)`: **69**.
+- RLS policies containing `auth.uid()`: **109**.
+- Non-internal triggers on `auth.users`: **3**.
+- Views whose definitions reference `auth.users` or `auth.uid()`: **0**.
+
+The 10 function dependencies remain the correct migration inventory. A new source-level distinction from the 7 November scan is useful:
+
+| Dependency class | Functions | Treatment |
+|---|---|---|
+| Eight function definitions with direct `auth.users` table references | `private.apply_referral_qualification`, `private.capture_signup_referral`, `public.create_organizer`, `public.get_my_referrals`, `public.get_my_referrals_v2`, `public.get_my_verified_referrals`, `public.register_for_competition`, `public.verify_pending_referrals` | Replace the direct table reads with the trusted identity projection where appropriate. Preserve the existing RPC output shapes and business rules. |
+| Two trigger functions that consume the `auth.users` row through `NEW`/`OLD` rather than querying the table by name | `public.handle_new_auth_user`, `private.process_referral_email_confirmation` | Keep the legacy Supabase Auth trigger path during the overlap period. Better Auth provisioning and verification use the server-only Stage 3 RPC path. Retire the legacy path only with the approved login cutover. |
+
+The three production Auth triggers remain:
+- `on_auth_user_created` → `public.handle_new_auth_user()`
+- `trg_referral_signup_attribution` → `private.capture_signup_referral()`
+- `trg_referral_email_confirmed` → `private.process_referral_email_confirmation()`
+
+The 109 `auth.uid()` policies are not a reason to mass-rewrite policy expressions. Stage 2 hosted acceptance already demonstrated that a Better Auth UUID in the accepted JWT `sub` resolves through `auth.uid()` and that a two-user RLS fixture separates ownership. The full 109-policy regression remains a later acceptance requirement; this is not proof that every policy is correct.
+
+### Production schema differences that the synthetic fixture must not hide
+
+The live catalog shows several differences that must be included in the full local baseline and migration tests:
+
+- `public.profiles` is the existing production table, not the minimal fixture table. It has the live unique username index and account-type constraint plus existing normalization, account-type backend guard, currency backend guard, and updated-at triggers. Provisioning must continue to pass through those database protections and preserve profile fields not owned by registration.
+- `public.user_roles` uses the existing `public.app_role` enum and composite `(user_id, role)` key. The production enum and role rows must be preserved; retries must not reactivate a role that was disabled.
+- `private.referral_program_settings` contains additional live event, milestone, promo, and audit fields beyond the simplified synthetic fixture. A migration must preserve the full production row/table definition and not replace it with the fixture shape.
+- `public.referral_events` and `public.edu_coin_ledger` have live uniqueness constraints used by referral attribution and idempotent rewards. The reward pipeline must preserve the unique ledger key and one-referral-per-referred-user behavior.
+- `private.organizer_free_identity_claims` has a unique identity hash and unique owner claim. The existing organizer flow hashes the normalized verified phone digits with SHA-256; a profile WhatsApp value or an unchecked client hash is not an acceptable substitute.
+- Existing profile triggers include `profiles_account_type_backend_guard`, `profiles_currency_backend_guard`, `trg_profiles_normalize_fields`, and `trg_profiles_updated_at`. The local fixture must exercise the trusted provisioning path against equivalent behavior, not simply omit the guards.
+
+### Function-level migration and regression requirements
+
+1. `private.apply_referral_qualification`: replace the old `auth.users.email_confirmed_at` read with `private.app_users.email_verified_at`; preserve row locking, first eligible activity, strict 24-hour checks, and the idempotent Edu Coin ledger credit.
+2. `public.register_for_competition`: the optional referral lookup must validate the referrer against trusted `email_verified_at` without changing registration, audit-log, or notification behavior.
+3. `public.verify_pending_referrals`: use the identity projection for referred-user email verification; preserve activity lookup order, referral status transitions, reward snapshot, and single-credit behavior.
+4. `public.get_my_referrals()`, `get_my_referrals_v2()`, and `get_my_verified_referrals()`: these read `auth.users.last_sign_in_at` only for the legacy `last_login_at` output. Keep the result-column contract temporarily and return a typed `NULL` unless a separately approved requirement justifies adding sign-in mirroring. The current active `ReferralProgramPanel` does not consume this field.
+5. `public.create_organizer`: preserve the verified-email AND verified-phone requirements, the minimum normalized phone length, active `organizer_member` role check, one-workspace limit, SHA-256 identity hash, and unique free-organizer claim. There is no approved trusted Free-only phone verification mechanism yet; do not weaken this operation or claim it is migrated.
+6. `private.capture_signup_referral`, `public.handle_new_auth_user`, and `private.process_referral_email_confirmation`: these are part of the old Supabase Auth trigger path. Do not disable them during preparation. The new Better Auth path uses the trusted provisioning and email-verification RPCs; retire the old triggers only at the approved cutover after confirming the old signup path is no longer used.
+7. Keep all `auth.uid()` RLS and SQL caller identity behavior tied to the accepted JWT `sub`; preserve `role=authenticated` and keep SYKABELAJAR business roles in `public.user_roles`.
+
+The current synthetic Stage 3 tests cover the identity-root idea and a simplified provisioning/referral flow, but they do not yet prove all seven items above against the full production schema. In particular, they do not exercise the complete production `create_organizer`, the referral-related `register_for_competition` and `verify_pending_referrals` replacements, the three legacy Auth trigger overlap behavior, or every live profile trigger/constraint. These tests must be added to the disposable full-schema local baseline before an executable migration can be reviewed.
+
+### Outstanding prerequisites
+
+- The complete schema-only `pg_dump` baseline is still not available. MCP catalog queries are read-only and useful for inventory, but they are not a substitute for a full schema dump or a verified restore.
+- The trusted phone-verification replacement is still unresolved. Until it is solved and tested, the organizer creation feature remains a hard compatibility gate.
+- No production identity table, foreign key, trigger, function, RLS policy, account, or login configuration has been changed.
+
