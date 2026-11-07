@@ -31,7 +31,8 @@ test("database URI is not passed in process arguments and temporary password fil
   assert.doesNotMatch(exporter, /psql\s+["']?\$SUPABASE_DB_URL/);
   assert.match(exporter, /directHost/);
   assert.match(exporter, /poolerHost/);
-  assert.match(exporter, /PGSSLMODE=require/);
+  assert.match(exporter, /const sslmode = url\.searchParams\.get\("sslmode"\) \|\| "require"/);
+  assert.match(exporter, /"export PGSSLMODE=" \+ shellQuote\(sslmode\)/);
 });
 
 test("review plan is written outside the repository and never executed", () => {
