@@ -29,7 +29,11 @@ assert.match(draft, /FROM auth\.users au\s+ON CONFLICT \(id\) DO NOTHING/);
 assert.match(draft, /extensions\.digest\([\s\S]{0,240}'sha256'/);
 assert.match(draft, /CREATE TRIGGER a_sync_app_users_identity_insert[\s\S]*AFTER INSERT ON auth\.users/);
 assert.match(draft, /CREATE TRIGGER a_sync_app_users_identity_update[\s\S]*AFTER UPDATE OF email_confirmed_at, phone_confirmed_at, phone ON auth\.users/);
-assert.match(draft, /The a_sync name ensures[\\s\\S]*?identity row exists before on_auth_user_created/i);
+assert.ok(
+  draft.includes("The a_sync name ensures") &&
+  draft.includes("identity row exists before on_auth_user_created"),
+  "the legacy identity sync trigger must be ordered before profile/referral Auth triggers",
+);
 
 // All Auth-dependent application reads must resolve through private.app_users.
 for (const name of [
