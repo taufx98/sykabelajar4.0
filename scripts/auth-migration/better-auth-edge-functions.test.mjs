@@ -117,3 +117,26 @@ assert.ok(paymentWebhook.includes("INVALID_SIGNATURE"));
 
 assert.match(section("payment-gateway-public"), /verify_jwt\s*=\s*false/);
 console.log("Better Auth Edge Function source contracts passed: six Cloudinary endpoints, three payment endpoints, legacy delegate, and provider/public boundaries.");
+
+const oidcWorkflow = read(".github/workflows/auth-supabase-staging-oidc.yml");
+for (const required of [
+  "security/auth-poc-stage-1",
+  "REGISTER-STAGING-OIDC-0001",
+  "REGISTER-STAGING-OIDC-sykabelajar-auth-staging",
+  "SUPABASE_ACCESS_TOKEN",
+  "ydamszdfsxqisanazdkb",
+  "sykabelajar-auth-staging",
+  "qdmwatwyyrdjbrvxtcfu",
+  "https://auth.sykabelajar.my.id/api/auth",
+  "/config/auth/third-party-auth",
+  "oidc_issuer_url",
+  "auth_config_write",
+]) {
+  assert.ok(oidcWorkflow.includes(required), "OIDC staging workflow missing " + required);
+}
+assert.equal(oidcWorkflow.includes("mvdczyitbkxkldjughor"), false);
+assert.equal(oidcWorkflow.includes("wrangler deploy"), false);
+assert.ok(oidcWorkflow.includes("GET"));
+assert.ok(oidcWorkflow.includes("S256"));
+assert.ok(oidcWorkflow.includes("ES256"));
+assert.ok(oidcWorkflow.includes("production_project_touched: false"));
