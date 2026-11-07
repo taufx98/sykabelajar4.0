@@ -108,6 +108,12 @@ writeFileSync(envFile, [
 NODE
 source "$PG_ENV"
 
+# Capture only definitions and schema metadata needed for Stage 3 restore parity.
+# This query does not select application rows, identity values, or credentials.
+psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align \
+  --file "$REPO_ROOT/scripts/auth-migration/stage3-baseline-metadata.sql" \
+  > "$OUTPUT_DIR/production-catalog-metadata.json"
+
 printf 'Output folder: %s\n' "$OUTPUT_DIR"
 printf 'Exporting schema-only custom database objects using Supabase CLI v3 remote mode...\n'
 # CLI v3 accepts the database URL as --remote; no CLI login, link, or project picker is required.
@@ -143,6 +149,7 @@ psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
 [[ -s "$OUTPUT_DIR/schema.sql" ]] || die 'The schema dump is empty.'
 [[ -f "$OUTPUT_DIR/auth-storage-custom.sql" ]] || die 'The Auth/Storage DDL diff was not created.'
 [[ -s "$OUTPUT_DIR/role-metadata.txt" ]] || die 'The password-free role/default-ACL metadata file is empty.'
+[[ -s "$OUTPUT_DIR/production-catalog-metadata.json" ]] || die 'The Stage 3 production catalog metadata snapshot is empty.'
 
 # A schema-only dump must not contain pg_dump COPY data blocks.
 if grep -Eq '^[[:space:]]*COPY[[:space:]].*[[:space:]]FROM stdin;' "$OUTPUT_DIR/schema.sql"; then
@@ -162,9 +169,9 @@ EOF
 
 chmod 600 "$OUTPUT_DIR"/*
 if command -v sha256sum >/dev/null 2>&1; then
-  (cd "$OUTPUT_DIR" && sha256sum schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt role-metadata.txt manifest.txt > SHA256SUMS)
+  (cd "$OUTPUT_DIR" && sha256sum schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt role-metadata.txt production-catalog-metadata.json manifest.txt > SHA256SUMS)
 elif command -v shasum >/dev/null 2>&1; then
-  (cd "$OUTPUT_DIR" && shasum -a 256 schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt role-metadata.txt manifest.txt > SHA256SUMS)
+  (cd "$OUTPUT_DIR" && shasum -a 256 schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt role-metadata.txt production-catalog-metadata.json manifest.txt > SHA256SUMS)
 else
   die 'Neither sha256sum nor shasum is available to checksum the export.'
 fi
