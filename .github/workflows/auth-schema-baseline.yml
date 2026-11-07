@@ -8,6 +8,8 @@ on:
     paths:
       - "scripts/auth-migration/export-schema-baseline.sh"
       - "scripts/auth-migration/export-schema-baseline.contract.test.mjs"
+      - "scripts/auth-migration/verify-restored-auth-fk-catalog.mjs"
+      - "scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs"
       - ".github/workflows/auth-schema-baseline.yml"
   workflow_dispatch:
 
@@ -114,6 +116,10 @@ jobs:
         uses: supabase/setup-cli@v3
         with:
           version: 3.0.0
+
+      - name: Test exact restored FK catalog verifier contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs
 
       - name: Prepare an empty disposable Supabase project
         if: steps.credentials.outputs.available == 'true'
@@ -269,6 +275,68 @@ jobs:
             echo "- No production DDL/DML, no artifact upload, and no schema files committed"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Compare every restored auth.users FK with the reviewed production catalog
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          FK_SQL=$(cat <<'SQL'
+          SELECT COALESCE(
+            jsonb_agg(
+              jsonb_build_object(
+                'name', c.conname,
+                'on_delete', CASE c.confdeltype
+                  WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
+                  WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END,
+                'on_update', CASE c.confupdtype
+                  WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
+                  WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END,
+                'validated', c.convalidated,
+                'deferrable', c.condeferrable,
+                'match_type', CASE c.confmatchtype
+                  WHEN 's' THEN 'SIMPLE' WHEN 'f' THEN 'FULL' WHEN 'p' THEN 'PARTIAL' END,
+                'source_table', source_table.relname,
+                'target_table', target_table.relname,
+                'source_schema', source_ns.nspname,
+                'target_schema', target_ns.nspname,
+                'source_columns', (
+                  SELECT COALESCE(jsonb_agg(source_att.attname ORDER BY source_key.ordinality), '[]'::jsonb)
+                  FROM unnest(c.conkey) WITH ORDINALITY AS source_key(attnum, ordinality)
+                  JOIN pg_attribute source_att
+                    ON source_att.attrelid = source_table.oid
+                   AND source_att.attnum = source_key.attnum
+                ),
+                'target_columns', (
+                  SELECT COALESCE(jsonb_agg(target_att.attname ORDER BY target_key.ordinality), '[]'::jsonb)
+                  FROM unnest(c.confkey) WITH ORDINALITY AS target_key(attnum, ordinality)
+                  JOIN pg_attribute target_att
+                    ON target_att.attrelid = target_table.oid
+                   AND target_att.attnum = target_key.attnum
+                ),
+                'initially_deferred', c.condeferred
+              ) ORDER BY source_ns.nspname, source_table.relname, c.conname
+            ), '[]'::jsonb
+          )::text
+          FROM pg_constraint c
+          JOIN pg_class source_table ON source_table.oid = c.conrelid
+          JOIN pg_namespace source_ns ON source_ns.oid = source_table.relnamespace
+          JOIN pg_class target_table ON target_table.oid = c.confrelid
+          JOIN pg_namespace target_ns ON target_ns.oid = target_table.relnamespace
+          WHERE c.contype = 'f'
+            AND source_ns.nspname IN ('public', 'private')
+            AND target_ns.nspname = 'auth'
+            AND target_table.relname = 'users';
+          SQL
+          )
+
+          docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -qAt --set=ON_ERROR_STOP=1 --command "$FK_SQL" \
+              > "$RUNNER_TEMP/restored-auth-users-fks.json"
+
+          node scripts/auth-migration/verify-restored-auth-fk-catalog.mjs \
+            --actual "$RUNNER_TEMP/restored-auth-users-fks.json" \
+            --expected scripts/auth-migration/live-auth-users-fk-catalog.json
+
       - name: Stop disposable local Supabase
         if: always() && steps.local_supabase.outcome == 'success'
         run: |
@@ -278,4 +346,5 @@ jobs:
       - name: Remove schema export and temporary local project
         if: always()
         run: |
+          rm -f "$RUNNER_TEMP/restored-auth-users-fks.json"
           rm -rf "$SCHEMA_BASELINE_OUTPUT_DIR" "$SUPABASE_CLI_WORKDIR"
