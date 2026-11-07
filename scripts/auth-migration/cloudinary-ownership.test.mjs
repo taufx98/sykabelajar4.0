@@ -125,11 +125,11 @@ test("the shared identity resolver defaults to legacy Supabase Auth and only opt
 
 test("Cloudinary profile upload uses the shared verified identity and derives UUID-owned asset IDs", () => {
   assert.match(profileUploadEndpoint, /requireApplicationUser\(req\)/);
-  assert.match(profileUploadEndpoint, /const userId = identity\.userId/);
+  assert.match(profileUploadEndpoint, /const userId\s*=\s*identity\.userId/);
   assert.match(profileUploadEndpoint, /profile_pictures\/user_\$\{userId\}/);
   assert.match(profileUploadEndpoint, /profile_covers\/user_\$\{userId\}/);
-  assert.match(profileUploadEndpoint, /file\.size > 5 \* 1024 \* 1024/);
-  assert.match(profileUploadEndpoint, /kind !== "profile" && kind !== "cover"/);
+  assert.match(profileUploadEndpoint, /file\.size\s*>\s*5\s*\*\s*1024\s*\*\s*1024/);
+  assert.match(profileUploadEndpoint, /kind\s*!==\s*"profile"\s*&&\s*kind\s*!==\s*"cover"/);
   assert.doesNotMatch(profileUploadEndpoint, /body\.user_id|body\.owner_id|form\.get\(["']user_id/);
   assert.match(profileUploadEndpoint, /CLOUDINARY_API_SECRET/);
   assert.match(profileUploadEndpoint, /image\/upload/);
