@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { isOwnedCloudinaryPublicId } from "../_shared/cloudinary-ownership.mjs";
+import { requireBetterAuthUser } from "../_shared/better-auth-user.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -13,9 +14,28 @@ serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return new Response(JSON.stringify({ error: "Missing authorization" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
 
-    const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", { global: { headers: { Authorization: authHeader } } });
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+    const authMode = Deno.env.get("AUTH_IDENTITY_MODE")?.trim() || "supabase";
+    if (authMode !== "supabase" && authMode !== "better-auth") {
+      return new Response(JSON.stringify({ error: "AUTH_IDENTITY_MODE_INVALID" }), { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+    }
+
+    let userId: string;
+    let supabase: ReturnType<typeof createClient>;
+    if (authMode === "better-auth") {
+      const identity = await requireBetterAuthUser(req);
+      if (!identity.ok) {
+        return new Response(JSON.stringify({ error: identity.error }), { status: identity.status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+      }
+      userId = identity.userId;
+      supabase = identity.supabase as ReturnType<typeof createClient>;
+    } else {
+      // Default/legacy path stays unchanged until this function is explicitly
+      // configured for Better Auth on an isolated staging project.
+      supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", { global: { headers: { Authorization: authHeader } } });
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+      userId = user.id;
+    }
 
     const body = await req.json().catch(() => ({}));
     const publicId = typeof body.public_id === 'string' ? body.public_id.trim() : '';
@@ -27,7 +47,7 @@ serve(async (req: Request) => {
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("username")
-      .eq("id", user.id)
+      .eq("id", userId)
       .maybeSingle();
     if (profileError || !profile) {
       return new Response(JSON.stringify({ error: "PROFILE_NOT_FOUND" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
@@ -38,14 +58,14 @@ serve(async (req: Request) => {
       const { data, error } = await supabase
         .from("organizers")
         .select("id,slug")
-        .eq("owner_user_id", user.id);
+        .eq("owner_user_id", userId);
       if (error) {
         return new Response(JSON.stringify({ error: "ORGANIZER_OWNERSHIP_CHECK_FAILED" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
       }
       ownedOrganizers = (data ?? []) as Array<{ id: string; slug: string }>;
     }
 
-    if (!isOwnedCloudinaryPublicId(publicId, { userId: user.id, username: profile.username, ownedOrganizers })) {
+    if (!isOwnedCloudinaryPublicId(publicId, { userId, username: profile.username, ownedOrganizers })) {
       return new Response(JSON.stringify({ error: "CLOUDINARY_PUBLIC_ID_NOT_OWNED" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
     }
 
