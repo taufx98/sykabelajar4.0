@@ -30,6 +30,8 @@ DECLARE
   u_unverified_referrer constant uuid := '00000000-0000-4000-8000-00000000a010';
   u_bad_referral constant uuid := '00000000-0000-4000-8000-00000000a011';
   u_admin constant uuid := '00000000-0000-4000-8000-00000000a012';
+  u_active_member constant uuid := '00000000-0000-4000-8000-00000000a013';
+  u_inactive_member constant uuid := '00000000-0000-4000-8000-00000000a014';
   v_order_id constant uuid := '00000000-0000-4000-8000-00000000a201';
   v_payment_intent_id constant uuid := '00000000-0000-4000-8000-00000000a202';
   v_attempt_id constant uuid := '00000000-0000-4000-8000-00000000a203';
@@ -62,7 +64,7 @@ BEGIN
     WHERE id IN (
       u_referrer,u_referred,u_expired,u_fallback,u_organizer,
       u_duplicate_organizer,u_no_phone,u_no_email,u_participant,
-      u_unverified_referrer,u_bad_referral,u_admin
+      u_unverified_referrer,u_bad_referral,u_admin,u_active_member,u_inactive_member
     )
   ) THEN
     RAISE EXCEPTION 'STAGE3_FIXTURE_UUID_COLLISION';
@@ -73,7 +75,7 @@ BEGIN
     WHERE id IN (
       u_referrer,u_referred,u_expired,u_fallback,u_organizer,
       u_duplicate_organizer,u_no_phone,u_no_email,u_participant,
-      u_unverified_referrer,u_bad_referral,u_admin
+      u_unverified_referrer,u_bad_referral,u_admin,u_active_member,u_inactive_member
     )
   ) THEN
     RAISE EXCEPTION 'STAGE3_FIXTURE_PROFILE_COLLISION';
@@ -477,6 +479,47 @@ BEGIN
 
   IF v_code_hash IS NULL OR extensions.crypt(v_access_code,v_code_hash) IS DISTINCT FROM v_code_hash THEN
     RAISE EXCEPTION 'STAGE3_ORGANIZER_ACCESS_CODE_HASH_FAILED';
+  END IF;
+
+  -- Active and inactive viewer memberships exercise distinct resource/read and
+  -- manage boundaries. They are not given owner/admin membership semantics.
+  INSERT INTO auth.users (
+    id,aud,role,email,encrypted_password,email_confirmed_at,
+    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
+  )
+  VALUES
+    (
+      u_active_member,'authenticated','authenticated','stage3-active-member@example.invalid','',
+      clock_timestamp(),'{}'::jsonb,
+      jsonb_build_object('account_type','student','full_name','Stage3 Active Member','username','stage3_active_member'),
+      clock_timestamp(),clock_timestamp()
+    ),
+    (
+      u_inactive_member,'authenticated','authenticated','stage3-inactive-member@example.invalid','',
+      clock_timestamp(),'{}'::jsonb,
+      jsonb_build_object('account_type','student','full_name','Stage3 Inactive Member','username','stage3_inactive_member'),
+      clock_timestamp(),clock_timestamp()
+    );
+
+  INSERT INTO public.organizer_members (
+    organizer_id,user_id,member_role,is_active,role,status
+  )
+  VALUES
+    (v_organizer_id,u_active_member,'viewer',true,'viewer','ACTIVE'),
+    (v_organizer_id,u_inactive_member,'viewer',false,'viewer','INACTIVE');
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id=u_active_member
+      AND role='organizer_member'::public.app_role
+      AND is_active=true
+  ) OR EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id=u_inactive_member
+      AND role='organizer_member'::public.app_role
+      AND is_active=true
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_ORGANIZER_MEMBER_ROLE_SYNC_FAILED';
   END IF;
 
   -- Same normalized phone, different raw formatting: the second FREE claim
@@ -890,6 +933,28 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_CROSS_USER_SETTINGS_UPDATE_ALLOWED';
   END IF;
 
+  SELECT count(*) INTO v_count
+  FROM public.organizer_plans
+  WHERE organizer_id IN (
+    SELECT id FROM public.organizers
+    WHERE owner_user_id='00000000-0000-4000-8000-00000000a005'
+  );
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_UNRELATED_ORGANIZER_PLAN_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.organizer_members
+  WHERE organizer_id IN (
+    SELECT id FROM public.organizers
+    WHERE owner_user_id='00000000-0000-4000-8000-00000000a005'
+  );
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_UNRELATED_ORGANIZER_MEMBER_READ_ALLOWED';
+  END IF;
+
   -- Only the organizer owner can update their workspace row.
   UPDATE public.organizers SET description='RLS owner update passed'
   WHERE id IN (SELECT id FROM public.organizers WHERE owner_user_id='00000000-0000-4000-8000-00000000a005');
@@ -900,6 +965,135 @@ BEGIN
   END IF;
 END;
 $stage3_rls_referrer$;
+
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a005',true);
+
+DO $stage3_rls_organizer_owner$
+DECLARE
+  v_count integer;
+  v_affected integer;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM public.organizer_plans
+  WHERE organizer_id IN (
+    SELECT id FROM public.organizers
+    WHERE owner_user_id='00000000-0000-4000-8000-00000000a005'
+  );
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ORGANIZER_OWNER_PLAN_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.organizer_members
+  WHERE organizer_id IN (
+    SELECT id FROM public.organizers
+    WHERE owner_user_id='00000000-0000-4000-8000-00000000a005'
+  );
+
+  IF v_count <> 3 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ORGANIZER_OWNER_MEMBER_READ_FAILED';
+  END IF;
+
+  UPDATE public.organizers
+  SET description='Owner scope regression passed'
+  WHERE owner_user_id='00000000-0000-4000-8000-00000000a005';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+
+  IF v_affected <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ORGANIZER_OWNER_UPDATE_FAILED';
+  END IF;
+END;
+$stage3_rls_organizer_owner$;
+
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a013',true);
+
+DO $stage3_rls_active_member$
+DECLARE
+  v_count integer;
+  v_affected integer;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM public.organizer_plans
+  WHERE organizer_id IN (
+    SELECT id FROM public.organizers
+    WHERE owner_user_id='00000000-0000-4000-8000-00000000a005'
+  );
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ACTIVE_ORGANIZER_MEMBER_PLAN_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.organizer_members
+  WHERE organizer_id IN (
+    SELECT id FROM public.organizers
+    WHERE owner_user_id='00000000-0000-4000-8000-00000000a005'
+  );
+
+  IF v_count <> 3 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ACTIVE_ORGANIZER_MEMBER_LIST_READ_FAILED';
+  END IF;
+
+  UPDATE public.organizers
+  SET description='Viewer must not manage organizer'
+  WHERE owner_user_id='00000000-0000-4000-8000-00000000a005';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+
+  IF v_affected <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ACTIVE_VIEWER_ORGANIZER_UPDATE_ALLOWED';
+  END IF;
+
+  UPDATE public.organizer_members
+  SET role='editor'
+  WHERE user_id='00000000-0000-4000-8000-00000000a014';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+
+  IF v_affected <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ACTIVE_VIEWER_MEMBER_MANAGEMENT_ALLOWED';
+  END IF;
+END;
+$stage3_rls_active_member$;
+
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a014',true);
+
+DO $stage3_rls_inactive_member$
+DECLARE
+  v_count integer;
+  v_affected integer;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM public.organizer_plans
+  WHERE organizer_id IN (
+    SELECT id FROM public.organizers
+    WHERE owner_user_id='00000000-0000-4000-8000-00000000a005'
+  );
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_INACTIVE_ORGANIZER_MEMBER_PLAN_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.organizer_members
+  WHERE organizer_id IN (
+    SELECT id FROM public.organizers
+    WHERE owner_user_id='00000000-0000-4000-8000-00000000a005'
+  );
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_INACTIVE_ORGANIZER_MEMBER_LIST_READ_ALLOWED';
+  END IF;
+
+  UPDATE public.organizers
+  SET description='Inactive member must not manage organizer'
+  WHERE owner_user_id='00000000-0000-4000-8000-00000000a005';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+
+  IF v_affected <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_INACTIVE_MEMBER_ORGANIZER_UPDATE_ALLOWED';
+  END IF;
+END;
+$stage3_rls_inactive_member$;
 
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a002',true);
 
