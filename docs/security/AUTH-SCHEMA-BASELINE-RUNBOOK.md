@@ -1,6 +1,6 @@
 # Auth migration schema-only baseline runbook
 
-Status: automated schema-only export and disposable restore succeeded in GitHub Actions [#42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543) on 7 November 2026. The production schema dump and Auth/Storage custom DDL diff were restored into an ephemeral local Supabase stack; structural checks passed and confirmed that zero `auth.users` and zero `public.profiles` rows were imported. An exact row-by-row FK comparison and adversarial contract tests have since been added; [run #42370809198](https://github.com/taufx98/sykabelajar4.0/actions/runs/42370809198) is validating that additional gate. The workflow uploads no schema artifact, commits no dump, and performs no production DDL/DML. This runbook does not authorize a production migration.
+Status: automated schema-only export and disposable restore succeeded in GitHub Actions [#42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543) on 7 November 2026. The production schema dump and Auth/Storage custom DDL diff were restored into an ephemeral local Supabase stack; structural checks passed and confirmed that zero `auth.users` and zero `public.profiles` rows were imported. An exact row-by-row FK comparison and adversarial contract tests were added and passed in [run #42370809198](https://github.com/taufx98/sykabelajar4.0/actions/runs/42370809198). The 69 restored FKs match the reviewed catalog exactly, including their names, source/target mapping, columns, update/delete actions, validation, MATCH and deferrability. The workflow uploads no schema artifact, commits no dump, and performs no production DDL/DML. This runbook does not authorize a production migration.
 
 ## Purpose
 
@@ -20,7 +20,7 @@ The branch now contains [Auth Production Schema Baseline](../../.github/workflow
 
 **Owner action status:** the repository secret `SUPABASE_DB_URL` is now configured and the automated export/restore has succeeded. No terminal or local Supabase CLI action is required from the owner for this baseline workflow. Keep the URI private; do not send it in chat, an issue, a commit, or a workflow log.
 
-The early workflow attempts on 7 November were safely stopped by secret-format preflight while the URI was being corrected. After correction, run [#42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543) completed the export, isolated restore and structural verification. The secret's value is never printed or included in artifacts.
+The early workflow attempts on 7 November were safely stopped by secret-format preflight while the URI was being corrected. After correction, run [#42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543) completed the export, isolated restore and structural verification; run [#42370809198](https://github.com/taufx98/sykabelajar4.0/actions/runs/42370809198) repeated the export/restore and passed exact row-by-row FK comparison plus cleanup. The secret's value is never printed or included in artifacts.
 
 ## Safe exporter
 
