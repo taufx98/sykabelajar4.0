@@ -410,3 +410,15 @@ A further read-only scan was performed through the connected Supabase database i
 The dependency inventory now records the exact function-level migration treatment and fixture coverage gaps in [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTITY-DEPENDENCY-INVENTORY.md).
 
 **Stage 3 remains not ready for executable migration.** The owner-local complete schema-only baseline, a realistic full-schema disposable local restore/test, expanded regression coverage for the ten function dependencies, and trusted phone-verification compatibility proof are still required. No production schema, data, identity, FK, trigger, RLS, function, secret, issuer setting, or login path was changed.
+
+
+## Stage 3 RLS identity coverage — 7 November 2026
+
+A read-only policy scan classified the 109 policies that reference `auth.uid()`:
+
+- 109 policies across 61 tables: 108 in `public` and 1 in `private`.
+- 90 `USING` expressions and 42 `WITH CHECK` expressions reference `auth.uid()` (the categories overlap).
+- Command totals: 55 SELECT, 19 INSERT, 12 UPDATE, 12 DELETE, and 11 ALL.
+- No policy in this set directly references `auth.users`.
+
+This defines a more precise later regression surface. The Stage 2 two-user fixture proves the base JWT/`auth.uid()` mapping, not all production policies. The updated counts and required treatment are recorded in [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTITY-DEPENDENCY-INVENTORY.md). No policy or grant was modified.
