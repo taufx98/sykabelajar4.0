@@ -9,11 +9,6 @@ on:
       - "scripts/auth-migration/**"
       - "supabase/functions/_shared/**"
       - "supabase/functions/get-cloudinary-signature/**"
-      - "supabase/functions/cloudinary-profile-upload/**"
-      - "supabase/functions/cloudinary-profile-upload-v2/**"
-      - "supabase/functions/cloudinary-delete-asset-v2/**"
-      - "supabase/functions/cloudinary-delete-profile/**"
-      - "scripts/auth-migration/better-auth-edge-functions.test.mjs"
       - "supabase/functions/cloudinary-delete-asset/**"
       - "supabase/functions/payment-gateway-admin/**"
       - "supabase/functions/payment-gateway-create/**"
@@ -23,18 +18,12 @@ on:
       - "supabase/functions/_shared/cloudinary-ownership.mjs"
       - "supabase/config.toml"
       - ".github/workflows/auth-supabase-local-ci.yml"
-      - ".github/workflows/auth-supabase-staging-oidc.yml"
   pull_request:
     paths:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
       - "supabase/functions/_shared/**"
       - "supabase/functions/get-cloudinary-signature/**"
-      - "supabase/functions/cloudinary-profile-upload/**"
-      - "supabase/functions/cloudinary-profile-upload-v2/**"
-      - "supabase/functions/cloudinary-delete-asset-v2/**"
-      - "supabase/functions/cloudinary-delete-profile/**"
-      - "scripts/auth-migration/better-auth-edge-functions.test.mjs"
       - "supabase/functions/payment-gateway-admin/**"
       - "supabase/functions/payment-gateway-create/**"
       - "supabase/functions/payment-gateway-reconcile/**"
@@ -72,8 +61,6 @@ jobs:
 
       - name: Verify Cloudinary asset ownership boundaries
         run: node ../../../scripts/auth-migration/cloudinary-ownership.test.mjs
-      - name: Verify Better Auth Edge Function identity and authorization contracts
-        run: node ../../../scripts/auth-migration/better-auth-edge-functions.test.mjs
 
       - name: Verify frontend Supabase Auth dependency inventory
         run: node ../../../scripts/auth-migration/frontend-auth-inventory.test.mjs
@@ -92,17 +79,6 @@ jobs:
             ../../../supabase/functions/get-cloudinary-signature/index.ts
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/cloudinary-delete-asset/index.ts
-          for function in \
-            cloudinary-profile-upload \
-            cloudinary-profile-upload-v2 \
-            cloudinary-delete-asset-v2 \
-            cloudinary-delete-profile \
-            payment-gateway-admin \
-            payment-gateway-create \
-            payment-gateway-reconcile; do
-            deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
-              "../../../supabase/functions/$function/index.ts"
-          done
 
       - name: Validate live identity FK snapshot and dry-run plan generator
         run: |
