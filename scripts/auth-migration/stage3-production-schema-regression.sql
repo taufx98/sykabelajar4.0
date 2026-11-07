@@ -38,6 +38,21 @@ DECLARE
   v_canonical_participant_id constant uuid := '00000000-0000-4000-8000-00000000a204';
   v_roster_id constant uuid := '00000000-0000-4000-8000-00000000a205';
   v_roster_student_id constant uuid := '00000000-0000-4000-8000-00000000a206';
+  v_question_bank_id constant uuid := '00000000-0000-4000-8000-00000000a207';
+  v_question_id constant uuid := '00000000-0000-4000-8000-00000000a208';
+  v_admin_answer_attempt_id constant uuid := '00000000-0000-4000-8000-00000000a209';
+  v_answer_id constant uuid := '00000000-0000-4000-8000-00000000a210';
+  v_admin_answer_id constant uuid := '00000000-0000-4000-8000-00000000a211';
+  v_award_id constant uuid := '00000000-0000-4000-8000-00000000a212';
+  v_certificate_id constant uuid := '00000000-0000-4000-8000-00000000a213';
+  v_certificate_asset_id constant uuid := '00000000-0000-4000-8000-00000000a214';
+  v_product_id constant uuid := '00000000-0000-4000-8000-00000000a215';
+  v_review_id constant uuid := '00000000-0000-4000-8000-00000000a216';
+  v_post_published_id constant uuid := '00000000-0000-4000-8000-00000000a217';
+  v_post_draft_id constant uuid := '00000000-0000-4000-8000-00000000a218';
+  v_comment_published_id constant uuid := '00000000-0000-4000-8000-00000000a219';
+  v_comment_hidden_id constant uuid := '00000000-0000-4000-8000-00000000a220';
+  v_follow_id constant uuid := '00000000-0000-4000-8000-00000000a221';
 
   v_event_id uuid;
   v_fallback_event_id uuid;
@@ -93,7 +108,19 @@ BEGIN
      OR EXISTS (SELECT 1 FROM public.participants WHERE id=v_canonical_participant_id)
      OR EXISTS (SELECT 1 FROM public.teacher_rosters WHERE id=v_roster_id)
      OR EXISTS (SELECT 1 FROM public.roster_students WHERE id=v_roster_student_id)
-     OR EXISTS (SELECT 1 FROM public.payment_events WHERE provider_event_id='stage3-auth-regression-payment-event') THEN
+     OR EXISTS (SELECT 1 FROM public.payment_events WHERE provider_event_id='stage3-auth-regression-payment-event')
+      OR EXISTS (SELECT 1 FROM public.question_banks WHERE id=v_question_bank_id)
+      OR EXISTS (SELECT 1 FROM public.questions WHERE id=v_question_id)
+      OR EXISTS (SELECT 1 FROM public.attempts WHERE id=v_admin_answer_attempt_id)
+      OR EXISTS (SELECT 1 FROM public.answers WHERE id IN (v_answer_id,v_admin_answer_id))
+      OR EXISTS (SELECT 1 FROM public.awards WHERE id=v_award_id)
+      OR EXISTS (SELECT 1 FROM public.certificates WHERE id=v_certificate_id)
+      OR EXISTS (SELECT 1 FROM public.certificate_assets WHERE id=v_certificate_asset_id)
+      OR EXISTS (SELECT 1 FROM public.commerce_products WHERE id=v_product_id OR code='STAGE3_AUTH_REGRESSION_PRODUCT' OR slug='stage3-auth-regression-product')
+      OR EXISTS (SELECT 1 FROM public.commerce_product_reviews WHERE id=v_review_id)
+      OR EXISTS (SELECT 1 FROM public.posts WHERE id IN (v_post_published_id,v_post_draft_id))
+      OR EXISTS (SELECT 1 FROM public.comments WHERE id IN (v_comment_published_id,v_comment_hidden_id))
+      OR EXISTS (SELECT 1 FROM public.follows WHERE id=v_follow_id) THEN
     RAISE EXCEPTION 'STAGE3_FIXTURE_BUSINESS_UUID_COLLISION';
   END IF;
 
@@ -612,7 +639,9 @@ BEGIN
   -- The participant registration must pass the real insert guards and preserve
   -- the referral code, registration/audit/notification, and later verification.
   INSERT INTO public.plan_entitlements(plan_code,capability,limit_value)
-  VALUES ('FREE','participant_limit',100);
+  VALUES
+    ('FREE','participant_limit',100),
+    ('FREE','certificate',10);
 
   INSERT INTO public.competitions (
     id,organizer_id,slug,title,status,registration_starts_at,
@@ -706,6 +735,17 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_COMPETITION_REFERRAL_EMAIL_QUALIFICATION_FAILED';
   END IF;
 
+  -- A single active synthetic digital product lets wishlist/review policies
+  -- be checked without reading or modifying any live shop product.
+  INSERT INTO public.commerce_products (
+    id,code,slug,name,product_type,audiences,price,currency,is_active
+  )
+  VALUES (
+    v_product_id,'STAGE3_AUTH_REGRESSION_PRODUCT','stage3-auth-regression-product',
+    'Stage 3 Synthetic Digital Item','DIGITAL_ITEM',ARRAY['student']::text[],
+    1000,'IDR',true
+  );
+
   -- Commerce owner/admin fixtures. Order stays DRAFT so payment/fulfillment
   -- side-effect triggers are not activated by this rollback-only test.
   INSERT INTO public.orders (
@@ -716,10 +756,10 @@ BEGIN
   );
 
   INSERT INTO public.order_items (
-    order_id,product_type,name,quantity,unit_price,line_total
+    order_id,product_type,product_ref,name,quantity,unit_price,line_total
   )
   VALUES (
-    v_order_id,'DIGITAL','Stage 3 test item',1,1000,1000
+    v_order_id,'DIGITAL',v_product_id::text,'Stage 3 test item',1,1000,1000
   );
 
   INSERT INTO public.payment_intents (
@@ -784,6 +824,87 @@ BEGIN
     '12 IPA 1','12','stage3-external-student-001',true
   );
 
+  -- One submitted admin-owned synthetic attempt lets admin/organizer answer
+  -- visibility be tested separately from a participant's live answer.
+  INSERT INTO public.attempts (
+    id,competition_id,participant_id,attempt_number,status
+  )
+  VALUES (
+    v_admin_answer_attempt_id,v_competition_id,u_admin,1,'SUBMITTED'
+  );
+
+  INSERT INTO public.question_banks (
+    id,organizer_id,owner_user_id,name,status
+  )
+  VALUES (
+    v_question_bank_id,v_organizer_id,u_organizer,
+    'Stage 3 RLS Question Bank','DRAFT'
+  );
+
+  PERFORM set_config('request.jwt.claim.sub',u_admin::text,true);
+  INSERT INTO public.questions (
+    id,question_bank_id,competition_id,type,prompt,points,required,display_order,config,status
+  )
+  VALUES (
+    v_question_id,v_question_bank_id,v_competition_id,'SINGLE_CHOICE',
+    'Synthetic Stage 3 question',1,true,1,
+    jsonb_build_object('options',jsonb_build_array('A','B')),
+    'DRAFT'
+  );
+  PERFORM set_config('request.jwt.claim.sub',u_participant::text,true);
+
+  INSERT INTO public.answers (
+    id,attempt_id,question_id,answer_json
+  )
+  VALUES
+    (v_answer_id,v_attempt_id,v_question_id,jsonb_build_object('selected','A')),
+    (v_admin_answer_id,v_admin_answer_attempt_id,v_question_id,jsonb_build_object('selected','B'));
+
+  INSERT INTO public.awards (
+    id,user_id,competition_id,rank_code,title,points,visibility
+  )
+  VALUES (
+    v_award_id,u_participant,v_competition_id,'STAGE3','Synthetic Stage 3 Award',5,'PRIVATE'
+  );
+
+  INSERT INTO public.certificates (
+    id,user_id,competition_id,status,canonical_participant_id
+  )
+  VALUES (
+    v_certificate_id,u_participant,v_competition_id,'DRAFT',v_canonical_participant_id
+  );
+
+  INSERT INTO public.certificate_assets (
+    id,certificate_id,revision,public_id,asset_kind
+  )
+  VALUES (
+    v_certificate_asset_id,v_certificate_id,1,'stage3/synthetic-certificate-preview','preview'
+  );
+
+  INSERT INTO public.commerce_product_reviews (
+    id,product_id,user_id,rating,review
+  )
+  VALUES (
+    v_review_id,v_product_id,u_participant,5,'Synthetic public review for RLS regression'
+  );
+
+  INSERT INTO public.posts (
+    id,author_user_id,title,body,status
+  )
+  VALUES
+    (v_post_published_id,u_referrer,'Stage 3 Published Post','Synthetic published content','PUBLISHED'),
+    (v_post_draft_id,u_referrer,'Stage 3 Draft Post','Synthetic draft content','DRAFT');
+
+  INSERT INTO public.comments (
+    id,post_id,user_id,body,moderation_state
+  )
+  VALUES
+    (v_comment_published_id,v_post_published_id,u_referrer,'Synthetic visible comment','PUBLISHED'),
+    (v_comment_hidden_id,v_post_published_id,u_referrer,'Synthetic hidden comment','HIDDEN');
+
+  INSERT INTO public.follows(id,follower_id,following_id,status)
+  VALUES (v_follow_id,u_referrer,u_participant,'auto');
+
   -- Make synthetic profiles private before RLS tests below.
   UPDATE public.profiles
   SET is_public=(id = u_expired)
@@ -831,11 +952,31 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_count
+  FROM public.follows
+  WHERE id='00000000-0000-4000-8000-00000000a221';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_FOLLOWED_SIDE_RELATIONSHIP_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
   FROM public.referral_events
   WHERE referred_user_id='00000000-0000-4000-8000-00000000a002';
 
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_REFERRER_SIDE_REFERRAL_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.follows WHERE id=v_follow_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_FOLLOWER_SIDE_RELATIONSHIP_READ_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.awards WHERE id=v_award_id;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_CROSS_USER_AWARD_READ_ALLOWED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.certificates WHERE id=v_certificate_id;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_CROSS_USER_CERTIFICATE_READ_ALLOWED';
   END IF;
 
   SELECT count(*) INTO v_count
@@ -1204,6 +1345,75 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_ATTEMPT_OWNER_READ_FAILED';
   END IF;
 
+  SELECT count(*) INTO v_count FROM public.answers WHERE id=v_answer_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANSWER_OWNER_READ_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.answers WHERE id=v_admin_answer_id;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_CROSS_USER_ANSWER_LEAK';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.awards WHERE id=v_award_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_AWARD_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.certificates WHERE id=v_certificate_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_CERTIFICATE_OWNER_READ_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.certificate_assets WHERE id=v_certificate_asset_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_CERTIFICATE_ASSET_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.commerce_products WHERE id=v_product_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ACTIVE_COMMERCE_PRODUCT_PUBLIC_READ_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.commerce_product_reviews WHERE id=v_review_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_PRODUCT_REVIEW_PUBLIC_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.plan_entitlements
+  WHERE plan_code='FREE' AND capability='certificate' AND limit_value=10;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_PLAN_ENTITLEMENT_READ_FAILED';
+  END IF;
+  UPDATE public.plan_entitlements SET limit_value=11
+  WHERE plan_code='FREE' AND capability='certificate';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+  IF v_affected <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_NON_ADMIN_PLAN_ENTITLEMENT_UPDATE_ALLOWED';
+  END IF;
+
+  INSERT INTO public.commerce_product_wishlist(product_id,user_id)
+  VALUES (v_product_id,u_participant);
+
+  SELECT count(*) INTO v_count FROM public.commerce_product_wishlist
+  WHERE product_id=v_product_id AND user_id=u_participant;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_WISHLIST_OWNER_INSERT_READ_FAILED';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.commerce_product_wishlist(product_id,user_id)
+    VALUES (v_product_id,u_referrer);
+    RAISE EXCEPTION 'STAGE3_EXPECTED_WISHLIST_OWNER_GUARD';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
+  UPDATE public.commerce_product_reviews
+  SET review='Unauthorized unpaid-order review edit'
+  WHERE id=v_review_id;
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+  IF v_affected <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_UNPAID_PRODUCT_REVIEW_UPDATE_ALLOWED';
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.orders
   WHERE id='00000000-0000-4000-8000-00000000a201';
@@ -1321,6 +1531,45 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ORGANIZER_UPDATE_FAILED';
   END IF;
 
+  SELECT count(*) INTO v_count FROM public.answers WHERE id=v_admin_answer_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_SUBMITTED_ANSWER_READ_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.answers WHERE id=v_answer_id;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_LIVE_ANSWER_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.awards WHERE id=v_award_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_AWARD_READ_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.certificates WHERE id=v_certificate_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_CERTIFICATE_READ_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.certificate_assets WHERE id=v_certificate_asset_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_CERTIFICATE_ASSET_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.commerce_product_wishlist
+  WHERE product_id=v_product_id AND user_id=u_participant;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_WISHLIST_READ_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.plan_entitlements
+  WHERE plan_code='FREE' AND capability='certificate' AND limit_value=10;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_PLAN_ENTITLEMENT_READ_FAILED';
+  END IF;
+  UPDATE public.plan_entitlements SET limit_value=11
+  WHERE plan_code='FREE' AND capability='certificate';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+  IF v_affected <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_PLAN_ENTITLEMENT_UPDATE_FAILED';
+  END IF;
+
   SELECT count(*) INTO v_count FROM public.orders
   WHERE id='00000000-0000-4000-8000-00000000a201';
   IF v_count <> 1 THEN
@@ -1421,6 +1670,28 @@ BEGIN
   IF (SELECT count(*) FROM public.profiles
       WHERE id='00000000-0000-4000-8000-00000000a003') <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ANON_PUBLIC_PROFILE_READ_FAILED';
+  END IF;
+
+  IF (SELECT count(*) FROM public.posts WHERE id='00000000-0000-4000-8000-00000000a217') <> 1
+     OR (SELECT count(*) FROM public.posts WHERE id='00000000-0000-4000-8000-00000000a218') <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANON_POST_PUBLIC_DRAFT_VISIBILITY_FAILED';
+  END IF;
+
+  IF (SELECT count(*) FROM public.comments WHERE id='00000000-0000-4000-8000-00000000a219') <> 1
+     OR (SELECT count(*) FROM public.comments WHERE id='00000000-0000-4000-8000-00000000a220') <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANON_COMMENT_MODERATION_VISIBILITY_FAILED';
+  END IF;
+
+  IF (SELECT count(*) FROM public.commerce_product_reviews WHERE id='00000000-0000-4000-8000-00000000a216') <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANON_PRODUCT_REVIEW_PUBLIC_READ_FAILED';
+  END IF;
+
+  IF (SELECT count(*) FROM public.follows WHERE id='00000000-0000-4000-8000-00000000a221') <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANON_FOLLOW_RELATIONSHIP_LEAK';
+  END IF;
+
+  IF (SELECT count(*) FROM public.commerce_products WHERE id='00000000-0000-4000-8000-00000000a215') <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANON_ACTIVE_PRODUCT_READ_FAILED';
   END IF;
 
   -- PUBLIC/anon has EXECUTE by production design, but no auth.uid() means
