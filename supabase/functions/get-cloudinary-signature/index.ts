@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { isOwnedCloudinaryPublicId } from "../_shared/cloudinary-ownership.mjs";
-import { requireBetterAuthUser } from "../_shared/better-auth-user.ts";
+import { requireApplicationUser } from "../_shared/require-application-user.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -11,31 +10,11 @@ const CORS_HEADERS = {
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Missing authorization" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
-
-    const authMode = Deno.env.get("AUTH_IDENTITY_MODE")?.trim() || "supabase";
-    if (authMode !== "supabase" && authMode !== "better-auth") {
-      return new Response(JSON.stringify({ error: "AUTH_IDENTITY_MODE_INVALID" }), { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+    const identity = await requireApplicationUser(req);
+    if (!identity.ok) {
+      return new Response(JSON.stringify({ error: identity.error }), { status: identity.status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
     }
-
-    let userId: string;
-    let supabase: ReturnType<typeof createClient>;
-    if (authMode === "better-auth") {
-      const identity = await requireBetterAuthUser(req);
-      if (!identity.ok) {
-        return new Response(JSON.stringify({ error: identity.error }), { status: identity.status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
-      }
-      userId = identity.userId;
-      supabase = identity.supabase as ReturnType<typeof createClient>;
-    } else {
-      // Default/legacy path stays unchanged until this function is explicitly
-      // configured for Better Auth on an isolated staging project.
-      supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", { global: { headers: { Authorization: authHeader } } });
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
-      userId = user.id;
-    }
+    const { userId, supabase } = identity;
 
     const body = await req.json().catch(() => ({}));
     const publicId = typeof body.public_id === 'string' ? body.public_id.trim() : '';
