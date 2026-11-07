@@ -110,7 +110,7 @@ The eventual migration must:
 7. Keep the existing profile, Edu Coin, order, competition and audit rows intact. In particular, the 18 SET NULL relationships must not be changed into cascades.
 8. Re-run the orphan checks and catalog comparison; the new identity root must have the same UUID parent relation for all application references.
 
-The current synthetic local test verifies the metadata-reconstruction idea and delete behavior for the four FK actions. The exact production mapping is recorded in [AUTH-FOREIGN-KEY-CATALOG.md](AUTH-FOREIGN-KEY-CATALOG.md). A no-data schema export helper and runbook are available at [AUTH-SCHEMA-BASELINE-RUNBOOK.md](AUTH-SCHEMA-BASELINE-RUNBOOK.md); the export still needs to be run on the owner's trusted machine. The fixture test is not the actual 69-FK migration, and it does not replace full-schema tests or a migration review.
+The current synthetic local test verifies the metadata-reconstruction idea and delete behavior for the four FK actions. The exact production mapping is recorded in [AUTH-FOREIGN-KEY-CATALOG.md](AUTH-FOREIGN-KEY-CATALOG.md). A no-data schema export helper and automated GitHub Actions workflow are available in [AUTH-SCHEMA-BASELINE-RUNBOOK.md](AUTH-SCHEMA-BASELINE-RUNBOOK.md). The workflow is ready but awaits the repository Actions secret `SUPABASE_DB_URL`; it will perform the export and disposable restore without owner CLI work once that secret is configured. The fixture test is not the actual 69-FK migration, and it does not replace full-schema tests or a migration review.
 
 ### Live catalog and review-only FK plan generator
 
