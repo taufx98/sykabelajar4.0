@@ -185,3 +185,11 @@ For the free-only launch, create a Brevo Free account, verify the `sykabelajar.m
 Staging Admin preview: [security-auth-poc-stage-1.sykabelajar4.pages.dev](https://security-auth-poc-stage-1.sykabelajar4.pages.dev) → `/admin/core?tab=settings` → **Email Transaksional**. This is still the temporary Admin bridge using the existing Supabase Auth administrator session. It is not the final Better Auth Admin authentication flow; preserve this bridge until Stage 4/5 is migrated and independently accepted. Do not send the Brevo API Key in chat or commit it to Git.
 
 After the owner saves and activates the verified Brevo account, use the one-per-minute test action to send only to the signed-in admin's own email. Only after that succeeds should the hosted password signup, email verification and password reset flow be accepted as operational. The source CI does not send real email.
+
+## Verified provider-aware Worker deployment — 7 November 2026
+
+- Worker deployment [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803) succeeded after running `npm run typecheck`, all Worker security/integration tests, `npm run build`, exact staging config checks, remote D1 table/column checks and hosted smoke tests.
+- The deployed Worker config uses `AUTH_EMAIL_PROVIDER=managed`. Its email dispatcher selects the D1 active account and decrypts credentials only in the Worker. Existing ZeptoMail records remain compatible because migration 0006 defaults their provider to `zeptomail`.
+- The new Admin selector offers Brevo Free and ZeptoMail. For the free-only launch, use Brevo Free (300 email sends/day); no paid provider fallback is configured. Real email remains intentionally blocked until a verified sender and Brevo API Key are saved/activated through the staging Admin panel.
+- The Telegram OIDC phone route is deployed but disabled while BotFather credentials are unset. It is not a login provider.
+- The deploy did not rotate secrets, enable Supabase provisioning, install a service-role key, or change production domains/data/auth. The staging Admin bridge still uses the existing Supabase Auth session; do not remove it until Stage 4/5 is complete.
