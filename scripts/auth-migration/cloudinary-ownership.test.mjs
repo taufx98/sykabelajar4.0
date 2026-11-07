@@ -152,6 +152,7 @@ test("Cloudinary profile upload uses the shared verified identity and derives UU
   assert.doesNotMatch(profileUploadEndpoint, /body\.user_id|body\.owner_id|form\.get\(["']user_id/);
   assert.match(profileUploadEndpoint, /CLOUDINARY_API_SECRET/);
   assert.match(profileUploadEndpoint, /image\/upload/);
+  assert.match(supabaseConfig, /\[functions\.cloudinary-profile-upload\][\s\S]*?verify_jwt = false/);
 });
 
 test("the Cloudinary signer uses the shared verified identity and caller-scoped ownership reads", () => {
