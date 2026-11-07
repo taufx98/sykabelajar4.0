@@ -20,7 +20,7 @@ custom_domain = true
 # Manual deployments are gated by .github/workflows/auth-worker-staging-deploy.yml.
 
 [vars]
-AUTH_EMAIL_PROVIDER = "zeptomail"
+AUTH_EMAIL_PROVIDER = "managed"
 BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
 APP_ORIGIN = "https://sykabelajar.my.id"
 # Exact Cloudflare Pages preview origin for the isolated migration branch.
