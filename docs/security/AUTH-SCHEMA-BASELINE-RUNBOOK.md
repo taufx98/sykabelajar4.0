@@ -52,7 +52,7 @@ docker info
 psql --version
 ```
 
-The Supabase CLI must report version `3.0.0`; Docker must be running, and Node.js plus the PostgreSQL `psql` client must be installed. If the local branch is not present yet, check it out from `origin/security/auth-poc-stage-1` before pulling.
+The Supabase CLI must report version `3.0.0`; Docker must be running, and Node.js plus a PostgreSQL 17 `psql` client must be installed. The exporter does not require `supabase login` or `supabase link`; it uses the explicit v3 `--remote=<uri>` flag. If the local branch is not present yet, check it out from `origin/security/auth-poc-stage-1` before pulling.
 
 Use the production project's existing direct connection string (`db.<project-ref>.supabase.co`) or its session-pooler connection string (username `postgres.<project-ref>`) locally; do not send it in chat or commit it to Git. The exporter now checks that the URL host/user matches `SUPABASE_PROJECT_REF` before any export, preventing a schema dump from one project being combined with an Auth/Storage diff from another. Use either the direct connection URI (`db.mvdczyitbkxkldjughor.supabase.co`) or the session-pooler URI whose username contains `postgres.mvdczyitbkxkldjughor`. The exporter validates that the host/username matches the project ref before it runs. You can enter the URI without placing its value in shell history:
 
@@ -61,7 +61,6 @@ export SUPABASE_PROJECT_REF='mvdczyitbkxkldjughor'
 read -r -s -p 'Supabase database connection string: ' SUPABASE_DB_URL
 printf '\n'
 export SUPABASE_DB_URL
-supabase login
 bash scripts/auth-migration/export-schema-baseline.sh
 unset SUPABASE_DB_URL
 ```
