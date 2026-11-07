@@ -18,5 +18,7 @@ assert.match(sql,/FREE_ORGANIZER_ALREADY_CLAIMED/);
 assert.match(sql,/ROLLBACK;/);
 assert.match(sql,/SET LOCAL ROLE authenticated/);
 assert.match(sql,/SET LOCAL ROLE anon/);
+assert.match(sql,/SET is_public=\(id = u_expired\)/i);
+assert.match(sql,/STAGE3_RLS_ANON_PUBLIC_PROFILE_READ_FAILED/);
 
 console.log("Stage 3 behavior regression contract passed: read-only PL/pgSQL production-mode guard, verified organizer gates, RLS role coverage, and rollback.");
