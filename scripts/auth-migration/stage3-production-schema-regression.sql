@@ -38,6 +38,7 @@ DECLARE
   v_canonical_participant_id constant uuid := '00000000-0000-4000-8000-00000000a204';
   v_roster_id constant uuid := '00000000-0000-4000-8000-00000000a205';
   v_roster_student_id constant uuid := '00000000-0000-4000-8000-00000000a206';
+  v_collective_participant_id constant uuid := '00000000-0000-4000-8000-00000000a222';
   v_question_bank_id constant uuid := '00000000-0000-4000-8000-00000000a207';
   v_question_id constant uuid := '00000000-0000-4000-8000-00000000a208';
   v_admin_answer_attempt_id constant uuid := '00000000-0000-4000-8000-00000000a209';
@@ -120,7 +121,9 @@ BEGIN
       OR EXISTS (SELECT 1 FROM public.commerce_product_reviews WHERE id=v_review_id)
       OR EXISTS (SELECT 1 FROM public.posts WHERE id IN (v_post_published_id,v_post_draft_id))
       OR EXISTS (SELECT 1 FROM public.comments WHERE id IN (v_comment_published_id,v_comment_hidden_id))
-      OR EXISTS (SELECT 1 FROM public.follows WHERE id=v_follow_id) THEN
+      OR EXISTS (SELECT 1 FROM public.follows WHERE id=v_follow_id)
+       OR EXISTS (SELECT 1 FROM public.collective_participants WHERE id=v_collective_participant_id)
+       OR EXISTS (SELECT 1 FROM public.collective_participants WHERE competition_id=v_competition_id AND participant_code='STAGE3-COLLECTIVE-001') THEN
     RAISE EXCEPTION 'STAGE3_FIXTURE_BUSINESS_UUID_COLLISION';
   END IF;
 
@@ -992,6 +995,14 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_count
+  FROM public.collective_participants
+  WHERE id='00000000-0000-4000-8000-00000000a222';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_UNRELATED_COLLECTIVE_MANAGER_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
   FROM public.teacher_rosters
   WHERE id='00000000-0000-4000-8000-00000000a205';
 
@@ -1005,6 +1016,50 @@ BEGIN
 
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_TEACHER_ROSTER_STUDENTS_OWNER_READ_FAILED';
+  END IF;
+
+  -- An active teacher creates a collective participant from their own
+  -- external roster. The AFTER trigger provisions a canonical collective
+  -- participant with no linked student-account UUID.
+  INSERT INTO public.collective_participants (
+    id,competition_id,roster_student_id,managed_by_user_id,
+    participant_code,full_name,class_name,grade,status
+  )
+  VALUES (
+    v_collective_participant_id,'00000000-0000-4000-8000-00000000a101',
+    '00000000-0000-4000-8000-00000000a206',
+    '00000000-0000-4000-8000-00000000a001',
+    'STAGE3-COLLECTIVE-001','Stage3 External Student','12 IPA 1','12','ACTIVE'
+  );
+
+  SELECT count(*) INTO v_count
+  FROM public.collective_participants
+  WHERE id=v_collective_participant_id
+    AND managed_by_user_id='00000000-0000-4000-8000-00000000a001'
+    AND user_id IS NULL
+    AND status='ACTIVE';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_TEACHER_COLLECTIVE_PARTICIPANT_CREATE_FAILED';
+  END IF;
+
+  UPDATE public.collective_participants
+  SET full_name='Stage3 External Student Updated'
+  WHERE id=v_collective_participant_id;
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+
+  IF v_affected <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_TEACHER_COLLECTIVE_PARTICIPANT_UPDATE_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.collective_participants
+  WHERE id=v_collective_participant_id
+    AND full_name='Stage3 External Student Updated'
+    AND user_id IS NULL;
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_COLLECTIVE_CANONICAL_SYNC_STATE_FAILED';
   END IF;
 
   SELECT count(*) INTO v_count
@@ -1319,7 +1374,37 @@ DO $stage3_rls_participant$
 DECLARE
   v_count integer;
   v_affected integer;
+  v_caught boolean := false;
 BEGIN
+  BEGIN
+    INSERT INTO public.collective_participants (
+      id,competition_id,roster_student_id,managed_by_user_id,
+      participant_code,full_name,status
+    )
+    VALUES (
+      '00000000-0000-4000-8000-00000000a223',
+      '00000000-0000-4000-8000-00000000a101',
+      '00000000-0000-4000-8000-00000000a206',
+      '00000000-0000-4000-8000-00000000a009',
+      'STAGE3-STUDENT-FORGED-001','Forged Student Managed Record','ACTIVE'
+    );
+    RAISE EXCEPTION 'STAGE3_EXPECTED_COLLECTIVE_MANAGER_GUARD';
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_caught := true;
+  END;
+
+  IF NOT v_caught THEN
+    RAISE EXCEPTION 'STAGE3_RLS_STUDENT_COLLECTIVE_MANAGER_INSERT_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.collective_participants
+  WHERE id='00000000-0000-4000-8000-00000000a222';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_STUDENT_COLLECTIVE_PARTICIPANT_READ_ALLOWED';
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.registrations
   WHERE id IN (
@@ -1601,6 +1686,13 @@ BEGIN
   WHERE id='00000000-0000-4000-8000-00000000a203';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ATTEMPT_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.collective_participants
+  WHERE id='00000000-0000-4000-8000-00000000a222';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_COLLECTIVE_PARTICIPANT_READ_FAILED';
   END IF;
 
   SELECT count(*) INTO v_count FROM public.teacher_rosters
