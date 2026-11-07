@@ -8,6 +8,16 @@ import {
 } from "./security.mjs";
 import { createD1QuotaResponse } from "./d1-quota.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
+import { isSupabaseProvisioningEnabled, completeSupabasePhoneVerification } from "./supabase-provisioning.mjs";
+import {
+  createTelegramPhoneChallenge,
+  consumeTelegramPhoneChallenge,
+  exchangeTelegramAuthorizationCode,
+  getTelegramPhoneRedirectUri,
+  isTelegramPhoneVerificationConfigured,
+  sha256Hex,
+  verifyTelegramPhoneIdToken,
+} from "./telegram-phone-verification.mjs";
 
 const authInstances = new WeakMap<object, ReturnType<typeof createAuth>>();
 
@@ -202,6 +212,134 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
   }
 }
 
+
+function phoneVerificationRedirect(env: AuthWorkerEnv, status: "success" | "failed", reason?: string): Response {
+  let location: URL;
+  try {
+    const app = new URL(env.APP_ORIGIN);
+    if (app.protocol !== "https:" || app.origin !== env.APP_ORIGIN.replace(/\/$/, "")) {
+      throw new Error("APP_ORIGIN_INVALID");
+    }
+    location = new URL("/profile", app.origin);
+  } catch {
+    return json({ error: "PHONE_VERIFICATION_REDIRECT_UNAVAILABLE" }, 503);
+  }
+  location.searchParams.set("phoneVerification", status);
+  if (reason) location.searchParams.set("reason", reason);
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: location.toString(),
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+async function startTelegramPhoneVerification(
+  request: Request,
+  env: AuthWorkerEnv,
+  corsHeaders: Headers | null,
+): Promise<Response> {
+  if (request.method !== "POST") {
+    return applyResponseHeaders(json({ error: "METHOD_NOT_ALLOWED" }, 405), corsHeaders);
+  }
+  if (!corsHeaders) {
+    return json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  }
+  if (
+    !isSupabaseProvisioningEnabled(env) ||
+    !isTelegramPhoneVerificationConfigured(env)
+  ) {
+    return applyResponseHeaders(json({ error: "PHONE_VERIFICATION_NOT_CONFIGURED" }, 503), corsHeaders);
+  }
+
+  try {
+    const session = await getAuth(env).api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
+    if (typeof userId !== "string" || !userId) {
+      return applyResponseHeaders(json({ error: "AUTHENTICATION_REQUIRED" }, 401), corsHeaders);
+    }
+
+    const challenge = await createTelegramPhoneChallenge(env, userId);
+    return applyResponseHeaders(json({
+      authorization_url: challenge.authorizationUrl,
+      expires_at: new Date(challenge.expiresAt).toISOString(),
+    }), corsHeaders);
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "PHONE_VERIFICATION_START_FAILED";
+    if (code === "TELEGRAM_PHONE_VERIFICATION_RATE_LIMITED") {
+      return applyResponseHeaders(json({ error: code }, 429), corsHeaders);
+    }
+    return applyResponseHeaders(json({
+      error: code === "TELEGRAM_PHONE_VERIFICATION_NOT_CONFIGURED"
+        ? code
+        : "PHONE_VERIFICATION_START_FAILED",
+    }, 503), corsHeaders);
+  }
+}
+
+async function completeTelegramPhoneCallback(request: Request, env: AuthWorkerEnv): Promise<Response> {
+  const url = new URL(request.url);
+  const state = url.searchParams.get("state");
+  if (!state) return phoneVerificationRedirect(env, "failed", "invalid_state");
+
+  let challenge: {
+    user_id: string;
+    nonce: string;
+    code_verifier: string;
+    created_at: number;
+    expires_at: number;
+  } | null;
+  try {
+    challenge = await consumeTelegramPhoneChallenge(env, state);
+  } catch {
+    return phoneVerificationRedirect(env, "failed", "temporarily_unavailable");
+  }
+  if (!challenge) return phoneVerificationRedirect(env, "failed", "expired_or_used");
+
+  if (url.searchParams.has("error")) {
+    return phoneVerificationRedirect(env, "failed", "telegram_consent_denied");
+  }
+  const code = url.searchParams.get("code");
+  if (!code) return phoneVerificationRedirect(env, "failed", "authorization_code_missing");
+  if (
+    !isSupabaseProvisioningEnabled(env) ||
+    !isTelegramPhoneVerificationConfigured(env)
+  ) {
+    return phoneVerificationRedirect(env, "failed", "temporarily_unavailable");
+  }
+
+  try {
+    const clientId = env.AUTH_TELEGRAM_CLIENT_ID!.trim();
+    const clientSecret = env.AUTH_TELEGRAM_CLIENT_SECRET!.trim();
+    const redirectUri = getTelegramPhoneRedirectUri(env.BETTER_AUTH_URL);
+    const idToken = await exchangeTelegramAuthorizationCode({
+      code,
+      codeVerifier: challenge.code_verifier,
+      clientId,
+      clientSecret,
+      redirectUri,
+    });
+    const claims = await verifyTelegramPhoneIdToken({
+      idToken,
+      clientId,
+      expectedNonce: challenge.nonce,
+    });
+    const phoneHash = await sha256Hex(claims.phoneDigits);
+    await completeSupabasePhoneVerification(env, {
+      userId: challenge.user_id,
+      verifiedAt: new Date().toISOString(),
+      phoneHash,
+      providerSubject: claims.providerSubject,
+      phoneDigitsCount: claims.phoneDigitsCount,
+    });
+    return phoneVerificationRedirect(env, "success");
+  } catch {
+    // Do not log or return phone claims, tokens, provider responses or secrets.
+    return phoneVerificationRedirect(env, "failed", "verification_failed");
+  }
+}
+
 export default {
   async fetch(request: Request, env: AuthWorkerEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -235,6 +373,17 @@ export default {
 
     if (url.pathname === "/_internal/bootstrap-first-party-client") {
       return applyResponseHeaders(await bootstrapFirstPartyClient(request, env), null);
+    }
+
+    if (url.pathname === "/api/phone-verification/telegram/start") {
+      return startTelegramPhoneVerification(request, env, corsHeaders);
+    }
+
+    if (url.pathname === "/phone-verification/telegram/callback") {
+      if (request.method !== "GET") {
+        return applyResponseHeaders(json({ error: "METHOD_NOT_ALLOWED" }, 405), null);
+      }
+      return applyResponseHeaders(await completeTelegramPhoneCallback(request, env), null);
     }
 
     if (url.pathname === "/api/admin/email-settings") {
