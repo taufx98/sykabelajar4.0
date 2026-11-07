@@ -31,9 +31,9 @@ permissions:
   contents: read
 
 concurrency:
-  # Exports are production-read-only; a new commit must not be blocked by a stale hung baseline attempt.
-  group: auth-schema-baseline-${{ github.ref }}-${{ github.sha }}
-  cancel-in-progress: false
+  # Keep one read-only export per branch; newer code cancels stale baseline attempts.
+  group: auth-schema-baseline-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   schema-only-restore:
