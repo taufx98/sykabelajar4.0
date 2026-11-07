@@ -63,6 +63,51 @@ case "$OUTPUT_DIR/" in
 esac
 chmod 700 "$OUTPUT_DIR"
 
+# Keep the database password in a private temporary .pgpass file. The psql
+# command itself receives only PG* connection metadata, never the URI/password.
+umask 077
+PGPASSFILE="$OUTPUT_DIR/.schema-baseline.pgpass"
+PG_ENV="$OUTPUT_DIR/.schema-baseline.pg-env"
+trap 'rm -f "$PGPASSFILE" "$PG_ENV"' EXIT
+node --input-type=module - "$PGPASSFILE" "$PG_ENV" <<'NODE'
+import { writeFileSync } from "node:fs";
+
+const [passFile, envFile] = process.argv.slice(2);
+const raw = process.env.SUPABASE_DB_URL ?? "";
+const ref = process.env.SUPABASE_PROJECT_REF ?? "";
+const url = new URL(raw);
+const username = decodeURIComponent(url.username);
+const direct = url.hostname === "db." + ref + ".supabase.co";
+const pooler = url.hostname.endsWith(".pooler.supabase.com") &&
+  username === "postgres." + ref;
+if ((url.protocol !== "postgres:" && url.protocol !== "postgresql:") ||
+    (!direct && !pooler)) {
+  throw new Error("Database URI does not match the expected Supabase project.");
+}
+const sslmode = url.searchParams.get("sslmode") || "require";
+if (!["require", "verify-ca", "verify-full"].includes(sslmode)) {
+  throw new Error("TLS is required for the production database connection.");
+}
+const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
+const password = decodeURIComponent(url.password);
+const port = url.port || "5432";
+if (!database || !username || !password || /[\r\n]/.test(password)) {
+  throw new Error("Database URI is incomplete.");
+}
+const escapePass = (value) => value.replaceAll("\\", "\\\\").replaceAll(":", "\\:");
+writeFileSync(passFile, [url.hostname, port, database, username, password].map(escapePass).join(":") + "\n", { mode: 0o600 });
+const shellQuote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
+writeFileSync(envFile, [
+  "export PGHOST=" + shellQuote(url.hostname),
+  "export PGPORT=" + shellQuote(port),
+  "export PGDATABASE=" + shellQuote(database),
+  "export PGUSER=" + shellQuote(username),
+  "export PGSSLMODE=" + shellQuote(sslmode),
+  "export PGPASSFILE=" + shellQuote(passFile),
+].join("\n") + "\n", { mode: 0o600 });
+NODE
+source "$PG_ENV"
+
 printf 'Output folder: %s\n' "$OUTPUT_DIR"
 printf 'Exporting schema-only custom database objects using Supabase CLI v3 remote mode...\n'
 # CLI v3 accepts the database URL as --remote; no CLI login, link, or project picker is required.
@@ -78,9 +123,9 @@ printf 'Exporting schema-only custom database objects using Supabase CLI v3 remo
 )
 
 printf 'Recording PostgreSQL version and installed extension versions...\n'
-psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
   --command 'select version();' > "$OUTPUT_DIR/postgres-version.txt"
-psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
   --command 'select extname, extversion from pg_extension order by extname;' > "$OUTPUT_DIR/extensions.txt"
 
 # Record role attributes and default ACL metadata without ever selecting
@@ -88,10 +133,10 @@ psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --fiel
 # the disposable local Supabase stack; this file is a comparison checklist.
 {
   printf '%s\n' '# Roles (no password hashes or role DDL)'
-  psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+  psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
     --command "select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolbypassrls from pg_roles where rolname !~ '^pg_' order by rolname;"
   printf '%s\n' '# Default ACLs (object types: r=relations, S=sequences, f=functions)'
-  psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+  psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
     --command "select n.nspname, d.defaclobjtype, r.rolname, coalesce(pg_catalog.array_to_string(d.defaclacl, ','), '') from pg_default_acl d join pg_namespace n on n.oid=d.defaclnamespace join pg_roles r on r.oid=d.defaclrole order by n.nspname,d.defaclobjtype,r.rolname;"
 } > "$OUTPUT_DIR/role-metadata.txt"
 
