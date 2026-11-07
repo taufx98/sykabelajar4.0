@@ -670,6 +670,15 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_REFERRER_SIDE_REFERRAL_READ_FAILED';
   END IF;
 
+  -- This legacy RPC is intentionally executable by PUBLIC/anon in production.
+  -- Its auth.uid() predicate must still scope results to the calling referrer.
+  SELECT count(*) INTO v_count
+  FROM public.get_my_verified_referrals();
+
+  IF v_count <> 3 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_VERIFIED_REFERRALS_OWNER_SCOPE_FAILED';
+  END IF;
+
   UPDATE public.profiles
   SET full_name='Cross-user tamper attempt'
   WHERE id='00000000-0000-4000-8000-00000000a002';
@@ -749,6 +758,10 @@ BEGIN
 
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_REFERRED_SIDE_REFERRAL_READ_FAILED';
+  END IF;
+
+  IF (SELECT count(*) FROM public.get_my_verified_referrals()) <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_VERIFIED_REFERRALS_CROSS_USER_LEAK';
   END IF;
 
   SELECT count(*) INTO v_count
@@ -844,6 +857,12 @@ BEGIN
 
   IF v_count <> 0 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ANON_PRIVATE_PROFILE_READ_ALLOWED';
+  END IF;
+
+  -- PUBLIC/anon has EXECUTE by production design, but no auth.uid() means
+  -- the SECURITY DEFINER RPC must return no private referral rows.
+  IF (SELECT count(*) FROM public.get_my_verified_referrals()) <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANON_VERIFIED_REFERRAL_LEAK';
   END IF;
 
   BEGIN
