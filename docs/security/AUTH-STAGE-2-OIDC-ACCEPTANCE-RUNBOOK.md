@@ -82,9 +82,11 @@ Use at least two synthetic Better Auth accounts with distinct UUIDs. Do not use 
 
 ## Current blockers and safe continuation
 
-- Stage 1's dedicated D1, Worker, custom auth hostname, hosted discovery/PKCE/JWKS smoke test and current branch Pages preview are complete. A redeploy of the live Worker with the newly allowlisted exact branch-preview Origin and the corresponding CORS smoke test are still pending. Real ZeptoMail Agent delivery and interactive session/email callback tests are also pending; Google OAuth is optional if not in launch scope.
-- The connected Supabase account has reached its two-active-Free-project limit. Its visible project list contains only the production project, and no separate staging project or development branch is available through the connection. Do not pause/delete the production project or register this issuer in production to work around that limit.
-- Until both blockers are cleared, hosted Custom OIDC acceptance is pending. Local CI success is not evidence that Supabase has accepted the issuer.
+- Stage 1 remote D1 migrations 0000–0006 are applied (18 tables), and the provider-aware/Telegram-capable Worker is deployed by [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803). Email mode is `managed`; the owner must verify the sender domain, add and activate a Brevo Free API Key through Admin, and run the admin-only test email. Do not buy ZeptoMail credits or enable auto top-up.
+- The Custom OIDC provider is already registered on isolated Free Supabase project `ydamszdfsxqisanazdkb`; hosted acceptance passed in [#42328168345](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328168345). Do not create a second project, branch, or paid development environment.
+- Telegram remains disabled until BotFather app registration, exact callback allowlisting, Worker Client ID/Secret and real hosted consent/callback acceptance are complete.
+- Storage owner/issuer RLS and Realtime private-topic policy semantics passed rollback-only SQL fixtures. Actual Storage API upload/download and Realtime WebSocket join/broadcast with a real Better Auth token remain untested.
+- A read-only Edge Function probe is deployed in staging. It uses `createSupabaseContext(..., { auth: 'user' })` for third-party token verification and the caller-scoped database client only. A positive invocation with a valid Better Auth token remains pending.
 - Production Supabase schema, OIDC settings, users, application data, and frontend login remain unchanged.
 
 ## Latest local verification
@@ -184,7 +186,7 @@ Verified against the hosted Worker and the staging Supabase Data API:
 
 **Cleanup verified:** both synthetic users were deleted; the final remote D1 count for their users, sessions, and accounts was zero. The temporary `OIDC_ACCEPTANCE_TEST_TOKEN` Worker secret was removed and its absence was verified. The temporary acceptance-only helper code and workflow were then removed from the source branch; the regular staging Worker deployment is being restored so the live Worker no longer contains the temporary helper route.
 
-**What this run does not establish:** it does not test normal hosted password sign-up, email verification, or password reset. Those still require the email provider setup that is intentionally deferred. Storage and Realtime have not been exercised with a hosted Better Auth token; there are no staging Edge Functions deployed to test. Keep those surface-specific checks pending rather than treating Data API success as proof for every Supabase surface.
+**What this run does not establish:** it does not test normal hosted password sign-up, email verification, or password reset; these remain blocked until Brevo Free is configured and a real test email succeeds. Storage and Realtime SQL policy semantics passed rollback-only fixtures, but full Storage API and Realtime WebSocket calls with a valid Better Auth token remain open. A read-only Edge Function probe is deployed but has not yet received a positive token-backed call. Do not treat Data API acceptance as proof for every Supabase surface.
 
 Production Supabase authentication settings, schema, users, and application data remain unchanged.
 
@@ -192,25 +194,33 @@ Production Supabase authentication settings, schema, users, and application data
 
 ## Clean staging Worker restored — verified 7 November 2026
 
-After the hosted acceptance run, all temporary acceptance-only source files, routes, and test workflow were removed from the branch. The normal staging Worker was redeployed from the clean Better Auth source in [deployment run #42328371754](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328371754).
+The temporary OIDC authorization-code acceptance helper was removed after the core hosted run. The latest staging Worker now includes Telegram phone-verification routes and the managed Brevo/ZeptoMail email dispatcher; it was deployed by [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803).
 
 - Worker version: `49495d57-d039-4a0e-9767-5963225f398b`
 - Health: `ok`
 - Issuer: `https://auth.sykabelajar.my.id/api/auth`
 - PKCE S256: advertised
 - JWKS: public ES256 / P-256 key verified
-- Remote D1: all 17 expected tables present; zero users, sessions, accounts, or verification rows
-- Email Agent: not configured; expected because email-provider setup remains deferred
+- Remote D1: migrations 0000–0006 applied; all 18 expected tables and `auth_email_accounts.provider` verified; zero users, sessions, accounts, verification rows, or phone challenges
+- Email provider: managed dispatcher deployed; no active Brevo/ZeptoMail account yet, so real delivery remains fail-closed
 - Google OAuth credentials: not configured; optional
 
-The temporary acceptance-only route is no longer present in the Worker source. The temporary `OIDC_ACCEPTANCE_TEST_TOKEN` secret was removed and its absence verified by the successful acceptance workflow before clean redeployment.
+The temporary `OIDC_ACCEPTANCE_TEST_TOKEN` was removed after the core hosted OIDC test. The current staging Worker has no test-only auth token endpoint. The separate read-only Supabase Edge Function probe is a controlled staging fixture, not a Worker route.
 
 ### Supabase surfaces not exercised
 
 The successful hosted test proves Custom OIDC, JWT signature/claims, Data API acceptance, and two-user RLS isolation. It must not be generalized to other Supabase services:
 
-- Storage: the staging project has no Storage buckets, so no Storage access test was possible.
-- Realtime: the staging project has no Realtime RLS policies or acceptance channel fixture, so no Realtime access test was run.
-- Edge Functions: no Edge Functions are deployed to the isolated staging project, so no function-token acceptance test was run. Keep function migration/acceptance within the auth-specific Stage 5 plan; do not change unrelated application endpoints.
+- Storage: an owner/issuer RLS fixture against `storage.objects` passed inside a transaction that was rolled back. It verified owner read, cross-user denial, forged owner insert denial and wrong-issuer denial. No bucket or object was retained; HTTP Storage upload/download still requires a real Better Auth token.
+- Realtime: private-topic policy semantics using `realtime.topic()`, UUID subject and issuer guard passed using a rollback-only test table. Direct insert into `realtime.messages` was blocked before RLS because no current-date partition exists; no persistent policy or data was added. A hosted WebSocket subscribe/broadcast test remains pending.
+- Edge Functions: a read-only staging function `better-auth-oidc-acceptance` is ACTIVE. It verifies the external Better Auth JWT inside the handler with pinned `@supabase/server@1.9.2`, requires exact issuer/audience/UUID/role and a five-minute lifetime, and reads only the synthetic fixture through the caller-scoped client. Its `verify_jwt=false` platform setting is intentional because in-handler third-party verification is used; positive token invocation still awaits a verified staging session.
 
 The staging PostgreSQL fixture rows are retained as synthetic test fixtures; the temporary Better Auth user/session/account records were removed. No production project or production login flow was changed.
+
+## Latest staging surface test checkpoint — 7 November 2026
+
+- Storage policy acceptance: PASS for owner read, cross-user read denial, forged owner insert denial and wrong issuer denial. The test bucket and policies were transaction-scoped and rolled back; inventory confirms no bucket or storage policy remains.
+- Realtime policy semantics: PASS for per-user private topic read/write, cross-user isolation and wrong issuer denial using `realtime.topic()`. The actual `realtime.messages` table has no current-date partition in this staging environment, so a SQL insert stopped before RLS evaluation. A real Supabase Realtime WebSocket test is not yet complete.
+- Supabase provisioning contract: PASS on staging through a rollback-only synthetic RPC test. Organizer maps to `organizer_member`; email and phone verification are idempotent; a duplicate Telegram subject is rejected; only the SHA-256 phone identity hash is stored. All generated identities were rolled back and `private.app_users` remains empty.
+- Edge probe: `better-auth-oidc-acceptance` version 1 is ACTIVE on the isolated project, and its source is in `services/auth-worker/supabase-test/supabase/functions/better-auth-oidc-acceptance/index.ts`. Static CI contract tests and Deno type-check are now wired. A positive hosted invocation still needs a real Better Auth access token.
+- No production schema, Storage, Realtime, Edge Function, user, or authentication settings were changed.
