@@ -119,32 +119,41 @@ jobs:
           console.log("Staging Better Auth D1 contains no users, sessions, accounts or verification rows.");
           NODE
 
-      - name: Install temporary acceptance secret and deploy gated staging Worker
+      - name: Generate temporary acceptance secret
+        id: acceptance-token
         run: |
           set -euo pipefail
           OIDC_ACCEPTANCE_TEST_TOKEN="$(openssl rand -hex 32)"
           echo "::add-mask::$OIDC_ACCEPTANCE_TEST_TOKEN"
-          printf 'OIDC_ACCEPTANCE_TEST_TOKEN=%s\n' "$OIDC_ACCEPTANCE_TEST_TOKEN" >> "$GITHUB_ENV"
+          printf 'token=%s\n' "$OIDC_ACCEPTANCE_TEST_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Install temporary acceptance secret and deploy gated staging Worker
+        env:
+          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ steps.acceptance-token.outputs.token }}
+        run: |
+          set -euo pipefail
           printf '%s' "$OIDC_ACCEPTANCE_TEST_TOKEN" | npx wrangler secret put OIDC_ACCEPTANCE_TEST_TOKEN --name sykabelajar-auth-poc
           npx wrangler deploy
 
       - name: Run hosted Authorization Code, ES256 and Supabase RLS acceptance
         env:
-          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ env.OIDC_ACCEPTANCE_TEST_TOKEN }}
+          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ steps.acceptance-token.outputs.token }}
         run: node tests/hosted-supabase-oidc.integration.mjs
 
       - name: Cleanup synthetic identities even when acceptance fails
         if: always()
         env:
-          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ env.OIDC_ACCEPTANCE_TEST_TOKEN }}
+          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ steps.acceptance-token.outputs.token }}
         run: node tests/cleanup-hosted-supabase-oidc.mjs
 
       - name: Remove temporary Worker acceptance secret
         if: always()
+        env:
+          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ steps.acceptance-token.outputs.token }}
         run: |
           set -euo pipefail
-          if [ -n "${OIDC_ACCEPTANCE_TEST_TOKEN:-}" ]; then
-            CI=true npx wrangler secret delete OIDC_ACCEPTANCE_TEST_TOKEN --name sykabelajar-auth-poc
+          if [ -n "$OIDC_ACCEPTANCE_TEST_TOKEN" ]; then
+            printf 'y\n' | CI=true npx wrangler secret delete OIDC_ACCEPTANCE_TEST_TOKEN --name sykabelajar-auth-poc
           else
             echo "Temporary acceptance secret was not installed."
           fi
