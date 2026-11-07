@@ -22,13 +22,15 @@ select * into v_user from auth.users where id = v_uid;
 
 In PL/pgSQL, the `RETURNS TABLE(id uuid, ...)` output parameter named `id` is also a variable. Under the production `plpgsql.variable_conflict = error` setting, the unqualified `id` in that query is ambiguous with `auth.users.id`.
 
-The full-schema disposable restore exposed the defect during the production-shaped organizer regression. The error was:
+The full-schema disposable restore exposed two output-column collisions during the production-shaped organizer regression. The first was the unqualified lookup in `auth.users`; after that was qualified, a second ambiguity was observed in `INSERT ... RETURNING id` because `id` is also a `RETURNS TABLE` output variable:
 
 ```text
 column reference "id" is ambiguous
-QUERY: select * from auth.users where id = v_uid
+QUERY: INSERT INTO public.organizers ... RETURNING id
 CONTEXT: PL/pgSQL function create_organizer(text,text)
 ```
+
+Both collisions are addressed by qualifying the table reference (`auth.users AS au`, `au.id`) and the insert target (`organizers AS inserted_organizer`, `inserted_organizer.id`).
 
 This is a source-level ambiguity in the existing production function, not a Better Auth token or FK parity issue. No production write was attempted.
 
@@ -36,12 +38,16 @@ This is a source-level ambiguity in the existing production function, not a Bett
 
 Migration: `supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql`
 
-The only logic change is to qualify the selected row:
+The only changes are SQL name qualification for the two ambiguous column references:
 
 ```sql
 SELECT au.* INTO v_user
 FROM auth.users AS au
 WHERE au.id = v_uid;
+
+INSERT INTO public.organizers AS inserted_organizer(name, slug, owner_user_id, status)
+VALUES (...)
+RETURNING inserted_organizer.id INTO v_id;
 ```
 
 All existing checks remain unchanged:
