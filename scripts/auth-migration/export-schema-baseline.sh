@@ -73,8 +73,21 @@ psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --fiel
 psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
   --command 'select extname, extversion from pg_extension order by extname;' > "$OUTPUT_DIR/extensions.txt"
 
+# Record role attributes and default ACL metadata without ever selecting
+# rolpassword or exporting role definitions. Platform roles are recreated by
+# the disposable local Supabase stack; this file is a comparison checklist.
+{
+  printf '%s\\n' '# Roles (no password hashes or role DDL)'
+  psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+    --command "select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolbypassrls from pg_roles where rolname !~ '^pg_' order by rolname;"
+  printf '%s\\n' '# Default ACLs (object types: r=relations, S=sequences, f=functions)'
+  psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+    --command "select n.nspname, d.defaclobjtype, r.rolname, coalesce(pg_catalog.array_to_string(d.defaclacl, ','), '') from pg_default_acl d join pg_namespace n on n.oid=d.defaclnamespace join pg_roles r on r.oid=d.defaclrole order by n.nspname,d.defaclobjtype,r.rolname;"
+} > "$OUTPUT_DIR/role-metadata.txt"
+
 [[ -s "$OUTPUT_DIR/schema.sql" ]] || die 'The schema dump is empty.'
 [[ -f "$OUTPUT_DIR/auth-storage-custom.sql" ]] || die 'The Auth/Storage DDL diff was not created.'
+[[ -s "$OUTPUT_DIR/role-metadata.txt" ]] || die 'The password-free role/default-ACL metadata file is empty.'
 
 # A schema-only dump must not contain pg_dump COPY data blocks.
 if grep -Eq '^[[:space:]]*COPY[[:space:]].*[[:space:]]FROM stdin;' "$OUTPUT_DIR/schema.sql"; then
@@ -93,7 +106,7 @@ EOF
 
 chmod 600 "$OUTPUT_DIR"/*
 if command -v sha256sum >/dev/null 2>&1; then
-  (cd "$OUTPUT_DIR" && sha256sum schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt manifest.txt > SHA256SUMS)
+  (cd "$OUTPUT_DIR" && sha256sum schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt role-metadata.txt manifest.txt > SHA256SUMS)
 elif command -v shasum >/dev/null 2>&1; then
   (cd "$OUTPUT_DIR" && shasum -a 256 schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt manifest.txt > SHA256SUMS)
 else
