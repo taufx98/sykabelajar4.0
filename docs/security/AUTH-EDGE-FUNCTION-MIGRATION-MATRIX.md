@@ -178,3 +178,13 @@ The frontend currently calls `get-cloudinary-signature` and `cloudinary-delete-p
 CI evidence: [Auth Worker #42354115154](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354115154) and [Supabase Local #42354068011](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354068011) passed on 7 November. The Supabase job type-checks the shared resolver plus the seven endpoint handlers and runs the staging anonymous probe and local two-user RLS fixture. The Worker job runs the new payment/Cloudinary source contracts and frontend lint/typecheck/build.
 
 **Deployment status:** no Edge Function has been deployed from this branch; no `AUTH_IDENTITY_MODE=better-auth` setting was enabled; no function secret, production auth configuration, payment setting, Cloudinary asset or production database object was changed. The source remains compatible by default with Supabase Auth. Positive hosted Better Auth token/IDOR acceptance for each application endpoint remains open and must run in an isolated schema-compatible staging project before setting the opt-in mode.
+
+### Supabase gateway JWT boundary — 7 November 2026
+
+One deployment detail is security-critical: Supabase's platform `verify_jwt=true` gateway check validates Supabase-issued JWTs before the handler runs, so it cannot be relied on to admit a third-party Better Auth issuer. For functions whose source now calls `requireApplicationUser()`, branch `supabase/config.toml` therefore sets `verify_jwt=false`; the handler itself must reject every missing/invalid token through the shared verifier before it performs data access.
+
+This applies only to the resolver-backed handlers: `get-cloudinary-signature`, `cloudinary-profile-upload`, `cloudinary-delete-asset`, `cloudinary-delete-profile`, `payment-gateway-admin`, `payment-gateway-create`, `payment-gateway-reconcile`, and the `midtrans-create-payment` delegate. The delegate still forwards the bearer to `payment-gateway-create`, which performs the actual identity and order-owner checks.
+
+The two unmodified legacy aliases `cloudinary-profile-upload-v2` and `cloudinary-delete-asset-v2` intentionally retain `verify_jwt=true`. Provider webhooks and intentionally public provider-status/certificate routes retain their distinct existing policies. CI now tests that only resolver-backed handlers use `verify_jwt=false`, that legacy v2 aliases remain `true`, and that provider webhook signature checks remain present.
+
+Do not interpret gateway `verify_jwt=false` as making these user handlers public. Their access control now resides in `requireApplicationUser()`; any future handler using this setting must have an equivalent fail-closed in-handler verifier before deployment. No Supabase Edge Function/config was deployed from this branch.
