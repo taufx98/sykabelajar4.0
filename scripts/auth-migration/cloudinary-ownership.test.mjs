@@ -122,8 +122,8 @@ test("Cloudinary signer supports an explicit Better Auth identity mode and defau
 test("the Edge Function uses a pinned Supabase client and derives ownership from verified auth", () => {
   assert.match(endpoint, /npm:@supabase\/supabase-js@2\.57\.4/);
   assert.match(endpoint, /supabase\.auth\.getUser\(\)/);
-  assert.match(endpoint, /\.from\("profiles"\)[\s\S]*?\.eq\("id", user\.id\)/);
-  assert.match(endpoint, /\.from\("organizers"\)[\s\S]*?\.eq\("owner_user_id", user\.id\)/);
+  assert.match(endpoint, /\.from\("profiles"\)[\s\S]*?\.eq\("id", userId\)/);
+  assert.match(endpoint, /\.from\("organizers"\)[\s\S]*?\.eq\("owner_user_id", userId\)/);
   assert.match(endpoint, /isOwnedCloudinaryPublicId\(publicId/);
   assert.doesNotMatch(endpoint, /SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY/);
   assert.doesNotMatch(endpoint, /createClient\([^)]*SERVICE_ROLE/);
