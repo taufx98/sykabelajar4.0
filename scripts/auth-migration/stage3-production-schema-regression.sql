@@ -30,6 +30,12 @@ DECLARE
   u_unverified_referrer constant uuid := '00000000-0000-4000-8000-00000000a010';
   u_bad_referral constant uuid := '00000000-0000-4000-8000-00000000a011';
   u_admin constant uuid := '00000000-0000-4000-8000-00000000a012';
+  v_order_id constant uuid := '00000000-0000-4000-8000-00000000a201';
+  v_payment_intent_id constant uuid := '00000000-0000-4000-8000-00000000a202';
+  v_attempt_id constant uuid := '00000000-0000-4000-8000-00000000a203';
+  v_canonical_participant_id constant uuid := '00000000-0000-4000-8000-00000000a204';
+  v_roster_id constant uuid := '00000000-0000-4000-8000-00000000a205';
+  v_roster_student_id constant uuid := '00000000-0000-4000-8000-00000000a206';
 
   v_event_id uuid;
   v_fallback_event_id uuid;
@@ -77,6 +83,16 @@ BEGIN
     SELECT 1 FROM public.competitions WHERE id = v_competition_id
   ) THEN
     RAISE EXCEPTION 'STAGE3_FIXTURE_COMPETITION_COLLISION';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.orders WHERE id=v_order_id)
+     OR EXISTS (SELECT 1 FROM public.payment_intents WHERE id=v_payment_intent_id)
+     OR EXISTS (SELECT 1 FROM public.attempts WHERE id=v_attempt_id)
+     OR EXISTS (SELECT 1 FROM public.participants WHERE id=v_canonical_participant_id)
+     OR EXISTS (SELECT 1 FROM public.teacher_rosters WHERE id=v_roster_id)
+     OR EXISTS (SELECT 1 FROM public.roster_students WHERE id=v_roster_student_id)
+     OR EXISTS (SELECT 1 FROM public.payment_events WHERE provider_event_id='stage3-auth-regression-payment-event') THEN
+    RAISE EXCEPTION 'STAGE3_FIXTURE_BUSINESS_UUID_COLLISION';
   END IF;
 
   IF (SELECT count(*) FROM auth.users) <> 0
@@ -647,6 +663,84 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_COMPETITION_REFERRAL_EMAIL_QUALIFICATION_FAILED';
   END IF;
 
+  -- Commerce owner/admin fixtures. Order stays DRAFT so payment/fulfillment
+  -- side-effect triggers are not activated by this rollback-only test.
+  INSERT INTO public.orders (
+    id,user_id,subtotal,total
+  )
+  VALUES (
+    v_order_id,u_participant,1000,1000
+  );
+
+  INSERT INTO public.order_items (
+    order_id,product_type,name,quantity,unit_price,line_total
+  )
+  VALUES (
+    v_order_id,'DIGITAL','Stage 3 test item',1,1000,1000
+  );
+
+  INSERT INTO public.payment_intents (
+    id,order_id,amount,provider,status
+  )
+  VALUES (
+    v_payment_intent_id,v_order_id,1000,'STAGE3_TEST','PENDING'
+  );
+
+  INSERT INTO public.payment_events (
+    payment_intent_id,provider,provider_event_id,status,payload
+  )
+  VALUES (
+    v_payment_intent_id,'STAGE3_TEST',
+    'stage3-auth-regression-payment-event','CREATED',
+    jsonb_build_object('synthetic',true)
+  );
+
+  INSERT INTO public.shipments (
+    order_id,status,provider,raw_meta
+  )
+  VALUES (
+    v_order_id,'PENDING','STAGE3_TEST',
+    jsonb_build_object('synthetic',true)
+  );
+
+  -- Canonical individual participant + an active attempt. The legacy UUID
+  -- participant_id and new canonical participant key both point to the same
+  -- synthetic identity; no real user/roster relationship is introduced.
+  INSERT INTO public.participants (
+    id,competition_id,registration_id,user_id,participant_type,
+    full_name,grade
+  )
+  VALUES (
+    v_canonical_participant_id,v_competition_id,v_registration_id,
+    u_participant,'INDIVIDUAL','Stage3 Participant','12'
+  );
+
+  INSERT INTO public.attempts (
+    id,competition_id,participant_id,registration_id,
+    canonical_participant_id,status
+  )
+  VALUES (
+    v_attempt_id,v_competition_id,u_participant,v_registration_id,
+    v_canonical_participant_id,'IN_PROGRESS'
+  );
+
+  -- Teacher roster contains only an explicit external roster entry; it does
+  -- not assert a canonical teacher/student account relationship.
+  INSERT INTO public.teacher_rosters (
+    id,teacher_user_id,name,is_active
+  )
+  VALUES (
+    v_roster_id,u_referrer,'Stage 3 external roster fixture',true
+  );
+
+  INSERT INTO public.roster_students (
+    id,roster_id,full_name,class_name,grade,external_student_ref,is_active
+  )
+  VALUES (
+    v_roster_student_id,v_roster_id,'Stage3 External Student',
+    '12 IPA 1','12','stage3-external-student-001',true
+  );
+
   -- Make synthetic profiles private before RLS tests below.
   UPDATE public.profiles
   SET is_public=(id = u_expired)
@@ -708,6 +802,38 @@ BEGIN
 
   IF v_count <> 0 THEN
     RAISE EXCEPTION 'STAGE3_RLS_NON_ADMIN_AUDIT_LOG_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.teacher_rosters
+  WHERE id='00000000-0000-4000-8000-00000000a205';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_TEACHER_ROSTER_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.roster_students
+  WHERE roster_id='00000000-0000-4000-8000-00000000a205';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_TEACHER_ROSTER_STUDENTS_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.orders
+  WHERE id='00000000-0000-4000-8000-00000000a201';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_NON_OWNER_ORDER_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.attempts
+  WHERE id='00000000-0000-4000-8000-00000000a203';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_NON_OWNER_ATTEMPT_READ_ALLOWED';
   END IF;
 
   -- This legacy RPC is intentionally executable by PUBLIC/anon in production.
@@ -805,6 +931,38 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_count
+  FROM public.teacher_rosters
+  WHERE id='00000000-0000-4000-8000-00000000a205';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_UNRELATED_TEACHER_ROSTER_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.roster_students
+  WHERE roster_id='00000000-0000-4000-8000-00000000a205';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_UNRELATED_ROSTER_STUDENT_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.orders
+  WHERE id='00000000-0000-4000-8000-00000000a201';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_CROSS_USER_ORDER_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.payment_intents
+  WHERE id='00000000-0000-4000-8000-00000000a202';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_CROSS_USER_PAYMENT_INTENT_READ_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
   FROM public.daily_checkins
   WHERE user_id IN (
     '00000000-0000-4000-8000-00000000a002',
@@ -833,6 +991,60 @@ BEGIN
 
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_REGISTRATION_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.participants
+  WHERE id='00000000-0000-4000-8000-00000000a204'
+    AND user_id='00000000-0000-4000-8000-00000000a009';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_CANONICAL_PARTICIPANT_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.attempts
+  WHERE id='00000000-0000-4000-8000-00000000a203';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ATTEMPT_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.orders
+  WHERE id='00000000-0000-4000-8000-00000000a201';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ORDER_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.order_items
+  WHERE order_id='00000000-0000-4000-8000-00000000a201';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ORDER_ITEM_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.payment_intents
+  WHERE id='00000000-0000-4000-8000-00000000a202';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_PAYMENT_INTENT_OWNER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.shipments
+  WHERE order_id='00000000-0000-4000-8000-00000000a201';
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_SHIPMENT_OWNER_READ_FAILED';
+  END IF;
+
+  IF (SELECT count(*) FROM public.payment_events
+      WHERE provider_event_id='stage3-auth-regression-payment-event') <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_PAYMENT_EVENT_VISIBLE_TO_ORDER_OWNER';
   END IF;
 
   SELECT count(*) INTO v_count
@@ -913,6 +1125,78 @@ BEGIN
 
   IF v_affected <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ORGANIZER_UPDATE_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.orders
+  WHERE id='00000000-0000-4000-8000-00000000a201';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ORDER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.order_items
+  WHERE order_id='00000000-0000-4000-8000-00000000a201';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ORDER_ITEM_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.payment_intents
+  WHERE id='00000000-0000-4000-8000-00000000a202';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_PAYMENT_INTENT_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.payment_events
+  WHERE provider_event_id='stage3-auth-regression-payment-event';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_PAYMENT_EVENT_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.shipments
+  WHERE order_id='00000000-0000-4000-8000-00000000a201';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_SHIPMENT_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.attempts
+  WHERE id='00000000-0000-4000-8000-00000000a203';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ATTEMPT_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.teacher_rosters
+  WHERE id='00000000-0000-4000-8000-00000000a205';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_TEACHER_ROSTER_READ_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.roster_students
+  WHERE id='00000000-0000-4000-8000-00000000a206';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ROSTER_STUDENT_READ_FAILED';
+  END IF;
+
+  UPDATE public.orders
+  SET admin_review_note='Stage 3 admin RLS check'
+  WHERE id='00000000-0000-4000-8000-00000000a201';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+  IF v_affected <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_ORDER_UPDATE_FAILED';
+  END IF;
+
+  UPDATE public.payment_intents
+  SET raw_meta=jsonb_build_object('stage3_admin_review',true)
+  WHERE id='00000000-0000-4000-8000-00000000a202';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+  IF v_affected <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_PAYMENT_INTENT_UPDATE_FAILED';
+  END IF;
+
+  UPDATE public.shipments
+  SET raw_meta=jsonb_build_object('stage3_admin_review',true)
+  WHERE order_id='00000000-0000-4000-8000-00000000a201';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+  IF v_affected <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_SHIPMENT_UPDATE_FAILED';
   END IF;
 END;
 $stage3_rls_admin$;
