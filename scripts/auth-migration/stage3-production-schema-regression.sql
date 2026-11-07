@@ -1363,9 +1363,8 @@ BEGIN
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_CERTIFICATE_OWNER_READ_FAILED';
   END IF;
-  SELECT count(*) INTO v_count FROM public.certificate_assets WHERE id=v_certificate_asset_id;
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'STAGE3_RLS_CERTIFICATE_ASSET_OWNER_READ_FAILED';
+  IF has_any_column_privilege('authenticated','public.certificate_assets','SELECT') THEN
+    RAISE EXCEPTION 'STAGE3_CERTIFICATE_ASSET_DIRECT_SELECT_GRANT_UNEXPECTED';
   END IF;
 
   SELECT count(*) INTO v_count FROM public.commerce_products WHERE id=v_product_id;
@@ -1406,12 +1405,8 @@ BEGIN
     NULL;
   END;
 
-  UPDATE public.commerce_product_reviews
-  SET review='Unauthorized unpaid-order review edit'
-  WHERE id=v_review_id;
-  GET DIAGNOSTICS v_affected=ROW_COUNT;
-  IF v_affected <> 0 THEN
-    RAISE EXCEPTION 'STAGE3_RLS_UNPAID_PRODUCT_REVIEW_UPDATE_ALLOWED';
+  IF has_any_column_privilege('authenticated','public.commerce_product_reviews','UPDATE') THEN
+    RAISE EXCEPTION 'STAGE3_PRODUCT_REVIEW_DIRECT_UPDATE_GRANT_UNEXPECTED';
   END IF;
 
   SELECT count(*) INTO v_count
@@ -1548,9 +1543,8 @@ BEGIN
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_CERTIFICATE_READ_FAILED';
   END IF;
-  SELECT count(*) INTO v_count FROM public.certificate_assets WHERE id=v_certificate_asset_id;
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'STAGE3_RLS_ADMIN_CERTIFICATE_ASSET_READ_FAILED';
+  IF has_any_column_privilege('authenticated','public.certificate_assets','SELECT') THEN
+    RAISE EXCEPTION 'STAGE3_ADMIN_CERTIFICATE_ASSET_DIRECT_SELECT_GRANT_UNEXPECTED';
   END IF;
 
   SELECT count(*) INTO v_count FROM public.commerce_product_wishlist
