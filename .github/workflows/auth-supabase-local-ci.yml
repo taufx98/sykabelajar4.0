@@ -60,6 +60,7 @@ jobs:
           node ../../../scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs
           node ../../../scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs
           node ../../../scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
+          node ../../../scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs
           bash -n ../../../scripts/auth-migration/export-live-auth-users-fk-plan.sh
           node ../../../scripts/auth-migration/export-live-auth-users-fk-plan.contract.test.mjs
 
