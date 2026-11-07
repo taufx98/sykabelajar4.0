@@ -284,3 +284,51 @@ export async function reconcileSupabaseApplicationIdentity(env, user, fetchImpl 
 export async function completeSupabaseEmailVerification(env, user, fetchImpl = fetch) {
   return reconcileSupabaseApplicationIdentity(env, { ...user, emailVerified: true }, fetchImpl);
 }
+
+/**
+ * Persist phone ownership only after the Worker verifies Telegram's signed
+ * OIDC ID token, exact issuer/audience/nonce, and phone_number_verified=true.
+ * The raw phone number never reaches Supabase; only the legacy-compatible
+ * SHA-256 hash of international digits is projected.
+ *
+ * @param {AuthWorkerEnv} env
+ * @param {{userId:string,verifiedAt:string,phoneHash:string,providerSubject:string,phoneDigitsCount:number}} input
+ * @param {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} [fetchImpl]
+ */
+export async function completeSupabasePhoneVerification(env, input, fetchImpl = fetch) {
+  if (!input || typeof input !== "object") {
+    throw new Error("PHONE_VERIFICATION_INPUT_INVALID");
+  }
+  const userId = typeof input.userId === "string" ? input.userId.trim() : "";
+  const verifiedAt = typeof input.verifiedAt === "string" ? input.verifiedAt : "";
+  const phoneHash = typeof input.phoneHash === "string" ? input.phoneHash : "";
+  const providerSubject = typeof input.providerSubject === "string"
+    ? input.providerSubject.trim()
+    : "";
+  const phoneDigitsCount = Number(input.phoneDigitsCount);
+  if (
+    !UUID_PATTERN.test(userId) ||
+    !/^[a-f0-9]{64}$/.test(phoneHash) ||
+    !/^[0-9]{1,32}$/.test(providerSubject) ||
+    !Number.isInteger(phoneDigitsCount) ||
+    phoneDigitsCount < 8 ||
+    phoneDigitsCount > 15 ||
+    !Number.isFinite(Date.parse(verifiedAt))
+  ) {
+    throw new Error("PHONE_VERIFICATION_INPUT_INVALID");
+  }
+
+  const result = await invokeRpc(env, "better_auth_complete_phone_verification", {
+    p_user_id: userId,
+    p_verified_at: verifiedAt,
+    p_phone_hash: phoneHash,
+    p_provider: "telegram",
+    p_provider_subject: providerSubject,
+    p_phone_digits_count: phoneDigitsCount,
+  }, fetchImpl);
+
+  if (result !== true && result !== false) {
+    throw new Error("PHONE_VERIFICATION_RESPONSE_INVALID");
+  }
+  return { enabled: true, userId, alreadyVerified: result === false };
+}
