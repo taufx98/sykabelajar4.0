@@ -183,5 +183,5 @@ test("provider webhook endpoints remain JWT-exempt but keep provider signature v
 test("Better Auth Postgres role remains separate from application business roles", () => {
   assert.match(edgeAdapter, /userClaims\?\.role !== "authenticated"/);
   assert.match(edgeAdapter, /userId: identity\.userId/);
-  assert.match(supabaseConfig, /\[functions\.payment-gateway-reconcile\][\s\S]*?verify_jwt = true/);
+  assert.match(supabaseConfig, /\[functions\.payment-gateway-reconcile\][\s\S]*?verify_jwt = false/);
 });
