@@ -341,3 +341,16 @@ This checkpoint supersedes earlier notes in this file that say hosted Supabase O
 - Stages 4–7 remain gated in their approved order. Do not begin frontend or backend cutover while Stage 3 identity/FK/provisioning acceptance remains incomplete.
 
 The work in this checkpoint is limited to the seven-stage Better Auth migration. No Cloudinary, payment, media-storage, Shop, or unrelated application behavior was changed.
+
+
+## Stage 3 continuation — hosted fixture tests and remaining gates (7 November 2026)
+
+The existing isolated Supabase Free project `sykabelajar-auth-staging` (`ydamszdfsxqisanazdkb`) was reused for synthetic Stage 3 PostgreSQL tests after confirming there were no collisions with the current OIDC fixture. No third project was created, and the original two-row OIDC fixture remains intact.
+
+Hosted pgTAP tests passed **80/80 assertions**: 12 for FK rehome/delete semantics and 68 for service-only identity provisioning, permitted business-role mapping, admin self-signup rejection, trusted email verification, referral qualification, and idempotent Edu Coin reward behavior. Both test scripts ran transactionally with `extensions.finish(true)` and rolled back. Post-test checks confirmed no replacement FK or synthetic Better Auth user remained.
+
+The new test-only tables were secured with RLS enabled/forced and client-role grants revoked. The hosted fixture is not a copy of the production application schema and does not prove the exact live `create_organizer`, `register_for_competition`, `verify_pending_referrals`, Auth-trigger overlap, profile-trigger, or all-109-policy behavior.
+
+**Stage 3 remains in preparation, not approved for production DDL.** The owner-local full schema-only baseline and disposable full-schema restore remain outstanding; exact production function/trigger/RLS regression remains outstanding; and the trusted verified-phone compatibility for `create_organizer` is still a hard blocker. The 69-FK generator also requires a reviewed bounded-lock/resume plan before use. No production schema/data/auth/issuer/login change was made.
+
+Stages 4–7 remain gated in the agreed order. PR #177 remains Draft and unmerged; do not merge or cut over based on synthetic fixture success alone.
