@@ -79,6 +79,8 @@ jobs:
             ../../../supabase/functions/get-cloudinary-signature/index.ts
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             ../../../supabase/functions/cloudinary-delete-asset/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            supabase/functions/better-auth-oidc-acceptance/index.ts
 
       - name: Validate live identity FK snapshot and dry-run plan generator
         run: |
