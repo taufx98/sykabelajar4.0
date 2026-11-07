@@ -8,127 +8,8 @@ import {
 } from "./security.mjs";
 import { createD1QuotaResponse } from "./d1-quota.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
-import type { TestHelpers } from "better-auth/plugins";
 
 const authInstances = new WeakMap<object, ReturnType<typeof createAuth>>();
-const acceptanceAuthInstances = new WeakMap<object, ReturnType<typeof createAuth>>();
-
-const OIDC_ACCEPTANCE_USERS = [
-  {
-    id: "11111111-1111-4111-8111-111111111111",
-    email: "oidc-acceptance-a@staging.sykabelajar.invalid",
-    name: "OIDC Acceptance User A",
-    username: "oidc-staging-a",
-  },
-  {
-    id: "22222222-2222-4222-8222-222222222222",
-    email: "oidc-acceptance-b@staging.sykabelajar.invalid",
-    name: "OIDC Acceptance User B",
-    username: "oidc-staging-b",
-  },
-] as const;
-
-type AcceptanceAuthContext = {
-  test: TestHelpers;
-  internalAdapter: {
-    findUserById(id: string): Promise<{ id: string; email: string } | null>;
-  };
-};
-
-function getAcceptanceAuth(env: AuthWorkerEnv) {
-  const key = env.DB as object;
-  const existing = acceptanceAuthInstances.get(key);
-  if (existing) return existing;
-  const auth = createAuth(env, true);
-  acceptanceAuthInstances.set(key, auth);
-  return auth;
-}
-
-async function handleOidcAcceptanceTestRequest(
-  request: Request,
-  env: AuthWorkerEnv,
-  action: "bootstrap" | "cleanup",
-): Promise<Response> {
-  const expectedToken = env.OIDC_ACCEPTANCE_TEST_TOKEN;
-  const suppliedToken = bearerToken(request);
-  const requestUrl = new URL(request.url);
-
-  // This temporary helper is restricted to the exact hosted staging Worker.
-  // It is disabled unless a short-lived secret is explicitly installed.
-  if (
-    request.method !== "POST" ||
-    request.headers.has("Origin") ||
-    requestUrl.protocol !== "https:" ||
-    requestUrl.hostname !== "auth.sykabelajar.my.id" ||
-    env.BETTER_AUTH_URL !== "https://auth.sykabelajar.my.id" ||
-    env.APP_ORIGIN !== "https://sykabelajar.my.id" ||
-    env.SUPABASE_RESOURCE_AUDIENCE !== "https://sykabelajar.my.id" ||
-    !expectedToken ||
-    expectedToken.length < 32 ||
-    !suppliedToken ||
-    !timingSafeEqualString(expectedToken, suppliedToken)
-  ) {
-    return json({ error: "NOT_FOUND" }, 404);
-  }
-
-  try {
-    const context = await getAcceptanceAuth(env).$context as unknown as AcceptanceAuthContext;
-    const { test, internalAdapter } = context;
-    if (!test) return json({ error: "OIDC_ACCEPTANCE_HELPERS_UNAVAILABLE" }, 503);
-
-    if (action === "bootstrap") {
-      // Refuse to reuse or overwrite any pre-existing identity with these IDs.
-      for (const candidate of OIDC_ACCEPTANCE_USERS) {
-        if (await internalAdapter.findUserById(candidate.id)) {
-          return json({ error: "OIDC_ACCEPTANCE_ID_COLLISION" }, 409);
-        }
-      }
-
-      const users: Array<{ id: string; email: string; cookie: string }> = [];
-      try {
-        for (const candidate of OIDC_ACCEPTANCE_USERS) {
-          const user = test.createUser({
-            id: candidate.id,
-            email: candidate.email,
-            name: candidate.name,
-            emailVerified: true,
-            accountType: "student",
-            username: candidate.username,
-          });
-          const saved = await test.saveUser(user);
-          const headers = await test.getAuthHeaders({ userId: saved.id });
-          const cookie = headers.get("cookie");
-          if (!cookie) throw new Error("OIDC_ACCEPTANCE_SESSION_COOKIE_MISSING");
-          users.push({ id: saved.id, email: saved.email, cookie });
-        }
-        return json({ users });
-      } catch {
-        // Roll back only identities created by this helper; never delete a collision.
-        for (const candidate of OIDC_ACCEPTANCE_USERS) {
-          const existing = await internalAdapter.findUserById(candidate.id);
-          if (existing?.email === candidate.email) {
-            await test.deleteUser(candidate.id);
-          }
-        }
-        return json({ error: "OIDC_ACCEPTANCE_BOOTSTRAP_FAILED" }, 503);
-      }
-    }
-
-    let removed = 0;
-    for (const candidate of OIDC_ACCEPTANCE_USERS) {
-      const existing = await internalAdapter.findUserById(candidate.id);
-      if (!existing) continue;
-      if (existing.email !== candidate.email) {
-        return json({ error: "OIDC_ACCEPTANCE_CLEANUP_COLLISION" }, 409);
-      }
-      await test.deleteUser(candidate.id);
-      removed += 1;
-    }
-    return json({ ok: true, removed });
-  } catch {
-    return json({ error: "OIDC_ACCEPTANCE_UNAVAILABLE" }, 503);
-  }
-}
 
 function getAuth(env: AuthWorkerEnv) {
   const key = env.DB as object;
@@ -354,14 +235,6 @@ export default {
 
     if (url.pathname === "/_internal/bootstrap-first-party-client") {
       return applyResponseHeaders(await bootstrapFirstPartyClient(request, env), null);
-    }
-
-    if (url.pathname === "/_internal/oidc-acceptance/bootstrap") {
-      return applyResponseHeaders(await handleOidcAcceptanceTestRequest(request, env, "bootstrap"), null);
-    }
-
-    if (url.pathname === "/_internal/oidc-acceptance/cleanup") {
-      return applyResponseHeaders(await handleOidcAcceptanceTestRequest(request, env, "cleanup"), null);
     }
 
     if (url.pathname === "/api/admin/email-settings") {
