@@ -92,6 +92,8 @@ jobs:
           console.log("Confirmed staging Worker, D1, issuer, Supabase audience and callback.");
           NODE
 
+          node --check tests/hosted-supabase-oidc.integration.mjs
+          node --check tests/cleanup-hosted-supabase-oidc.mjs
           npm run typecheck
           npm test
           npm run build
