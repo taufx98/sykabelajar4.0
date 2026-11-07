@@ -538,7 +538,7 @@ BEGIN
     registration_ends_at,visibility
   )
   VALUES (
-    v_competition_id,v_organizer,'stage3-auth-regression',
+    v_competition_id,v_organizer_id,'stage3-auth-regression',
     'Stage 3 Auth Regression','REGISTRATION_OPEN',
     clock_timestamp()-interval '1 hour',
     clock_timestamp()+interval '2 hours',
