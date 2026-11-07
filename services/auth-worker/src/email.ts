@@ -1,5 +1,6 @@
 import { decryptEmailSecret } from "./email-secret.mjs";
 import { deliverAuthEmail } from "./email-delivery.mjs";
+import { sendBrevoEmail } from "./brevo.mjs";
 import { sendZeptoMail } from "./zeptomail.mjs";
 import type { AuthWorkerEnv } from "./env";
 
@@ -12,45 +13,64 @@ type AuthEmailMessage = {
 
 type ActiveEmailAccount = {
   id: string;
+  provider: "zeptomail" | "brevo";
   sender_address: string;
   sender_name: string;
   bounce_address: string | null;
   send_mail_token_ciphertext: string;
 };
 
+/**
+ * "managed" selects the active provider account stored encrypted in D1.
+ * "webhook" is retained for isolated local development only.
+ */
 export async function sendAuthEmail(
   env: AuthWorkerEnv,
   message: AuthEmailMessage,
 ): Promise<void> {
-  const provider = (env.AUTH_EMAIL_PROVIDER ?? "webhook").trim().toLowerCase();
+  const providerMode = (env.AUTH_EMAIL_PROVIDER ?? "webhook").trim().toLowerCase();
 
-  if (provider === "zeptomail") {
+  if (providerMode === "managed") {
     if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) {
       throw new Error("AUTH_EMAIL_ENCRYPTION_KEY_NOT_CONFIGURED");
     }
 
     const active = await env.DB.prepare(
-      "SELECT a.id, a.sender_address, a.sender_name, a.bounce_address, a.send_mail_token_ciphertext " +
+      "SELECT a.id, a.provider, a.sender_address, a.sender_name, a.bounce_address, a.send_mail_token_ciphertext " +
       "FROM auth_email_settings s JOIN auth_email_accounts a ON a.id = s.active_account_id " +
       "WHERE s.id = 1",
     ).first<ActiveEmailAccount>();
 
-    if (!active) throw new Error("AUTH_EMAIL_ACTIVE_AGENT_NOT_CONFIGURED");
+    if (!active) throw new Error("AUTH_EMAIL_ACTIVE_ACCOUNT_NOT_CONFIGURED");
 
-    const sendMailToken = await decryptEmailSecret(
+    const credential = await decryptEmailSecret(
       env.AUTH_EMAIL_ENCRYPTION_KEY,
       active.send_mail_token_ciphertext,
     );
-    await sendZeptoMail({
-      sendMailToken,
-      senderAddress: active.sender_address,
-      senderName: active.sender_name,
-      bounceAddress: active.bounce_address,
-    }, message);
-    return;
+
+    if (active.provider === "brevo") {
+      await sendBrevoEmail({
+        apiKey: credential,
+        senderAddress: active.sender_address,
+        senderName: active.sender_name,
+      }, message);
+      return;
+    }
+
+    if (active.provider === "zeptomail") {
+      await sendZeptoMail({
+        sendMailToken: credential,
+        senderAddress: active.sender_address,
+        senderName: active.sender_name,
+        bounceAddress: active.bounce_address,
+      }, message);
+      return;
+    }
+
+    throw new Error("AUTH_EMAIL_PROVIDER_UNSUPPORTED");
   }
 
-  if (provider !== "webhook") {
+  if (providerMode !== "webhook") {
     throw new Error("AUTH_EMAIL_PROVIDER_UNSUPPORTED");
   }
   await deliverAuthEmail(env, message);
