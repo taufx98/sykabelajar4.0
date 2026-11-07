@@ -148,15 +148,21 @@ jobs:
 
       - name: Remove temporary Worker acceptance secret
         if: always()
-        env:
-          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ steps.acceptance-token.outputs.token }}
         run: |
           set -euo pipefail
-          if [ -n "$OIDC_ACCEPTANCE_TEST_TOKEN" ]; then
-            printf 'y\n' | CI=true npx wrangler secret delete OIDC_ACCEPTANCE_TEST_TOKEN --name sykabelajar-auth-poc
-          else
-            echo "Temporary acceptance secret was not installed."
-          fi
+          printf '{"OIDC_ACCEPTANCE_TEST_TOKEN":null}\\n' > "$RUNNER_TEMP/auth-acceptance-secret-cleanup.json"
+          npx wrangler secret bulk "$RUNNER_TEMP/auth-acceptance-secret-cleanup.json" --name sykabelajar-auth-poc
+          npx wrangler secret list --name sykabelajar-auth-poc > "$RUNNER_TEMP/auth-worker-secret-names.json"
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const raw = readFileSync(process.env.RUNNER_TEMP + "/auth-worker-secret-names.json", "utf8");
+          const names = JSON.parse(raw);
+          assert.ok(Array.isArray(names), "Worker secret inventory must be a JSON array");
+          assert.equal(names.some((item) => item.name === "OIDC_ACCEPTANCE_TEST_TOKEN"), false,
+            "temporary OIDC acceptance secret must be deleted after the test");
+          console.log("Temporary acceptance secret removed; other Worker secret names remain unchanged.");
+          NODE
 
       - name: Verify staging D1 identity cleanup
         if: always()
