@@ -136,7 +136,7 @@ for (const required of [
 }
 assert.equal(oidcWorkflow.includes("mvdczyitbkxkldjughor"), false);
 assert.equal(oidcWorkflow.includes("wrangler deploy"), false);
-assert.ok(oidcWorkflow.includes("GET"));
+assert.ok(oidcWorkflow.includes("getJson"));
 assert.ok(oidcWorkflow.includes("S256"));
 assert.ok(oidcWorkflow.includes("ES256"));
 assert.ok(oidcWorkflow.includes("production_project_touched: false"));
