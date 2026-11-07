@@ -187,17 +187,12 @@ export async function createTelegramPhoneChallenge(env, userId, now = Date.now()
 export async function consumeTelegramPhoneChallenge(env, state, now = Date.now()) {
   if (typeof state !== "string" || !/^[A-Za-z0-9_-]{40,64}$/.test(state)) return null;
   const stateHash = await sha256Hex(state);
-  return env.DB.prepare(
+  const row = await env.DB.prepare(
     "DELETE FROM auth_phone_verification_challenges " +
     "WHERE state_hash = ?1 AND expires_at > ?2 " +
     "RETURNING user_id, nonce, code_verifier, created_at, expires_at",
-  ).bind(stateHash, now).first<{
-    user_id: string;
-    nonce: string;
-    code_verifier: string;
-    created_at: number;
-    expires_at: number;
-  }>();
+  ).bind(stateHash, now).first();
+  return /** @type {{user_id:string,nonce:string,code_verifier:string,created_at:number,expires_at:number}|null} */ (row);
 }
 
 /** @param {{code:string,codeVerifier:string,clientId:string,clientSecret:string,redirectUri:string,fetchImpl?:typeof fetch}} options */
