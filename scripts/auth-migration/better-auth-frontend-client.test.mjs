@@ -19,7 +19,9 @@ assert.match(viteEnv, /VITE_AUTH_WORKER_URL\?: string/);
 assert.match(viteEnv, /VITE_BETTER_AUTH_FRONTEND_ENABLED\?: string/);
 
 // The token broker must not create a browser-side persistence path.
-assert.doesNotMatch(client, /(?:window\\.)?(?:localStorage|sessionStorage|indexedDB)\\s*(?:\\.|\\[)/i);
+assert.equal(client.includes('.localStorage'), false);
+assert.equal(client.includes('.sessionStorage'), false);
+assert.equal(client.includes('.indexedDB'), false);
 assert.match(client, /getResourceToken\(\)/);
 assert.match(client, /AUTH_RESOURCE_TOKEN_RESPONSE_INVALID/);
 
