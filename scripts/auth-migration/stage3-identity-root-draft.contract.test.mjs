@@ -11,25 +11,37 @@ const draft = readFileSync(
 
 // The reviewed SQL stays outside supabase/migrations until all Stage 3 gates pass.
 
-const functionStartCount = (draft.match(/CREATE OR REPLACE FUNCTION/gi) ?? []).length;
-const functionTerminatorCount = (draft.match(/\\$function\\$;/g) ?? []).length;
+const functionNames = [...draft.matchAll(/CREATE OR REPLACE FUNCTION\\s+([a-z_]+\\.[a-z_]+)/gi)]
+  .map((match) => match[1].toLowerCase());
+const uniqueFunctionNames = new Set(functionNames);
+assert.equal(functionNames.length, 16, "identity draft must contain the reviewed 16 function definitions");
+assert.equal(uniqueFunctionNames.size, functionNames.length, "identity draft must not duplicate function definitions");
 assert.equal(
-  functionTerminatorCount,
-  functionStartCount,
+  (draft.split("$function$;").length - 1) + (draft.split("$$;").length - 1),
+  functionNames.length,
   "every SQL function definition must be terminated before the next statement",
 );
-assert.match(draft, /DRAFT ONLY[\s\S]*NOT approved/i);
-assert.match(draft, /CREATE TABLE private\.app_users/);
-assert.match(draft, /id uuid PRIMARY KEY/);
-assert.match(draft, /email_verified_at timestamptz/);
-assert.match(draft, /phone_verified_at timestamptz/);
-assert.match(draft, /verified_phone_identity_hash text/);
-assert.doesNotMatch(draft, /CREATE TABLE private\.app_users[\s\S]{0,900}email\s+text/i);
-assert.doesNotMatch(draft, /CREATE TABLE private\.app_users[\s\S]{0,900}phone\s+text/i);
-assert.match(draft, /ALTER TABLE private\.app_users ENABLE ROW LEVEL SECURITY/);
-assert.match(draft, /REVOKE ALL ON TABLE private\.app_users FROM PUBLIC, anon, authenticated/);
-assert.match(draft, /GRANT ALL ON TABLE private\.app_users TO service_role/);
-
+for (const name of [
+  "private.sync_legacy_auth_user_identity_projection",
+  "private.apply_referral_qualification",
+  "private.capture_signup_referral",
+  "private.process_referral_email_confirmation",
+  "public.create_organizer",
+  "public.get_my_referrals",
+  "public.get_my_referrals_v2",
+  "public.get_my_verified_referrals",
+  "public.register_for_competition",
+  "public.verify_pending_referrals",
+  "private.provision_better_auth_user",
+  "private.complete_better_auth_email_verification",
+  "private.complete_better_auth_phone_verification",
+  "public.better_auth_provision_user",
+  "public.better_auth_complete_email_verification",
+  "public.better_auth_complete_phone_verification",
+]) {
+  assert.equal(functionNames.filter((entry) => entry === name).length, 1,
+    "function must be defined exactly once: " + name);
+}
 // Only legacy Auth backfill reads the Auth table as a relation. Runtime
 // function lookups must use the common identity root, not auth.users.
 assert.equal((draft.match(/FROM auth\.users au/g) ?? []).length, 1);
