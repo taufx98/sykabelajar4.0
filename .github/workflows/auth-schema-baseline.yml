@@ -79,8 +79,12 @@ jobs:
           }
           const lf = String.fromCharCode(10);
           const cr = String.fromCharCode(13);
-          if (supplied.includes(lf) || supplied.includes(cr)) {
-            throw new Error("SUPABASE_DB_URL must be a single-line URI.");
+          // Dashboard copy/paste can wrap a connection URI with CR/LF.
+          // These are not valid URI characters, so join the wrapped lines
+          // before parsing; never print or persist the raw secret.
+          supplied = supplied.replaceAll(cr, "").replaceAll(lf, "");
+          if (supplied.includes("\\t")) {
+            throw new Error("SUPABASE_DB_URL contains an unexpected tab character. Save the URI as one continuous line.");
           }
 
           const url = new URL(supplied);
