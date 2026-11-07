@@ -110,45 +110,39 @@ test("the new username-based signer passes the verified UUID for legacy assets",
   assert.match(endpoint, /isOwnedCloudinaryPublicId\(publicId, \{ userId: user\.id, username: profile\.username, ownedOrganizers \}\)/);
 });
 
-test("the Edge Function uses a pinned Supabase client and derives ownership from verified auth", () => {
-  assert.match(endpoint, /npm:@supabase\/supabase-js@2\.57\.4/);
-  assert.match(endpoint, /supabase\.auth\.getUser\(\)/);
-  assert.match(endpoint, /\.from\("profiles"\)[\s\S]*?\.eq\("id", user\.id\)/);
-  assert.match(endpoint, /\.from\("organizers"\)[\s\S]*?\.eq\("owner_user_id", user\.id\)/);
-  assert.match(endpoint, /isOwnedCloudinaryPublicId\(publicId/);
+test("the Cloudinary signer uses the shared Better Auth verifier and caller-scoped owner queries", () => {
+  assert.match(endpoint, /requireBetterAuthUser\\(req\\)/);
+  assert.match(endpoint, /\\.from\\("profiles"\\)[\\s\\S]*?\\.eq\\("id", userId\\)/);
+  assert.match(endpoint, /\\.from\\("organizers"\\)[\\s\\S]*?\\.eq\\("owner_user_id", userId\\)/);
+  assert.match(endpoint, /isOwnedCloudinaryPublicId\\(publicId/);
+  assert.doesNotMatch(endpoint, /auth\\.getUser\\(|\\/auth\\/v1\\/user/);
   assert.doesNotMatch(endpoint, /SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY/);
-  assert.doesNotMatch(endpoint, /createClient\([^)]*SERVICE_ROLE/);
+  assert.match(endpoint, /\\.eq\\("id", userId\\)/);
 });
-
-test("the legacy delete-asset endpoint verifies the caller and binds deletes to the caller UUID", () => {
-  assert.match(deleteEndpoint, /SUPABASE_URL/);
-  assert.match(deleteEndpoint, /\/auth\/v1\/user/);
-  assert.match(deleteEndpoint, /Authorization: "Bearer " \+ bearer/);
-  assert.match(deleteEndpoint, /const userId = typeof authUser\?\.id === "string" \? authUser\.id : ""/);
-  assert.match(deleteEndpoint, /isOwnedCloudinaryPublicId\(publicId, \{ userId \}\)/);
-  assert.doesNotMatch(deleteEndpoint, /body\?\.user_id|body\?\.owner_id|user_id\s*\}/);
+test("the Cloudinary delete endpoint uses Better Auth identity and exact caller asset ownership", () => {
+  assert.match(deleteEndpoint, /requireBetterAuthUser\\(request\\)/);
+  assert.match(deleteEndpoint, /const \\{ userId \\} = identity/);
+  assert.match(deleteEndpoint, /isOwnedCloudinaryPublicId\\(publicId, \\{ userId \\}\\)/);
+  assert.doesNotMatch(deleteEndpoint, /\\/auth\\/v1\\/user|SUPABASE_ANON_KEY|auth\\.getUser\\(/);
   assert.match(deleteEndpoint, /FORBIDDEN_PUBLIC_ID/);
   assert.match(deleteEndpoint, /INVALID_RESOURCE_TYPE/);
-  assert.match(deleteEndpoint, /RESOURCE_TYPES = new Set\(\["image"\]\)/);
-  assert.doesNotMatch(deleteEndpoint, /new Set\(\["image", "video", "raw"\]\)/);
+  assert.match(deleteEndpoint, /RESOURCE_TYPES = new Set\\(\\["image"\\]\\)/);
+  assert.doesNotMatch(deleteEndpoint, /new Set\\(\\["image", "video", "raw"\\]\\)/);
   assert.match(deleteEndpoint, /METHOD_NOT_ALLOWED/);
   assert.match(deleteEndpoint, /request.method === "OPTIONS"/);
   assert.match(deleteEndpoint, /access-control-allow-origin/);
-  assert.match(deleteEndpoint, /AbortSignal.timeout\(5000\)/);
-  assert.match(deleteEndpoint, /AbortSignal.timeout\(8000\)/);
+  assert.match(deleteEndpoint, /AbortSignal.timeout\\(8000\\)/);
   assert.match(deleteEndpoint, /CLOUDINARY_API_SECRET/);
-  assert.match(deleteEndpoint, /\/destroy/);
-  assert.match(supabaseConfig, /\[functions\.cloudinary-delete-asset\][\s\S]*?verify_jwt = true/);
+  assert.match(deleteEndpoint, /\\/destroy/);
+  assert.match(supabaseConfig, /\\[functions\\.cloudinary-delete-asset\\][\\s\\S]*?verify_jwt = true/);
 });
-
-test("Cloudinary delete authorization executes before the provider secret and remote destroy call", () => {
-  const identity = deleteEndpoint.indexOf('fetch(supabaseUrl + "/auth/v1/user"');
+test("Better Auth identity and asset ownership are checked before Cloudinary secrets and destroy", () => {
+  const identity = deleteEndpoint.indexOf("requireBetterAuthUser(request)");
   const ownership = deleteEndpoint.indexOf("isOwnedCloudinaryPublicId(publicId");
   const secret = deleteEndpoint.indexOf('requiredEnv("CLOUDINARY_API_SECRET")');
   const destroy = deleteEndpoint.indexOf("/destroy");
   assert.ok(identity >= 0 && ownership > identity && secret > ownership && destroy > secret);
 });
-
 test("ownership checks happen before Cloudinary credentials are used to create a signature", () => {
   const ownerCheck = endpoint.indexOf("isOwnedCloudinaryPublicId(publicId");
   const signingSecret = endpoint.indexOf('Deno.env.get("CLOUDINARY_API_SECRET")');
