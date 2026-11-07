@@ -14,6 +14,10 @@ assert.ok(script.includes('Connection string does not match SUPABASE_PROJECT_REF
 assert.ok(script.includes('supabase db diff --to=remote --schema auth,storage'));
 assert.doesNotMatch(script, /supabase db diff --linked/);
 assert.ok(script.includes('select extname, extversion from pg_extension order by extname'));
+assert.ok(script.includes('role-metadata.txt'));
+assert.ok(script.includes('select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolbypassrls from pg_roles'));
+assert.ok(script.includes('select n.nspname, d.defaclobjtype, r.rolname'));
+assert.doesNotMatch(script, /select[^\\n]*rolpassword/i);
 assert.ok(script.includes('mktemp -d'));
 assert.ok(script.includes('Refusing to write a schema dump inside the Git repository'));
 assert.ok(script.includes("COPY[[:space:]].*[[:space:]]FROM stdin;"));
