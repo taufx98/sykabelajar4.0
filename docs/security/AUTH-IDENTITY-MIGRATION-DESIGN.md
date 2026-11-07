@@ -33,12 +33,12 @@ The initial table should contain only fields that application-side SQL demonstra
 |---|---|---|---|
 | id | uuid primary key | Same UUID as Better Auth user ID and JWT sub; parent for application identity FKs | Provisioning RPC/Worker |
 | email_verified_at | timestamptz null | Required by referral qualification and verified-email gates | Better Auth email-verification event for new accounts only |
-| phone_verified_at | timestamptz null | Preserves the verified-phone requirement in organizer creation | A trusted phone-verification event; remains NULL until that flow exists |
+| phone_verified_at | timestamptz null | Preserves the verified-phone requirement in organizer creation | A trusted Worker callback after Telegram OIDC consent and ID-token validation; remains NULL while the optional flow is disabled or no verified consent has completed |
 | verified_phone_identity_hash | text null | Allows organizer eligibility/one-free-organizer-per-phone checks without storing a second raw phone number in Postgres | Server-only provisioning/phone-verification handler |
 | created_at | timestamptz not null | Identity-root creation audit | Database default |
 | updated_at | timestamptz not null | Projection update audit | Database / trusted writer |
 
-The exact phone hash algorithm must be decided before implementing the new organizer RPC. Current create_organizer normalizes the verified phone to digits, requires at least eight digits, calculates SHA-256, and checks private.organizer_free_identity_claims. The replacement must remain compatible with the existing claim records or include a separately tested re-key plan. It must never trust a phone number or hash submitted directly by a browser.
+The compatibility hash is now fixed: normalize the verified international Telegram phone claim to digits and calculate lowercase SHA-256, matching the legacy organizer identity contract. The Worker computes it only after validating Telegram's signed OIDC ID token; the browser never supplies the trusted phone/hash. The existing `private.organizer_free_identity_claims` records remain authoritative and no re-key or production data update is planned.
 
 Do not add password, encrypted_password, session identifiers, OAuth credentials, bearer tokens, reset tokens, raw raw_user_meta_data, or business roles to private.app_users. Email/password and OAuth account credentials belong in D1. Current profiles already contains application profile information, including whatsapp; that field is not proof of phone verification.
 
@@ -91,9 +91,9 @@ The production public.create_organizer(text,text) function currently:
 - derives an identity hash and rejects a second free organizer claim for the same identity;
 - creates the organizer, owner membership, free plan, access code and identity claim.
 
-The Better Auth Worker proof of concept does not yet provide a trusted phone-verification mechanism. Do not replace this requirement with a profile whatsapp value, an unchecked user claim, or email-only verification.
+A trusted no-cost candidate is now implemented in the Better Auth Worker using Telegram's official OIDC `phone` scope. This is a phone-verification operation for a user who already has a Better Auth session; Telegram is not added to the SYKABELAJAR login-provider list. The Worker requests Authorization Code + PKCE S256, binds state/nonce/verifier to the Better Auth UUID, atomically rate-limits challenge creation, consumes each challenge once, and validates the signed ID token through Telegram JWKS with the exact issuer, Bot ID audience, nonce, expiry/freshness and `phone_number_verified=true` claim.
 
-No paid SMS/WhatsApp provider is approved under the free-only rule. Until a viable, trusted no-cost phone-verification path is established and tested, migration of create_organizer is blocked. Do not substitute profile WhatsApp data or an untrusted browser claim. Existing legacy phone-confirmation data may be consulted only during the explicitly approved overlap period, not copied as proof for newly created Better Auth users.
+Only the digits-only SHA-256 identity hash, Telegram provider subject and trusted timestamp are projected to Supabase through the service-role-only RPC. Raw phone data and Telegram tokens are not persisted. The isolated SQL fixture preserves verified-email, active `organizer_member`, and one-FREE-organizer-per-phone rules and rejects client-forged verification. The design and local test gate are therefore complete; the operational gate is not: BotFather app registration/callback allowlisting, Cloudflare secret configuration, remote D1 migration 0005 and a real hosted consent/callback acceptance test remain required. Keep the feature disabled until those gates pass. Never substitute profile WhatsApp data, a browser-supplied phone/hash, or email-only verification.
 
 ## 6. Foreign-key migration sequence
 
@@ -156,7 +156,7 @@ These tests verify the proposed SQL contract in an isolated synthetic schema. Th
 Do not call Stage 3 complete until all are true:
 
 - [ ] A reviewed, reproducible schema-only local baseline or complete synthetic integration fixture covers every table/constraint/function touched by the migration.
-- [ ] A trusted phone-verification design is selected without violating the free-only constraint, or organizer creation is explicitly excluded from the migration with an approved compatibility plan.
+- [x] A trusted no-cost phone-verification design is selected and implemented as an opt-in Telegram OIDC `phone` flow with synthetic SQL/Worker coverage; real BotFather credentials, remote D1 migration 0005 and hosted consent/callback acceptance remain separate activation gates.
 - [ ] Provisioning is server-only, transactional, idempotent and cannot grant privileged business roles.
 - [ ] Referral attribution, email-verification lifecycle, 24-hour qualification and Edu Coin idempotency tests pass.
 - [ ] All 69 FKs are rehomed with exact delete/update semantics and zero orphan records.
@@ -249,7 +249,7 @@ The Stage 3 design was cross-checked against the live definitions of all ten Aut
 4. **Profile writes:** production `profiles` has 36 columns and four active triggers (normalization, account-type guard, currency guard, updated_at). New-user projection should populate only trusted registration fields and let existing defaults/triggers work. Retry must not overwrite user-edited profile fields or reactivate a disabled business role; this deliberately improves on the legacy Auth trigger's upsert behavior and must be covered by a production-shaped fixture.
 5. **Cloudinary references:** avatar/cover public IDs, URLs, dimensions, versions and resource types live in profile metadata. Preserve those columns and all existing asset references. This migration does not move media into Supabase Storage.
 6. **RPC ACLs:** the exact grants are documented in the dependency inventory. In particular, `get_my_verified_referrals()` has an existing anonymous EXECUTE grant despite its `auth.uid()` filter. Review its consumers and tighten only as a separately tested compatibility/security change; do not silently replicate that grant on a replacement function.
-7. **Organizer phone identity:** the live `create_organizer()` requires an authenticated `organizer_member`, verified email, verified phone timestamp and phone number, minimum eight normalized digits, and a SHA-256 identity hash that is unique in `private.organizer_free_identity_claims`. A future replacement may use only a trusted verified-phone identity hash in `private.app_users`; neither `profiles.whatsapp` nor user-provided phone text is proof of verification. The missing trusted phone-verification method remains a hard feature-compatibility gate.
+7. **Organizer phone identity:** the live `create_organizer()` requires an authenticated `organizer_member`, verified email, verified phone timestamp and phone number, minimum eight normalized digits, and a SHA-256 identity hash that is unique in `private.organizer_free_identity_claims`. The implemented Worker flow may project only the trusted verified-phone hash into `private.app_users`; neither `profiles.whatsapp` nor user-provided phone text is proof of verification. The real hosted consent/callback and migration-0005 activation gates remain open, so production `create_organizer()` must remain untouched.
 
 The fixture remains a contract test for the new Better Auth callback/provisioning design, not a substitute for a restore of the live schema. No production functions, triggers, ACLs, or data were modified.
 
