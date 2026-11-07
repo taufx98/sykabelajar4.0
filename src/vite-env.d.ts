@@ -3,6 +3,7 @@
 declare global {
   interface ImportMetaEnv {
     readonly VITE_AUTH_WORKER_URL?: string;
+    readonly VITE_BETTER_AUTH_FRONTEND_ENABLED?: string;
   }
 
   interface ImportMeta {
