@@ -187,3 +187,30 @@ Verified against the hosted Worker and the staging Supabase Data API:
 **What this run does not establish:** it does not test normal hosted password sign-up, email verification, or password reset. Those still require the email provider setup that is intentionally deferred. Storage and Realtime have not been exercised with a hosted Better Auth token; there are no staging Edge Functions deployed to test. Keep those surface-specific checks pending rather than treating Data API success as proof for every Supabase surface.
 
 Production Supabase authentication settings, schema, users, and application data remain unchanged.
+
+
+
+## Clean staging Worker restored — verified 7 November 2026
+
+After the hosted acceptance run, all temporary acceptance-only source files, routes, and test workflow were removed from the branch. The normal staging Worker was redeployed from the clean Better Auth source in [deployment run #42328371754](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328371754).
+
+- Worker version: `49495d57-d039-4a0e-9767-5963225f398b`
+- Health: `ok`
+- Issuer: `https://auth.sykabelajar.my.id/api/auth`
+- PKCE S256: advertised
+- JWKS: public ES256 / P-256 key verified
+- Remote D1: all 17 expected tables present; zero users, sessions, accounts, or verification rows
+- Email Agent: not configured; expected because email-provider setup remains deferred
+- Google OAuth credentials: not configured; optional
+
+The temporary acceptance-only route is no longer present in the Worker source. The temporary `OIDC_ACCEPTANCE_TEST_TOKEN` secret was removed and its absence verified by the successful acceptance workflow before clean redeployment.
+
+### Supabase surfaces not exercised
+
+The successful hosted test proves Custom OIDC, JWT signature/claims, Data API acceptance, and two-user RLS isolation. It must not be generalized to other Supabase services:
+
+- Storage: the staging project has no Storage buckets, so no Storage access test was possible.
+- Realtime: the staging project has no Realtime RLS policies or acceptance channel fixture, so no Realtime access test was run.
+- Edge Functions: no Edge Functions are deployed to the isolated staging project, so no function-token acceptance test was run. Keep function migration/acceptance within the auth-specific Stage 5 plan; do not change unrelated application endpoints.
+
+The staging PostgreSQL fixture rows are retained as synthetic test fixtures; the temporary Better Auth user/session/account records were removed. No production project or production login flow was changed.
