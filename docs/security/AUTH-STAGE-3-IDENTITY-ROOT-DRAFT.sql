@@ -804,7 +804,7 @@ create or replace function private.provision_better_auth_user(
   p_subjects text default null
 ) returns jsonb
 language plpgsql security definer set search_path = ''
-as $
+as $$
 declare
   v_type text := pg_catalog.lower(pg_catalog.btrim(coalesce(p_account_type, 'student')));
   v_role public.app_role;
@@ -918,7 +918,7 @@ begin
     'user_id', p_user_id, 'account_type', v_type, 'role', v_role
   );
 end;
-$;
+$$;
 
 create or replace function private.complete_better_auth_email_verification(
   p_user_id uuid, p_verified_at timestamptz
