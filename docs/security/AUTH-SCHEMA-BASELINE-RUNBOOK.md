@@ -1,6 +1,6 @@
 # Auth migration schema-only baseline runbook
 
-Status: automated read-only export and disposable restore are prepared in GitHub Actions. GitHub detects the repository secret `SUPABASE_DB_URL`, but its current value fails the URI-format preflight; the workflow therefore stops before installing CLI, opening a database connection, or exporting anything. Replace the value with the full raw Session pooler URI. This runbook does not authorize a production migration.
+Status: automated schema-only export and disposable restore succeeded in GitHub Actions [#42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543) on 7 November 2026. The production schema dump and Auth/Storage custom DDL diff were restored into an ephemeral local Supabase stack; structural checks passed and confirmed that zero `auth.users` and zero `public.profiles` rows were imported. An exact row-by-row FK comparison and adversarial contract tests have since been added; [run #42370809198](https://github.com/taufx98/sykabelajar4.0/actions/runs/42370809198) is validating that additional gate. The workflow uploads no schema artifact, commits no dump, and performs no production DDL/DML. This runbook does not authorize a production migration.
 
 ## Purpose
 
@@ -18,9 +18,9 @@ The branch now contains [Auth Production Schema Baseline](../../.github/workflow
 4. Restores the files into a fresh, disposable local Supabase stack inside that GitHub runner and checks the expected production shape: 69 FKs across 62 source tables, 3 Auth triggers, 4 profile triggers, 36 profile columns, 109 `auth.uid()` policies, and all ten Auth-dependent application functions.
 5. Confirms that zero `auth.users` and zero `public.profiles` rows were imported. The runner removes the temporary SQL and local project after the check. There is no schema artifact upload and no SQL file is committed to the public repository.
 
-**The one owner-only action:** in GitHub, open **Settings → Secrets and variables → Actions → New repository secret**, name it `SUPABASE_DB_URL`, and set its value to the production project's **Session pooler** connection URI copied from Supabase Dashboard → Connect. Do not send the URI or database password in chat, an issue, a commit, or a workflow log. Once the secret has been saved, tell the assistant; the workflow can then be started and verified without a terminal or CLI command.
+**Owner action status:** the repository secret `SUPABASE_DB_URL` is now configured and the automated export/restore has succeeded. No terminal or local Supabase CLI action is required from the owner for this baseline workflow. Keep the URI private; do not send it in chat, an issue, a commit, or a workflow log.
 
-The first workflow attempt on 7 November completed safely with the export/restore steps skipped because the secret was absent. The secret's value is never queried or echoed by the workflow.
+The early workflow attempts on 7 November were safely stopped by secret-format preflight while the URI was being corrected. After correction, run [#42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543) completed the export, isolated restore and structural verification. The secret's value is never printed or included in artifacts.
 
 ## Safe exporter
 
@@ -77,7 +77,7 @@ The script prints the temporary output directory. It contains:
 - `role-metadata.txt` — password-free platform role attributes and per-schema default ACLs; compare these against the disposable local stack rather than importing role DDL.
 - `manifest.txt` and `SHA256SUMS` — provenance and integrity metadata for every export file.
 
-Keep the output directory outside the Git repository. The helper's static Bash/safety contract and FK-plan dry run passed in [CI run #41860723261](https://github.com/taufx98/sykabelajar4.0/actions/runs/41860723261), which also passed all 71 local pgTAP assertions. The actual export command has **not** been executed by CI. Review the artifacts before using them for local tests; SQL function bodies can still contain application logic and should be treated as internal source code. Do not paste database URLs, passwords, service-role keys, user rows, or data dumps into chat.
+Keep the output directory outside the Git repository. The helper's static Bash/safety contract and FK-plan dry run passed in earlier CI. The actual production schema-only export and disposable restore have now been executed successfully by [run #42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543); the schema files were removed from the runner after verification. Review the artifacts before using them for local tests; SQL function bodies can still contain application logic and should be treated as internal source code. Do not paste database URLs, passwords, service-role keys, user rows, or data dumps into chat.
 
 ## Local baseline strategy
 
