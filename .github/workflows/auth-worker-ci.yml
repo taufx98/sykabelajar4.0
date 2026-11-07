@@ -8,6 +8,11 @@ on:
       - "services/auth-worker/**"
       - "supabase/functions/_shared/**"
       - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/cloudinary-profile-upload/**"
+      - "supabase/functions/cloudinary-profile-upload-v2/**"
+      - "supabase/functions/cloudinary-delete-asset-v2/**"
+      - "supabase/functions/cloudinary-delete-profile/**"
+      - "scripts/auth-migration/better-auth-edge-functions.test.mjs"
       - "supabase/functions/cloudinary-delete-asset/**"
       - "supabase/functions/payment-gateway-admin/**"
       - "supabase/functions/payment-gateway-create/**"
@@ -65,6 +70,8 @@ jobs:
 
       - name: Verify Cloudinary signer ownership boundaries
         run: node ../../scripts/auth-migration/cloudinary-ownership.test.mjs
+      - name: Verify Better Auth Edge Function identity and authorization contracts
+        run: node ../../scripts/auth-migration/better-auth-edge-functions.test.mjs
 
       - name: Verify frontend Supabase Auth dependency inventory
         run: node ../../scripts/auth-migration/frontend-auth-inventory.test.mjs
