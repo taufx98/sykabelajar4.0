@@ -4,8 +4,13 @@ export interface AuthWorkerEnv {
   BETTER_AUTH_URL: string;
   APP_ORIGIN: string;
   SUPABASE_RESOURCE_AUDIENCE: string;
+  /** Optional social login credentials; unset keeps that provider disabled. */
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  FACEBOOK_CLIENT_ID?: string;
+  FACEBOOK_CLIENT_SECRET?: string;
+  TWITTER_CLIENT_ID?: string;
+  TWITTER_CLIENT_SECRET?: string;
   /** BotFather OIDC credentials; unset keeps Telegram phone verification disabled. */
   AUTH_TELEGRAM_CLIENT_ID?: string;
   AUTH_TELEGRAM_CLIENT_SECRET?: string;
