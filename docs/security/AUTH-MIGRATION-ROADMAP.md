@@ -395,3 +395,14 @@ The current state supersedes earlier roadmap bullets that still showed the remot
 D1 migration run [#42339767786](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339767786) and Worker deploy [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803) succeeded on the isolated Cloudflare staging resources. Hosted OIDC core acceptance passed on the separate Free Supabase staging project [#42328168345](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328168345). The latest Worker/frontend CI [#42354587388](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354587388) and Supabase Local CI [#42354587327](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354587327) passed.
 
 The schema-only production export and full-schema local restore have **not** been completed. No production identity table, FK, trigger, RPC, RLS policy, Edge Function, user, secret, issuer setting or login path has been changed. PR #177 remains Draft/unmerged; retain the seven-stage order and do not merge or cut over until the baseline, hosted surface tests, base-branch reconciliation and rollback gates pass.
+
+
+### Automated production schema baseline checkpoint — 7 November 2026
+
+To remove the local-CLI dependency, an automated GitHub Actions workflow is now present at [auth-schema-baseline.yml](../../.github/workflows/auth-schema-baseline.yml). The exporter uses Supabase CLI 3.0.0 remote mode, keeps the database password in a mode-0600 temporary `.pgpass` file, and the workflow restores only into a disposable local Supabase stack. No schema dump is uploaded as a workflow artifact or committed to this public repository.
+
+- [Supabase Local Auth Claims CI #42362719147](https://github.com/taufx98/sykabelajar4.0/actions/runs/42362719147) passed the updated exporter contract, Deno checks, staging anonymous-probe check, FK plan dry run, and local Supabase two-user RLS tests.
+- [Automated baseline workflow #42362719045](https://github.com/taufx98/sykabelajar4.0/actions/runs/42362719045) completed successfully but safely skipped the export, restore, and verification steps because the repository secret `SUPABASE_DB_URL` is not configured. This is **not** a successful production dump/restore.
+- The only owner action to unblock the automated run is to add the production **Session pooler** URI as repository Actions secret `SUPABASE_DB_URL` (port 5432; username `postgres.mvdczyitbkxkldjughor`; host ending `.pooler.supabase.com`). The URI/password must never be sent in chat or committed. After the secret exists, the workflow can run without local CLI work.
+
+Stage 3 remains blocked until a real schema-only export, isolated restore and production-shaped regression all pass. No production DDL/DML or user data has been changed or exported.
