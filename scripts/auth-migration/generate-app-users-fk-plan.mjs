@@ -367,7 +367,7 @@ export function generatePlan(snapshot) {
   return {
     "01-preflight-expand.sql": header("full preflight + resumable bounded expansion") +
       boundedTimeoutGuard() + "\n\n" +
-      "DO " + "$" + "\nBEGIN\n" + preflightChecks.join("\n\n") + "\nEND\n" + "$;\n\n" +
+      "DO " + "$" + "$" + "\nBEGIN\n" + preflightChecks.join("\n\n") + "\nEND\n" + "$" + "$;\n\n" +
       expandBatches.join("\n\n") + "\n",
     "02-validate.sql": header("resumable bounded replacement validation") +
       validateBatches.join("\n\n") + "\n",
