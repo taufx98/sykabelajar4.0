@@ -20,6 +20,7 @@ const metadata = {
     function_acl_entries: [
       {grantee:"postgres",privilege_type:"EXECUTE",is_grantable:true,grantor:"postgres"},
       ...(index===3 || index===8 ? [{grantee:"authenticated",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
+      ...(index===6 ? [{grantee:"PUBLIC",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"anon",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"authenticated",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
       ...(index===7 || index===9 ? [{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
     ],
   })),
@@ -31,7 +32,7 @@ assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_organizer\(text,text\
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.register_for_competition/);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.handle_new_auth_user\(\) TO "service_role"/);
 assert.doesNotMatch(sql,/TO "anon"/);
-assert.doesNotMatch(sql,/TO PUBLIC/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.get_my_verified_referrals\\(\\) TO PUBLIC/);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
 assert.throws(()=>renderFunctionAclRestore({auth_dependent_functions:metadata.auth_dependent_functions.slice(1)}),/all 10/);
