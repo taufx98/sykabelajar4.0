@@ -283,19 +283,31 @@ async function completeTelegramPhoneCallback(request: Request, env: AuthWorkerEn
   const state = url.searchParams.get("state");
   if (!state) return phoneVerificationRedirect(env, "failed", "invalid_state");
 
-  let challenge: {
-    user_id: string;
-    nonce: string;
-    code_verifier: string;
-    created_at: number;
-    expires_at: number;
-  } | null;
+  let challengeRow: Record<string, unknown> | null;
   try {
-    challenge = await consumeTelegramPhoneChallenge(env, state);
+    challengeRow = await consumeTelegramPhoneChallenge(env, state);
   } catch {
     return phoneVerificationRedirect(env, "failed", "temporarily_unavailable");
   }
-  if (!challenge) return phoneVerificationRedirect(env, "failed", "expired_or_used");
+  if (
+    !challengeRow ||
+    typeof challengeRow.user_id !== "string" ||
+    typeof challengeRow.nonce !== "string" ||
+    typeof challengeRow.code_verifier !== "string" ||
+    challengeRow.nonce.length < 40 ||
+    challengeRow.code_verifier.length < 43 ||
+    !Number.isFinite(Number(challengeRow.created_at)) ||
+    !Number.isFinite(Number(challengeRow.expires_at))
+  ) {
+    return phoneVerificationRedirect(env, "failed", "expired_or_used");
+  }
+  const challenge = {
+    user_id: challengeRow.user_id,
+    nonce: challengeRow.nonce,
+    code_verifier: challengeRow.code_verifier,
+    created_at: Number(challengeRow.created_at),
+    expires_at: Number(challengeRow.expires_at),
+  };
 
   if (url.searchParams.has("error")) {
     return phoneVerificationRedirect(env, "failed", "telegram_consent_denied");
