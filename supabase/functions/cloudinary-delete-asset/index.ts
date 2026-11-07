@@ -1,4 +1,5 @@
 import { isOwnedCloudinaryPublicId } from "../_shared/cloudinary-ownership.mjs";
+import { requireBetterAuthUser } from "../_shared/better-auth-user.ts";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESOURCE_TYPES = new Set(["image"]);
@@ -39,35 +40,46 @@ function signParams(params: Record<string, string>, secret: string) {
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
-
   const authorization = request.headers.get("authorization") ?? "";
-  const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  const bearer = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim();
   if (!bearer) return json({ error: "AUTH_REQUIRED" }, 401);
 
-  const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/+$/, "");
-  const publishableKey =
-    Deno.env.get("SUPABASE_ANON_KEY")?.trim() ??
-    Deno.env.get("SUPABASE_PUBLISHABLE_KEY")?.trim() ??
-    "";
-  if (!publishableKey) return json({ error: "AUTH_CONFIGURATION_MISSING" }, 503);
-
-  // This deployed endpoint remains on the legacy Supabase Auth verifier until
-  // Stage 2/4 cutover. Never trust a body-supplied user ID.
-  let authResponse: Response;
-  try {
-    authResponse = await fetch(supabaseUrl + "/auth/v1/user", {
-      headers: { apikey: publishableKey, Authorization: "Bearer " + bearer },
-      redirect: "error",
-      signal: AbortSignal.timeout(5000),
-    });
-  } catch {
-    return json({ error: "AUTH_VERIFICATION_UNAVAILABLE" }, 503);
+  const authMode = Deno.env.get("AUTH_IDENTITY_MODE")?.trim() || "supabase";
+  if (authMode !== "supabase" && authMode !== "better-auth") {
+    return json({ error: "AUTH_IDENTITY_MODE_INVALID" }, 503);
   }
-  if (!authResponse.ok) return json({ error: "INVALID_SESSION" }, 401);
 
-  const authUser = await authResponse.json().catch(() => null);
-  const userId = typeof authUser?.id === "string" ? authUser.id : "";
-  if (!UUID_PATTERN.test(userId)) return json({ error: "INVALID_USER" }, 401);
+  // The default mode preserves current Supabase Auth behavior. Better Auth
+  // can only be enabled explicitly after isolated issuer/RLS/identity gates pass.
+  let userId: string;
+  if (authMode === "better-auth") {
+    const identity = await requireBetterAuthUser(request);
+    if (!identity.ok) return json({ error: identity.error }, identity.status);
+    userId = identity.userId;
+  } else {
+    const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\\/+$/, "");
+    const publishableKey =
+      Deno.env.get("SUPABASE_ANON_KEY")?.trim() ??
+      Deno.env.get("SUPABASE_PUBLISHABLE_KEY")?.trim() ??
+      "";
+    if (!publishableKey) return json({ error: "AUTH_CONFIGURATION_MISSING" }, 503);
+
+    let authResponse: Response;
+    try {
+      authResponse = await fetch(supabaseUrl + "/auth/v1/user", {
+        headers: { apikey: publishableKey, Authorization: "Bearer " + bearer },
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      return json({ error: "AUTH_VERIFICATION_UNAVAILABLE" }, 503);
+    }
+    if (!authResponse.ok) return json({ error: "INVALID_SESSION" }, 401);
+    const authUser = await authResponse.json().catch(() => null);
+    userId = typeof authUser?.id === "string" ? authUser.id : "";
+    if (!UUID_PATTERN.test(userId)) return json({ error: "INVALID_USER" }, 401);
+  }
+
 
   const body = await request.json().catch(() => null);
   const publicId = typeof body?.public_id === "string" ? body.public_id.trim() : "";
