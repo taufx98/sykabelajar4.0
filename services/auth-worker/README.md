@@ -23,19 +23,19 @@ See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](../../docs/security/AUTH-NEW-ACCOUNT
 - JWT access tokens live for five minutes. The offline_access scope is intentionally not enabled.
 - Supabase remains the business-data and authorization backend.
 
-## ZeptoMail transactional email and admin account switching
+## Managed transactional email (Brevo Free / ZeptoMail)
 
-Production transactional email uses ZeptoMail. A Send Mail Token belongs to one Agent, so each Admin profile represents one ZeptoMail Agent and its verified sender identity.
+The staging Worker uses `AUTH_EMAIL_PROVIDER=managed` and selects the explicitly active account from encrypted D1. Brevo Free is the no-cost operating path; ZeptoMail remains supported for existing accounts and compatibility, but is not the default because its ongoing credit model can require payment.
 
 - Official API: `POST https://api.zeptomail.com/v1.1/email`, authenticated with `Authorization: Zoho-enczapikey <send-mail-token>`.
-- The Admin UI is available at `/admin/core?tab=settings` under **Pengaturan Email**. Admins can add multiple Agent profiles, rotate a token, choose the active Agent, test delivery, and remove inactive profiles without editing code or redeploying the Worker.
-- Send Mail Tokens are encrypted at rest in D1 with AES-256-GCM using the server-only `AUTH_EMAIL_ENCRYPTION_KEY` Worker secret. The admin API never returns a token or ciphertext.
+- The Admin UI is available at `/admin/core?tab=settings` under **Email Transaksional**. Admins can save Brevo or ZeptoMail accounts, rotate credentials, choose the active sender, test delivery, and remove inactive accounts without editing code or redeploying the Worker.
+- Brevo API Keys and ZeptoMail Send Mail Tokens are encrypted at rest in D1 with AES-256-GCM using the server-only `AUTH_EMAIL_ENCRYPTION_KEY` Worker secret. The admin API never returns a credential or ciphertext. Existing ZeptoMail account rows retain their original provider and ciphertext after migration 0006.
 - Admin access is verified against the current Supabase Auth user endpoint and `is_active_admin()` RPC. This is a migration bridge for the existing admin session; replace it with Better Auth admin verification during Stage 4.
-- The test action sends one real test email only to the signed-in admin's own email and is limited to one per minute per admin. It can consume ZeptoMail credits and requires an explicit click/confirmation.
-- Set `AUTH_EMAIL_PROVIDER=zeptomail`, a stable `AUTH_EMAIL_ENCRYPTION_KEY`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY` on the non-production Worker before enabling the admin API. Do not use a service-role key in the Worker or browser.
+- The test action sends one real email only to the signed-in admin's own email and is limited to one per minute per admin. It requires an explicit click/confirmation. Brevo Free test messages count toward its 300-send daily limit.
+- Set `AUTH_EMAIL_PROVIDER=managed` and a stable `AUTH_EMAIL_ENCRYPTION_KEY` on the staging Worker. The Admin bridge also requires its existing Supabase session-verification settings. Do not put a Brevo or ZeptoMail credential in Git, `wrangler.toml`, Pages variables, or browser storage.
 - Local CI/dev still uses the authenticated webhook mock. It does not send real email or consume ZeptoMail credits.
 
-ZeptoMail does not have a recurring free monthly plan. Its current pricing page advertises an introductory 10,000-email credit valid for one month for eligible new accounts; after that, one purchased credit covers 10,000 emails and is valid for six months. This implementation does not buy credits or enable auto top-up: it can use only credits already available in the user's ZeptoMail account. If the balance is empty, delivery remains unavailable until the account owner decides whether to purchase more.
+Brevo Free has no time limit and includes 300 email sends per day, including transactional email. After the daily quota, up to 1,000 additional transactional messages may be held in a retry queue; messages beyond that queue are not delivered. Do not upgrade or enable paid overage to bypass this limit. ZeptoMail's introductory credit is time-limited and its ongoing credit model is not a free recurring plan; no credits are purchased and no auto top-up is enabled. References: [Brevo Free limits](https://help.brevo.com/hc/en-us/articles/208580669-FAQs-What-are-the-limits-of-the-Free-plan) and [ZeptoMail pricing](https://www.zoho.com/zeptomail/subscription.html).
 
 
 ## D1 Free-tier quota resilience
@@ -57,7 +57,7 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 - Facebook sign-in is enabled only when both `FACEBOOK_CLIENT_ID` and `FACEBOOK_CLIENT_SECRET` are configured. Callback: `https://auth.sykabelajar.my.id/api/auth/callback/facebook`. Because Meta does not guarantee a verified-email claim for every Graph profile, SYKABELAJAR's own email verification gate remains mandatory.
 - Twitter/X sign-in is enabled only when both `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET` are configured. Callback: `https://auth.sykabelajar.my.id/api/auth/callback/twitter`. Better Auth 1.7.16's built-in provider requests X's `users.email` scope and treats only `confirmed_email` as verified; SYKABELAJAR still requires its local email verification gate.
 - Instagram is not configured as a general social-login provider. Meta's current official Instagram Login API is for professional Business/Creator accounts, not ordinary personal accounts; the old Basic Display API was shut down on 4 December 2024. Do not register a fake Generic OAuth provider or treat a professional-account connection as general Instagram login. Revisit only if the product explicitly accepts Business/Creator-only Instagram sign-in and an owner-approved provider review.
-- Email/password sign-up requires email verification. Production staging requires one active ZeptoMail Agent profile. The authenticated webhook is only the local CI/dev fallback.
+- Email/password and every social sign-in session require a successful SYKABELAJAR email verification. Staging requires one explicitly active Brevo or ZeptoMail managed account before real email delivery works. With no active account, the Worker fails closed; the authenticated webhook is only for local CI/dev.
 
 
 - The webhook option receives JSON with from, to, subject, text, and category. It must authenticate the bearer token and must not log verification or reset URLs.
@@ -87,7 +87,7 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 | FACEBOOK_CLIENT_SECRET | Worker secret | Optional Facebook OAuth app secret |
 | TWITTER_CLIENT_ID | Worker secret | Optional Twitter/X OAuth 2.0 client ID |
 | TWITTER_CLIENT_SECRET | Worker secret | Optional Twitter/X OAuth 2.0 client secret |
-| AUTH_EMAIL_PROVIDER | Worker variable | `zeptomail` for staging/production; `webhook` for local CI/dev |
+| AUTH_EMAIL_PROVIDER | Worker variable | `managed` for staging; `webhook` for local CI/dev |
 | AUTH_EMAIL_ENCRYPTION_KEY | Worker secret | Stable random key (32+ characters) for AES-256-GCM encryption of Agent tokens |
 | SUPABASE_URL | Worker variable | Supabase URL for current admin session validation during the migration bridge |
 | SUPABASE_PUBLISHABLE_KEY | Worker variable | Publishable key for `auth/v1/user` and `is_active_admin()` checks; never service-role |
@@ -124,11 +124,11 @@ A complete PoC test must verify:
 
 ## Remaining beyond the initial Worker proof of concept
 
-- Real ZeptoMail Agent configuration and email deliverability test. The deployed Worker has no Agent token configured; the CI flow still uses a local mock webhook.
-- Google OAuth runtime test using isolated Google credentials, only if Google sign-in is required for launch.
-- Supabase Custom OIDC configuration and full token acceptance in a non-production Supabase project.
-- Supabase schema/FK changes, identity provisioning, Edge Function migration, and frontend auth replacement.
-- Hosted two-user Supabase IDOR matrix across Data API, Storage, Realtime and Edge Functions.
+- Owner action: verify `sykabelajar.my.id` as a sender domain in Brevo, create an API Key v3, save/activate it through the staging Admin panel, and send the one-per-minute test only to the signed-in admin. No key has been installed and no real email has been sent.
+- Owner action: configure Google, Facebook and X developer apps and store each complete credential pair as Cloudflare Worker secrets. Exact callback paths are documented below. No provider credentials are installed or runtime social sign-in tested yet.
+- Telegram phone verification remains disabled until BotFather OIDC app registration, exact callback allowlisting, Worker client credentials and hosted consent/callback acceptance are complete.
+- Stage 2 still needs full hosted Storage API, Realtime WebSocket and positive Edge Function calls with real Better Auth tokens; current SQL/contract tests do not replace those runtime checks.
+- Stage 3 production schema-only baseline/restore, FK rehome, identity projection and production-shaped RLS/RPC regression remain open. Stage 4–7 cutover remains gated.
 
 The isolated Worker, D1 schema and custom auth hostname are already deployed and smoke-tested; see the 6 November 2026 checkpoint below. These remaining items are explicit gates, not implied successes.
 
@@ -177,7 +177,7 @@ The Worker now supports ZeptoMail Agent profiles, AES-GCM encryption, and server
 Real ZeptoMail delivery still requires a non-production Worker, D1 migration 0003, a stable encryption secret, Supabase publishable-key/session verification settings, and an Agent profile entered by an active admin. No email has been sent and no credits have been purchased.
 
 
-## Latest verified staging checkpoint — 6 November 2026
+## Historical staging checkpoint — 6 November 2026 (superseded by the 7 November checkpoint below)
 
 The isolated Cloudflare deployment is now successful. Manual GitHub Actions run [#42190609080](https://github.com/taufx98/sykabelajar4.0/actions/runs/42190609080) deployed Worker version `bd1feee3-4142-412e-9d05-e8eaa97de971` to `auth.sykabelajar.my.id`, bound to the dedicated D1 database `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`). The run checked all 17 remote tables, verified empty staging user/session/account/verification state and exactly one fixed first-party OAuth client, deployed the Worker, then passed the hosted `/healthz`, exact issuer, discovery endpoint hostname, PKCE S256 and public ES256 P-256 JWKS checks.
 
@@ -202,3 +202,11 @@ Instagram is intentionally not included as an ordinary login option. Meta's curr
 ### Social provider security gate
 
 The `session.create.before` hook always reads the Better Auth user row and rejects session creation unless `emailVerified === true`, even while Supabase provisioning is disabled. If `SUPABASE_PROVISIONING_ENABLED=true`, the same hook then retries the idempotent server-only identity projection before allowing a session. This preserves a single email-verification rule across password and social sign-in without trusting Facebook's missing/unreliable email-verification metadata.
+
+## Current staging checkpoint — 7 November 2026
+
+The isolated staging D1 now has migrations 0000–0006 applied, with all 18 expected tables, seven registration/profile columns and `auth_email_accounts.provider` verified. Telegram-capable/provider-aware Worker deployment [#42342157623](https://github.com/taufx98/sykabelajar4.0/actions/runs/42342157623) succeeded and deployed Worker version `4413cfc4-9c20-4acf-af16-4840830d28bd` to `auth.sykabelajar.my.id`. The run passed strict typecheck, 91 Worker security tests, exact config/D1/empty identity-state checks and hosted health/discovery/PKCE S256/ES256 JWKS/CORS checks. Auth Worker CI [#42341663286](https://github.com/taufx98/sykabelajar4.0/actions/runs/42341663286) also passed 91/91 Worker tests and frontend lint/typecheck/build; Supabase Local Auth Claims CI [#42342006085](https://github.com/taufx98/sykabelajar4.0/actions/runs/42342006085) passed.
+
+The deployed Worker uses the managed email dispatcher but has no active email sender account. Signup verification and password-reset email deliberately fail closed until the owner verifies the sender domain, enters and activates a Brevo Free API Key through the authenticated Admin bridge, and tests delivery to the signed-in admin only. Google, Facebook and Twitter/X provider support is present in source and deployed code, but all three providers remain disabled because their Cloudflare Worker client credentials are not configured. Instagram personal-account login is unavailable through Meta's current API; do not create a misleading Instagram button.
+
+The Telegram phone-verification route is present in the Worker but remains disabled while BotFather client credentials and callback setup are absent. No user/session/challenge row was seeded, no production Supabase schema/Auth setting/user/Edge Function was modified, and frontend login still uses the existing Supabase Auth source.
