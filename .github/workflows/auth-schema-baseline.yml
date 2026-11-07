@@ -1,0 +1,234 @@
+name: Auth Production Schema Baseline
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - "scripts/auth-migration/export-schema-baseline.sh"
+      - "scripts/auth-migration/export-schema-baseline.contract.test.mjs"
+      - ".github/workflows/auth-schema-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-schema-baseline-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  schema-only-restore:
+    name: Read-only production export and isolated restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SUPABASE_PROJECT_REF: mvdczyitbkxkldjughor
+      SUPABASE_CLI_WORKDIR: ${{ runner.temp }}/sykabelajar-auth-baseline
+      SCHEMA_BASELINE_OUTPUT_DIR: ${{ runner.temp }}/sykabelajar-auth-schema-export
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check whether the one-time database secret is configured
+        id: credentials
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SUPABASE_DB_URL" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Schema baseline was not run. Add the Supabase session-pooler URI as the repository Actions secret SUPABASE_DB_URL. Do not put it in chat, source code, or workflow logs."
+            {
+              echo "## Production schema baseline"
+              echo ""
+              echo "Skipped safely: repository secret \`SUPABASE_DB_URL\` is not configured."
+              echo ""
+              echo "The only owner action required is to add the production **session pooler** URI (port 5432, username \`postgres.mvdczyitbkxkldjughor\`) in Settings → Secrets and variables → Actions. No CLI command is needed."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          node --input-type=module <<'NODE'
+          const ref = process.env.SUPABASE_PROJECT_REF;
+          const url = new URL(process.env.SUPABASE_DB_URL);
+          const username = decodeURIComponent(url.username);
+          if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+            throw new Error("SUPABASE_DB_URL must use the PostgreSQL URI format.");
+          }
+          if (!url.hostname.endsWith(".pooler.supabase.com") || username !== "postgres." + ref || url.port !== "5432") {
+            throw new Error("Use the production Supabase shared session-pooler URI (port 5432, username postgres.<project-ref>) for GitHub-hosted runners.");
+          }
+          if (!url.password || !url.pathname || url.pathname === "/") {
+            throw new Error("SUPABASE_DB_URL is incomplete.");
+          }
+          console.log("Secret format verified without printing its value.");
+          NODE
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up pinned Supabase CLI
+        if: steps.credentials.outputs.available == 'true'
+        uses: supabase/setup-cli@v3
+        with:
+          version: 3.0.0
+
+      - name: Prepare an empty disposable Supabase project
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          rm -rf "$SUPABASE_CLI_WORKDIR" "$SCHEMA_BASELINE_OUTPUT_DIR"
+          mkdir -p "$SUPABASE_CLI_WORKDIR/supabase/migrations"
+          cat > "$SUPABASE_CLI_WORKDIR/supabase/config.toml" <<'TOML'
+          project_id = "sykabelajar-auth-baseline"
+          TOML
+          test -d "$SUPABASE_CLI_WORKDIR/supabase/migrations"
+          test ! -e "$SUPABASE_CLI_WORKDIR/supabase/seed.sql"
+
+      - name: Start isolated local Supabase stack
+        if: steps.credentials.outputs.available == 'true'
+        id: local_supabase
+        run: |
+          set -euo pipefail
+          cd "$SUPABASE_CLI_WORKDIR"
+          supabase start
+
+      - name: Provide a PostgreSQL 17.6 client without installing packages on the runner
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pg17-bin"
+          cat > "$RUNNER_TEMP/pg17-bin/psql" <<'SH'
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+          docker run --rm --network host -e PGPASSWORD="${PGPASSWORD:-}" postgres:17.6-alpine psql "$@"
+          SH
+          chmod 700 "$RUNNER_TEMP/pg17-bin/psql"
+          echo "$RUNNER_TEMP/pg17-bin" >> "$GITHUB_PATH"
+
+      - name: Export production schema only
+        if: steps.credentials.outputs.available == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          set +x
+          bash scripts/auth-migration/export-schema-baseline.sh
+          test -s "$SCHEMA_BASELINE_OUTPUT_DIR/schema.sql"
+          test -s "$SCHEMA_BASELINE_OUTPUT_DIR/auth-storage-custom.sql"
+
+      - name: Restore schema into the disposable local Supabase database
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$SCHEMA_BASELINE_OUTPUT_DIR:/baseline:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --file=/baseline/schema.sql
+
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$SCHEMA_BASELINE_OUTPUT_DIR:/baseline:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --file=/baseline/auth-storage-custom.sql
+
+      - name: Verify the restored production schema shape and zero imported user rows
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          SQL=$(cat <<'SQL'
+          SELECT
+            (SELECT count(*)
+             FROM pg_constraint c
+             JOIN pg_class src ON src.oid = c.conrelid
+             JOIN pg_namespace src_ns ON src_ns.oid = src.relnamespace
+             JOIN pg_class dst ON dst.oid = c.confrelid
+             JOIN pg_namespace dst_ns ON dst_ns.oid = dst.relnamespace
+             WHERE c.contype = 'f'
+               AND src_ns.nspname IN ('public', 'private')
+               AND dst_ns.nspname = 'auth'
+               AND dst.relname = 'users'),
+            (SELECT count(DISTINCT src_ns.nspname || '.' || src.relname)
+             FROM pg_constraint c
+             JOIN pg_class src ON src.oid = c.conrelid
+             JOIN pg_namespace src_ns ON src_ns.oid = src.relnamespace
+             JOIN pg_class dst ON dst.oid = c.confrelid
+             JOIN pg_namespace dst_ns ON dst_ns.oid = dst.relnamespace
+             WHERE c.contype = 'f'
+               AND src_ns.nspname IN ('public', 'private')
+               AND dst_ns.nspname = 'auth'
+               AND dst.relname = 'users'),
+            (SELECT count(*)
+             FROM pg_trigger t
+             JOIN pg_class tbl ON tbl.oid = t.tgrelid
+             JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+             WHERE ns.nspname = 'auth' AND tbl.relname = 'users' AND NOT t.tgisinternal),
+            (SELECT count(*)
+             FROM pg_trigger t
+             JOIN pg_class tbl ON tbl.oid = t.tgrelid
+             JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+             WHERE ns.nspname = 'public' AND tbl.relname = 'profiles' AND NOT t.tgisinternal),
+            (SELECT count(*)
+             FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'profiles'),
+            (SELECT count(*)
+             FROM pg_policies
+             WHERE coalesce(qual, '') || coalesce(with_check, '') ILIKE '%auth.uid%'),
+            (SELECT count(*)
+             FROM pg_proc p
+             JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname = 'public'
+               AND p.proname IN (
+                 'apply_referral_qualification',
+                 'capture_signup_referral',
+                 'process_referral_email_confirmation',
+                 'create_organizer',
+                 'get_my_referrals',
+                 'get_my_referrals_v2',
+                 'get_my_verified_referrals',
+                 'handle_new_auth_user',
+                 'register_for_competition',
+                 'verify_pending_referrals'
+               )),
+            (SELECT count(*) FROM auth.users),
+            (SELECT count(*) FROM public.profiles);
+          SQL
+          )
+
+          actual="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -qAt --field-separator='|' --set=ON_ERROR_STOP=1 --command "$SQL")"
+          expected="69|62|3|4|36|109|10|0|0"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Disposable schema restore did not match the reviewed production baseline."
+            echo "Expected structural metrics: $expected"
+            echo "Observed structural metrics: $actual"
+            exit 1
+          fi
+
+          {
+            echo "## Production schema baseline — passed"
+            echo ""
+            echo "- 69 application foreign keys to \`auth.users\` across 62 tables"
+            echo "- 3 non-internal \`auth.users\` triggers"
+            echo "- 4 \`profiles\` triggers and 36 profile columns"
+            echo "- 109 RLS policies referencing \`auth.uid()\`"
+            echo "- All 10 Auth-dependent application functions present"
+            echo "- 0 \`auth.users\` rows and 0 \`profiles\` rows imported"
+            echo "- Schema restored only into a disposable local Supabase stack"
+            echo "- No production DDL/DML, no artifact upload, and no schema files committed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop disposable local Supabase
+        if: always() && steps.local_supabase.outcome == 'success'
+        run: |
+          cd "$SUPABASE_CLI_WORKDIR"
+          supabase stop || true
+
+      - name: Remove schema export and temporary local project
+        if: always()
+        run: |
+          rm -rf "$SCHEMA_BASELINE_OUTPUT_DIR" "$SUPABASE_CLI_WORKDIR"
