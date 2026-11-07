@@ -6,6 +6,7 @@
 -- The entire test suite is rolled back; never run it against a hosted project.
 
 BEGIN;
+SET LOCAL plpgsql.variable_conflict = 'error';
 
 DO $stage3_regression$
 DECLARE
