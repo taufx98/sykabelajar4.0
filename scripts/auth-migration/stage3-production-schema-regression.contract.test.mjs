@@ -40,5 +40,15 @@ assert.match(sql,/ROLLBACK;/);
 assert.match(sql,/v_attempt_id constant uuid/);
 assert.match(sql,/v_order_id constant uuid/);
 assert.match(sql,/v_roster_id constant uuid/);
+assert.match(sql,/u_active_member constant uuid/);
+assert.match(sql,/u_inactive_member constant uuid/);
+assert.match(sql,/STAGE3_ORGANIZER_MEMBER_ROLE_SYNC_FAILED/);
+assert.match(sql,/STAGE3_RLS_ORGANIZER_OWNER_UPDATE_FAILED/);
+assert.match(sql,/STAGE3_RLS_ACTIVE_ORGANIZER_MEMBER_PLAN_READ_FAILED/);
+assert.match(sql,/STAGE3_RLS_ACTIVE_VIEWER_ORGANIZER_UPDATE_ALLOWED/);
+assert.match(sql,/STAGE3_RLS_ACTIVE_VIEWER_MEMBER_MANAGEMENT_ALLOWED/);
+assert.match(sql,/STAGE3_RLS_INACTIVE_ORGANIZER_MEMBER_PLAN_READ_ALLOWED/);
+assert.match(sql,/STAGE3_RLS_INACTIVE_ORGANIZER_MEMBER_LIST_READ_ALLOWED/);
+assert.match(sql,/STAGE3_RLS_UNRELATED_ORGANIZER_PLAN_READ_ALLOWED/);
 
 console.log("Stage 3 behavior regression contract passed: read-only PL/pgSQL production-mode guard, verified organizer gates, RLS role coverage, and rollback.");
