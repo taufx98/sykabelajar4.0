@@ -82,9 +82,8 @@ export function createAuth(env: AuthWorkerEnv) {
               }
               return {};
             },
-            // Meta does not expose a trustworthy email_verified flag for every
-            // Facebook Graph profile. Require SYKABELAJAR's own email challenge.
-            requireEmailVerification: true,
+            // Facebook has no reliable per-email verification claim. The
+            // unconditional session hook below requires SYKABELAJAR verification.
           },
         }
       : {}),
@@ -238,26 +237,37 @@ export function createAuth(env: AuthWorkerEnv) {
       session: {
         create: {
           before: async (session, ctx) => {
-            if (!isSupabaseProvisioningEnabled(env)) return { data: session };
-
-            // A previous after-hook may have failed after the D1 user row was
-            // committed. Retry the idempotent Postgres projection here and
-            // withhold this session until the identity exists.
             if (!ctx?.context?.adapter) {
               throw new APIError("INTERNAL_SERVER_ERROR", {
-                message: "APPLICATION_IDENTITY_NOT_READY",
+                message: "AUTH_USER_LOOKUP_UNAVAILABLE",
               });
             }
+
             const user = await ctx.context.adapter.findOne({
               model: "user",
               where: [{ field: "id", value: session.userId }],
             });
             if (!user) {
               throw new APIError("INTERNAL_SERVER_ERROR", {
-                message: "APPLICATION_IDENTITY_NOT_READY",
+                message: "AUTH_USER_NOT_FOUND",
               });
             }
 
+            // Enforce the same SYKABELAJAR-owned email challenge for password,
+            // Google, Facebook and X sign-in. Facebook has no trustworthy
+            // provider email_verified claim, and social signup alone must
+            // never create an authenticated session before local verification.
+            if (user.emailVerified !== true) {
+              throw new APIError("FORBIDDEN", {
+                message: "EMAIL_VERIFICATION_REQUIRED",
+              });
+            }
+
+            if (!isSupabaseProvisioningEnabled(env)) return { data: session };
+
+            // A previous after-hook may have failed after the D1 user row was
+            // committed. Retry the idempotent Postgres projection here and
+            // withhold this session until the identity exists.
             try {
               await reconcileSupabaseApplicationIdentity(env, user as Record<string, unknown>);
             } catch {
