@@ -1,6 +1,6 @@
 # Dedicated Cloudflare D1 staging migration runbook
 
-Status as of 7 November 2026: **remote staging D1 has migrations 0000–0006 applied; all 18 expected tables, the seven Better Auth registration columns, and the Telegram challenge table are verified. Migration 0006 is committed and locally tested but is still pending remote apply.** The guarded run [#42339140591](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339140591) applied only pending migration 0005 after verifying the exact D1 name/UUID and checksum. It did not deploy the Worker or touch Supabase.
+Status as of 7 November 2026: **remote staging D1 migrations 0000–0006 are applied; all 18 expected tables, seven Better Auth registration columns, the Telegram challenge table and `auth_email_accounts.provider` are verified.** Telegram migration 0005 was applied by [#42339140591](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339140591), and provider migration 0006 by [#42339767786](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339767786). Both used the exact guarded D1 target and reviewed migration checksums; neither deployed a Worker or modified Supabase.
 
 ## Fixed target
 
@@ -77,7 +77,7 @@ After migrations 0000–0004 succeed, D1 contains the reviewed Better Auth schem
 The one-time push-marker mechanism is constrained to the exact marker path on `security/auth-poc-stage-1`, exact contents, exact D1 name/UUID, and the reviewed migration hash. The manual typed-confirmation path remains available as a fallback.
 
 
-## Migration 0005 — Telegram phone-verification challenge (reviewed; remote apply pending)
+## Migration 0005 — Telegram phone-verification challenge (applied to staging)
 
 **Remote status as of 7 November 2026:** migrations 0000–0004 are applied to the dedicated non-production D1 and the 17-table schema is verified. Migration 0005 is in the branch and covered by local D1/Worker tests, but the remote apply is still pending. No remote migration or Worker deployment is implied by this documentation update.
 
@@ -101,15 +101,15 @@ The current guarded workflow:
 1. Register the Telegram login/OIDC app with `@BotFather` and allowlist the exact callback URL `https://auth.sykabelajar.my.id/phone-verification/telegram/callback`.
 2. Store the resulting `AUTH_TELEGRAM_CLIENT_ID` and `AUTH_TELEGRAM_CLIENT_SECRET` as Worker secrets; keep them out of GitHub files, browser bundles and chat.
 3. Confirm the isolated staging Worker has the required server-only Supabase provisioning configuration. `SUPABASE_PROVISIONING_ENABLED` must remain unset/false until the dedicated staging Supabase issuer/provisioning contract is ready; the production Supabase project must not be used as a test target.
-4. Only then, run **Auth D1 Staging Schema Migration** on `security/auth-poc-stage-1` with the exact confirmation `APPLY-TO-sykabelajar-auth-poc`. Verify the run applies only 0005 and confirms all 18 tables.
+4. Migration 0005 is already applied on staging (run [#42339140591](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339140591)). Do not rerun it. Only perform real hosted Telegram consent/callback acceptance after the owner configures the BotFather app and Worker credentials.
 5. Perform a real hosted Telegram consent/callback test on the isolated staging environment, including denied consent, expiry/replay, cooldown, duplicate identity and the existing organizer email/phone/role requirements.
 
 Until those manual prerequisites and hosted acceptance tests are complete, keep Telegram credentials unset and the feature disabled. Do not deploy or enable this phone-verification flow on production, and do not weaken the existing email, active organizer-role or verified-phone checks in `create_organizer`.
 
-## Migration 0006 — transactional email provider selection (reviewed; remote apply pending)
+## Migration 0006 — transactional email provider selection (applied to staging)
 
-Migration 0006 is an additive `ALTER TABLE` on the existing `auth_email_accounts` table. It adds `provider TEXT NOT NULL DEFAULT 'zeptomail' CHECK (provider IN ('zeptomail','brevo'))`. Existing Agent rows remain ZeptoMail and retain their ciphertext; the migration does not rewrite accounts, tokens, or user records. No table count changes (still 18 expected D1 tables).
+Migration 0006 was applied to the isolated staging D1 by [run #42339767786](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339767786). It is an additive `ALTER TABLE` on the existing `auth_email_accounts` table. It adds `provider TEXT NOT NULL DEFAULT 'zeptomail' CHECK (provider IN ('zeptomail','brevo'))`. Existing Agent rows remain ZeptoMail and retain their ciphertext; the migration does not rewrite accounts, tokens, or user records. No table count changes (still 18 expected D1 tables).
 
 The current migration workflow checks the SHA-256 of 0004, 0005 and 0006, the exact non-production D1 name/UUID, and the exact seven migration files 0000–0006. After apply it verifies all 18 tables, the seven Better Auth user columns, and `auth_email_accounts.provider`. The separate deploy workflow refuses to deploy unless that provider column is present.
 
-Apply through [Auth D1 Staging Schema Migration](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-cloudflare-d1-migrate.yml) on branch `security/auth-poc-stage-1`, using exact confirmation `APPLY-TO-sykabelajar-auth-poc` or the one-time `.github/auth-ops/APPLY-STAGING-D1-0006` marker. This action applies only pending reviewed staging migrations; it never deploys the Worker or touches production.
+This migration is already applied to staging and verified. Do not rerun it or modify its SQL; future changes must use a new migration version and a reviewed checksum. The D1 migration workflow itself never deploys the Worker or touches production.
