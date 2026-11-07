@@ -191,7 +191,7 @@ The live production catalog was queried again read-only and compared row by row 
 
 The direct auth dependency recheck confirms these ten functions: `private.apply_referral_qualification`, `private.capture_signup_referral`, `private.process_referral_email_confirmation`, `public.create_organizer`, `public.get_my_referrals`, `public.get_my_referrals_v2`, `public.get_my_verified_referrals`, `public.handle_new_auth_user`, `public.register_for_competition`, and `public.verify_pending_referrals`.
 
-This is a catalog-only comparison. It does not apply a migration, export application rows, or prove a full schema restore. The complete schema-only baseline must still be created from the owner's trusted local machine and validated before writing an executable Stage 3 migration.
+This is a catalog-only comparison. It does not apply a migration, export application rows, or prove a full schema restore. The complete schema-only baseline must still be exported and restored in a disposable environment before writing an executable Stage 3 migration. The automated GitHub Actions path is prepared; it awaits the repository secret `SUPABASE_DB_URL` and does not require owner CLI work.
 
 ## Security Advisor review snapshot — 5 November 2026
 
