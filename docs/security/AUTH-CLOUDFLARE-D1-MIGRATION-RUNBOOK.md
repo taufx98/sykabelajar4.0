@@ -1,6 +1,6 @@
 # Dedicated Cloudflare D1 staging migration runbook
 
-Status: **all five migrations 0000–0004 are now applied and the seven registration/profile columns are verified on the dedicated remote D1**. The original manual workflow [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470) applied 0000–0003. The one-time guarded delta workflow [#42265224273](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265224273) applied only 0004, then verified all 17 expected tables and all seven registration/profile columns. This D1 workflow did not deploy the Worker or configure a hostname.
+Status as of 7 November 2026: **migrations 0000–0004 (17 tables) and the seven registration/profile columns are verified on the dedicated remote D1; migration 0005 remains pending remote apply.** The original manual workflow [#42159049470](https://github.com/taufx98/sykabelajar4.0/actions/runs/42159049470) applied 0000–0003. The guarded delta workflow [#42265224273](https://github.com/taufx98/sykabelajar4.0/actions/runs/42265224273) applied only 0004. Migration 0005 is committed, hash-locked, and tested against clean local D1 in Auth Worker CI; no remote 0005 migration or Worker deployment was run during this update.
 
 ## Fixed target
 
@@ -32,7 +32,7 @@ The historical successful manual run used branch `security/auth-poc-stage-1` and
 
 5. Inspect the run. It must pass the exact-target check, show the pending migration list, apply only reviewed pending migrations 0000–0005 and verify all 18 expected table names, including `auth_phone_verification_challenges`.
 
-The current workflow applies only migrations that Wrangler reports as pending from the reviewed set 0000–0005. It verifies all 18 expected tables and confirms that `pragma_table_info('user')` contains all seven registration/profile columns. The table-count check is an expected post-apply check, not evidence that 0005 has already run: as of 7 November 2026, the known remote staging state remains migrations 0000–0004 (17 tables), while 0005 is pending. The workflow needs the existing GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token requires Account D1 Read (to verify the target) and Account D1 Edit/Write (to apply migrations). Never paste or commit either secret.
+The current workflow applies only migrations that Wrangler reports as pending from the reviewed set 0000–0005. It verifies all 18 expected tables and confirms that `pragma_table_info('user')` contains all seven registration/profile columns. As of 7 November 2026, the known remote staging state remains migrations 0000–0004 (17 tables), while 0005 is pending. The workflow needs the existing GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token requires Account D1 Read (to verify the target) and Account D1 Edit/Write (to apply migrations). Never paste or commit either secret.
 
 ## What gets applied
 
@@ -57,7 +57,7 @@ This workflow does not:
 - read or modify the production Supabase project;
 - create, update or delete users or application data.
 
-After migrations 0000–0004 succeed, D1 contains the reviewed Better Auth schema, fixed public OAuth client/resource seed, and seven registration/profile bootstrap columns. Migration 0005 is a separate pending staging change; do not claim its challenge table exists remotely until the guarded migration run succeeds. The Worker, stable secrets, ZeptoMail Agent token, real email delivery, Google OAuth provider credentials, custom hostname and hosted OIDC acceptance test remain separate Stage 1/2 gates. Do not switch the frontend to this issuer yet.
+After migrations 0000–0004 succeed, D1 contains the reviewed Better Auth schema, fixed public OAuth client/resource seed, and seven registration/profile bootstrap columns. Migration 0005 remains pending; do not claim its challenge table exists remotely until the guarded migration run succeeds. The Worker hostname and hosted OIDC core acceptance are already complete on isolated staging. Remaining separate gates include deployment of the newer Telegram-capable Worker, owner BotFather credentials, the staging provisioning secret, real hosted phone-consent/callback acceptance, and real email signup/verification/reset on a verified 100%-free provider path. Do not switch the frontend to this issuer yet.
 
 ## References
 
