@@ -212,3 +212,28 @@ Verified CI:
 - [Cloudflare staging read-only preflight #42258255042](https://github.com/taufx98/sykabelajar4.0/actions/runs/42258255042) — **success**. It does not deploy or migrate remote resources.
 
 **Still not done:** remote D1 migration 0004, staging Worker redeployment with the seven-column/preview-origin gate, live CORS smoke, real ZeptoMail delivery, isolated hosted Supabase Custom OIDC, hosted two-user IDOR tests, production schema export, and the production identity/FK/RLS migration. No production database, Edge Function, secret, Cloudinary asset, or application login flow was changed. PR #177 remains Draft and unmerged; its base-branch state is still dirty, so no merge was attempted.
+
+
+## 6.1 Foreign-key lock and cutover plan — 7 November 2026
+
+The 69-FK generator is a **review-only draft**, not a production execution script. Its current output deliberately uses three phase-wide transactions. That is correct for preserving a clear all-or-nothing boundary within each phase, but its lock footprint must be addressed before production use.
+
+PostgreSQL 17 documents the following behavior ([ALTER TABLE](https://www.postgresql.org/docs/17/sql-altertable.html)):
+
+- `ADD FOREIGN KEY ... NOT VALID` takes `SHARE ROW EXCLUSIVE` locks on both the referencing table and the referenced table. `NOT VALID` skips the initial historical-row scan, but the new FK is enforced for subsequent inserts and updates.
+- `VALIDATE CONSTRAINT` scans existing rows, takes `SHARE UPDATE EXCLUSIVE` on the referencing table, and for an FK also takes `ROW SHARE` on the referenced table.
+- `ALTER TABLE` takes `ACCESS EXCLUSIVE` by default unless a subcommand documents a weaker lock. The generated drop/rename cutover must therefore be treated as an exclusive-lock phase until confirmed against the exact PostgreSQL 17 commands and a staging rehearsal.
+
+The current generator groups all 69 additions into one transaction, all 69 validations into one transaction, and all 69 drop/rename pairs into one cutover transaction. A transaction retains locks acquired earlier until it commits. Consequently, the first two phases can hold their respective locks across many of the 62 child tables; the cutover can retain strong DDL locks across the same graph until its single commit.
+
+Required work before the generated plan can be approved:
+
+1. After the full production schema-only baseline exists, revise the expand and validation output to use bounded per-table transactions (or another explicitly reviewed batching strategy), while keeping the preflight checks over the complete 69-FK snapshot.
+2. Add safe resume/reconciliation logic. The current preflight intentionally aborts on temporary-name collisions; after a partial expand, operators must compare each temporary FK's exact source/target columns and actions before resuming. Never blindly rerun the current phase file after a partial failure.
+3. Keep the cutover globally atomic unless a separate review proves the application can tolerate a period where some tables reference the new root and others still reference legacy Auth. Do not split the cutover just to shorten locks without proving that mixed state safe.
+4. Prepare a production runbook with measured table sizes/row counts, a low-traffic maintenance window, bounded `lock_timeout` and `statement_timeout`, long-transaction checks, lock-wait monitoring, abort criteria, and post-commit catalog/orphan verification. Timeout values must be selected from actual workload measurements, not guessed.
+5. Reconfirm the live FK catalog immediately before generating or executing any production plan. No DDL is authorized by this design note.
+
+A read-only size snapshot of the 62 FK-referencing tables on 7 November 2026 found the largest measured relation (`public.system_error_events`) at approximately 352 KB and the next (`public.audit_logs`) at approximately 280 KB. These are catalog size measurements, not row exports or a guarantee about future data volume; planner row estimates may be stale. Re-measure immediately before any maintenance decision.
+
+This lock review does not unblock the missing full schema-only baseline, the production function/trigger regression gap, or the verified-phone compatibility gate. Production remains unchanged.
