@@ -67,8 +67,7 @@ BEGIN
     END IF;
   END;
 
-  IF EXISTS (SELECT 1 FROM private.app_users WHERE id = u_rejected)
-     OR EXISTS (SELECT 1 FROM public.profiles WHERE id = u_rejected)
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE id = u_rejected)
      OR EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = u_rejected) THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_REJECTED_ACCOUNT_PERSISTED';
   END IF;
@@ -96,10 +95,9 @@ BEGIN
     FROM (VALUES
       (u_student), (u_teacher), (u_organizer_one), (u_organizer_two)
     ) AS ids(user_id)
-    LEFT JOIN private.app_users au ON au.id = ids.user_id
     LEFT JOIN public.profiles p ON p.id = ids.user_id
     LEFT JOIN public.user_settings us ON us.user_id = ids.user_id
-    WHERE au.id IS NULL OR p.id IS NULL OR us.user_id IS NULL
+    WHERE p.id IS NULL OR us.user_id IS NULL
   ) THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_IDENTITY_PROFILE_SETTINGS_UUID_MISMATCH';
   END IF;
@@ -124,13 +122,6 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PUBLIC_PROVISION_GRANTED_ADMIN';
   END IF;
 
-  -- No Better Auth identity is shadow-created in auth.users.
-  IF EXISTS (
-    SELECT 1 FROM auth.users
-    WHERE id IN (u_student,u_teacher,u_organizer_one,u_organizer_two)
-  ) THEN
-    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_SHADOW_AUTH_USER_CREATED';
-  END IF;
 
   -- A retry must not overwrite an edited profile, add a second role, or
   -- reactivate a disabled role, even if a repeated payload changes accountType.
@@ -210,12 +201,6 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_EMAIL_VERIFICATION_NOT_APPLIED';
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM private.app_users
-    WHERE id = u_referred AND email_verified_at IS NOT NULL
-  ) THEN
-    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_EMAIL_VERIFICATION_PROJECTION_MISSING';
-  END IF;
-  IF NOT EXISTS (
     SELECT 1 FROM public.referral_events
     WHERE referred_user_id = u_referred
       AND status = 'VERIFIED'
@@ -257,16 +242,6 @@ BEGIN
   IF v_result IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PHONE_VERIFICATION_NOT_APPLIED';
   END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM private.app_users
-    WHERE id = u_organizer_one
-      AND phone_verified_at IS NOT NULL
-      AND verified_phone_identity_hash = v_hash
-      AND phone_verification_provider = 'telegram'
-      AND phone_verification_subject = '881234567801'
-  ) THEN
-    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PHONE_PROJECTION_INVALID';
-  END IF;
   IF has_function_privilege(
        'authenticated',
        'public.better_auth_complete_phone_verification(uuid,timestamptz,text,text,text,integer)',
@@ -281,6 +256,70 @@ BEGIN
   RAISE NOTICE 'Better Auth identity provisioning, role, referral/email, phone verification and no-shadow-user assertions passed.';
 END;
 $stage3_better_auth_provisioning$;
+
+-- private.app_users is intentionally inaccessible through the service_role
+-- schema path, exactly like production. Inspect the private projection only
+-- as postgres in this disposable restore; never grant the Worker direct access.
+RESET ROLE;
+SET LOCAL ROLE postgres;
+DO $stage3_better_auth_private_projection$
+DECLARE
+  u_referrer constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1';
+  u_referred constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2';
+  u_student constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3';
+  u_teacher constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4';
+  u_organizer_one constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5';
+  u_organizer_two constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6';
+  u_rejected constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7';
+  v_hash constant text := 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+BEGIN
+  IF has_schema_privilege('service_role', 'private', 'USAGE') THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_SERVICE_ROLE_PRIVATE_SCHEMA_USAGE_UNEXPECTED';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM private.app_users WHERE id = u_rejected) THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_REJECTED_PRIVATE_IDENTITY_PERSISTED';
+  END IF;
+
+  IF EXISTS (
+    SELECT ids.user_id
+    FROM (VALUES (u_student),(u_teacher),(u_organizer_one),(u_organizer_two))
+      AS ids(user_id)
+    LEFT JOIN private.app_users au ON au.id = ids.user_id
+    LEFT JOIN public.profiles p ON p.id = ids.user_id
+    LEFT JOIN public.user_settings us ON us.user_id = ids.user_id
+    WHERE au.id IS NULL OR p.id IS NULL OR us.user_id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_IDENTITY_PROFILE_SETTINGS_UUID_MISMATCH';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE id IN (u_student,u_teacher,u_organizer_one,u_organizer_two)
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_SHADOW_AUTH_USER_CREATED';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM private.app_users
+    WHERE id = u_referred AND email_verified_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_EMAIL_VERIFICATION_PROJECTION_MISSING';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM private.app_users
+    WHERE id = u_organizer_one
+      AND phone_verified_at IS NOT NULL
+      AND verified_phone_identity_hash = v_hash
+      AND phone_verification_provider = 'telegram'
+      AND phone_verification_subject = '881234567801'
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PHONE_PROJECTION_INVALID';
+  END IF;
+END;
+$stage3_better_auth_private_projection$;
+
 
 -- create_organizer must run as a normal authenticated JWT caller.
 RESET ROLE;
