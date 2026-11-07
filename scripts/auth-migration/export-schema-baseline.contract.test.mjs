@@ -9,6 +9,9 @@ const script = readFileSync(path.join(here, 'export-schema-baseline.sh'), 'utf8'
 assert.ok(script.includes('supabase db dump -f "$OUTPUT_DIR/schema.sql" --remote="$SUPABASE_DB_URL"'));
 assert.ok(script.includes('SUPABASE_CLI_WORKDIR="${SUPABASE_CLI_WORKDIR:-$REPO_ROOT}"'));
 assert.ok(script.includes('SCHEMA_BASELINE_OUTPUT_DIR'));
+assert.ok(script.includes('PGPASSFILE="$OUTPUT_DIR/.schema-baseline.pgpass"'));
+assert.ok(script.includes('source "$PG_ENV"'));
+assert.doesNotMatch(script, /psql\s+["']?\$SUPABASE_DB_URL/);
 assert.doesNotMatch(script, /supabase link|supabase login/);
 assert.ok(script.includes('need_cmd node'));
 assert.ok(script.includes('const directMatch = host === `db.${ref}.supabase.co`'));
