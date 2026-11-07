@@ -27,7 +27,7 @@ assert.equal(
 const changedAction = catalog.foreign_keys.map((fk, index) =>
   index === 0 ? { ...fk, on_delete: "SET NULL" } : fk
 );
-assert.throws(() => verifyRestoredAuthFkCatalog(changedAction, catalog), /differs from the reviewed production snapshot/);
+assert.throws(() => verifyRestoredAuthFkCatalog(changedAction, catalog), /delete-action distribution changed|differs from the reviewed production snapshot/);
 
 assert.throws(() =>
   verifyRestoredAuthFkCatalog(catalog.foreign_keys.slice(1), catalog),
