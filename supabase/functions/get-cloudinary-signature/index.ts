@@ -44,11 +44,14 @@ serve(async (req: Request) => {
     // Resolve ownership using the caller-scoped client and the UUID returned
     // by Supabase's verified Auth endpoint. Never trust a username or owner ID
     // supplied by the browser, and never use service_role for these lookups.
-    const { data: profile, error: profileError } = await supabase
+    const { data: profileResult, error: profileError } = await supabase
       .from("profiles")
       .select("username")
       .eq("id", userId)
       .maybeSingle();
+    // profiles is not generated into this Edge Function local Supabase type bundle.
+    // Narrow the one selected field; the lookup remains caller-scoped and UUID-bound.
+    const profile = profileResult as { username: string | null } | null;
     if (profileError || !profile) {
       return new Response(JSON.stringify({ error: "PROFILE_NOT_FOUND" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
     }
