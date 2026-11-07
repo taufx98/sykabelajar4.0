@@ -11,6 +11,8 @@ const deleteEndpointPath = fileURLToPath(new URL("../../supabase/functions/cloud
 const deleteEndpoint = readFileSync(deleteEndpointPath, "utf8");
 const profileUploadPath = fileURLToPath(new URL("../../supabase/functions/cloudinary-profile-upload/index.ts", import.meta.url));
 const profileUploadEndpoint = readFileSync(profileUploadPath, "utf8");
+const profileDeletePath = fileURLToPath(new URL("../../supabase/functions/cloudinary-delete-profile/index.ts", import.meta.url));
+const profileDeleteEndpoint = readFileSync(profileDeletePath, "utf8");
 const supabaseConfig = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
 
 test("legacy UUID-based avatar and cover assets are limited to the authenticated UUID", () => {
@@ -121,6 +123,23 @@ test("the shared identity resolver defaults to legacy Supabase Auth and only opt
   assert.match(identityResolver, /supabase\.auth\.getUser\(\)/);
   assert.match(identityResolver, /AUTH_IDENTITY_MODE_INVALID/);
   assert.doesNotMatch(identityResolver, /SERVICE_ROLE_KEY|service_role/i);
+});
+
+test("the frontend Cloudinary delete-profile endpoint accepts only caller-owned profile/cover assets", () => {
+  assert.match(profileDeleteEndpoint, /requireApplicationUser\(request\)/);
+  assert.match(profileDeleteEndpoint, /UUID_PATTERN\.test\(userId\)/);
+  assert.match(profileDeleteEndpoint, /profile_pictures\/user_\$\{userId\}/);
+  assert.match(profileDeleteEndpoint, /profile_covers\/user_\$\{userId\}/);
+  assert.match(profileDeleteEndpoint, /allowedPublicIds\.has\(publicId\)/);
+  assert.match(profileDeleteEndpoint, /resourceType !== "image"/);
+  assert.match(profileDeleteEndpoint, /\/image\/destroy/);
+  assert.match(profileDeleteEndpoint, /AbortSignal\.timeout\(8000\)/);
+  assert.doesNotMatch(profileDeleteEndpoint, /body\?\.user_id|body\?\.owner_id|resourceType\}\//);
+  assert.match(supabaseConfig, /\[functions\.cloudinary-delete-profile\][\s\S]*?verify_jwt = true/);
+  const ownerGuard = profileDeleteEndpoint.indexOf("allowedPublicIds.has(publicId)");
+  const secretRead = profileDeleteEndpoint.indexOf('requiredEnv("CLOUDINARY_API_SECRET")');
+  const providerCall = profileDeleteEndpoint.indexOf("/image/destroy");
+  assert.ok(ownerGuard >= 0 && secretRead > ownerGuard && providerCall > secretRead);
 });
 
 test("Cloudinary profile upload uses the shared verified identity and derives UUID-owned asset IDs", () => {
