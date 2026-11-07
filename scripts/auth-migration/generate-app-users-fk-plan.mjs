@@ -233,7 +233,7 @@ export function generatePlan(snapshot) {
         "  ) AND NOT EXISTS (",
         "    " + replacementQuery.replaceAll("\n", "\n    "),
         "  ) THEN",
-        "    RAISE EXCEPTION " + quoteLiteral("TEMP_FK_NAME_COLLISION_OR_SEMANTIC_DRIFT: " + tempName) + ";",
+        "    RAISE EXCEPTION " + quoteLiteral("TEMP_FK_NAME_COLLISION: " + tempName) + ";",
         "  END IF;",
       ].join("\n");
       return [oldFkCheck, tempFkCheck, orphanCheck(fk)];
@@ -352,7 +352,8 @@ export function generatePlan(snapshot) {
 
   return {
     "01-preflight-expand.sql": header("full preflight + resumable bounded expansion") +
-      "DO $$\nBEGIN\n" + preflightChecks.join("\n\n") + "\nEND\n$$;\n\n" +
+      boundedTimeoutGuard() + "\n\n" +
+      "DO $\nBEGIN\n" + preflightChecks.join("\n\n") + "\nEND\n$;\n\n" +
       expandBatches.join("\n\n") + "\n",
     "02-validate.sql": header("resumable bounded replacement validation") +
       validateBatches.join("\n\n") + "\n",
