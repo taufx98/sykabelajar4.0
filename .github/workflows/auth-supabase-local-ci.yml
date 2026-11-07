@@ -55,6 +55,8 @@ jobs:
         run: |
           bash -n ../../../scripts/auth-migration/export-schema-baseline.sh
           node ../../../scripts/auth-migration/export-schema-baseline.contract.test.mjs
+          bash -n ../../../scripts/auth-migration/export-live-auth-users-fk-plan.sh
+          node ../../../scripts/auth-migration/export-live-auth-users-fk-plan.contract.test.mjs
 
       - name: Verify Better Auth Edge JWT adapter and webhook boundaries
         run: node ../../../scripts/auth-migration/edge-auth-claims.test.mjs
