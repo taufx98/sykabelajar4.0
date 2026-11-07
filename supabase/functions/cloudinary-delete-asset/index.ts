@@ -41,7 +41,7 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
   const authorization = request.headers.get("authorization") ?? "";
-  const bearer = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim();
+  const bearer = authorization.match(/^Bearer\s\\s+(.+)$/i)?.[1]?.trim();
   if (!bearer) return json({ error: "AUTH_REQUIRED" }, 401);
 
   const authMode = Deno.env.get("AUTH_IDENTITY_MODE")?.trim() || "supabase";
