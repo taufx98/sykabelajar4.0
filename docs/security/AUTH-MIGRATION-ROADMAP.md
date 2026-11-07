@@ -399,7 +399,7 @@ The schema-only production export and full-schema local restore have **not** bee
 
 ### Automated production schema baseline checkpoint — 7 November 2026
 
-To remove the local-CLI dependency, an automated GitHub Actions workflow is now present at [auth-schema-baseline.yml](../../.github/workflows/auth-schema-baseline.yml). The exporter uses Supabase CLI 3.0.0 remote mode, keeps the database password in a mode-0600 temporary `.pgpass` file, and the workflow restores only into a disposable local Supabase stack. No schema dump is uploaded as a workflow artifact or committed to this public repository.
+To remove the local-CLI dependency, an automated GitHub Actions workflow is now present at [auth-schema-baseline.yml](../../.github/workflows/auth-schema-baseline.yml). The exporter uses Supabase CLI 3.0.0 remote mode, keeps the password in a mode-0600 temporary `.pgpass` file for its `psql` metadata checks, and the workflow restores only into a disposable local Supabase stack. The Supabase CLI receives the remote URI through its required `--remote=<uri>` option from a GitHub Actions secret in the ephemeral runner; the workflow does not print it or upload/commit any schema dump.
 
 - [Supabase Local Auth Claims CI #42362719147](https://github.com/taufx98/sykabelajar4.0/actions/runs/42362719147) passed the updated exporter contract, Deno checks, staging anonymous-probe check, FK plan dry run, and local Supabase two-user RLS tests.
 - [Automated baseline workflow #42362719045](https://github.com/taufx98/sykabelajar4.0/actions/runs/42362719045) completed successfully but safely skipped the export, restore, and verification steps because the repository secret `SUPABASE_DB_URL` is not configured. This is **not** a successful production dump/restore.
