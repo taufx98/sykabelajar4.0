@@ -327,3 +327,15 @@ The current synthetic Stage 3 tests cover the identity-root idea and a simplifie
 - The trusted phone-verification replacement is still unresolved. Until it is solved and tested, the organizer creation feature remains a hard compatibility gate.
 - No production identity table, foreign key, trigger, function, RLS policy, account, or login configuration has been changed.
 
+
+
+### RLS policy coverage revalidation — 7 November 2026
+
+A second read-only scan classified all policies whose `USING` or `WITH CHECK` expression contains `auth.uid()`:
+
+- **109 policies across 61 tables**: 108 in `public`, 1 in `private`.
+- `auth.uid()` appears in 90 `USING` expressions and 42 `WITH CHECK` expressions (some policies contain both).
+- Command distribution: SELECT 55 (54 public + 1 private), INSERT 19, UPDATE 12, DELETE 12, and ALL 11.
+- No policy expression in this 109-policy set directly references `auth.users`.
+
+This is a measurable regression surface for the identity cutover. Tests must include at least one positive and negative ownership case per materially distinct policy pattern and cover the high-risk data domains; the Stage 2 synthetic two-user fixture is not a substitute for this 61-table policy review. Keep the accepted Better Auth JWT contract (`sub` = identity UUID, PostgreSQL `role=authenticated`, exact issuer) and do not rewrite `auth.uid()` policy expressions merely to change the identity provider.
