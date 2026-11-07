@@ -28,6 +28,22 @@ assert.equal((expand.match(/ADD CONSTRAINT/g) ?? []).length, 69);
 assert.equal((validate.match(/VALIDATE CONSTRAINT/g) ?? []).length, 69);
 assert.equal((cutover.match(/DROP CONSTRAINT/g) ?? []).length, 69);
 assert.equal((cutover.match(/RENAME CONSTRAINT/g) ?? []).length, 69);
+
+const sourceTableCount = new Set(records.map((fk) => fk.source_schema + "." + fk.source_table)).size;
+assert.equal(sourceTableCount, 62);
+assert.equal((expand.match(/^BEGIN;$/gm) ?? []).length, sourceTableCount,
+  "each source table must expand in its own committed transaction");
+assert.equal((validate.match(/^BEGIN;$/gm) ?? []).length, sourceTableCount,
+  "each source table must validate in its own committed transaction");
+assert.equal((cutover.match(/^BEGIN;$/gm) ?? []).length, 1,
+  "the FK cutover must remain one globally atomic transaction");
+assert.match(expand, /current_setting\('lock_timeout'\)/);
+assert.match(expand, /current_setting\('statement_timeout'\)/);
+assert.match(expand, /TEMP_FK_NAME_COLLISION:/);
+assert.match(expand, /REPLACEMENT_FK_SEMANTIC_DRIFT:/);
+assert.match(validate, /REPLACEMENT_FK_MISSING:/);
+assert.match(validate, /convalidated/);
+assert.match(cutover, /REPLACEMENT_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED:/);
 assert.match(expand, /IDENTITY_ROOT_MISSING_LEGACY_USERS/);
 assert.match(expand, /IDENTITY_ROOT_ORPHANS:/);
 assert.match(expand, /LIVE_FK_DRIFT:/);
