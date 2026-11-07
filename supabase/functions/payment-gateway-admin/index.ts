@@ -173,7 +173,7 @@ Deno.serve(async (req: Request) => {
       const submittedEnv = record(record(submitted.environments)[environment]);
       const nextSecrets = mergeSecrets(record(current?.secret_config), submittedEnv, provider, environment);
       const nextPublic = mergePublicConfig(record(current?.public_config), submittedEnv, provider, environment);
-      candidates.push({ provider, is_enabled: enabled, environment, secret_config: nextSecrets, public_config: nextPublic, updated_by: userData.user.id, updated_at: new Date().toISOString() });
+      candidates.push({ provider, is_enabled: enabled, environment, secret_config: nextSecrets, public_config: nextPublic, updated_by: userId, updated_at: new Date().toISOString() });
     }
 
     const chosen = requestedActive === "MANUAL" ? null : candidates.find((row) => row.provider === requestedActive);
@@ -190,7 +190,7 @@ Deno.serve(async (req: Request) => {
       id: true,
       active_provider: requestedActive,
       automatic_payments_enabled: requestedAutomatic,
-      updated_by: userData.user.id,
+      updated_by: userId,
       updated_at: new Date().toISOString(),
     }, { onConflict: "id" });
     if (stateError) return json({ ok: false, error: "PAYMENT_SETTINGS_STATE_SAVE_FAILED" }, 500);
