@@ -47,25 +47,35 @@ NODE
 CLI_VERSION="$(supabase --version 2>/dev/null || true)"
 [[ "$CLI_VERSION" == *"3.0.0"* ]] || die "Expected Supabase CLI 3.0.0 for a reproducible export; found: ${CLI_VERSION:-unknown}"
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")/../.." rev-parse --show-toplevel)"
+SUPABASE_CLI_WORKDIR="${SUPABASE_CLI_WORKDIR:-$REPO_ROOT}"
+[[ -f "$SUPABASE_CLI_WORKDIR/supabase/config.toml" ]] || die "Supabase CLI workdir must contain supabase/config.toml."
+
 OUTPUT_ROOT="${TMPDIR:-/tmp}"
-OUTPUT_DIR="$(mktemp -d "${OUTPUT_ROOT%/}/sykabelajar-auth-schema-baseline.XXXXXX")"
+if [[ -n "${SCHEMA_BASELINE_OUTPUT_DIR:-}" ]]; then
+  OUTPUT_DIR="$(mkdir -p "$SCHEMA_BASELINE_OUTPUT_DIR" && cd "$SCHEMA_BASELINE_OUTPUT_DIR" && pwd -P)"
+  [[ -z "$(find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]] || die "Configured schema baseline output directory must be empty."
+else
+  OUTPUT_DIR="$(mktemp -d "${OUTPUT_ROOT%/}/sykabelajar-auth-schema-baseline.XXXXXX")"
+fi
 case "$OUTPUT_DIR/" in
   "$REPO_ROOT/"*) die 'Refusing to write a schema dump inside the Git repository.' ;;
 esac
 chmod 700 "$OUTPUT_DIR"
 
 printf 'Output folder: %s\n' "$OUTPUT_DIR"
-printf 'Linking the existing Supabase project in local CLI metadata...\n'
-supabase link --project-ref "$SUPABASE_PROJECT_REF"
+printf 'Exporting schema-only custom database objects using Supabase CLI v3 remote mode...\n'
+# CLI v3 accepts the database URL as --remote; no CLI login, link, or project picker is required.
+(
+  cd "$SUPABASE_CLI_WORKDIR"
+  # Default db dump exports schema only; it intentionally omits data and custom roles.
+  supabase db dump -f "$OUTPUT_DIR/schema.sql" --remote="$SUPABASE_DB_URL"
 
-printf 'Exporting schema-only custom database objects...\n'
-# Default `db dump` exports schema only; it intentionally omits data and custom roles.
-supabase db dump --db-url "$SUPABASE_DB_URL" -f "$OUTPUT_DIR/schema.sql"
-
-printf 'Capturing custom Auth/Storage DDL separately...\n'
-# `db diff` is a read-only comparison; output is saved locally, not applied.
-supabase db diff --linked --schema auth,storage > "$OUTPUT_DIR/auth-storage-custom.sql"
+  printf 'Capturing custom Auth/Storage DDL separately...\n'
+  # The empty disposable CLI workdir is used by the workflow to capture all custom managed-schema DDL.
+  # The explicit migra engine is compatible with session-pooler connections and legacy projects.
+  supabase db diff --use-migra --schema auth,storage --remote="$SUPABASE_DB_URL" > "$OUTPUT_DIR/auth-storage-custom.sql"
+)
 
 printf 'Recording PostgreSQL version and installed extension versions...\n'
 psql "$SUPABASE_DB_URL" -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
@@ -97,6 +107,7 @@ fi
 cat > "$OUTPUT_DIR/manifest.txt" <<EOF
 project_ref=$SUPABASE_PROJECT_REF
 supabase_cli=$CLI_VERSION
+cli_mode=explicit_remote_url_no_link_or_login
 generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 mode=schema-only
 contains_application_rows=false
