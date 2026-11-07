@@ -157,3 +157,33 @@ Worker version: `ab04efd9-5750-48c0-8dbe-56c2a6d1118a`.
 The isolated Supabase Free project `ydamszdfsxqisanazdkb` now exists, and its synthetic owner/issuer RLS fixture is applied. Local Supabase CI [#42264325438](https://github.com/taufx98/sykabelajar4.0/actions/runs/42264325438) passes with the additional hosted-issuer fixture migration/test. The actual Supabase Auth Custom OIDC integration is still not registered; the current Supabase app connector does not expose the Management API or Dashboard provider-write operation. Real Better Auth tokens therefore have not yet been accepted by Supabase, and downstream Data API/Storage/Realtime/Edge Function acceptance remains pending.
 
 No user/session was seeded in staging D1. Email Agent is still unconfigured, so do not attempt an end-to-end verified registration until ZeptoMail is configured.
+
+
+
+## Hosted Supabase Custom OIDC acceptance — verified 7 November 2026
+
+The staging-only OIDC registration workflow [#42324487931](https://github.com/taufx98/sykabelajar4.0/actions/runs/42324487931) completed successfully and registered exactly one Custom OIDC integration:
+
+- Supabase staging project: `sykabelajar-auth-staging`
+- Project ref: `ydamszdfsxqisanazdkb`
+- Issuer: `https://auth.sykabelajar.my.id/api/auth`
+- Integration ID: `ecb9da1f-ba63-445a-9585-bb9385099b13`
+- Production project: not touched
+
+Hosted acceptance run [#42328168345](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328168345) completed successfully. It used two synthetic Better Auth users whose UUIDs matched only the two staging fixture owners. It did not use real user accounts, production records, or email delivery.
+
+Verified against the hosted Worker and the staging Supabase Data API:
+
+1. Hosted discovery reports the exact issuer and PKCE S256; JWKS exposes a public ES256/P-256 key.
+2. Authorization Code + PKCE S256 completed against the exact first-party callback. The authorization response carried the RFC 9207 `iss` parameter.
+3. Access tokens had ES256, exact `iss`, the synthetic user's UUID as `sub`, the SYKABELAJAR resource audience, `role=authenticated`, and a lifetime no longer than 300 seconds. No refresh token was issued.
+4. ID tokens validated with the first-party client audience and original nonce.
+5. Supabase Data API accepted the Better Auth access token. `auth.uid()` resolved to the UUID in `sub`.
+6. Each synthetic user could read only their own fixture row. Cross-user insert and a token with a modified signature were rejected.
+7. Session-bound UserInfo rejected the access token after the corresponding Better Auth session was signed out.
+
+**Cleanup verified:** both synthetic users were deleted; the final remote D1 count for their users, sessions, and accounts was zero. The temporary `OIDC_ACCEPTANCE_TEST_TOKEN` Worker secret was removed and its absence was verified. The temporary acceptance-only helper code and workflow were then removed from the source branch; the regular staging Worker deployment is being restored so the live Worker no longer contains the temporary helper route.
+
+**What this run does not establish:** it does not test normal hosted password sign-up, email verification, or password reset. Those still require the email provider setup that is intentionally deferred. Storage and Realtime have not been exercised with a hosted Better Auth token; there are no staging Edge Functions deployed to test. Keep those surface-specific checks pending rather than treating Data API success as proof for every Supabase surface.
+
+Production Supabase authentication settings, schema, users, and application data remain unchanged.
