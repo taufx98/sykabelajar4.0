@@ -14,7 +14,7 @@ Use `scripts/auth-migration/export-schema-baseline.sh`. It requires Supabase CLI
 
 1. Links the existing project in local CLI metadata only.
 2. Runs the default `supabase db dump` schema export to create `schema.sql`. Supabase documents that the default dump does not contain data or custom roles.
-3. Runs the read-only `supabase db diff --to=remote --schema auth,storage` comparison and saves custom managed-schema DDL separately, so custom triggers on `auth.users` and Storage policies are not silently missed.
+3. Runs the read-only `supabase db diff --linked --schema auth,storage` comparison and saves custom managed-schema DDL separately, so custom triggers on `auth.users` and Storage policies are not silently missed.
 4. Records the PostgreSQL version and extension versions for local compatibility checks.
 5. Rejects an unexpected `COPY ... FROM stdin` data block, writes checksums, and does not perform a restore or deploy.
 
