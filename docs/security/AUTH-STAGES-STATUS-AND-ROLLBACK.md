@@ -422,3 +422,15 @@ A read-only policy scan classified the 109 policies that reference `auth.uid()`:
 - No policy in this set directly references `auth.users`.
 
 This defines a more precise later regression surface. The Stage 2 two-user fixture proves the base JWT/`auth.uid()` mapping, not all production policies. The updated counts and required treatment are recorded in [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTITY-DEPENDENCY-INVENTORY.md). No policy or grant was modified.
+
+
+## Supabase Stage 3 lab capacity check — 7 November 2026
+
+A request to create a separate Free project named `sykabelajar-auth-stage3-lab` was evaluated at the quoted cost of **US$0/month**. Supabase rejected creation because the account has reached its limit of **two active Free projects** in the organization:
+
+- Production: `sykabelajar_db2` / `mvdczyitbkxkldjughor`
+- Isolated OIDC staging: `sykabelajar-auth-staging` / `ydamszdfsxqisanazdkb`
+
+No project was created, paused, deleted, or upgraded. The existing OIDC staging project remains healthy and contains only its two-row synthetic OIDC acceptance fixture in the application schemas inspected. Do not pause it merely to create another lab: it holds the Stage 2 hosted acceptance configuration. Reuse it only for explicitly isolated auth test objects after checking for name collisions; never place a production schema restore or application data in it.
+
+The failed project creation attempt does not change any of the seven migration stages or their acceptance criteria. No paid Supabase Development Branch was created.
