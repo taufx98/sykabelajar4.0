@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
   ]);
 
   if (orderError || intentError) return json({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
-  if (!order || !intent || order.user_id !== authData.user.id) return json({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
+  if (!order || !intent || order.user_id !== userId) return json({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
 
   const orderStatus = str(order.status).toUpperCase();
   const intentStatus = str(intent.status).toUpperCase();
