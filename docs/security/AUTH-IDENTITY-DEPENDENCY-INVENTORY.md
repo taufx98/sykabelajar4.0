@@ -423,3 +423,10 @@ A live ACL check found:
 All new provisioning/email-verification PostgREST wrappers must remain service-role-only, while user-facing RPCs must retain caller-scoped `auth.uid()` checks and operation-specific authorization. Do not use a broad default grant for new SECURITY DEFINER functions.
 
 These exact production findings make the current 80/80 hosted synthetic assertions useful but insufficient for a full-schema production migration. No production function, trigger, grant, profile column, or policy was changed.
+
+
+### Frontend consumers and scheduler recheck — 7 November 2026
+
+A branch source recheck confirms `src/components/referrals/ReferralProgramPanel.tsx` is the current frontend caller of `public.get_my_referrals_v2()`. The component stores the RPC rows as `ReferralRow[]`; it does not reference or render `last_login_at`. No current frontend reference to `public.get_my_verified_referrals()` was found in the branch source search; the function name remains in its historical SQL migration. The live catalog still reports its EXECUTE grant to `anon`, so retain this as an ACL cleanup/review candidate rather than treating it as an active product requirement.
+
+A read-only query of production `cron.job` returned no job whose command calls `verify_pending_referrals()` at this checkpoint. The SQL function exists, and its exact body still scans five fallback activity sources, but do not assume an hourly pg_cron invocation is currently active. Check the intended scheduler owner and deployment mechanism before restoring or changing scheduling as part of the identity migration.
