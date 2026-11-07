@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   completeSupabaseEmailVerification,
+  completeSupabasePhoneVerification,
   isSupabaseProvisioningEnabled,
   normalizeBetterAuthRegistration,
   reconcileSupabaseApplicationIdentity,
@@ -366,4 +367,82 @@ test("unexpected provision response cannot open an application session", async (
     ),
     /SUPABASE_PROVISIONING_RESPONSE_INVALID/,
   );
+});
+
+
+test("trusted phone verification sends only the normalized SHA-256 identity hash to the server-only RPC", async () => {
+  const calls = [];
+  const result = await completeSupabasePhoneVerification(env, {
+    userId: USER_ID,
+    verifiedAt: "2026-11-07T00:00:00.000Z",
+    phoneHash: "d".repeat(64),
+    providerSubject: "987654321",
+    phoneDigitsCount: 13,
+  }, async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(init.body), headers: init.headers });
+    return response(true);
+  });
+  assert.deepEqual(result, { enabled: true, userId: USER_ID, alreadyVerified: false });
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].url.endsWith("/better_auth_complete_phone_verification"));
+  assert.equal(calls[0].headers.Authorization, "Bearer " + SERVICE_KEY);
+  assert.deepEqual(calls[0].body, {
+    p_user_id: USER_ID,
+    p_verified_at: "2026-11-07T00:00:00.000Z",
+    p_phone_hash: "d".repeat(64),
+    p_provider: "telegram",
+    p_provider_subject: "987654321",
+    p_phone_digits_count: 13,
+  });
+  assert.equal(JSON.stringify(calls[0].body).includes("+628"), false);
+});
+
+test("phone verification retries are treated as idempotent without exposing provider details", async () => {
+  const result = await completeSupabasePhoneVerification(env, {
+    userId: USER_ID,
+    verifiedAt: "2026-11-07T00:00:00.000Z",
+    phoneHash: "e".repeat(64),
+    providerSubject: "123456789",
+    phoneDigitsCount: 12,
+  }, async () => response(false));
+  assert.deepEqual(result, { enabled: true, userId: USER_ID, alreadyVerified: true });
+});
+
+test("malformed phone verification payloads are rejected before any Supabase request", async () => {
+  let called = false;
+  const fetchImpl = async () => {
+    called = true;
+    return response(true);
+  };
+  for (const input of [
+    { userId: "not-a-uuid", verifiedAt: "2026-11-07T00:00:00.000Z", phoneHash: "a".repeat(64), providerSubject: "12345678", phoneDigitsCount: 12 },
+    { userId: USER_ID, verifiedAt: "invalid", phoneHash: "a".repeat(64), providerSubject: "12345678", phoneDigitsCount: 12 },
+    { userId: USER_ID, verifiedAt: "2026-11-07T00:00:00.000Z", phoneHash: "bad", providerSubject: "12345678", phoneDigitsCount: 12 },
+    { userId: USER_ID, verifiedAt: "2026-11-07T00:00:00.000Z", phoneHash: "a".repeat(64), providerSubject: "abc", phoneDigitsCount: 12 },
+    { userId: USER_ID, verifiedAt: "2026-11-07T00:00:00.000Z", phoneHash: "a".repeat(64), providerSubject: "12345678", phoneDigitsCount: 7 },
+  ]) {
+    await assert.rejects(completeSupabasePhoneVerification(env, input, fetchImpl), /PHONE_VERIFICATION_INPUT_INVALID/);
+  }
+  assert.equal(called, false);
+});
+
+test("phone verification rejects unconfigured Supabase provisioning and unexpected RPC output", async () => {
+  await assert.rejects(completeSupabasePhoneVerification({
+    ...env,
+    SUPABASE_PROVISIONING_ENABLED: "false",
+  }, {
+    userId: USER_ID,
+    verifiedAt: "2026-11-07T00:00:00.000Z",
+    phoneHash: "a".repeat(64),
+    providerSubject: "12345678",
+    phoneDigitsCount: 12,
+  }), /SUPABASE_PROVISIONING_DISABLED/);
+
+  await assert.rejects(completeSupabasePhoneVerification(env, {
+    userId: USER_ID,
+    verifiedAt: "2026-11-07T00:00:00.000Z",
+    phoneHash: "a".repeat(64),
+    providerSubject: "12345678",
+    phoneDigitsCount: 12,
+  }, async () => response({ verified: true })), /PHONE_VERIFICATION_RESPONSE_INVALID/);
 });
