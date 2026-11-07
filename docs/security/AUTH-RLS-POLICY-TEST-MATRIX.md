@@ -29,7 +29,7 @@ The current local disposable-schema regression is `scripts/auth-migration/stage3
 | Domain / pattern | Current assertion | Coverage status |
 |---|---|---|
 | `profiles` owner/self | Owner reads own private profile; cross-user private profile is hidden; cross-user update changes zero rows | Covered |
-| `profiles` public-or-owner | Anon cannot read private synthetic profiles; public legacy referral RPC is separately checked for no anon leakage | Partially covered; positive public-profile visibility needs an explicit case |
+| `profiles` public-or-owner | Anon reads one explicitly public synthetic profile and cannot read private profiles; the public legacy referral RPC returns no referral rows to anon | Covered |
 | Profile backend guards | Authenticated update of `edu_coin` or `account_type` is rejected with the production guard error | Covered |
 | `user_roles` owner/self | User can read own role; related users' role rows remain hidden | Covered |
 | `referral_events` owner/self | Referrer and referred user can see their own relationship; unrelated user is not part of the tested fixture | Representative coverage |
