@@ -122,3 +122,19 @@ The inspected non-`pg_` roles were Supabase platform roles only (`anon`, `authen
 Default ACL metadata exists across `auth`, `cron`, `extensions`, `graphql`, `graphql_public`, `public`, `realtime`, and `storage`. In particular, the `public` schema has default ACL entries for `anon`, `authenticated`, and `service_role` on relations, sequences and functions. These grants must be reconciled with the target local Supabase stack before using the restore for RLS/function regression; do not blindly replay platform-owned default privileges. The exporter captures the role/default-ACL catalog to `role-metadata.txt` for exact comparison.
 
 These are schema/security metadata only. No production role, ACL, extension, database object, user, or application row was changed.
+
+## Verified full production-schema baseline and regression — 7 November 2026
+
+The automated workflow is no longer blocked by connection-string preflight. The existing Actions secret was corrected and the workflow has successfully exported the live production schema read-only, restored it to a disposable local Supabase stack, applied the captured Auth/Storage custom DDL, reconstructed the ten reviewed function ACLs locally, compared the 69-FK catalog and Stage 3 metadata, and run rollback-only behavior fixtures.
+
+Successful runs:
+- [#42378450476](https://github.com/taufx98/sykabelajar4.0/actions/runs/42378450476) — full schema/FK/function/trigger/RLS/profile/ACL parity and core behavior regression.
+- [#42379192223](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379192223) — repeat restore plus trusted synthetic admin-overlay behavior.
+- [#42379195281](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379195281) — local JWT/owner RLS and related CI.
+
+The regression fixture is scripts/auth-migration/stage3-production-schema-regression.sql. It is not a manual production script. It deliberately inserts synthetic identities/business rows into the disposable restore, verifies behavior as authenticated/anon with explicit UUID claims, then rolls back the entire transaction. Do not run this file against a hosted database.
+
+Extended owner/admin tests for commerce, payment events, shipments, canonical participants, attempts and teacher rosters are currently being validated by [#42379783008](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379783008). Its static/contract and local CI companion [#42379783126](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379783126) succeeded. Wait for the full baseline run before reporting the extra behavior cases as passed.
+
+The successful baseline does not authorize production changes. No production SQL migration, FK rehome, DDL/DML, trigger/function/RLS update, user reset, issuer switch, Edge deployment, or login cutover has been performed. The 109-policy matrix is not exhaustive; see AUTH-RLS-POLICY-TEST-MATRIX.md for the coverage still required.
+
