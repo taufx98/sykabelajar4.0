@@ -193,12 +193,16 @@ SELECT extensions.lives_ok(
   $$SELECT * FROM public.create_organizer('Organizer Alpha','organizer-alpha')$$,
   'verified organizer can create the first workspace'
 );
+RESET ROLE;
+SET LOCAL ROLE service_role;
 SELECT extensions.is(
   (SELECT count(*)::integer FROM private.organizer_free_identity_claims
    WHERE identity_hash='dd752605096029a73495a91862983963e1947a834a4300808074185af10bb725'),
   1,
   'one free organizer identity claim is created for the verified phone hash'
 );
+RESET ROLE;
+SET LOCAL ROLE authenticated;
 SELECT extensions.throws_ok(
   $$SELECT * FROM public.create_organizer('Organizer Alpha Again','organizer-alpha-again')$$,
   'P0001','ORGANIZER_LIMIT_REACHED',
