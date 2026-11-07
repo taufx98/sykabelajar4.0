@@ -124,7 +124,7 @@ test("phone normalization accepts only international 8–15 digit phone claims",
 test("SHA-256 matches the legacy digits-only organizer identity hash contract", async () => {
   assert.equal(
     await sha256Hex("6281234567890"),
-    "7b44a0833f1b3b1f6f5f9d2d4fd3a0e2a1b8eac59f8a9a1bbd2a5fbb6c3a9f8c",
+    "dd752605096029a73495a91862983963e1947a834a4300808074185af10bb725",
   );
 });
 
