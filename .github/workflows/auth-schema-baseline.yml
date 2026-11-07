@@ -1,4 +1,5 @@
 name: Auth Production Schema Baseline
+# Triggered by a workflow-file push; production reads remain schema-only and isolated.
 
 on:
   push:
