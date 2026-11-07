@@ -16,7 +16,7 @@ See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](../../docs/security/AUTH-NEW-ACCOUNT
 
 ## Responsibilities
 
-- Better Auth owns account credentials, Google identity, email verification, password recovery, and server-side sessions.
+- Better Auth owns account credentials, optional Google/Facebook/Twitter (X) social identities, email verification, password recovery, and server-side sessions. Google is enabled only when both Google credentials exist; Facebook and X are likewise optional and require both of their own server-side credentials.
 - Cloudflare D1 stores Better Auth identity/session/OAuth/JWKS/rate-limit records only.
 - The OAuth Provider plugin exposes OIDC discovery and ES256-signed JWT access tokens for Supabase.
 - The role claim is always PostgreSQL authenticated; it is never a SYKABELAJAR business role.
@@ -53,8 +53,10 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 - The committed `wrangler.toml` binds the isolated staging D1 `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`). This database is non-production and must never be replaced with the production Supabase database or reused for application business data.
 - Do not point this service at the production Supabase database or add the Better Auth issuer to production Third-Party Auth yet.
 - Do not add secrets to this directory, source control, Vite variables, or browser code.
-- The Google provider is enabled only when both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured.
-- Google OAuth callback URL for the eventual provider console configuration: https://auth.sykabelajar.my.id/api/auth/callback/google
+- Google sign-in is enabled only when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are configured. Callback: `https://auth.sykabelajar.my.id/api/auth/callback/google`.
+- Facebook sign-in is enabled only when both `FACEBOOK_CLIENT_ID` and `FACEBOOK_CLIENT_SECRET` are configured. Callback: `https://auth.sykabelajar.my.id/api/auth/callback/facebook`. Because Meta does not guarantee a verified-email claim for every Graph profile, SYKABELAJAR's own email verification gate remains mandatory.
+- Twitter/X sign-in is enabled only when both `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET` are configured. Callback: `https://auth.sykabelajar.my.id/api/auth/callback/twitter`. Better Auth 1.7.16's built-in provider requests X's `users.email` scope and treats only `confirmed_email` as verified; SYKABELAJAR still requires its local email verification gate.
+- Instagram is not configured as a general social-login provider. Meta's current official Instagram Login API is for professional Business/Creator accounts, not ordinary personal accounts; the old Basic Display API was shut down on 4 December 2024. Do not register a fake Generic OAuth provider or treat a professional-account connection as general Instagram login. Revisit only if the product explicitly accepts Business/Creator-only Instagram sign-in and an owner-approved provider review.
 - Email/password sign-up requires email verification. Production staging requires one active ZeptoMail Agent profile. The authenticated webhook is only the local CI/dev fallback.
 
 
@@ -79,8 +81,12 @@ The D1/Supabase quota/failover policy, monitoring bands and future frontend reco
 | OAUTH_CLIENT_BOOTSTRAP_TOKEN | Worker secret | Internal bearer token for read-only verification of the migrated first-party client |
 | D1_SCHEMA_BOOTSTRAP_TOKEN | Local-only secret | Enables local schema export during CI only |
 | ALLOW_SCHEMA_BOOTSTRAP | Local-only variable | Must never be enabled on a shared or production Worker |
-| GOOGLE_CLIENT_ID | Worker secret/variable | Google OAuth client ID |
-| GOOGLE_CLIENT_SECRET | Worker secret | Google OAuth client secret |
+| GOOGLE_CLIENT_ID | Worker secret | Optional Google OAuth client ID |
+| GOOGLE_CLIENT_SECRET | Worker secret | Optional Google OAuth client secret |
+| FACEBOOK_CLIENT_ID | Worker secret | Optional Facebook OAuth app ID |
+| FACEBOOK_CLIENT_SECRET | Worker secret | Optional Facebook OAuth app secret |
+| TWITTER_CLIENT_ID | Worker secret | Optional Twitter/X OAuth 2.0 client ID |
+| TWITTER_CLIENT_SECRET | Worker secret | Optional Twitter/X OAuth 2.0 client secret |
 | AUTH_EMAIL_PROVIDER | Worker variable | `zeptomail` for staging/production; `webhook` for local CI/dev |
 | AUTH_EMAIL_ENCRYPTION_KEY | Worker secret | Stable random key (32+ characters) for AES-256-GCM encryption of Agent tokens |
 | SUPABASE_URL | Worker variable | Supabase URL for current admin session validation during the migration bridge |
@@ -178,3 +184,17 @@ The isolated Cloudflare deployment is now successful. Manual GitHub Actions run 
 The exact hosted issuer is `https://auth.sykabelajar.my.id/api/auth`. The smoke test explicitly reports `emailAgentConfigured=false`, `googleOAuthCredentialsConfigured=false`, and `noUserOrSessionSeeded=true`. Thus real email delivery and Google OAuth have not been tested. The frontend remains on Supabase Auth; this Worker is an isolated staging issuer only, not the application’s primary login.
 
 No production Supabase schema/data/Auth configuration, production Worker, production DNS, frontend login flow or user account was changed by this deployment.
+
+## Optional social-login provider rollout — 7 November 2026
+
+The Worker source now supports optional Google, Facebook and Twitter/X provider configuration. Each provider is omitted from Better Auth when its credentials are unset. A partial pair (client ID without secret or vice versa) fails Worker initialization rather than presenting a broken login button. Credentials belong only in Cloudflare Worker secrets and are never set in `wrangler.toml`, Pages environment variables, or Git.
+
+Required callback URLs when configuring provider dashboards:
+
+- Google: `https://auth.sykabelajar.my.id/api/auth/callback/google`
+- Facebook: `https://auth.sykabelajar.my.id/api/auth/callback/facebook`
+- Twitter/X: `https://auth.sykabelajar.my.id/api/auth/callback/twitter`
+
+All three social providers use Better Auth's local email verification requirement. Facebook's Graph profile does not guarantee a trustworthy `email_verified` signal, so a Facebook email is treated as unverified by default. Twitter/X uses the built-in Better Auth 1.7.16 provider, which asks for `users.email` and recognizes only a returned `confirmed_email` as verified. Users without a real email must not be given a `.invalid` placeholder account that can never receive the verification challenge.
+
+Instagram is intentionally not included as an ordinary login option. Meta's current Instagram Login API is for Instagram professional Business/Creator accounts; the old Basic Display API for personal accounts was shut down on 4 December 2024. Better Auth's generic OAuth plugin does not remove this underlying Meta eligibility restriction. A future Instagram professional-account integration would need its own product requirement, Meta app review and explicit account eligibility decision.
