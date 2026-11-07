@@ -14,6 +14,8 @@ on:
       - "scripts/auth-migration/verify-stage3-baseline-metadata.mjs"
       - "scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs"
       - "scripts/auth-migration/stage3-production-schema-regression.sql"
+      - "scripts/auth-migration/generate-stage3-function-acl-restore.mjs"
+      - "scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs"
       - ".github/workflows/auth-schema-baseline.yml"
   workflow_dispatch:
 
@@ -129,6 +131,10 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs
 
+      - name: Test Stage 3 function ACL restore generator contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
+
       - name: Prepare an empty disposable Supabase project
         if: steps.credentials.outputs.available == 'true'
         run: |
@@ -196,6 +202,28 @@ jobs:
             postgres:17.6-alpine \
             psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
               -X -q --set=ON_ERROR_STOP=1 --file=/baseline/auth-storage-custom.sql
+
+      - name: Reconstruct production Auth function ACLs in disposable local database only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          node scripts/auth-migration/generate-stage3-function-acl-restore.mjs \
+            --metadata "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json" \
+            --out "$RUNNER_TEMP/stage3-function-acls.sql"
+
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$RUNNER_TEMP/stage3-function-acls.sql:/baseline/stage3-function-acls.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-function-acls.sql
+
+          {
+            echo ""
+            echo "- Reconstructed ACLs for the ten audited Auth-dependent functions from production metadata in the disposable local database only"
+            echo "- No production grant/revoke statement was executed"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify the restored production schema shape and zero imported user rows
         if: steps.credentials.outputs.available == 'true'
@@ -389,5 +417,5 @@ jobs:
       - name: Remove schema export and temporary local project
         if: always()
         run: |
-          rm -f "$RUNNER_TEMP/restored-auth-users-fks.json" "$RUNNER_TEMP/restored-stage3-baseline-metadata.json"
+          rm -f "$RUNNER_TEMP/restored-auth-users-fks.json" "$RUNNER_TEMP/restored-stage3-baseline-metadata.json" "$RUNNER_TEMP/stage3-function-acls.sql"
           rm -rf "$SCHEMA_BASELINE_OUTPUT_DIR" "$SUPABASE_CLI_WORKDIR"
