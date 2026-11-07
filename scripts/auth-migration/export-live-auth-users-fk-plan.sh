@@ -55,9 +55,8 @@ if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
 if (!directHost && !poolerHost) {
   throw new Error("Database URI host/username does not match SUPABASE_PROJECT_REF.");
 }
-if (url.searchParams.get("sslmode") && url.searchParams.get("sslmode") !== "require" &&
-    url.searchParams.get("sslmode") !== "verify-ca" &&
-    url.searchParams.get("sslmode") !== "verify-full") {
+const sslmode = url.searchParams.get("sslmode") || "require";
+if (!["require", "verify-ca", "verify-full"].includes(sslmode)) {
   throw new Error("TLS is required for the production database connection.");
 }
 const host = url.hostname;
@@ -75,7 +74,7 @@ writeFileSync(envFile, [
   "export PGPORT=" + shellQuote(port),
   "export PGDATABASE=" + shellQuote(database),
   "export PGUSER=" + shellQuote(username),
-  "export PGSSLMODE=require",
+  "export PGSSLMODE=" + shellQuote(sslmode),
   "export PGPASSFILE=" + shellQuote(passFile),
 ].join("\n") + "\n", { mode: 0o600 });
 NODE
