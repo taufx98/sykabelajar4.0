@@ -246,7 +246,7 @@ export function createAuth(env: AuthWorkerEnv) {
             const user = await ctx.context.adapter.findOne({
               model: "user",
               where: [{ field: "id", value: session.userId }],
-            });
+            }) as { emailVerified?: boolean } | null;
             if (!user) {
               throw new APIError("INTERNAL_SERVER_ERROR", {
                 message: "AUTH_USER_NOT_FOUND",
