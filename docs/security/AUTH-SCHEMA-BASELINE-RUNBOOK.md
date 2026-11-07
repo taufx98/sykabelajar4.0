@@ -1,6 +1,6 @@
 # Auth migration schema-only baseline runbook
 
-Status: local preparation only. This runbook does not authorize a production migration.
+Status: automated read-only export and disposable restore are prepared in GitHub Actions. The workflow is currently safely skipping because the required repository secret `SUPABASE_DB_URL` is not configured. This runbook does not authorize a production migration.
 
 ## Purpose
 
@@ -8,13 +8,27 @@ The repository's historical `supabase/migrations` directory is incremental and i
 
 The existing `scripts/supabase-full-migrate.sh` is **not** suitable for this task: it also exports `data.sql`, role definitions, migration history, and includes a restore path. Do not use that full migration helper for auth testing.
 
+## Automated path — preferred; no owner CLI required
+
+The branch now contains [Auth Production Schema Baseline](../../.github/workflows/auth-schema-baseline.yml). It runs on a push to the PoC branch or via the Actions workflow-dispatch button. Once the single database secret exists, the job:
+
+1. Uses Supabase CLI **3.0.0** in v3 remote mode. It does not call `supabase login`, `supabase link`, a project picker, or any production write command.
+2. Uses the existing production project's **shared session pooler** URI because GitHub-hosted runners are IPv4-only. The expected connection is port **5432**, username `postgres.mvdczyitbkxkldjughor`, and a host ending in `.pooler.supabase.com`.
+3. Exports only schema and custom Auth/Storage DDL, plus password-free compatibility metadata. It never requests application rows or custom role definitions.
+4. Restores the files into a fresh, disposable local Supabase stack inside that GitHub runner and checks the expected production shape: 69 FKs across 62 source tables, 3 Auth triggers, 4 profile triggers, 36 profile columns, 109 `auth.uid()` policies, and all ten Auth-dependent application functions.
+5. Confirms that zero `auth.users` and zero `public.profiles` rows were imported. The runner removes the temporary SQL and local project after the check. There is no schema artifact upload and no SQL file is committed to the public repository.
+
+**The one owner-only action:** in GitHub, open **Settings → Secrets and variables → Actions → New repository secret**, name it `SUPABASE_DB_URL`, and set its value to the production project's **Session pooler** connection URI copied from Supabase Dashboard → Connect. Do not send the URI or database password in chat, an issue, a commit, or a workflow log. Once the secret has been saved, tell the assistant; the workflow can then be started and verified without a terminal or CLI command.
+
+The first workflow attempt on 7 November completed safely with the export/restore steps skipped because the secret was absent. The secret's value is never queried or echoed by the workflow.
+
 ## Safe exporter
 
 Use `scripts/auth-migration/export-schema-baseline.sh`. It requires Supabase CLI 3.0.0, Node.js (for a connection-target guard), local Docker and `psql`, creates a temporary output directory outside the repository, then:
 
-1. Links the existing project in local CLI metadata only.
+1. Connects with the explicit remote database URI using Supabase CLI v3's `--remote=<uri>` flag; no project linking or CLI login is required.
 2. Runs the default `supabase db dump` schema export to create `schema.sql`. Supabase documents that the default dump does not contain data or custom roles.
-3. Runs the read-only `supabase db diff --linked --schema auth,storage` comparison and saves custom managed-schema DDL separately, so custom triggers on `auth.users` and Storage policies are not silently missed.
+3. Runs the read-only `supabase db diff --use-migra --schema auth,storage --remote=<uri>` comparison and saves custom managed-schema DDL separately, so custom triggers on `auth.users` and Storage policies are not silently missed.
 4. Records the PostgreSQL version and extension versions for local compatibility checks.
 5. Rejects an unexpected `COPY ... FROM stdin` data block, writes checksums, and does not perform a restore or deploy.
 
@@ -52,7 +66,7 @@ bash scripts/auth-migration/export-schema-baseline.sh
 unset SUPABASE_DB_URL
 ```
 
-The script may ask the Supabase CLI to authenticate/link the existing project. It uses no new Supabase project, branch, paid service, or Cloudflare deployment. The database export and diff are read-only; the only files written are local temporary schema/metadata artifacts.
+The local fallback uses an explicit remote URI with CLI v3; it does not require CLI login or project linking. It uses no new Supabase project, branch, paid service, or Cloudflare deployment. The database export and diff are read-only; the only files written are local temporary schema/metadata artifacts.
 
 ## Output and handling
 
