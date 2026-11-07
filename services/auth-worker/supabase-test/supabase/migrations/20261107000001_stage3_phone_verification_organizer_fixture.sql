@@ -176,7 +176,7 @@ GRANT EXECUTE ON FUNCTION public.better_auth_complete_phone_verification(
 
 CREATE OR REPLACE FUNCTION public.create_organizer(p_name text, p_slug text)
 RETURNS TABLE(id uuid, name text, slug text, access_code text)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public', 'private'
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $function$
 DECLARE
   v_uid uuid := auth.uid();
