@@ -121,7 +121,9 @@ Deno.serve(async (req: Request) => {
 
   const identity = await requireBetterAuthUser(req);
   if (!identity.ok) return json({ ok: false, error: identity.error }, identity.status);
-  const { userId, supabase: authClient } = identity;
+  const { userId } = identity;
+  const authClient = identity.supabase;
+  if (!authClient) return json({ ok: false, error: "AUTH_SUPABASE_CONTEXT_UNAVAILABLE" }, 503);
 
   // The existing caller-scoped admin RPC remains the business-role gate.
   // Service-role reads/writes occur only after it returns true.
