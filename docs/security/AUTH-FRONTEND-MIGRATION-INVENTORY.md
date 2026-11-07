@@ -102,7 +102,7 @@ A new `src/services/betterAuthApi.client.ts` transport boundary is committed and
 
 - `getSession()` — validates the Better Auth session/user envelope, UUID subject, local verified-email flag and expiry.
 - `getResourceToken()` — retrieves the short-lived Supabase resource JWT from the Better Auth `/token` endpoint for one caller request; it is returned in memory only and is never stored in browser storage.
-- Email/social sign-in, registration and sign-out transport methods. Registration accepts only `student`, `teacher`, and `organizer`; username validation mirrors the Worker 3–40 character rule.
+- Email/social sign-in, registration, resend-verification, password-reset request, password-reset completion, password change and sign-out transport methods. Password change defaults to revoking other sessions. Registration accepts only `student`, `teacher`, and `organizer`; username validation mirrors the Worker 3–40 character rule.
 
 This is deliberately a **disabled staging transport scaffold**, not a frontend cutover. It uses the browser's `credentials: include`, `cache: no-store`, exact HTTPS custom auth origin, and an explicit `VITE_BETTER_AUTH_FRONTEND_ENABLED=true` switch. The switch is unset by default. The module is not imported by `AppContext`, `auth.service.ts`, or any page; current users still authenticate only through Supabase Auth. No second auth listener, duplicate profile hydration, account-switch race, or split token broker has been introduced.
 
