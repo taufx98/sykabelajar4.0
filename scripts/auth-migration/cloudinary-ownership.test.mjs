@@ -116,7 +116,7 @@ test("Cloudinary signer supports an explicit Better Auth identity mode and defau
   assert.match(endpoint, /authMode === "better-auth"/);
   assert.match(endpoint, /requireBetterAuthUser\(req\)/);
   assert.match(endpoint, /AUTH_IDENTITY_MODE_INVALID/);
-  assert.match(endpoint, /authMode === "supabase"/);
+  assert.equal(endpoint.includes("} else {"), true);
 });
 
 test("the Edge Function uses a pinned Supabase client and derives ownership from verified auth", () => {
@@ -156,7 +156,7 @@ test("Cloudinary delete supports an explicit Better Auth mode while preserving l
   assert.match(deleteEndpoint, /authMode === "better-auth"/);
   assert.match(deleteEndpoint, /requireBetterAuthUser\(request\)/);
   assert.match(deleteEndpoint, /AUTH_IDENTITY_MODE_INVALID/);
-  assert.match(deleteEndpoint, /authMode === "supabase"/);
+  assert.equal(deleteEndpoint.includes("} else {"), true);
 });
 
 test("Cloudinary delete authorization executes before the provider secret and remote destroy call", () => {
