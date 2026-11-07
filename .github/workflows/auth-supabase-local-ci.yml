@@ -63,6 +63,7 @@ jobs:
           node ../../../scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs
           node ../../../scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs
           node ../../../scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs
+          node ../../../scripts/auth-migration/stage3-issuer-guard.contract.test.mjs
           bash -n ../../../scripts/auth-migration/export-live-auth-users-fk-plan.sh
           node ../../../scripts/auth-migration/export-live-auth-users-fk-plan.contract.test.mjs
 
