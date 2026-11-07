@@ -597,3 +597,14 @@ A fresh read-only production catalog check on 7 November returned PostgreSQL **1
 - [Auth Worker CI #42354587388](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354587388) and [Supabase Local Auth Claims CI #42354587327](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354587327) both passed. They tested code at `345e641d50b39a81722302e79f66839d4e5460d2`; the three commits between that SHA and the then-current PR head `d434e3a` changed documentation only.
 - PR #177 remains **open, Draft and unmerged**. GitHub still reports it as non-mergeable/dirty against `security/auth-migration-phase-0`. Do not force-merge or cut over; base reconciliation and all seven acceptance gates remain mandatory.
 - No production Supabase schema/data/Auth setting, production Worker/DNS, frontend login, Edge Function deployment, payment configuration or Cloudinary asset was changed by this checkpoint.
+
+
+### Automated Stage 3 baseline execution checkpoint — 7 November 2026
+
+- Added [Auth Production Schema Baseline](../../.github/workflows/auth-schema-baseline.yml) so export and restore can run on GitHub-hosted infrastructure; the user does not need to run Supabase CLI locally.
+- The exporter now uses Supabase CLI 3.0.0 explicit remote mode and a temporary mode-0600 `.pgpass` file. It does not require Supabase CLI login/link, does not echo the database URL, and does not place credentials in process arguments. Workflow output stays only on the ephemeral runner; SQL artifacts are not uploaded or committed.
+- [Supabase Local Auth Claims CI #42362719147](https://github.com/taufx98/sykabelajar4.0/actions/runs/42362719147) passed all steps, including updated exporter contract checks, Edge/Deno type checks, live-FK plan dry run, and disposable local UUID/two-user RLS tests.
+- [Baseline workflow #42362719045](https://github.com/taufx98/sykabelajar4.0/actions/runs/42362719045) ended successfully in **skip-only mode** because GitHub repository secret `SUPABASE_DB_URL` is not yet configured. No database connection was attempted; no schema was exported or restored.
+- **Only remaining owner action for the full baseline:** add the production Session pooler URI in GitHub repository **Settings → Secrets and variables → Actions** as secret `SUPABASE_DB_URL`, using port 5432 and username `postgres.mvdczyitbkxkldjughor`. Do not share the URI/password in chat. Once present, workflow execution and verification can continue without terminal/CLI work.
+
+Stage 3 is therefore still open. The production database remains read-only/unchanged by this migration activity: no production schema/data/Auth/role/ACL changes have been applied.
