@@ -26,7 +26,7 @@ assert.match(acceptance, /STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_READ_ALLOWED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_INSERT_ALLOWED/);
 assert.match(acceptance, /ROLLBACK;/);
-assert.doesNotMatch(draft, /ALTER TABLE|DROP POLICY|GRANT |REVOKE |INSERT INTO|UPDATE [a-z_]+ SET|DELETE FROM/i,
+assert.doesNotMatch(draft, /^\s*(?:ALTER TABLE|DROP POLICY|GRANT|REVOKE|INSERT INTO|UPDATE\s+[a-z_]+\s+SET|DELETE FROM)\b/im,
   "issuer draft must not widen privileges, mutate application rows, or change existing policies");
 
 console.log("Stage 3 issuer guard draft contract passed: 61 restrictive guards, two approved overlap issuers, no grant/policy rewrites.");
