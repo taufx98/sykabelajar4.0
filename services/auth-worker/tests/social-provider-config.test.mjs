@@ -21,9 +21,11 @@ test("Google, Facebook and X provider credentials are optional and validated as 
   assert.match(auth, /Object\.keys\(configuredSocialProviders\)\.length > 0/);
 });
 
-test("Facebook login requests basic profile/email and requires SYKABELAJAR email verification", () => {
+test("Facebook login requests email and rejects profiles without a usable email", () => {
   assert.match(auth, /facebook:\s*\{/);
   assert.match(auth, /scope:\s*\["email",\s*"public_profile"\]/);
+  assert.match(auth, /FACEBOOK_EMAIL_REQUIRED/);
+  assert.match(auth, /profile\.email\.trim\(\)/);
   assert.match(auth, /requireEmailVerification:\s*true/);
 });
 
@@ -33,6 +35,8 @@ test("X login uses the built-in Twitter provider and verified-email gate", () =>
   // Better Auth 1.7.16's built-in Twitter provider requests users.email and
   // maps X's confirmed_email response to emailVerified=true.
   assert.match(auth, /Better Auth 1\.7\.16 requests users\.email by default/);
+  assert.match(auth, /TWITTER_CONFIRMED_EMAIL_REQUIRED/);
+  assert.match(auth, /profile\.data\.email\.trim\(\)/);
 });
 
 test("Telegram phone verification is not registered as a social login provider", () => {
