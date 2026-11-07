@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT extensions.plan(25);
+SELECT extensions.plan(26);
 
 SELECT extensions.ok(
   ARRAY['student','teacher','organizer_member','admin']::text[] <@
