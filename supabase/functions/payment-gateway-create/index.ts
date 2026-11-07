@@ -60,9 +60,9 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: order, error: orderError } = await admin.from("orders")
     .select("id,user_id,total,currency,status,payment_method_id,payment_provider,contact_name,contact_email,contact_whatsapp,contact_note,order_items(product_type,product_ref)")
-    .eq("id", orderId).maybeSingle();
+    .eq("id", orderId).eq("user_id", userId).maybeSingle();
   if (orderError) return response({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
-  if (!order || order.user_id !== userId) return response({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
+  if (!order) return response({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
   if (!["PENDING", "PENDING_PAYMENT"].includes(String(order.status))) return response({ ok: false, error: "ORDER_NOT_PAYABLE" }, 409);
   if (!order.payment_method_id) return response({ ok: false, error: "GLOBAL_GATEWAY_METHOD_REQUIRED", message: "Order ini tidak memilih metode Gateway Global." }, 409);
   const { data: selectedMethod, error: selectedMethodError } = await admin.from("organizer_payment_methods")
