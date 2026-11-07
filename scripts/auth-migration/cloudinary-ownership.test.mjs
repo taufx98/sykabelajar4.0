@@ -9,6 +9,8 @@ const endpoint = readFileSync(endpointPath, "utf8");
 const identityResolver = readFileSync(new URL("../../supabase/functions/_shared/require-application-user.ts", import.meta.url), "utf8");
 const deleteEndpointPath = fileURLToPath(new URL("../../supabase/functions/cloudinary-delete-asset/index.ts", import.meta.url));
 const deleteEndpoint = readFileSync(deleteEndpointPath, "utf8");
+const profileUploadPath = fileURLToPath(new URL("../../supabase/functions/cloudinary-profile-upload/index.ts", import.meta.url));
+const profileUploadEndpoint = readFileSync(profileUploadPath, "utf8");
 const supabaseConfig = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
 
 test("legacy UUID-based avatar and cover assets are limited to the authenticated UUID", () => {
@@ -119,6 +121,18 @@ test("the shared identity resolver defaults to legacy Supabase Auth and only opt
   assert.match(identityResolver, /supabase\.auth\.getUser\(\)/);
   assert.match(identityResolver, /AUTH_IDENTITY_MODE_INVALID/);
   assert.doesNotMatch(identityResolver, /SERVICE_ROLE_KEY|service_role/i);
+});
+
+test("Cloudinary profile upload uses the shared verified identity and derives UUID-owned asset IDs", () => {
+  assert.match(profileUploadEndpoint, /requireApplicationUser\(req\)/);
+  assert.match(profileUploadEndpoint, /const userId = identity\.userId/);
+  assert.match(profileUploadEndpoint, /profile_pictures\/user_\$\{userId\}/);
+  assert.match(profileUploadEndpoint, /profile_covers\/user_\$\{userId\}/);
+  assert.match(profileUploadEndpoint, /file\.size > 5 \* 1024 \* 1024/);
+  assert.match(profileUploadEndpoint, /kind !== "profile" && kind !== "cover"/);
+  assert.doesNotMatch(profileUploadEndpoint, /body\.user_id|body\.owner_id|form\.get\(["']user_id/);
+  assert.match(profileUploadEndpoint, /CLOUDINARY_API_SECRET/);
+  assert.match(profileUploadEndpoint, /image\/upload/);
 });
 
 test("the Cloudinary signer uses the shared verified identity and caller-scoped ownership reads", () => {
