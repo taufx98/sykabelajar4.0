@@ -36,6 +36,10 @@ DECLARE
   v_profile_type text;
   v_role public.app_role;
   v_org_hash text;
+  v_auth_create_organizer boolean;
+  v_anon_create_organizer boolean;
+  v_auth_register boolean;
+  v_auth_apply_referral boolean;
 BEGIN
   IF EXISTS (
     SELECT 1 FROM auth.users
@@ -70,11 +74,22 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RESTORE_MUST_START_WITH_ZERO_AUTH_AND_PROFILE_ROWS';
   END IF;
 
-  IF NOT has_function_privilege('authenticated','public.create_organizer(text,text)','EXECUTE')
-     OR has_function_privilege('anon','public.create_organizer(text,text)','EXECUTE')
-     OR NOT has_function_privilege('authenticated','public.register_for_competition(uuid,text,uuid,text,boolean,text,text,text)','EXECUTE')
-     OR has_function_privilege('authenticated','private.apply_referral_qualification(uuid,text,timestamptz)','EXECUTE') THEN
-    RAISE EXCEPTION 'STAGE3_FUNCTION_GRANT_CONTRACT_DRIFT';
+  v_auth_create_organizer := has_function_privilege(
+    'authenticated','public.create_organizer(text,text)','EXECUTE');
+  v_anon_create_organizer := has_function_privilege(
+    'anon','public.create_organizer(text,text)','EXECUTE');
+  v_auth_register := has_function_privilege(
+    'authenticated','public.register_for_competition(uuid,text,uuid,text,boolean,text,text,text)','EXECUTE');
+  v_auth_apply_referral := has_function_privilege(
+    'authenticated','private.apply_referral_qualification(uuid,text,timestamptz)','EXECUTE');
+
+  IF v_auth_create_organizer IS DISTINCT FROM true
+     OR v_anon_create_organizer IS DISTINCT FROM false
+     OR v_auth_register IS DISTINCT FROM true
+     OR v_auth_apply_referral IS DISTINCT FROM false THEN
+    RAISE EXCEPTION
+      'STAGE3_FUNCTION_GRANT_CONTRACT_DRIFT: authenticated_create_organizer=%, anon_create_organizer=%, authenticated_register=%, authenticated_apply_referral=%',
+      v_auth_create_organizer,v_anon_create_organizer,v_auth_register,v_auth_apply_referral;
   END IF;
 
   INSERT INTO private.referral_program_settings (
