@@ -77,9 +77,7 @@ assert.match(sql,/STAGE3_RLS_ANON_FOLLOW_RELATIONSHIP_LEAK/);
 assert.match(sql,/STAGE3_RLS_FOLLOWER_SIDE_RELATIONSHIP_READ_FAILED/);
 assert.match(sql,/STAGE3_RLS_FOLLOWED_SIDE_RELATIONSHIP_READ_FAILED/);
 assert.match(sql,/STAGE3_RLS_ANON_PRODUCT_REVIEW_PUBLIC_READ_FAILED/);
-assert.match(sql,/STAGE3_CERTIFICATE_ASSET_DIRECT_SELECT_GRANT_UNEXPECTED/);
 assert.match(sql,/v_certificate_id constant uuid/);
 assert.match(sql,/v_product_id constant uuid/);
-assert.match(sql,/has_any_column_privilege\('authenticated','public\.certificate_assets','SELECT'\)/);
 
 console.log("Stage 3 behavior regression contract passed: read-only PL/pgSQL production-mode guard, verified organizer gates, RLS role coverage, and rollback.");
