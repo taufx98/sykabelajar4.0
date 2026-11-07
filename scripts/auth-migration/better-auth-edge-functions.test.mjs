@@ -60,8 +60,8 @@ for (const name of [
   "cloudinary-profile-upload-v2",
 ]) {
   const source = read("supabase/functions/" + name + "/index.ts");
-  assert.ok(source.includes("profile_pictures/user_\${identity.userId}"));
-  assert.ok(source.includes("profile_covers/user_\${identity.userId}"));
+  assert.ok(source.includes("profile_pictures/user_${identity.userId}"));
+  assert.ok(source.includes("profile_covers/user_${identity.userId}"));
   assert.ok(source.includes("CLOUDINARY_API_SECRET"));
 }
 
@@ -71,8 +71,8 @@ for (const name of [
   "cloudinary-delete-profile",
 ]) {
   const source = read("supabase/functions/" + name + "/index.ts");
-  assert.ok(source.includes("profile_pictures/user_\${identity.userId}"));
-  assert.ok(source.includes("profile_covers/user_\${identity.userId}"));
+  assert.ok(source.includes("profile_pictures/user_${identity.userId}"));
+  assert.ok(source.includes("profile_covers/user_${identity.userId}"));
   assert.ok(source.includes("/destroy"));
 }
 const genericDelete = read("supabase/functions/cloudinary-delete-asset/index.ts");
