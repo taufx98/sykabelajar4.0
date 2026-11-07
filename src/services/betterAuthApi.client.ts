@@ -76,6 +76,10 @@ export interface BetterAuthApiClient {
   signInWithEmail(email: string, password: string): Promise<BetterAuthSignInResult>;
   signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string): Promise<BetterAuthSocialSignInResult>;
   signUp(input: BetterAuthRegistrationInput): Promise<BetterAuthSignInResult>;
+  sendVerificationEmail(email: string, callbackURL: string): Promise<void>;
+  requestPasswordReset(email: string, redirectTo: string): Promise<void>;
+  resetPassword(token: string, newPassword: string): Promise<void>;
+  changePassword(currentPassword: string, newPassword: string, revokeOtherSessions?: boolean): Promise<void>;
   signOut(): Promise<void>;
 }
 
@@ -238,6 +242,38 @@ export function createBetterAuthApiClient(options: {
 
     signUp(input) {
       return request<BetterAuthSignInResult>('/sign-up/email', normalizeRegistration(input));
+    },
+
+    async sendVerificationEmail(email, callbackURL) {
+      await request<unknown>('/send-verification-email', {
+        email: email.trim().toLowerCase(),
+        callbackURL,
+      });
+    },
+
+    async requestPasswordReset(email, redirectTo) {
+      await request<unknown>('/request-password-reset', {
+        email: email.trim().toLowerCase(),
+        redirectTo,
+      });
+    },
+
+    async resetPassword(token, newPassword) {
+      if (!token.trim() || newPassword.length < 8) {
+        throw new BetterAuthClientError(400, 'PASSWORD_RESET_INPUT_INVALID');
+      }
+      await request<unknown>('/reset-password', { token: token.trim(), newPassword });
+    },
+
+    async changePassword(currentPassword, newPassword, revokeOtherSessions = true) {
+      if (!currentPassword || newPassword.length < 8) {
+        throw new BetterAuthClientError(400, 'PASSWORD_CHANGE_INPUT_INVALID');
+      }
+      await request<unknown>('/change-password', {
+        currentPassword,
+        newPassword,
+        revokeOtherSessions,
+      });
     },
 
     async signOut() {
