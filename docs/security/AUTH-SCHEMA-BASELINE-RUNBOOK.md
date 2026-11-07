@@ -60,8 +60,9 @@ The script prints the temporary output directory. It contains:
 
 - `schema.sql` — application schema dump only; no application rows or custom role dump.
 - `auth-storage-custom.sql` — DDL diff for customizations in Supabase-managed Auth/Storage schemas.
-- `extensions.txt` and `postgres-version.txt` — local compatibility metadata.
-- `manifest.txt` and `SHA256SUMS` — provenance and integrity metadata.
+- `extensions.txt` and `postgres-version.txt` — PostgreSQL/extension compatibility metadata.
+- `role-metadata.txt` — password-free platform role attributes and per-schema default ACLs; compare these against the disposable local stack rather than importing role DDL.
+- `manifest.txt` and `SHA256SUMS` — provenance and integrity metadata for every export file.
 
 Keep the output directory outside the Git repository. The helper's static Bash/safety contract and FK-plan dry run passed in [CI run #41860723261](https://github.com/taufx98/sykabelajar4.0/actions/runs/41860723261), which also passed all 71 local pgTAP assertions. The actual export command has **not** been executed by CI. Review the artifacts before using them for local tests; SQL function bodies can still contain application logic and should be treated as internal source code. Do not paste database URLs, passwords, service-role keys, user rows, or data dumps into chat.
 
@@ -98,3 +99,13 @@ Expected local output:
 - `fk-plan/03-cutover.sql` — the single global atomic cutover transaction; never split into a partially migrated FK graph.
 
 The helper stops if count, source-table shape, target, columns, or constraint-validation semantics differ from the reviewed snapshot. Investigate drift manually; never lower the expected count or bypass guards to make a plan generate. Output stays outside the Git repository and is mode 0600. The script does not execute even the preflight SQL.
+
+## Production compatibility metadata inventory — 7 November 2026 (read-only)
+
+A catalog-only query against the production project recorded PostgreSQL **17.6** and these installed extensions: `pg_cron 1.6.4`, `pg_stat_statements 1.11`, `pgcrypto 1.3`, `plpgsql 1.0`, `supabase_vault 0.3.1`, and `uuid-ossp 1.1`. The local disposable restore should use a compatible PostgreSQL 17 stack and compare each extension before replaying any custom Auth/Storage DDL.
+
+The inspected non-`pg_` roles were Supabase platform roles only (`anon`, `authenticated`, `authenticator`, `dashboard_user`, `pgbouncer`, `postgres`, `service_role`, `supabase_admin`, `supabase_auth_admin`, `supabase_etl_admin`, `supabase_privileged_role`, `supabase_read_only_user`, `supabase_realtime_admin`, `supabase_replication_admin`, and `supabase_storage_admin`). No application-specific role was found in that query. Password hashes and role DDL were not selected.
+
+Default ACL metadata exists across `auth`, `cron`, `extensions`, `graphql`, `graphql_public`, `public`, `realtime`, and `storage`. In particular, the `public` schema has default ACL entries for `anon`, `authenticated`, and `service_role` on relations, sequences and functions. These grants must be reconciled with the target local Supabase stack before using the restore for RLS/function regression; do not blindly replay platform-owned default privileges. The exporter captures the role/default-ACL catalog to `role-metadata.txt` for exact comparison.
+
+These are schema/security metadata only. No production role, ACL, extension, database object, user, or application row was changed.
