@@ -9,7 +9,7 @@ export interface AuthWorkerEnv {
   /** BotFather OIDC credentials; unset keeps Telegram phone verification disabled. */
   AUTH_TELEGRAM_CLIENT_ID?: string;
   AUTH_TELEGRAM_CLIENT_SECRET?: string;
-  AUTH_EMAIL_PROVIDER?: "webhook" | "zeptomail";
+  AUTH_EMAIL_PROVIDER?: "webhook" | "zeptomail" | "managed";
   AUTH_EMAIL_ENCRYPTION_KEY?: string;
   AUTH_EMAIL_WEBHOOK_URL?: string;
   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
