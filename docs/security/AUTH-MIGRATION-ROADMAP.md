@@ -406,3 +406,26 @@ To remove the local-CLI dependency, an automated GitHub Actions workflow is now 
 - The only owner action to unblock the automated run is to edit the existing repository Actions secret `SUPABASE_DB_URL` so its **value** is the full raw Session pooler URI from Supabase Connect (port 5432; username `postgres.mvdczyitbkxkldjughor`; exact pooler host ending `.pooler.supabase.com`). Do not store only the database password or a label/variable assignment. Never send the URI/password in chat or commit it. After correction, the workflow can run without local CLI work.
 
 Stage 3 remains blocked until a real schema-only export, isolated restore and production-shaped regression all pass. No production DDL/DML or user data has been changed or exported.
+
+## Superseding Stage 3 full-schema regression checkpoint — 7 November 2026
+
+This checkpoint supersedes earlier statements in this roadmap that the complete production schema-only export, disposable restore, or production-shaped core behavior regression were still unavailable.
+
+- Full schema-only export and restore from the existing production project completed in GitHub Actions, without exporting application rows or applying remote DDL/DML.
+- The disposable restore matched the reviewed production structure: 69/69 auth.users foreign keys across 62 source tables, 3 Auth triggers, 4 profile triggers, 36 profile columns, 109 auth.uid() policies across 61 tables, 10 Auth-dependent functions, and zero imported auth.users or public.profiles rows.
+- Exact structured EXECUTE ACLs for all ten Auth-dependent functions were restored from the read-only production metadata snapshot only inside the disposable local database and compared successfully.
+- The create_organizer output-parameter collision was reproduced and repaired in the test restore only. The source migration qualifies both auth.users.id and INSERT ... RETURNING id; no business rule was changed and no production migration was applied.
+- Rollback-only behavior tests passed for signup role normalization, referral attribution/verified-email gating, 24-hour qualification, idempotent Edu Coin rewards, scheduled referral fallback, organizer email/phone verification and one-FREE-phone claim, competition registration, audit/notification creation, public/private profile visibility, and representative owner/admin RLS.
+- Admin-overlay coverage passed for role visibility, audit-log read, and admin update of another organizer. The entire fixture transaction rolled back; temporary schema files and local Supabase were cleaned up.
+
+Verified runs:
+- [Auth Production Schema Baseline #42378450476](https://github.com/taufx98/sykabelajar4.0/actions/runs/42378450476) — full schema parity and core production-shaped regression success.
+- [Auth Production Schema Baseline #42379192223](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379192223) — repeat full restore with trusted synthetic admin-overlay behavior success.
+- [Supabase Local Auth Claims CI #42379195281](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379195281) — Deno/Edge checks, live FK dry-run, local Supabase JWT and two-user RLS success.
+
+The newer commerce/exam/teacher-roster expansion is under validation in [Auth Production Schema Baseline #42379783008](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379783008) and matching [Supabase Local Auth Claims CI #42379783126](https://github.com/taufx98/sykabelajar4.0/actions/runs/42379783126). Do not count the extended cases as passed until the production-schema restore run reports success.
+
+Stage 3 is materially further along, but is not approved for production DDL. The full 109-policy matrix is not exhaustively proven: additional families still require tests (certificates/assets, answers, collective participants/attempts, active/inactive organizer members and unrelated organizers, remaining commerce/wishlist/entitlements, and the remaining public/content policies). The private.app_users identity foundation and 69-FK replacement plan remain review-only; no production FK, trigger, function, RLS policy, user, Auth setting, or issuer was changed.
+
+Stages 2, 4, 5, 6 and 7 retain their separate acceptance gates. In particular, hosted positive Better Auth-token acceptance for Edge Functions, real Storage/Realtime use with a Better Auth token, the 41 frontend Auth callsite migration, full backend IDOR tests, account reset/rollback rehearsal, and production cutover remain open. PR #177 is still Draft/unmerged and mergeable_state=dirty; no merge or cutover was attempted.
+
