@@ -434,3 +434,28 @@ A request to create a separate Free project named `sykabelajar-auth-stage3-lab` 
 No project was created, paused, deleted, or upgraded. The existing OIDC staging project remains healthy and contains only its two-row synthetic OIDC acceptance fixture in the application schemas inspected. Do not pause it merely to create another lab: it holds the Stage 2 hosted acceptance configuration. Reuse it only for explicitly isolated auth test objects after checking for name collisions; never place a production schema restore or application data in it.
 
 The failed project creation attempt does not change any of the seven migration stages or their acceptance criteria. No paid Supabase Development Branch was created.
+
+
+## Stage 3 hosted synthetic validation — 7 November 2026
+
+The existing isolated Supabase Free OIDC staging project `ydamszdfsxqisanazdkb` was reused for Stage 3-only test objects after a collision check. No third project was created; the second active-Free-project quota remained unchanged. The original OIDC fixture and its two synthetic rows were preserved.
+
+Hosted pgTAP verification completed successfully:
+- **12/12** identity FK rehome assertions.
+- **68/68** identity provisioning/referral assertions.
+- Tests used `extensions.finish(true)`; no assertion failure was reported.
+- The test scripts rolled back their transactional test changes. Post-test catalog verification showed four fixture FKs still on the legacy synthetic parent, zero replacement FKs, zero synthetic `app_users` rows, and the original two OIDC rows intact.
+- Five test-only tables that initially lacked RLS were hardened immediately: RLS enabled and forced, with direct client-role grants revoked. A subsequent inventory confirmed RLS enabled on all fixture tables.
+
+The hosted fixture is synthetic and deliberately smaller than the production application schema. It strengthens confidence in PostgreSQL FK action preservation, server-only provisioning, role mapping, email verification, and referral reward idempotency; it does **not** prove production schema compatibility or complete trigger/function behavior.
+
+### Current Stage 3 blockers remain
+
+1. Owner-local full schema-only `pg_dump` baseline and successful disposable local restore are still missing. The connected catalog/query interface cannot replace that baseline.
+2. Exact production regression coverage is still required for all ten Auth-dependent functions, the three `auth.users` triggers, production profile triggers/constraints, referral-related competition registration/qualification, and the 109 `auth.uid()` policies.
+3. The trusted phone-verification path required by production `create_organizer` remains unresolved. Do not weaken or bypass the existing verified-phone rule.
+4. The 69-FK production plan still needs its bounded-lock/resume runbook reviewed against the complete schema and actual workload. The current generator groups each phase in one transaction; no generated SQL has been applied to production.
+
+A read-only catalog-size snapshot of the 62 referencing tables showed the largest relation at approximately 352 KB on 7 November 2026. This is only a point-in-time relation-size measurement, not a guarantee of scan time or current/future row counts. Re-measure before maintenance.
+
+**Production boundary:** no production identity schema, FK, trigger, RPC/function, policy, user, secret, issuer setting, or login flow was modified. Stages 4–7 remain gated. PR #177 remains Draft and unmerged.
