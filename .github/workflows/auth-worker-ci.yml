@@ -9,6 +9,7 @@ on:
       - "supabase/functions/_shared/**"
       - "supabase/functions/get-cloudinary-signature/**"
       - "supabase/functions/cloudinary-delete-asset/**"
+      - "supabase/functions/cloudinary-profile-upload/**"
       - "supabase/functions/payment-gateway-admin/**"
       - "supabase/functions/payment-gateway-create/**"
       - "supabase/functions/payment-gateway-reconcile/**"
