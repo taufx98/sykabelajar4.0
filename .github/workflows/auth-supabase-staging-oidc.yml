@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   register:
-    if: \${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
     name: Add exact Better Auth issuer to the dedicated Supabase Free staging project
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -32,7 +32,7 @@ jobs:
 
       - name: Verify exact marker or manual confirmation
         env:
-          CONFIRMATION: \${{ inputs.confirmation }}
+          CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
@@ -58,7 +58,7 @@ jobs:
 
       - name: Verify hosted issuer, staging project target, and register Custom OIDC
         env:
-          SUPABASE_ACCESS_TOKEN: \${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
