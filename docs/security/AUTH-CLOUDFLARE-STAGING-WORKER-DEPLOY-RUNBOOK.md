@@ -1,6 +1,6 @@
 # Isolated Better Auth Worker staging deployment
 
-Status as of 7 November 2026: **Remote D1 migrations 0000–0005 are applied and all 18 expected tables are verified.** Migration run [#42339140591](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339140591) applied only the pending Telegram challenge migration 0005 to the dedicated staging database. The Telegram-capable Worker is live after deployment [#42339181655](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339181655), which checked all 18 tables, zero users/sessions/accounts/verification rows and zero phone challenges, and passed hosted health, discovery, PKCE S256, ES256/JWKS and exact-origin CORS. Migration 0006 for the email provider column is now in the branch and still pending remote apply. The updated deploy gate requires that column before the next Worker revision. Real email delivery still requires a verified Brevo sender and API key entered in Admin; do not buy credits or enable paid usage.
+Status as of 7 November 2026: **Remote D1 migrations 0000–0006 are applied; all 18 expected tables and the email provider column are verified; the Telegram-capable, provider-aware Worker is live on staging.** Migration 0005 was applied by [#42339140591](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339140591), migration 0006 by [#42339767786](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339767786), and latest Worker deployment [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803) passed exact configuration, D1/schema/empty-state and hosted health/discovery/PKCE/JWKS/CORS checks. Real email awaits Brevo Free sender-domain/API Key setup; Telegram awaits BotFather credentials and hosted consent/callback acceptance.
 
 ## Current verified state — 6 November 2026
 
@@ -51,7 +51,7 @@ Both operations are manual-only. Pushes and pull-request updates do not deploy a
    APPLY-TO-sykabelajar-auth-poc
    ```
 
-4. Verify the run applies only pending reviewed migrations through `0005` to D1 `sykabelajar-auth-poc` (UUID `7a4f9008-a1c6-42b6-8a04-abde12699248`), and confirms all 18 tables plus the seven registration/profile columns: `accountType`, `username`, `referralCode`, `birthDate`, `institution`, `grade`, and `subjects`. The remote `0005` migration is still pending as of this runbook update. This workflow does not deploy a Worker or touch Supabase.
+4. Migrations 0000–0006 are already applied to this isolated D1. Guarded runs applied only pending migrations 0005 and 0006 and verified all 18 tables, seven registration/profile columns, and the provider column. Do not rerun or alter already-applied SQL; future changes must increment the migration version. This workflow does not deploy a Worker or touch production Supabase.
 
 ### Step 2 — redeploy the Worker with the exact preview Origin
 
@@ -120,7 +120,7 @@ The staging Admin preview has a single exact temporary origin in `wrangler.toml`
 
 The staging CORS and Better Auth trusted-origin lists accept this exact HTTPS origin in addition to the production app origin. Automated Worker tests verify the exact hostname and reject a nested/attacker hostname. The guarded deploy workflow's hosted smoke test now verifies that this preview receives an exact `Access-Control-Allow-Origin` response while `https://attacker.example` receives none.
 
-The current live Worker is older than the branch source that contains Telegram phone verification. A new manual deployment is required only after migration 0005 is applied to the isolated D1 and the owner has configured the required staging credentials. The guarded workflow now checks 18 D1 tables and the separate staging provisioning URL. Trigger [Auth Worker Staging Deploy](https://github.com/taufx98/sykabelajar4.0/actions/workflows/auth-worker-staging-deploy.yml) on branch `security/auth-poc-stage-1` with confirmation `DEPLOY-STAGING-WORKER-sykabelajar-auth-poc`.
+The Telegram-capable, provider-aware Worker is already deployed on staging. Deployment [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803) verified 18 D1 tables, seven registration columns, email provider column, empty user/session/account/verification/challenge state, hosted health, discovery, PKCE S256, ES256 JWKS and CORS. Do not rerun the deployment marker. Future code deployments must use the guarded workflow after review.
 
 The redeploy path has a strict preservation rule: it does not query/list Worker secrets, generate replacements, or pass a replacement secrets file to Wrangler. The first deployment already provisioned `BETTER_AUTH_SECRET`, `AUTH_EMAIL_ENCRYPTION_KEY`, and `OAUTH_CLIENT_BOOTSTRAP_TOKEN`; routine deployments preserve these. The new deploy gate also checks all 18 D1 tables and zero staged users/sessions/accounts/verifications/phone challenges. It smoke-tests health/discovery/PKCE/JWKS and exact-origin CORS. It does not enable provisioning or Telegram credentials.
 
@@ -163,18 +163,18 @@ The panel has not yet completed a real admin browser session, Agent save/activat
 ZeptoMail remains unconfigured (`emailAgentConfigured=false`). No real email, registration, authorization-code exchange, session, or Supabase Custom OIDC acceptance has yet been completed. Configure an Agent Send Mail Token via the admin email settings panel; never store it in Git or send it in chat.
 
 
-## Current Telegram/provisioning deployment gate — 7 November 2026
+## Historical Telegram/provisioning deployment gate — 7 November 2026 (superseded by final staging checkpoint)
 
 The deployed Worker and the tested branch source are not yet the same revision:
 
 - Last verified deployed Worker run: [#42328371754](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328371754), source SHA `42323e092e85250f4485e2de611207310a481b34`.
 - Later Auth Worker CI passed on source SHA `ec291a6b70d1418146275b982ec542cfff416184`, including the Telegram route and security tests, but used a Worker dry-run only.
-- Remote D1 remains at migrations 0000–0004 (17 tables). Migration 0005 must be applied to the isolated D1 before the updated Worker can be deployed.
+- At this historical checkpoint, remote D1 remained at migrations 0000–0004. This was superseded by successful applications of 0005/0006 and the provider-aware Worker deployment.
 - The current deploy workflow has been changed to require 18 tables and zero challenge rows. The one-time marker name is now `.github/auth-ops/DEPLOY-STAGING-WORKER-0005`; the marker file itself is not present.
 
 **Critical destination split, now enforced in source:** the legacy Admin bridge keeps `SUPABASE_URL` bound to production while the provisioning module uses only `SUPABASE_PROVISIONING_URL`, pinned to `https://ydamszdfsxqisanazdkb.supabase.co`. The code rejects the production project origin and will not fall back to the legacy URL. `SUPABASE_PROVISIONING_ENABLED` remains unset, and no `SUPABASE_SERVICE_ROLE_KEY` is installed as part of this change.
 
-Do not run the deploy until remote migration 0005 exists. Do not set the provisioning flag or Telegram secrets until the owner has registered the OIDC app, allowlisted the exact callback, confirmed staging RPC permissions and completed the isolated hosted consent/callback test plan. No remote D1 migration, Worker deployment, production Supabase change or secret operation was performed by this update.
+The deploy gate has since been completed by run #42339805803; this historical instruction is superseded. Do not set the provisioning flag or Telegram secrets until the owner has registered the OIDC app, allowlisted the exact callback, and completed the isolated hosted consent/callback test.
 
 ## Current managed email provider rollout — 7 November 2026
 
