@@ -1,0 +1,174 @@
+name: Stage 2 Hosted Better Auth OIDC Acceptance
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/RUN-STAGE-2-OIDC-ACCEPTANCE-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RUN-STAGE-2-OIDC-ACCEPTANCE-sykabelajar-auth-staging"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-stage-2-hosted-oidc-acceptance
+  cancel-in-progress: false
+
+jobs:
+  hosted-acceptance:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Prove Better Auth JWT acceptance on isolated Supabase staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_STAGING_URL: "https://ydamszdfsxqisanazdkb.supabase.co"
+      SUPABASE_STAGING_PUBLISHABLE_KEY: "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"
+
+    steps:
+      - name: Checkout isolated auth branch
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+
+      - name: Install locked Better Auth Worker dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate login-only staging configuration and run local CI
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "RUN-STAGE-2-OIDC-ACCEPTANCE-sykabelajar-auth-staging" || {
+              echo "Blocked: exact staging acceptance confirmation is missing." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker="../../.github/auth-ops/RUN-STAGE-2-OIDC-ACCEPTANCE-0001"
+            test -f "$marker"
+            test "$(cat "$marker")" = "RUN-STAGE-2-OIDC-ACCEPTANCE-sykabelajar-auth-staging"
+          else
+            echo "Blocked: unsupported workflow event." >&2
+            exit 1
+          fi
+
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test "$SUPABASE_STAGING_URL" = "https://ydamszdfsxqisanazdkb.supabase.co"
+          test "$SUPABASE_STAGING_PUBLISHABLE_KEY" = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const config = readFileSync("wrangler.toml", "utf8");
+          const checks = [
+            /^name = "sykabelajar-auth-poc"$/m,
+            /^database_name = "sykabelajar-auth-poc"$/m,
+            /^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m,
+            /^BETTER_AUTH_URL = "https:\/\/auth\.sykabelajar\.my\.id"$/m,
+            /^APP_ORIGIN = "https:\/\/sykabelajar\.my\.id"$/m,
+            /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
+            /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
+          ];
+          if (!checks.every((pattern) => pattern.test(config))) {
+            throw new Error("Acceptance target does not match the exact staging Better Auth Worker/D1 configuration.");
+          }
+          console.log("Confirmed staging Worker, D1, issuer, Supabase audience and callback.");
+          NODE
+
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Confirm staging D1 is empty before synthetic user bootstrap
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\") AS users, (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM account) AS accounts, (SELECT COUNT(*) FROM verification) AS verifications;" > "$RUNNER_TEMP/auth-acceptance-preflight.json"
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-acceptance-preflight.json", "utf8"));
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "users") && Object.hasOwn(value, "sessions")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          assert.ok(row, "remote D1 identity-count query must return a row");
+          for (const key of ["users", "sessions", "accounts", "verifications"]) {
+            assert.equal(Number(row[key]), 0, "refusing acceptance while staging D1 contains " + key);
+          }
+          console.log("Staging Better Auth D1 contains no users, sessions, accounts or verification rows.");
+          NODE
+
+      - name: Install temporary acceptance secret and deploy gated staging Worker
+        run: |
+          set -euo pipefail
+          OIDC_ACCEPTANCE_TEST_TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$OIDC_ACCEPTANCE_TEST_TOKEN"
+          printf 'OIDC_ACCEPTANCE_TEST_TOKEN=%s\n' "$OIDC_ACCEPTANCE_TEST_TOKEN" >> "$GITHUB_ENV"
+          printf '%s' "$OIDC_ACCEPTANCE_TEST_TOKEN" | npx wrangler secret put OIDC_ACCEPTANCE_TEST_TOKEN --name sykabelajar-auth-poc
+          npx wrangler deploy
+
+      - name: Run hosted Authorization Code, ES256 and Supabase RLS acceptance
+        env:
+          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ env.OIDC_ACCEPTANCE_TEST_TOKEN }}
+        run: node tests/hosted-supabase-oidc.integration.mjs
+
+      - name: Cleanup synthetic identities even when acceptance fails
+        if: always()
+        env:
+          OIDC_ACCEPTANCE_TEST_TOKEN: ${{ env.OIDC_ACCEPTANCE_TEST_TOKEN }}
+        run: node tests/cleanup-hosted-supabase-oidc.mjs
+
+      - name: Remove temporary Worker acceptance secret
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -n "${OIDC_ACCEPTANCE_TEST_TOKEN:-}" ]; then
+            CI=true npx wrangler secret delete OIDC_ACCEPTANCE_TEST_TOKEN --name sykabelajar-auth-poc
+          else
+            echo "Temporary acceptance secret was not installed."
+          fi
+
+      - name: Verify staging D1 identity cleanup
+        if: always()
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\" WHERE id IN ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222')) AS users, (SELECT COUNT(*) FROM session WHERE userId IN ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222')) AS sessions, (SELECT COUNT(*) FROM account WHERE userId IN ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222')) AS accounts;" > "$RUNNER_TEMP/auth-acceptance-cleanup.json"
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-acceptance-cleanup.json", "utf8"));
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "users") && Object.hasOwn(value, "sessions")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          assert.ok(row, "remote D1 cleanup-count query must return a row");
+          for (const key of ["users", "sessions", "accounts"]) {
+            assert.equal(Number(row[key]), 0, "staging cleanup left synthetic " + key);
+          }
+          console.log("Verified no synthetic Better Auth identities, sessions or accounts remain in staging D1.");
+          NODE
