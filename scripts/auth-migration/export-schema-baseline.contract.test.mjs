@@ -13,7 +13,6 @@ assert.ok(script.includes('const poolerMatch = host.endsWith(".pooler.supabase.c
 assert.ok(script.includes('Connection string does not match SUPABASE_PROJECT_REF'));
 assert.ok(script.includes('supabase db diff --linked --schema auth,storage'));
 assert.doesNotMatch(script, /supabase db diff --to=remote/);
-assert.doesNotMatch(script, /supabase db diff --linked/);
 assert.ok(script.includes('select extname, extversion from pg_extension order by extname'));
 assert.ok(script.includes('role-metadata.txt'));
 assert.ok(script.includes('select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolbypassrls from pg_roles'));
