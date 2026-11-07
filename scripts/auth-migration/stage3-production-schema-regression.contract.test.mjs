@@ -11,6 +11,7 @@ assert.match(sql,/current_setting\('plpgsql\.variable_conflict'\) IS DISTINCT FR
 assert.match(sql,/STAGE3_PLPGSQL_VARIABLE_CONFLICT_MODE_MUST_MATCH_PRODUCTION/);
 assert.doesNotMatch(sql,/SET\s+LOCAL\s+plpgsql\.variable_conflict/i);
 assert.match(sql,/CREATE_ORGANIZER/);
+assert.match(sql,/v_competition_id\s*,\s*v_organizer_id\s*,\s*'stage3-auth-regression'/);
 assert.match(sql,/EMAIL_VERIFICATION_REQUIRED/);
 assert.match(sql,/PHONE_VERIFICATION_REQUIRED/);
 assert.match(sql,/FREE_ORGANIZER_ALREADY_CLAIMED/);
