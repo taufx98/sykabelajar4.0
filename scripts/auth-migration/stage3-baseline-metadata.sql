@@ -10,7 +10,6 @@ WITH function_meta AS (
     p.proisstrict AS is_strict,
     p.proretset AS returns_set,
     COALESCE(to_jsonb(p.proconfig), '[]'::jsonb) AS function_config,
-    COALESCE(p.proacl::text, 'DEFAULT') AS function_acl,
     COALESCE((
       SELECT jsonb_agg(
         jsonb_build_object(
