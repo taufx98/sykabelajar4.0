@@ -17,6 +17,9 @@ assert.ok(script.includes('select extname, extversion from pg_extension order by
 assert.ok(script.includes('role-metadata.txt'));
 assert.ok(script.includes('select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolbypassrls from pg_roles'));
 assert.ok(script.includes('select n.nspname, d.defaclobjtype, r.rolname'));
+assert.ok(script.includes("printf '%s\\n'"));
+assert.match(script, /shasum -a 256[^\\n]*role-metadata\\.txt/);
+assert.match(script, /sha256sum[^\\n]*role-metadata\\.txt/);
 assert.doesNotMatch(script, /select[^\\n]*rolpassword/i);
 assert.ok(script.includes('mktemp -d'));
 assert.ok(script.includes('Refusing to write a schema dump inside the Git repository'));
