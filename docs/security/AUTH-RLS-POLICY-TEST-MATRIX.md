@@ -42,7 +42,7 @@ The current local disposable-schema regression is `scripts/auth-migration/stage3
 | `participants`, `attempts` owner/admin | Individual participant sees own canonical participant and active attempt; another user cannot read the attempt; admin can read it | Covered for the individual participant path |
 | `teacher_rosters`, `roster_students` owner/admin | Active teacher owns a roster and external roster student; unrelated student cannot read it; admin can read both | Covered for owner, student denial, and admin overlay |
 | `daily_checkins` owner/self | User sees own check-in row and not another user's row | Covered |
-| `organizers` admin/owner overlay | Normal user cannot update another organizer; a database-provisioned admin can update it | Covered for admin overlay and non-owner denial |
+| `organizers`, `organizer_plans`, `organizer_members` owner/member/admin | Owner can manage; active viewer member can read plan/member resources but cannot manage; inactive viewer and unrelated user see none; admin can update organizer | Covered for owner, active/inactive viewer, unrelated user and admin representative cases |
 | `create_organizer` authorization | Anon cannot execute; authenticated user still must satisfy business verification checks | Covered with function ACL and behavior checks |
 
 The current set is representative, not exhaustive. It does **not** establish that all 109 policies pass under Better Auth JWTs.
@@ -51,7 +51,7 @@ The current set is representative, not exhaustive. It does **not** establish tha
 
 Run positive and negative owner/admin/teacher/organizer/anon cases by material policy family, including at least:
 1. Admin overlay: representative tests now cover `orders`, `order_items`, `payment_intents`, `payment_events`, `shipments`, `attempts`, `user_roles`, `audit_logs`, and `organizers`. Remaining admin coverage includes `certificates`, certificate assets, participants/collective participant access, `registrations`, badges/posts, and the other admin-gated application tables. Test a real synthetic active admin role plus a normal user; do not rely on a caller-provided UUID.
-2. Organizer scope: `organizer_custom_plan_requests`, `organizer_voucher_claims`, `participants`, collective sessions/participants/certificates, and organizer-owned competition resources. Test owner, active member with allowed role, inactive member, and unrelated organizer.
+2. Organizer scope: owner, active viewer member, inactive viewer member, and unrelated user now have representative coverage for `organizers`, `organizer_plans`, and `organizer_members`. Still test allowed manager/editor roles, unrelated organizer rows in other workspaces, `organizer_custom_plan_requests`, `organizer_voucher_claims`, participants, collective sessions/participants/certificates, and organizer-owned competition resources.
 3. Teacher / roster scope: `teacher_rosters` and `roster_students` now test owner, unrelated student denial, and admin read. Still test another teacher, inactive teacher role, and insert/update/delete ownership.
 4. Commerce / payments: `orders`, `order_items`, `payment_intents`, `payment_events`, and `shipments` now have representative owner/admin tests. Still test `commerce_product_reviews`, wishlist, entitlements, cross-user update/delete, and other payment admin actions.
 5. Exams / awards: `participants` and `attempts` now test individual participant ownership and admin visibility. Still test `answers`, collective attempts, awards, certificates, certificate assets, and organizer access only where explicitly intended.
