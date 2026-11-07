@@ -10,6 +10,11 @@ WITH function_meta AS (
     p.proisstrict AS is_strict,
     p.proretset AS returns_set,
     COALESCE(to_jsonb(p.proconfig), '[]'::jsonb) AS function_config,
+    COALESCE(p.proacl::text, 'DEFAULT') AS function_acl,
+    has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_execute,
+    has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_execute,
+    has_function_privilege('service_role', p.oid, 'EXECUTE') AS service_role_execute,
+    has_function_privilege('postgres', p.oid, 'EXECUTE') AS postgres_execute,
     md5(pg_get_functiondef(p.oid)) AS definition_md5
   FROM pg_proc AS p
   JOIN pg_namespace AS n ON n.oid = p.pronamespace
