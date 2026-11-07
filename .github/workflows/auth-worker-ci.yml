@@ -18,6 +18,7 @@ on:
       - "supabase/config.toml"
       - "scripts/auth-migration/edge-auth-claims.test.mjs"
       - "scripts/auth-migration/cloudinary-ownership.test.mjs"
+      - "scripts/auth-migration/payment-edge-auth-migration.test.mjs"
       - "scripts/auth-migration/frontend-auth-inventory.test.mjs"
       - "src/services/betterAuthApi.client.ts"
       - "src/vite-env.d.ts"
