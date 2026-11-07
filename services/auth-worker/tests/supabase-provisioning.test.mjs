@@ -32,7 +32,9 @@ function createD1Mock({ fail = false, changes = 1 } = {}) {
 
 const env = {
   SUPABASE_PROVISIONING_ENABLED: "true",
+  // Keep the production URL for the existing Admin bridge; it must never be used for provisioning.
   SUPABASE_URL: "https://mvdczyitbkxkldjughor.supabase.co",
+  SUPABASE_PROVISIONING_URL: "https://ydamszdfsxqisanazdkb.supabase.co",
   SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
   DB: createD1Mock().DB,
 };
@@ -131,7 +133,7 @@ test("a fresh unverified student account provisions with least-privilege default
 
   assert.deepEqual(result, { enabled: true, userId: USER_ID });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "https://mvdczyitbkxkldjughor.supabase.co/rest/v1/rpc/better_auth_provision_user");
+  assert.equal(calls[0].url, "https://ydamszdfsxqisanazdkb.supabase.co/rest/v1/rpc/better_auth_provision_user");
   assert.equal(calls[0].init.method, "POST");
   assert.equal(calls[0].init.headers.apikey, SERVICE_KEY);
   assert.equal(calls[0].init.headers.Authorization, `Bearer ${SERVICE_KEY}`);
@@ -320,7 +322,7 @@ test("D1 bootstrap cleanup failure prevents the auth session projection from bei
   assert.equal(d1.calls.length, 1);
 });
 
-test("missing server secret and unsafe Supabase URL fail closed", async () => {
+test("missing server secret and unsafe provisioning target fail closed", async () => {
   await assert.rejects(
     reconcileSupabaseApplicationIdentity({
       ...env,
@@ -331,10 +333,32 @@ test("missing server secret and unsafe Supabase URL fail closed", async () => {
   await assert.rejects(
     reconcileSupabaseApplicationIdentity({
       ...env,
-      SUPABASE_URL: "http://127.0.0.1:54321",
+      SUPABASE_PROVISIONING_URL: "http://127.0.0.1:54321",
     }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
     /SUPABASE_PROVISIONING_URL_NOT_ALLOWED/,
   );
+  await assert.rejects(
+    reconcileSupabaseApplicationIdentity({
+      ...env,
+      SUPABASE_PROVISIONING_URL: "https://mvdczyitbkxkldjughor.supabase.co",
+    }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
+    /SUPABASE_PROVISIONING_URL_NOT_ALLOWED/,
+  );
+});
+
+test("provisioning never falls back to the production Admin bridge URL", async () => {
+  let called = false;
+  await assert.rejects(
+    reconcileSupabaseApplicationIdentity({
+      ...env,
+      SUPABASE_PROVISIONING_URL: "",
+    }, { id: USER_ID }, async () => {
+      called = true;
+      return response({ user_id: USER_ID });
+    }),
+    /SUPABASE_PROVISIONING_CONFIGURATION_MISSING/,
+  );
+  assert.equal(called, false);
 });
 
 test("Supabase errors are reduced to stable codes and never expose response bodies or secrets", async () => {
@@ -384,6 +408,7 @@ test("trusted phone verification sends only the normalized SHA-256 identity hash
   });
   assert.deepEqual(result, { enabled: true, userId: USER_ID, alreadyVerified: false });
   assert.equal(calls.length, 1);
+  assert.ok(calls[0].url.startsWith("https://ydamszdfsxqisanazdkb.supabase.co/"));
   assert.ok(calls[0].url.endsWith("/better_auth_complete_phone_verification"));
   assert.equal(calls[0].headers.Authorization, "Bearer " + SERVICE_KEY);
   assert.deepEqual(calls[0].body, {
