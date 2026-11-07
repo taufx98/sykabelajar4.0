@@ -13,6 +13,7 @@ on:
       - "scripts/auth-migration/stage3-baseline-metadata.sql"
       - "scripts/auth-migration/verify-stage3-baseline-metadata.mjs"
       - "scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs"
+      - "scripts/auth-migration/stage3-production-schema-regression.sql"
       - ".github/workflows/auth-schema-baseline.yml"
   workflow_dispatch:
 
@@ -361,6 +362,23 @@ jobs:
           node scripts/auth-migration/verify-stage3-baseline-metadata.mjs \
             --production "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json" \
             --restored "$RUNNER_TEMP/restored-stage3-baseline-metadata.json"
+
+      - name: Run rollback-only production-shaped Stage 3 behavior and RLS regression
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-production-schema-regression.sql:/baseline/stage3-production-schema-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-production-schema-regression.sql
+          {
+            echo ""
+            echo "- Production-shaped Auth/referral/organizer/competition and representative RLS behavior fixtures passed"
+            echo "- Every synthetic row and mutation was rolled back"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop disposable local Supabase
         if: always() && steps.local_supabase.outcome == 'success'
