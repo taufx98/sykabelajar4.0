@@ -255,7 +255,7 @@ BEGIN
 
   RETURN true;
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION private.capture_signup_referral()
@@ -333,7 +333,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
+$function$;
 
 
 -- The legacy Auth email-confirmation trigger remains on auth.users during
@@ -374,7 +374,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.create_organizer(p_name text, p_slug text)
@@ -469,7 +469,7 @@ exception
   when unique_violation then
     raise exception 'FREE_ORGANIZER_ALREADY_CLAIMED';
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.get_my_referrals()
@@ -505,7 +505,7 @@ AS $function$
   WHERE re.referrer_user_id = auth.uid()
     AND re.status IN ('PENDING', 'VERIFIED', 'CREDITED')
   ORDER BY re.created_at DESC;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.get_my_referrals_v2()
@@ -542,7 +542,7 @@ AS $function$
   WHERE re.referrer_user_id = (SELECT auth.uid())
     AND re.status IN ('PENDING', 'VERIFIED', 'CREDITED')
   ORDER BY re.created_at DESC;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.get_my_verified_referrals()
@@ -550,7 +550,7 @@ CREATE OR REPLACE FUNCTION public.get_my_verified_referrals()
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public', 'private'
-AS $function$ SELECT re.referred_user_id,coalesce(p.full_name,p.username,'Pengguna'),p.username,re.created_at,NULL::timestamptz FROM public.referral_events re JOIN private.app_users au ON au.id=re.referred_user_id LEFT JOIN public.profiles p ON p.id=re.referred_user_id WHERE re.referrer_user_id=auth.uid() AND re.verified_at IS NOT NULL ORDER BY re.verified_at DESC; $function$
+AS $function$ SELECT re.referred_user_id,coalesce(p.full_name,p.username,'Pengguna'),p.username,re.created_at,NULL::timestamptz FROM public.referral_events re JOIN private.app_users au ON au.id=re.referred_user_id LEFT JOIN public.profiles p ON p.id=re.referred_user_id WHERE re.referrer_user_id=auth.uid() AND re.verified_at IS NOT NULL ORDER BY re.verified_at DESC; $function$;
 
 
 CREATE OR REPLACE FUNCTION public.register_for_competition(p_competition_id uuid, p_participation_key text DEFAULT NULL::text, p_competition_level_id uuid DEFAULT NULL::uuid, p_social_proof_url text DEFAULT NULL::text, p_twibbon_completed boolean DEFAULT false, p_social_platform text DEFAULT NULL::text, p_social_username text DEFAULT NULL::text, p_referral_code text DEFAULT NULL::text)
@@ -689,7 +689,7 @@ BEGIN
 
   RETURN v_registration;
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.verify_pending_referrals()
@@ -785,7 +785,7 @@ BEGIN
 
   RETURN n;
 END;
-$function$
+$function$;
 
 
 -- These functions are taken from synthetic Stage 3 fixtures and remain
