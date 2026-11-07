@@ -459,3 +459,17 @@ The hosted fixture is synthetic and deliberately smaller than the production app
 A read-only catalog-size snapshot of the 62 referencing tables showed the largest relation at approximately 352 KB on 7 November 2026. This is only a point-in-time relation-size measurement, not a guarantee of scan time or current/future row counts. Re-measure before maintenance.
 
 **Production boundary:** no production identity schema, FK, trigger, RPC/function, policy, user, secret, issuer setting, or login flow was modified. Stages 4–7 remain gated. PR #177 remains Draft and unmerged.
+
+
+## Exact production trigger/function contract audit — 7 November 2026
+
+Read-only catalog queries re-fetched the exact definitions of the ten functions depending on Supabase Auth, all three non-internal `auth.users` triggers, all four profile triggers, referral activity triggers, key table columns and function ACLs.
+
+New details now recorded in [AUTH-IDENTITY-DEPENDENCY-INVENTORY.md](AUTH-IDENTITY-DEPENDENCY-INVENTORY.md):
+- Legacy signup referral trigger reads `raw_user_meta_data.referral_id` as a UUID; competition registration accepts either referral code or UUID. The new Better Auth path resolves referral codes on the server and requires an explicit compatibility decision for UUID callers.
+- Production referral activity is connected to check-ins, comments, follows, and daily-task completion; the qualification and verification functions still mention/scans chat-message activity. The auth migration must not silently rewrite this product behavior.
+- Production `profiles` has 36 columns and four triggers. The reduced fixture cannot verify all profile field/default/trigger behavior. Better Auth retry semantics deliberately avoid legacy profile overwrite and admin-disabled role reactivation.
+- `get_my_verified_referrals()` currently grants `EXECUTE` to `anon`; this is an ACL review item, not an automatic production change.
+- The trusted phone-verification and SHA-256 identity-claim contract for organizer creation remains mandatory.
+
+All evidence is from PostgreSQL catalogs/definitions only, without selecting user rows, emails, UUIDs or secrets. No production data/schema/trigger/function/grant/policy/auth configuration was changed.
