@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/APPLY-STAGING-D1-0005"
+      - ".github/auth-ops/APPLY-STAGING-D1-0006"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -47,7 +47,7 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker="../../.github/auth-ops/APPLY-STAGING-D1-0005"
+            marker="../../.github/auth-ops/APPLY-STAGING-D1-0006"
             test -f "$marker" || {
               echo "Blocked: the one-time staging migration marker is missing." >&2
               exit 1
@@ -75,6 +75,11 @@ jobs:
           if (phoneMigrationSha256 !== "2d773a74cebf9f00ed95e42aa704855e3639827820875792874de5093519391f") {
             throw new Error("Migration 0005 content changed after review. Refusing remote D1 mutation.");
           }
+          const providerMigration = readFileSync("migrations/0006_transactional_email_provider.sql");
+          const providerMigrationSha256 = createHash("sha256").update(providerMigration).digest("hex");
+          if (providerMigrationSha256 !== "e29ecb4655bac013ded7db40051045d9c2507d3f7790b365cdbb8e2dfe1fd1b1") {
+            throw new Error("Migration 0006 content changed after review. Refusing remote D1 mutation.");
+          }
 
           const config = readFileSync("wrangler.toml", "utf8");
           const requiredConfig = [
@@ -94,6 +99,7 @@ jobs:
             "0003_zeptomail_agent_settings.sql",
             "0004_better_auth_registration_attributes.sql",
             "0005_telegram_phone_verification.sql",
+            "0006_transactional_email_provider.sql",
           ].sort();
           const actual = readdirSync("migrations")
             .filter((name) => name.endsWith(".sql"))
@@ -102,7 +108,7 @@ jobs:
             throw new Error("The D1 migration set changed. Review and update this guarded workflow before running it.");
           }
 
-          console.log("Repository guard passed: one fixed staging database and six reviewed migration files (0000–0005).");
+          console.log("Repository guard passed: one fixed staging database and seven reviewed migration files (0000–0006).");
           NODE
 
       - name: Install the pinned Wrangler toolchain
@@ -175,13 +181,13 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler d1 migrations list sykabelajar-auth-poc --remote
 
-      - name: Apply pending reviewed migrations 0000–0005 to the dedicated remote D1
+      - name: Apply pending reviewed migrations 0000–0006 to the dedicated remote D1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler d1 migrations apply sykabelajar-auth-poc --remote
 
-      - name: Verify Better Auth, ZeptoMail and phone challenge tables exist
+      - name: Verify Better Auth, provider-aware email and phone challenge schema
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -260,5 +266,22 @@ jobs:
           console.log("Verified all seven Better Auth registration/profile bootstrap columns.");
           NODE
 
-          echo "Verified 18 expected staging tables and additive registration columns. No application rows or user accounts were seeded."
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('auth_email_accounts') WHERE name = 'provider';" > "$RUNNER_TEMP/auth-d1-email-provider-column.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-d1-email-provider-column.json", "utf8"));
+          const columns = new Set();
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") columns.add(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (!columns.has("provider")) throw new Error("The transactional email provider column is missing.");
+          console.log("Verified provider-aware transactional email schema; existing rows retain the ZeptoMail default.");
+          NODE
+
+          echo "Verified 18 expected staging tables, registration columns, and provider-aware email schema. No application rows or user accounts were seeded."
           echo "This workflow did not deploy a Worker, set secrets, configure DNS, or attach a custom domain."
