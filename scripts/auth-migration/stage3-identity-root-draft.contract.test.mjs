@@ -11,7 +11,7 @@ const draft = readFileSync(
 
 // The reviewed SQL stays outside supabase/migrations until all Stage 3 gates pass.
 
-const functionNames = [...draft.matchAll(/CREATE OR REPLACE FUNCTION\\s+([a-z_]+\\.[a-z_]+)/gi)]
+const functionNames = [...draft.matchAll(/CREATE OR REPLACE FUNCTION\s+([a-z_0-9]+\.[a-z_0-9]+)/gi)]
   .map((match) => match[1].toLowerCase());
 const uniqueFunctionNames = new Set(functionNames);
 assert.equal(functionNames.length, 16, "identity draft must contain the reviewed 16 function definitions");
