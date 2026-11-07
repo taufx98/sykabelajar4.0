@@ -6,12 +6,15 @@ import path from 'node:path';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const script = readFileSync(path.join(here, 'export-schema-baseline.sh'), 'utf8');
 
-assert.ok(script.includes('supabase db dump --db-url "$SUPABASE_DB_URL" -f "$OUTPUT_DIR/schema.sql"'));
+assert.ok(script.includes('supabase db dump -f "$OUTPUT_DIR/schema.sql" --remote="$SUPABASE_DB_URL"'));
+assert.ok(script.includes('SUPABASE_CLI_WORKDIR="${SUPABASE_CLI_WORKDIR:-$REPO_ROOT}"'));
+assert.ok(script.includes('SCHEMA_BASELINE_OUTPUT_DIR'));
+assert.doesNotMatch(script, /supabase link|supabase login/);
 assert.ok(script.includes('need_cmd node'));
 assert.ok(script.includes('const directMatch = host === `db.${ref}.supabase.co`'));
 assert.ok(script.includes('const poolerMatch = host.endsWith(".pooler.supabase.com") && username === `postgres.${ref}`'));
 assert.ok(script.includes('Connection string does not match SUPABASE_PROJECT_REF'));
-assert.ok(script.includes('supabase db diff --linked --schema auth,storage'));
+assert.ok(script.includes('supabase db diff --use-migra --schema auth,storage --remote="$SUPABASE_DB_URL"'));
 assert.doesNotMatch(script, /supabase db diff --to=remote/);
 assert.ok(script.includes('select extname, extversion from pg_extension order by extname'));
 assert.ok(script.includes('role-metadata.txt'));
