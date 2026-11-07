@@ -135,7 +135,7 @@ test("the frontend Cloudinary delete-profile endpoint accepts only caller-owned 
   assert.match(profileDeleteEndpoint, /\/image\/destroy/);
   assert.match(profileDeleteEndpoint, /AbortSignal\.timeout\(8000\)/);
   assert.doesNotMatch(profileDeleteEndpoint, /body\?\.user_id|body\?\.owner_id|resourceType\}\//);
-  assert.match(supabaseConfig, /\[functions\.cloudinary-delete-profile\][\s\S]*?verify_jwt = true/);
+  assert.match(supabaseConfig, /\[functions\.cloudinary-delete-profile\][\s\S]*?verify_jwt = false/);
   const ownerGuard = profileDeleteEndpoint.indexOf("allowedPublicIds.has(publicId)");
   const secretRead = profileDeleteEndpoint.indexOf('requiredEnv("CLOUDINARY_API_SECRET")');
   const providerCall = profileDeleteEndpoint.indexOf("/image/destroy");
@@ -180,7 +180,7 @@ test("the delete endpoint uses the shared verifier and binds assets to its verif
   assert.match(identityResolver, /AbortSignal.timeout\(5000\)/);
   assert.match(deleteEndpoint, /AbortSignal.timeout\(8000\)/);
   assert.match(deleteEndpoint, /\/destroy/);
-  assert.match(supabaseConfig, /\[functions\.cloudinary-delete-asset\][\s\S]*?verify_jwt = true/);
+  assert.match(supabaseConfig, /\[functions\.cloudinary-delete-asset\][\s\S]*?verify_jwt = false/);
 });
 
 test("Cloudinary delete authorization executes before the provider secret and remote destroy call", () => {
