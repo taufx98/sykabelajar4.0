@@ -11,6 +11,10 @@ assert.ok(script.includes('SUPABASE_CLI_WORKDIR="${SUPABASE_CLI_WORKDIR:-$REPO_R
 assert.ok(script.includes('SCHEMA_BASELINE_OUTPUT_DIR'));
 assert.ok(script.includes('PGPASSFILE="$OUTPUT_DIR/.schema-baseline.pgpass"'));
 assert.ok(script.includes('source "$PG_ENV"'));
+assert.ok(script.includes('stage3-baseline-metadata.sql'));
+assert.ok(script.includes('production-catalog-metadata.json'));
+assert.ok(script.includes('Stage 3 production catalog metadata snapshot is empty'));
+assert.ok(script.includes('production-catalog-metadata.json manifest.txt > SHA256SUMS'));
 assert.doesNotMatch(script, /psql\s+["']?\$SUPABASE_DB_URL/);
 assert.doesNotMatch(script, /supabase link|supabase login/);
 assert.ok(script.includes('need_cmd node'));
