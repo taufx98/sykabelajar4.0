@@ -37,6 +37,10 @@ The current local disposable-schema regression is `scripts/auth-migration/stage3
 | `user_settings` owner/self | Own theme update succeeds; cross-user update changes zero rows | Covered |
 | `registrations` owner/self | Participant can read own registration; direct insert with forged `user_id` fails `AUTHORIZATION_REQUIRED` | Covered |
 | `notifications` owner/self | Own read/update succeeds; cross-user update changes zero rows | Covered |
+| `orders`, `order_items`, `payment_intents`, `shipments` owner/admin | Order owner reads linked commerce rows; unrelated user sees none; admin reads and updates order/payment/shipment metadata | Covered for representative owner/admin policies |
+| `payment_events` admin overlay | Order owner cannot read payment events; trusted admin can read the synthetic event | Covered |
+| `participants`, `attempts` owner/admin | Individual participant sees own canonical participant and active attempt; another user cannot read the attempt; admin can read it | Covered for the individual participant path |
+| `teacher_rosters`, `roster_students` owner/admin | Active teacher owns a roster and external roster student; unrelated student cannot read it; admin can read both | Covered for owner, student denial, and admin overlay |
 | `daily_checkins` owner/self | User sees own check-in row and not another user's row | Covered |
 | `organizers` admin/owner overlay | Normal user cannot update another organizer; a database-provisioned admin can update it | Covered for admin overlay and non-owner denial |
 | `create_organizer` authorization | Anon cannot execute; authenticated user still must satisfy business verification checks | Covered with function ACL and behavior checks |
@@ -46,11 +50,11 @@ The current set is representative, not exhaustive. It does **not** establish tha
 ## Required expansion before Stage 3 exit
 
 Run positive and negative owner/admin/teacher/organizer/anon cases by material policy family, including at least:
-1. Admin overlay: `orders`, `payment_intents`, `certificates`, `participants`, `attempts`, `user_roles`, `organizers`, and `registrations`. Test a real synthetic active admin role plus a normal user; do not rely on a caller-provided UUID.
+1. Admin overlay: representative tests now cover `orders`, `order_items`, `payment_intents`, `payment_events`, `shipments`, `attempts`, `user_roles`, `audit_logs`, and `organizers`. Remaining admin coverage includes `certificates`, certificate assets, participants/collective participant access, `registrations`, badges/posts, and the other admin-gated application tables. Test a real synthetic active admin role plus a normal user; do not rely on a caller-provided UUID.
 2. Organizer scope: `organizer_custom_plan_requests`, `organizer_voucher_claims`, `participants`, collective sessions/participants/certificates, and organizer-owned competition resources. Test owner, active member with allowed role, inactive member, and unrelated organizer.
-3. Teacher / roster scope: `teacher_rosters` and `roster_students`. Test roster owner, another teacher, student, and admin.
-4. Commerce / payments: `orders`, `order_items`, `payment_intents`, `shipments`, `commerce_product_reviews`, wishlist and entitlements. Test order-owner visibility, admin overlay, and no cross-user reads or writes.
-5. Exams / awards: `answers`, `attempts`, `participants`, `awards`, `certificates`, and certificate assets. Test participant/attempt ownership and admin/organizer access only where explicitly intended.
+3. Teacher / roster scope: `teacher_rosters` and `roster_students` now test owner, unrelated student denial, and admin read. Still test another teacher, inactive teacher role, and insert/update/delete ownership.
+4. Commerce / payments: `orders`, `order_items`, `payment_intents`, `payment_events`, and `shipments` now have representative owner/admin tests. Still test `commerce_product_reviews`, wishlist, entitlements, cross-user update/delete, and other payment admin actions.
+5. Exams / awards: `participants` and `attempts` now test individual participant ownership and admin visibility. Still test `answers`, collective attempts, awards, certificates, certificate assets, and organizer access only where explicitly intended.
 6. Public surfaces: public profile visibility, follows, chat media/read surfaces and any public content policy. Test anon vs private rows and preserve the independent product decision to retire private chat only after dependency/retention review.
 
 For every tested table, preserve existing grants and the business-role checks. Do not add blanket policies, convert SECURITY DEFINER functions wholesale, or change a policy merely to make a synthetic test pass.
