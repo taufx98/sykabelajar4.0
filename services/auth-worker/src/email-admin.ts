@@ -3,6 +3,11 @@ import { decryptEmailSecret, encryptEmailSecret } from "./email-secret.mjs";
 import { isAllowedOrigin } from "./security.mjs";
 import { sendBrevoEmail } from "./brevo.mjs";
 import { sendZeptoMail } from "./zeptomail.mjs";
+import {
+  BetterAuthAdminAuthError,
+  isBetterAuthTokenForIssuer,
+  resolveBetterAuthAdminIdentity,
+} from "./email-admin-auth.mjs";
 
 type SupabaseAdminUser = { id: string; email: string };
 type EmailProvider = "zeptomail" | "brevo";
@@ -82,6 +87,40 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
     return { response: json({ ok: false, error: "AUTH_REQUIRED" }, 401) };
   }
 
+  // Better Auth resource tokens are third-party OIDC JWTs, not Supabase Auth
+  // access tokens. Route them through the pinned issuer/JWKS + UserInfo verifier.
+  // Admin membership is checked only against isolated FREE staging; the legacy
+  // Supabase Auth path below continues to use the configured legacy Supabase URL.
+  if (env.BETTER_AUTH_URL && isBetterAuthTokenForIssuer(accessToken, env.BETTER_AUTH_URL)) {
+    try {
+      const user = await resolveBetterAuthAdminIdentity({
+        accessToken,
+        authBaseUrl: env.BETTER_AUTH_URL,
+        resourceAudience: env.SUPABASE_RESOURCE_AUDIENCE,
+        supabaseUrl: env.SUPABASE_PROVISIONING_URL ?? "",
+        serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+      });
+      return { user };
+    } catch (error) {
+      const code = error instanceof BetterAuthAdminAuthError ? error.code : "";
+      if (code === "BETTER_AUTH_ADMIN_REQUIRED") {
+        return { response: json({ ok: false, error: "ADMIN_REQUIRED" }, 403) };
+      }
+      if (
+        code === "BETTER_AUTH_ADMIN_NOT_CONFIGURED" ||
+        code === "BETTER_AUTH_ADMIN_PROJECT_NOT_ALLOWED" ||
+        code === "BETTER_AUTH_ADMIN_CHECK_UNAVAILABLE" ||
+        code === "BETTER_AUTH_ADMIN_CHECK_FAILED" ||
+        code === "BETTER_AUTH_USERINFO_UNAVAILABLE" ||
+        code === "BETTER_AUTH_ADMIN_CONFIGURATION_INVALID"
+      ) {
+        return { response: json({ ok: false, error: "ADMIN_AUTH_UNAVAILABLE" }, 503) };
+      }
+      return { response: json({ ok: false, error: "AUTH_REQUIRED" }, 401) };
+    }
+  }
+
+  // Legacy Supabase Auth path remains unchanged.
   const baseUrl = supabaseBaseUrl(env);
   if (!baseUrl) {
     return { response: json({ ok: false, error: "ADMIN_AUTH_NOT_CONFIGURED" }, 503) };
