@@ -100,7 +100,7 @@ assert.match(draft, /UNSUPPORTED_ACCOUNT_TYPE/);
 assert.match(draft, /'teacher'::public\.app_role/);
 assert.match(draft, /'organizer_member'::public\.app_role/);
 assert.match(draft, /where not exists \([\s\S]{0,180}existing_role\.user_id = p_user_id[\s\S]{0,100}\)/i);
-assert.match(draft, /PERFORM 1[\s\S]*?FROM private\.app_users[\s\S]*?FOR UPDATE;/i);
+assert.match(draft, /SELECT au\.identity_origin[\s\S]*FROM private\.app_users au[\s\S]*FOR UPDATE;/i);
 assert.match(draft, /APPLICATION_PROFILE_NOT_READY/);
 assert.match(draft, /IF v_profile_rows > 0 THEN[\s\S]{0,260}existing_role\.user_id = p_user_id/i);
 assert.doesNotMatch(draft, /ON CONFLICT \(user_id, role\) DO UPDATE SET is_active = true/i);
