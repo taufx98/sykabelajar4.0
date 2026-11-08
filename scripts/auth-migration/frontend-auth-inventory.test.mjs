@@ -45,7 +45,7 @@ test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file
 test("the inventory document remains present next to its tracked source baseline", () => {
   const inventoryPath = join(repoRoot, "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md");
   const inventory = readFileSync(inventoryPath, "utf8");
-  assert.ok(inventory.includes('18 direct `supabase.auth` callsites across 7 frontend files'));
+  assert.ok(inventory.includes('17 direct `supabase.auth` callsites across 6 frontend files'));
   assert.match(inventory, /Organizer email\/phone verification/);
   assert.match(inventory, /Cloudinary remains the media system of record/);
   assert.match(inventory, /Legacy private-chat service[\s\S]*not migrate(?: it)? to Better Auth/);
