@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { startRpcHealthRealtime, stopRpcHealthRealtime, supabase } from '@/lib/supabase';
 import { env } from '@/lib/env';
+import { getSupabaseResourceAccessToken } from '@/services/applicationAccessToken';
 import { buildAiDebuggingContext } from '@/lib/aiDebuggingContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
