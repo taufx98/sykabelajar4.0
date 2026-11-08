@@ -11,6 +11,22 @@
  * @param {typeof fetch} [fetcher]
  * @returns {Promise<void>}
  */
+export function isEmailDeliveryConfigured(env) {
+  const endpoint = env.AUTH_EMAIL_WEBHOOK_URL?.trim();
+  const token = env.AUTH_EMAIL_WEBHOOK_TOKEN?.trim();
+  const from = env.AUTH_EMAIL_FROM?.trim();
+  if (!endpoint || !token || !from) return false;
+
+  try {
+    const endpointUrl = new URL(endpoint);
+    const localDevelopment = endpointUrl.hostname === "localhost" || endpointUrl.hostname === "127.0.0.1";
+    return endpointUrl.protocol === "https:" ||
+      (localDevelopment && endpointUrl.protocol === "http:");
+  } catch {
+    return false;
+  }
+}
+
 export async function deliverAuthEmail(env, message, fetcher = fetch) {
   const endpoint = env.AUTH_EMAIL_WEBHOOK_URL?.trim();
   const token = env.AUTH_EMAIL_WEBHOOK_TOKEN?.trim();
