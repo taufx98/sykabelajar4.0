@@ -610,6 +610,20 @@ export function isBetterAuthFrontendEnabled(): boolean {
   }
 }
 
+/**
+ * Custom OIDC is configured only on the isolated FREE staging project. Do not
+ * send Better Auth resource tokens to production if a Pages build inherits
+ * the staging-only feature flag by mistake.
+ */
+export function isBetterAuthFrontendEnabledForSupabase(projectUrl: string): boolean {
+  if (!isBetterAuthFrontendEnabled()) return false;
+  try {
+    return new URL(projectUrl).origin === 'https://ydamszdfsxqisanazdkb.supabase.co';
+  } catch {
+    return false;
+  }
+}
+
 let stagingClient: BetterAuthApiClient | null = null;
 
 /**
