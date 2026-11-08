@@ -47,7 +47,7 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /auth_email_accounts/);
   assert.match(workflow, /auth-worker-staging-email-provider.json/);
   assert.match(workflow, /Transactional email provider migration 0006 is missing/);
-  assert.match(workflow, /Verify all 20 remote D1 tables/);
+  assert.match(workflow, /expected\.length !== 20/);
   assert.match(workflow, /auth_phone_verification_challenges/);
   assert.match(workflow, /auth_social_provider_settings/);
   assert.match(workflow, /auth_social_provider_meta/);
