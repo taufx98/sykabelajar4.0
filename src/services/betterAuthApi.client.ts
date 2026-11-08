@@ -42,6 +42,7 @@ export interface BetterAuthRegistrationInput {
   grade?: string;
   subjects?: string;
   referralCode?: string;
+  callbackURL?: string;
 }
 
 export interface BetterAuthSignInResult {
@@ -357,6 +358,7 @@ function normalizeRegistration(input: BetterAuthRegistrationInput) {
     ...(input.grade ? { grade: input.grade.trim().toLowerCase() } : {}),
     ...(input.subjects ? { subjects: input.subjects.trim() } : {}),
     ...(input.referralCode ? { referralCode: input.referralCode.trim() } : {}),
+    ...(input.callbackURL ? { callbackURL: input.callbackURL } : {}),
   };
 }
 
