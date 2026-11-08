@@ -116,3 +116,9 @@ The branch provider-neutral UI and transport are now backed by the deployed isol
 ## Registration validation alignment — 8 November 2026
 
 The Stage 4 registration form now uses the same password minimum (8 characters) and username allowlist as the Better Auth Worker/client contract. The step controls prevent submission when a password is too short or the normalized username falls outside the 3–40 character lowercase safe-segment pattern. The server remains authoritative; this is early UI feedback, not a replacement for Worker/Postgres validation. A regression assertion in `scripts/auth-migration/frontend-auth-inventory.test.mjs` compares the UI and transport contracts.
+
+## Stage 4 organizer verification integration — 8 November 2026
+
+The organizer onboarding component now selects its verification method through the existing auth provider boundary. In the explicitly enabled Better Auth preview against the isolated Free Supabase project, it obtains the session from Better Auth, reads only a boolean phone-verification status from the Worker, and starts Telegram OIDC phone verification through the Worker. The callback returns to `/organizer`; the UI refreshes the status from the server before enabling workspace creation. The browser never submits an account UUID, phone hash, provider subject, or claimed verification timestamp.
+
+The legacy Supabase Auth preview path retains its existing phone-change OTP flow until the provider cutover is approved. The SQL status wrapper is added to the Stage 3 identity draft and synthetic fixture, with execution limited to `service_role`. The status route fails closed while that reviewed RPC is not installed. No production SQL, Supabase function, Cloudflare secret, provider credential, Worker deployment, or login flag was changed.
