@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { createApplicationIdentityReader } from "../../src/services/applicationIdentityReader.mjs";
 
 test("uses the shared UUID snapshot without an additional provider session request", async () => {
@@ -56,6 +57,21 @@ test("a signed-out bootstrap and provider errors remain fail-closed", async () =
     getFallbackUserId: async () => { throw new Error("AUTH_PROVIDER_UNAVAILABLE"); },
   });
   await assert.rejects(unavailable(), /AUTH_PROVIDER_UNAVAILABLE/);
+});
+
+
+test("the TypeScript service has a declared type for the shared .mjs reader", () => {
+  const declaration = readFileSync(
+    new URL("../../src/services/applicationIdentityReader.d.mts", import.meta.url),
+    "utf8",
+  );
+  const service = readFileSync(
+    new URL("../../src/services/applicationIdentity.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(declaration, /createApplicationIdentityReader/);
+  assert.match(service, /getAuthSessionSnapshot/);
+  assert.match(service, /createApplicationIdentityReader/);
 });
 
 console.log("Application identity reader contract passed: authoritative bus snapshot, no stale-session resurrection, bootstrap-only fallback.");
