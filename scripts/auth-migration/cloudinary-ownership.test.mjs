@@ -126,17 +126,17 @@ test("the shared identity resolver defaults to legacy Supabase Auth and only opt
 });
 
 test("the frontend Cloudinary delete-profile endpoint derives caller-owned username and UUID namespaces", () => {
-  assert.match(profileDeleteEndpoint, /requireApplicationUser\\(request\\)/);
-  assert.match(profileDeleteEndpoint, /UUID_PATTERN\\.test\\(userId\\)/);
-  assert.match(profileDeleteEndpoint, /identity\\.supabase[\\s\\S]*?from\\("profiles"\\)[\\s\\S]*?select\\("username"\\)[\\s\\S]*?eq\\("id", userId\\)/);
-  assert.match(profileDeleteEndpoint, /isOwnedCloudinaryPublicId\\(publicId, \\{ userId, username: profile\\.username \\}\\)/);
+  assert.match(profileDeleteEndpoint, /requireApplicationUser\(request\)/);
+  assert.match(profileDeleteEndpoint, /UUID_PATTERN\.test\(userId\)/);
+  assert.match(profileDeleteEndpoint, /identity\.supabase[\s\S]*?from\("profiles"\)[\s\S]*?select\("username"\)[\s\S]*?eq\("id", userId\)/);
+  assert.match(profileDeleteEndpoint, /isOwnedCloudinaryPublicId\(publicId, \{ userId, username: profile\.username \}\)/);
   assert.match(profileDeleteEndpoint, /PROFILE_NOT_FOUND/);
   assert.match(profileDeleteEndpoint, /FORBIDDEN_PUBLIC_ID/);
   assert.match(profileDeleteEndpoint, /resourceType !== "image"/);
-  assert.match(profileDeleteEndpoint, /\\/image\\/destroy/);
-  assert.match(profileDeleteEndpoint, /AbortSignal\\.timeout\\(8000\\)/);
-  assert.doesNotMatch(profileDeleteEndpoint, /body\\?\\.user_id|body\\?\\.owner_id|body\\?\\.userId|body\\?\\.username/);
-  assert.match(supabaseConfig, /\\[functions\\.cloudinary-delete-profile\\][\\s\\S]*?verify_jwt = false/);
+  assert.match(profileDeleteEndpoint, /\/image\/destroy/);
+  assert.match(profileDeleteEndpoint, /AbortSignal\.timeout\(8000\)/);
+  assert.doesNotMatch(profileDeleteEndpoint, /body\??\.user_id|body\??\.owner_id|body\??\.userId|body\??\.username/);
+  assert.match(supabaseConfig, /\[functions\.cloudinary-delete-profile\][\s\S]*?verify_jwt = false/);
   const identity = profileDeleteEndpoint.indexOf("requireApplicationUser(request)");
   const profileLookup = profileDeleteEndpoint.indexOf('.from("profiles")');
   const ownerGuard = profileDeleteEndpoint.indexOf("isOwnedCloudinaryPublicId(publicId");
