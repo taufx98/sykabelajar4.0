@@ -12,6 +12,8 @@ const supabaseClient = readFileSync(new URL("../../src/lib/supabase.ts", import.
 const sessionBridge = readFileSync(new URL("../../src/services/betterAuthSessionBridge.mjs", import.meta.url), "utf8");
 const cloudinaryService = readFileSync(new URL("../../src/services/cloudinary.service.ts", import.meta.url), "utf8");
 const profileSettingsPage = readFileSync(new URL("../../src/pages/ProfileInterfaceSettingsPage.tsx", import.meta.url), "utf8");
+const adminPage = readFileSync(new URL("../../src/pages/AdminPage.tsx", import.meta.url), "utf8");
+const zeptoMailPanel = readFileSync(new URL("../../src/components/admin/ZeptoMailSettingsPanel.tsx", import.meta.url), "utf8");
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
 
 assert.match(client, /credentials:\s*'include'/);
@@ -85,6 +87,14 @@ assert.match(profileSettingsPage, /isBetterAuthEnabled, updatePassword as update
 assert.match(profileSettingsPage, /updateAccountPassword\(password, requiresCurrentPassword \? currentPassword : undefined\)/);
 assert.match(profileSettingsPage, /autoComplete="current-password"/);
 assert.doesNotMatch(profileSettingsPage, /supabase\.auth/);
+assert.match(adminPage, /import \{ ZeptoMailSettingsPanel \} from '\/components\/admin\/ZeptoMailSettingsPanel'/);
+assert.match(adminPage, /tab === 'settings'[\s\S]*?<ZeptoMailSettingsPanel\s*\/>/);
+assert.match(zeptoMailPanel, /const EMPTY_DRAFT:[\s\S]*?provider: 'zeptomail'/);
+assert.match(zeptoMailPanel, /<option value="zeptomail">ZeptoMail · utama<\/option>/);
+assert.match(zeptoMailPanel, /<option value="brevo">Brevo Free · cadangan/);
+assert.match(zeptoMailPanel, /request\('activate'/);
+assert.match(zeptoMailPanel, /request\('test'/);
+assert.match(zeptoMailPanel, /request\('delete'/);
 assert.match(sessionBridge, /sykabelajar-better-auth-session/);
 assert.doesNotMatch(sessionBridge, /access_token|refresh_token/);
 assert.match(supabaseClient, /createSupabaseClientOptions/);
