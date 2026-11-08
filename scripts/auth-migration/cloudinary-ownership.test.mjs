@@ -125,21 +125,24 @@ test("the shared identity resolver defaults to legacy Supabase Auth and only opt
   assert.doesNotMatch(identityResolver, /SERVICE_ROLE_KEY|service_role/i);
 });
 
-test("the frontend Cloudinary delete-profile endpoint accepts only caller-owned profile/cover assets", () => {
-  assert.match(profileDeleteEndpoint, /requireApplicationUser\(request\)/);
-  assert.match(profileDeleteEndpoint, /UUID_PATTERN\.test\(userId\)/);
-  assert.match(profileDeleteEndpoint, /profile_pictures\/user_\$\{userId\}/);
-  assert.match(profileDeleteEndpoint, /profile_covers\/user_\$\{userId\}/);
-  assert.match(profileDeleteEndpoint, /allowedPublicIds\.has\(publicId\)/);
+test("the frontend Cloudinary delete-profile endpoint derives caller-owned username and UUID namespaces", () => {
+  assert.match(profileDeleteEndpoint, /requireApplicationUser\\(request\\)/);
+  assert.match(profileDeleteEndpoint, /UUID_PATTERN\\.test\\(userId\\)/);
+  assert.match(profileDeleteEndpoint, /identity\\.supabase[\\s\\S]*?from\\("profiles"\\)[\\s\\S]*?select\\("username"\\)[\\s\\S]*?eq\\("id", userId\\)/);
+  assert.match(profileDeleteEndpoint, /isOwnedCloudinaryPublicId\\(publicId, \\{ userId, username: profile\\.username \\}\\)/);
+  assert.match(profileDeleteEndpoint, /PROFILE_NOT_FOUND/);
+  assert.match(profileDeleteEndpoint, /FORBIDDEN_PUBLIC_ID/);
   assert.match(profileDeleteEndpoint, /resourceType !== "image"/);
-  assert.match(profileDeleteEndpoint, /\/image\/destroy/);
-  assert.match(profileDeleteEndpoint, /AbortSignal\.timeout\(8000\)/);
-  assert.doesNotMatch(profileDeleteEndpoint, /body\?\.user_id|body\?\.owner_id|resourceType\}\//);
-  assert.match(supabaseConfig, /\[functions\.cloudinary-delete-profile\][\s\S]*?verify_jwt = false/);
-  const ownerGuard = profileDeleteEndpoint.indexOf("allowedPublicIds.has(publicId)");
+  assert.match(profileDeleteEndpoint, /\\/image\\/destroy/);
+  assert.match(profileDeleteEndpoint, /AbortSignal\\.timeout\\(8000\\)/);
+  assert.doesNotMatch(profileDeleteEndpoint, /body\\?\\.user_id|body\\?\\.owner_id|body\\?\\.userId|body\\?\\.username/);
+  assert.match(supabaseConfig, /\\[functions\\.cloudinary-delete-profile\\][\\s\\S]*?verify_jwt = false/);
+  const identity = profileDeleteEndpoint.indexOf("requireApplicationUser(request)");
+  const profileLookup = profileDeleteEndpoint.indexOf('.from("profiles")');
+  const ownerGuard = profileDeleteEndpoint.indexOf("isOwnedCloudinaryPublicId(publicId");
   const secretRead = profileDeleteEndpoint.indexOf('requiredEnv("CLOUDINARY_API_SECRET")');
   const providerCall = profileDeleteEndpoint.indexOf("/image/destroy");
-  assert.ok(ownerGuard >= 0 && secretRead > ownerGuard && providerCall > secretRead);
+  assert.ok(identity >= 0 && profileLookup > identity && ownerGuard > profileLookup && secretRead > ownerGuard && providerCall > secretRead);
 });
 
 test("Cloudinary profile upload uses the shared verified identity and derives UUID-owned asset IDs", () => {
