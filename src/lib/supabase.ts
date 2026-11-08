@@ -1,6 +1,11 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { env } from './env';
 import { reportSystemError } from './errorIntelligence';
+import { createSupabaseClientOptions } from '@/services/supabaseClientOptions.mjs';
+import {
+  getStagingBetterAuthClient,
+  isBetterAuthFrontendEnabled,
+} from '@/services/betterAuthApi.client';
 
 let _client: SupabaseClient | null = null;
 let rpcHealthReady: Promise<void> | null = null;
@@ -63,10 +68,18 @@ async function authAwareFetch(input: RequestInfo | URL, init?: RequestInit) {
 
 function initClient(): SupabaseClient {
   if (_client) return _client;
-  _client = createClient(env.supabaseUrl, env.supabasePublishableKey, {
-    auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true },
-    global: { fetch: authAwareFetch },
-  });
+  const useBetterAuth = isBetterAuthFrontendEnabled();
+  _client = createClient(
+    env.supabaseUrl,
+    env.supabasePublishableKey,
+    createSupabaseClientOptions({
+      useExternalAuth: useBetterAuth,
+      getExternalAccessToken: useBetterAuth
+        ? () => getStagingBetterAuthClient().getSupabaseAccessToken()
+        : undefined,
+      fetchImpl: authAwareFetch,
+    }),
+  );
   return _client;
 }
 
