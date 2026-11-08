@@ -9,6 +9,7 @@ const appContext = readFileSync(new URL("../../src/store/AppContext.tsx", import
 const authService = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
 const callbackPage = readFileSync(new URL("../../src/pages/AuthOidcCallbackPage.tsx", import.meta.url), "utf8");
 const resetPasswordPage = readFileSync(new URL("../../src/pages/ResetPasswordPage.tsx", import.meta.url), "utf8");
+const emailVerifiedPage = readFileSync(new URL("../../src/pages/AuthEmailVerifiedPage.tsx", import.meta.url), "utf8");
 const accessTokenProvider = readFileSync(new URL("../../src/services/applicationAccessToken.ts", import.meta.url), "utf8");
 const authSessionBridge = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
 const supabaseClient = readFileSync(new URL("../../src/lib/supabase.ts", import.meta.url), "utf8");
@@ -113,6 +114,16 @@ assert.match(authService, /export async function updatePassword\(newPassword: st
 assert.match(authService, /changePassword\(currentPassword, newPassword, true\)/);
 assert.match(authService, /new URL\('\/reset-password', window\.location\.origin\)/);
 assert.match(authService, /export async function completePasswordReset\(token: string, newPassword: string\)/);
+assert.match(authService, /callbackURL: new URL\('\/auth\/verified', window\.location\.origin\)\.toString\(\)/);
+assert.match(authService, /new URL\('\/auth\/verified', window\.location\.origin\)/);
+assert.match(client, /callbackURL\?: string/);
+assert.match(client, /\? \{ callbackURL: input\.callbackURL \} : \{\}/);
+assert.match(emailVerifiedPage, /getSession\(\)/);
+assert.match(emailVerifiedPage, /session\?\.user\.emailVerified === true/);
+assert.doesNotMatch(emailVerifiedPage, /searchParams\.get\('status'\).*verified|params\.get\('status'\).*verified/);
+assert.match(emailVerifiedPage, /window\.history\.replaceState/);
+assert.match(app, /path="\/auth\/verified"/);
+
 assert.match(authService, /export async function sendVerificationEmail\(email: string, callbackURL\?: string\)/);
 assert.match(authService, /getStagingBetterAuthClient\(\)\.sendVerificationEmail\(normalizedEmail, destination\)/);
 assert.match(authService, /supabase\.auth\.resend\(\{[\s\S]*?type: 'signup'[\s\S]*?emailRedirectTo: destination/);
