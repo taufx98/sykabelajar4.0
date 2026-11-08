@@ -247,9 +247,9 @@ export function generateRollbackPlan(snapshot) {
       expand.join("\n\n") + "\n",
     "02-validate-auth-rollback.sql": header("bounded reverse validation") + validate.join("\n\n") + "\n",
     "03-cutover-auth-rollback.sql": header("single atomic reverse FK cutover") +
-      "BEGIN;\n" + boundedGuard() + "\nDO $\nBEGIN\n" +
+      "BEGIN;\n" + boundedGuard() + "\nDO $$\nBEGIN\n" +
       cutoverIdentityGuard + "\n\n" + cutoverGuards.join("\n\n") +
-      "\nEND\n$;\n\n" + statements.join("\n") + "\nCOMMIT;\n",
+      "\nEND\n$$;\n\n" + statements.join("\n") + "\nCOMMIT;\n",
   };
 }
 
