@@ -332,12 +332,21 @@ async function saveProvider(
     ? body.enabled
     : existing ? existing.enabled === 1 : provider === "google";
 
-  if (enabled !== (existing?.enabled === 1) || !existing) {
-    const rows = await readRows(env.DB);
-    const currentlyEnabled = rows.filter((row) => row.enabled === 1 && row.provider !== provider).length;
-    if (!enabled && currentlyEnabled === 0 && rows.some((row) => row.enabled === 1)) {
-      return json({ ok: false, error: "SOCIAL_PROVIDER_LAST_ENABLED_METHOD" }, 409);
+  const currentRows = await readRows(env.DB);
+  const otherEnabledCount = currentRows.filter((row) => row.enabled === 1 && row.provider !== provider).length;
+  const currentProviderEnabled = existing?.enabled === 1;
+  if (!enabled && currentProviderEnabled && otherEnabledCount === 0) {
+    return json({ ok: false, error: "SOCIAL_PROVIDER_LAST_ENABLED_METHOD" }, 409);
+  }
+  if (enabled && !suppliedSecret && existing) {
+    try {
+      await decryptSocialProviderSecret(key, existing.client_secret_ciphertext);
+    } catch {
+      return json({ ok: false, error: "SOCIAL_PROVIDER_CREDENTIAL_DECRYPT_FAILED" }, 422);
     }
+  }
+  if (!enabled && !currentProviderEnabled && otherEnabledCount === 0) {
+    return json({ ok: false, error: "SOCIAL_PROVIDER_PRIMARY_LOGIN_REQUIRED" }, 409);
   }
 
   try {
@@ -376,6 +385,13 @@ async function setProviderEnabled(
   if (!existing) return json({ ok: false, error: "SOCIAL_PROVIDER_NOT_CONFIGURED" }, 404);
   if (body.enabled && (!env.AUTH_PROVIDER_ENCRYPTION_KEY || env.AUTH_PROVIDER_ENCRYPTION_KEY.length < 32)) {
     return json({ ok: false, error: "SOCIAL_PROVIDER_ENCRYPTION_NOT_CONFIGURED" }, 503);
+  }
+  if (body.enabled) {
+    try {
+      await decryptSocialProviderSecret(env.AUTH_PROVIDER_ENCRYPTION_KEY!, existing.client_secret_ciphertext);
+    } catch {
+      return json({ ok: false, error: "SOCIAL_PROVIDER_CREDENTIAL_DECRYPT_FAILED" }, 422);
+    }
   }
   if (!body.enabled && existing.enabled === 1) {
     const rows = await readRows(env.DB);
