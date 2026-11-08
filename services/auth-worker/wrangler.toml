@@ -28,7 +28,9 @@ APP_ORIGIN = "https://sykabelajar.my.id"
 DEV_APP_ORIGIN = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev"
 SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
 # Server-only identity RPCs may target only the isolated Free Stage 3 fixture project.
-# SUPABASE_PROVISIONING_ENABLED remains unset; production admin bridge uses SUPABASE_URL.
+# Provision fresh Better Auth users only into the isolated Free Stage 3 project.
+# The Worker helper rejects every other Supabase origin; production remains on the legacy path.
+SUPABASE_PROVISIONING_ENABLED = "true"
 SUPABASE_PROVISIONING_URL = "https://ydamszdfsxqisanazdkb.supabase.co"
 OAUTH_CALLBACK_URL = "https://sykabelajar.my.id/auth/oidc/callback"
 
