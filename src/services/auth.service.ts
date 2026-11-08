@@ -9,6 +9,23 @@ import { publishAuthSessionEvent } from '@/services/authSessionEvents.mjs';
 
 export const LOGIN_REJECTION_SIGNOUT_KEY = 'syka_login_rejection_signout_v1';
 
+/** True only for the exact non-production Better Auth preview + staging project. */
+export function isBetterAuthEnabled(): boolean {
+  return isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl);
+}
+
+/** Keep password changes behind the same provider boundary as sign-in/session handling. */
+export async function updatePassword(newPassword: string, currentPassword?: string): Promise<void> {
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
+    if (!currentPassword) throw new Error('AUTH_CURRENT_PASSWORD_REQUIRED');
+    await getStagingBetterAuthClient().changePassword(currentPassword, newPassword, true);
+    return;
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
 export interface ApplicationAuthSession {
   user: {
     id: string;
