@@ -440,7 +440,7 @@ jobs:
             psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/auth-stage3-identity-root-draft.sql
-          echo "- Applied Stage 3 identity-root/lifecycle draft to disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Applied Stage 3 identity-root draft; no legacy Auth accounts/backfill" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Simulate all 69 FK expansion, validation and atomic cutover on disposable restore only
         if: steps.credentials.outputs.available == 'true'
@@ -452,6 +452,16 @@ jobs:
           node scripts/auth-migration/generate-app-users-fk-plan.mjs \
             --catalog scripts/auth-migration/live-auth-users-fk-catalog.json \
             --out-dir "$PLAN_DIR"
+
+          # Preserve only UUID parent references required by existing application rows.
+          # Never backfill Auth users, emails, credentials or verification data.
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
+            -v "$PLAN_DIR:/plan:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --file=/plan/00-identity-tombstones.sql
 
           for phase in 01-preflight-expand.sql 02-validate.sql 03-cutover.sql; do
             docker run --rm --network host \
@@ -542,7 +552,7 @@ jobs:
             psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/auth-stage3-issuer-guard.sql
-          echo "- Added restrictive two-issuer guard to the 61 auth.uid()-policy tables in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Added restrictive Better Auth issuer-only guard to the 61 auth.uid()-policy tables in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Stage 3 trusted-issuer RLS acceptance on disposable restore
         if: steps.credentials.outputs.available == 'true'
