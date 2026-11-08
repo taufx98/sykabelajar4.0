@@ -96,6 +96,9 @@ jobs:
       - name: Verify disabled Better Auth frontend transport boundary
         run: node ../../../scripts/auth-migration/better-auth-frontend-client.test.mjs
 
+      - name: Verify provider-aware Supabase client token source
+        run: node ../../../scripts/auth-migration/supabase-client-options.test.mjs
+
       - name: Set up pinned Deno for Edge Function type-check
         uses: denoland/setup-deno@v2.0.5
         with:
