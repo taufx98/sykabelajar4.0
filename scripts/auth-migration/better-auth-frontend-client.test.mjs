@@ -8,6 +8,7 @@ const viteEnv = readFileSync(new URL("../../src/vite-env.d.ts", import.meta.url)
 const appContext = readFileSync(new URL("../../src/store/AppContext.tsx", import.meta.url), "utf8");
 const authService = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
 const callbackPage = readFileSync(new URL("../../src/pages/AuthOidcCallbackPage.tsx", import.meta.url), "utf8");
+const resetPasswordPage = readFileSync(new URL("../../src/pages/ResetPasswordPage.tsx", import.meta.url), "utf8");
 const accessTokenProvider = readFileSync(new URL("../../src/services/applicationAccessToken.ts", import.meta.url), "utf8");
 const authSessionBridge = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
 const supabaseClient = readFileSync(new URL("../../src/lib/supabase.ts", import.meta.url), "utf8");
@@ -96,6 +97,16 @@ assert.match(authService, /createBetterAuthSessionBridge/);
 assert.match(authService, /export function isBetterAuthEnabled\(\)/);
 assert.match(authService, /export async function updatePassword\(newPassword: string, currentPassword\?: string\)/);
 assert.match(authService, /changePassword\(currentPassword, newPassword, true\)/);
+assert.match(authService, /new URL\('\/reset-password', window\.location\.origin\)/);
+assert.match(authService, /export async function completePasswordReset\(token: string, newPassword: string\)/);
+assert.match(authService, /getStagingBetterAuthClient\(\)\.resetPassword\(token, newPassword\)/);
+assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
+assert.match(resetPasswordPage, /new URLSearchParams\(window\.location\.search\)\.get\('token'\)/);
+assert.match(resetPasswordPage, /searchParams\.delete\('token'\)/);
+assert.match(resetPasswordPage, /completePasswordReset\(token, password\)/);
+assert.match(resetPasswordPage, /password\.length < 8/);
+assert.match(app, /path="\/reset-password"/);
+
 assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
 assert.match(client, /async changePassword\(currentPassword, newPassword, revokeOtherSessions = true\)[\s\S]*?await request<unknown>\('\/change-password'[\s\S]*?clearResourceTokenCache\(\);/);
 assert.match(profileSettingsPage, /isBetterAuthEnabled, updatePassword as updateAccountPassword/);
