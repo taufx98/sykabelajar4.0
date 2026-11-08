@@ -4,7 +4,7 @@ import {
   getAuthSessionSnapshot,
   publishAuthSessionEvent,
   subscribeAuthSessionEvents,
-} from "../src/services/authSessionEvents.mjs";
+} from "../../src/services/authSessionEvents.mjs";
 
 test("one session event source replays identity, detects account changes, and isolates observers", () => {
   const received = [];
