@@ -163,10 +163,7 @@ $function$;
 
 REVOKE ALL ON FUNCTION private.complete_better_auth_phone_verification(
   uuid,timestamptz,text,text,text,integer
-) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION private.complete_better_auth_phone_verification(
-  uuid,timestamptz,text,text,text,integer
-) TO service_role;
+) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.better_auth_complete_phone_verification(
   uuid,timestamptz,text,text,text,integer
 ) FROM PUBLIC, anon, authenticated;
