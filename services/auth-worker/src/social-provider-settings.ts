@@ -428,7 +428,11 @@ async function setProviderEnabled(
   }
   if (!body.enabled && existing.enabled === 1) {
     const rows = await readRows(env.DB);
-    if (rows.filter((row) => row.enabled === 1).length <= 1) {
+    const usableRows = rows.filter((row) =>
+      row.enabled === 1 && (row.provider !== "facebook" || emailVerificationConfigured)
+    );
+    const existingIsUsable = provider !== "facebook" || emailVerificationConfigured;
+    if (existingIsUsable && usableRows.length <= 1) {
       return json({ ok: false, error: "SOCIAL_PROVIDER_LAST_ENABLED_METHOD" }, 409);
     }
   }
