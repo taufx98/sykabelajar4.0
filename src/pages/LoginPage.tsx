@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { GraduationCap, Mail, Lock, ArrowRight, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
-import { resetPassword } from '@/services/auth.service';
+import { isBetterAuthEnabled, resetPassword, signInWithSocial } from '@/services/auth.service';
+import { getStagingBetterAuthClient, type BetterAuthSocialProvider } from '@/services/betterAuthApi.client';
 import { useLanguage } from '@/lib/LanguageContext';
 
 export function LoginPage() {
@@ -22,6 +23,18 @@ export function LoginPage() {
   const [showForgot, setShowForgot] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [socialProviders, setSocialProviders] = useState<BetterAuthSocialProvider[]>([]);
+  const [socialLoading, setSocialLoading] = useState<BetterAuthSocialProvider | null>(null);
+  const betterAuthPreview = isBetterAuthEnabled();
+
+  useEffect(() => {
+    if (!betterAuthPreview) return;
+    let active = true;
+    void getStagingBetterAuthClient().getAvailableSocialProviders()
+      .then((providers) => { if (active) setSocialProviders(providers); })
+      .catch(() => { if (active) setSocialProviders([]); });
+    return () => { active = false; };
+  }, [betterAuthPreview]);
 
   const handleLogin = async () => {
     if (!email || !password) { toast(text('Isi email dan password','Enter your email and password'), 'error'); return; }
@@ -34,6 +47,23 @@ export function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSocialLogin = async (provider: BetterAuthSocialProvider) => {
+    setSocialLoading(provider);
+    try {
+      const callbackURL = `${window.location.origin}/#${redirectTo}`;
+      await signInWithSocial(provider, callbackURL);
+    } catch (error: any) {
+      toast(error?.message ?? text('Login sosial gagal. Coba lagi.','Social sign-in failed. Please try again.'), 'error');
+      setSocialLoading(null);
+    }
+  };
+
+  const providerLabel: Record<BetterAuthSocialProvider, string> = {
+    google: 'Google / Gmail',
+    facebook: 'Facebook',
+    twitter: 'X / Twitter',
   };
 
   const handleReset = async () => {
@@ -62,6 +92,29 @@ export function LoginPage() {
           <div className="card p-6 md:p-8 animate-slide-up">
             <h1 className="font-display font-bold text-2xl text-fg mb-1">{text('Masuk','Sign in')}</h1>
             <p className="text-sm text-slate-400 mb-6">{text('Masuk dengan email dan password. Sistem akan mengenali peran akun secara otomatis dari backend.','Sign in with your email and password. Your account role is detected automatically by the backend.')}</p>
+            {betterAuthPreview && socialProviders.length > 0 && <div className="mb-6">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">{text('Masuk dengan akun','Continue with')}</p>
+              <div className="grid grid-cols-1 gap-2">
+                {socialProviders.map((provider) => <Button
+                  key={provider}
+                  type="button"
+                  fullWidth
+                  variant="outline"
+                  loading={socialLoading === provider}
+                  disabled={socialLoading !== null && socialLoading !== provider}
+                  onClick={() => void handleSocialLogin(provider)}
+                  className="justify-center"
+                >
+                  <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">
+                    {provider === 'google' ? 'G' : provider === 'facebook' ? 'f' : 'X'}
+                  </span>
+                  {text('Lanjutkan dengan ', 'Continue with ')}{providerLabel[provider]}
+                </Button>)}
+              </div>
+              {socialProviders.includes('facebook') && <p className="mt-2 text-[11px] text-slate-500">{text('Facebook memerlukan verifikasi email SYKABELAJAR sebelum sesi dapat dibuat.','Facebook requires SYKABELAJAR email verification before a session can be created.')}</p>}
+              <div className="relative my-5"><div className="absolute inset-0 flex items-center"><span className="w-full border-t surface-border"/></div><div className="relative flex justify-center"><span className="surface-bg px-3 text-xs text-slate-500">{text('atau masuk dengan email','or sign in with email')}</span></div></div>
+            </div>}
+
             <Link to="/peserta-kolektif/login" className="mb-5 flex items-center gap-3 rounded-xl border surface-border px-3 py-3 hover:border-moss-500/40 hover:bg-moss-500/5 transition">
               <span className="w-9 h-9 rounded-lg bg-moss-500/10 flex items-center justify-center text-accent"><ShieldCheck size={17} /></span>
               <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-fg">{text('Masuk sebagai Peserta Kolektif','Sign in as a Group Participant')}</span><span className="block text-xs text-slate-500 mt-0.5">{text('Gunakan password portal dari Guru.','Use the portal password provided by your teacher.')}</span></span>
