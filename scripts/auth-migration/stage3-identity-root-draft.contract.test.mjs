@@ -96,6 +96,23 @@ assert.doesNotMatch(draft.match(/CREATE OR REPLACE FUNCTION public\.create_organ
 assert.match(draft, /NULL::timestamptz AS last_login_at/);
 assert.doesNotMatch(draft, /au\.last_sign_in_at/);
 
+for (const name of [
+  "public.get_my_referrals()",
+  "public.get_my_referrals_v2()",
+  "public.get_my_verified_referrals()",
+]) {
+  const normalized = name.replaceAll(".", "\\.");
+  const body = draft.match(new RegExp("CREATE OR REPLACE FUNCTION " + normalized + "[\\s\\S]*?\\$function\\$;", "i"))?.[0] ?? "";
+  assert.ok(body, "missing referral read function body: " + name);
+  assert.match(body, /SET search_path TO ''/i,
+    "SECURITY DEFINER referral RPC must use an empty search_path: " + name);
+  assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + normalized + "[\\s\\S]{0,180}FROM PUBLIC, anon, authenticated, service_role", "i"),
+    "referral read RPC must revoke default/public execution: " + name);
+  assert.match(draft, new RegExp("GRANT EXECUTE ON FUNCTION " + normalized + "[\\s\\S]{0,100}TO authenticated", "i"),
+    "referral read RPC must be executable by authenticated only: " + name);
+}
+assert.doesNotMatch(draft, /GRANT EXECUTE ON FUNCTION public\.get_my_(?:verified_)?referrals(?:_v2)?\(\)[\s\S]{0,100}TO (?:PUBLIC|anon|service_role)/i);
+
 // Registration role mapping is limited to basic roles and retries do not
 // add a second role or reactivate an existing disabled role.
 assert.match(draft, /UNSUPPORTED_ACCOUNT_TYPE/);
