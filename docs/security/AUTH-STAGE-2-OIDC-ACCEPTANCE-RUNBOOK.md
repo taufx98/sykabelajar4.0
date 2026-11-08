@@ -33,6 +33,18 @@ From a trusted environment, request the discovery URL and confirm:
 
 Fetch the returned JWKS URI. It must expose a public asymmetric ES256 key with a non-empty `kid` (EC / P-256). Public JWKS must not expose private key material such as `d`. Keep Better Auth's D1-backed private key storage and encryption enabled; never export private keys to CI artifacts or the repository.
 
+## ES256/JWKS key rotation
+
+Supabase refreshes third-party issuer signing keys periodically; allow up to **30 minutes** for a published JWKS change to be picked up. Use overlap rather than immediate replacement:
+
+1. Publish the new ES256/P-256 public JWK with a unique `kid`, while retaining the old public JWK.
+2. Wait at least 30 minutes and verify Supabase accepts a token signed by the new key before switching the Worker's active signer `kid`.
+3. Switch the Worker signer to the new key. Keep the old public JWK until the last old-key token has expired plus the JWKS propagation window.
+4. Verify new-key acceptance and old-key expiry/rejection. Only then remove the old key from public JWKS.
+5. Never export private keys from D1, write them to CI artifacts, or commit them. Keep the private key encrypted in D1 and keep JWT lifetimes short.
+
+This is a rollout rule, not permission to rotate production keys during the current staging work. The current five-minute resource-token lifetime means the old public key must remain available for the full Supabase propagation window after old-key tokens stop being issued.
+
 ## Token acceptance contract
 
 Complete the authorization-code flow from the exact first-party callback and inspect tokens only in a secure test environment. A valid access token must satisfy all of the following:
