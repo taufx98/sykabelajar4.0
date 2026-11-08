@@ -226,6 +226,15 @@ export function generateRollbackPlan(snapshot) {
       "  END IF;",
     ].join("\n");
   });
+  const cutoverIdentityGuard = [
+    "  IF EXISTS (",
+    "    SELECT 1 FROM private.app_users AS app_user",
+    "    LEFT JOIN auth.users AS legacy_user ON legacy_user.id = app_user.id",
+    "    WHERE legacy_user.id IS NULL",
+    "  ) THEN",
+    "    RAISE EXCEPTION 'ROLLBACK_BLOCKED_BETTER_AUTH_ONLY_IDENTITY_EXISTS';",
+    "  END IF;",
+  ].join("\n");
   const statements = records.flatMap((fk, index) => [
     "ALTER TABLE " + rel(fk) + " DROP CONSTRAINT " + qi(fk.name, "current_constraint_name") + ";",
     "ALTER TABLE " + rel(fk) + " RENAME CONSTRAINT " + qi(tempName(fk, index), "temporary_constraint_name") +
@@ -238,8 +247,9 @@ export function generateRollbackPlan(snapshot) {
       expand.join("\n\n") + "\n",
     "02-validate-auth-rollback.sql": header("bounded reverse validation") + validate.join("\n\n") + "\n",
     "03-cutover-auth-rollback.sql": header("single atomic reverse FK cutover") +
-      "BEGIN;\n" + boundedGuard() + "\nDO $$\nBEGIN\n" +
-      cutoverGuards.join("\n\n") + "\nEND\n$$;\n\n" + statements.join("\n") + "\nCOMMIT;\n",
+      "BEGIN;\n" + boundedGuard() + "\nDO $\nBEGIN\n" +
+      cutoverIdentityGuard + "\n\n" + cutoverGuards.join("\n\n") +
+      "\nEND\n$;\n\n" + statements.join("\n") + "\nCOMMIT;\n",
   };
 }
 
