@@ -37,9 +37,9 @@ assert.match(validate, /ROLLBACK_REPLACEMENT_FK_MISSING:/);
 assert.match(validate, /convalidated/);
 assert.match(cutover, /ROLLBACK_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED:/);
 assert.match(cutover, /ROLLBACK_CURRENT_FK_MISSING_OR_SEMANTICS_CHANGED:/);
-assert.ok(cutover.includes("\nDO $\nBEGIN\n"),
+assert.ok(cutover.includes("\nDO $$\nBEGIN\n"),
   "atomic cutover must open its PL/pgSQL block with a valid dollar-quote delimiter");
-assert.ok(cutover.includes("\nEND\n$;\n\n"),
+assert.ok(cutover.includes("\nEND\n$$;\n\n"),
   "atomic cutover must close its PL/pgSQL block with a matching delimiter");
 assert.ok(!cutover.includes("\nDO $\n"),
   "a lone dollar sign is not a valid PL/pgSQL block delimiter");
