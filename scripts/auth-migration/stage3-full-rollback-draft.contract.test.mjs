@@ -40,11 +40,12 @@ assert.match(sql, /FROM auth[.]users AS au/);
 assert.match(sql, /WHERE au[.]id = v_uid/);
 assert.match(sql, /RETURNING inserted_organizer[.]id INTO v_id/);
 
-for (const trigger of ["a_sync_app_users_identity_insert","a_sync_app_users_identity_update"]) {
-  assert.ok(sql.includes("DROP TRIGGER " + trigger + " ON auth.users"),
-    "rollback removes only the Stage 3 sync trigger: " + trigger);
+for (const trigger of ["on_auth_user_created","trg_referral_signup_attribution","trg_referral_email_confirmed"]) {
+  assert.match(sql, new RegExp("CREATE TRIGGER " + trigger + "[\\s\\S]*ON auth[.]users"),
+    "rollback restores the original Supabase Auth trigger: " + trigger);
 }
-assert.match(sql, /DROP FUNCTION private[.]sync_legacy_auth_user_identity_projection/);
+assert.doesNotMatch(sql, /a_sync_app_users_identity|sync_legacy_auth_user_identity_projection/);
+assert.match(sql, /GRANT EXECUTE ON FUNCTION public[.]handle_new_auth_user\\(\\) TO service_role/);
 for (const wrapper of [
   "public.better_auth_provision_user",
   "public.better_auth_complete_email_verification",
@@ -63,4 +64,4 @@ assert.match(sql, /COMMIT;/);
 
 assert.doesNotMatch(sql, /DROP TABLE auth[.]users|TRUNCATE|DELETE FROM auth[.]users|DELETE FROM public[.]/i);
 assert.doesNotMatch(sql, /INSERT INTO auth[.]users|UPDATE auth[.]users/i);
-console.log("Stage 3 full rollback draft contract passed: no-shadow guard, exact issuer-policy scope, Auth functions/triggers restored, projection/helpers removed, final FK/trigger postflight.");
+console.log("Stage 3 rollback contract passed: legacy Auth triggers are restored only by explicit rollback; no old account or credentials are copied.");
