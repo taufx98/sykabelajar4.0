@@ -29,6 +29,7 @@ on:
       - "src/pages/RegisterPage.tsx"
       - "src/pages/LoginPage.tsx"
       - "src/pages/ResetPasswordPage.tsx"
+      - "src/pages/AuthEmailVerifiedPage.tsx"
       - "scripts/auth-migration/better-auth-session-bridge.test.mjs"
       - "src/lib/supabase.ts"
       - "src/services/supabaseClientOptions.mjs"
