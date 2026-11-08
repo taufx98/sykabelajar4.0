@@ -6,6 +6,7 @@ const authPath = new URL("../src/auth.ts", import.meta.url);
 const envPath = new URL("../src/env.ts", import.meta.url);
 const auth = readFileSync(authPath, "utf8");
 const env = readFileSync(envPath, "utf8");
+const settings = readFileSync(new URL("../src/social-provider-settings.ts", import.meta.url), "utf8");
 
 test("Google, Facebook and X provider credentials are optional and validated as pairs", () => {
   for (const provider of ["GOOGLE", "FACEBOOK", "TWITTER"]) {
@@ -17,6 +18,14 @@ test("Google, Facebook and X provider credentials are optional and validated as 
   assert.match(auth, /Boolean\(clientId\) !== Boolean\(clientSecret\)/);
   assert.ok(auth.includes('throw new Error(provider + "_OAUTH_REQUIRES_BOTH_CLIENT_ID_AND_CLIENT_SECRET")'));
   assert.match(auth, /Object\.keys\(configuredSocialProviders\)\.length > 0/);
+});
+
+
+test("managed OAuth configuration falls back only when migration 0007 is absent", () => {
+  assert.ok(settings.includes('if (/no such table:\\s*auth_social_provider_meta/i.test(reason)) return null;'));
+  assert.ok(settings.includes('throw new Error("SOCIAL_PROVIDER_CONFIGURATION_UNAVAILABLE")'));
+  assert.match(settings, /managedMode: true, revision: meta\.revision, providers/);
+  assert.match(settings, /AUTH_PROVIDER_ENCRYPTION_KEY/);
 });
 
 test("Facebook login requests email and rejects profiles without a usable email", () => {
