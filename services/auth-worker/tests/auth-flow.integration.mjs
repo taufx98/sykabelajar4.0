@@ -383,6 +383,66 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       "session cookie must remain host-only and must not set a Domain attribute",
     );
 
+    // Change-password requires the current credential and can revoke other
+    // sessions without signing out the session that performed the change.
+    const secondarySignIn = await authRequest("/sign-in/email", {
+      method: "POST",
+      body: { email, password: resetPassword },
+    });
+    assert.ok(secondarySignIn.ok, "a second device session must be created before the password-change test");
+    const secondaryCookie = sessionCookie(secondarySignIn);
+    assert.ok(secondaryCookie && secondaryCookie !== cookie, "second sign-in must receive a distinct session cookie");
+
+    const rejectedPasswordChange = await authRequest("/change-password", {
+      method: "POST",
+      body: {
+        currentPassword: "Sykabelajar-Wrong-Password",
+        newPassword: "Sykabelajar-PoC-Password-3",
+        revokeOtherSessions: true,
+      },
+      cookie,
+    });
+    assert.equal(rejectedPasswordChange.ok, false, "change-password must reject an incorrect current password");
+    const sessionAfterRejectedPasswordChange = await authRequest("/get-session", { cookie });
+    assert.ok(await parseJson(sessionAfterRejectedPasswordChange), "a rejected password change must preserve the active session");
+
+    const changedPassword = "Sykabelajar-PoC-Password-3";
+    const passwordChange = await authRequest("/change-password", {
+      method: "POST",
+      body: {
+        currentPassword: resetPassword,
+        newPassword: changedPassword,
+        revokeOtherSessions: true,
+      },
+      cookie,
+    });
+    assert.ok(passwordChange.ok, "change-password must accept the correct current password");
+    const currentSessionAfterPasswordChange = await authRequest("/get-session", { cookie });
+    assert.ok(await parseJson(currentSessionAfterPasswordChange), "the session performing the password change must remain active");
+
+    const secondarySessionAfterPasswordChange = await authRequest("/get-session", { cookie: secondaryCookie });
+    assert.equal(await parseJson(secondarySessionAfterPasswordChange), null, "revokeOtherSessions must invalidate the other device session");
+
+    const oldPasswordSignIn = await authRequest("/sign-in/email", {
+      method: "POST",
+      body: { email, password: resetPassword },
+    });
+    assert.equal(oldPasswordSignIn.ok, false, "the previous password must stop authenticating after a successful change");
+
+    const newPasswordSignIn = await authRequest("/sign-in/email", {
+      method: "POST",
+      body: { email, password: changedPassword },
+    });
+    assert.ok(newPasswordSignIn.ok, "the new password must authenticate successfully");
+    const newPasswordCookie = sessionCookie(newPasswordSignIn);
+    assert.ok(newPasswordCookie, "the new password sign-in must create a session");
+    const newPasswordSignOut = await authRequest("/sign-out", {
+      method: "POST",
+      body: {},
+      cookie: newPasswordCookie,
+    });
+    assert.ok(newPasswordSignOut.ok, "the temporary new-password verification session must be revoked");
+
     const bootstrap = await fetch(new URL("/_internal/bootstrap-first-party-client", baseUrl), {
       method: "POST",
       headers: { Authorization: "Bearer " + clientBootstrapToken },
