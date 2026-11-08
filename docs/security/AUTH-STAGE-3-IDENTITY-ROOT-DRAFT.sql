@@ -451,11 +451,45 @@ $function$;
 
 
 CREATE OR REPLACE FUNCTION public.get_my_verified_referrals()
- RETURNS TABLE(referred_user_id uuid, full_name text, username text, joined_at timestamp with time zone, last_login_at timestamp with time zone)
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'private'
-AS $function$ SELECT re.referred_user_id,coalesce(p.full_name,p.username,'Pengguna'),p.username,re.created_at,NULL::timestamptz FROM public.referral_events re JOIN private.app_users au ON au.id=re.referred_user_id LEFT JOIN public.profiles p ON p.id=re.referred_user_id WHERE re.referrer_user_id=auth.uid() AND re.verified_at IS NOT NULL ORDER BY re.verified_at DESC; $function$;
+RETURNS TABLE (
+  referred_user_id uuid,
+  full_name text,
+  username text,
+  joined_at timestamptz,
+  last_login_at timestamptz
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT
+    re.referred_user_id,
+    coalesce(p.full_name, p.username, 'Pengguna') AS full_name,
+    p.username,
+    re.created_at AS joined_at,
+    NULL::timestamptz AS last_login_at
+  FROM public.referral_events AS re
+  JOIN private.app_users AS au ON au.id = re.referred_user_id
+  LEFT JOIN public.profiles AS p ON p.id = re.referred_user_id
+  WHERE re.referrer_user_id = (SELECT auth.uid())
+    AND re.verified_at IS NOT NULL
+  ORDER BY re.verified_at DESC;
+$function$;
+
+-- These public SECURITY DEFINER read RPCs return only the calling referrer's
+-- rows. Keep their historic result-column contracts, but never expose the
+-- function entry points to PUBLIC/anon or service_role.
+REVOKE ALL ON FUNCTION public.get_my_referrals()
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.get_my_referrals_v2()
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.get_my_verified_referrals()
+  FROM PUBLIC, anon, authenticated, service_role;
+
+GRANT EXECUTE ON FUNCTION public.get_my_referrals() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_my_referrals_v2() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_my_verified_referrals() TO authenticated;
 
 
 CREATE OR REPLACE FUNCTION public.register_for_competition(p_competition_id uuid, p_participation_key text DEFAULT NULL::text, p_competition_level_id uuid DEFAULT NULL::uuid, p_social_proof_url text DEFAULT NULL::text, p_twibbon_completed boolean DEFAULT false, p_social_platform text DEFAULT NULL::text, p_social_username text DEFAULT NULL::text, p_referral_code text DEFAULT NULL::text)
