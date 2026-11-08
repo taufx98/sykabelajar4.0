@@ -3,6 +3,11 @@
 -- to have completed successfully BEFORE this file is considered.
 --
 -- Preconditions / hard stops:
+--   * stop Better Auth provisioning/sign-up and disable the Worker projection flag
+--     before invoking this rollback; retain the D1/Worker credentials for audit.
+--   * if production Supabase Custom OIDC was enabled, remove only the Better Auth
+--     third-party issuer integration via Dashboard/Management API before dropping
+--     the restrictive two-issuer policies; SQL cannot remove that provider setting.
 --   * no Better Auth-only user may have been provisioned;
 --   * every private.app_users.id must still exist in auth.users;
 --   * all 69 application FK constraints must already reference auth.users;
