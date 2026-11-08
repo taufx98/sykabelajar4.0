@@ -581,11 +581,33 @@ export function createBetterAuthApiClient(options: {
 
 /** Explicit opt-in check; the existing app never enables this automatically. */
 export function isBetterAuthFrontendEnabled(): boolean {
-  return (
-    import.meta.env.VITE_BETTER_AUTH_FRONTEND_ENABLED === 'true' &&
-    typeof import.meta.env.VITE_AUTH_WORKER_URL === 'string' &&
-    import.meta.env.VITE_AUTH_WORKER_URL.trim().length > 0
-  );
+  if (
+    import.meta.env.VITE_BETTER_AUTH_FRONTEND_ENABLED !== 'true' ||
+    typeof import.meta.env.VITE_AUTH_WORKER_URL !== 'string' ||
+    !import.meta.env.VITE_AUTH_WORKER_URL.trim()
+  ) {
+    return false;
+  }
+
+  // The opt-in must never activate on the production application hostname,
+  // even if a shared Cloudflare Pages build variable is misconfigured.
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname.toLowerCase();
+  const isLocalPreview = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isPagesPreview = hostname.endsWith('.pages.dev');
+  if (!isLocalPreview && !isPagesPreview) return false;
+
+  try {
+    const worker = new URL(import.meta.env.VITE_AUTH_WORKER_URL);
+    const localWorker = worker.hostname === 'localhost' || worker.hostname === '127.0.0.1';
+    return (
+      worker.protocol === 'https:' && worker.hostname === 'auth.sykabelajar.my.id'
+    ) || (
+      localWorker && worker.protocol === 'http:'
+    );
+  } catch {
+    return false;
+  }
 }
 
 let stagingClient: BetterAuthApiClient | null = null;
