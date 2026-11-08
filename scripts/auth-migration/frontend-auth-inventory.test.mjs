@@ -7,10 +7,8 @@ import test from "node:test";
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const sourceRoot = join(repoRoot, "src");
 const expected = {
-  "src/App.tsx": 2,
   "src/components/admin/ZeptoMailSettingsPanel.tsx": 1,
   "src/components/organizer/OrganizerWorkspaceOnboarding.tsx": 4,
-  "src/lib/cacheAuthLifecycle.ts": 1,
   "src/pages/AdminChatConsolePage.tsx": 2,
   "src/pages/AdminErrorIntelligencePage.tsx": 2,
   "src/pages/AdminPlanUsagePage.tsx": 1,
@@ -25,7 +23,7 @@ const expected = {
   "src/services/cloudinary.service.ts": 1,
   "src/services/commerce.service.ts": 1,
   "src/services/daily-task.service.ts": 1,
-  "src/services/organizerAuth.service.ts": 2,
+  "src/services/organizerAuth.service.ts": 1,
   "src/services/shopEngagement.service.ts": 1,
   "src/services/social.service.ts": 1,
   "src/store/AppContext.tsx": 2,
@@ -54,14 +52,14 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 41);
-  assert.equal(Object.keys(actual).length, 22);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 37);
+  assert.equal(Object.keys(actual).length, 20);
 });
 
 test("the inventory document remains present next to its tracked source baseline", () => {
   const inventoryPath = join(repoRoot, "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md");
   const inventory = readFileSync(inventoryPath, "utf8");
-  assert.match(inventory, /41 direct `supabase\.auth` callsites across 22 frontend files/);
+  assert.match(inventory, /37 direct `supabase\\.auth` callsites across 20 frontend files/);
   assert.match(inventory, /Organizer email\/phone verification/);
   assert.match(inventory, /Cloudinary remains the media system of record/);
   assert.match(inventory, /Legacy private-chat service[\s\S]*not migrate(?: it)? to Better Auth/);
