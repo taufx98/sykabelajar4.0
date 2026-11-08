@@ -35,7 +35,7 @@ type AccountDraft = {
 
 const EMPTY_DRAFT: AccountDraft = {
   id: null,
-  provider: 'brevo',
+  provider: 'zeptomail',
   label: '',
   senderAddress: '',
   senderName: 'SYKABELAJAR',
@@ -259,7 +259,7 @@ export function ZeptoMailSettingsPanel() {
             <span className="text-[10px] rounded-full border border-accent/20 bg-accent-muted-strong text-accent px-2 py-0.5 font-semibold">Server-side</span>
           </div>
           <p className="text-xs text-fg-muted mt-1">
-            Kelola akun Brevo Free atau ZeptoMail, simpan kredensial terenkripsi, dan ganti pengirim aktif tanpa redeploy Worker.
+            Kelola ZeptoMail sebagai provider utama dan Brevo Free sebagai cadangan, simpan kredensial terenkripsi, dan ganti pengirim aktif tanpa redeploy Worker.
           </p>
         </div>
         <Button size="sm" variant="outline" icon={<RefreshCw size={13} />} onClick={() => void load()} disabled={loading}>
@@ -305,7 +305,7 @@ export function ZeptoMailSettingsPanel() {
           <div className="rounded-xl border border-dashed surface-border p-5 text-center">
             <Mail size={20} className="mx-auto text-fg-muted mb-2"/>
             <p className="text-sm text-fg">Belum ada akun email transaksional.</p>
-            <p className="text-xs text-fg-muted mt-1">Tambahkan akun Brevo atau ZeptoMail. Akun baru menggunakan Brevo Free sebagai pilihan awal.</p>
+            <p className="text-xs text-fg-muted mt-1">Tambahkan Agent ZeptoMail sebagai pilihan awal. Brevo Free tetap tersedia sebagai provider cadangan.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -352,8 +352,8 @@ export function ZeptoMailSettingsPanel() {
             <label className="block text-xs text-fg-muted">
               Penyedia email
               <select className="input mt-1 w-full" value={draft.provider} onChange={(event) => setDraft((current) => ({ ...current, provider: event.target.value as AccountDraft['provider'], sendMailToken: '' }))}>
-                <option value="brevo">Brevo Free · 300 email/hari</option>
-                <option value="zeptomail">ZeptoMail · kredit / pay-as-you-go</option>
+                <option value="zeptomail">ZeptoMail · utama</option>
+                <option value="brevo">Brevo Free · cadangan (300 email/hari)</option>
               </select>
             </label>
             <label className="block text-xs text-fg-muted">
