@@ -497,7 +497,7 @@ export function createBetterAuthApiClient(options: {
       throw new BetterAuthClientError(401, 'AUTH_SESSION_EXPIRED');
     }
     const accessToken = await getResourceTokenForSession(session);
-    const workerOrigin = baseUrl.replace(/\\/api\\/auth$/, '');
+    const workerOrigin = baseUrl.replace(/\/api\/auth$/, '');
     let response: Response;
     try {
       response = await fetchImpl(workerOrigin + '/api/admin/login-providers', {
