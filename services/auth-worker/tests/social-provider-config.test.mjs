@@ -59,6 +59,23 @@ test("all password and social sessions are blocked until SYKABELAJAR email verif
   assert.match(auth, /autoSignInAfterVerification: true/);
 });
 
+
+test("Facebook is runtime-filtered and cannot be enabled without the deferred email path", () => {
+  const email = readFileSync(new URL("../src/email.ts", import.meta.url), "utf8");
+  const delivery = readFileSync(new URL("../src/email-delivery.mjs", import.meta.url), "utf8");
+  assert.match(email, /export async function isAuthEmailVerificationConfigured/);
+  assert.match(email, /if \(providerMode === "webhook"\) return isEmailDeliveryConfigured\(env\)/);
+  assert.match(email, /providerMode !== "managed"/);
+  assert.match(email, /decryptEmailSecret\(/);
+  const readiness = email.slice(email.indexOf("export async function isAuthEmailVerificationConfigured"), email.indexOf("export async function sendAuthEmail"));
+  assert.doesNotMatch(readiness, /sendAuthEmail\(|deliverAuthEmail\(/,
+    "checking readiness must not send a verification email");
+  assert.match(settings, /safeProviders\.facebook && !\(await isAuthEmailVerificationConfigured\(env\)\)/);
+  assert.match(settings, /SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED/);
+  assert.match(settings, /emailVerificationConfigured/);
+  assert.match(delivery, /export function isEmailDeliveryConfigured/);
+});
+
 test("Telegram phone verification is not registered as a social login provider", () => {
   const socialBlock = auth.slice(auth.indexOf("const configuredSocialProviders"), auth.indexOf("return betterAuth"));
   assert.doesNotMatch(socialBlock, /telegram/i);
