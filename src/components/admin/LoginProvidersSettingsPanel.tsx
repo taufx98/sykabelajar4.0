@@ -39,6 +39,7 @@ function errorMessage(error: unknown): string {
     SOCIAL_PROVIDER_PRIMARY_LOGIN_REQUIRED: 'Aktifkan Google sebagai metode login utama sebelum menyimpan provider opsional.',
     SOCIAL_PROVIDER_LAST_ENABLED_METHOD: 'Minimal satu metode login sosial harus tetap aktif.',
     SOCIAL_PROVIDER_CREDENTIAL_DECRYPT_FAILED: 'Secret tersimpan tidak dapat dibaca. Periksa kunci enkripsi Worker.',
+    SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED: 'Facebook belum dapat diaktifkan sampai email verifikasi SYKABELAJAR dikonfigurasi pada tahap terakhir.',
   };
   return known[code] ?? code;
 }
@@ -213,8 +214,10 @@ export function LoginProvidersSettingsPanel() {
         const active = Boolean(setting?.enabled);
         const secretConfigured = Boolean(setting?.secretConfigured);
         const busy = busyProvider === provider;
+        const facebookBlocked = provider === 'facebook' && !settings.emailVerificationConfigured;
         const statusLabel = setting?.status === 'configured' ? 'Credential tersimpan' :
-          setting?.status === 'encryption-key-required' ? 'Kunci enkripsi diperlukan' : 'Belum dikonfigurasi';
+          setting?.status === 'encryption-key-required' ? 'Kunci enkripsi diperlukan' :
+          setting?.status === 'email-verification-email-required' ? 'Email verifikasi belum siap' : 'Belum dikonfigurasi';
         return <section key={provider} className="rounded-xl border surface-border p-3 md:p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -227,7 +230,7 @@ export function LoginProvidersSettingsPanel() {
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-fg-muted">{PROVIDER_DESCRIPTION[provider]}</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" disabled={!secretConfigured || busy || !settings.encryptionKeyConfigured} onClick={() => void toggle(provider, !active)}>{active ? 'Nonaktifkan' : 'Aktifkan'}</Button>
+              <Button size="sm" variant="outline" disabled={!secretConfigured || busy || !settings.encryptionKeyConfigured || facebookBlocked} onClick={() => void toggle(provider, !active)}>{active ? 'Nonaktifkan' : 'Aktifkan'}</Button>
             </div>
           </div>
 
@@ -254,7 +257,7 @@ export function LoginProvidersSettingsPanel() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t surface-border pt-3">
-            <div className="text-[11px] text-fg-muted">{provider === 'facebook' ? 'Login Facebook memerlukan verifikasi email SYKABELAJAR; alur email akan diaktifkan pada tahap akhir.' : provider === 'twitter' ? 'Login X hanya berhasil jika app mengembalikan email yang dikonfirmasi.' : 'Google menggunakan OpenID Connect; tidak meminta akses ke inbox Gmail.'}</div>
+            <div className="text-[11px] text-fg-muted">{provider === 'facebook' ? (settings.emailVerificationConfigured ? 'Email verifikasi SYKABELAJAR sudah siap; Facebook tetap memerlukan verifikasi email lokal sebelum sesi dibuat.' : 'Facebook disimpan sebagai opsi, tetapi tetap dinonaktifkan sampai tahap email verifikasi terakhir. Tidak ada email yang dikirim sekarang.') : provider === 'twitter' ? 'Login X hanya berhasil jika app mengembalikan email yang dikonfirmasi.' : 'Google menggunakan OpenID Connect; tidak meminta akses ke inbox Gmail.'}</div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" disabled={busy || !settings.encryptionKeyConfigured || !draft.clientId.trim() || (!draft.clientSecret.trim() && !secretConfigured)} loading={busy} onClick={() => void save(provider)}>Simpan</Button>
               <Button size="sm" variant="ghost" disabled={busy || !secretConfigured || !settings.encryptionKeyConfigured} onClick={() => void validate(provider)}>Validasi tersimpan</Button>
