@@ -16,6 +16,8 @@ on:
       - "scripts/auth-migration/stage3-production-schema-regression.sql"
       - "scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs"
       - "docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-3-ROLLBACK-DRAFT.sql"
+      - "scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs"
       - "scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs"
       - "scripts/auth-migration/stage3-better-auth-provisioning-regression.sql"
       - "scripts/auth-migration/generate-app-users-fk-plan.mjs"
@@ -165,6 +167,10 @@ jobs:
       - name: Test fail-closed Stage 3 reverse FK rollback plan contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
+
+      - name: Test complete Stage 3 rollback draft contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs
 
       - name: Prepare an empty disposable Supabase project
         if: steps.credentials.outputs.available == 'true'
@@ -604,7 +610,21 @@ jobs:
             exit 1
           fi
           echo "- Simulated bounded, fail-closed reverse of all 69 FK targets on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
-          echo "- This is an FK-only rollback simulation; Better Auth identity/functions/issuer state remains in the disposable database until cleanup" >> "$GITHUB_STEP_SUMMARY"
+          echo "- This is an FK-only rollback simulation; the following step verifies restoration of legacy functions/triggers/policies and removal of the identity projection" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Simulate complete Stage 3 rollback on disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=120s" \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-ROLLBACK-DRAFT.sql:/baseline/auth-stage3-rollback-draft.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/auth-stage3-rollback-draft.sql
+          echo "- Full Stage 3 rollback draft restored legacy Auth functions/triggers/issuer policies and removed private.app_users on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop disposable local Supabase
         if: always() && steps.local_supabase.outcome == 'success'
