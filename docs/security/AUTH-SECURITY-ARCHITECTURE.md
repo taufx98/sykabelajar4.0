@@ -21,6 +21,9 @@ Google OAuth can improve identity proof and reduce password risk, but it does no
 
 ## Decision principles
 
+- **Third-party JWKS rotation:** publish the new ES256/P-256 key alongside the old `kid`, allow up to 30 minutes for Supabase to observe it, then switch the Worker signer. Retain the old public JWK until old-key tokens have expired plus the propagation window; never export the private key from D1.
+
+
 1. Better Auth owns credentials, account identities, sessions, OAuth connections, verification, and account recovery.
 2. Cloudflare D1 stores only Better Auth identity/session data; no application business data.
 3. Supabase remains authoritative for profiles, app roles, competitions, exams, Edu Coin, shop, orders, payments, chat, referrals, certificates, and all business rules.
