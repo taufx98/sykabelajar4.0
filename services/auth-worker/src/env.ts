@@ -11,6 +11,8 @@ export interface AuthWorkerEnv {
   FACEBOOK_CLIENT_SECRET?: string;
   TWITTER_CLIENT_ID?: string;
   TWITTER_CLIENT_SECRET?: string;
+  /** Dedicated AES-GCM key for managed social OAuth client secrets; never reuse the email key. */
+  AUTH_PROVIDER_ENCRYPTION_KEY?: string;
   /** BotFather OIDC credentials; unset keeps Telegram phone verification disabled. */
   AUTH_TELEGRAM_CLIENT_ID?: string;
   AUTH_TELEGRAM_CLIENT_SECRET?: string;
