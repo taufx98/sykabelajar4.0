@@ -24,6 +24,7 @@ test("Google, Facebook and X provider credentials are optional and validated as 
 test("managed OAuth configuration falls back only when migration 0007 is absent", () => {
   assert.ok(settings.includes('if (/no such table:\\s*auth_social_provider_meta/i.test(reason)) return null;'));
   assert.ok(settings.includes('throw new Error("SOCIAL_PROVIDER_CONFIGURATION_UNAVAILABLE")'));
+  assert.match(settings, /if \(!meta\) throw new Error\("SOCIAL_PROVIDER_CONFIGURATION_UNAVAILABLE"\)/);
   assert.match(settings, /managedMode: true, revision: meta\.revision, providers/);
   assert.match(settings, /AUTH_PROVIDER_ENCRYPTION_KEY/);
 });
