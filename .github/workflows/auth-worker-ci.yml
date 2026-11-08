@@ -103,6 +103,9 @@ jobs:
       - name: Verify shared Supabase client auth-token source
         run: node ../../scripts/auth-migration/supabase-client-options.test.mjs
 
+      - name: Verify Better Auth email-admin JWT and staging authorization
+        run: node tests/email-admin-auth.test.mjs
+
       - name: Verify Better Auth cross-tab session synchronization
         run: node ../../scripts/auth-migration/better-auth-session-bridge.test.mjs
 
