@@ -848,6 +848,32 @@ BEGIN
 END;
 $stage3_regression$;
 
+-- Exercise the actual production profile guard trigger functions under
+-- authenticated without letting profile RLS filter the UPDATE before a trigger
+-- fires. This temporary probe table is transaction-local and uses the same
+-- trigger functions installed by the schema-only production restore.
+CREATE TEMP TABLE stage3_profile_guard_probe (
+  id integer PRIMARY KEY,
+  account_type text NOT NULL,
+  edu_coin numeric NOT NULL DEFAULT 0,
+  total_xp bigint NOT NULL DEFAULT 0
+) ON COMMIT DROP;
+
+CREATE TRIGGER stage3_profile_account_type_guard
+BEFORE UPDATE OF account_type ON pg_temp.stage3_profile_guard_probe
+FOR EACH ROW
+EXECUTE FUNCTION public.prevent_profile_account_type_client_mutation();
+
+CREATE TRIGGER stage3_profile_currency_guard
+BEFORE INSERT OR UPDATE OF edu_coin, total_xp ON pg_temp.stage3_profile_guard_probe
+FOR EACH ROW
+EXECUTE FUNCTION public.prevent_profile_currency_client_mutation();
+
+INSERT INTO pg_temp.stage3_profile_guard_probe(id, account_type, edu_coin, total_xp)
+VALUES (1, 'student', 0, 0);
+
+GRANT SELECT, INSERT, UPDATE ON TABLE pg_temp.stage3_profile_guard_probe TO authenticated;
+
 -- RLS checks execute as the authenticated database role with actual JWT UUID
 -- claims. They cover representative ownership patterns across high-risk tables.
 SET LOCAL ROLE authenticated;
@@ -875,8 +901,7 @@ BEGIN
   -- fields, even when they target their own row.
   v_caught := false;
   BEGIN
-    UPDATE public.profiles SET account_type='teacher'
-    WHERE id='00000000-0000-4000-8000-00000000a001';
+    UPDATE pg_temp.stage3_profile_guard_probe SET account_type='teacher' WHERE id=1;
   EXCEPTION WHEN insufficient_privilege THEN
     v_caught := true;
   END;
@@ -886,8 +911,7 @@ BEGIN
 
   v_caught := false;
   BEGIN
-    UPDATE public.profiles SET edu_coin=coalesce(edu_coin,0)+1
-    WHERE id='00000000-0000-4000-8000-00000000a001';
+    UPDATE pg_temp.stage3_profile_guard_probe SET edu_coin=edu_coin+1 WHERE id=1;
   EXCEPTION WHEN insufficient_privilege THEN
     v_caught := true;
   END;
@@ -1571,8 +1595,7 @@ BEGIN
   -- membership must not bypass backend-managed profile fields.
   v_caught := false;
   BEGIN
-    UPDATE public.profiles SET account_type='teacher'
-    WHERE id='00000000-0000-4000-8000-00000000a012';
+    UPDATE pg_temp.stage3_profile_guard_probe SET account_type='teacher' WHERE id=1;
   EXCEPTION WHEN insufficient_privilege THEN
     v_caught := true;
   END;
@@ -1582,8 +1605,7 @@ BEGIN
 
   v_caught := false;
   BEGIN
-    UPDATE public.profiles SET total_xp=coalesce(total_xp,0)+1
-    WHERE id='00000000-0000-4000-8000-00000000a012';
+    UPDATE pg_temp.stage3_profile_guard_probe SET total_xp=total_xp+1 WHERE id=1;
   EXCEPTION WHEN insufficient_privilege THEN
     v_caught := true;
   END;
