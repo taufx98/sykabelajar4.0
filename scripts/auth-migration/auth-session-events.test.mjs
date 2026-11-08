@@ -51,7 +51,7 @@ test("one session event source replays identity, detects account changes, and is
     healthyObserverCalls += 1;
   });
   publishAuthSessionEvent("SIGNED_OUT", null);
-  assert.equal(healthyObserverCalls, 1);
+  assert.equal(healthyObserverCalls, 2, 'late observer receives the replayed snapshot and the subsequent sign-out');
   assert.equal(received.at(-1).type, "SIGNED_OUT");
   assert.equal(received.at(-1).previousUserId, "user-b");
   assert.equal(received.at(-1).identityChanged, true);
