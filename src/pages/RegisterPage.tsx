@@ -8,7 +8,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { CATEGORY_LABELS, LEVEL_LABELS } from '@/data/catalog';
 import { uploadProfileImage } from '@/services/cloudinary.service';
 import { updateProfile } from '@/services/profile.service';
-import { supabase } from '@/lib/supabase';
+import { getSession as getAuthSession } from '@/services/auth.service';
 import type { CompetitionCategory, EducationLevel, Role } from '@/types';
 import { isValidReferralId } from '@/lib/referralAttribution';
 
@@ -36,7 +36,7 @@ export function RegisterPage(){
    const result=await register({email:form.email,password:form.password,displayName:form.displayName,username:form.username,role:form.role,school:form.school,birthDate:form.birthDate,educationLevel:form.educationLevel||undefined,favoriteCategories:form.favoriteCategories,referralCode:referralCode||undefined});
    if(!result.ok){toast(result.error||'Pendaftaran gagal.','error');return;}
    // Upload only after Supabase account creation has succeeded.
-   if(photoFile){const {data}=await supabase.auth.getSession(); if(data.session?.user){const up=await uploadProfileImage(photoFile,'profile',form.username);await updateProfile(data.session.user.id,{avatar_url:up.secure_url,avatar_public_id:up.public_id,avatar_width:up.width,avatar_height:up.height,avatar_version:up.version?String(up.version):null,avatar_resource_type:up.resource_type||'image'});}else{toast('Akun berhasil dibuat. Foto profil akan diunggah setelah konfirmasi email dan login pertama.','info');}}
+   if(photoFile){const session=await getAuthSession(); if(session?.user){const up=await uploadProfileImage(photoFile,'profile',form.username);await updateProfile(session.user.id,{avatar_url:up.secure_url,avatar_public_id:up.public_id,avatar_width:up.width,avatar_height:up.height,avatar_version:up.version?String(up.version):null,avatar_resource_type:up.resource_type||'image'});}else{toast('Akun berhasil dibuat. Foto profil akan diunggah setelah konfirmasi email dan login pertama.','info');}}
    toast('Pendaftaran berhasil. Silakan masuk.','success');navigate(loginTo);
  }catch(error:any){toast(error?.message||'Pendaftaran gagal.','error')}finally{setLoading(false)}};
  return <div className="min-h-screen flex flex-col"><header className="px-4 h-16 flex items-center justify-between border-b surface-border"><Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white"/></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-accent">.id</span></span></Link><Link to={loginTo} className="text-sm text-slate-400">{text('Sudah punya akun?','Already have an account?')} <span className="text-accent">{text('Masuk','Sign in')}</span></Link></header><div className="flex-1 flex items-center justify-center px-4 py-10"><div className="w-full max-w-md"><div className="flex gap-2 mb-8">{[1,2,3].map(s=><div key={s} className="flex-1 h-1.5 rounded-full surface-elevated overflow-hidden"><div className={`h-full ${s<=step?'gradient-moss w-full':'w-0'}`}/></div>)}</div>
