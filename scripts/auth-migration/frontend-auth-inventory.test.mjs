@@ -10,7 +10,7 @@ const expected = {
   "src/components/organizer/OrganizerWorkspaceOnboarding.tsx": 4,
   "src/pages/AdminChatConsolePage.tsx": 2,
   "src/services/applicationAccessToken.ts": 1,
-  "src/services/auth.service.ts": 7,
+  "src/services/auth.service.ts": 8,
   "src/services/chat.service.ts": 3,
 };
 
@@ -37,7 +37,7 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 17);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 18);
   assert.equal(Object.keys(actual).length, 5);
 });
 
