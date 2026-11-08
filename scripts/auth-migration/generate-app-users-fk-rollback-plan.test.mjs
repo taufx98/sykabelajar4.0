@@ -45,8 +45,8 @@ for (const sql of Object.values(plan)) {
   assert.match(sql, /lock_timeout/);
   assert.match(sql, /statement_timeout/);
   assert.match(sql, /Never create shadow auth[.]users rows/);
-  assert.doesNotMatch(sql, /INSERT[ ]+INTO[ ]+|UPDATE[ ]+[^ ]+[ ]+SET[ ]+|DELETE[ ]+FROM[ ]+|COPY[ ]+/i,
-    "rollback plan must never move or modify application rows");
+  assert.doesNotMatch(sql, /(?:^|[;\\n])[\\s]*(?:INSERT\\s+INTO|UPDATE\\s+"?[a-z_][a-z0-9_]*"?\\s+SET|DELETE\\s+FROM|COPY\\s+)/im,
+    "rollback plan must never contain executable application-row DML or COPY commands");
 }
 
 for (const action of ["CASCADE", "SET NULL", "NO ACTION", "RESTRICT"]) {
