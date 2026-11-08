@@ -463,15 +463,21 @@ export function createBetterAuthApiClient(options: {
   return {
     async getSession() {
       const payload = await request<unknown>('/get-session');
-      if (payload === null) return null;
+      if (payload === null) {
+        clearResourceTokenCache();
+        return null;
+      }
       if (!isBetterAuthSessionEnvelope(payload)) {
+        clearResourceTokenCache();
         throw new BetterAuthClientError(502, 'AUTH_SESSION_RESPONSE_INVALID');
       }
       if (payload.user.emailVerified !== true) {
+        clearResourceTokenCache();
         throw new BetterAuthClientError(403, 'EMAIL_VERIFICATION_REQUIRED');
       }
       const expiration = Date.parse(payload.session.expiresAt);
       if (!Number.isFinite(expiration) || expiration <= Date.now()) {
+        clearResourceTokenCache();
         throw new BetterAuthClientError(401, 'AUTH_SESSION_EXPIRED');
       }
       return payload;
@@ -480,6 +486,7 @@ export function createBetterAuthApiClient(options: {
     async getResourceToken() {
       const session = await request<unknown>('/get-session');
       if (!isBetterAuthSessionEnvelope(session) || session.user.emailVerified !== true) {
+        clearResourceTokenCache();
         throw new BetterAuthClientError(401, 'AUTH_SESSION_REQUIRED');
       }
       const expiration = Date.parse(session.session.expiresAt);
@@ -496,8 +503,18 @@ export function createBetterAuthApiClient(options: {
         clearResourceTokenCache();
         return null;
       }
-      if (!isBetterAuthSessionEnvelope(payload) || payload.user.emailVerified !== true) {
+      if (!isBetterAuthSessionEnvelope(payload)) {
+        clearResourceTokenCache();
         throw new BetterAuthClientError(401, 'AUTH_SESSION_RESPONSE_INVALID');
+      }
+      if (payload.user.emailVerified !== true) {
+        clearResourceTokenCache();
+        throw new BetterAuthClientError(403, 'EMAIL_VERIFICATION_REQUIRED');
+      }
+      const expiration = Date.parse(payload.session.expiresAt);
+      if (!Number.isFinite(expiration) || expiration <= Date.now()) {
+        clearResourceTokenCache();
+        throw new BetterAuthClientError(401, 'AUTH_SESSION_EXPIRED');
       }
       return getResourceTokenForSession(payload);
     },
