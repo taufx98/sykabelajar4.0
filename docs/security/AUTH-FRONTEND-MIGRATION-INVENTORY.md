@@ -101,3 +101,14 @@ This is a **disabled staging transport and session adapter**, not a production c
 The contract test `scripts/auth-migration/better-auth-frontend-client.test.mjs` pins the endpoint paths, email/session checks, role allowlist, no browser token persistence, explicit disabled-by-default flag and unchanged live Supabase session ownership. The additional `scripts/auth-migration/auth-session-events.test.mjs` exercises in-app snapshot replay and `scripts/auth-migration/better-auth-session-bridge.test.mjs` exercises cross-tab change notifications without broadcasting UUIDs or credentials. `AppContext` remains the single owner of provider listener/hydration, while `auth.service.ts` selects the configured provider. The organizer auth service now reads the canonical UUID from the shared identity-only session snapshot instead of making its own provider call. CI now guards the 17 remaining direct callsites across 6 frontend files.
 
 Remaining Stage 4 work is still substantial: replace the temporary transport with the pinned Better Auth client SDK or formally approve this typed fetch transport; complete Better Auth cross-tab/expiry reconciliation and verify shared event publisher behavior; wire all remaining identity callsites to the canonical Better Auth UUID; implement email verification/recovery/password change/phone verification UX; and switch Cloudinary/admin Edge token retrieval through the short-lived resource token broker only after Stage 2/3/5 hosted identity and endpoint gates pass. No production frontend or login path has been changed.
+
+
+## Staging deployment checkpoint — 8 November 2026
+
+The branch provider-neutral UI and transport are now backed by the deployed isolated Worker and D1 schema:
+- D1 migration 0007 added the managed OAuth provider store (two tables); the remote schema is 20 tables total.
+- The Worker routes `/api/admin/login-providers` to the encrypted settings API. `AUTH_PROVIDER_ENCRYPTION_KEY` is a dedicated random 256-bit Cloudflare secret, created once when absent and preserved on later deployments; it is not the email encryption key.
+- LoginPage renders Google/Facebook/X buttons only when the Worker reports an enabled provider. The Admin Core `Metode Login` panel remains write-only for Client Secret.
+- The hosted deploy check reports no Google OAuth credentials and no seeded user/session. The panel also requires an authenticated Better Auth session and active admin role in the isolated staging Supabase project; the first staging admin bootstrap and provider credentials remain to be completed. No production login was changed.
+- Positive Data API, Storage HTTP, Realtime WebSocket and Edge token calls with a real Better Auth session are still required before enabling the frontend transport.
+- Transactional email verification/recovery is deliberately deferred until after login and migration acceptance.
