@@ -1101,15 +1101,8 @@ REVOKE ALL ON FUNCTION public.better_auth_complete_phone_verification(
   uuid,timestamptz,text,text,text,integer
 ) FROM PUBLIC, anon, authenticated, service_role;
 
-GRANT EXECUTE ON FUNCTION private.provision_better_auth_user(
-  uuid,text,text,text,text,boolean,date,text,text,text
-) TO service_role;
-GRANT EXECUTE ON FUNCTION private.complete_better_auth_email_verification(
-  uuid,timestamptz
-) TO service_role;
-GRANT EXECUTE ON FUNCTION private.complete_better_auth_phone_verification(
-  uuid,timestamptz,text,text,text,integer
-) TO service_role;
+-- Internal SECURITY DEFINER helpers are not executable by the Worker.
+-- Only the public PostgREST wrappers below are exposed to service_role.
 
 GRANT EXECUTE ON FUNCTION public.better_auth_provision_user(
   uuid,text,text,text,text,boolean,date,text,text,text
