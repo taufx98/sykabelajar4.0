@@ -9,7 +9,7 @@ This document converts the current production catalog inventory into a proposed 
 
 Existing Supabase Auth identities are demo/testing accounts. The approved direction is **fresh Better Auth accounts only**: do not import old password hashes, credentials, OAuth tokens, sessions, or legacy login state; do not build a JIT password bridge or a password-reset campaign for demo users. New accounts receive a fresh Better Auth UUID, which is also used as Supabase `private.app_users.id` and JWT `sub`.
 
-The demo-account cleanup and linked test-data scope belong to Stage 6. Until then, do not delete old Auth identities or dependent application records. If the 69-FK move happens before cleanup, preserve referenced old UUIDs in `private.app_users` as identity-only references where needed to keep current application relationships valid. They are not imported as Better Auth login accounts.
+The demo-account cleanup and linked test-data scope belong to Stage 6. Until then, do not delete old Auth identities or dependent application records. To rehome the 69 application FKs without migrating any account, the generated FK plan inserts only distinct UUIDs that are still referenced by application rows as `identity_origin='legacy_reference'` tombstones. These rows have no email, verification timestamps, phone, credentials, provider identity, sessions or copied role; they are not authenticatable Better Auth users. Auth UUIDs with no live application FK reference are not inserted.
 
 See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md) for the approved new-registration, identity and role rules. The superseded credential proposal is retained only as a decision record in [AUTH-LEGACY-CREDENTIAL-MIGRATION.md](AUTH-LEGACY-CREDENTIAL-MIGRATION.md).
 
@@ -31,7 +31,8 @@ The initial table should contain only fields that application-side SQL demonstra
 
 | Column | Type | Why it exists | Trusted writer |
 |---|---|---|---|
-| id | uuid primary key | Same UUID as Better Auth user ID and JWT sub; parent for application identity FKs | Provisioning RPC/Worker |
+| id | uuid primary key | Fresh Better Auth UUID and JWT sub; parent for application identity FKs | Provisioning RPC/Worker |
+| identity_origin | text (`better_auth` or `legacy_reference`) | Separates new authenticatable identities from FK-only tombstones | Database default / review-only FK tombstone seed |
 | email_verified_at | timestamptz null | Required by referral qualification and verified-email gates | Better Auth email-verification event for new accounts only |
 | phone_verified_at | timestamptz null | Preserves the verified-phone requirement in organizer creation | A trusted Worker callback after Telegram OIDC consent and ID-token validation; remains NULL while the optional flow is disabled or no verified consent has completed |
 | verified_phone_identity_hash | text null | Allows organizer eligibility/one-free-organizer-per-phone checks without storing a second raw phone number in Postgres | Server-only provisioning/phone-verification handler |
@@ -59,11 +60,11 @@ A single server-only, idempotent provisioning operation must create the applicat
 9. Preserve the live `public.app_role` enum and `public.user_roles` table. The current live enum contains `student`, `teacher`, `organizer_member`, and `admin`; do not drop, replace, or narrow it. Only these account types may be selected at public self-registration: student, teacher, and organizer. The server-side mapping is student → student, teacher → teacher, and organizer → organizer_member. Never accept admin, super_admin, organizer workspace ownership, or arbitrary role names from user metadata. Privileged role grants remain protected.
 10. Organizer workspace creation remains a separate protected `create_organizer` operation after role, verification and uniqueness checks.
 
-The old `handle_new_auth_user()` belongs to the current Supabase Auth registration path and is not the provisioning mechanism for new Better Auth users. The branch now contains an opt-in Worker implementation: Better Auth's `user.create.after` hook attempts the trusted RPC, `session.create.before` retries it and throws a fail-closed error until the Postgres identity is confirmed, and `afterEmailVerification` reconciles verified email state and referrals. The code requires `SUPABASE_PROVISIONING_ENABLED=true` plus a server-only `SUPABASE_SERVICE_ROLE_KEY`; the flag is absent/false by default, so the live staging Worker remains in auth-only mode. The hooks are locally type-checked and unit-tested but have not been enabled against any hosted Supabase project.
+At the Stage 3 cutover, all three old `auth.users` signup/referral triggers (`on_auth_user_created`, `trg_referral_signup_attribution`, `trg_referral_email_confirmed`) are dropped and their legacy trigger functions are revoked from application roles. The old `handle_new_auth_user()` is not the provisioning mechanism for new Better Auth users. The branch now contains an opt-in Worker implementation: Better Auth's `user.create.after` hook attempts the trusted RPC, `session.create.before` retries it and throws a fail-closed error until the Postgres identity is confirmed, and `afterEmailVerification` reconciles verified email state and referrals. The code requires `SUPABASE_PROVISIONING_ENABLED=true` plus a server-only `SUPABASE_SERVICE_ROLE_KEY`; the flag is absent/false by default, so the live staging Worker remains in auth-only mode. The hooks are locally type-checked and unit-tested but have not been enabled against any hosted Supabase project.
 
 ## 4. Referral and email-verification lifecycle
 
-There are three existing Auth trigger/function paths and the replacement must be coordinated:
+There are three existing Auth trigger/function paths. Because the owner chose fresh accounts only, those legacy triggers are retired together at the Stage 3 cutover; the new Better Auth Worker/RPC path takes over their application responsibilities:
 
 - Signup attribution currently reads raw_user_meta_data.referral_id, only accepts a UUID referrer different from the new user, requires an active referral program and a referrer whose email is confirmed, then inserts a unique PENDING referral.
 - Referral qualification currently requires a qualifying activity in the first 24 hours, waits for the referred user's email verification, locks the pending event, changes it to VERIFIED, inserts an idempotent edu_coin_ledger entry, then credits the referrer.
@@ -76,7 +77,7 @@ Replacement behavior:
 3. On Better Auth email verification, the Worker's `afterEmailVerification` callback calls a server-only idempotent event that writes `email_verified_at` in `private.app_users`. If the callback fails after Better Auth has marked the account verified, the next session-create gate must reconcile that state before allowing a session.
 4. Re-run pending referral qualification for that user, preserving the 24-hour limits, earliest eligible activity, row locking, status transitions, reward amount snapshot, unique ledger key, and credit_profile_currency idempotency.
 5. Rewrite verify_pending_referrals() to join private.app_users, not auth.users.
-6. The new registration flow is Better Auth only after Stage 4/7 cutover. Do not create new application accounts through the old Supabase Auth signup path after cutover; existing demo identities are handled in Stage 6, not migrated as credentials.
+6. The new registration flow is Better Auth only after Stage 4/7 cutover. The Stage 3 SQL drops the three old Supabase Auth account-lifecycle triggers so future auth.users inserts cannot create application profiles/roles/referrals. Stage 7 must keep the public Supabase Auth signup/provider path unused; existing demo identities are handled in Stage 6 and are never migrated as accounts.
 
 The current active frontend referral caller does not use the legacy login-time field, so the new authentication flow should not add sign-in synchronization as a side effect.
 
@@ -103,7 +104,7 @@ First pause Better Auth registration/provisioning (Worker-side `SUPABASE_PROVISI
 
 The review-only reverse generator is `scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs`. It reverses only the 69 FK targets and requires every UUID in `private.app_users` to still exist in `auth.users`. The same guard is repeated inside the one atomic cutover transaction to catch any Better Auth-only identity created after preflight. It does not create shadow Auth accounts and does not restore the identity functions, legacy-sync triggers or issuer guards.
 
-Consequently, this FK-only rollback is available only before the first Better Auth-only user is provisioned. After that point, the identity root and Better Auth token/session adapter must remain authoritative; rollback the application bundle without changing those identity dependencies. The reverse plan is generated SQL only and is never run against production without a separate review.
+UUID-only legacy_reference tombstones are safe for FK reversal because each one is generated from a currently valid FK child value, whose parent is an existing auth.users row. This does not migrate an Auth account. The reverse generator refuses to proceed if any Better Auth-only UUID appears in private.app_users. Consequently, the FK-only rollback is available only before the first Better Auth-only user is provisioned. After that point, the identity root and Better Auth token/session adapter must remain authoritative; rollback the application bundle without changing those identity dependencies. The reverse plan is generated SQL only and is never run against production without a separate review.
 
 ## 6. Foreign-key migration sequence
 
@@ -112,7 +113,7 @@ Production currently has 69 validated, non-deferrable FKs across 62 application 
 The eventual migration must:
 
 1. Create private.app_users with id as a UUID primary key and no public API exposure.
-2. Backfill identity-only UUID references required by the existing application FK graph before cleanup. For old demo UUIDs, preserve only what is needed to maintain dependent business-row integrity until Stage 6 cleanup; do not import credentials, tokens, sessions, or old login state. New Better Auth registrations write their fresh UUID to the identity root.
+2. Run the generated 00-identity-tombstones.sql to insert only distinct non-null UUIDs read from the 69 application FK source columns, marked identity_origin='legacy_reference'. It never reads auth.users and never copies account data. New Better Auth registrations write their fresh UUIDs as identity_origin='better_auth'.
 3. Check that there are zero child references without a corresponding identity-root row. Do not delete, null, or invent application rows to make the check pass.
 4. For each of the 69 relationships, add a replacement FK to private.app_users(id) with the exact source column, original MATCH, ON UPDATE, ON DELETE, deferrability and validation state.
 5. Validate the replacement constraints and prove row counts/integrity are unchanged.
@@ -126,7 +127,7 @@ The current synthetic local test verifies the metadata-reconstruction idea and d
 
 A fresh read-only catalog query against production on 4 November 2026 confirmed the same 69 constraints and action distribution. A second full comparison against the committed snapshot found 69/69 identical records, zero added or removed constraints, and zero column/semantics drift. The sanitized catalog snapshot is committed at [live-auth-users-fk-catalog.json](../../scripts/auth-migration/live-auth-users-fk-catalog.json); it contains table/column/constraint metadata only, no user rows or UUIDs.
 
-The plan generator at [generate-app-users-fk-plan.mjs](../../scripts/auth-migration/generate-app-users-fk-plan.mjs) validates the snapshot and emits three SQL files outside the repository:
+The plan generator at [generate-app-users-fk-plan.mjs](../../scripts/auth-migration/generate-app-users-fk-plan.mjs) validates the snapshot and emits four SQL files outside the repository:
 
 ```sh
 node scripts/auth-migration/generate-app-users-fk-plan.mjs \\
@@ -134,7 +135,8 @@ node scripts/auth-migration/generate-app-users-fk-plan.mjs \\
   --out-dir /tmp/sykabelajar-auth-fk-plan
 ```
 
-- `01-preflight-expand.sql`: verifies the identity root contains every legacy Auth UUID, checks for orphaned child references, verifies the live FK catalog still matches the snapshot, and adds the 69 replacement constraints as `NOT VALID`.
+- `00-identity-tombstones.sql`: inserts UUID-only legacy_reference tombstones sourced from the 69 application FK columns; it does not query auth.users or copy account data.
+- `01-preflight-expand.sql`: checks for orphaned child references, verifies the live FK catalog still matches the snapshot, and adds the 69 replacement constraints as `NOT VALID`.
 - `02-validate.sql`: validates each replacement constraint.
 - `03-cutover.sql`: checks that replacement constraints are validated and retain the expected semantics, then drops the old `auth.users` constraints and renames replacements to the original names.
 
@@ -143,7 +145,7 @@ This is a **SQL generator only**. It has no database connection and never execut
 
 ## 7. RLS and issuer separation
 
-Do not mass-rewrite the 109 policies and 188 functions that use auth.uid(). With a UUID sub, auth.uid() should continue to resolve the application identity. The local fixture proves the base Postgres JWT claim mapping and a two-user ownership policy only.
+Do not mass-rewrite the 109 policies and 188 functions that use auth.uid(). With a UUID sub, auth.uid() should continue to resolve the application identity. The Stage 3 issuer draft installs a Better Auth-only restrictive issuer guard; legacy Supabase Auth tokens are denied because legacy accounts are not migrated. The local fixture proves the base Postgres JWT claim mapping and ownership behavior.
 
 Before adding a Custom OIDC issuer to Supabase, validate the hosted integration in a separate Free project. During an explicitly planned overlap period, restrictive issuer checks must allow only the intended old Supabase Auth issuer and the Better Auth issuer; after cutover, remove the old issuer from the application policy allowlist. Never rely only on UUID matching if two issuers can be trusted.
 
