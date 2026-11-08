@@ -11,20 +11,12 @@ const expected = {
   "src/components/organizer/OrganizerWorkspaceOnboarding.tsx": 4,
   "src/pages/AdminChatConsolePage.tsx": 2,
   "src/pages/AdminErrorIntelligencePage.tsx": 2,
-  "src/pages/AdminPlanUsagePage.tsx": 1,
-  "src/pages/OrganizerControlCenterPage.tsx": 2,
-  "src/pages/OrganizerPlanPage.tsx": 1,
-  "src/pages/OrdersPage.tsx": 1,
   "src/pages/ProfileInterfaceSettingsPage.tsx": 1,
   "src/pages/RegisterPage.tsx": 1,
-  "src/services/ad.service.ts": 3,
   "src/services/applicationAccessToken.ts": 1,
   "src/services/auth.service.ts": 7,
+  "src/services/applicationIdentity.ts": 1,
   "src/services/chat.service.ts": 3,
-  "src/services/commerce.service.ts": 1,
-  "src/services/daily-task.service.ts": 1,
-  "src/services/shopEngagement.service.ts": 1,
-  "src/services/social.service.ts": 1,
   "src/store/AppContext.tsx": 2,
 };
 
@@ -51,14 +43,14 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 36);
-  assert.equal(Object.keys(actual).length, 19);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 25);
+  assert.equal(Object.keys(actual).length, 11);
 });
 
 test("the inventory document remains present next to its tracked source baseline", () => {
   const inventoryPath = join(repoRoot, "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md");
   const inventory = readFileSync(inventoryPath, "utf8");
-  assert.ok(inventory.includes('36 direct `supabase.auth` callsites across 19 frontend files'));
+  assert.ok(inventory.includes('25 direct `supabase.auth` callsites across 11 frontend files'));
   assert.match(inventory, /Organizer email\/phone verification/);
   assert.match(inventory, /Cloudinary remains the media system of record/);
   assert.match(inventory, /Legacy private-chat service[\s\S]*not migrate(?: it)? to Better Auth/);
