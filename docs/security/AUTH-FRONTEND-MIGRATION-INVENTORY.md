@@ -112,3 +112,7 @@ The branch provider-neutral UI and transport are now backed by the deployed isol
 - The hosted deploy check reports no Google OAuth credentials and no seeded user/session. The panel also requires an authenticated Better Auth session and active admin role in the isolated staging Supabase project; the first staging admin bootstrap and provider credentials remain to be completed. No production login was changed.
 - Positive Data API, Storage HTTP, Realtime WebSocket and Edge token calls with a real Better Auth session are still required before enabling the frontend transport.
 - Transactional email verification/recovery is deliberately deferred until after login and migration acceptance.
+
+## Registration validation alignment — 8 November 2026
+
+The Stage 4 registration form now uses the same password minimum (8 characters) and username allowlist as the Better Auth Worker/client contract. The step controls prevent submission when a password is too short or the normalized username falls outside the 3–40 character lowercase safe-segment pattern. The server remains authoritative; this is early UI feedback, not a replacement for Worker/Postgres validation. A regression assertion in `scripts/auth-migration/frontend-auth-inventory.test.mjs` compares the UI and transport contracts.
