@@ -10,14 +10,10 @@ const expected = {
   "src/components/admin/ZeptoMailSettingsPanel.tsx": 1,
   "src/components/organizer/OrganizerWorkspaceOnboarding.tsx": 4,
   "src/pages/AdminChatConsolePage.tsx": 2,
-  "src/pages/AdminErrorIntelligencePage.tsx": 2,
   "src/pages/ProfileInterfaceSettingsPage.tsx": 1,
-  "src/pages/RegisterPage.tsx": 1,
   "src/services/applicationAccessToken.ts": 1,
   "src/services/auth.service.ts": 7,
-  "src/services/applicationIdentity.ts": 1,
   "src/services/chat.service.ts": 3,
-  "src/store/AppContext.tsx": 2,
 };
 
 function collectSourceFiles(directory) {
@@ -43,14 +39,14 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 25);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 19);
   assert.equal(Object.keys(actual).length, 11);
 });
 
 test("the inventory document remains present next to its tracked source baseline", () => {
   const inventoryPath = join(repoRoot, "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md");
   const inventory = readFileSync(inventoryPath, "utf8");
-  assert.ok(inventory.includes('25 direct `supabase.auth` callsites across 11 frontend files'));
+  assert.ok(inventory.includes('19 direct `supabase.auth` callsites across 7 frontend files'));
   assert.match(inventory, /Organizer email\/phone verification/);
   assert.match(inventory, /Cloudinary remains the media system of record/);
   assert.match(inventory, /Legacy private-chat service[\s\S]*not migrate(?: it)? to Better Auth/);
