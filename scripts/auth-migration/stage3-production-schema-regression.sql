@@ -127,6 +127,15 @@ DECLARE
   v_anon_create_organizer boolean;
   v_auth_register boolean;
   v_auth_apply_referral boolean;
+  v_auth_get_my_referrals boolean;
+  v_anon_get_my_referrals boolean;
+  v_service_get_my_referrals boolean;
+  v_auth_get_my_referrals_v2 boolean;
+  v_anon_get_my_referrals_v2 boolean;
+  v_service_get_my_referrals_v2 boolean;
+  v_auth_get_my_verified_referrals boolean;
+  v_anon_get_my_verified_referrals boolean;
+  v_service_get_my_verified_referrals boolean;
 BEGIN
   IF EXISTS (
     SELECT 1 FROM private.app_users
@@ -191,13 +200,35 @@ BEGIN
   v_auth_apply_referral := has_function_privilege(
     'authenticated','private.apply_referral_qualification(uuid,text,timestamptz)','EXECUTE');
 
+  v_auth_get_my_referrals := has_function_privilege('authenticated','public.get_my_referrals()','EXECUTE');
+  v_anon_get_my_referrals := has_function_privilege('anon','public.get_my_referrals()','EXECUTE');
+  v_service_get_my_referrals := has_function_privilege('service_role','public.get_my_referrals()','EXECUTE');
+  v_auth_get_my_referrals_v2 := has_function_privilege('authenticated','public.get_my_referrals_v2()','EXECUTE');
+  v_anon_get_my_referrals_v2 := has_function_privilege('anon','public.get_my_referrals_v2()','EXECUTE');
+  v_service_get_my_referrals_v2 := has_function_privilege('service_role','public.get_my_referrals_v2()','EXECUTE');
+  v_auth_get_my_verified_referrals := has_function_privilege('authenticated','public.get_my_verified_referrals()','EXECUTE');
+  v_anon_get_my_verified_referrals := has_function_privilege('anon','public.get_my_verified_referrals()','EXECUTE');
+  v_service_get_my_verified_referrals := has_function_privilege('service_role','public.get_my_verified_referrals()','EXECUTE');
+
   IF v_auth_create_organizer IS DISTINCT FROM true
      OR v_anon_create_organizer IS DISTINCT FROM false
      OR v_auth_register IS DISTINCT FROM true
-     OR v_auth_apply_referral IS DISTINCT FROM false THEN
+     OR v_auth_apply_referral IS DISTINCT FROM false
+     OR v_auth_get_my_referrals IS DISTINCT FROM true
+     OR v_anon_get_my_referrals IS DISTINCT FROM false
+     OR v_service_get_my_referrals IS DISTINCT FROM false
+     OR v_auth_get_my_referrals_v2 IS DISTINCT FROM true
+     OR v_anon_get_my_referrals_v2 IS DISTINCT FROM false
+     OR v_service_get_my_referrals_v2 IS DISTINCT FROM false
+     OR v_auth_get_my_verified_referrals IS DISTINCT FROM true
+     OR v_anon_get_my_verified_referrals IS DISTINCT FROM false
+     OR v_service_get_my_verified_referrals IS DISTINCT FROM false THEN
     RAISE EXCEPTION
-      'STAGE3_FUNCTION_GRANT_CONTRACT_DRIFT: authenticated_create_organizer=%, anon_create_organizer=%, authenticated_register=%, authenticated_apply_referral=%',
-      v_auth_create_organizer,v_anon_create_organizer,v_auth_register,v_auth_apply_referral;
+      'STAGE3_FUNCTION_GRANT_CONTRACT_DRIFT: authenticated_create_organizer=%, anon_create_organizer=%, authenticated_register=%, authenticated_apply_referral=%, referral_v1(auth/anon/service)= %/%/%, referral_v2(auth/anon/service)= %/%/%, verified_referrals(auth/anon/service)= %/%/%',
+      v_auth_create_organizer,v_anon_create_organizer,v_auth_register,v_auth_apply_referral,
+      v_auth_get_my_referrals,v_anon_get_my_referrals,v_service_get_my_referrals,
+      v_auth_get_my_referrals_v2,v_anon_get_my_referrals_v2,v_service_get_my_referrals_v2,
+      v_auth_get_my_verified_referrals,v_anon_get_my_verified_referrals,v_service_get_my_verified_referrals;
   END IF;
 
   INSERT INTO private.referral_program_settings (
@@ -971,8 +1002,45 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_NON_OWNER_ATTEMPT_READ_ALLOWED';
   END IF;
 
-  -- This legacy RPC is intentionally executable by PUBLIC/anon in production.
-  -- Its auth.uid() predicate must still scope results to the calling referrer.
+  -- Referral read RPCs retain their historic columns but expose data only
+  -- to authenticated referrers. NULL last_login_at avoids mirroring auth.users.
+  SELECT count(*) INTO v_count
+  FROM public.get_my_referrals() AS referral
+  WHERE referral.referred_user_id='00000000-0000-4000-8000-00000000a002'
+    AND referral.full_name='Stage3 Referred'
+    AND referral.username='stage3_referred'
+    AND referral.last_login_at IS NULL
+    AND referral.status IN ('VERIFIED','CREDITED')
+    AND referral.verified_at IS NOT NULL
+    AND referral.verified_activity='daily_checkin';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_REFERRAL_V1_RETURN_CONTRACT_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.get_my_referrals_v2() AS referral
+  WHERE referral.referred_user_id='00000000-0000-4000-8000-00000000a002'
+    AND referral.full_name='Stage3 Referred'
+    AND referral.username='stage3_referred'
+    AND referral.last_login_at IS NULL
+    AND referral.status IN ('VERIFIED','CREDITED')
+    AND referral.verified_at IS NOT NULL
+    AND referral.verified_activity='daily_checkin'
+    AND referral.reward_amount=17;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_REFERRAL_V2_RETURN_CONTRACT_FAILED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.get_my_verified_referrals() AS referral
+  WHERE referral.referred_user_id='00000000-0000-4000-8000-00000000a002'
+    AND referral.full_name='Stage3 Referred'
+    AND referral.username='stage3_referred'
+    AND referral.last_login_at IS NULL;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_VERIFIED_REFERRALS_RETURN_CONTRACT_FAILED';
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.get_my_verified_referrals();
 
@@ -1656,10 +1724,16 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_ANON_ACTIVE_PRODUCT_READ_FAILED';
   END IF;
 
-  -- PUBLIC/anon has EXECUTE by production design, but no auth.uid() means
-  -- the SECURITY DEFINER RPC must return no private referral rows.
-  IF (SELECT count(*) FROM public.get_my_verified_referrals()) <> 0 THEN
-    RAISE EXCEPTION 'STAGE3_RLS_ANON_VERIFIED_REFERRAL_LEAK';
+  -- Referral read RPCs are authenticated-only after the reviewed Stage 3
+  -- ACL change. Anonymous callers cannot execute SECURITY DEFINER functions.
+  v_caught := false;
+  BEGIN
+    PERFORM 1 FROM public.get_my_verified_referrals();
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_caught := true;
+  END;
+  IF NOT v_caught THEN
+    RAISE EXCEPTION 'STAGE3_RLS_ANON_VERIFIED_REFERRAL_RPC_EXECUTE_ALLOWED';
   END IF;
 
   BEGIN
