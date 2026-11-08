@@ -7,7 +7,6 @@ import test from "node:test";
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const sourceRoot = join(repoRoot, "src");
 const expected = {
-  "src/components/admin/ZeptoMailSettingsPanel.tsx": 1,
   "src/components/organizer/OrganizerWorkspaceOnboarding.tsx": 4,
   "src/pages/AdminChatConsolePage.tsx": 2,
   "src/pages/ProfileInterfaceSettingsPage.tsx": 1,
@@ -39,7 +38,7 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 18);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 17);
   assert.equal(Object.keys(actual).length, 7);
 });
 
