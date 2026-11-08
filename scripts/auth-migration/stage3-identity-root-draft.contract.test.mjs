@@ -117,4 +117,32 @@ for (const name of [
 assert.match(draft, /69-FK plan/i);
 assert.match(draft, /does not perform the FK cutover/i);
 assert.match(draft, /BEGIN;[\s\S]*COMMIT;/);
+const workflow = readFileSync(
+  path.join(here, "../../.github/workflows/auth-schema-baseline.yml"),
+  "utf8",
+);
+const orderedStages = [
+  "Apply Better Auth Stage 3 identity-root draft to disposable restore only",
+  "Simulate all 69 FK expansion, validation and atomic cutover on disposable restore only",
+  "Run Better Auth provisioning, referral, email, phone and organizer acceptance on disposable restore",
+  "Run rollback-only production-shaped Stage 3 behavior and RLS regression",
+  "Apply Stage 3 issuer guard to disposable restore only",
+  "Run Stage 3 trusted-issuer RLS acceptance on disposable restore",
+  "Simulate fail-closed 69-FK rollback on disposable restore only",
+  "Simulate complete Stage 3 rollback on disposable restore only",
+];
+let previousIndex = -1;
+for (const stage of orderedStages) {
+  const currentIndex = workflow.indexOf("- name: " + stage);
+  assert.ok(currentIndex > previousIndex, "baseline workflow stage order is incorrect: " + stage);
+  previousIndex = currentIndex;
+}
+assert.match(workflow, /expected="69\\|0"/,
+  "disposable forward cutover must prove 69 validated app_users FKs and zero auth.users FKs");
+assert.match(workflow, /postgresql:\/\/postgres:postgres@127[.]0[.]0[.]1:54322\/postgres/,
+  "identity-root and FK drafts must execute only against the disposable local database");
+assert.match(workflow, /--file=\/baseline\/auth-stage3-identity-root-draft[.]sql/);
+assert.match(workflow, /--file="\/plan\/\$phase"/);
+assert.match(workflow, /ROLLBACK/);
+
 console.log("Stage 3 identity-root draft contract passed.");
