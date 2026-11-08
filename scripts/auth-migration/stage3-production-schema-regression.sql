@@ -857,6 +857,7 @@ DO $stage3_rls_referrer$
 DECLARE
   v_count integer;
   v_affected integer;
+  v_caught boolean := false;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.profiles
@@ -1554,6 +1555,7 @@ DO $stage3_rls_admin$
 DECLARE
   v_count integer;
   v_affected integer;
+  v_caught boolean := false;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.user_roles
