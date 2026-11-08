@@ -473,6 +473,22 @@ export default {
     try {
       const auth = await getAuth(env);
       const response = await auth.handler(request);
+      if (response.status >= 500 && url.pathname.startsWith("/api/auth/")) {
+        let providerError = "AUTH_HANDLER_ERROR";
+        try {
+          const payload = await response.clone().json() as { code?: unknown; error?: unknown; message?: unknown };
+          const candidate = [payload.code, payload.error, payload.message]
+            .find((value) => typeof value === "string" && /^[A-Z0-9_]{2,80}$/.test(value));
+          if (typeof candidate === "string") providerError = candidate;
+        } catch {
+          // Log only a stable code and path; never emit response bodies or tokens.
+        }
+        console.error("Better Auth handler returned an error response", {
+          status: response.status,
+          path: url.pathname,
+          code: providerError,
+        });
+      }
       return applyResponseHeaders(response, corsHeaders);
     } catch (error) {
       const quotaResponse = createD1QuotaResponse(error);
