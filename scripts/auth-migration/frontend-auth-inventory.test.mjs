@@ -10,7 +10,7 @@ const expected = {
   "src/components/organizer/OrganizerWorkspaceOnboarding.tsx": 4,
   "src/pages/AdminChatConsolePage.tsx": 2,
   "src/services/applicationAccessToken.ts": 1,
-  "src/services/auth.service.ts": 8,
+  "src/services/auth.service.ts": 9,
   "src/services/chat.service.ts": 3,
 };
 
@@ -37,14 +37,14 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 18);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 19);
   assert.equal(Object.keys(actual).length, 5);
 });
 
 test("the inventory document remains present next to its tracked source baseline", () => {
   const inventoryPath = join(repoRoot, "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md");
   const inventory = readFileSync(inventoryPath, "utf8");
-  assert.ok(inventory.includes('17 direct `supabase.auth` callsites across 5 frontend files'));
+  assert.ok(inventory.includes('19 direct `supabase.auth` callsites across 5 frontend files'));
   assert.match(inventory, /Organizer email\/phone verification/);
   assert.match(inventory, /Cloudinary remains the media system of record/);
   assert.match(inventory, /Legacy private-chat service[\s\S]*not migrate(?: it)? to Better Auth/);
