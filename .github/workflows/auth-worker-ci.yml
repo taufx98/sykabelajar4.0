@@ -22,6 +22,10 @@ on:
       - "scripts/auth-migration/payment-edge-auth-migration.test.mjs"
       - "scripts/auth-migration/frontend-auth-inventory.test.mjs"
       - "src/services/betterAuthApi.client.ts"
+      - "src/lib/supabase.ts"
+      - "src/services/supabaseClientOptions.mjs"
+      - "src/services/supabaseClientOptions.d.mts"
+      - "scripts/auth-migration/supabase-client-options.test.mjs"
       - "src/services/applicationIdentity.ts"
       - "src/services/applicationIdentityReader.mjs"
       - "src/services/applicationIdentityReader.d.mts"
@@ -89,6 +93,9 @@ jobs:
 
       - name: Verify frontend Supabase Auth dependency inventory
         run: node ../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+
+      - name: Verify shared Supabase client auth-token source
+        run: node ../../scripts/auth-migration/supabase-client-options.test.mjs
 
       - name: Run local Worker, apply D1 migrations, and verify auth/OAuth flows
         shell: bash
