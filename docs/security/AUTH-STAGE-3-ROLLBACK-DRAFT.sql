@@ -21,6 +21,17 @@
 
 BEGIN;
 
+DO $stage3_rollback_timeout$
+BEGIN
+  IF pg_catalog.current_setting('lock_timeout') = '0' THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_LOCK_TIMEOUT_MUST_BE_SET';
+  END IF;
+  IF pg_catalog.current_setting('statement_timeout') = '0' THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_STATEMENT_TIMEOUT_MUST_BE_SET';
+  END IF;
+END;
+$stage3_rollback_timeout$;
+
 DO $stage3_rollback_preflight$
 DECLARE
   v_fk_to_auth integer;
@@ -73,7 +84,13 @@ BEGIN
   JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
   WHERE ns.nspname IN ('public', 'private')
     AND pol.polname = 'better_auth_issuer_guard'
-    AND NOT pol.polpermissive;
+    AND NOT pol.polpermissive
+    AND pol.polcmd = '*'
+    AND pol.polroles = ARRAY['authenticated'::regrole::oid]
+    AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+    AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
+    AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+    AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%';
   IF v_issuer_guards <> 61 THEN
     RAISE EXCEPTION 'STAGE3_ROLLBACK_ISSUER_GUARD_COUNT_MISMATCH: expected 61 restrictive policies, found %',
       v_issuer_guards;
@@ -111,6 +128,12 @@ BEGIN
     WHERE ns.nspname IN ('public', 'private')
       AND pol.polname = 'better_auth_issuer_guard'
       AND NOT pol.polpermissive
+      AND pol.polcmd = '*'
+      AND pol.polroles = ARRAY['authenticated'::regrole::oid]
+      AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+      AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
+      AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+      AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
     ORDER BY ns.nspname, tbl.relname
   LOOP
     EXECUTE pg_catalog.format(
@@ -794,6 +817,70 @@ DROP FUNCTION private.provision_better_auth_user(uuid,text,text,text,text,boolea
 DROP FUNCTION private.complete_better_auth_email_verification(uuid,timestamptz);
 DROP FUNCTION private.complete_better_auth_phone_verification(uuid,timestamptz,text,text,text,integer);
 DROP TABLE private.app_users;
+
+DO $stage3_rollback_postflight$
+DECLARE
+  v_auth_fk_count integer;
+  v_app_users_fk_count integer;
+  v_auth_trigger_count integer;
+  v_profile_trigger_count integer;
+  v_issuer_guard_count integer;
+BEGIN
+  SELECT count(*) INTO v_auth_fk_count
+  FROM pg_constraint c
+  JOIN pg_class dst ON dst.oid = c.confrelid
+  JOIN pg_namespace dst_ns ON dst_ns.oid = dst.relnamespace
+  JOIN pg_class src ON src.oid = c.conrelid
+  JOIN pg_namespace src_ns ON src_ns.oid = src.relnamespace
+  WHERE c.contype = 'f'
+    AND dst_ns.nspname = 'auth' AND dst.relname = 'users'
+    AND src_ns.nspname IN ('public', 'private');
+
+  SELECT count(*) INTO v_app_users_fk_count
+  FROM pg_constraint c
+  JOIN pg_class dst ON dst.oid = c.confrelid
+  JOIN pg_namespace dst_ns ON dst_ns.oid = dst.relnamespace
+  JOIN pg_class src ON src.oid = c.conrelid
+  JOIN pg_namespace src_ns ON src_ns.oid = src.relnamespace
+  WHERE c.contype = 'f'
+    AND dst_ns.nspname = 'private' AND dst.relname = 'app_users'
+    AND src_ns.nspname IN ('public', 'private');
+
+  SELECT count(*) INTO v_auth_trigger_count
+  FROM pg_trigger tr
+  JOIN pg_class tbl ON tbl.oid = tr.tgrelid
+  JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+  WHERE NOT tr.tgisinternal AND ns.nspname = 'auth' AND tbl.relname = 'users';
+
+  SELECT count(*) INTO v_profile_trigger_count
+  FROM pg_trigger tr
+  JOIN pg_class tbl ON tbl.oid = tr.tgrelid
+  JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+  WHERE NOT tr.tgisinternal AND ns.nspname = 'public' AND tbl.relname = 'profiles';
+
+  SELECT count(*) INTO v_issuer_guard_count
+  FROM pg_policy pol
+  JOIN pg_class tbl ON tbl.oid = pol.polrelid
+  JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+  WHERE ns.nspname IN ('public', 'private')
+    AND pol.polname = 'better_auth_issuer_guard';
+
+  IF v_auth_fk_count <> 69 OR v_app_users_fk_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_POST_FK_MISMATCH: auth.users=%, app_users=%',
+      v_auth_fk_count, v_app_users_fk_count;
+  END IF;
+  IF v_auth_trigger_count <> 3 OR v_profile_trigger_count <> 4 THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_POST_TRIGGER_MISMATCH: auth.users=%, profiles=%',
+      v_auth_trigger_count, v_profile_trigger_count;
+  END IF;
+  IF v_issuer_guard_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_ISSUER_GUARD_REMAINS: %', v_issuer_guard_count;
+  END IF;
+  IF to_regclass('private.app_users') IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_APP_USERS_TABLE_REMAINS';
+  END IF;
+END;
+$stage3_rollback_postflight$;
 
 COMMIT;
 
