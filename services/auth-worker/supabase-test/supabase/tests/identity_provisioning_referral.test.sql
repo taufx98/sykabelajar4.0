@@ -176,7 +176,7 @@ update public.user_roles set is_active = false
 where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
   and role = 'organizer_member';
 select extensions.lives_ok(
-  $select public.better_auth_provision_user(
+  $$select public.better_auth_provision_user(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'organizer',
     'Attempted Rewrite', 'organizer-one', null)$$,
   'repeating provisioning for the same UUID is safe'
@@ -204,7 +204,7 @@ select extensions.is(
 );
 
 select extensions.lives_ok(
-  $select public.better_auth_provision_user(
+  $$select public.better_auth_provision_user(
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'student',
     'Verified Google', 'verified-google', null, true)$$,
   'a trusted Google identity can provision with verified email status'
@@ -230,7 +230,7 @@ select extensions.is(
 );
 
 select extensions.throws_ok(
-  $select public.better_auth_provision_user(
+  $$select public.better_auth_provision_user(
     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'admin',
     'Attacker', 'attacker-admin', null)$$,
   '22023', 'UNSUPPORTED_ACCOUNT_TYPE',
@@ -243,7 +243,7 @@ select extensions.is(
 );
 
 select extensions.throws_ok(
-  $select public.better_auth_provision_user(
+  $$select public.better_auth_provision_user(
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'student',
     'Username Collision', 'organizer-one', null)$$,
   '23505', null,
@@ -261,7 +261,7 @@ select extensions.is(
 );
 
 select extensions.lives_ok(
-  $select public.better_auth_provision_user(
+  $$select public.better_auth_provision_user(
     '33333333-3333-4333-8333-333333333333', 'teacher',
     'Teacher One', 'teacher-one', 'REF-VALID')$$,
   'teacher signup provisions successfully with a valid referral code'
@@ -352,7 +352,7 @@ select extensions.is(
 );
 
 select extensions.lives_ok(
-  $select public.better_auth_provision_user(
+  $$select public.better_auth_provision_user(
     '55555555-5555-4555-8555-555555555555', 'student',
     'No Referral', 'no-referral', 'UNKNOWN-CODE')$$,
   'unknown referral code does not block account provisioning'
@@ -363,7 +363,7 @@ select extensions.is(
   0, 'unknown referral code creates no attribution'
 );
 select extensions.lives_ok(
-  $select public.better_auth_provision_user(
+  $$select public.better_auth_provision_user(
     '66666666-6666-4666-8666-666666666666', 'student',
     'Unverified Referrer Case', 'unverified-referral-case', 'REF-UNVERIFIED')$$,
   'a referral code owned by an unverified account does not block signup'
@@ -406,7 +406,7 @@ select extensions.is(
 reset role;
 set local role authenticated;
 select extensions.throws_ok(
-  $select public.better_auth_provision_user(
+  $$select public.better_auth_provision_user(
     '88888888-8888-4888-8888-888888888888', 'student',
     'Client Caller', 'client-caller', null)$$,
   '42501', null, 'signed-in clients cannot provision identities directly'
