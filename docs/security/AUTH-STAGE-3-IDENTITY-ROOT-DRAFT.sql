@@ -1056,8 +1056,7 @@ GRANT EXECUTE ON FUNCTION public.better_auth_complete_email_verification(
 GRANT EXECUTE ON FUNCTION public.better_auth_complete_phone_verification(
   uuid,timestamptz,text,text,text,integer
 ) TO service_role;
-GRANT EXECUTE ON FUNCTION public.better_auth_get_phone_verification_status(uuid)
-  TO service_role;
+
 
 COMMIT;
 
