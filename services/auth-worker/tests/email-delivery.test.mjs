@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deliverAuthEmail } from "../src/email-delivery.mjs";
+import { deliverAuthEmail, isEmailDeliveryConfigured } from "../src/email-delivery.mjs";
 
 const message = {
   to: "student@example.com",
@@ -8,6 +8,26 @@ const message = {
   text: "Buka tautan verifikasi yang aman.",
   action: "verify-email",
 };
+
+
+test("email readiness is a configuration-only check and never sends a message", () => {
+  assert.equal(isEmailDeliveryConfigured({}), false);
+  assert.equal(isEmailDeliveryConfigured({
+    AUTH_EMAIL_FROM: "noreply@example.test",
+    AUTH_EMAIL_WEBHOOK_URL: "https://relay.example.test/send",
+    AUTH_EMAIL_WEBHOOK_TOKEN: "webhook-secret",
+  }), true);
+  assert.equal(isEmailDeliveryConfigured({
+    AUTH_EMAIL_FROM: "noreply@example.test",
+    AUTH_EMAIL_WEBHOOK_URL: "http://relay.example.test/send",
+    AUTH_EMAIL_WEBHOOK_TOKEN: "webhook-secret",
+  }), false);
+  assert.equal(isEmailDeliveryConfigured({
+    AUTH_EMAIL_FROM: "noreply@example.test",
+    AUTH_EMAIL_WEBHOOK_URL: "http://127.0.0.1:8788/send",
+    AUTH_EMAIL_WEBHOOK_TOKEN: "webhook-secret",
+  }), true);
+});
 
 test("the local authenticated webhook contract sends the expected payload", async () => {
   let captured;
