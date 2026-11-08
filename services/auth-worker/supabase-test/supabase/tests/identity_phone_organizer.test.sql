@@ -94,7 +94,7 @@ SELECT extensions.is(
   'the same trusted verification event is idempotent'
 );
 SELECT extensions.throws_ok(
-  $SELECT public.better_auth_complete_phone_verification(
+  $$SELECT public.better_auth_complete_phone_verification(
     '20202020-2020-4020-8020-202020202020',clock_timestamp(),
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     'telegram','987654321',13)$$,
@@ -102,7 +102,7 @@ SELECT extensions.throws_ok(
   'one Telegram identity cannot be linked to two Better Auth users'
 );
 SELECT extensions.throws_ok(
-  $SELECT public.better_auth_complete_phone_verification(
+  $$SELECT public.better_auth_complete_phone_verification(
     '30303030-3030-4030-8030-303030303030',clock_timestamp(),
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     'telegram','333333333',7)$$,
@@ -110,7 +110,7 @@ SELECT extensions.throws_ok(
   'phone number claims shorter than eight digits are rejected'
 );
 SELECT extensions.throws_ok(
-  $SELECT public.better_auth_complete_phone_verification(
+  $$SELECT public.better_auth_complete_phone_verification(
     '30303030-3030-4030-8030-303030303030',clock_timestamp(),
     'not-a-sha256-hash','telegram','333333333',13)$$,
   '22023','PHONE_VERIFICATION_INPUT_INVALID',
@@ -221,7 +221,7 @@ SELECT extensions.throws_ok(
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT extensions.throws_ok(
-  $SELECT public.better_auth_complete_phone_verification(
+  $$SELECT public.better_auth_complete_phone_verification(
     '40404040-4040-4040-8040-404040404040',clock_timestamp(),
     'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
     'telegram','444444444',13)$$,
