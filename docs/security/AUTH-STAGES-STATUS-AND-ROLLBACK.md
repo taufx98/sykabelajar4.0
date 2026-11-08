@@ -778,7 +778,12 @@ This revised SQL/generator/workflow has not yet passed fresh CI or a new full-sc
 
 ### CI evidence at this checkpoint
 
-- [Auth Worker CI #42503575621](https://github.com/taufx98/sykabelajar4.0/actions/runs/42503575621) passed both jobs: Worker/security tests, D1 migration checks, OIDC/JWKS smoke and dry-run, frontend lint, typecheck and build. This validates branch code only; it is not a deployment.
-- [Supabase Local Auth Claims CI #42503575760](https://github.com/taufx98/sykabelajar4.0/actions/runs/42503575760) was still running at the time this status note was written. Do not treat the local SQL/pgTAP stage as green until the run completes.
+- [Auth Worker CI #42503883055](https://github.com/taufx98/sykabelajar4.0/actions/runs/42503883055) passed both jobs on head `ae8e8a1`: Worker/security tests, D1 migration checks, OIDC/JWKS smoke and dry-run, frontend lint, typecheck and build. This validates branch code only; it is not a Worker deployment.
+- [Supabase Local Auth Claims CI #42503878656](https://github.com/taufx98/sykabelajar4.0/actions/runs/42503878656) completed successfully on the frontend-contract update, including the local JWT/RLS/pgTAP suite. The previously reported 73/73 assertions remain green.
+- Cloudflare Pages branch preview built successfully for head `ae8e8a1`: [security-auth-poc-stage-1 preview](https://security-auth-poc-stage-1.sykabelajar4.pages.dev). This is a Pages preview only; it does not deploy the Auth Worker or change the production app.
 
 No production Supabase schema, function, trigger, grant, policy, account, Worker secret, Cloudflare route, login flag or Edge Function was changed. PR #177 remains Draft and unmerged.
+
+### Admin transactional-email panel identity bridge — 8 November 2026
+
+The Admin ZeptoMail/Brevo panel already uses the shared Supabase resource-token provider. In Better Auth preview, the Worker recognizes only the exact configured Better Auth issuer, cryptographically verifies the ES256 resource token against issuer JWKS and audience, verifies matching `sub` through UserInfo and requires `email_verified=true`, then checks the active `admin` business-role row only in the isolated Free Supabase project using the Worker-held service-role key. The legacy Supabase Auth verifier remains available for the default provider path. The browser receives neither service-role credentials nor stored email-provider tokens. No provider credential was entered and no test email was sent.
