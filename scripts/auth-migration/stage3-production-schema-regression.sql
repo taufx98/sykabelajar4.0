@@ -1572,7 +1572,7 @@ BEGIN
   v_caught := false;
   BEGIN
     UPDATE public.profiles SET account_type='teacher'
-    WHERE id='00000000-0000-4000-8000-00000000a009';
+    WHERE id='00000000-0000-4000-8000-00000000a012';
   EXCEPTION WHEN insufficient_privilege THEN
     v_caught := true;
   END;
@@ -1583,7 +1583,7 @@ BEGIN
   v_caught := false;
   BEGIN
     UPDATE public.profiles SET total_xp=coalesce(total_xp,0)+1
-    WHERE id='00000000-0000-4000-8000-00000000a009';
+    WHERE id='00000000-0000-4000-8000-00000000a012';
   EXCEPTION WHEN insufficient_privilege THEN
     v_caught := true;
   END;
@@ -1627,7 +1627,7 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_CERTIFICATE_READ_FAILED';
   END IF;
   SELECT count(*) INTO v_count FROM public.commerce_product_wishlist
-  WHERE product_id='00000000-0000-4000-8000-00000000a215' AND user_id='00000000-0000-4000-8000-00000000a009';
+  WHERE product_id='00000000-0000-4000-8000-00000000a215' AND user_id='00000000-0000-4000-8000-00000000a012';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_WISHLIST_READ_FAILED';
   END IF;
