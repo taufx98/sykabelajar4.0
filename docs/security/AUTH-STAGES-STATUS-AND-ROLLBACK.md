@@ -672,3 +672,51 @@ Read-only production recheck on 8 November 2026: `private.app_users` absent; 69 
 The isolated Free staging project has zero `private.app_users` rows. It now denies `service_role` direct privileges on `private.app_users` and execution of the private Better Auth provisioning/verification helpers; only the public SECURITY DEFINER wrappers remain executable. A rollback-only staging transaction proved those public provisioning, email-verification and phone-verification wrappers continue to work under the reduced access.
 
 The only production Stage 3 blocker is the controlled application window itself: final read-only preflight, approved rollback window, explicit owner approval, then production DDL/FK/issuer work. Do not run the generated plan or apply the draft until that approval is received.
+
+
+## Continuation checkpoint — 8 November 2026 (PR head 1161d033)
+
+This checkpoint supersedes the older Stage 4 progress counts and any earlier statement that the Stage 3 production-schema baseline/restore had not been completed. It records the state verified during the 8 November continuation. It does not authorize production cutover.
+
+### Latest CI on the current migration branch
+
+- [Auth Worker CI #509](https://github.com/taufx98/sykabelajar4.0/actions/runs/42459904343) passed on head `1161d033fcc6209217ebf6f31e4ef851d7e229de`. The workflow's Worker security/typecheck/build/D1/OIDC checks and frontend lint/typecheck/build completed successfully.
+- [Supabase Local Auth Claims CI #344](https://github.com/taufx98/sykabelajar4.0/actions/runs/42459904314) passed on the same head.
+- PR #177 remains Draft/unmerged. Keep the feature disabled in production and do not force-merge its dirty base relationship.
+
+### Stage 1 — isolated Worker, email, and provider activation
+
+- The isolated Cloudflare D1/Worker deployment and migrations 0000–0006 remain the staging baseline; do not point this Worker or D1 binding at production.
+- The Worker uses the managed email dispatcher with ZeptoMail support, but the latest recorded staging state has no active Brevo/ZeptoMail sender account. Real signup verification and password-reset delivery therefore remain unaccepted and fail closed. The owner must configure a verified sender and encrypted Agent Send Mail Token through the staging Admin settings, then run the email test only to the signed-in admin account.
+- Google/Facebook/X credentials remain optional and absent in the last confirmed staging inventory. Telegram is only a separate phone-consent step; BotFather OIDC registration, callback allowlisting, Worker credentials, and a real hosted consent/callback test remain outstanding. Instagram personal-account login is not wired as an ordinary OAuth provider.
+
+### Stage 2 — OIDC/JWT and Supabase service surfaces
+
+- Hosted Custom OIDC acceptance [#42328168345](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328168345) passed on the isolated Free Supabase project: discovery/PKCE S256, ES256/P-256 JWKS, authorization-code exchange, resource audience and UUID subject, short token lifetime, Data API acceptance, two-user RLS isolation, signature-tamper rejection, and session-bound UserInfo invalidation.
+- The read-only staging probe `better-auth-oidc-acceptance` is ACTIVE (version 1) on the isolated project. Its handler verifies the external token with pinned `@supabase/server@1.9.2`, enforces exact issuer/audience/UUID/role/lifetime, and only reads the caller's synthetic fixture row.
+- **Still open:** no positive hosted invocation of that Edge probe with a real Better Auth token; no Storage HTTP upload/download with that token; and no Realtime WebSocket private-topic join/broadcast with that token. Previous SQL/RLS fixtures are not substitutes for those protocol-level tests.
+- Read-only staging inventory on 8 November found two retained synthetic OIDC fixture rows, zero `private.app_users` rows, zero objects/bucket under the reserved `auth-stage2-proof` acceptance name, and no leftover `better_auth_stage2_*` Storage or Realtime policies. No test bucket or temporary policy was created during this continuation.
+
+### Stage 3 — production identity foundation
+
+- [Auth Production Schema Baseline #42398676006](https://github.com/taufx98/sykabelajar4.0/actions/runs/42398676006) passed the full schema-only export/restore and disposable production-shaped acceptance. It compared the 69 application FKs, triggers, profile shape, ACLs and 109 auth.uid() policies, simulated the identity-root/issuer/FK plan on the disposable restore, and cleaned up the temporary environment.
+- The 8 November read-only production recheck still found no production `private.app_users`, all 69 application FKs still referencing `auth.users(id)`, and the three non-internal Auth triggers still present. The isolated staging identity projection remains empty.
+- The identity-root/backfill, legacy trigger bridge, 69-FK rehome and restrictive issuer guard are still draft changes only. **Do not execute production DDL/FK/issuer changes without a separately approved maintenance window, explicit owner approval, and final preflight/rollback review.** No production DDL/DML, app data, Auth settings, secrets, issuer, Worker, or login route was changed in this continuation.
+
+### Stage 4 — frontend preparation, not cutover
+
+- The current [frontend migration inventory](AUTH-FRONTEND-MIGRATION-INVENTORY.md) records **17 direct `supabase.auth` callsites across six files** as of 8 November, not the older 36/41 counts above.
+- Nine identity-only lookup paths now use the shared provider-neutral identity accessor. AppContext remains the single owner of provider subscription, hydration, guest behavior, cache invalidation, and the 25-minute idle logout contract. The app-owned auth service and session-event bridge remain the only session coordination layer.
+- The typed Better Auth HTTP transport and in-memory short-lived resource-token broker are prepared behind an explicit preview-only flag bound to the isolated staging Supabase project. Supabase Auth remains the production/default provider; no production login path was switched.
+- Remaining direct calls have different responsibilities and must not be replaced mechanically: core credential/session wrappers, organizer email/phone verification, password change/recovery UX, and the legacy private-chat service/Admin Chat Console. The chat callsites are not a feature to migrate; preserve the separate decision to retire private chat rather than carry it into Better Auth. Organizer phone verification remains gated on the trusted Telegram consent/projection path. Password change requires a deliberate current-password/revocation UX.
+- The temporary typed fetch transport remains an explicit staging scaffold; a final SDK/transport decision and full UX regression are still required before cutover.
+
+### Stage 5 — backend preparation, not deployment
+
+- The shared fail-closed `requireApplicationUser()` resolver and seven Cloudinary/payment handler adaptations remain branch-only. `AUTH_IDENTITY_MODE=supabase` remains the default; `better-auth` is opt-in only.
+- No production Edge Function was deployed and no production mode flag changed. Hosted positive Better Auth-token and two-user IDOR acceptance for the affected handlers, schema-compatible staging deployment, and a separate endpoint deployment review remain open.
+
+### Stages 6–7 — reset and production
+
+- Account classification/reset, admin bootstrap, full end-to-end regression, production monitoring, cutover, and rollback rehearsal remain not started.
+- Preserve PR #177 as Draft/unmerged until Stage 2 service-surface acceptance, controlled Stage 3 production approval, Stage 4/5 acceptance, base reconciliation, and rollback gates are all complete.
