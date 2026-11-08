@@ -568,6 +568,49 @@ jobs:
             --catalog scripts/auth-migration/live-auth-users-fk-catalog.json \
             --out-dir "$PLAN_DIR"
 
+          # A Better Auth-only identity must block reverse cutover before any FK DDL.
+          docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --command "
+                INSERT INTO private.app_users(id)
+                VALUES ('f8b8f8b8-9999-4999-8999-999999999999')
+                ON CONFLICT (id) DO NOTHING;
+              "
+          set +e
+          blocker_output="$(docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
+            -v "$PLAN_DIR:/plan:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/plan/01-preflight-expand-auth-rollback.sql 2>&1)"
+          blocker_status=$?
+          set -e
+          docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --command "
+                DELETE FROM private.app_users
+                WHERE id='f8b8f8b8-9999-4999-8999-999999999999';
+              "
+          if [[ "$blocker_status" -eq 0 ]] || ! grep -q "ROLLBACK_BLOCKED_BETTER_AUTH_ONLY_IDENTITY_EXISTS" <<<"$blocker_output"; then
+            echo "::error::Reverse-FK preflight did not fail closed for a Better Auth-only identity."
+            echo "$blocker_output"
+            exit 1
+          fi
+          remaining_temp_fks="$(
+            docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+                -X -qAt --set=ON_ERROR_STOP=1 --command "
+                  SELECT count(*) FROM pg_constraint WHERE conname LIKE 'ba_auth_rollback_fk_%';
+                "
+          )"
+          if [[ "$remaining_temp_fks" != "0" ]]; then
+            echo "::error::Rollback preflight created temporary FKs before its identity guard."
+            exit 1
+          fi
+          echo "- Better Auth-only synthetic UUID correctly blocked reverse FK preflight before any FK DDL; fixture removed" >> "$GITHUB_STEP_SUMMARY"
+
           for phase in 01-preflight-expand-auth-rollback.sql 02-validate-auth-rollback.sql 03-cutover-auth-rollback.sql; do
             docker run --rm --network host \
               -e PGPASSWORD=postgres \
