@@ -1,7 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Role, User, AppNotification, Order, Award, Certificate, FeedPost } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { signIn, signUp, signOut, LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
+import {
+  signIn,
+  signUp,
+  signOut,
+  getSession as getAuthSession,
+  onAuthStateChange,
+  LOGIN_REJECTION_SIGNOUT_KEY,
+} from '@/services/auth.service';
 import { getAuthenticatedProfileById, getProfileById, updateProfile as updateProfileRecord } from '@/services/profile.service';
 import { loadAwards } from '@/services/runtime.service';
 import { liveAwards } from '@/data/live';
@@ -160,9 +167,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const bootstrap = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        const sessionUser = data.session?.user;
+        const session = await getAuthSession();
+        const sessionUser = session?.user;
         publishAuthSessionEvent('INITIAL_SESSION', sessionUser?.id ?? null);
         if (sessionUser) {
           const email = sessionUser.email ?? '';
@@ -187,7 +193,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     void bootstrap();
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: subscription } = onAuthStateChange((event, session) => {
       publishAuthSessionEvent(event, session?.user?.id ?? null);
       if (!aliveRef.current) return;
       if (event === 'SIGNED_OUT') {
