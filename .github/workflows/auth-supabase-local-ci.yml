@@ -9,6 +9,11 @@ on:
       - "scripts/auth-migration/**"
       - "src/App.tsx"
       - "src/store/AppContext.tsx"
+      - "src/services/auth.service.ts"
+      - "src/services/betterAuthSessionBridge.mjs"
+      - "src/services/betterAuthSessionBridge.d.mts"
+      - "src/pages/AdminErrorIntelligencePage.tsx"
+      - "src/pages/RegisterPage.tsx"
       - "src/lib/cacheAuthLifecycle.ts"
       - "src/services/organizerAuth.service.ts"
       - "src/services/authSessionEvents.mjs"
@@ -92,6 +97,7 @@ jobs:
         run: |
           node ../../../scripts/auth-migration/frontend-auth-inventory.test.mjs
           node ../../../scripts/auth-migration/auth-session-events.test.mjs
+          node ../../../scripts/auth-migration/better-auth-session-bridge.test.mjs
 
       - name: Verify disabled Better Auth frontend transport boundary
         run: node ../../../scripts/auth-migration/better-auth-frontend-client.test.mjs
