@@ -31,6 +31,13 @@ on:
     paths:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
+      - "src/App.tsx"
+      - "src/store/AppContext.tsx"
+      - "src/lib/cacheAuthLifecycle.ts"
+      - "src/services/organizerAuth.service.ts"
+      - "src/services/authSessionEvents.mjs"
+      - "src/services/authSessionEvents.d.mts"
+      - "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md"
       - "supabase/functions/_shared/**"
       - "supabase/functions/get-cloudinary-signature/**"
       - "supabase/functions/payment-gateway-admin/**"
