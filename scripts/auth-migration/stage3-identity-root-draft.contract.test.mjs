@@ -10,11 +10,7 @@ const draft = readFileSync(
 );
 
 function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\const draft = readFileSync(
-  path.join(here, "../../docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql"),
-  "utf8",
-);
-");
+  return value.replaceAll(".", "\\.").replaceAll("(", "\\(").replaceAll(")", "\\)");
 }
 
 // The reviewed SQL stays outside supabase/migrations until all Stage 3 gates pass.
