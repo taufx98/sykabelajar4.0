@@ -16,6 +16,13 @@ const midtransDelegate = readFileSync(new URL("../../supabase/functions/midtrans
 const paymentWebhook = readFileSync(new URL("../../supabase/functions/payment-gateway-webhook/index.ts", import.meta.url), "utf8");
 const functionConfig = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
 
+function stripSourceComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
+
+
 test("shared application identity defaults to legacy Supabase and Better Auth is explicit opt-in", () => {
   assert.match(identityResolver, /AUTH_IDENTITY_MODE/);
   assert.match(identityResolver, /\?\.trim\(\) \|\| "supabase"/);
@@ -75,9 +82,10 @@ test("all migrated user-facing Cloudinary handlers share the fail-closed identit
     ["cloudinary-profile-upload", cloudinaryUpload],
     ["cloudinary-delete-profile", cloudinaryDeleteProfile],
   ]) {
-    assert.match(source, /requireApplicationUser\(/, name + " must verify the caller in-handler");
-    assert.doesNotMatch(source, /auth\.getUser\(|\/auth\/v1\/user/, name + " must not retain the legacy Supabase Auth verifier");
-    assert.doesNotMatch(source, /service_role|SUPABASE_SERVICE_ROLE_KEY/, name + " must not bypass RLS for ownership checks");
+    const executableSource = stripSourceComments(source);
+    assert.match(executableSource, /requireApplicationUser\(/, name + " must verify the caller in-handler");
+    assert.doesNotMatch(executableSource, /auth\.getUser\(|\/auth\/v1\/user/, name + " must not retain the legacy Supabase Auth verifier");
+    assert.doesNotMatch(executableSource, /service_role|SUPABASE_SERVICE_ROLE_KEY/, name + " must not bypass RLS for ownership checks");
   }
   assert.match(cloudinarySignature, /isOwnedCloudinaryPublicId/);
   assert.match(cloudinaryDelete, /isOwnedCloudinaryPublicId/);
