@@ -21,6 +21,10 @@ on:
       - "scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs"
       - "scripts/auth-migration/stage3-better-auth-provisioning-regression.sql"
       - "scripts/auth-migration/generate-app-users-fk-plan.mjs"
+      - "scripts/auth-migration/generate-app-users-fk-plan.test.mjs"
+      - "scripts/auth-migration/stage3-issuer-guard.contract.test.mjs"
+      - "scripts/auth-migration/stage3-issuer-guard-regression.sql"
+      - "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
       - "scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs"
       - "scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs"
       - "scripts/auth-migration/live-auth-users-fk-catalog.json"
@@ -167,6 +171,10 @@ jobs:
       - name: Test fail-closed Stage 3 reverse FK rollback plan contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
+
+      - name: Test UUID-only, no-account-migration FK tombstone plan contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/generate-app-users-fk-plan.test.mjs
 
       - name: Test complete Stage 3 rollback draft contract
         if: steps.credentials.outputs.available == 'true'
