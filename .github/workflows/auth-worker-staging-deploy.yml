@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0006"
+      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0007"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -69,7 +69,7 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0006"
+            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0007"
             test -f "$marker" || {
               echo "Blocked: the one-time staging Worker deployment marker is missing." >&2
               exit 1
@@ -128,7 +128,7 @@ jobs:
       - name: Verify all 18 remote D1 tables and empty staging identity state
         run: |
           set -euo pipefail
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -147,12 +147,12 @@ jobs:
             "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
             "auth_worker_internal_config","jwks","oauthAccessToken","oauthClient","oauthClientAssertion",
             "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
-            "session","user","verification","auth_phone_verification_challenges"
+            "session","user","verification","auth_phone_verification_challenges","auth_social_provider_meta","auth_social_provider_settings"
           ];
           const missing = expected.filter((name) => !found.has(name));
           if (missing.length) throw new Error("Remote staging D1 is missing tables: " + missing.join(", "));
-          if (expected.length !== 18) throw new Error("The reviewed staging schema contract must contain exactly 18 tables.");
-          console.log("Verified all " + expected.length + " remote staging D1 tables, including the Telegram phone-verification challenge table.");
+          if (expected.length !== 20) throw new Error("The reviewed staging schema contract must contain exactly 20 tables.");
+          console.log("Verified all " + expected.length + " remote staging D1 tables, including Telegram verification and managed social-login settings.");
           NODE
 
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-user-columns.json"
@@ -191,7 +191,7 @@ jobs:
           console.log("Verified provider-aware transactional email schema.");
           NODE
 
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM user) AS users, (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM account) AS accounts, (SELECT COUNT(*) FROM verification) AS verifications, (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges, (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM user) AS users, (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM account) AS accounts, (SELECT COUNT(*) FROM verification) AS verifications, (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges, (SELECT COUNT(*) FROM auth_social_provider_settings) AS social_provider_settings, (SELECT COUNT(*) FROM auth_social_provider_meta WHERE id = 1) AS social_provider_meta, (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -206,9 +206,10 @@ jobs:
           }
           visit(payload);
           if (!row) throw new Error("Could not parse remote staging identity-state check.");
-          for (const field of ["users","sessions","accounts","verifications","phone_challenges"]) {
+          for (const field of ["users","sessions","accounts","verifications","phone_challenges","social_provider_settings"]) {
             if (Number(row[field]) !== 0) throw new Error("Staging D1 unexpectedly contains " + field + " rows; refusing deployment.");
           }
+          if (Number(row.social_provider_meta) !== 1) throw new Error("Expected exactly one managed social provider metadata row.");
           if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one fixed first-party public OAuth client.");
           console.log("Staging identity/challenge tables contain no users, sessions, accounts, verifications or pending phone challenges; one fixed public OAuth client is seeded.");
           NODE
