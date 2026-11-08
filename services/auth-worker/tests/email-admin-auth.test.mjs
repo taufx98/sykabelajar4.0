@@ -159,6 +159,7 @@ test("the production verifier validates an actual ES256 signature against the is
   const user = await resolveBetterAuthAdminIdentity(input({
     accessToken: token,
     fetchImpl: network.fetchImpl,
+    verifyJwtImpl: undefined,
     createJwksImpl: (url) => {
       assert.equal(url.toString(), ISSUER + "/jwks");
       return publicKey;
@@ -175,6 +176,7 @@ test("the production verifier validates an actual ES256 signature against the is
     resolveBetterAuthAdminIdentity(input({
       accessToken: tampered,
       fetchImpl: tamperedNetwork.fetchImpl,
+      verifyJwtImpl: undefined,
       createJwksImpl: () => publicKey,
     })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_INVALID",
