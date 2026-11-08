@@ -52,7 +52,7 @@ The `private.app_users` table remains a minimal identity projection and FK paren
 
 For new Better Auth registrations, the Worker creates the D1 account and requests one server-only, transactional, idempotent Supabase provisioning operation. That operation inserts the same fresh UUID into `private.app_users`, creates the initial profile, assigns exactly one allowed basic role, and creates settings. It must not create a shadow row in `auth.users`.
 
-Until Stage 6 cleanup has been explicitly reviewed, existing application FK relationships that point at old demo UUIDs must not be broken. If the 69-FK transition is performed before demo cleanup, backfill the required UUID identities into `private.app_users` as identity-only references to preserve existing relationships; do not import their credentials or make them Better Auth login accounts. The exact cleanup of demo identity rows and linked test records remains a Stage 6 operation.
+No old Supabase Auth account is migrated. To keep existing application rows valid while the 69 FKs are rehomed, the reviewed FK planner may insert only distinct UUIDs that are still referenced by a child FK row, marked `identity_origin='legacy_reference'`. These tombstones contain no email, password, provider identity, verification state, session, or copied business role and cannot authenticate. Old Auth UUIDs without a live application FK reference are not imported. New Better Auth registrations get fresh UUIDs and `identity_origin='better_auth'`. Any cleanup of old accounts and linked application data remains a separate Stage 6 decision.
 
 ## Email, referral, phone and organizer invariants
 
