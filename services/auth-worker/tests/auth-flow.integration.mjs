@@ -417,8 +417,17 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       cookie,
     });
     assert.ok(passwordChange.ok, "change-password must accept the correct current password");
+    // Better Auth may rotate the current session cookie while changing the
+    // credential. Prefer that response cookie when validating the surviving
+    // session, while still requiring the second device's old cookie to fail.
+    const rotatedSessionCookie = sessionCookie(passwordChange);
+    if (rotatedSessionCookie) cookie = rotatedSessionCookie;
     const currentSessionAfterPasswordChange = await authRequest("/get-session", { cookie });
-    assert.ok(await parseJson(currentSessionAfterPasswordChange), "the session performing the password change must remain active");
+    const currentSessionAfterPasswordChangeData = await parseJson(currentSessionAfterPasswordChange);
+    assert.ok(
+      currentSessionAfterPasswordChangeData,
+      "the session performing the password change must remain active; rotatedCookie=" + Boolean(rotatedSessionCookie),
+    );
 
     const secondarySessionAfterPasswordChange = await authRequest("/get-session", { cookie: secondaryCookie });
     assert.equal(await parseJson(secondarySessionAfterPasswordChange), null, "revokeOtherSessions must invalidate the other device session");
