@@ -24,7 +24,7 @@ test("remote D1 schema migration has one exact guarded push marker and manual fa
   assert.match(workflow, /c569ffe20088ba124c2eb1da19790b717715894dac7a373dd8a071b0aab2b778/);
   assert.match(workflow, /2d773a74cebf9f00ed95e42aa704855e3639827820875792874de5093519391f/);
   assert.match(workflow, /e29ecb4655bac013ded7db40051045d9c2507d3f7790b365cdbb8e2dfe1fd1b1/);
-  assert.match(workflow, /7d8e810dcf371b53bf652a62ed4811a2ca921168b1f0ec94fc7e358f88d5124f/);
+  assert.match(workflow, /b794cd2b217158ec2f5d540a646d0655c7504258b0bd49eda9131d5585233df7/);
 });
 
 test("workflow is hard-bound to the known isolated D1 name and UUID", () => {
