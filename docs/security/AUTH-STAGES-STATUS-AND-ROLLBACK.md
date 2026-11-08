@@ -674,17 +674,16 @@ The isolated Free staging project has zero `private.app_users` rows. It now deni
 The only production Stage 3 blocker is the controlled application window itself: final read-only preflight, approved rollback window, explicit owner approval, then production DDL/FK/issuer work. Do not run the generated plan or apply the draft until that approval is received.
 
 
-## Continuation checkpoint — 8 November 2026 (code snapshot 1161d033; documentation commit 12db889)
+## Continuation checkpoint — 8 November 2026 (code snapshot 82c4986; password-change adapter and integration accepted)
 
 This checkpoint supersedes the older Stage 4 progress counts and any earlier statement that the Stage 3 production-schema baseline/restore had not been completed. It records the state verified during the 8 November continuation. It does not authorize production cutover.
 
-### Latest CI for the code snapshot before this documentation-only checkpoint
+### Latest CI for the password-change code snapshot
 
-This checkpoint changes only this status document; it does not change Worker/frontend runtime code, workflows, secrets, staging settings, or database objects. It does not claim a new CI run on the documentation commit.
-
-- [Auth Worker CI #509](https://github.com/taufx98/sykabelajar4.0/actions/runs/42459904343) passed on head `1161d033fcc6209217ebf6f31e4ef851d7e229de`. The workflow's Worker security/typecheck/build/D1/OIDC checks and frontend lint/typecheck/build completed successfully.
-- [Supabase Local Auth Claims CI #344](https://github.com/taufx98/sykabelajar4.0/actions/runs/42459904314) passed on the same head.
-- PR #177 remains Draft/unmerged. Keep the feature disabled in production and do not force-merge its dirty base relationship.
+- [Auth Worker CI #518](https://github.com/taufx98/sykabelajar4.0/actions/runs/42462936271) passed on code head `82c4986c8530e838880d59b2f51d215fa7d7e480`. It includes Worker security/typecheck, all local D1/OIDC and password-change integration tests, frontend dependency inventory, frontend lint/typecheck/build, and a Worker dry run without deployment.
+- [Auth Cloudflare Staging Preflight #163](https://github.com/taufx98/sykabelajar4.0/actions/runs/42462936143) passed on the same code head. This was a read-only resource preflight; it did not deploy the Worker or alter staging resources.
+- [Supabase Local Auth Claims CI #344](https://github.com/taufx98/sykabelajar4.0/actions/runs/42459904314) remains the last completed pass for the unchanged Supabase Edge/SQL contract surface.
+- PR #177 remains Draft/unmerged and its base relationship remains dirty. Keep Better Auth disabled in production; do not force-merge.
 
 ### Stage 1 — isolated Worker, email, and provider activation
 
@@ -710,7 +709,8 @@ This checkpoint changes only this status document; it does not change Worker/fro
 - The current [frontend migration inventory](AUTH-FRONTEND-MIGRATION-INVENTORY.md) records **17 direct `supabase.auth` callsites across five files** as of 8 November, not the older 36/41 counts above.
 - Nine identity-only lookup paths now use the shared provider-neutral identity accessor. AppContext remains the single owner of provider subscription, hydration, guest behavior, cache invalidation, and the 25-minute idle logout contract. The app-owned auth service and session-event bridge remain the only session coordination layer.
 - The typed Better Auth HTTP transport and in-memory short-lived resource-token broker are prepared behind an explicit preview-only flag bound to the isolated staging Supabase project. Supabase Auth remains the production/default provider; no production login path was switched.
-- Remaining direct calls have different responsibilities and must not be replaced mechanically: core credential/session wrappers, organizer email/phone verification, password change/recovery UX, and the legacy private-chat service/Admin Chat Console. The chat callsites are not a feature to migrate; preserve the separate decision to retire private chat rather than carry it into Better Auth. Organizer phone verification remains gated on the trusted Telegram consent/projection path. Password change requires a deliberate current-password/revocation UX.
+- `ProfileInterfaceSettingsPage` no longer calls Supabase Auth directly for password changes. It uses provider-neutral `auth.service.updatePassword()`: production/default Supabase mode keeps its previous `updateUser` behavior; the Better Auth preview requires the current password, calls `/change-password` with `revokeOtherSessions=true`, and clears the short-lived cached resource token. The local Worker integration test verifies incorrect current password rejection, successful password change, rejection of the old password, revocation of a second device session, and continued use of the active session/cookie. OAuth accounts without a credential password must use the existing email “Lupa Password” flow; real reset-email delivery remains blocked until the staging sender is configured.
+- Remaining direct calls have different responsibilities and must not be replaced mechanically: core credential/session wrappers, organizer email/phone verification, and the legacy private-chat service/Admin Chat Console. The chat callsites are not a feature to migrate; preserve the separate decision to retire private chat rather than carry it into Better Auth. Organizer phone verification remains gated on the trusted Telegram consent/projection path.
 - The temporary typed fetch transport remains an explicit staging scaffold; a final SDK/transport decision and full UX regression are still required before cutover.
 
 ### Stage 5 — backend preparation, not deployment
