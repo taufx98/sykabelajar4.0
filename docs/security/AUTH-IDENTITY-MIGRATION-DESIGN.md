@@ -95,6 +95,12 @@ A trusted no-cost candidate is now implemented in the Better Auth Worker using T
 
 Only the digits-only SHA-256 identity hash, Telegram provider subject and trusted timestamp are projected to Supabase through the service-role-only RPC. Raw phone data and Telegram tokens are not persisted. The isolated SQL fixture preserves verified-email, active `organizer_member`, and one-FREE-organizer-per-phone rules and rejects client-forged verification. The design and synthetic SQL/Worker test gate are complete. Remote D1 migration 0005 is applied and the Telegram-capable Worker is deployed on isolated staging. The operational gate remains: BotFather app registration/callback allowlisting, Cloudflare Telegram Client ID/Secret, and a real hosted consent/callback acceptance test. Keep the feature disabled until those owner-controlled gates pass. Never substitute profile WhatsApp data, a browser-supplied phone/hash, or email-only verification.
 
+### Reverse FK safety and point of no return
+
+The review-only reverse generator is `scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs`. It reverses only the 69 FK targets and requires every UUID in `private.app_users` to still exist in `auth.users`. The same guard is repeated inside the one atomic cutover transaction to catch any Better Auth-only identity created after preflight. It does not create shadow Auth accounts and does not restore the identity functions, legacy-sync triggers or issuer guards.
+
+Consequently, this FK-only rollback is available only before the first Better Auth-only user is provisioned. After that point, the identity root and Better Auth token/session adapter must remain authoritative; rollback the application bundle without changing those identity dependencies. The reverse plan is generated SQL only and is never run against production without a separate review.
+
 ## 6. Foreign-key migration sequence
 
 Production currently has 69 validated, non-deferrable FKs across 62 application tables pointing to auth.users(id). Their exact names, source columns and delete actions are documented in [AUTH-FOREIGN-KEY-CATALOG.md](AUTH-FOREIGN-KEY-CATALOG.md). The distribution is 42 CASCADE, 18 SET NULL, 8 NO ACTION, and 1 RESTRICT; all use MATCH SIMPLE and ON UPDATE NO ACTION. All source/target columns are UUID, and all 18 SET NULL source columns are nullable.
