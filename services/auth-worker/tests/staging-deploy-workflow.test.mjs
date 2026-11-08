@@ -69,6 +69,20 @@ test("Wrangler deploy command uses only supported arguments", () => {
   assert.doesNotMatch(deployStep, /--yes\b/);
 });
 
+test("OAuth encryption secret is created once and never rotated or logged", () => {
+  const step = workflow.split("      - name: Ensure dedicated OAuth-provider encryption key exists without rotating")[1]
+    ?.split("      - name: Verify hosted health")[0];
+  assert.ok(step, "OAuth-provider encryption bootstrap step should exist");
+  assert.match(step, /workers\/scripts/);
+  assert.match(step, /AUTH_PROVIDER_ENCRYPTION_KEY/);
+  assert.match(step, /randomBytes\(32\)/);
+  assert.match(step, /matches\.length === 1/);
+  assert.match(step, /Preserved existing dedicated OAuth-provider encryption secret/);
+  assert.match(step, /method: "PUT"/);
+  assert.doesNotMatch(step, /console\.log\([^\n]*generatedKey|console\.log\([^\n]*text:/i);
+  assert.doesNotMatch(step, /DELETE|wrangler secret delete/i);
+});
+
 test("failed-deploy diagnostic upload has a valid failure-only condition", () => {
   assert.match(workflow, /if: \$\{\{ failure\(\) \}\}/);
   assert.match(workflow, /name: auth-worker-staging-deploy-diagnostic/);
