@@ -17,7 +17,10 @@ assert.match(sql, /pol[.]polpermissive/);
 assert.match(sql, /pol[.]polcmd = '\*'/);
 assert.match(sql, /authenticated/);
 assert.match(sql, /auth[.]sykabelajar[.]my[.]id\/api\/auth/);
-assert.match(sql, /mvdczyitbkxkldjughor[.]supabase[.]co\/auth\/v1/);
+assert.doesNotMatch(sql, /mvdczyitbkxkldjughor[.]supabase[.]co\\/auth\\/v1/,
+  "the rollback guard must not expect the legacy issuer after fresh-account-only cutover");
+assert.match(sql, /pol[.]polqual[\\s\\S]*https:\\/\\/auth[.]sykabelajar[.]my[.]id\\/api\\/auth/);
+assert.match(sql, /pol[.]polwithcheck[\\s\\S]*https:\\/\\/auth[.]sykabelajar[.]my[.]id\\/api\\/auth/);
 assert.match(sql, /lock_timeout/);
 assert.match(sql, /statement_timeout/);
 
