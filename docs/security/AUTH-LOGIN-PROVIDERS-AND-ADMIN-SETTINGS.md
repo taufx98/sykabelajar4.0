@@ -74,6 +74,12 @@ Current branch inspection (7 November 2026):
 
 Do not claim that shadcn/ui Skills or the shadcn components are installed. Before Stage 4 UI implementation, inspect the actual branch and decide whether to install/configure shadcn in a small, scoped way. Avoid a framework/base-library migration or broad UI redesign. If retaining the current local primitives, follow shadcn's documented composition principles (semantic labels/descriptions/errors, accessible switch, field grouping, keyboard support and responsive layout) while using the existing project components and styles. If true shadcn components are installed, first inspect `components.json` and use the matching base API (Radix, Base UI or React Aria) instead of mixing APIs.
 
+**Implementation checkpoint (8 November 2026):**
+- `ZeptoMailSettingsPanel` is already mounted in Admin Core `/admin/core?tab=settings`. It now defaults new email Agent drafts to ZeptoMail and keeps Brevo Free as the explicitly selectable fallback. No existing account or active sender is changed by this default.
+- Google, Facebook and X are currently configured only through Worker environment credential pairs (`GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET`, `TWITTER_CLIENT_ID/SECRET`). There is no dynamic D1-backed provider settings API or Admin “Metode Login” panel yet.
+- Building the provider panel requires a new additive D1 migration, a dedicated `AUTH_PROVIDER_ENCRYPTION_KEY` (separate from the email encryption key), a write-only encrypted client-secret store, active-admin read/write/test APIs, provider-config revision invalidation/rebuild of the cached Better Auth instance, and tests for disabled-by-default Facebook/X plus Google activation/last-usable-login guards. The new key and provider credentials must remain server-side; never add them to Pages env or committed files.
+- Instagram remains visibly unavailable for ordinary consumer login; it must not be represented as an activatable provider. Telegram remains separate phone verification.
+
 The official shadcn Skills installation command documented at the time of review is:
 ```bash
 pnpm dlx skills add shadcn/ui
