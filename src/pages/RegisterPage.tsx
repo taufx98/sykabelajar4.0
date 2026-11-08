@@ -8,7 +8,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { CATEGORY_LABELS, LEVEL_LABELS } from '@/data/catalog';
 import { uploadProfileImage } from '@/services/cloudinary.service';
 import { updateProfile } from '@/services/profile.service';
-import { getSession as getAuthSession } from '@/services/auth.service';
+import { getSession as getAuthSession, isBetterAuthEnabled } from '@/services/auth.service';
 import type { CompetitionCategory, EducationLevel, Role } from '@/types';
 import { isValidReferralId } from '@/lib/referralAttribution';
 
@@ -40,7 +40,12 @@ export function RegisterPage(){
    if(!result.ok){toast(result.error||'Pendaftaran gagal.','error');return;}
    // Upload only after Supabase account creation has succeeded.
    if(photoFile){const session=await getAuthSession(); if(session?.user){const up=await uploadProfileImage(photoFile,'profile',form.username);await updateProfile(session.user.id,{avatar_url:up.secure_url,avatar_public_id:up.public_id,avatar_width:up.width,avatar_height:up.height,avatar_version:up.version?String(up.version):null,avatar_resource_type:up.resource_type||'image'});}else{toast('Akun berhasil dibuat. Foto profil akan diunggah setelah konfirmasi email dan login pertama.','info');}}
-   toast('Pendaftaran berhasil. Silakan masuk.','success');navigate(loginTo);
+   if (isBetterAuthEnabled()) {
+     toast('Akun berhasil dibuat. Periksa email untuk menyelesaikan verifikasi sebelum masuk.','info');
+   } else {
+     toast('Pendaftaran berhasil. Silakan masuk.','success');
+   }
+   navigate(loginTo);
  }catch(error:any){toast(error?.message||'Pendaftaran gagal.','error')}finally{setLoading(false)}};
  return <div className="min-h-screen flex flex-col"><header className="px-4 h-16 flex items-center justify-between border-b surface-border"><Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white"/></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-accent">.id</span></span></Link><Link to={loginTo} className="text-sm text-slate-400">{text('Sudah punya akun?','Already have an account?')} <span className="text-accent">{text('Masuk','Sign in')}</span></Link></header><div className="flex-1 flex items-center justify-center px-4 py-10"><div className="w-full max-w-md"><div className="flex gap-2 mb-8">{[1,2,3].map(s=><div key={s} className="flex-1 h-1.5 rounded-full surface-elevated overflow-hidden"><div className={`h-full ${s<=step?'gradient-moss w-full':'w-0'}`}/></div>)}</div>
  {step===1&&<div className="card p-6"><h1 className="font-display font-bold text-2xl text-fg">{text('Buat Akun','Create an Account')}</h1><p className="text-sm text-slate-400 mt-1">{text('Akun dibuat terlebih dahulu sebelum media diupload.','Create the account first before uploading media.')}</p><div className="space-y-4 mt-6"><div><label className="label">{text('Email','Email')}</label><input className="input" type="email" value={form.email} onChange={e=>set('email',e.target.value)}/></div><div><label className="label">{text('Password','Password')}</label><div className="relative"><input className="input pr-10" type={showPw?"text":"password"} autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} value={form.password} onChange={e=>set('password',e.target.value)}/><button type="button" onClick={()=>setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showPw?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div><p className="text-xs text-slate-500 mt-1">{text('Gunakan minimal 8 karakter.','Use at least 8 characters.')}</p><div><label className="label">{text('Konfirmasi Password','Confirm password')}</label><div className="relative"><input className="input pr-10" type={showConfirmPw?"text":"password"} autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} value={form.confirmPassword} onChange={e=>set('confirmPassword',e.target.value)}/><button type="button" onClick={()=>setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showConfirmPw?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div></div><Button fullWidth size="lg" className="mt-6" disabled={!step1Valid} onClick={()=>setStep(2)} icon={<ArrowRight size={18}/>}>{text('Lanjut','Continue')}</Button></div>}
