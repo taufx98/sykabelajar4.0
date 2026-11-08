@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT extensions.plan(26);
+SELECT extensions.plan(32);
 
 SELECT extensions.ok(
   ARRAY['student','teacher','organizer_member','admin']::text[] <@
@@ -41,6 +41,21 @@ SELECT extensions.ok(
     'public.better_auth_complete_phone_verification(uuid,timestamptz,text,text,text,integer)','EXECUTE'),
   'service_role can execute the PostgREST phone-verification wrapper'
 );
+SELECT extensions.ok(
+  NOT has_function_privilege('anon',
+    'public.better_auth_get_phone_verification_status(uuid)','EXECUTE'),
+  'anon cannot read Better Auth phone-verification status'
+);
+SELECT extensions.ok(
+  NOT has_function_privilege('authenticated',
+    'public.better_auth_get_phone_verification_status(uuid)','EXECUTE'),
+  'authenticated cannot call the server-only phone-verification status wrapper'
+);
+SELECT extensions.ok(
+  has_function_privilege('service_role',
+    'public.better_auth_get_phone_verification_status(uuid)','EXECUTE'),
+  'service_role can read the minimized phone-verification status'
+);
 
 INSERT INTO private.app_users(id,email_verified_at)
 VALUES
@@ -74,6 +89,12 @@ VALUES
 SET LOCAL ROLE service_role;
 
 SELECT extensions.is(
+  public.better_auth_get_phone_verification_status('10101010-1010-4010-8010-101010101010'),
+  false,
+  'an account without trusted phone evidence reports unverified'
+);
+
+SELECT extensions.is(
   public.better_auth_complete_phone_verification(
     '10101010-1010-4010-8010-101010101010',
     clock_timestamp(),
@@ -82,6 +103,16 @@ SELECT extensions.is(
   ),
   true,
   'a trusted Telegram verification projects the phone hash'
+);
+SELECT extensions.is(
+  public.better_auth_get_phone_verification_status('10101010-1010-4010-8010-101010101010'),
+  true,
+  'the server status endpoint can observe a trusted phone verification'
+);
+SELECT extensions.is(
+  public.better_auth_get_phone_verification_status('70707070-7070-4070-8070-707070707070'),
+  false,
+  'the status reader does not infer verification for an unrelated unverified account'
 );
 SELECT extensions.is(
   public.better_auth_complete_phone_verification(
