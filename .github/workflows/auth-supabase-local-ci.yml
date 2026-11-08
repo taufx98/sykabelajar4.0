@@ -66,6 +66,7 @@ jobs:
           node ../../../scripts/auth-migration/stage3-issuer-guard.contract.test.mjs
           bash -n ../../../scripts/auth-migration/export-live-auth-users-fk-plan.sh
           node ../../../scripts/auth-migration/export-live-auth-users-fk-plan.contract.test.mjs
+          node ../../../scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
 
       - name: Verify Better Auth Edge JWT adapter and webhook boundaries
         run: node ../../../scripts/auth-migration/edge-auth-claims.test.mjs
@@ -145,6 +146,12 @@ jobs:
           test -s "$PLAN_DIR/01-preflight-expand.sql"
           test -s "$PLAN_DIR/02-validate.sql"
           test -s "$PLAN_DIR/03-cutover.sql"
+          node ../../../scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs \
+            --catalog ../../../scripts/auth-migration/live-auth-users-fk-catalog.json \
+            --out-dir "$PLAN_DIR/reverse"
+          test -s "$PLAN_DIR/reverse/01-preflight-expand-auth-rollback.sql"
+          test -s "$PLAN_DIR/reverse/02-validate-auth-rollback.sql"
+          test -s "$PLAN_DIR/reverse/03-cutover-auth-rollback.sql"
 
       - name: Setup Supabase CLI
         id: setup_supabase_cli
