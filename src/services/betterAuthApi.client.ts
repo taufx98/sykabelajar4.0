@@ -1,9 +1,10 @@
 /**
  * Staging-only Better Auth transport boundary.
  *
- * This module is intentionally not imported by AppContext or the existing
- * auth.service.ts. Supabase Auth remains the only live frontend session source
- * until Stage 3/5/6 gates pass and a separately reviewed Stage 4 cutover occurs.
+ * auth.service.ts selects this transport only behind the explicit preview-only
+ * host and isolated-Supabase allowlist. AppContext never imports it directly.
+ * Supabase Auth remains the default provider until a separately reviewed
+ * Stage 4 cutover occurs.
  *
  * It uses the Better Auth HTTP contract directly so the frontend lockfile and
  * production bundle do not acquire a second auth SDK before that decision.
