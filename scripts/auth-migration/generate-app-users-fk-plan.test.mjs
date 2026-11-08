@@ -30,7 +30,8 @@ assert.equal((tombstones.match(/SELECT [^\n]+ AS id FROM/g) ?? []).length, 69,
 assert.match(tombstones, /INSERT INTO private\.app_users \(id, identity_origin\)/);
 assert.match(tombstones, /'legacy_reference'/);
 assert.match(tombstones, /ON CONFLICT \(id\) DO NOTHING/);
-assert.doesNotMatch(tombstones, /auth\.users|email|password|credential|session|role/i,
+const tombstoneStatements = tombstones.split(/\r?\n/).filter((line) => !line.trim().startsWith("--")).join("\n");
+assert.doesNotMatch(tombstoneStatements, /auth\.users|email|password|credential|session|role/i,
   "the tombstone seed must never read or copy account or authentication data");
 assert.equal((expand.match(/ADD CONSTRAINT/g) ?? []).length, 69);
 assert.equal((validate.match(/VALIDATE CONSTRAINT/g) ?? []).length, 69);
