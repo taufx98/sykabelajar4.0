@@ -29,11 +29,11 @@ The current local disposable-schema regression is `scripts/auth-migration/stage3
 | Domain / pattern | Current assertion | Coverage status |
 |---|---|---|
 | `profiles` owner/self | Owner reads own private profile; cross-user private profile is hidden; cross-user update changes zero rows | Covered |
-| `profiles` public-or-owner | Anon reads one explicitly public synthetic profile and cannot read private profiles; the public legacy referral RPC returns no referral rows to anon | Covered |
-| Profile backend guards | Authenticated update of `edu_coin` or `account_type` is rejected with the production guard error | Covered |
+| `profiles` public-or-owner | Anon reads one explicitly public synthetic profile and cannot read private profiles. Referral-read RPCs are no longer PUBLIC/anon callable; anon receives permission denied | Covered |
+| Profile backend guards | Authenticated user and an admin business-role user (both still SQL role `authenticated`) are denied updates to backend-managed `account_type`, `edu_coin`, and `total_xp`; the profile trigger raises the production guard error | Covered in the 9 Nov disposable regression |
 | `user_roles` owner/self and admin overlay | User can read own role; related role rows remain hidden; a trusted synthetic admin can read the test roles | Covered for owner and representative admin overlay |
 | `referral_events` owner/self | Referrer and referred user can see their own relationship; unrelated user is not part of the tested fixture | Representative coverage |
-| `get_my_verified_referrals()` PUBLIC/anon grant | Referrer gets its own verified referral results; referred non-referrer and anon get zero rows | Covered |
+| Referral read RPCs | `get_my_referrals()` (8 columns), `get_my_referrals_v2()` (9 columns), and `get_my_verified_referrals()` (5 columns) preserve their return contracts, return `NULL::timestamptz` for `last_login_at`, and scope rows to the referrer. All three use empty `search_path`, revoke PUBLIC/anon/service-role, and grant `authenticated` only; anon invocation is denied | Covered in the 9 Nov disposable regression |
 | `user_settings` owner/self | Own theme update succeeds; cross-user update changes zero rows | Covered |
 | `registrations` owner/self | Participant can read own registration; direct insert with forged `user_id` fails `AUTHORIZATION_REQUIRED` | Covered |
 | `notifications` owner/self | Own read/update succeeds; cross-user update changes zero rows | Covered |
@@ -71,3 +71,7 @@ For every tested table, preserve existing grants and the business-role checks. D
 - Include positive and negative cases with two or more synthetic users and role contexts.
 - Verify forged `sub`, missing `sub`, wrong PostgreSQL role, and cross-tenant/organizer access where applicable.
 - Keep the production issuer and all production RLS unchanged until the full behavior matrix, Stage 3 identity foundation, hosted OIDC/Storage/Realtime/Edge acceptance, and rollback rehearsal are approved.
+
+## 9 November 2026 update — profile guard and referral RPC behavior
+
+The production-shaped rollback-only regression was extended to prove that both a normal authenticated caller and an application admin (whose SQL role is still `authenticated`) cannot update their own `profiles.account_type`, `edu_coin`, or `total_xp` directly. This exercises the existing backend-managed BEFORE triggers rather than merely comparing trigger metadata. The same update verifies the three referral read RPCs keep their legacy result shapes and referrer filtering, use an empty `search_path`, deny `anon`/`service_role` execution, and grant EXECUTE only to `authenticated`. These checks run only after a schema-only production export into the disposable local Supabase stack; no production trigger/grant/policy is altered.
