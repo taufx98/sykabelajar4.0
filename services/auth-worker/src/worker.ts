@@ -97,7 +97,10 @@ async function generateD1Schema(request: Request, env: AuthWorkerEnv): Promise<R
   try {
     // Cloudflare D1 bindings are request-scoped. Running Better Auth's
     // supported migrator here avoids trying to initialize D1 from Node CLI.
-    const auth = await getAuth(env);
+    // Schema bootstrap runs before the custom social-provider tables exist.
+    // Build only the static Better Auth core options here; normal requests load
+    // dynamic provider settings after migration 0007 is present.
+    const auth = createAuth(env);
     const migrations = await getMigrations(auth.options);
     await migrations.runMigrations();
 
