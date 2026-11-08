@@ -86,10 +86,13 @@ async function readMeta(db: D1Database): Promise<SocialProviderMeta | null> {
     return await db.prepare(
       "SELECT revision, managed_mode FROM auth_social_provider_meta WHERE id = 1",
     ).first<SocialProviderMeta>();
-  } catch {
-    // Before additive migration 0007 is applied, use the existing environment
-    // provider configuration. A missing table must not break email/password auth.
-    return null;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    // The only safe environment-only fallback is before additive migration
+    // 0007 exists. Quota, binding and transient D1 errors must never silently
+    // switch a managed installation back to stale environment credentials.
+    if (/no such table:\\s*auth_social_provider_meta/i.test(reason)) return null;
+    throw new Error("SOCIAL_PROVIDER_CONFIGURATION_UNAVAILABLE");
   }
 }
 
