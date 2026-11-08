@@ -478,10 +478,14 @@ export function createBetterAuthApiClient(options: {
     },
 
     async getResourceToken() {
-      clearResourceTokenCache();
       const session = await request<unknown>('/get-session');
       if (!isBetterAuthSessionEnvelope(session) || session.user.emailVerified !== true) {
         throw new BetterAuthClientError(401, 'AUTH_SESSION_REQUIRED');
+      }
+      const expiration = Date.parse(session.session.expiresAt);
+      if (!Number.isFinite(expiration) || expiration <= Date.now()) {
+        clearResourceTokenCache();
+        throw new BetterAuthClientError(401, 'AUTH_SESSION_EXPIRED');
       }
       return getResourceTokenForSession(session);
     },
