@@ -91,7 +91,7 @@ export function ResetPasswordPage() {
           ) : (
             <>
               <p className="text-sm text-slate-400 mb-6">
-                Gunakan password minimal 8 karakter. Setelah berhasil, semua sesi lama akan dicabut dan kamu perlu masuk kembali.
+                Gunakan password minimal 8 karakter. Setelah berhasil, masuk kembali menggunakan password baru.
               </p>
               <div className="space-y-4">
                 <div>
