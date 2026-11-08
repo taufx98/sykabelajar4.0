@@ -2,13 +2,13 @@
 -- Apply only after the Better Auth identity-root draft and 69-FK cutover have
 -- passed on the disposable PostgreSQL 17.6 restore.
 --
--- During the overlap window, allow only:
---   1) the existing Supabase Auth issuer for this project; and
---   2) the Better Auth OIDC issuer.
+-- Because legacy accounts are not migrated, the application accepts only the
+-- Better Auth OIDC issuer after this Stage 3 cutover. Supabase Auth JWTs are
+-- intentionally denied by the restrictive guard.
 -- This adds RESTRICTIVE policies only. It does not create a permissive path,
 -- change any existing policy, alter grants, or touch production by itself.
--- After Stage 7 has fully cut over, replace the two-issuer allowlist with only
--- the Better Auth issuer in a separately reviewed migration.
+-- This is the Better Auth-only issuer gate; it does not change existing
+-- permissive policies, grants or business-role authorization.
 
 BEGIN;
 
@@ -17,7 +17,6 @@ DECLARE
   v_table record;
   v_created integer := 0;
   v_expected_tables constant integer := 61;
-  v_legacy_issuer constant text := 'https://mvdczyitbkxkldjughor.supabase.co/auth/v1';
   v_better_auth_issuer constant text := 'https://auth.sykabelajar.my.id/api/auth';
 BEGIN
   IF EXISTS (
@@ -46,14 +45,12 @@ BEGIN
   LOOP
     EXECUTE pg_catalog.format(
       'CREATE POLICY %I ON %I.%I AS RESTRICTIVE FOR ALL TO authenticated
-       USING ((SELECT auth.jwt() ->> ''iss'') IN (%L, %L))
-       WITH CHECK ((SELECT auth.jwt() ->> ''iss'') IN (%L, %L))',
+       USING ((SELECT auth.jwt() ->> ''iss'') = %L)
+       WITH CHECK ((SELECT auth.jwt() ->> ''iss'') = %L)',
       'better_auth_issuer_guard',
       v_table.schema_name,
       v_table.table_name,
-      v_legacy_issuer,
       v_better_auth_issuer,
-      v_legacy_issuer,
       v_better_auth_issuer
     );
     v_created := v_created + 1;
