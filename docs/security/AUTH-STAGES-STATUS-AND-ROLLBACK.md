@@ -805,3 +805,7 @@ The Admin ZeptoMail/Brevo panel already uses the shared Supabase resource-token 
 - Real Google/Facebook/X OAuth client credentials, initial staging admin bootstrap, real ZeptoMail delivery, and live Telegram consent/callback are not configured/accepted yet.
 - Positive hosted Storage upload/download, Realtime WebSocket, and two-user Edge/IDOR acceptance with a real Better Auth session remain open. All 109 RLS policy operations still need a table/operation/role coverage sign-off; the disposable run is representative and production-shaped, not proof of exhaustive operation-by-operation coverage.
 - Stage 5 SQL/trigger lifecycle still needs the remaining focused profile-trigger parity and legacy trigger-overlap review before production DDL. Keep all production data/roles/triggers untouched until owner approval and rollback sign-off.
+
+### Better Auth email callback result — 9 November 2026
+
+Signup and resend verification now use the public `/auth/verified` callback route. The frontend page reads the actual Worker session and confirms success only when `emailVerified=true`; URL query status is not treated as proof. Worker integration follows the issued verification link and checks the exact callback origin/path. Auth Worker CI [#42511915688](https://github.com/taufx98/sykabelajar4.0/actions/runs/42511915688) passed. This validates local integration behavior; real hosted ZeptoMail delivery/provider credentials are still not configured.
