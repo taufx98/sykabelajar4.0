@@ -1,15 +1,12 @@
 /**
- * Local-development or explicitly configured relay fallback.
- * Production staging should use the encrypted active ZeptoMail Agent profile.
+ * Check email relay configuration without contacting the relay or sending mail.
  *
  * @param {{
  *   AUTH_EMAIL_WEBHOOK_URL?: string;
  *   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
  *   AUTH_EMAIL_FROM?: string;
  * }} env
- * @param {{ to: string; subject: string; text: string; action: "verify-email" | "reset-password" }} message
- * @param {typeof fetch} [fetcher]
- * @returns {Promise<void>}
+ * @returns {boolean}
  */
 export function isEmailDeliveryConfigured(env) {
   const endpoint = env.AUTH_EMAIL_WEBHOOK_URL?.trim();
@@ -27,6 +24,19 @@ export function isEmailDeliveryConfigured(env) {
   }
 }
 
+/**
+ * Send one local-development or explicitly configured relay message.
+ * Production email remains on the separately managed provider path.
+ *
+ * @param {{
+ *   AUTH_EMAIL_WEBHOOK_URL?: string;
+ *   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
+ *   AUTH_EMAIL_FROM?: string;
+ * }} env
+ * @param {{ to: string; subject: string; text: string; action: "verify-email" | "reset-password" }} message
+ * @param {typeof fetch} [fetcher]
+ * @returns {Promise<void>}
+ */
 export async function deliverAuthEmail(env, message, fetcher = fetch) {
   const endpoint = env.AUTH_EMAIL_WEBHOOK_URL?.trim();
   const token = env.AUTH_EMAIL_WEBHOOK_TOKEN?.trim();
