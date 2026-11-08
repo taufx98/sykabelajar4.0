@@ -571,6 +571,7 @@ export function createBetterAuthApiClient(options: {
         newPassword,
         revokeOtherSessions,
       });
+      clearResourceTokenCache();
     },
 
     async signOut() {
