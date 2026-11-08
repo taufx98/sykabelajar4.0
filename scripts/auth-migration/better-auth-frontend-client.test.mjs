@@ -84,6 +84,15 @@ assert.match(organizerOnboarding, /startTelegramPhoneVerification\(\)/);
 assert.match(organizerOnboarding, /supabase\.auth\.verifyOtp/);
 assert.match(authWorker, /url\.pathname === "\/api\/phone-verification\/telegram\/status"/);
 assert.match(authWorker, /getSupabasePhoneVerificationStatus\(env, userId\)/);
+const phoneStatusHandler = authWorker.slice(
+  authWorker.indexOf("async function getTelegramPhoneVerificationStatus"),
+  authWorker.indexOf("async function completeTelegramPhoneCallback"),
+);
+assert.match(phoneStatusHandler, /const session = await auth\.api\.getSession\(\{ headers: request\.headers \}\)/);
+assert.match(phoneStatusHandler, /const userId = session\?\.user\?\.id/);
+assert.match(phoneStatusHandler, /if \(!corsHeaders\)/);
+assert.doesNotMatch(phoneStatusHandler, /request\.json\(|searchParams\.get\(/);
+
 assert.match(authWorker, /new URL\("\/organizer", app\.origin\)/);
 
 // This is a transport scaffold only: the live app must keep one session source.
