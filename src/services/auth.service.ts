@@ -188,15 +188,27 @@ export function onAuthStateChange(
   };
 }
 
-export async function resetPassword(
-  email: string,
-  redirectTo = `${window.location.origin}/#/login`,
-) {
+export async function resetPassword(email: string, redirectTo?: string) {
   if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
-    await getStagingBetterAuthClient().requestPasswordReset(email, redirectTo);
+    const destination = redirectTo ?? new URL('/reset-password', window.location.origin).toString();
+    await getStagingBetterAuthClient().requestPasswordReset(email, destination);
     return;
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  const legacyRedirect = redirectTo ?? `${window.location.origin}/#/login`;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: legacyRedirect });
+  if (error) throw error;
+}
+
+/** Complete a password reset using the currently selected provider's trusted recovery session/token. */
+export async function completePasswordReset(token: string, newPassword: string): Promise<void> {
+  if (newPassword.length < 8) throw new Error('PASSWORD_RESET_INPUT_INVALID');
+
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
+    await getStagingBetterAuthClient().resetPassword(token, newPassword);
+    return;
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
 }
