@@ -46,3 +46,8 @@ Migration 0007 creates schema only; it does not seed user accounts, OAuth creden
 ### 8 November — no legacy account migration
 
 The owner confirmed that every user starts with a fresh Better Auth account. No Supabase Auth emails, password hashes, provider identities, sessions, phone/email verification state or profile metadata are migrated. The Stage 3 Postgres identity root distinguishes new accounts with identity_origin='better_auth' from UUID-only legacy_reference tombstones generated solely from still-referenced application FK columns. The tombstones protect the 69 existing FK relationships but are not accounts and cannot authenticate. The identity draft retires the three legacy Auth signup/referral triggers, while the RLS issuer draft accepts only the Better Auth issuer. Stage 6 remains responsible for any approved cleanup of old accounts and dependent application data.
+
+
+### 8 November — staging managed social-login schema
+
+The guarded Cloudflare staging D1 workflow applied migration 0007 to the fixed non-production database `sykabelajar-auth-poc`. Remote verification passed for the two managed social-provider tables and their expected columns; all 20 D1 tables and seven registration fields were present. The migration seeded only the single metadata row (`managed_mode=0`), not provider credentials or user accounts. The Worker was then deployed and the hosted OIDC/JWKS smoke test passed. Production resources were not targeted.
