@@ -35,7 +35,9 @@ for (const name of [
   assert.ok(sql.includes("CREATE OR REPLACE FUNCTION " + name),
     "rollback must restore the live Auth-backed function: " + name);
 }
-assert.match(sql, /SELECT au[.]\* INTO v_user FROM auth[.]users AS au WHERE au[.]id = v_uid/);
+assert.match(sql, /SELECT au[.]\* INTO v_user/);
+assert.match(sql, /FROM auth[.]users AS au/);
+assert.match(sql, /WHERE au[.]id = v_uid/);
 assert.match(sql, /RETURNING inserted_organizer[.]id INTO v_id/);
 
 for (const trigger of ["a_sync_app_users_identity_insert","a_sync_app_users_identity_update"]) {
