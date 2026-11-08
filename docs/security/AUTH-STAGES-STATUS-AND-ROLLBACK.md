@@ -787,3 +787,21 @@ No production Supabase schema, function, trigger, grant, policy, account, Worker
 ### Admin transactional-email panel identity bridge — 8 November 2026
 
 The Admin ZeptoMail/Brevo panel already uses the shared Supabase resource-token provider. In Better Auth preview, the Worker recognizes only the exact configured Better Auth issuer, cryptographically verifies the ES256 resource token against issuer JWKS and audience, verifies matching `sub` through UserInfo and requires `email_verified=true`, then checks the active `admin` business-role row only in the isolated Free Supabase project using the Worker-held service-role key. The legacy Supabase Auth verifier remains available for the default provider path. The browser receives neither service-role credentials nor stored email-provider tokens. No provider credential was entered and no test email was sent.
+
+## Stage 4/5 continuation checkpoint — 9 November 2026
+
+### Changes and acceptance since the 8 November checkpoint
+
+- **Referral read RPCs:** the Stage 3 identity draft now preserves the legacy output shape of `get_my_referrals()` (8 columns), `get_my_referrals_v2()` (9 columns), and `get_my_verified_referrals()` (5 columns), returns typed `NULL::timestamptz` for `last_login_at`, uses empty `search_path`, and grants EXECUTE only to `authenticated`. Production-shaped SQL now checks the output fields, referrer scope, and denial of `anon`/`service_role`. This remains a draft; production grants are unchanged.
+- **Password recovery:** the Worker integration test now follows the actual reset email action URL and verifies it returns to the app origin/path `/reset-password` with the exact single-use token expected by the frontend page. It also allows only the Worker test's `localhost`/`127.0.0.1` loopback host alias at the same port.
+- **Cloudinary profile deletion:** the branch endpoint now reads username from the verified caller's own profile via the caller-scoped Supabase client and accepts the exact username profile/cover path plus the exact UUID legacy path. Other users' IDs, products, organizers and nested paths are rejected before the Cloudinary secret/provider call.
+- **CI:** [Auth Worker CI #42510452619](https://github.com/taufx98/sykabelajar4.0/actions/runs/42510452619) passed both jobs on head `72b077a`: local Worker/D1/auth/OAuth integration tests, Worker bundle dry-run, frontend lint, typecheck and build. [Supabase Local Auth Claims CI #42510373128](https://github.com/taufx98/sykabelajar4.0/actions/runs/42510373128) passed the Cloudinary ownership contracts, Deno type-check, Edge verifier/webhook contracts and local JWT/RLS tests. [Auth Production Schema Baseline #42509768714](https://github.com/taufx98/sykabelajar4.0/actions/runs/42509768714) passed the schema-only export, disposable restore, 69-FK simulation, production-shaped provisioning/referral/phone/organizer regression, issuer/RLS acceptance and rollback simulations.
+- **Staging preflight:** [#42510452626](https://github.com/taufx98/sykabelajar4.0/actions/runs/42510452626) passed the Cloudflare account/staging resource preflight. This is not a Worker deploy or production change.
+
+### Still gated
+
+- PR #177 is still Draft, unmerged, and GitHub reports `mergeable=false`; do not force merge or rebase while the branch's base-branch state is unresolved.
+- No Better Auth production flag, Cloudflare Worker deployment, Supabase Edge deployment/config, production SQL/ACL/RLS/trigger, user/account, credential or Cloudinary asset was changed.
+- Real Google/Facebook/X OAuth client credentials, initial staging admin bootstrap, real ZeptoMail delivery, and live Telegram consent/callback are not configured/accepted yet.
+- Positive hosted Storage upload/download, Realtime WebSocket, and two-user Edge/IDOR acceptance with a real Better Auth session remain open. All 109 RLS policy operations still need a table/operation/role coverage sign-off; the disposable run is representative and production-shaped, not proof of exhaustive operation-by-operation coverage.
+- Stage 5 SQL/trigger lifecycle still needs the remaining focused profile-trigger parity and legacy trigger-overlap review before production DDL. Keep all production data/roles/triggers untouched until owner approval and rollback sign-off.
