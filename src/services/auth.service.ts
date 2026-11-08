@@ -30,6 +30,7 @@ export interface ApplicationAuthSession {
   user: {
     id: string;
     email?: string;
+    emailVerified?: boolean;
   };
 }
 
@@ -59,6 +60,7 @@ function toApplicationSession(
     user: {
       id: value.user.id,
       email: value.user.email,
+      emailVerified: value.user.emailVerified,
     },
   };
 }
