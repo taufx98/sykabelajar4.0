@@ -18,6 +18,9 @@ const profileSettingsPage = readFileSync(new URL("../../src/pages/ProfileInterfa
 const adminPage = readFileSync(new URL("../../src/pages/AdminPage.tsx", import.meta.url), "utf8");
 const zeptoMailPanel = readFileSync(new URL("../../src/components/admin/ZeptoMailSettingsPanel.tsx", import.meta.url), "utf8");
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
+const loginPage = readFileSync(new URL("../../src/pages/LoginPage.tsx", import.meta.url), "utf8");
+const registerPage = readFileSync(new URL("../../src/pages/RegisterPage.tsx", import.meta.url), "utf8");
+
 
 assert.match(client, /credentials:\s*'include'/);
 assert.match(client, /cache:\s*'no-store'/);
@@ -108,6 +111,16 @@ assert.match(authService, /export async function updatePassword\(newPassword: st
 assert.match(authService, /changePassword\(currentPassword, newPassword, true\)/);
 assert.match(authService, /new URL\('\/reset-password', window\.location\.origin\)/);
 assert.match(authService, /export async function completePasswordReset\(token: string, newPassword: string\)/);
+assert.match(authService, /export async function sendVerificationEmail\(email: string, callbackURL\?: string\)/);
+assert.match(authService, /getStagingBetterAuthClient\(\)\.sendVerificationEmail\(normalizedEmail, destination\)/);
+assert.match(authService, /supabase\.auth\.resend\(\{[\s\S]*?type: 'signup'[\s\S]*?emailRedirectTo: destination/);
+assert.match(loginPage, /sendVerificationEmail/);
+assert.match(loginPage, /handleResendVerification/);
+assert.match(loginPage, /EMAIL_VERIFICATION_REQUIRED\|EMAIL_NOT_VERIFIED\|EMAIL_NOT_CONFIRMED/);
+assert.match(loginPage, /If that address has an unverified account, a verification link will be sent\./);
+assert.match(registerPage, /isBetterAuthEnabled\(\)/);
+assert.match(registerPage, /Akun berhasil dibuat\. Periksa email untuk menyelesaikan verifikasi sebelum masuk\./);
+
 assert.match(authService, /getStagingBetterAuthClient\(\)\.resetPassword\(token, newPassword\)/);
 assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
 assert.match(resetPasswordPage, /new URLSearchParams\(window\.location\.search\)\.get\('token'\)/);
