@@ -37,10 +37,10 @@ BEGIN
   WHERE ns.nspname IN ('public', 'private')
     AND pol.polname = 'better_auth_issuer_guard'
     AND (
-      pg_get_expr(pol.polqual, pol.polrelid) NOT LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
-      OR pg_get_expr(pol.polqual, pol.polrelid) NOT LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-      OR pg_get_expr(pol.polwithcheck, pol.polrelid) NOT LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
+      pg_get_expr(pol.polqual, pol.polrelid) NOT LIKE '%https://auth.sykabelajar.my.id/api/auth%'
       OR pg_get_expr(pol.polwithcheck, pol.polrelid) NOT LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+      OR pg_get_expr(pol.polqual, pol.polrelid) LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
+      OR pg_get_expr(pol.polwithcheck, pol.polrelid) LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
     );
   IF v_bad_count <> 0 THEN
     RAISE EXCEPTION 'STAGE3_ISSUER_GUARD_ALLOWED_ISSUER_DRIFT: %', v_bad_count;
@@ -68,14 +68,8 @@ CREATE POLICY better_auth_issuer_guard
   ON public.auth_issuer_guard_probe
   AS RESTRICTIVE
   FOR ALL TO authenticated
-  USING ((SELECT auth.jwt() ->> 'iss') IN (
-    'https://mvdczyitbkxkldjughor.supabase.co/auth/v1',
-    'https://auth.sykabelajar.my.id/api/auth'
-  ))
-  WITH CHECK ((SELECT auth.jwt() ->> 'iss') IN (
-    'https://mvdczyitbkxkldjughor.supabase.co/auth/v1',
-    'https://auth.sykabelajar.my.id/api/auth'
-  ));
+  USING ((SELECT auth.jwt() ->> 'iss') = 'https://auth.sykabelajar.my.id/api/auth')
+  WITH CHECK ((SELECT auth.jwt() ->> 'iss') = 'https://auth.sykabelajar.my.id/api/auth');
 
 INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
 VALUES
@@ -84,18 +78,26 @@ VALUES
 
 SET LOCAL ROLE authenticated;
 
--- Legacy Supabase Auth issuer remains valid during the migration overlap.
+-- Supabase Auth is not a trusted application login after this cutover.
+-- Even a legacy Auth subject that was previously valid is now denied.
 SELECT set_config('request.jwt.claims',
   '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
   true);
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 DO $legacy_issuer$
-DECLARE v_count integer;
+DECLARE
+  v_count integer;
+  v_denied boolean := false;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
-  IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_OWNER_READ_FAILED'; END IF;
-  INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
-  VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy-insert');
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_READ_ALLOWED'; END IF;
+  BEGIN
+    INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
+    VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy-insert');
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_INSERT_ALLOWED'; END IF;
 END;
 $legacy_issuer$;
 
