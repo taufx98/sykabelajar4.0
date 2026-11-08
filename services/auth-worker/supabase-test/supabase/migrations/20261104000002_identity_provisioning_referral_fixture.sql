@@ -420,13 +420,9 @@ revoke all on function private.apply_referral_qualification(uuid, text, timestam
 revoke all on function private.handle_referral_daily_checkin()
   from public, anon, authenticated, service_role;
 revoke all on function private.provision_better_auth_user(uuid, text, text, text, text, boolean, date, text, text, text)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 revoke all on function private.complete_better_auth_email_verification(uuid, timestamptz)
-  from public, anon, authenticated;
-grant execute on function private.provision_better_auth_user(uuid, text, text, text, text, boolean, date, text, text, text)
-  to service_role;
-grant execute on function private.complete_better_auth_email_verification(uuid, timestamptz)
-  to service_role;
+  from public, anon, authenticated, service_role;
 
 -- Same PostgREST-facing RPC bridge proposed for the Cloudflare Worker.
 -- This lives only in the synthetic local fixture; no production migration is made.
