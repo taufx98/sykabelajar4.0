@@ -61,6 +61,17 @@ function json(data: unknown, status = 200): Response {
     },
   });
 }
+function safeDiagnostic(error: unknown): { name: string; message: string } {
+  if (!(error instanceof Error)) return { name: "UnknownError", message: "unclassified" };
+  const message = error.message
+    .replace(/https?:\/\/\S+/g, "[URL]")
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "[REDACTED]")
+    .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL]")
+    .replace(/[\r\n]+/g, " ")
+    .slice(0, 180);
+  return { name: error.name.slice(0, 60), message: message || "unclassified" };
+}
+
 
 function bearerToken(request: Request): string | null {
   const header = request.headers.get("Authorization");
@@ -127,7 +138,8 @@ async function generateD1Schema(request: Request, env: AuthWorkerEnv): Promise<R
       table_names: ddl.filter((item) => item.type === "table").map((item) => item.name),
       ddl,
     });
-  } catch {
+  } catch (error) {
+    console.error("Auth schema bootstrap failed", safeDiagnostic(error));
     return json({ error: "AUTH_SCHEMA_BOOTSTRAP_FAILED" }, 503);
   }
 }
@@ -467,6 +479,7 @@ export default {
       if (quotaResponse) {
         return applyResponseHeaders(quotaResponse, corsHeaders);
       }
+      console.error("Better Auth request failed", safeDiagnostic(error));
       return applyResponseHeaders(json({ error: "AUTH_SERVICE_UNAVAILABLE" }, 503), corsHeaders);
     }
   },
