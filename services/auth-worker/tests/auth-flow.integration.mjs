@@ -358,7 +358,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.ok(resetMessage, "password-reset request must deliver a reset email");
     const resetUrl = mailUrl(resetMessage);
     assert.equal(resetUrl.origin, new URL(baseUrl).origin, "reset email must use the configured Better Auth issuer");
-    assert.match(resetUrl.pathname, /\\/api\\/auth\\/reset-password\\//, "reset email must use Better Auth's single-use reset route");
+    assert.ok(resetUrl.pathname.includes("/api/auth/reset-password/"), "reset email must use Better Auth's single-use reset route");
     assert.equal(resetUrl.searchParams.get("callbackURL"), appOrigin + "/reset-password",
       "reset email must return to the public frontend reset page");
     const resetToken = resetUrl.pathname.split("/").filter(Boolean).at(-1);
