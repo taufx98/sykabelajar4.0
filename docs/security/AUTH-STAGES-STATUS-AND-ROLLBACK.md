@@ -674,21 +674,21 @@ The isolated Free staging project has zero `private.app_users` rows. It now deni
 The only production Stage 3 blocker is the controlled application window itself: final read-only preflight, approved rollback window, explicit owner approval, then production DDL/FK/issuer work. Do not run the generated plan or apply the draft until that approval is received.
 
 
-## Continuation checkpoint — 8 November 2026 (code snapshot 82c4986; password-change adapter and integration accepted)
+## Continuation checkpoint — 8 November 2026 (code snapshot e49d245; password + ZeptoMail Admin default verified)
 
 This checkpoint supersedes the older Stage 4 progress counts and any earlier statement that the Stage 3 production-schema baseline/restore had not been completed. It records the state verified during the 8 November continuation. It does not authorize production cutover.
 
-### Latest CI for the password-change code snapshot
+### Latest CI for the password and ZeptoMail Admin code snapshot
 
-- [Auth Worker CI #518](https://github.com/taufx98/sykabelajar4.0/actions/runs/42462936271) passed on code head `82c4986c8530e838880d59b2f51d215fa7d7e480`. It includes Worker security/typecheck, all local D1/OIDC and password-change integration tests, frontend dependency inventory, frontend lint/typecheck/build, and a Worker dry run without deployment.
-- [Auth Cloudflare Staging Preflight #163](https://github.com/taufx98/sykabelajar4.0/actions/runs/42462936143) passed on the same code head. This was a read-only resource preflight; it did not deploy the Worker or alter staging resources.
-- [Supabase Local Auth Claims CI #344](https://github.com/taufx98/sykabelajar4.0/actions/runs/42459904314) remains the last completed pass for the unchanged Supabase Edge/SQL contract surface.
+- [Auth Worker CI #520](https://github.com/taufx98/sykabelajar4.0/actions/runs/42463254031) passed on code head `e49d245a30012bda206452f4e5177dfc3686893d`. It includes Worker security/typecheck, local D1/OIDC/password-change integration tests, frontend dependency inventory, email-admin/JWT contracts, Worker dry run, and frontend lint/typecheck/build without deployment.
+- [Supabase Local Auth Claims CI #351](https://github.com/taufx98/sykabelajar4.0/actions/runs/42463254033) passed on the same code head. It includes the disabled Better Auth transport contract, Edge JWT/Cloudinary type checks, anonymous staging Edge-probe rejection, schema/identity plan contracts, and isolated local Supabase JWT/RLS acceptance.
+- [Auth Cloudflare Staging Preflight #163](https://github.com/taufx98/sykabelajar4.0/actions/runs/42462936143) passed on the preceding runtime code head `82c4986c8530e838880d59b2f51d215fa7d7e480`. It was read-only and did not deploy the Worker or alter staging resources. No runtime Worker/deployment configuration changed after that preflight; the later edits are Admin UI defaults and tests.
 - PR #177 remains Draft/unmerged and its base relationship remains dirty. Keep Better Auth disabled in production; do not force-merge.
 
 ### Stage 1 — isolated Worker, email, and provider activation
 
 - The isolated Cloudflare D1/Worker deployment and migrations 0000–0006 remain the staging baseline; do not point this Worker or D1 binding at production.
-- The Worker uses the managed email dispatcher with ZeptoMail support, but the latest recorded staging state has no active Brevo/ZeptoMail sender account. Real signup verification and password-reset delivery therefore remain unaccepted and fail closed. The owner must configure a verified sender and encrypted Agent Send Mail Token through the staging Admin settings, then run the email test only to the signed-in admin account.
+- The Worker uses the managed email dispatcher with ZeptoMail support. The existing `ZeptoMailSettingsPanel` is already mounted in Admin Core `/admin/core?tab=settings`; the panel now defaults new Agent drafts to ZeptoMail and lists Brevo Free as the fallback. Existing accounts are not silently changed or activated. The latest recorded staging state still has no configured/active Brevo or ZeptoMail sender account, so real signup verification and password-reset delivery remain unaccepted and fail closed. The owner must enter a verified sender address and Agent Send Mail Token directly in the staging Admin panel, save the encrypted credential, activate the Agent, and test only to the signed-in admin account. Do not paste the token into chat.
 - Google/Facebook/X credentials remain optional and absent in the last confirmed staging inventory. Telegram is only a separate phone-consent step; BotFather OIDC registration, callback allowlisting, Worker credentials, and a real hosted consent/callback test remain outstanding. Instagram personal-account login is not wired as an ordinary OAuth provider.
 
 ### Stage 2 — OIDC/JWT and Supabase service surfaces
