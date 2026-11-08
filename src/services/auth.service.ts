@@ -188,6 +188,31 @@ export function onAuthStateChange(
   };
 }
 
+/**
+ * Resend the account email-verification link through the currently selected
+ * auth provider. A generic UI response must be used so the account's existence
+ * is not disclosed to an unauthenticated caller.
+ */
+export async function sendVerificationEmail(email: string, callbackURL?: string): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new Error('EMAIL_INVALID');
+  }
+
+  const destination = callbackURL ?? new URL('/home', window.location.origin).toString();
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
+    await getStagingBetterAuthClient().sendVerificationEmail(normalizedEmail, destination);
+    return;
+  }
+
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: normalizedEmail,
+    options: { emailRedirectTo: destination },
+  });
+  if (error) throw error;
+}
+
 export async function resetPassword(email: string, redirectTo?: string) {
   if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     const destination = redirectTo ?? new URL('/reset-password', window.location.origin).toString();
