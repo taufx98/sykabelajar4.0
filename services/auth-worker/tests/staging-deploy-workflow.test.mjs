@@ -51,7 +51,7 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
     "required Worker secret bindings must be checked before the Worker is deployed");
   assert.match(workflow, /SUPABASE_PROVISIONING_ENABLED/);
   assert.match(workflow, /SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(workflow, /server-only Supabase staging provisioning secret is missing/);
+  assert.match(workflow, /server-only Supabase staging secret is missing or has an unexpected type/);
   assert.match(wranglerConfig, /^AUTH_EMAIL_PROVIDER = "managed"$/m);
   assert.match(workflow, /auth_email_accounts/);
   assert.match(workflow, /auth-worker-staging-email-provider.json/);
