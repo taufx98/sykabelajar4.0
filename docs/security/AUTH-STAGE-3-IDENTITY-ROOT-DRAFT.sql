@@ -3,11 +3,13 @@
 -- for production execution. It must first pass on a complete schema-only
 -- disposable restore together with the generated 69-FK plan.
 --
--- Better Auth + Cloudflare D1 owns passwords, OAuth credentials and sessions.
--- private.app_users owns only UUID identity/verification projection.
--- Existing Supabase Auth signup is retained temporarily for overlap through
--- Stage 4/7; the legacy trigger syncs those UUIDs into the new identity root.
--- New Better Auth users provision directly via server-only PostgREST RPCs.
+-- Better Auth + Cloudflare D1 owns all new passwords, OAuth credentials,
+-- external identities and sessions. No Supabase Auth account is migrated.
+-- private.app_users is the FK parent and verification projection for new
+-- Better Auth UUIDs. A separate generated FK plan may seed UUID-only
+-- legacy_reference tombstones for existing application rows; those are not
+-- login accounts and contain no email, verification, password, session or role
+-- transfer. New Better Auth users are provisioned through server-only RPCs.
 
 BEGIN;
 
@@ -19,7 +21,9 @@ CREATE TABLE private.app_users (
   verified_phone_identity_hash text,
   updated_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
   phone_verification_provider text,
-  phone_verification_subject text
+  phone_verification_subject text,
+  identity_origin text NOT NULL DEFAULT 'better_auth'
+    CHECK (identity_origin IN ('better_auth', 'legacy_reference'))
 );
 
 COMMENT ON TABLE private.app_users IS
@@ -40,113 +44,11 @@ ALTER TABLE private.app_users ENABLE ROW LEVEL SECURITY;
 -- their owner (postgres) performs the narrowly scoped projection writes.
 REVOKE ALL ON TABLE private.app_users FROM PUBLIC, anon, authenticated, service_role;
 
--- Preserve old Auth UUID parents without copying emails, phone values,
--- credentials, tokens or session rows. Phone is hashed transiently only when
--- Auth explicitly marks it verified, using the existing organizer hash format.
-INSERT INTO private.app_users (
-  id, email_verified_at, phone_verified_at, verified_phone_identity_hash,
-  phone_verification_provider, phone_verification_subject, created_at, updated_at
-)
-SELECT
-  au.id,
-  au.email_confirmed_at,
-  au.phone_confirmed_at,
-  CASE
-    WHEN au.phone_confirmed_at IS NOT NULL
-      AND pg_catalog.length(regexp_replace(coalesce(au.phone, ''), '[^0-9]+', '', 'g')) >= 8
-      THEN encode(extensions.digest(regexp_replace(coalesce(au.phone, ''), '[^0-9]+', '', 'g'), 'sha256'),'hex')
-    ELSE NULL
-  END,
-  CASE
-    WHEN au.phone_confirmed_at IS NOT NULL
-      AND pg_catalog.length(regexp_replace(coalesce(au.phone, ''), '[^0-9]+', '', 'g')) >= 8
-      THEN 'supabase_auth'
-    ELSE NULL
-  END,
-  CASE
-    WHEN au.phone_confirmed_at IS NOT NULL
-      AND pg_catalog.length(regexp_replace(coalesce(au.phone, ''), '[^0-9]+', '', 'g')) >= 8
-      THEN au.id::text
-    ELSE NULL
-  END,
-  au.created_at,
-  pg_catalog.clock_timestamp()
-FROM auth.users au
-ON CONFLICT (id) DO NOTHING;
-
-CREATE OR REPLACE FUNCTION private.sync_legacy_auth_user_identity_projection()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $function$
-DECLARE
-  v_phone_digits text;
-  v_phone_hash text;
-BEGIN
-  v_phone_digits := regexp_replace(
-    coalesce(NEW.phone, ''),
-    '[^0-9]+',
-    '',
-    'g'
-  );
-  v_phone_hash := CASE
-    WHEN NEW.phone_confirmed_at IS NOT NULL
-         AND pg_catalog.length(v_phone_digits) >= 8
-      THEN encode(
-        extensions.digest(v_phone_digits, 'sha256'),
-        'hex'
-      )
-    ELSE NULL
-  END;
-
-  INSERT INTO private.app_users (
-    id,
-    email_verified_at,
-    phone_verified_at,
-    verified_phone_identity_hash,
-    phone_verification_provider,
-    phone_verification_subject,
-    created_at,
-    updated_at
-  )
-  VALUES (
-    NEW.id,
-    NEW.email_confirmed_at,
-    NEW.phone_confirmed_at,
-    v_phone_hash,
-    CASE WHEN v_phone_hash IS NOT NULL THEN 'supabase_auth' ELSE NULL END,
-    CASE WHEN v_phone_hash IS NOT NULL THEN NEW.id::text ELSE NULL END,
-    NEW.created_at,
-    pg_catalog.clock_timestamp()
-  )
-  ON CONFLICT (id) DO UPDATE
-    SET email_verified_at = EXCLUDED.email_verified_at,
-        phone_verified_at = EXCLUDED.phone_verified_at,
-        verified_phone_identity_hash = EXCLUDED.verified_phone_identity_hash,
-        phone_verification_provider = EXCLUDED.phone_verification_provider,
-        phone_verification_subject = EXCLUDED.phone_verification_subject,
-        updated_at = pg_catalog.clock_timestamp();
-
-  RETURN NEW;
-END;
-$function$;
-
--- Same-event triggers run in alphabetical name order. The a_sync name ensures
--- the identity row exists before on_auth_user_created writes the profile, and
--- before trg_referral_signup_attribution checks the referrer identity.
-REVOKE ALL ON FUNCTION private.sync_legacy_auth_user_identity_projection()
-  FROM PUBLIC, anon, authenticated, service_role;
-
-CREATE TRIGGER a_sync_app_users_identity_insert
-AFTER INSERT ON auth.users
-FOR EACH ROW
-EXECUTE FUNCTION private.sync_legacy_auth_user_identity_projection();
-
-CREATE TRIGGER a_sync_app_users_identity_update
-AFTER UPDATE OF email_confirmed_at, phone_confirmed_at, phone ON auth.users
-FOR EACH ROW
-EXECUTE FUNCTION private.sync_legacy_auth_user_identity_projection();
+-- No SELECT from auth.users and no legacy-account backfill is performed.
+-- Any UUID-only legacy_reference tombstones are generated from the exact 69
+-- application FK source columns by generate-app-users-fk-plan.mjs and are
+-- applied separately before FK expansion. Such tombstones preserve data
+-- relationships only; they are not authenticatable Better Auth users.
 
 -- Auth-dependent application lookups now use the common UUID identity root.
 CREATE OR REPLACE FUNCTION private.apply_referral_qualification(p_referred_user_id uuid, p_activity text, p_occurred_at timestamp with time zone)
@@ -338,8 +240,9 @@ END;
 $function$;
 
 
--- The legacy Auth email-confirmation trigger remains on auth.users during
--- overlap. Its earlier alphabetical sync trigger updates app_users first.
+-- This function is retained only for the reviewed rollback source contract.
+-- The Supabase Auth trigger invoking it is dropped at the cutover below; the
+-- Better Auth verification RPC is the only active verification lifecycle.
 CREATE OR REPLACE FUNCTION private.process_referral_email_confirmation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1116,10 +1019,25 @@ GRANT EXECUTE ON FUNCTION public.better_auth_complete_phone_verification(
 
 COMMIT;
 
+-- End the legacy Supabase Auth account lifecycle. Existing auth.users rows,
+-- passwords, identities and sessions are not copied or deleted. The three
+-- signup/referral triggers are retired; new profiles/roles/settings/referrals
+-- are created only by Better Auth's trusted provisioning RPC.
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS trg_referral_signup_attribution ON auth.users;
+DROP TRIGGER IF EXISTS trg_referral_email_confirmed ON auth.users;
+
+REVOKE ALL ON FUNCTION public.handle_new_auth_user()
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.capture_signup_referral()
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.process_referral_email_confirmation()
+  FROM PUBLIC, anon, authenticated, service_role;
+
 -- Production gates — this draft does not perform the FK cutover itself:
 -- 1. Review and execute only on a complete disposable schema-only PostgreSQL 17.6 restore.
 -- 2. Generate the 69-FK plan from the live catalog and inspect all three phases.
--- 3. Backfill/expand, validate every replacement FK, then do one atomic cutover.
+-- 3. Seed only required UUID tombstones, then expand, validate every replacement FK, then do one atomic cutover.
 -- 4. Run the full production-shaped regression and Better Auth provisioning/email/phone tests.
 -- 5. Verify issuer restriction, hosted OIDC, frontend/backend gates and rollback.
 -- 6. Keep production Supabase, production Worker/DNS and all live accounts unchanged.
