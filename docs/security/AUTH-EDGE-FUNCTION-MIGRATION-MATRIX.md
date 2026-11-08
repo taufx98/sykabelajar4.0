@@ -1,6 +1,6 @@
 # Better Auth — Supabase Edge Function migration matrix
 
-Status: **adapter and claim-contract tests prepared; application endpoints are not yet switched**. Snapshot date: 6 November 2026.
+Status: **dual-mode adapter and seven branch handler migrations implemented; Better Auth remains disabled by default and no application Edge Function from this branch is deployed**. Snapshot refreshed: 8 November 2026.
 
 This is a staged implementation guide for Stage 5. It is not permission to deploy Edge Functions or alter production secrets. The Supabase project currently connected to this workspace is production-only; the Better Auth issuer must first pass Supabase Custom OIDC acceptance in an isolated test project, and Stage 3 identity provisioning/FK work must be approved before the user-facing functions are changed.
 
@@ -17,7 +17,7 @@ After cryptographic verification, `auth-claims.mjs` enforces the SYKABELAJAR res
 
 The adapter fails closed with 503 if the expected issuer/audience settings are missing, or 401 for an invalid caller token/claim. It returns both `ctx.supabase` (caller JWT + RLS) and `ctx.supabaseAdmin` (service-role bypass); the latter must not be used until the relevant owner/business-role check succeeds.
 
-This is only a shared adapter. The four existing user-invoked endpoint implementations still use Supabase Auth `getUser()`; no endpoint has switched to Better Auth JWT verification or been deployed. The `get-cloudinary-signature` source also received a separate owner-scoped `public_id` authorization guard, but it still verifies the legacy Supabase Auth token. These are source-branch changes only, intentionally not deployed until Stage 2/3 acceptance gates have passed.
+The shared adapter now backs the seven targeted source-branch handlers: four Cloudinary signer/upload/delete endpoints and the three payment admin/create/reconcile endpoints. The default `AUTH_IDENTITY_MODE=supabase` preserves the existing Supabase Auth runtime; `better-auth` is an explicit opt-in and has not been enabled for production. No handler from this branch has been deployed. Cloudinary signer/delete owner checks are enforced after the resolver returns the canonical UUID. These remain branch-only changes until the isolated positive/negative token and A/B ownership acceptance gates pass.
 
 ## Function-by-function migration
 
@@ -27,13 +27,13 @@ This is only a shared adapter. The four existing user-invoked endpoint implement
 | `payment-gateway-create` | `auth.getUser()`, then service-role order lookup | `requireBetterAuthUser(req)` | Keep `orders.user_id === verified userId` before returning or mutating payment intent/provider data. Recheck pending/payable status, payment method selection, amount and idempotency server-side. Never trust a body-supplied user ID. |
 | `payment-gateway-reconcile` | `auth.getUser()`, plus order lookup constrained by `user_id` | `requireBetterAuthUser(req)` | Keep the order lookup constrained by both order ID and verified UUID; ensure intent belongs to the same order. Only provider-verified status, amount and currency may trigger fulfillment. Browser return data is not payment proof. |
 | `payment-gateway-admin` | `auth.getUser()`, user-context `is_active_admin()`, then service-role settings access | `requireBetterAuthUser(req)` | Call `ctx.supabase.rpc("is_active_admin", { p_uid: userId })` with the original caller context. Only after true may service-role reads/writes execute. Preserve safe settings responses and never return provider secrets. |
-| `midtrans-create-payment` | Compatibility delegate; `verify_jwt=true` | Keep as a thin delegate or remove only after frontend callers are migrated | The target `payment-gateway-create` still independently verifies identity. Keep `verify_jwt=true` on both paths. |
+| `midtrans-create-payment` | Compatibility delegate; gateway precheck disabled in the branch | Keep as a thin delegate or remove only after frontend callers are migrated | It forwards the caller's bearer to `payment-gateway-create`, which independently verifies identity through the shared resolver. The delegate itself must not trust the forwarded token or add business authorization. |
 | `payment-gateway-public` | Public status endpoint | Remain public | Return only deliberately public provider status; do not expose secret config, order data or admin actions. |
 | `payment-webhook`, `payment-gateway-webhook` | Provider callbacks with `verify_jwt=false` | Remain outside user-JWT adapter | Keep provider signature verification, timestamp/replay handling, amount/currency checks and idempotent event processing. Never replace provider signature verification with a Better Auth user token. |
 
 ## Current platform JWT configuration
 
-`supabase/config.toml` explicitly keeps `verify_jwt=true` for `get-cloudinary-signature`, `payment-gateway-admin`, `payment-gateway-create`, `payment-gateway-reconcile`, and the legacy `midtrans-create-payment` delegate. The two provider webhook endpoints remain `verify_jwt=false` because they authenticate using provider signatures. CI now tests these configuration boundaries.
+`supabase/config.toml` uses `verify_jwt=false` for handlers that call the in-handler `requireApplicationUser()` resolver, including the Cloudinary, payment and Midtrans delegate endpoints. This only bypasses the Supabase gateway's Supabase-JWT precheck: every request must still pass the pinned SDK's signature/issuer/audience/UUID/role checks inside the handler before data access. The two unmodified legacy V2 Cloudinary aliases intentionally remain `verify_jwt=true`. Provider webhook endpoints remain `verify_jwt=false` because they authenticate using provider signatures; public endpoints retain only their documented public response. CI tests these boundaries.
 
 ## Two-user acceptance matrix required before deployment
 
