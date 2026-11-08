@@ -25,6 +25,11 @@ assert.match(client, /payload\.iss !== expectedIssuer/);
 assert.match(client, /payload\.refresh_token/);
 assert.doesNotMatch(client, /offline_access/);
 assert.match(callbackPage, /postMessage/);
+assert.match(callbackPage, /postMessage\(message, window\.location\.origin\)/);
+assert.doesNotMatch(callbackPage, /postMessage\(message, ['"]\*['"]\)/);
+assert.match(client, /clearResourceTokenCache\(\);\s*return null/);
+assert.match(client, /getSupabaseAccessToken\(\)[\s\S]*AUTH_SESSION_EXPIRED/);
+
 assert.match(callbackPage, /sykabelajar-better-auth-oidc/);
 assert.match(app, /auth\/oidc\/callback/);
 assert.match(client, /\/sign-in\/email/);
