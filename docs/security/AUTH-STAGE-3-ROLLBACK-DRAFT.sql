@@ -7,7 +7,7 @@
 --     before invoking this rollback; retain the D1/Worker credentials for audit.
 --   * if production Supabase Custom OIDC was enabled, remove only the Better Auth
 --     third-party issuer integration via Dashboard/Management API before dropping
---     the restrictive two-issuer policies; SQL cannot remove that provider setting.
+--     the restrictive Better Auth-only issuer policies; SQL cannot remove that provider setting.
 --   * no Better Auth-only user may have been provisioned;
 --   * every private.app_users.id must still exist in auth.users;
 --   * all 69 application FK constraints must already reference auth.users;
@@ -17,7 +17,7 @@
 -- This restores the original Auth-dependent functions and legacy signup/referral
 -- behavior. It keeps the corrected create_organizer output-column qualification
 -- fix, since that is an independent SQL correctness fix and changes no business
--- rules. This draft drops only the Stage 3-named sync triggers and issuer guards.
+-- rules. This draft restores the three original Supabase Auth triggers and drops the Better Auth-only issuer guards.
 --
 -- This file does not disable the Cloudflare Worker or delete D1 credentials,
 -- Better Auth accounts or sessions. It is only safe before the first
@@ -93,28 +93,20 @@ BEGIN
     AND pol.polcmd = '*'
     AND pol.polroles = ARRAY['authenticated'::regrole::oid]
     AND COALESCE(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-    AND COALESCE(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
-    AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-    AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%';
+    AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%';
   IF v_issuer_guards <> 61 THEN
     RAISE EXCEPTION 'STAGE3_ROLLBACK_ISSUER_GUARD_COUNT_MISMATCH: expected 61 restrictive policies, found %',
       v_issuer_guards;
   END IF;
 
-  IF NOT EXISTS (
+  IF EXISTS (
     SELECT 1 FROM pg_trigger tr
     JOIN pg_class tbl ON tbl.oid = tr.tgrelid
     JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
     WHERE NOT tr.tgisinternal AND ns.nspname = 'auth' AND tbl.relname = 'users'
-      AND tr.tgname = 'a_sync_app_users_identity_insert'
-  ) OR NOT EXISTS (
-    SELECT 1 FROM pg_trigger tr
-    JOIN pg_class tbl ON tbl.oid = tr.tgrelid
-    JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
-    WHERE NOT tr.tgisinternal AND ns.nspname = 'auth' AND tbl.relname = 'users'
-      AND tr.tgname = 'a_sync_app_users_identity_update'
+      AND tr.tgname IN ('on_auth_user_created','trg_referral_signup_attribution','trg_referral_email_confirmed')
   ) THEN
-    RAISE EXCEPTION 'STAGE3_ROLLBACK_SYNC_TRIGGER_MISSING';
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_LEGACY_AUTH_TRIGGERS_ALREADY_PRESENT';
   END IF;
 END;
 $stage3_rollback_preflight$;
@@ -809,10 +801,25 @@ EXCEPTION
 END;
 $function$;
 
--- Remove only the two legacy-to-new-identity synchronization triggers.
-DROP TRIGGER a_sync_app_users_identity_insert ON auth.users;
-DROP TRIGGER a_sync_app_users_identity_update ON auth.users;
-DROP FUNCTION private.sync_legacy_auth_user_identity_projection();
+-- Restore the original three Supabase Auth lifecycle triggers only after
+-- all original function definitions have been restored above.
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_new_auth_user();
+
+CREATE TRIGGER trg_referral_signup_attribution
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION private.capture_signup_referral();
+
+CREATE TRIGGER trg_referral_email_confirmed
+AFTER UPDATE OF email_confirmed_at ON auth.users
+FOR EACH ROW
+WHEN (OLD.email_confirmed_at IS NULL AND NEW.email_confirmed_at IS NOT NULL)
+EXECUTE FUNCTION private.process_referral_email_confirmation();
+
+GRANT EXECUTE ON FUNCTION public.handle_new_auth_user() TO service_role;
 
 -- Remove the Better Auth-only provisioning surface added by Stage 3.
 DROP FUNCTION public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text);
