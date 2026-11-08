@@ -89,7 +89,11 @@ test("all migrated user-facing Cloudinary handlers share the fail-closed identit
   }
   assert.match(cloudinarySignature, /isOwnedCloudinaryPublicId/);
   assert.match(cloudinaryDelete, /isOwnedCloudinaryPublicId/);
-  assert.match(cloudinaryDeleteProfile, /isOwnedCloudinaryPublicId/);
+  assert.match(cloudinaryDeleteProfile, /const userId = identity\.userId/);
+  assert.match(cloudinaryDeleteProfile, /profile_pictures\/user_\$\{userId\}/);
+  assert.match(cloudinaryDeleteProfile, /profile_covers\/user_\$\{userId\}/);
+  assert.match(cloudinaryDeleteProfile, /allowedPublicIds\.has\(publicId\)/);
+  assert.doesNotMatch(cloudinaryDeleteProfile, /body\??\.user_id|body\??\.owner_id|body\??\.userId/);
 });
 
 test("Cloudinary and payment handlers remain compatible with verified third-party issuer routing", () => {
