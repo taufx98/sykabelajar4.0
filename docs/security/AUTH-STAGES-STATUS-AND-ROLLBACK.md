@@ -674,11 +674,13 @@ The isolated Free staging project has zero `private.app_users` rows. It now deni
 The only production Stage 3 blocker is the controlled application window itself: final read-only preflight, approved rollback window, explicit owner approval, then production DDL/FK/issuer work. Do not run the generated plan or apply the draft until that approval is received.
 
 
-## Continuation checkpoint — 8 November 2026 (PR head 1161d033)
+## Continuation checkpoint — 8 November 2026 (code snapshot 1161d033; documentation commit 12db889)
 
 This checkpoint supersedes the older Stage 4 progress counts and any earlier statement that the Stage 3 production-schema baseline/restore had not been completed. It records the state verified during the 8 November continuation. It does not authorize production cutover.
 
-### Latest CI on the current migration branch
+### Latest CI for the code snapshot before this documentation-only checkpoint
+
+This checkpoint changes only this status document; it does not change Worker/frontend runtime code, workflows, secrets, staging settings, or database objects. It does not claim a new CI run on the documentation commit.
 
 - [Auth Worker CI #509](https://github.com/taufx98/sykabelajar4.0/actions/runs/42459904343) passed on head `1161d033fcc6209217ebf6f31e4ef851d7e229de`. The workflow's Worker security/typecheck/build/D1/OIDC checks and frontend lint/typecheck/build completed successfully.
 - [Supabase Local Auth Claims CI #344](https://github.com/taufx98/sykabelajar4.0/actions/runs/42459904314) passed on the same head.
