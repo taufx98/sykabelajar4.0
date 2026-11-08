@@ -10,10 +10,13 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const MAX_ACCESS_TOKEN_AGE_SECONDS = 300;
 const CLOCK_SKEW_SECONDS = 30;
 
+/** @type {string} */
 let cachedJwksUrl = "";
+/** @type {ReturnType<typeof createRemoteJWKSet> | null} */
 let cachedJwks = null;
 
 export class BetterAuthAdminAuthError extends Error {
+  /** @param {string} code */
   constructor(code) {
     super(code);
     this.name = "BetterAuthAdminAuthError";
@@ -21,6 +24,7 @@ export class BetterAuthAdminAuthError extends Error {
   }
 }
 
+/** @param {string} authBaseUrl */
 function authIssuer(authBaseUrl) {
   let url;
   try {
@@ -44,6 +48,7 @@ function authIssuer(authBaseUrl) {
   return url.origin + "/api/auth";
 }
 
+/** @param {string} value */
 function stagingSupabaseOrigin(value) {
   let url;
   try {
@@ -120,7 +125,7 @@ export async function resolveBetterAuthAdminIdentity(input) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const verifyJwtImpl = input.verifyJwtImpl ?? jwtVerify;
   const createJwksImpl = input.createJwksImpl ?? createRemoteJWKSet;
-  const nowSeconds = Number.isInteger(input.nowSeconds)
+  const nowSeconds = typeof input.nowSeconds === "number" && Number.isSafeInteger(input.nowSeconds)
     ? input.nowSeconds
     : Math.floor(Date.now() / 1000);
 
