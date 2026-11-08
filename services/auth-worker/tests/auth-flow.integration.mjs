@@ -306,7 +306,10 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
 
     const verificationMessage = mailMessages.find((message) => message.category === "verify-email" && message.to === email);
     assert.ok(verificationMessage, "sign-up must deliver a verification email through the configured webhook");
-    const verificationResponse = await fetch(mailUrl(verificationMessage), {
+    const verificationUrl = mailUrl(verificationMessage);
+    assert.equal(verificationUrl.searchParams.get("callbackURL"), appOrigin + "/auth/verified",
+      "verification email must carry the explicit public frontend callback route");
+    const verificationResponse = await fetch(verificationUrl, {
       redirect: "manual",
       headers: { Origin: appOrigin },
     });
@@ -314,6 +317,12 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       verificationResponse.status >= 200 && verificationResponse.status < 400,
       "verification link must be accepted; HTTP " + verificationResponse.status,
     );
+    const verificationLocation = verificationResponse.headers.get("location");
+    assert.ok(verificationLocation, "successful verification must redirect to the frontend callback");
+    const verificationCallback = new URL(verificationLocation, verificationUrl);
+    assert.equal(verificationCallback.origin, appOrigin, "verification must return only to the app origin");
+    assert.equal(verificationCallback.pathname, "/auth/verified", "verification must reach the registered callback page");
+
 
     let cookie = sessionCookie(verificationResponse);
     if (!cookie) {
