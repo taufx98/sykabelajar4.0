@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CheckCircle2, CircleAlert, Mail, Pencil, Plus, RefreshCw, Send, ShieldCheck, Trash2, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseResourceAccessToken } from '@/services/applicationAccessToken';
 import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -48,6 +48,7 @@ const ERROR_LABELS: Record<string, string> = {
   ADMIN_REQUIRED: 'Hanya admin aktif yang dapat mengelola email.',
   ADMIN_AUTH_NOT_CONFIGURED: 'Verifikasi admin belum dikonfigurasi pada Auth Worker.',
   ADMIN_CHECK_FAILED: 'Server tidak dapat memverifikasi role admin.',
+  ADMIN_AUTH_UNAVAILABLE: 'Layanan verifikasi admin sementara tidak tersedia. Coba lagi nanti.',
   INVALID_ACCOUNT_LABEL: 'Nama akun wajib diisi (maksimal 80 karakter).',
   INVALID_SENDER_ADDRESS: 'Alamat pengirim tidak valid.',
   INVALID_SENDER_NAME: 'Nama pengirim terlalu panjang.',
@@ -96,11 +97,9 @@ export function ZeptoMailSettingsPanel() {
   const baseUrl = useMemo(() => authWorkerUrl(), []);
 
   const getAccessToken = useCallback(async () => {
-    const { data, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !data.session?.access_token) {
-      throw new Error('AUTH_REQUIRED');
-    }
-    return data.session.access_token;
+    const accessToken = await getSupabaseResourceAccessToken();
+    if (!accessToken) throw new Error('AUTH_REQUIRED');
+    return accessToken;
   }, []);
 
   const request = useCallback(async (action: string, payload?: Record<string, unknown>) => {
