@@ -5,6 +5,7 @@ import type { AuthWorkerEnv } from "./env";
 import { sendAuthEmail } from "./email";
 import { APIError } from "better-auth/api";
 import type { FacebookProfile, TwitterProfile } from "better-auth/social-providers";
+import type { SocialProviderRuntimeConfig } from "./social-provider-settings";
 import {
   completeSupabaseEmailVerification,
   isSupabaseProvisioningEnabled,
@@ -22,7 +23,7 @@ function requireHttpsOrigin(value: string, label: string, allowLocalhost = false
   return url.origin;
 }
 
-export function createAuth(env: AuthWorkerEnv) {
+export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProviderRuntimeConfig) {
   if (!env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < 32) {
     throw new Error("BETTER_AUTH_SECRET_MUST_BE_AT_LEAST_32_CHARACTERS");
   }
@@ -39,12 +40,19 @@ export function createAuth(env: AuthWorkerEnv) {
     trustedOrigins.push(requireHttpsOrigin(env.DEV_APP_ORIGIN, "DEV_APP_ORIGIN", true));
   }
 
-  const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
-  const googleClientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
-  const facebookClientId = env.FACEBOOK_CLIENT_ID?.trim();
-  const facebookClientSecret = env.FACEBOOK_CLIENT_SECRET?.trim();
-  const twitterClientId = env.TWITTER_CLIENT_ID?.trim();
-  const twitterClientSecret = env.TWITTER_CLIENT_SECRET?.trim();
+  // D1-managed credentials become authoritative once Admin saves the first
+  // provider. Before that activation, existing server-side Worker secret pairs
+  // remain the only supported fallback.
+  const managed = managedSocialConfig?.managedMode === true;
+  const google = managed ? managedSocialConfig?.providers.google : undefined;
+  const facebook = managed ? managedSocialConfig?.providers.facebook : undefined;
+  const twitter = managed ? managedSocialConfig?.providers.twitter : undefined;
+  const googleClientId = managed ? google?.clientId : env.GOOGLE_CLIENT_ID?.trim();
+  const googleClientSecret = managed ? google?.clientSecret : env.GOOGLE_CLIENT_SECRET?.trim();
+  const facebookClientId = managed ? facebook?.clientId : env.FACEBOOK_CLIENT_ID?.trim();
+  const facebookClientSecret = managed ? facebook?.clientSecret : env.FACEBOOK_CLIENT_SECRET?.trim();
+  const twitterClientId = managed ? twitter?.clientId : env.TWITTER_CLIENT_ID?.trim();
+  const twitterClientSecret = managed ? twitter?.clientSecret : env.TWITTER_CLIENT_SECRET?.trim();
 
   for (const [provider, clientId, clientSecret] of [
     ["GOOGLE", googleClientId, googleClientSecret],
