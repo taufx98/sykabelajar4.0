@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
+import { env } from '@/lib/env';
 import {
   getStagingBetterAuthClient,
-  isBetterAuthFrontendEnabled,
+  isBetterAuthFrontendEnabledForSupabase,
 } from '@/services/betterAuthApi.client';
 
 /**
@@ -13,7 +14,7 @@ import {
  * written to browser storage or copied into shared session events.
  */
 export async function getSupabaseResourceAccessToken(): Promise<string | null> {
-  if (isBetterAuthFrontendEnabled()) {
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     return getStagingBetterAuthClient().getSupabaseAccessToken();
   }
 
