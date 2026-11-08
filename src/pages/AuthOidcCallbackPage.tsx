@@ -29,7 +29,7 @@ export function AuthOidcCallbackPage() {
     if (window.parent !== window && message.state) {
       // The parent accepts this message only from the exact registered callback
       // origin and the iframe instance it created. The code is PKCE-bound.
-      window.parent.postMessage(message, '*');
+      window.parent.postMessage(message, window.location.origin);
       setStatus('Autentikasi diteruskan dengan aman.');
       return;
     }
