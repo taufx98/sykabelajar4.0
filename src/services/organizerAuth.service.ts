@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { subscribeAuthSessionEvents } from '@/services/authSessionEvents.mjs';
+import { getAuthSessionSnapshot, subscribeAuthSessionEvents } from '@/services/authSessionEvents.mjs';
 
 export type CurrentOrganizer = {
   id: string;
@@ -26,20 +26,20 @@ export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
   if (listCurrentUserOrganizersInFlight) return listCurrentUserOrganizersInFlight;
 
   const request = (async (): Promise<CurrentOrganizer[]> => {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return [];
+  const userId = getAuthSessionSnapshot()?.userId;
+  if (!userId) return [];
 
   const [ownedResult, membershipResult] = await Promise.all([
     supabase
       .from('organizers')
       .select('id,name,slug,status,logo_asset_url')
-      .eq('owner_user_id', auth.user.id)
+      .eq('owner_user_id', userId)
       .eq('status', 'ACTIVE')
       .order('created_at', { ascending: true }),
     supabase
       .from('organizer_members')
       .select('organizer_id,role,member_role,status, is_active,created_at')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', userId)
       .eq('status', 'ACTIVE')
       .eq('is_active', true)
       .order('created_at', { ascending: true }),
