@@ -108,6 +108,7 @@ jobs:
             /^DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m,
             /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
             /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
+            /^SUPABASE_PROVISIONING_ENABLED = "true"$/m,
             /^AUTH_EMAIL_PROVIDER = "managed"$/m,
             /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
             /^pattern = "auth\.sykabelajar\.my\.id"$/m,
@@ -121,7 +122,7 @@ jobs:
           }
           writeFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-config-ok", "ok");
           console.log("Verified the exact isolated Worker, D1, issuer, resource audience, OAuth callback, one approved Pages preview origin and Stage 3 Supabase provisioning target.");
-          console.log("The legacy SUPABASE_URL remains production-only for the temporary Admin bridge; provisioning has a separate hard-pinned staging URL and remains disabled by default.");
+          console.log("The legacy SUPABASE_URL remains production-only for the temporary Admin bridge; new Better Auth identities provision only to the fixed Free staging Supabase project.");
           console.log("Existing Worker secrets will be preserved: this deployment does not enumerate, recreate, rotate, or delete secrets.");
           NODE
 
@@ -266,6 +267,10 @@ jobs:
           const listedBody = await listed.json().catch(() => ({}));
           if (!listed.ok || listedBody.success !== true || !Array.isArray(listedBody.result)) {
             throw new Error("Cannot safely inspect Worker secret bindings; refusing to rotate or create OAuth key.");
+          }
+          const provisioningBindings = listedBody.result.filter((item) => item?.name === "SUPABASE_SERVICE_ROLE_KEY");
+          if (provisioningBindings.length !== 1 || provisioningBindings[0].type !== "secret_text") {
+            throw new Error("The server-only Supabase staging provisioning secret is missing or has an unexpected type.");
           }
           const matches = listedBody.result.filter((item) => item?.name === secretName);
           if (matches.length > 1) {
