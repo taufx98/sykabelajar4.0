@@ -19,7 +19,7 @@ assert.doesNotMatch(draft, /GRANT ALL ON TABLE private\.app_users TO service_rol
 const functionNames = [...draft.matchAll(/CREATE OR REPLACE FUNCTION\s+([a-z_0-9]+\.[a-z_0-9]+)/gi)]
   .map((match) => match[1].toLowerCase());
 const uniqueFunctionNames = new Set(functionNames);
-assert.equal(functionNames.length, 15, "identity draft must contain the reviewed 15 function definitions");
+assert.equal(functionNames.length, 17, "identity draft must contain the reviewed 17 function definitions including the server-only phone status RPC");
 assert.equal(uniqueFunctionNames.size, functionNames.length, "identity draft must not duplicate function definitions");
 assert.equal(
   (draft.split("$function$;").length - 1) + (draft.split("$$;").length - 1),
@@ -42,6 +42,8 @@ for (const name of [
   "public.better_auth_provision_user",
   "public.better_auth_complete_email_verification",
   "public.better_auth_complete_phone_verification",
+  "private.get_better_auth_phone_verification_status",
+  "public.better_auth_get_phone_verification_status",
 ]) {
   assert.equal(functionNames.filter((entry) => entry === name).length, 1,
     "function must be defined exactly once: " + name);
@@ -110,6 +112,7 @@ for (const name of [
   "private.provision_better_auth_user",
   "private.complete_better_auth_email_verification",
   "private.complete_better_auth_phone_verification",
+  "private.get_better_auth_phone_verification_status",
 ]) {
   assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\.") + "[\\s\\S]{0,200}FROM PUBLIC, anon, authenticated, service_role", "i"),
     "private helper must be inaccessible to service_role: " + name);
@@ -121,6 +124,7 @@ for (const name of [
   "public.better_auth_provision_user",
   "public.better_auth_complete_email_verification",
   "public.better_auth_complete_phone_verification",
+  "public.better_auth_get_phone_verification_status",
 ]) {
   assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\."), "i"),
     "missing PUBLIC revoke for " + name);
