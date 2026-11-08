@@ -47,6 +47,8 @@ assert.match(client, /getSupabaseAccessToken\(\)[\s\S]*AUTH_SESSION_EXPIRED/);
 assert.match(callbackPage, /sykabelajar-better-auth-oidc/);
 assert.match(app, /auth\/oidc\/callback/);
 assert.match(client, /\/sign-in\/email/);
+assert.ok(client.includes("const workerOrigin = baseUrl.replace(/\\/api\\/auth$/, '');"));
+
 assert.match(client, /\/sign-in\/social/);
 assert.match(client, /\/sign-up\/email/);
 assert.match(client, /\/send-verification-email/);
