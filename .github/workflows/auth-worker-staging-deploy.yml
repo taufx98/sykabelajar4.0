@@ -108,7 +108,7 @@ jobs:
             /^DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m,
             /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
             /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
-            /^SUPABASE_PROVISIONING_ENABLED = "true"$/m,
+            /^SUPABASE_PROVISIONING_ENABLED = "(true|false)"$/m,
             /^AUTH_EMAIL_PROVIDER = "managed"$/m,
             /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
             /^pattern = "auth\.sykabelajar\.my\.id"$/m,
@@ -122,7 +122,7 @@ jobs:
           }
           writeFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-config-ok", "ok");
           console.log("Verified the exact isolated Worker, D1, issuer, resource audience, OAuth callback, one approved Pages preview origin and Stage 3 Supabase provisioning target.");
-          console.log("The legacy SUPABASE_URL remains production-only for the temporary Admin bridge; new Better Auth identities provision only to the fixed Free staging Supabase project.");
+          console.log("The legacy SUPABASE_URL remains production-only for the temporary Admin bridge; Better Auth identity provisioning is explicitly controlled and can target only the fixed Free staging Supabase project.");
           console.log("Existing Worker secrets will be preserved: this deployment does not enumerate, recreate, rotate, or delete secrets.");
           NODE
 
@@ -219,27 +219,6 @@ jobs:
       # were provisioned during the first successful staging deployment. Never rotate them
       # from a routine code deploy; Wrangler preserves existing Worker secrets when no
       # --secrets-file is supplied.
-      - name: Deploy only the isolated Better Auth staging Worker
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          set -euo pipefail
-          set +e
-          npx wrangler deploy \
-            --var "SUPABASE_URL:$VITE_SUPABASE_URL" \
-            --var "SUPABASE_PUBLISHABLE_KEY:$VITE_SUPABASE_PUBLISHABLE_KEY" \
-            --message "Isolated Better Auth staging deployment $GITHUB_SHA" \
-            > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1
-          deploy_status=$?
-          set -e
-          sed -E \
-            -e 's/(Bearer )[A-Za-z0-9._-]+/\1[REDACTED]/g' \
-            -e 's/(Zoho-enczapikey )[A-Za-z0-9._-]+/\1[REDACTED]/g' \
-            -e 's/(SUPABASE_PUBLISHABLE_KEY:)[^ ]+/\1[REDACTED]/g' \
-            "$RUNNER_TEMP/wrangler-deploy.log" | tee "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
-          exit "$deploy_status"
-
       - name: Ensure dedicated OAuth-provider encryption key exists without rotating
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -268,9 +247,19 @@ jobs:
           if (!listed.ok || listedBody.success !== true || !Array.isArray(listedBody.result)) {
             throw new Error("Cannot safely inspect Worker secret bindings; refusing to rotate or create OAuth key.");
           }
+          const provisioningEnabled = /^SUPABASE_PROVISIONING_ENABLED = "true"$/m.test(
+            (await import("node:fs")).readFileSync("wrangler.toml", "utf8"),
+          );
           const provisioningBindings = listedBody.result.filter((item) => item?.name === "SUPABASE_SERVICE_ROLE_KEY");
-          if (provisioningBindings.length !== 1 || provisioningBindings[0].type !== "secret_text") {
-            throw new Error("The server-only Supabase staging provisioning secret is missing or has an unexpected type.");
+          const provisioningSecretReady =
+            provisioningBindings.length === 1 && provisioningBindings[0].type === "secret_text";
+          if (provisioningEnabled && !provisioningSecretReady) {
+            throw new Error("Identity provisioning is enabled but the server-only Supabase staging secret is missing or has an unexpected type. Worker was not deployed.");
+          }
+          if (!provisioningEnabled) {
+            console.log("Staging identity projection remains disabled; no service-role secret is required for this deployment.");
+          } else {
+            console.log("Verified server-only Supabase staging service-role secret binding by name/type only; its value was not read.");
           }
           const matches = listedBody.result.filter((item) => item?.name === secretName);
           if (matches.length > 1) {
@@ -300,6 +289,27 @@ jobs:
             console.log("Created a new random 256-bit OAuth-provider encryption secret. Key material was not logged or stored in the repository.");
           }
           NODE
+
+      - name: Deploy only the isolated Better Auth staging Worker
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          set +e
+          npx wrangler deploy \
+            --var "SUPABASE_URL:$VITE_SUPABASE_URL" \
+            --var "SUPABASE_PUBLISHABLE_KEY:$VITE_SUPABASE_PUBLISHABLE_KEY" \
+            --message "Isolated Better Auth staging deployment $GITHUB_SHA" \
+            > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1
+          deploy_status=$?
+          set -e
+          sed -E \
+            -e 's/(Bearer )[A-Za-z0-9._-]+/\1[REDACTED]/g' \
+            -e 's/(Zoho-enczapikey )[A-Za-z0-9._-]+/\1[REDACTED]/g' \
+            -e 's/(SUPABASE_PUBLISHABLE_KEY:)[^ ]+/\1[REDACTED]/g' \
+            "$RUNNER_TEMP/wrangler-deploy.log" | tee "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
+          exit "$deploy_status"
 
       - name: Verify hosted health, issuer metadata, and public ES256 JWKS
         run: |
