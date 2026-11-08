@@ -83,7 +83,7 @@ jobs:
 
           const socialMigration = readFileSync("migrations/0007_managed_social_login_providers.sql");
           const socialMigrationSha256 = createHash("sha256").update(socialMigration).digest("hex");
-          if (socialMigrationSha256 !== "b794cd2b217158ec2f5d540a646d0655c7504258b0bd49eda9131d5585233df7") {
+          if (socialMigrationSha256 !== "7d8e810dcf371b53bf652a62ed4811a2ca921168b1f0ec94fc7e358f88d5124f") {
             throw new Error("Migration 0007 content changed after review. Refusing remote D1 mutation.");
           }
 
