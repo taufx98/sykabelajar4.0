@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { generateKeyPair, SignJWT } from "jose";
 import { readFileSync } from "node:fs";
 import {
   BetterAuthAdminAuthError,
@@ -141,6 +142,41 @@ test("JWT business role, subject and maximum lifetime are independently guarded"
     );
     assert.equal(network.calls.length, 0, "invalid JWT claims must fail before network calls");
   }
+});
+
+test("the production verifier validates an actual ES256 signature against the issuer JWKS key", async () => {
+  const { publicKey, privateKey } = await generateKeyPair("ES256");
+  const token = await new SignJWT({ role: "authenticated", scope: "openid profile email" })
+    .setProtectedHeader({ alg: "ES256", kid: "staging-key-1", typ: "JWT" })
+    .setIssuer(ISSUER)
+    .setSubject(USER_ID)
+    .setAudience([RESOURCE, ISSUER + "/oauth2/userinfo"])
+    .setIssuedAt(NOW - 10)
+    .setExpirationTime(NOW + 290)
+    .sign(privateKey);
+
+  const network = makeFetch();
+  const user = await resolveBetterAuthAdminIdentity(input({
+    accessToken: token,
+    fetchImpl: network.fetchImpl,
+    createJwksImpl: (url) => {
+      assert.equal(url.toString(), ISSUER + "/jwks");
+      return publicKey;
+    },
+  }));
+  assert.deepEqual(user, { id: USER_ID, email: "admin@example.test" });
+
+  const tampered = token.slice(0, -1) + (token.endsWith("A") ? "B" : "A");
+  const tamperedNetwork = makeFetch();
+  await assert.rejects(
+    resolveBetterAuthAdminIdentity(input({
+      accessToken: tampered,
+      fetchImpl: tamperedNetwork.fetchImpl,
+      createJwksImpl: () => publicKey,
+    })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_INVALID",
+  );
+  assert.equal(tamperedNetwork.calls.length, 0, "bad signatures must be rejected before UserInfo or Supabase");
 });
 
 test("UserInfo must match the verified subject and report verified email", async () => {
