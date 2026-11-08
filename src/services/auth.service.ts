@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import { getStagingBetterAuthClient, isBetterAuthFrontendEnabled } from '@/services/betterAuthApi.client';
+import { env } from '@/lib/env';
+import { getStagingBetterAuthClient, isBetterAuthFrontendEnabledForSupabase } from '@/services/betterAuthApi.client';
 import {
   broadcastBetterAuthSessionEvent,
   createBetterAuthSessionBridge,
@@ -46,7 +47,7 @@ function toApplicationSession(
 }
 
 export async function signIn(email: string, password: string) {
-  if (isBetterAuthFrontendEnabled()) {
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     const client = getStagingBetterAuthClient();
     await client.signInWithEmail(email.trim(), password);
     const session = await client.getSession();
@@ -65,7 +66,7 @@ export async function signInWithSocial(
   provider: 'google' | 'facebook' | 'twitter',
   callbackURL: string,
 ) {
-  if (!isBetterAuthFrontendEnabled()) {
+  if (!isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     throw new Error('BETTER_AUTH_SOCIAL_SIGNIN_DISABLED');
   }
   const result = await getStagingBetterAuthClient().signInWithSocial(provider, callbackURL);
@@ -87,7 +88,7 @@ export async function signUp(
     referral_id?: string;
   },
 ) {
-  if (isBetterAuthFrontendEnabled()) {
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     return getStagingBetterAuthClient().signUp({
       email,
       password,
@@ -112,7 +113,7 @@ export async function signUp(
 }
 
 export async function signOut() {
-  if (isBetterAuthFrontendEnabled()) {
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     await getStagingBetterAuthClient().signOut();
     publishAuthSessionEvent('SIGNED_OUT', null);
     broadcastBetterAuthSessionEvent('SIGNED_OUT');
@@ -124,7 +125,7 @@ export async function signOut() {
 }
 
 export async function getSession(): Promise<ApplicationAuthSession | null> {
-  if (isBetterAuthFrontendEnabled()) {
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     return toApplicationSession(await getStagingBetterAuthClient().getSession());
   }
 
@@ -136,7 +137,7 @@ export async function getSession(): Promise<ApplicationAuthSession | null> {
 export function onAuthStateChange(
   callback: ApplicationAuthListener,
 ): ApplicationAuthSubscription {
-  if (!isBetterAuthFrontendEnabled()) {
+  if (!isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     return supabase.auth.onAuthStateChange((event, session) => {
       callback(
         event as ApplicationAuthEvent,
@@ -174,7 +175,7 @@ export async function resetPassword(
   email: string,
   redirectTo = `${window.location.origin}/#/login`,
 ) {
-  if (isBetterAuthFrontendEnabled()) {
+  if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     await getStagingBetterAuthClient().requestPasswordReset(email, redirectTo);
     return;
   }
