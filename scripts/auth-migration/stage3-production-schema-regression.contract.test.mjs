@@ -6,7 +6,15 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const sql = readFileSync(path.join(here, "stage3-production-schema-regression.sql"), "utf8");
 
-assert.match(sql, /^BEGIN;\s*DO \$stage3_conflict_mode\$/m);
+assert.match(sql, /^\\set ON_ERROR_STOP on\n\nBEGIN;\n\nCREATE TEMP TABLE stage3_fixture_temp_anchor/m);
+assert.match(sql, /DO \$stage3_conflict_mode\$/);
+assert.match(sql, /CREATE FUNCTION pg_temp\.stage3_provision_user/);
+assert.match(sql, /public\.better_auth_provision_user\(/);
+assert.match(sql, /public\.better_auth_complete_email_verification\(/);
+assert.match(sql, /public\.better_auth_complete_phone_verification\(/);
+assert.doesNotMatch(sql, /INSERT INTO auth\.users|UPDATE auth\.users/i,
+  "the production-shaped regression must never create or update legacy Supabase Auth accounts");
+assert.match(sql, /STAGE3_RESTORE_MUST_START_WITH_ZERO_AUTH_AND_IDENTITY_ROWS/);
 assert.match(sql, /CREATE FUNCTION pg_temp\.stage3_provision_user/);
 assert.match(sql, /public\.better_auth_provision_user\(/);
 assert.match(sql, /public\.better_auth_complete_email_verification\(/);
