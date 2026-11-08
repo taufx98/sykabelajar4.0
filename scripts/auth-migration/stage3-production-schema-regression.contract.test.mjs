@@ -7,6 +7,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const sql = readFileSync(path.join(here, "stage3-production-schema-regression.sql"), "utf8");
 
 assert.match(sql, /^BEGIN;\s*DO \$stage3_conflict_mode\$/m);
+assert.match(sql, /CREATE FUNCTION pg_temp\.stage3_provision_user/);
+assert.match(sql, /public\.better_auth_provision_user\(/);
+assert.match(sql, /public\.better_auth_complete_email_verification\(/);
+assert.match(sql, /public\.better_auth_complete_phone_verification\(/);
+assert.doesNotMatch(sql, /INSERT INTO auth\.users|UPDATE auth\.users/i,
+  "new-account regression fixtures must use Better Auth RPCs and leave the legacy Auth account table untouched");
+assert.match(sql, /STAGE3_RESTORE_MUST_START_WITH_ZERO_AUTH_AND_IDENTITY_ROWS/);
+
 assert.match(sql,/current_setting\('plpgsql\.variable_conflict'\) IS DISTINCT FROM 'error'/);
 assert.match(sql,/STAGE3_PLPGSQL_VARIABLE_CONFLICT_MODE_MUST_MATCH_PRODUCTION/);
 assert.doesNotMatch(sql,/SET\s+LOCAL\s+plpgsql\.variable_conflict/i);
@@ -86,4 +94,4 @@ assert.match(sql,/STAGE3_RLS_ANON_PRODUCT_REVIEW_PUBLIC_READ_FAILED/);
 assert.match(sql,/v_certificate_id constant uuid/);
 assert.match(sql,/v_product_id constant uuid/);
 
-console.log("Stage 3 behavior regression contract passed: read-only PL/pgSQL production-mode guard, verified organizer gates, RLS role coverage, and rollback.");
+console.log("Stage 3 behavior regression contract passed: Better Auth-only provisioning and verification RPCs, zero legacy Auth account writes, verified organizer gates, RLS role coverage, and rollback.");
