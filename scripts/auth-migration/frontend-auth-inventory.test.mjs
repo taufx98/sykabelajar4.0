@@ -52,7 +52,7 @@ test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
   assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 36);
-  assert.equal(Object.keys(actual).length, 20);
+  assert.equal(Object.keys(actual).length, 19);
 });
 
 test("the inventory document remains present next to its tracked source baseline", () => {
