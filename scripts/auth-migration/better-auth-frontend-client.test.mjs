@@ -87,7 +87,7 @@ assert.match(profileSettingsPage, /isBetterAuthEnabled, updatePassword as update
 assert.match(profileSettingsPage, /updateAccountPassword\(password, requiresCurrentPassword \? currentPassword : undefined\)/);
 assert.match(profileSettingsPage, /autoComplete="current-password"/);
 assert.doesNotMatch(profileSettingsPage, /supabase\.auth/);
-assert.match(adminPage, /import \{ ZeptoMailSettingsPanel \} from '\/components\/admin\/ZeptoMailSettingsPanel'/);
+assert.match(adminPage, /import \{ ZeptoMailSettingsPanel \} from '@\/components\/admin\/ZeptoMailSettingsPanel'/);
 assert.match(adminPage, /tab === 'settings'[\s\S]*?<ZeptoMailSettingsPanel\s*\/>/);
 assert.match(zeptoMailPanel, /const EMPTY_DRAFT:[\s\S]*?provider: 'zeptomail'/);
 assert.match(zeptoMailPanel, /<option value="zeptomail">ZeptoMail · utama<\/option>/);
