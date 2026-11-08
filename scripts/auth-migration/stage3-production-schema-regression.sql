@@ -919,6 +919,17 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_PROFILE_CURRENCY_CLIENT_MUTATION_ALLOWED';
   END IF;
 
+  v_caught := false;
+  BEGIN
+    INSERT INTO pg_temp.stage3_profile_guard_probe(id, account_type, edu_coin, total_xp)
+    VALUES (2, 'student', 10, 0);
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_caught := true;
+  END;
+  IF NOT v_caught THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_CURRENCY_CLIENT_INSERT_ALLOWED';
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.user_roles
   WHERE user_id IN (
