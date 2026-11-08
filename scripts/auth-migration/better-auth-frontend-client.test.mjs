@@ -11,6 +11,7 @@ const authSessionBridge = readFileSync(new URL("../../src/services/auth.service.
 const supabaseClient = readFileSync(new URL("../../src/lib/supabase.ts", import.meta.url), "utf8");
 const sessionBridge = readFileSync(new URL("../../src/services/betterAuthSessionBridge.mjs", import.meta.url), "utf8");
 const cloudinaryService = readFileSync(new URL("../../src/services/cloudinary.service.ts", import.meta.url), "utf8");
+const profileSettingsPage = readFileSync(new URL("../../src/pages/ProfileInterfaceSettingsPage.tsx", import.meta.url), "utf8");
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
 
 assert.match(client, /credentials:\s*'include'/);
@@ -75,6 +76,14 @@ assert.match(authService, /signInWithPassword/);
 assert.match(authService, /const client = getStagingBetterAuthClient\(\);[\s\S]*?client\.signInWithEmail\(/);
 assert.match(authService, /isBetterAuthFrontendEnabledForSupabase\(env\.supabaseUrl\)/);
 assert.match(authService, /createBetterAuthSessionBridge/);
+assert.match(authService, /export function isBetterAuthEnabled\(\)/);
+assert.match(authService, /export async function updatePassword\(newPassword: string, currentPassword\?: string\)/);
+assert.match(authService, /changePassword\(currentPassword, newPassword, true\)/);
+assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
+assert.match(profileSettingsPage, /isBetterAuthEnabled, updatePassword as updateAccountPassword/);
+assert.match(profileSettingsPage, /updateAccountPassword\(password, requiresCurrentPassword \? currentPassword : undefined\)/);
+assert.match(profileSettingsPage, /autoComplete="current-password"/);
+assert.doesNotMatch(profileSettingsPage, /supabase\.auth/);
 assert.match(sessionBridge, /sykabelajar-better-auth-session/);
 assert.doesNotMatch(sessionBridge, /access_token|refresh_token/);
 assert.match(supabaseClient, /createSupabaseClientOptions/);
