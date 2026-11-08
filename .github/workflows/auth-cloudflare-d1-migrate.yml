@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/APPLY-STAGING-D1-0006"
+      - ".github/auth-ops/APPLY-STAGING-D1-0007"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -47,7 +47,7 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker="../../.github/auth-ops/APPLY-STAGING-D1-0006"
+            marker="../../.github/auth-ops/APPLY-STAGING-D1-0007"
             test -f "$marker" || {
               echo "Blocked: the one-time staging migration marker is missing." >&2
               exit 1
@@ -81,6 +81,12 @@ jobs:
             throw new Error("Migration 0006 content changed after review. Refusing remote D1 mutation.");
           }
 
+          const socialMigration = readFileSync("migrations/0007_managed_social_login_providers.sql");
+          const socialMigrationSha256 = createHash("sha256").update(socialMigration).digest("hex");
+          if (socialMigrationSha256 !== "b794cd2b217158ec2f5d540a646d0655c7504258b0bd49eda9131d5585233df7") {
+            throw new Error("Migration 0007 content changed after review. Refusing remote D1 mutation.");
+          }
+
           const config = readFileSync("wrangler.toml", "utf8");
           const requiredConfig = [
             /^name = "sykabelajar-auth-poc"$/m,
@@ -100,6 +106,7 @@ jobs:
             "0004_better_auth_registration_attributes.sql",
             "0005_telegram_phone_verification.sql",
             "0006_transactional_email_provider.sql",
+            "0007_managed_social_login_providers.sql",
           ].sort();
           const actual = readdirSync("migrations")
             .filter((name) => name.endsWith(".sql"))
@@ -108,7 +115,7 @@ jobs:
             throw new Error("The D1 migration set changed. Review and update this guarded workflow before running it.");
           }
 
-          console.log("Repository guard passed: one fixed staging database and seven reviewed migration files (0000–0006).");
+          console.log("Repository guard passed: one fixed staging database and eight reviewed migration files (0000–0007).");
           NODE
 
       - name: Install the pinned Wrangler toolchain
@@ -181,7 +188,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler d1 migrations list sykabelajar-auth-poc --remote
 
-      - name: Apply pending reviewed migrations 0000–0006 to the dedicated remote D1
+      - name: Apply pending reviewed migrations 0000–0007 to the dedicated remote D1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -195,7 +202,7 @@ jobs:
           set -euo pipefail
           npx wrangler d1 migrations list sykabelajar-auth-poc --remote
 
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges') ORDER BY name;" > "$RUNNER_TEMP/auth-d1-tables.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/auth-d1-tables.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -239,6 +246,8 @@ jobs:
             "user",
             "verification",
             "auth_phone_verification_challenges",
+            "auth_social_provider_meta",
+            "auth_social_provider_settings",
           ];
           const missing = expected.filter((name) => !names.has(name));
           if (missing.length) {
@@ -283,5 +292,24 @@ jobs:
           console.log("Verified provider-aware transactional email schema; existing rows retain the ZeptoMail default.");
           NODE
 
-          echo "Verified 18 expected staging tables, registration columns, and provider-aware email schema. No application rows or user accounts were seeded."
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('auth_social_provider_settings') WHERE name IN ('provider','client_id','client_secret_ciphertext','enabled','created_by','updated_by');" > "$RUNNER_TEMP/auth-d1-social-provider-columns.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-d1-social-provider-columns.json", "utf8"));
+          const columns = new Set();
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") columns.add(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const expected = ["provider", "client_id", "client_secret_ciphertext", "enabled", "created_by", "updated_by"];
+          const missing = expected.filter((name) => !columns.has(name));
+          if (missing.length) throw new Error("Managed social provider schema is incomplete: " + missing.join(", "));
+          console.log("Verified the encrypted managed social-provider settings columns.");
+          NODE
+
+          echo "Verified 20 expected staging tables, registration columns, provider-aware email schema and managed social-login settings. No application rows or user accounts were seeded."
           echo "This workflow did not deploy a Worker, set secrets, configure DNS, or attach a custom domain."
