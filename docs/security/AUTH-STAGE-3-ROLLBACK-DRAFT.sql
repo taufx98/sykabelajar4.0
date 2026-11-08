@@ -128,9 +128,7 @@ BEGIN
       AND pol.polcmd = '*'
       AND pol.polroles = ARRAY['authenticated'::regrole::oid]
       AND COALESCE(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-      AND COALESCE(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
       AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-      AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
     ORDER BY ns.nspname, tbl.relname
   LOOP
     EXECUTE pg_catalog.format(
