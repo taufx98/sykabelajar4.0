@@ -1,13 +1,12 @@
-import { supabase } from '@/lib/supabase';
+import { getSession as getAuthSession } from '@/services/auth.service';
 import { getAuthSessionSnapshot } from '@/services/authSessionEvents.mjs';
 import { createApplicationIdentityReader } from '@/services/applicationIdentityReader.mjs';
 
 const readApplicationIdentity = createApplicationIdentityReader({
   getSnapshot: getAuthSessionSnapshot,
   getFallbackUserId: async () => {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    return data.session?.user?.id ?? null;
+    const session = await getAuthSession();
+    return session?.user?.id ?? null;
   },
 });
 
