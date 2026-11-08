@@ -8,6 +8,11 @@ import {
 } from "./security.mjs";
 import { createD1QuotaResponse } from "./d1-quota.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
+import {
+  getPublicSocialLoginProviders,
+  handleLoginProviderAdminRequest,
+  readSocialProviderConfiguration,
+} from "./social-provider-settings";
 import { isSupabaseProvisioningEnabled, completeSupabasePhoneVerification } from "./supabase-provisioning.mjs";
 import {
   createTelegramPhoneChallenge,
@@ -19,15 +24,31 @@ import {
   verifyTelegramPhoneIdToken,
 } from "./telegram-phone-verification.mjs";
 
-const authInstances = new WeakMap<object, ReturnType<typeof createAuth>>();
+type CachedAuthInstance = {
+  revision: number;
+  managedMode: boolean;
+  auth: ReturnType<typeof createAuth>;
+};
+const authInstances = new WeakMap<object, CachedAuthInstance>();
 
-function getAuth(env: AuthWorkerEnv) {
+async function getAuth(env: AuthWorkerEnv) {
   const key = env.DB as object;
+  const config = await readSocialProviderConfiguration(env);
   const existing = authInstances.get(key);
-  if (existing) return existing;
+  if (
+    existing &&
+    existing.revision === config.revision &&
+    existing.managedMode === config.managedMode
+  ) {
+    return existing.auth;
+  }
 
-  const auth = createAuth(env);
-  authInstances.set(key, auth);
+  const auth = createAuth(env, config);
+  authInstances.set(key, {
+    revision: config.revision,
+    managedMode: config.managedMode,
+    auth,
+  });
   return auth;
 }
 
@@ -76,7 +97,8 @@ async function generateD1Schema(request: Request, env: AuthWorkerEnv): Promise<R
   try {
     // Cloudflare D1 bindings are request-scoped. Running Better Auth's
     // supported migrator here avoids trying to initialize D1 from Node CLI.
-    const migrations = await getMigrations(getAuth(env).options);
+    const auth = await getAuth(env);
+    const migrations = await getMigrations(auth.options);
     await migrations.runMigrations();
 
     const schema = await env.DB
@@ -254,7 +276,8 @@ async function startTelegramPhoneVerification(
   }
 
   try {
-    const session = await getAuth(env).api.getSession({ headers: request.headers });
+    const auth = await getAuth(env);
+    const session = await auth.api.getSession({ headers: request.headers });
     const userId = session?.user?.id;
     if (typeof userId !== "string" || !userId) {
       return applyResponseHeaders(json({ error: "AUTHENTICATION_REQUIRED" }, 401), corsHeaders);
@@ -407,12 +430,34 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/admin/login-providers") {
+      try {
+        const response = await handleLoginProviderAdminRequest(request, env);
+        return applyResponseHeaders(response, corsHeaders);
+      } catch {
+        return applyResponseHeaders(json({ ok: false, error: "SOCIAL_PROVIDER_SETTINGS_UNAVAILABLE" }, 503), corsHeaders);
+      }
+    }
+
+    if (url.pathname === "/api/auth/providers") {
+      if (request.method !== "GET") {
+        return applyResponseHeaders(json({ ok: false, error: "METHOD_NOT_ALLOWED" }, 405), corsHeaders);
+      }
+      try {
+        const response = await getPublicSocialLoginProviders(env);
+        return applyResponseHeaders(response, corsHeaders);
+      } catch {
+        return applyResponseHeaders(json({ ok: false, error: "SOCIAL_PROVIDER_LIST_UNAVAILABLE" }, 503), corsHeaders);
+      }
+    }
+
     if (!url.pathname.startsWith("/api/auth/") && url.pathname !== "/api/auth") {
       return applyResponseHeaders(json({ error: "NOT_FOUND" }, 404), corsHeaders);
     }
 
     try {
-      const response = await getAuth(env).handler(request);
+      const auth = await getAuth(env);
+      const response = await auth.handler(request);
       return applyResponseHeaders(response, corsHeaders);
     } catch (error) {
       const quotaResponse = createD1QuotaResponse(error);
