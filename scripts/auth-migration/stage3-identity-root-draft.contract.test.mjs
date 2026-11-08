@@ -91,19 +91,27 @@ assert.match(draft, /APPLICATION_PROFILE_NOT_READY/);
 assert.match(draft, /IF v_profile_rows > 0 THEN[\s\S]{0,260}existing_role\.user_id = p_user_id/i);
 assert.doesNotMatch(draft, /ON CONFLICT \(user_id, role\) DO UPDATE SET is_active = true/i);
 
-// Privileged provisioning/verification is server-only.
+// Private SECURITY DEFINER helpers are never directly executable by the Worker.
 for (const name of [
   "private.provision_better_auth_user",
   "private.complete_better_auth_email_verification",
   "private.complete_better_auth_phone_verification",
+]) {
+  assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\\\.") + "[\\\\s\\\\S]{0,200}FROM PUBLIC, anon, authenticated, service_role", "i"),
+    "private helper must be inaccessible to service_role: " + name);
+  assert.doesNotMatch(draft, new RegExp("GRANT EXECUTE ON FUNCTION " + name.replaceAll(".", "\\\\.")),
+    "service_role must not execute private helper directly: " + name);
+}
+// Only public SECURITY DEFINER wrappers are the Worker RPC surface.
+for (const name of [
   "public.better_auth_provision_user",
   "public.better_auth_complete_email_verification",
   "public.better_auth_complete_phone_verification",
 ]) {
-  assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\.") , "i"),
-    "missing public revoke for " + name);
-  assert.match(draft, new RegExp("GRANT EXECUTE ON FUNCTION " + name.replaceAll(".", "\\.") + "[\\s\\S]{0,240}TO service_role", "i"),
-    "missing service_role grant for " + name);
+  assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\\\."), "i"),
+    "missing PUBLIC revoke for " + name);
+  assert.match(draft, new RegExp("GRANT EXECUTE ON FUNCTION " + name.replaceAll(".", "\\\\.") + "[\\\\s\\\\S]{0,240}TO service_role", "i"),
+    "missing public RPC service_role grant for " + name);
 }
 
 assert.match(draft, /69-FK plan/i);
