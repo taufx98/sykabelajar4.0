@@ -19,7 +19,7 @@ assert.doesNotMatch(draft, /GRANT ALL ON TABLE private\.app_users TO service_rol
 const functionNames = [...draft.matchAll(/CREATE OR REPLACE FUNCTION\s+([a-z_0-9]+\.[a-z_0-9]+)/gi)]
   .map((match) => match[1].toLowerCase());
 const uniqueFunctionNames = new Set(functionNames);
-assert.equal(functionNames.length, 16, "identity draft must contain the reviewed 16 function definitions");
+assert.equal(functionNames.length, 15, "identity draft must contain the reviewed 15 function definitions");
 assert.equal(uniqueFunctionNames.size, functionNames.length, "identity draft must not duplicate function definitions");
 assert.equal(
   (draft.split("$function$;").length - 1) + (draft.split("$$;").length - 1),
@@ -27,7 +27,6 @@ assert.equal(
   "every SQL function definition must be terminated before the next statement",
 );
 for (const name of [
-  "private.sync_legacy_auth_user_identity_projection",
   "private.apply_referral_qualification",
   "private.capture_signup_referral",
   "private.process_referral_email_confirmation",
@@ -47,18 +46,25 @@ for (const name of [
   assert.equal(functionNames.filter((entry) => entry === name).length, 1,
     "function must be defined exactly once: " + name);
 }
-// Only legacy Auth backfill reads the Auth table as a relation. Runtime
-// function lookups must use the common identity root, not auth.users.
-assert.equal((draft.match(/FROM auth\.users au/g) ?? []).length, 1);
-assert.match(draft, /FROM auth\.users au\s+ON CONFLICT \(id\) DO NOTHING/);
-assert.match(draft, /extensions\.digest\([\s\S]{0,240}'sha256'/);
-assert.match(draft, /CREATE TRIGGER a_sync_app_users_identity_insert[\s\S]*AFTER INSERT ON auth\.users/);
-assert.match(draft, /CREATE TRIGGER a_sync_app_users_identity_update[\s\S]*AFTER UPDATE OF email_confirmed_at, phone_confirmed_at, phone ON auth\.users/);
-assert.ok(
-  draft.includes("The a_sync name ensures") &&
-  draft.includes("identity row exists before on_auth_user_created"),
-  "the legacy identity sync trigger must be ordered before profile/referral Auth triggers",
+// Existing accounts are deliberately not copied into the Better Auth identity
+// root. Only the separate FK planner may preserve application UUID references
+// as non-authenticatable legacy_reference tombstones.
+assert.doesNotMatch(draft, /FROM auth\.users|INSERT INTO auth\.users|sync_legacy_auth_user_identity_projection/i);
+assert.match(draft, /identity_origin text NOT NULL DEFAULT 'better_auth'/);
+assert.match(draft, /identity_origin IN \('better_auth', 'legacy_reference'\)/);
+assert.match(draft, /DROP TRIGGER IF EXISTS on_auth_user_created ON auth\.users/);
+assert.match(draft, /DROP TRIGGER IF EXISTS trg_referral_signup_attribution ON auth\.users/);
+assert.match(draft, /DROP TRIGGER IF EXISTS trg_referral_email_confirmed ON auth\.users/);
+assert.match(draft, /REVOKE ALL ON FUNCTION public\.handle_new_auth_user\(\)[\s\S]{0,160}FROM PUBLIC, anon, authenticated, service_role/);
+assert.match(draft, /REVOKE ALL ON FUNCTION private\.capture_signup_referral\(\)/);
+assert.match(draft, /REVOKE ALL ON FUNCTION private\.process_referral_email_confirmation\(\)/);
+const fkPlanner = readFileSync(
+  path.join(here, "./generate-app-users-fk-plan.mjs"),
+  "utf8",
 );
+assert.match(fkPlanner, /00-identity-tombstones\.sql/);
+assert.match(fkPlanner, /identity_origin/);
+assert.match(fkPlanner, /never reads auth\.users/i);
 
 // All Auth-dependent application reads must resolve through private.app_users.
 for (const name of [
@@ -145,4 +151,4 @@ assert.match(workflow, /--file=\/baseline\/auth-stage3-identity-root-draft[.]sql
 assert.match(workflow, /--file="\/plan\/\$phase"/);
 assert.match(workflow, /ROLLBACK/);
 
-console.log("Stage 3 identity-root draft contract passed.");
+console.log("Stage 3 identity-root contract passed: no legacy account backfill, UUID-only tombstones, Better Auth-only signup/verification lifecycle.");
