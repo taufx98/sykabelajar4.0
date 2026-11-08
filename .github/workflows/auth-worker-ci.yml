@@ -27,6 +27,8 @@ on:
       - "src/services/betterAuthSessionBridge.d.mts"
       - "src/pages/AdminErrorIntelligencePage.tsx"
       - "src/pages/RegisterPage.tsx"
+      - "src/pages/LoginPage.tsx"
+      - "src/pages/ResetPasswordPage.tsx"
       - "scripts/auth-migration/better-auth-session-bridge.test.mjs"
       - "src/lib/supabase.ts"
       - "src/services/supabaseClientOptions.mjs"
