@@ -56,6 +56,15 @@ export interface BetterAuthSocialSignInResult {
   redirect?: boolean;
 }
 
+export interface BetterAuthPhoneVerificationStatus {
+  verified: boolean;
+}
+
+export interface BetterAuthTelegramPhoneChallenge {
+  authorizationUrl: string;
+  expiresAt: string;
+}
+
 export interface BetterAuthLoginProviderSetting {
   provider: BetterAuthSocialProvider;
   primary: boolean;
@@ -108,6 +117,8 @@ export interface BetterAuthApiClient {
   requestPasswordReset(email: string, redirectTo: string): Promise<void>;
   resetPassword(token: string, newPassword: string): Promise<void>;
   changePassword(currentPassword: string, newPassword: string, revokeOtherSessions?: boolean): Promise<void>;
+  getTelegramPhoneVerificationStatus(): Promise<BetterAuthPhoneVerificationStatus>;
+  startTelegramPhoneVerification(): Promise<BetterAuthTelegramPhoneChallenge>;
   signOut(): Promise<void>;
 }
 
@@ -354,6 +365,7 @@ export function createBetterAuthApiClient(options: {
   fetchImpl?: FetchLike;
 }): BetterAuthApiClient {
   const baseUrl = resolveAuthBaseUrl(options.authWorkerUrl);
+  const workerOrigin = baseUrl.replace(/\\/api\\/auth$/, '');
   const fetchImpl = options.fetchImpl ?? fetch;
   let cachedResourceToken: ValidatedResourceToken | null = null;
   let resourceTokenGeneration = 0;
@@ -487,6 +499,33 @@ export function createBetterAuthApiClient(options: {
     return payload as T;
   }
 
+  async function requestWorker<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetchImpl(workerOrigin + path, {
+        method,
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          accept: 'application/json',
+          ...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
+        },
+        ...(method === 'POST' ? { body: '{}' } : {}),
+      });
+    } catch {
+      throw new BetterAuthClientError(503, 'AUTH_WORKER_UNAVAILABLE');
+    }
+
+    let payload: unknown = null;
+    try {
+      payload = await response.json();
+    } catch {
+      if (response.ok) throw new BetterAuthClientError(502, 'AUTH_WORKER_BAD_RESPONSE');
+    }
+    if (!response.ok) throw new BetterAuthClientError(response.status, safeErrorCode(payload));
+    return payload as T;
+  }
+
   async function requestAdmin<T>(body?: JsonRecord): Promise<T> {
     const session = await request<unknown>('/get-session');
     if (!isBetterAuthSessionEnvelope(session) || session.user.emailVerified !== true) {
@@ -526,6 +565,43 @@ export function createBetterAuthApiClient(options: {
   }
 
   return {
+    async getTelegramPhoneVerificationStatus() {
+      const payload = await requestWorker<unknown>('/api/phone-verification/telegram/status');
+      if (!isRecord(payload) || typeof payload.verified !== 'boolean') {
+        throw new BetterAuthClientError(502, 'PHONE_VERIFICATION_STATUS_RESPONSE_INVALID');
+      }
+      return { verified: payload.verified };
+    },
+
+    async startTelegramPhoneVerification() {
+      const payload = await requestWorker<unknown>('/api/phone-verification/telegram/start', 'POST');
+      if (
+        !isRecord(payload) ||
+        typeof payload.authorization_url !== 'string' ||
+        typeof payload.expires_at !== 'string'
+      ) {
+        throw new BetterAuthClientError(502, 'PHONE_VERIFICATION_CHALLENGE_RESPONSE_INVALID');
+      }
+      let authorizationUrl: URL;
+      try {
+        authorizationUrl = new URL(payload.authorization_url);
+      } catch {
+        throw new BetterAuthClientError(502, 'PHONE_VERIFICATION_URL_INVALID');
+      }
+      const expiresAt = Date.parse(payload.expires_at);
+      if (
+        authorizationUrl.protocol !== 'https:' ||
+        authorizationUrl.origin !== 'https://oauth.telegram.org' ||
+        authorizationUrl.pathname !== '/auth' ||
+        !Number.isFinite(expiresAt) ||
+        expiresAt <= Date.now() ||
+        expiresAt > Date.now() + 11 * 60 * 1000
+      ) {
+        throw new BetterAuthClientError(502, 'PHONE_VERIFICATION_CHALLENGE_INVALID');
+      }
+      return { authorizationUrl: authorizationUrl.toString(), expiresAt: new Date(expiresAt).toISOString() };
+    },
+
     async getSession() {
       const payload = await request<unknown>('/get-session');
       if (payload === null) {
