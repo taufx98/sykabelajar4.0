@@ -95,6 +95,10 @@ A trusted no-cost candidate is now implemented in the Better Auth Worker using T
 
 Only the digits-only SHA-256 identity hash, Telegram provider subject and trusted timestamp are projected to Supabase through the service-role-only RPC. Raw phone data and Telegram tokens are not persisted. The isolated SQL fixture preserves verified-email, active `organizer_member`, and one-FREE-organizer-per-phone rules and rejects client-forged verification. The design and synthetic SQL/Worker test gate are complete. Remote D1 migration 0005 is applied and the Telegram-capable Worker is deployed on isolated staging. The operational gate remains: BotFather app registration/callback allowlisting, Cloudflare Telegram Client ID/Secret, and a real hosted consent/callback acceptance test. Keep the feature disabled until those owner-controlled gates pass. Never substitute profile WhatsApp data, a browser-supplied phone/hash, or email-only verification.
 
+### Operational preconditions for a pre-cutover rollback
+
+First pause Better Auth registration/provisioning (Worker-side `SUPABASE_PROVISIONING_ENABLED=false`) and switch the app back to Supabase Auth only if no Better Auth-only identity exists. Preserve the Worker, D1 and key material. If Custom OIDC for `https://auth.sykabelajar.my.id/api/auth` was installed in production Supabase, remove that exact provider via Dashboard/Management API before deleting its restrictive SQL issuer policies; the provider configuration is not controlled by SQL.
+
 ### Reverse FK safety and point of no return
 
 The review-only reverse generator is `scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs`. It reverses only the 69 FK targets and requires every UUID in `private.app_users` to still exist in `auth.users`. The same guard is repeated inside the one atomic cutover transaction to catch any Better Auth-only identity created after preflight. It does not create shadow Auth accounts and does not restore the identity functions, legacy-sync triggers or issuer guards.
