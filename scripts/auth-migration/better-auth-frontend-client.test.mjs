@@ -42,7 +42,9 @@ assert.match(client, /\/request-password-reset/);
 assert.match(client, /\/reset-password/);
 assert.match(client, /\/change-password/);
 assert.match(client, /\/sign-out/);
-assert.match(client, /VITE_BETTER_AUTH_FRONTEND_ENABLED === 'true'/);
+assert.match(client, /VITE_BETTER_AUTH_FRONTEND_ENABLED !== 'true'/);
+assert.match(client, /hostname\.endsWith\('\.pages\.dev'\)/);
+assert.match(client, /worker\.hostname === 'auth\.sykabelajar\.my\.id'/);
 assert.match(viteEnv, /VITE_AUTH_WORKER_URL\?: string/);
 assert.match(viteEnv, /VITE_BETTER_AUTH_FRONTEND_ENABLED\?: string/);
 
