@@ -352,9 +352,7 @@ async function saveProvider(
   const enabled = typeof body.enabled === "boolean"
     ? body.enabled
     : existing ? existing.enabled === 1 : provider === "google";
-  const emailVerificationConfigured = provider === "facebook"
-    ? await isAuthEmailVerificationConfigured(env)
-    : true;
+  const emailVerificationConfigured = await isAuthEmailVerificationConfigured(env);
   if (enabled && provider === "facebook" && !emailVerificationConfigured) {
     return json({ ok: false, error: "SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED" }, 409);
   }
@@ -416,7 +414,8 @@ async function setProviderEnabled(
   if (body.enabled && (!env.AUTH_PROVIDER_ENCRYPTION_KEY || env.AUTH_PROVIDER_ENCRYPTION_KEY.length < 32)) {
     return json({ ok: false, error: "SOCIAL_PROVIDER_ENCRYPTION_NOT_CONFIGURED" }, 503);
   }
-  if (body.enabled && provider === "facebook" && !(await isAuthEmailVerificationConfigured(env))) {
+  const emailVerificationConfigured = await isAuthEmailVerificationConfigured(env);
+  if (body.enabled && provider === "facebook" && !emailVerificationConfigured) {
     return json({ ok: false, error: "SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED" }, 409);
   }
   if (body.enabled) {
