@@ -128,6 +128,9 @@ assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword 
 assert.match(resetPasswordPage, /new URLSearchParams\(window\.location\.search\)\.get\('token'\)/);
 assert.match(resetPasswordPage, /searchParams\.delete\('token'\)/);
 assert.match(resetPasswordPage, /completePasswordReset\(token, password\)/);
+assert.match(resetPasswordPage, /Setelah berhasil, masuk kembali menggunakan password baru\./);
+assert.doesNotMatch(resetPasswordPage, /semua sesi lama akan dicabut/i);
+
 assert.match(resetPasswordPage, /password\.length < 8/);
 assert.match(app, /path="\/reset-password"/);
 
