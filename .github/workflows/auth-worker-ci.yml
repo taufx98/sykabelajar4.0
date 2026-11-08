@@ -100,6 +100,9 @@ jobs:
       - name: Verify frontend Supabase Auth dependency inventory
         run: node ../../scripts/auth-migration/frontend-auth-inventory.test.mjs
 
+      - name: Verify Better Auth frontend and organizer verification contracts
+        run: node ../../scripts/auth-migration/better-auth-frontend-client.test.mjs
+
       - name: Verify shared Supabase client auth-token source
         run: node ../../scripts/auth-migration/supabase-client-options.test.mjs
 
