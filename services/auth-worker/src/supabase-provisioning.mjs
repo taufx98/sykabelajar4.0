@@ -338,3 +338,29 @@ export async function completeSupabasePhoneVerification(env, input, fetchImpl = 
   }
   return { enabled: true, userId, alreadyVerified: result === false };
 }
+
+/**
+ * Return only the current user's verified-phone boolean. The UUID is supplied
+ * by the Worker from its authenticated Better Auth session, never by the
+ * browser. The underlying Postgres wrapper is executable by service_role only.
+ *
+ * @param {AuthWorkerEnv} env
+ * @param {string} userId
+ * @param {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} [fetchImpl]
+ */
+export async function getSupabasePhoneVerificationStatus(env, userId, fetchImpl = fetch) {
+  const normalizedUserId = typeof userId === "string" ? userId.trim() : "";
+  if (!UUID_PATTERN.test(normalizedUserId)) {
+    throw new Error("BETTER_AUTH_USER_ID_INVALID");
+  }
+
+  const result = await invokeRpc(env, "better_auth_get_phone_verification_status", {
+    p_user_id: normalizedUserId,
+  }, fetchImpl);
+
+  if (typeof result !== "boolean") {
+    throw new Error("PHONE_VERIFICATION_STATUS_RESPONSE_INVALID");
+  }
+
+  return { enabled: true, userId: normalizedUserId, verified: result };
+}
