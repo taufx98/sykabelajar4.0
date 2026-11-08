@@ -13,7 +13,7 @@ import {
   handleLoginProviderAdminRequest,
   readSocialProviderConfiguration,
 } from "./social-provider-settings";
-import { isSupabaseProvisioningEnabled, completeSupabasePhoneVerification } from "./supabase-provisioning.mjs";
+import { isSupabaseProvisioningEnabled, completeSupabasePhoneVerification, getSupabasePhoneVerificationStatus } from "./supabase-provisioning.mjs";
 import {
   createTelegramPhoneChallenge,
   consumeTelegramPhoneChallenge,
@@ -257,7 +257,7 @@ function phoneVerificationRedirect(env: AuthWorkerEnv, status: "success" | "fail
     if (app.protocol !== "https:" || app.origin !== env.APP_ORIGIN.replace(/\/$/, "")) {
       throw new Error("APP_ORIGIN_INVALID");
     }
-    location = new URL("/profile", app.origin);
+    location = new URL("/organizer", app.origin);
   } catch {
     return json({ error: "PHONE_VERIFICATION_REDIRECT_UNAVAILABLE" }, 503);
   }
@@ -313,6 +313,42 @@ async function startTelegramPhoneVerification(
         ? code
         : "PHONE_VERIFICATION_START_FAILED",
     }, 503), corsHeaders);
+  }
+}
+
+
+async function getTelegramPhoneVerificationStatus(
+  request: Request,
+  env: AuthWorkerEnv,
+  corsHeaders: Headers | null,
+): Promise<Response> {
+  if (request.method !== "GET") {
+    return applyResponseHeaders(json({ error: "METHOD_NOT_ALLOWED" }, 405), corsHeaders);
+  }
+  if (!corsHeaders) {
+    return json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  }
+  if (!isSupabaseProvisioningEnabled(env)) {
+    return applyResponseHeaders(json({ error: "PHONE_VERIFICATION_STATUS_UNAVAILABLE" }, 503), corsHeaders);
+  }
+
+  try {
+    const auth = await getAuth(env);
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
+    if (typeof userId !== "string" || !userId) {
+      return applyResponseHeaders(json({ error: "AUTHENTICATION_REQUIRED" }, 401), corsHeaders);
+    }
+    const status = await getSupabasePhoneVerificationStatus(env, userId);
+    return applyResponseHeaders(json({ verified: status.verified }), corsHeaders);
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "";
+    const status = code === "SUPABASE_PROVISIONING_RPC_NOT_INSTALLED" ? 503 : 503;
+    return applyResponseHeaders(json({
+      error: code === "SUPABASE_PROVISIONING_RPC_NOT_INSTALLED"
+        ? "PHONE_VERIFICATION_STATUS_NOT_READY"
+        : "PHONE_VERIFICATION_STATUS_UNAVAILABLE",
+    }, status), corsHeaders);
   }
 }
 
@@ -423,6 +459,10 @@ export default {
 
     if (url.pathname === "/_internal/bootstrap-first-party-client") {
       return applyResponseHeaders(await bootstrapFirstPartyClient(request, env), null);
+    }
+
+    if (url.pathname === "/api/phone-verification/telegram/status") {
+      return getTelegramPhoneVerificationStatus(request, env, corsHeaders);
     }
 
     if (url.pathname === "/api/phone-verification/telegram/start") {
