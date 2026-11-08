@@ -81,8 +81,9 @@ jobs:
       - name: Verify Cloudinary asset ownership boundaries
         run: node ../../../scripts/auth-migration/cloudinary-ownership.test.mjs
 
-      - name: Verify frontend Supabase Auth dependency inventory
-        run: node ../../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+      - name: Verify frontend auth inventory and shared session event source
+        run: |
+          node ../../../scripts/auth-migration/frontend-auth-inventory.test.mjs
           node ../../../scripts/auth-migration/auth-session-events.test.mjs
 
       - name: Verify disabled Better Auth frontend transport boundary
