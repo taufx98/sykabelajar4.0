@@ -163,6 +163,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         const sessionUser = data.session?.user;
+        publishAuthSessionEvent('INITIAL_SESSION', sessionUser?.id ?? null);
         if (sessionUser) {
           const email = sessionUser.email ?? '';
           setAuthUser({ id: sessionUser.id, email: email || undefined });
