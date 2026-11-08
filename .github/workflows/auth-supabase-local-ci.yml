@@ -7,6 +7,13 @@ on:
     paths:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
+      - "src/App.tsx"
+      - "src/store/AppContext.tsx"
+      - "src/lib/cacheAuthLifecycle.ts"
+      - "src/services/organizerAuth.service.ts"
+      - "src/services/authSessionEvents.mjs"
+      - "src/services/authSessionEvents.d.mts"
+      - "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md"
       - "supabase/functions/_shared/**"
       - "supabase/functions/get-cloudinary-signature/**"
       - "supabase/functions/cloudinary-delete-asset/**"
@@ -76,6 +83,7 @@ jobs:
 
       - name: Verify frontend Supabase Auth dependency inventory
         run: node ../../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+          node ../../../scripts/auth-migration/auth-session-events.test.mjs
 
       - name: Verify disabled Better Auth frontend transport boundary
         run: node ../../../scripts/auth-migration/better-auth-frontend-client.test.mjs
