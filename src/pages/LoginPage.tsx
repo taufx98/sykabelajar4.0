@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { GraduationCap, Mail, Lock, ArrowRight, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
-import { isBetterAuthEnabled, resetPassword, signInWithSocial } from '@/services/auth.service';
+import { isBetterAuthEnabled, resetPassword, sendVerificationEmail, signInWithSocial } from '@/services/auth.service';
 import { getStagingBetterAuthClient, type BetterAuthSocialProvider } from '@/services/betterAuthApi.client';
 import { useLanguage } from '@/lib/LanguageContext';
 
@@ -22,6 +22,8 @@ export function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [showForgot, setShowForgot] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+  const [verificationLoading, setVerificationLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [socialProviders, setSocialProviders] = useState<BetterAuthSocialProvider[]>([]);
   const [socialLoading, setSocialLoading] = useState<BetterAuthSocialProvider | null>(null);
@@ -41,7 +43,16 @@ export function LoginPage() {
     setLoading(true);
     try {
       const result = await login(email, password);
-      if (!result.ok) { toast(result.error || 'Login gagal', 'error'); return; }
+      if (!result.ok) {
+        if (/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(result.error ?? '')) {
+          setNeedsEmailVerification(true);
+          toast(text('Verifikasi email terlebih dahulu. Kami dapat mengirim ulang tautan verifikasi.','Verify your email first. You can request another verification link.'), 'info');
+          return;
+        }
+        toast(result.error || 'Login gagal', 'error');
+        return;
+      }
+      setNeedsEmailVerification(false);
       toast(text('Selamat datang kembali!','Welcome back!'), 'success');
       navigate(redirectTo, { replace: true });
     } finally {
@@ -55,6 +66,9 @@ export function LoginPage() {
       const callbackURL = new URL(redirectTo, window.location.origin).toString();
       await signInWithSocial(provider, callbackURL);
     } catch (error: any) {
+      if (/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(error?.message ?? '')) {
+        setNeedsEmailVerification(true);
+      }
       toast(error?.message ?? text('Login sosial gagal. Coba lagi.','Social sign-in failed. Please try again.'), 'error');
       setSocialLoading(null);
     }
@@ -64,6 +78,29 @@ export function LoginPage() {
     google: 'Google / Gmail',
     facebook: 'Facebook',
     twitter: 'X / Twitter',
+  };
+
+  const handleResendVerification = async () => {
+    if (!email.trim()) {
+      toast(text('Masukkan email akun terlebih dahulu.','Enter your account email first.'), 'error');
+      return;
+    }
+    setVerificationLoading(true);
+    try {
+      await sendVerificationEmail(email.trim());
+      toast(text(
+        'Jika email tersebut memiliki akun yang belum diverifikasi, tautan verifikasi akan dikirim.',
+        'If that address has an unverified account, a verification link will be sent.',
+      ), 'success');
+    } catch {
+      // Keep the response indistinguishable for unknown, verified and rate-limited addresses.
+      toast(text(
+        'Jika email tersebut memiliki akun yang belum diverifikasi, tautan verifikasi akan dikirim.',
+        'If that address has an unverified account, a verification link will be sent.',
+      ), 'success');
+    } finally {
+      setVerificationLoading(false);
+    }
   };
 
   const handleReset = async () => {
@@ -121,9 +158,14 @@ export function LoginPage() {
               <ArrowRight size={16} className="text-slate-500" />
             </Link>
             <div className="space-y-4">
-              <div><label className="label">Email</label><div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type="email" className="input pl-9" placeholder={text("nama@email.com","name@email.com")} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></div></div>
+              <div><label className="label">Email</label><div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type="email" className="input pl-9" placeholder={text("nama@email.com","name@email.com")} value={email} onChange={(e) => { setEmail(e.target.value); setNeedsEmailVerification(false); }} autoComplete="email" /></div></div>
               <div><label className="label">Password</label><div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type={showPassword ? "text" : "password"} className="input pl-9 pr-10" placeholder={text("Password","Password")} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void handleLogin()} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
             </div>
+            {needsEmailVerification && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+              <p className="text-sm font-medium text-fg">{text('Email belum terverifikasi','Email not verified')}</p>
+              <p className="mt-1 text-xs text-slate-500">{text('Periksa kotak masuk dan folder spam. Kamu dapat meminta tautan verifikasi dikirim kembali.','Check your inbox and spam folder. You can request another verification link.')}</p>
+              <Button fullWidth size="sm" variant="outline" className="mt-3" loading={verificationLoading} disabled={verificationLoading || !email.trim()} onClick={() => void handleResendVerification()}>{text('Kirim ulang tautan verifikasi','Resend verification link')}</Button>
+            </div>}
             <div className="flex justify-end mt-3"><button onClick={() => { setForgotEmail(email); setShowForgot(true); }} className="text-xs text-accent hover:underline">{text('Lupa password?','Forgot password?')}</button></div>
             <Button fullWidth size="lg" className="mt-6" loading={loading} onClick={() => void handleLogin()} icon={<ArrowRight size={18} />}>Masuk</Button>
           </div>
