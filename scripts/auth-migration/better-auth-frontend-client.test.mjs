@@ -72,7 +72,7 @@ assert.match(appContext, /getAuthSession\(\)/);
 assert.match(appContext, /onAuthStateChange\(/);
 assert.doesNotMatch(appContext, /supabase\.auth/);
 assert.match(authService, /signInWithPassword/);
-assert.match(authService, /getStagingBetterAuthClient\(\)\.signInWithEmail/);
+assert.match(authService, /const client = getStagingBetterAuthClient\(\);[\s\S]*?client\.signInWithEmail\(/);
 assert.match(authService, /isBetterAuthFrontendEnabledForSupabase\(env\.supabaseUrl\)/);
 assert.match(authService, /createBetterAuthSessionBridge/);
 assert.match(sessionBridge, /sykabelajar-better-auth-session/);
