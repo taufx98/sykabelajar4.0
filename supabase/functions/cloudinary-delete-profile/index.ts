@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { isOwnedCloudinaryPublicId } from "../_shared/cloudinary-ownership.mjs";
 import { requireApplicationUser } from "../_shared/require-application-user.ts";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,13 +46,23 @@ Deno.serve(async (request: Request) => {
   const publicId = typeof body?.public_id === "string" ? body.public_id.trim() : "";
   if (!publicId) return json({ error: "PUBLIC_ID_REQUIRED" }, 422);
 
-  // Only exact legacy profile/cover IDs are deletable here. Never accept a
-  // body-supplied owner UUID or arbitrary Cloudinary folder.
-  const allowedPublicIds = new Set([
-    `profile_pictures/user_${userId}`,
-    `profile_covers/user_${userId}`,
-  ]);
-  if (!allowedPublicIds.has(publicId)) return json({ error: "FORBIDDEN_PUBLIC_ID" }, 403);
+  // Resolve the username from this user's own profile row. The browser
+  // cannot choose a username or owner UUID; RLS plus the verified UUID bind
+  // the lookup to the active caller.
+  const { data: profileResult, error: profileError } = await identity.supabase
+    .from("profiles")
+    .select("username")
+    .eq("id", userId)
+    .maybeSingle();
+  const profile = profileResult as { username: string | null } | null;
+  if (profileError || !profile) return json({ error: "PROFILE_NOT_FOUND" }, 403);
+
+  // Accept only the current canonical username profile/cover IDs or exact
+  // UUID-based legacy IDs for this same authenticated account. Products,
+  // organizer assets, nested folders and other users' assets stay forbidden.
+  if (!isOwnedCloudinaryPublicId(publicId, { userId, username: profile.username })) {
+    return json({ error: "FORBIDDEN_PUBLIC_ID" }, 403);
+  }
 
   const resourceType = typeof body?.resource_type === "string" ? body.resource_type : "image";
   if (resourceType !== "image") return json({ error: "INVALID_RESOURCE_TYPE" }, 400);
