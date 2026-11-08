@@ -13,17 +13,18 @@ const config = readFileSync(configPath, "utf8");
 test("remote D1 schema migration has one exact guarded push marker and manual fallback", () => {
   assert.match(workflow, /^on:\n  push:/m);
   assert.match(workflow, /branches:\n      - security\/auth-poc-stage-1/);
-  assert.match(workflow, /paths:\n      - "\.github\/auth-ops\/APPLY-STAGING-D1-0006"/);
+  assert.match(workflow, /paths:\n      - "\.github\/auth-ops\/APPLY-STAGING-D1-0007"/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /GITHUB_EVENT_NAME.*workflow_dispatch/);
   assert.match(workflow, /GITHUB_EVENT_NAME.*push/);
-  assert.match(workflow, /APPLY-STAGING-D1-0006/);
+  assert.match(workflow, /APPLY-STAGING-D1-0007/);
   assert.match(workflow, /APPLY-TO-sykabelajar-auth-poc/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/security\/auth-poc-stage-1'/);
   assert.match(workflow, /migrationSha256/);
   assert.match(workflow, /c569ffe20088ba124c2eb1da19790b717715894dac7a373dd8a071b0aab2b778/);
   assert.match(workflow, /2d773a74cebf9f00ed95e42aa704855e3639827820875792874de5093519391f/);
   assert.match(workflow, /e29ecb4655bac013ded7db40051045d9c2507d3f7790b365cdbb8e2dfe1fd1b1/);
+  assert.match(workflow, /b794cd2b217158ec2f5d540a646d0655c7504258b0bd49eda9131d5585233df7/);
 });
 
 test("workflow is hard-bound to the known isolated D1 name and UUID", () => {
@@ -45,6 +46,7 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
     "0004_better_auth_registration_attributes.sql",
     "0005_telegram_phone_verification.sql",
     "0006_transactional_email_provider.sql",
+    "0007_managed_social_login_providers.sql",
   ]) {
     assert.ok(workflow.includes(file), "missing migration guard for " + file);
   }
@@ -55,6 +57,9 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
   assert.match(workflow, /oauthClient/);
   assert.match(workflow, /better_auth_registration_attributes/);
   assert.match(workflow, /auth_phone_verification_challenges/);
+  assert.match(workflow, /auth_social_provider_settings/);
+  assert.match(workflow, /auth_social_provider_meta/);
+  assert.match(workflow, /auth-d1-social-provider-columns.json/);
   assert.match(workflow, /auth-d1-email-provider-column.json/);
   assert.match(workflow, /provider-aware transactional email schema/);
   assert.match(workflow, /pragma_table_info\('user'\)/);
