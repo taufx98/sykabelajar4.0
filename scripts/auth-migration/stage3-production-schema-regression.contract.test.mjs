@@ -41,6 +41,13 @@ assert.match(sql,/SET LOCAL ROLE authenticated/);
 assert.match(sql,/SET LOCAL ROLE anon/);
 assert.match(sql,/SET is_public=\(id = u_expired\)/i);
 assert.match(sql,/STAGE3_RLS_ANON_PUBLIC_PROFILE_READ_FAILED/);
+assert.match(sql,/STAGE3_REFERRAL_V1_RETURN_CONTRACT_FAILED/);
+assert.match(sql,/STAGE3_REFERRAL_V2_RETURN_CONTRACT_FAILED/);
+assert.match(sql,/STAGE3_VERIFIED_REFERRALS_RETURN_CONTRACT_FAILED/);
+assert.match(sql,/STAGE3_RLS_ANON_VERIFIED_REFERRAL_RPC_EXECUTE_ALLOWED/);
+assert.match(sql,/v_anon_get_my_verified_referrals IS DISTINCT FROM false/);
+assert.match(sql,/v_service_get_my_verified_referrals IS DISTINCT FROM false/);
+
 assert.match(sql,/STAGE3_RLS_NON_ADMIN_AUDIT_LOG_READ_ALLOWED/);
 assert.match(sql,/STAGE3_RLS_ADMIN_AUDIT_LOG_READ_FAILED/);
 assert.match(sql,/STAGE3_RLS_ADMIN_USER_ROLES_OVERLAY_FAILED/);
