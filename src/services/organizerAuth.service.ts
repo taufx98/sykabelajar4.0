@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { subscribeAuthSessionEvents } from '@/services/authSessionEvents.mjs';
 
 export type CurrentOrganizer = {
   id: string;
@@ -15,8 +16,10 @@ let listCurrentUserOrganizersInFlight: Promise<CurrentOrganizer[]> | null = null
 
 // Do not let a pending workspace request from a previous account be reused
 // after a sign-out/sign-in transition.
-supabase.auth.onAuthStateChange(() => {
-  listCurrentUserOrganizersInFlight = null;
+subscribeAuthSessionEvents((event) => {
+  if (event.identityChanged || event.type === 'SIGNED_OUT') {
+    listCurrentUserOrganizersInFlight = null;
+  }
 });
 
 export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
