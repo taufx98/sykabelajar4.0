@@ -203,8 +203,7 @@ REVOKE ALL ON FUNCTION public.better_auth_complete_phone_verification(
 GRANT EXECUTE ON FUNCTION public.better_auth_complete_phone_verification(
   uuid,timestamptz,text,text,text,integer
 ) TO service_role;
-GRANT EXECUTE ON FUNCTION public.better_auth_get_phone_verification_status(uuid)
-  TO service_role;
+
 
 CREATE OR REPLACE FUNCTION public.create_organizer(p_name text, p_slug text)
 RETURNS TABLE(id uuid, name text, slug text, access_code text)
