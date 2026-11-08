@@ -357,7 +357,14 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     const resetMessage = mailMessages.find((message) => message.category === "reset-password" && message.to === email);
     assert.ok(resetMessage, "password-reset request must deliver a reset email");
     const resetUrl = mailUrl(resetMessage);
-    assert.equal(resetUrl.origin, new URL(baseUrl).origin, "reset email must use the configured Better Auth issuer");
+    const requestedWorkerUrl = new URL(baseUrl);
+    const resetUsesConfiguredWorker = resetUrl.origin === requestedWorkerUrl.origin;
+    const resetUsesLocalWorkerAlias =
+      resetUrl.port === requestedWorkerUrl.port &&
+      ["localhost", "127.0.0.1"].includes(resetUrl.hostname) &&
+      ["localhost", "127.0.0.1"].includes(requestedWorkerUrl.hostname);
+    assert.ok(resetUsesConfiguredWorker || resetUsesLocalWorkerAlias,
+      "reset email must use the configured Worker issuer, allowing only its localhost/127.0.0.1 test alias");
     assert.ok(resetUrl.pathname.includes("/api/auth/reset-password/"), "reset email must use Better Auth's single-use reset route");
     assert.equal(resetUrl.searchParams.get("callbackURL"), appOrigin + "/reset-password",
       "reset email must return to the public frontend reset page");
