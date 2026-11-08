@@ -72,6 +72,7 @@ export interface BetterAuthLoginProviderSettings {
   revision: number;
   managedMode: boolean;
   encryptionKeyConfigured: boolean;
+  emailVerificationConfigured: boolean;
   providers: BetterAuthLoginProviderSetting[];
   instagram: { available: false; reason: string };
 }
