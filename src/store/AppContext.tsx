@@ -8,6 +8,7 @@ import { liveAwards } from '@/data/live';
 import { getUserRoles, uiRoleToAccountType, type BackendRole } from '@/services/role.service';
 import { getUnreadNotificationCount } from '@/services/notification.service';
 import { toast as globalToast } from '@/lib/toast';
+import { publishAuthSessionEvent } from '@/services/authSessionEvents.mjs';
 
 interface AppState {
   user: User | null;
@@ -186,6 +187,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void bootstrap();
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+      publishAuthSessionEvent(event, session?.user?.id ?? null);
       if (!aliveRef.current) return;
       if (event === 'SIGNED_OUT') {
         localStorage.removeItem(LAST_ACTIVITY_KEY);
