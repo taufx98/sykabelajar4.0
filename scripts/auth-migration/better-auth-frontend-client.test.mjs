@@ -80,6 +80,7 @@ assert.match(authService, /export function isBetterAuthEnabled\(\)/);
 assert.match(authService, /export async function updatePassword\(newPassword: string, currentPassword\?: string\)/);
 assert.match(authService, /changePassword\(currentPassword, newPassword, true\)/);
 assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
+assert.match(client, /async changePassword\(currentPassword, newPassword, revokeOtherSessions = true\)[\s\S]*?await request<unknown>\('\/change-password'[\s\S]*?clearResourceTokenCache\(\);/);
 assert.match(profileSettingsPage, /isBetterAuthEnabled, updatePassword as updateAccountPassword/);
 assert.match(profileSettingsPage, /updateAccountPassword\(password, requiresCurrentPassword \? currentPassword : undefined\)/);
 assert.match(profileSettingsPage, /autoComplete="current-password"/);
