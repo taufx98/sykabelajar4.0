@@ -7,6 +7,9 @@ const appContext = readFileSync(new URL("../../src/store/AppContext.tsx", import
 const authService = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
 const callbackPage = readFileSync(new URL("../../src/pages/AuthOidcCallbackPage.tsx", import.meta.url), "utf8");
 const accessTokenProvider = readFileSync(new URL("../../src/services/applicationAccessToken.ts", import.meta.url), "utf8");
+const authSessionBridge = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
+const supabaseClient = readFileSync(new URL("../../src/lib/supabase.ts", import.meta.url), "utf8");
+const sessionBridge = readFileSync(new URL("../../src/services/betterAuthSessionBridge.mjs", import.meta.url), "utf8");
 const cloudinaryService = readFileSync(new URL("../../src/services/cloudinary.service.ts", import.meta.url), "utf8");
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
 
@@ -62,9 +65,17 @@ assert.match(client, /USERNAME_PATTERN/);
 assert.match(client, /REGISTRATION_USERNAME_INVALID/);
 
 // This is a transport scaffold only: the live app must keep one session source.
-assert.match(appContext, /supabase\.auth\.getSession\(\)/);
-assert.match(appContext, /supabase\.auth\.onAuthStateChange/);
-assert.match(authService, /supabase\.auth\.signInWithPassword/);
+assert.match(appContext, /getAuthSession\(\)/);
+assert.match(appContext, /onAuthStateChange\(/);
+assert.doesNotMatch(appContext, /supabase\.auth/);
+assert.match(authService, /signInWithPassword/);
+assert.match(authService, /getStagingBetterAuthClient\(\)\.signInWithEmail/);
+assert.match(authService, /createBetterAuthSessionBridge/);
+assert.match(sessionBridge, /sykabelajar-better-auth-session/);
+assert.doesNotMatch(sessionBridge, /access_token|refresh_token/);
+assert.match(supabaseClient, /createSupabaseClientOptions/);
+assert.match(supabaseClient, /getSupabaseAccessToken\(\)/);
+assert.match(supabaseClient, /isBetterAuthFrontendEnabled\(\)/);
 assert.doesNotMatch(appContext, /getStagingBetterAuthClient/);
 assert.match(accessTokenProvider, /isBetterAuthFrontendEnabled\(\)/);
 assert.match(accessTokenProvider, /getStagingBetterAuthClient\(\)\.getSupabaseAccessToken\(\)/);
