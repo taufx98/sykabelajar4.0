@@ -1,11 +1,69 @@
 \set ON_ERROR_STOP on
 
 -- Production-shaped Stage 3 regression against the schema-only disposable restore.
--- This script inserts only fixed synthetic identities and business fixtures.
--- It must run only after the baseline restore has proven auth.users/profiles empty.
+-- Every synthetic user is provisioned through the Better Auth server-only RPCs.
+-- It deliberately leaves auth.users empty and never installs legacy Auth triggers.
 -- The entire test suite is rolled back; never run it against a hosted project.
 
 BEGIN;
+
+CREATE TEMP TABLE stage3_fixture_temp_anchor (id integer) ON COMMIT DROP;
+
+CREATE FUNCTION pg_temp.stage3_provision_user(
+  p_user_id uuid,
+  p_account_type text,
+  p_full_name text,
+  p_username text,
+  p_referral_code text,
+  p_email_verified boolean,
+  p_institution text,
+  p_grade text
+) RETURNS void
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  PERFORM public.better_auth_provision_user(
+    p_user_id,
+    p_account_type,
+    p_full_name,
+    p_username,
+    p_referral_code,
+    p_email_verified,
+    NULL::date,
+    p_institution,
+    p_grade,
+    NULL::text
+  );
+END;
+$function$;
+
+CREATE FUNCTION pg_temp.stage3_verify_email(p_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  PERFORM public.better_auth_complete_email_verification(p_user_id, clock_timestamp());
+END;
+$function$;
+
+CREATE FUNCTION pg_temp.stage3_verify_phone(
+  p_user_id uuid,
+  p_phone_digits text,
+  p_provider_subject text
+) RETURNS void
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  PERFORM public.better_auth_complete_phone_verification(
+    p_user_id,
+    clock_timestamp(),
+    encode(extensions.digest(p_phone_digits, 'sha256'), 'hex'),
+    'telegram',
+    p_provider_subject,
+    length(p_phone_digits)
+  );
+END;
+$function$;
 
 DO $stage3_conflict_mode$
 BEGIN
@@ -71,7 +129,7 @@ DECLARE
   v_auth_apply_referral boolean;
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM auth.users
+    SELECT 1 FROM private.app_users
     WHERE id IN (
       u_referrer,u_referred,u_expired,u_fallback,u_organizer,
       u_duplicate_organizer,u_no_phone,u_no_email,u_participant,
@@ -119,8 +177,9 @@ BEGIN
   END IF;
 
   IF (SELECT count(*) FROM auth.users) <> 0
+     OR (SELECT count(*) FROM private.app_users) <> 0
      OR (SELECT count(*) FROM public.profiles) <> 0 THEN
-    RAISE EXCEPTION 'STAGE3_RESTORE_MUST_START_WITH_ZERO_AUTH_AND_PROFILE_ROWS';
+    RAISE EXCEPTION 'STAGE3_RESTORE_MUST_START_WITH_ZERO_AUTH_AND_IDENTITY_ROWS';
   END IF;
 
   v_auth_create_organizer := has_function_privilege(
@@ -155,22 +214,8 @@ BEGIN
 
   -- Verified teacher referrer; signup trigger must normalize profile fields and
   -- map the teacher business role without placing it in the PostgreSQL JWT role.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_referrer,'authenticated','authenticated','stage3-referrer@example.invalid','',
-    clock_timestamp(),'{}'::jsonb,
-    jsonb_build_object(
-      'account_type','teacher',
-      'full_name','  Stage3 Teacher Referrer  ',
-      'username','  Stage3_Referrer  ',
-      'institution','  sekolah uji  ',
-      'grade','12'
-    ),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_referrer,'teacher','  Stage3 Teacher Referrer  ','  Stage3_Referrer  ',NULL,true,'  sekolah uji  ','12');
+
 
   SELECT p.account_type,p.full_name,p.username,p.institution
     INTO v_profile_type,v_access_code,v_code_hash,v_org_hash
@@ -201,21 +246,18 @@ BEGIN
   -- A client-supplied privileged account type must be normalized to student.
   -- The signup referral trigger also snapshots the current reward and creates
   -- exactly one PENDING event, but does not grant any privileged role.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_referred,'authenticated','authenticated','stage3-referred@example.invalid','',
-    NULL,'{}'::jsonb,
-    jsonb_build_object(
-      'account_type','admin',
-      'full_name','Stage3 Referred',
-      'username','stage3_referred',
-      'referral_id',u_referrer::text
-    ),
-    clock_timestamp(),clock_timestamp()
-  );
+    -- Public signup cannot assign admin; invalid account_type is rejected by the
+  -- trusted provisioning RPC. The legitimate student registration then uses
+  -- the referral code and starts with an unverified email state.
+  v_caught := false;
+  BEGIN
+    PERFORM pg_temp.stage3_provision_user(u_referred,'admin','Stage3 Referred','stage3_referred','STAGE3REF',false,NULL,NULL);
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    v_caught := true;
+  END;
+  IF NOT v_caught THEN RAISE EXCEPTION 'STAGE3_PRIVILEGED_SELF_REGISTRATION_NOT_REJECTED'; END IF;
+  PERFORM pg_temp.stage3_provision_user(u_referred,'student','Stage3 Referred','stage3_referred','STAGE3REF',false,NULL,NULL);
+
 
   SELECT p.account_type INTO v_profile_type
   FROM public.profiles p WHERE p.id=u_referred;
@@ -265,9 +307,7 @@ BEGIN
   -- A settings change after signup must not alter the snapshotted reward.
   UPDATE private.referral_program_settings SET base_reward_amount=99 WHERE id=true;
 
-  UPDATE auth.users
-  SET email_confirmed_at=clock_timestamp(),updated_at=clock_timestamp()
-  WHERE id=u_referred AND email_confirmed_at IS NULL;
+  PERFORM pg_temp.stage3_verify_email(u_referred);
 
   IF NOT EXISTS (
     SELECT 1 FROM public.referral_events
@@ -304,16 +344,8 @@ BEGIN
   END IF;
 
   -- Exact 24-hour deadline must not qualify an expired PENDING event.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_expired,'authenticated','authenticated','stage3-expired@example.invalid','',
-    clock_timestamp(),'{}'::jsonb,
-    jsonb_build_object('account_type','student','full_name','Stage3 Expired','username','stage3_expired'),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_expired,'student','Stage3 Expired','stage3_expired',NULL,true,NULL,NULL);
+
 
   INSERT INTO public.referral_events (
     id,referrer_user_id,referred_user_id,reward_amount,status,created_at
@@ -339,16 +371,8 @@ BEGIN
 
   -- Exercise the scheduled fallback verifier independently of the activity
   -- trigger: create an inactive event, add an activity, then make it PENDING.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_fallback,'authenticated','authenticated','stage3-fallback@example.invalid','',
-    clock_timestamp(),'{}'::jsonb,
-    jsonb_build_object('account_type','student','full_name','Stage3 Fallback','username','stage3_fallback'),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_fallback,'student','Stage3 Fallback','stage3_fallback',NULL,true,NULL,NULL);
+
 
   v_fallback_event_id := '00000000-0000-4000-8000-00000000b102';
 
@@ -390,30 +414,12 @@ BEGIN
   END IF;
 
   -- The unverified referrer must not be accepted for signup attribution.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_unverified_referrer,'authenticated','authenticated','stage3-unverified-ref@example.invalid','',
-    NULL,'{}'::jsonb,
-    jsonb_build_object('account_type','teacher','full_name','Unverified Referrer','username','stage3_unverified_ref'),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_unverified_referrer,'teacher','Unverified Referrer','stage3_unverified_ref',NULL,false,NULL,NULL);
+  INSERT INTO public.referral_codes(user_id,code) VALUES (u_unverified_referrer,'STAGE3UNVER');
 
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_bad_referral,'authenticated','authenticated','stage3-bad-referral@example.invalid','',
-    NULL,'{}'::jsonb,
-    jsonb_build_object(
-      'account_type','student','full_name','Bad Referral','username','stage3_bad_referral',
-      'referral_id',u_unverified_referrer::text
-    ),
-    clock_timestamp(),clock_timestamp()
-  );
+
+    PERFORM pg_temp.stage3_provision_user(u_bad_referral,'student','Bad Referral','stage3_bad_referral','STAGE3UNVER',false,NULL,NULL);
+
 
   IF EXISTS (SELECT 1 FROM public.referral_events WHERE referred_user_id=u_bad_referral) THEN
     RAISE EXCEPTION 'STAGE3_UNVERIFIED_REFERRER_WAS_ACCEPTED';
@@ -421,20 +427,8 @@ BEGIN
 
   -- Simulate an already-approved admin assigned by a trusted database owner.
   -- Signup metadata itself remains student-only and cannot self-assign admin.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_admin,'authenticated','authenticated','stage3-admin@example.invalid','',
-    clock_timestamp(),'{}'::jsonb,
-    jsonb_build_object(
-      'account_type','student',
-      'full_name','Stage3 Admin Fixture',
-      'username','stage3_admin_fixture'
-    ),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_admin,'student','Stage3 Admin Fixture','stage3_admin_fixture',NULL,true,NULL,NULL);
+
 
   INSERT INTO public.user_roles(user_id,role,is_active)
   VALUES (u_admin,'admin'::public.app_role,true);
@@ -443,16 +437,9 @@ BEGIN
   -- Trusted organizer path: both verification timestamps are required, the
   -- phone hash is based on normalized verified phone digits, and all related
   -- business rows must be created as a single protected operation.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    phone,phone_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_organizer,'authenticated','authenticated','stage3-organizer@example.invalid','',
-    clock_timestamp(),'+1 (202) 555-0100',clock_timestamp(),'{}'::jsonb,
-    jsonb_build_object('account_type','organizer','full_name','Stage3 Organizer','username','stage3_organizer'),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_organizer,'organizer','Stage3 Organizer','stage3_organizer',NULL,true,NULL,NULL);
+  PERFORM pg_temp.stage3_verify_phone(u_organizer,'12025550100','901001');
+
 
   IF NOT EXISTS (
     SELECT 1 FROM public.user_roles
@@ -504,23 +491,9 @@ BEGIN
 
   -- Active and inactive viewer memberships exercise distinct resource/read and
   -- manage boundaries. They are not given owner/admin membership semantics.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES
-    (
-      u_active_member,'authenticated','authenticated','stage3-active-member@example.invalid','',
-      clock_timestamp(),'{}'::jsonb,
-      jsonb_build_object('account_type','student','full_name','Stage3 Active Member','username','stage3_active_member'),
-      clock_timestamp(),clock_timestamp()
-    ),
-    (
-      u_inactive_member,'authenticated','authenticated','stage3-inactive-member@example.invalid','',
-      clock_timestamp(),'{}'::jsonb,
-      jsonb_build_object('account_type','student','full_name','Stage3 Inactive Member','username','stage3_inactive_member'),
-      clock_timestamp(),clock_timestamp()
-    );
+    PERFORM pg_temp.stage3_provision_user(u_active_member,'student','Stage3 Active Member','stage3_active_member',NULL,true,NULL,NULL);
+  PERFORM pg_temp.stage3_provision_user(u_inactive_member,'student','Stage3 Inactive Member','stage3_inactive_member',NULL,true,NULL,NULL);
+
 
   INSERT INTO public.organizer_members (
     organizer_id,user_id,member_role,is_active,role,status
@@ -545,16 +518,9 @@ BEGIN
 
   -- Same normalized phone, different raw formatting: the second FREE claim
   -- must be rejected even though the raw auth.users.phone strings differ.
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    phone,phone_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_duplicate_organizer,'authenticated','authenticated','stage3-organizer-duplicate@example.invalid','',
-    clock_timestamp(),'+1-202-555-0100',clock_timestamp(),'{}'::jsonb,
-    jsonb_build_object('account_type','organizer','full_name','Duplicate Organizer','username','stage3_dup_org'),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_duplicate_organizer,'organizer','Duplicate Organizer','stage3_dup_org',NULL,true,NULL,NULL);
+  PERFORM pg_temp.stage3_verify_phone(u_duplicate_organizer,'12025550100','901002');
+
 
   PERFORM set_config('request.jwt.claim.sub',u_duplicate_organizer::text,true);
   v_caught := false;
@@ -573,16 +539,8 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_DUPLICATE_FREE_ORGANIZER_PHONE_NOT_REJECTED';
   END IF;
 
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    phone,phone_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_no_phone,'authenticated','authenticated','stage3-no-phone@example.invalid','',
-    clock_timestamp(),'+1 (202) 555-0101',NULL,'{}'::jsonb,
-    jsonb_build_object('account_type','organizer','full_name','No Phone','username','stage3_no_phone'),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_no_phone,'organizer','No Phone','stage3_no_phone',NULL,true,NULL,NULL);
+
 
   PERFORM set_config('request.jwt.claim.sub',u_no_phone::text,true);
   v_caught := false;
@@ -601,16 +559,9 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_UNVERIFIED_PHONE_NOT_REJECTED';
   END IF;
 
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    phone,phone_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_no_email,'authenticated','authenticated','stage3-no-email@example.invalid','',
-    NULL,'+1 (202) 555-0102',clock_timestamp(),'{}'::jsonb,
-    jsonb_build_object('account_type','organizer','full_name','No Email','username','stage3_no_email'),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_no_email,'organizer','No Email','stage3_no_email',NULL,false,NULL,NULL);
+  PERFORM pg_temp.stage3_verify_phone(u_no_email,'12025550102','901003');
+
 
   PERFORM set_config('request.jwt.claim.sub',u_no_email::text,true);
   v_caught := false;
@@ -652,16 +603,8 @@ BEGIN
   INSERT INTO public.registration_rules(competition_id)
   VALUES (v_competition_id);
 
-  INSERT INTO auth.users (
-    id,aud,role,email,encrypted_password,email_confirmed_at,
-    raw_app_meta_data,raw_user_meta_data,created_at,updated_at
-  )
-  VALUES (
-    u_participant,'authenticated','authenticated','stage3-participant@example.invalid','',
-    NULL,'{}'::jsonb,
-    jsonb_build_object('account_type','student','full_name','Stage3 Participant','username','stage3_participant'),
-    clock_timestamp(),clock_timestamp()
-  );
+    PERFORM pg_temp.stage3_provision_user(u_participant,'student','Stage3 Participant','stage3_participant',NULL,false,NULL,NULL);
+
 
   UPDATE private.referral_program_settings
   SET is_active=true,base_reward_amount=19,event_reward_amount=NULL,
@@ -717,9 +660,7 @@ BEGIN
     u_participant,current_date,'STAGE3_REGISTRATION',0,1,clock_timestamp()
   );
 
-  UPDATE auth.users
-  SET email_confirmed_at=clock_timestamp(),updated_at=clock_timestamp()
-  WHERE id=u_participant AND email_confirmed_at IS NULL;
+  PERFORM pg_temp.stage3_verify_email(u_participant);
 
   IF NOT EXISTS (
     SELECT 1 FROM public.referral_events
