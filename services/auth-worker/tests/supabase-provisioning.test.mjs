@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   completeSupabaseEmailVerification,
   completeSupabasePhoneVerification,
+  getSupabasePhoneVerificationStatus,
   isSupabaseProvisioningEnabled,
   normalizeBetterAuthRegistration,
   reconcileSupabaseApplicationIdentity,
@@ -470,4 +471,36 @@ test("phone verification rejects unconfigured Supabase provisioning and unexpect
     providerSubject: "12345678",
     phoneDigitsCount: 12,
   }, async () => response({ verified: true })), /PHONE_VERIFICATION_RESPONSE_INVALID/);
+});
+
+test("phone status is read only for the Worker-authenticated UUID through the service-only RPC", async () => {
+  const calls = [];
+  const result = await getSupabasePhoneVerificationStatus(env, USER_ID, async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(init.body), headers: init.headers });
+    return response(true);
+  });
+
+  assert.deepEqual(result, { enabled: true, userId: USER_ID, verified: true });
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].url.startsWith("https://ydamszdfsxqisanazdkb.supabase.co/"));
+  assert.ok(calls[0].url.endsWith("/better_auth_get_phone_verification_status"));
+  assert.equal(calls[0].headers.Authorization, "Bearer " + SERVICE_KEY);
+  assert.deepEqual(calls[0].body, { p_user_id: USER_ID });
+  assert.equal(JSON.stringify(calls[0].body).includes("+628"), false);
+});
+
+test("phone status rejects invalid IDs, disabled provisioning and non-boolean RPC output", async () => {
+  let called = false;
+  const fetchImpl = async () => {
+    called = true;
+    return response(true);
+  };
+
+  await assert.rejects(getSupabasePhoneVerificationStatus(env, "not-a-uuid", fetchImpl), /BETTER_AUTH_USER_ID_INVALID/);
+  await assert.rejects(getSupabasePhoneVerificationStatus({
+    ...env,
+    SUPABASE_PROVISIONING_ENABLED: "false",
+  }, USER_ID, fetchImpl), /SUPABASE_PROVISIONING_DISABLED/);
+  await assert.rejects(getSupabasePhoneVerificationStatus(env, USER_ID, async () => response({ verified: true })), /PHONE_VERIFICATION_STATUS_RESPONSE_INVALID/);
+  assert.equal(called, false);
 });
