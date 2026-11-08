@@ -42,7 +42,10 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /Run the guarded D1 migration workflow first/);
   assert.match(workflow, /SUPABASE_URL.*mvdczyitbkxkldjughor/);
   assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m);
-  assert.doesNotMatch(wranglerConfig, /^SUPABASE_PROVISIONING_ENABLED = "true"$/m);
+  assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_ENABLED = "true"$/m);
+  assert.match(workflow, /SUPABASE_PROVISIONING_ENABLED = "true"/);
+  assert.match(workflow, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(workflow, /server-only Supabase staging provisioning secret is missing/);
   assert.match(wranglerConfig, /^AUTH_EMAIL_PROVIDER = "managed"$/m);
   assert.match(workflow, /auth_email_accounts/);
   assert.match(workflow, /auth-worker-staging-email-provider.json/);
