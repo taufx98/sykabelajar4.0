@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { lazy, Suspense, type ReactNode, useEffect } from 'react';
 import { AppProvider, useApp } from '@/store/AppContext';
-import { supabase } from '@/lib/supabase';
+import { subscribeAuthSessionEvents } from '@/services/authSessionEvents.mjs';
 import { LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ChatUXBridge } from '@/components/chat/ChatUXBridge';
@@ -103,30 +103,23 @@ function OrganizerShellRoute({ children }: { children: ReactNode }) {
 
 function ChatSessionIsolation() {
   useEffect(() => {
-    let previousUserId: string | null = null;
     let reloading = false;
-    const loadInitial = async () => {
-      const { data } = await supabase.auth.getSession();
-      previousUserId = data.session?.user?.id ?? null;
-    };
-    void loadInitial();
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      const nextUserId = session?.user?.id ?? null;
-      if (event === 'SIGNED_OUT' && sessionStorage.getItem(LOGIN_REJECTION_SIGNOUT_KEY) === '1') {
+    const unsubscribe = subscribeAuthSessionEvents((event) => {
+      if (event.type === 'SIGNED_OUT' && sessionStorage.getItem(LOGIN_REJECTION_SIGNOUT_KEY) === '1') {
         sessionStorage.removeItem(LOGIN_REJECTION_SIGNOUT_KEY);
-        previousUserId = null;
         return;
       }
-      if (event === 'SIGNED_OUT' || (event === 'SIGNED_IN' && previousUserId !== null && nextUserId !== previousUserId)) {
+
+      const accountChanged = event.identityChanged && event.previousUserId !== null;
+      if (event.type === 'SIGNED_OUT' || accountChanged) {
         if (!reloading) {
           reloading = true;
           window.location.reload();
         }
-        return;
       }
-      previousUserId = nextUserId;
     });
-    return () => listener.subscription.unsubscribe();
+
+    return unsubscribe;
   }, []);
   return null;
 }
