@@ -45,7 +45,7 @@ for (const trigger of ["on_auth_user_created","trg_referral_signup_attribution",
     "rollback restores the original Supabase Auth trigger: " + trigger);
 }
 assert.doesNotMatch(sql, /a_sync_app_users_identity|sync_legacy_auth_user_identity_projection/);
-assert.match(sql, /GRANT EXECUTE ON FUNCTION public[.]handle_new_auth_user\\(\\) TO service_role/);
+assert.match(sql, /GRANT EXECUTE ON FUNCTION public[.]handle_new_auth_user\(\) TO service_role/);
 for (const wrapper of [
   "public.better_auth_provision_user",
   "public.better_auth_complete_email_verification",
