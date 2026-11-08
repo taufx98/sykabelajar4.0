@@ -37,11 +37,11 @@ assert.match(validate, /ROLLBACK_REPLACEMENT_FK_MISSING:/);
 assert.match(validate, /convalidated/);
 assert.match(cutover, /ROLLBACK_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED:/);
 assert.match(cutover, /ROLLBACK_CURRENT_FK_MISSING_OR_SEMANTICS_CHANGED:/);
-assert.equal((cutover.match(/^DO \\$\\$$/gm) ?? []).length, 1,
+assert.ok(cutover.includes("\nDO $\nBEGIN\n"),
   "atomic cutover must open its PL/pgSQL block with a valid dollar-quote delimiter");
-assert.equal((cutover.match(/^\\$\\$;$/gm) ?? []).length, 1,
+assert.ok(cutover.includes("\nEND\n$;\n\n"),
   "atomic cutover must close its PL/pgSQL block with a matching delimiter");
-assert.doesNotMatch(cutover, /^DO \\$\\s*$/m,
+assert.ok(!cutover.includes("\nDO $\n"),
   "a lone dollar sign is not a valid PL/pgSQL block delimiter");
 assert.match(cutover, /ROLLBACK_BLOCKED_BETTER_AUTH_ONLY_IDENTITY_EXISTS/,
   "the atomic cutover repeats the no-shadow-identity safety guard");
