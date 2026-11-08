@@ -166,7 +166,10 @@ test("the production verifier validates an actual ES256 signature against the is
   }));
   assert.deepEqual(user, { id: USER_ID, email: "admin@example.test" });
 
-  const tampered = token.slice(0, -1) + (token.endsWith("A") ? "B" : "A");
+  const [signedHeader, signedPayload, encodedSignature] = token.split(".");
+  const signatureBytes = Buffer.from(encodedSignature, "base64url");
+  signatureBytes[0] ^= 0x01;
+  const tampered = [signedHeader, signedPayload, signatureBytes.toString("base64url")].join(".");
   const tamperedNetwork = makeFetch();
   await assert.rejects(
     resolveBetterAuthAdminIdentity(input({
