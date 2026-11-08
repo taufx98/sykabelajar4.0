@@ -14,6 +14,8 @@ const readApplicationIdentity = createApplicationIdentityReader({
 /**
  * Resolves the current application UUID from the shared session snapshot.
  * Only falls back to the active auth provider before the event bus bootstrap.
+ * Once initialized, even a signed-out (null) snapshot is authoritative so a
+ * stale provider session cannot restore an identity after logout.
  */
 export function getCurrentApplicationUserId(): Promise<string | null> {
   return readApplicationIdentity();
