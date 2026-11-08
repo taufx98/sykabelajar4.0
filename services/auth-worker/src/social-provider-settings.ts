@@ -83,11 +83,16 @@ function environmentProviders(env: AuthWorkerEnv): Partial<Record<SocialLoginPro
 
 async function readMeta(db: D1Database): Promise<SocialProviderMeta | null> {
   try {
-    return await db.prepare(
+    const meta = await db.prepare(
       "SELECT revision, managed_mode FROM auth_social_provider_meta WHERE id = 1",
     ).first<SocialProviderMeta>();
+    // Once the table exists, its singleton row is mandatory. A missing row is
+    // schema corruption, not a pre-migration signal and must never select the
+    // legacy environment credential path.
+    if (!meta) throw new Error("SOCIAL_PROVIDER_CONFIGURATION_UNAVAILABLE");
+    return meta;
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "";
+    const reason = error instanceof Error ? error.message : String(error ?? "");
     // The only safe environment-only fallback is before additive migration
     // 0007 exists. Quota, binding and transient D1 errors must never silently
     // switch a managed installation back to stale environment credentials.
