@@ -56,7 +56,9 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /auth_social_provider_meta/);
   assert.match(workflow, /social_provider_meta/);
   assert.match(workflow, /phone_challenges/);
-  assert.doesNotMatch(workflow, /SERVICE_ROLE|service_role/i);
+  assert.match(workflow, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(workflow, /SUPABASE_SERVICE_ROLE_KEY:\s*\$\{\{\s*secrets\./i,
+    "the service-role key value must remain a Worker secret and must never be injected into the Actions runner");
   assert.doesNotMatch(workflow, /wrangler\s+d1\s+(delete|create)/i);
 });
 
