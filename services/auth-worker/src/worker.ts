@@ -343,12 +343,11 @@ async function getTelegramPhoneVerificationStatus(
     return applyResponseHeaders(json({ verified: status.verified }), corsHeaders);
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    const status = code === "SUPABASE_PROVISIONING_RPC_NOT_INSTALLED" ? 503 : 503;
     return applyResponseHeaders(json({
       error: code === "SUPABASE_PROVISIONING_RPC_NOT_INSTALLED"
         ? "PHONE_VERIFICATION_STATUS_NOT_READY"
         : "PHONE_VERIFICATION_STATUS_UNAVAILABLE",
-    }, status), corsHeaders);
+    }, 503), corsHeaders);
   }
 }
 
