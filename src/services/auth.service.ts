@@ -1,11 +1,76 @@
 import { supabase } from '@/lib/supabase';
+import { getStagingBetterAuthClient, isBetterAuthFrontendEnabled } from '@/services/betterAuthApi.client';
+import {
+  broadcastBetterAuthSessionEvent,
+  createBetterAuthSessionBridge,
+} from '@/services/betterAuthSessionBridge.mjs';
+import { publishAuthSessionEvent } from '@/services/authSessionEvents.mjs';
 
 export const LOGIN_REJECTION_SIGNOUT_KEY = 'syka_login_rejection_signout_v1';
 
+export interface ApplicationAuthSession {
+  user: {
+    id: string;
+    email?: string;
+  };
+}
+
+export type ApplicationAuthEvent =
+  | 'INITIAL_SESSION'
+  | 'SIGNED_IN'
+  | 'SIGNED_OUT'
+  | 'TOKEN_REFRESHED'
+  | 'USER_UPDATED'
+  | 'PASSWORD_RECOVERY'
+  | 'MFA_CHALLENGE_VERIFIED';
+
+export type ApplicationAuthListener = (
+  event: ApplicationAuthEvent,
+  session: ApplicationAuthSession | null,
+) => void;
+
+type ApplicationAuthSubscription = {
+  data: { subscription: { unsubscribe: () => void } };
+};
+
+function toApplicationSession(
+  value: Awaited<ReturnType<ReturnType<typeof getStagingBetterAuthClient>['getSession']>>,
+): ApplicationAuthSession | null {
+  if (!value) return null;
+  return {
+    user: {
+      id: value.user.id,
+      email: value.user.email,
+    },
+  };
+}
+
 export async function signIn(email: string, password: string) {
+  if (isBetterAuthFrontendEnabled()) {
+    const client = getStagingBetterAuthClient();
+    await client.signInWithEmail(email.trim(), password);
+    const session = await client.getSession();
+    if (!session) throw new Error('AUTH_SESSION_NOT_CREATED');
+    publishAuthSessionEvent('SIGNED_IN', session.user.id);
+    broadcastBetterAuthSessionEvent('SIGNED_IN');
+    return { user: session.user, session: session.session };
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;
+}
+
+export async function signInWithSocial(
+  provider: 'google' | 'facebook' | 'twitter',
+  callbackURL: string,
+) {
+  if (!isBetterAuthFrontendEnabled()) {
+    throw new Error('BETTER_AUTH_SOCIAL_SIGNIN_DISABLED');
+  }
+  const result = await getStagingBetterAuthClient().signInWithSocial(provider, callbackURL);
+  if (result.url) window.location.assign(result.url);
+  return result;
 }
 
 export async function signUp(
@@ -22,6 +87,21 @@ export async function signUp(
     referral_id?: string;
   },
 ) {
+  if (isBetterAuthFrontendEnabled()) {
+    return getStagingBetterAuthClient().signUp({
+      email,
+      password,
+      name: profile.full_name,
+      username: profile.username,
+      accountType: profile.account_type,
+      ...(profile.birth_date ? { birthDate: profile.birth_date } : {}),
+      ...(profile.institution ? { institution: profile.institution } : {}),
+      ...(profile.grade ? { grade: profile.grade } : {}),
+      ...(profile.subjects ? { subjects: profile.subjects } : {}),
+      ...(profile.referral_id ? { referralCode: profile.referral_id } : {}),
+    });
+  }
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -32,21 +112,73 @@ export async function signUp(
 }
 
 export async function signOut() {
+  if (isBetterAuthFrontendEnabled()) {
+    await getStagingBetterAuthClient().signOut();
+    publishAuthSessionEvent('SIGNED_OUT', null);
+    broadcastBetterAuthSessionEvent('SIGNED_OUT');
+    return;
+  }
+
   const { error } = await supabase.auth.signOut({ scope: 'local' });
   if (error) throw error;
 }
 
-export async function getSession() {
+export async function getSession(): Promise<ApplicationAuthSession | null> {
+  if (isBetterAuthFrontendEnabled()) {
+    return toApplicationSession(await getStagingBetterAuthClient().getSession());
+  }
+
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
   return data.session;
 }
 
-export function onAuthStateChange(callback: Parameters<typeof supabase.auth.onAuthStateChange>[0]) {
-  return supabase.auth.onAuthStateChange(callback);
+export function onAuthStateChange(
+  callback: ApplicationAuthListener,
+): ApplicationAuthSubscription {
+  if (!isBetterAuthFrontendEnabled()) {
+    return supabase.auth.onAuthStateChange((event, session) => {
+      callback(
+        event as ApplicationAuthEvent,
+        session as ApplicationAuthSession | null,
+      );
+    });
+  }
+
+  const client = getStagingBetterAuthClient();
+  const bridge = createBetterAuthSessionBridge({
+    getSession: async () => {
+      const session = await client.getSession();
+      return session
+        ? { user: { id: session.user.id, email: session.user.email }, session: { expiresAt: session.session.expiresAt } }
+        : null;
+    },
+    onChange: (event, session) => {
+      callback(
+        event as ApplicationAuthEvent,
+        session ? { user: { id: session.user.id, email: session.user.email } } : null,
+      );
+    },
+  });
+
+  return {
+    data: {
+      subscription: {
+        unsubscribe: () => bridge.unsubscribe(),
+      },
+    },
+  };
 }
 
-export async function resetPassword(email: string, redirectTo = `${window.location.origin}/#/login`) {
+export async function resetPassword(
+  email: string,
+  redirectTo = `${window.location.origin}/#/login`,
+) {
+  if (isBetterAuthFrontendEnabled()) {
+    await getStagingBetterAuthClient().requestPasswordReset(email, redirectTo);
+    return;
+  }
+
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
   if (error) throw error;
 }
