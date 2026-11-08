@@ -261,7 +261,7 @@ jobs:
           };
 
           // Cloudflare's list endpoint returns secret names/types only. Never
-          // read, print, rotate, or delete an existing encrypted-data key.
+          // read, print, rotate, or remove an existing encrypted-data key.
           const listed = await fetch(endpoint, { headers });
           const listedBody = await listed.json().catch(() => ({}));
           if (!listed.ok || listedBody.success !== true || !Array.isArray(listedBody.result)) {
