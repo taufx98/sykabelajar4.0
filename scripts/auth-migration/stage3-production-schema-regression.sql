@@ -212,8 +212,8 @@ BEGIN
         starts_at = NULL,
         ends_at = NULL;
 
-  -- Verified teacher referrer; signup trigger must normalize profile fields and
-  -- map the teacher business role without placing it in the PostgreSQL JWT role.
+  -- Verified teacher referrer; Better Auth provisioning normalizes profile fields
+  -- and maps the teacher business role without changing PostgreSQL JWT role.
     PERFORM pg_temp.stage3_provision_user(u_referrer,'teacher','  Stage3 Teacher Referrer  ','  Stage3_Referrer  ',NULL,true,'  sekolah uji  ','12');
 
 
@@ -243,9 +243,9 @@ BEGIN
   INSERT INTO public.referral_codes(user_id,code)
   VALUES (u_referrer,'STAGE3REF');
 
-  -- A client-supplied privileged account type must be normalized to student.
-  -- The signup referral trigger also snapshots the current reward and creates
-  -- exactly one PENDING event, but does not grant any privileged role.
+  -- Public account registration cannot request admin. The Better Auth provisioning
+  -- RPC rejects that account type, then the valid student registration snapshots
+  -- the referral reward and creates exactly one PENDING event.
     -- Public signup cannot assign admin; invalid account_type is rejected by the
   -- trusted provisioning RPC. The legitimate student registration then uses
   -- the referral code and starts with an unverified email state.
@@ -304,7 +304,7 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_PENDING_ACTIVITY_WAS_NOT_RECORDED';
   END IF;
 
-  -- A settings change after signup must not alter the snapshotted reward.
+  -- A settings change after registration must not alter the snapshotted reward.
   UPDATE private.referral_program_settings SET base_reward_amount=99 WHERE id=true;
 
   PERFORM pg_temp.stage3_verify_email(u_referred);
@@ -413,7 +413,7 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_SCHEDULED_REFERRAL_VERIFIER_NOT_IDEMPOTENT';
   END IF;
 
-  -- The unverified referrer must not be accepted for signup attribution.
+  -- The unverified referrer must not be accepted for Better Auth referral attribution.
     PERFORM pg_temp.stage3_provision_user(u_unverified_referrer,'teacher','Unverified Referrer','stage3_unverified_ref',NULL,false,NULL,NULL);
   INSERT INTO public.referral_codes(user_id,code) VALUES (u_unverified_referrer,'STAGE3UNVER');
 
@@ -426,7 +426,7 @@ BEGIN
   END IF;
 
   -- Simulate an already-approved admin assigned by a trusted database owner.
-  -- Signup metadata itself remains student-only and cannot self-assign admin.
+  -- Better Auth public registration remains limited to basic roles and cannot self-assign admin.
     PERFORM pg_temp.stage3_provision_user(u_admin,'student','Stage3 Admin Fixture','stage3_admin_fixture',NULL,true,NULL,NULL);
 
 
@@ -517,7 +517,7 @@ BEGIN
   END IF;
 
   -- Same normalized phone, different raw formatting: the second FREE claim
-  -- must be rejected even though the raw auth.users.phone strings differ.
+  -- must be rejected because the verified phone hash is identical.
     PERFORM pg_temp.stage3_provision_user(u_duplicate_organizer,'organizer','Duplicate Organizer','stage3_dup_org',NULL,true,NULL,NULL);
   PERFORM pg_temp.stage3_verify_phone(u_duplicate_organizer,'12025550100','901002');
 
@@ -813,7 +813,7 @@ BEGIN
     u_unverified_referrer,u_bad_referral,u_admin
   );
 
-  RAISE NOTICE 'Stage 3 production-shaped behavior fixtures passed: signup/role mapping, email/referral lifecycle, 24-hour expiry, scheduled referral verifier, organizer phone/email gates, one-FREE-phone claim, registration/referral/audit/notification.';
+  RAISE NOTICE 'Stage 3 production-shaped behavior fixtures passed: Better Auth RPC provisioning/role mapping, trusted email/phone verification, referral lifecycle, 24-hour expiry, scheduled verifier, organizer gates, one-FREE-phone claim, registration/audit/notification.';
 END;
 $stage3_regression$;
 
