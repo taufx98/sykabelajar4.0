@@ -6,6 +6,8 @@ const viteEnv = readFileSync(new URL("../../src/vite-env.d.ts", import.meta.url)
 const appContext = readFileSync(new URL("../../src/store/AppContext.tsx", import.meta.url), "utf8");
 const authService = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
 const callbackPage = readFileSync(new URL("../../src/pages/AuthOidcCallbackPage.tsx", import.meta.url), "utf8");
+const accessTokenProvider = readFileSync(new URL("../../src/services/applicationAccessToken.ts", import.meta.url), "utf8");
+const cloudinaryService = readFileSync(new URL("../../src/services/cloudinary.service.ts", import.meta.url), "utf8");
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
 
 assert.match(client, /credentials:\s*'include'/);
@@ -62,5 +64,11 @@ assert.match(appContext, /supabase\.auth\.getSession\(\)/);
 assert.match(appContext, /supabase\.auth\.onAuthStateChange/);
 assert.match(authService, /supabase\.auth\.signInWithPassword/);
 assert.doesNotMatch(appContext, /getStagingBetterAuthClient/);
+assert.match(accessTokenProvider, /isBetterAuthFrontendEnabled\(\)/);
+assert.match(accessTokenProvider, /getStagingBetterAuthClient\(\)\.getSupabaseAccessToken\(\)/);
+assert.match(accessTokenProvider, /supabase\.auth\.getSession\(\)/);
+assert.match(cloudinaryService, /getSupabaseResourceAccessToken\(\)/);
+assert.doesNotMatch(cloudinaryService, /supabase\.auth/);
+
 
 console.log("Better Auth frontend transport contract passed; Supabase Auth remains the sole live app session source.");
