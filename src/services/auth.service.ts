@@ -112,6 +112,7 @@ export async function signUp(
       name: profile.full_name,
       username: profile.username,
       accountType: profile.account_type,
+      callbackURL: new URL('/auth/verified', window.location.origin).toString(),
       ...(profile.birth_date ? { birthDate: profile.birth_date } : {}),
       ...(profile.institution ? { institution: profile.institution } : {}),
       ...(profile.grade ? { grade: profile.grade } : {}),
@@ -199,7 +200,7 @@ export async function sendVerificationEmail(email: string, callbackURL?: string)
     throw new Error('EMAIL_INVALID');
   }
 
-  const destination = callbackURL ?? new URL('/home', window.location.origin).toString();
+  const destination = callbackURL ?? new URL('/auth/verified', window.location.origin).toString();
   if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     await getStagingBetterAuthClient().sendVerificationEmail(normalizedEmail, destination);
     return;
