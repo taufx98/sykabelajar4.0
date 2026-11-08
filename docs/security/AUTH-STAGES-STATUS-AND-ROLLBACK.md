@@ -90,6 +90,12 @@ The current 11 rows in `auth.users` are a count only; no identifying data was ex
 
 The first admin must be provisioned through a server-only, auditable bootstrap with a fixed, explicitly approved identity. Public registration must never be able to create `admin`.
 
+## Stage 3 FK-only rollback boundary
+
+The reverse FK generator at [generate-app-users-fk-rollback-plan.mjs](../../scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs) is a **review-only FK reversal**, not a full Stage 3 rollback. It emits bounded reverse expansion and validation batches and one atomic FK cutover. Its preflight and atomic cutover both refuse to proceed if any `private.app_users.id` is absent from `auth.users`; this is the explicit guard against Better Auth-only identities. It never creates shadow Auth users or copies passwords, credentials or sessions.
+
+This limited reversal is only viable before the first Better Auth-only identity is provisioned. After a Better Auth-only account exists, the canonical identity root and Better Auth-compatible token/session adapter must remain in place. An application rollback may revert unrelated bundle code, but must not point that account back to legacy Supabase Auth or rehome its app FKs to `auth.users`. The generator does not restore Stage 3 functions, triggers or issuer policies; those require their own reviewed rollback procedure. No generated SQL is applied to production.
+
 ## Stage 7 — production rollback rule
 
 A Better Auth account and a Supabase Auth account are not interchangeable. The approved architecture does not migrate old password hashes or create shadow `auth.users` accounts. Therefore a rollback cannot simply change the frontend back to Supabase Auth for every user:
