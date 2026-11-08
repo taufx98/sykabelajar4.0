@@ -365,7 +365,7 @@ export function createBetterAuthApiClient(options: {
   fetchImpl?: FetchLike;
 }): BetterAuthApiClient {
   const baseUrl = resolveAuthBaseUrl(options.authWorkerUrl);
-  const workerOrigin = baseUrl.replace(/\\/api\\/auth$/, '');
+  const workerOrigin = baseUrl.replace(/\/api\/auth$/, '');
   const fetchImpl = options.fetchImpl ?? fetch;
   let cachedResourceToken: ValidatedResourceToken | null = null;
   let resourceTokenGeneration = 0;
