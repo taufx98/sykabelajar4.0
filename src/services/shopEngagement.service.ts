@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { requireCurrentApplicationUserId } from '@/services/applicationIdentity';
 
 export type ShopHeroBanner = {
   enabled: boolean;
@@ -164,11 +165,7 @@ export async function saveShopProductCategories(categories: ShopProductCategory[
 }
 
 async function requireCurrentUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  const userId = data.user?.id;
-  if (!userId) throw new Error('AUTH_REQUIRED');
-  return userId;
+  return requireCurrentApplicationUserId('AUTH_REQUIRED');
 }
 
 export async function listMyWishlist(): Promise<string[]> {
