@@ -50,3 +50,16 @@ test("the inventory document remains present next to its tracked source baseline
   assert.match(inventory, /Legacy private-chat service[\s\S]*not migrate(?: it)? to Better Auth/);
   assert.match(inventory, /comments and other social features remain/);
 });
+
+test("Stage 4 registration form matches the Better Auth password and username contract", () => {
+  const registrationPage = readFileSync(join(repoRoot, "src/pages/RegisterPage.tsx"), "utf8");
+  const betterAuthClient = readFileSync(join(repoRoot, "src/services/betterAuthApi.client.ts"), "utf8");
+
+  assert.ok(registrationPage.includes("const MIN_PASSWORD_LENGTH = 8;"));
+  assert.ok(registrationPage.includes("form.password.length>=MIN_PASSWORD_LENGTH"));
+  assert.ok(registrationPage.includes("minLength={MIN_PASSWORD_LENGTH}"));
+  assert.ok(registrationPage.includes("const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;"));
+  assert.ok(registrationPage.includes("USERNAME_PATTERN.test(form.username.trim())"));
+  assert.ok(betterAuthClient.includes("const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;"));
+  assert.ok(betterAuthClient.includes("if (input.password.length < 8)"));
+});
