@@ -9,6 +9,14 @@ const draft = readFileSync(
   "utf8",
 );
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\const draft = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql"),
+  "utf8",
+);
+");
+}
+
 // The reviewed SQL stays outside supabase/migrations until all Stage 3 gates pass.
 
 assert.match(draft, /ALTER TABLE private\.app_users ENABLE ROW LEVEL SECURITY/i);
@@ -101,7 +109,7 @@ for (const name of [
   "public.get_my_referrals_v2()",
   "public.get_my_verified_referrals()",
 ]) {
-  const normalized = name.replaceAll(".", "\\.");
+  const normalized = escapeRegex(name);
   const body = draft.match(new RegExp("CREATE OR REPLACE FUNCTION " + normalized + "[\\s\\S]*?\\$function\\$;", "i"))?.[0] ?? "";
   assert.ok(body, "missing referral read function body: " + name);
   assert.match(body, /SET search_path TO ''/i,
