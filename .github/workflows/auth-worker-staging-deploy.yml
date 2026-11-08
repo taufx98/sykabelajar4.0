@@ -354,6 +354,49 @@ jobs:
                 key.kty === "EC" && key.crv === "P-256" && key.alg === "ES256" &&
                 typeof key.kid === "string" && key.kid.length > 0 && !Object.hasOwn(key, "d")
               ), "JWKS must publish only a public P-256 ES256 key with kid");
+              const publicProvidersResponse = await fetch(origin + "/api/auth/providers", {
+                headers: { Origin: previewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(publicProvidersResponse.status, 200, "public provider list must be available to the login page");
+              assert.equal(
+                publicProvidersResponse.headers.get("Access-Control-Allow-Origin"),
+                previewOrigin,
+                "public provider list must allow only the exact migration preview",
+              );
+              const publicProviders = await publicProvidersResponse.json();
+              assert.equal(publicProviders.ok, true);
+              assert.equal(publicProviders.issuer, expectedIssuer);
+              assert.ok(Array.isArray(publicProviders.providers), "public provider list must be an array");
+              assert.ok(
+                publicProviders.providers.every((provider) => ["google", "facebook", "twitter"].includes(provider)),
+                "public provider list must not expose unsupported or arbitrary providers",
+              );
+              assert.deepEqual(
+                Object.keys(publicProviders).sort(),
+                ["issuer", "ok", "providers"],
+                "public provider response must not expose client IDs, secrets, or private settings",
+              );
+
+              const unauthenticatedAdminResponse = await fetch(origin + "/api/admin/login-providers", {
+                headers: { Origin: previewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(unauthenticatedAdminResponse.status, 401, "Admin provider settings must reject requests without a Better Auth resource token");
+              const unauthenticatedAdminBody = await unauthenticatedAdminResponse.json();
+              assert.equal(unauthenticatedAdminBody.error, "AUTH_REQUIRED");
+
+              const hostileAdminResponse = await fetch(origin + "/api/admin/login-providers", {
+                headers: { Origin: "https://attacker.example", Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(hostileAdminResponse.status, 403, "Admin provider settings must reject untrusted browser origins");
+              assert.equal(
+                hostileAdminResponse.headers.get("Access-Control-Allow-Origin"),
+                null,
+                "untrusted origins must not receive Admin CORS permission",
+              );
+
               console.log(JSON.stringify({
                 health: "ok",
                 issuer: discovery.issuer,
