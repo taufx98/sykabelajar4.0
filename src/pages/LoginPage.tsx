@@ -52,7 +52,7 @@ export function LoginPage() {
   const handleSocialLogin = async (provider: BetterAuthSocialProvider) => {
     setSocialLoading(provider);
     try {
-      const callbackURL = `${window.location.origin}/#${redirectTo}`;
+      const callbackURL = new URL(redirectTo, window.location.origin).toString();
       await signInWithSocial(provider, callbackURL);
     } catch (error: any) {
       toast(error?.message ?? text('Login sosial gagal. Coba lagi.','Social sign-in failed. Please try again.'), 'error');
