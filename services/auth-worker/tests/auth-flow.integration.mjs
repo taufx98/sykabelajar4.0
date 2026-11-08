@@ -350,15 +350,35 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       method: "POST",
       body: {
         email,
-        redirectTo: appOrigin + "/auth/reset-password",
+        redirectTo: appOrigin + "/reset-password",
       },
     });
     assert.ok(resetRequest.ok, "password-reset request must complete without exposing account lookup state");
     const resetMessage = mailMessages.find((message) => message.category === "reset-password" && message.to === email);
     assert.ok(resetMessage, "password-reset request must deliver a reset email");
     const resetUrl = mailUrl(resetMessage);
+    assert.equal(resetUrl.origin, new URL(baseUrl).origin, "reset email must use the configured Better Auth issuer");
+    assert.match(resetUrl.pathname, /\\/api\\/auth\\/reset-password\\//, "reset email must use Better Auth's single-use reset route");
+    assert.equal(resetUrl.searchParams.get("callbackURL"), appOrigin + "/reset-password",
+      "reset email must return to the public frontend reset page");
     const resetToken = resetUrl.pathname.split("/").filter(Boolean).at(-1);
     assert.ok(resetToken && resetToken.length >= 20, "reset email must contain a high-entropy token");
+
+    // Follow the actual email URL (without auto-following) and prove Better Auth
+    // redirects to the app page with the single-use token in the query string.
+    const resetNavigation = await fetch(resetUrl, { redirect: "manual" });
+    assert.ok(
+      [302, 303, 307, 308].includes(resetNavigation.status),
+      "reset email navigation must redirect to the app page; HTTP " + resetNavigation.status,
+    );
+    const resetLocation = resetNavigation.headers.get("location");
+    assert.ok(resetLocation, "reset email navigation must include a redirect location");
+    const appResetUrl = new URL(resetLocation, resetUrl);
+    assert.equal(appResetUrl.origin, appOrigin, "reset token must not redirect to another origin");
+    assert.equal(appResetUrl.pathname, "/reset-password", "reset token must reach the dedicated recovery route");
+    assert.equal(appResetUrl.searchParams.get("token"), resetToken,
+      "reset callback must carry the exact single-use token expected by ResetPasswordPage");
+    assert.equal(appResetUrl.searchParams.has("error"), false, "valid reset callback must not include an error");
 
     const reset = await authRequest("/reset-password", {
       method: "POST",
@@ -662,7 +682,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const limitedReset = await authRequest("/request-password-reset", {
         method: "POST",
-        body: { email, redirectTo: appOrigin + "/auth/reset-password" },
+        body: { email, redirectTo: appOrigin + "/reset-password" },
       });
       additionalResetStatuses.push(limitedReset.status);
     }
