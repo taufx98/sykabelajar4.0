@@ -4,7 +4,7 @@ import { reportSystemError } from './errorIntelligence';
 import { createSupabaseClientOptions } from '@/services/supabaseClientOptions.mjs';
 import {
   getStagingBetterAuthClient,
-  isBetterAuthFrontendEnabled,
+  isBetterAuthFrontendEnabledForSupabase,
 } from '@/services/betterAuthApi.client';
 
 let _client: SupabaseClient | null = null;
@@ -68,7 +68,7 @@ async function authAwareFetch(input: RequestInfo | URL, init?: RequestInit) {
 
 function initClient(): SupabaseClient {
   if (_client) return _client;
-  const useBetterAuth = isBetterAuthFrontendEnabled();
+  const useBetterAuth = isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl);
   _client = createClient(
     env.supabaseUrl,
     env.supabasePublishableKey,
