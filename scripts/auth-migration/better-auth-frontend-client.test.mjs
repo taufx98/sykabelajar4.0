@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const client = readFileSync(new URL("../../src/services/betterAuthApi.client.ts", import.meta.url), "utf8");
+const organizerOnboarding = readFileSync(new URL("../../src/components/organizer/OrganizerWorkspaceOnboarding.tsx", import.meta.url), "utf8");
+const authWorker = readFileSync(new URL("../../services/auth-worker/src/worker.ts", import.meta.url), "utf8");
 const viteEnv = readFileSync(new URL("../../src/vite-env.d.ts", import.meta.url), "utf8");
 const appContext = readFileSync(new URL("../../src/store/AppContext.tsx", import.meta.url), "utf8");
 const authService = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
@@ -69,6 +71,19 @@ assert.match(client, /'student', 'teacher', 'organizer'/);
 assert.doesNotMatch(client, /'admin'/);
 assert.match(client, /USERNAME_PATTERN/);
 assert.match(client, /REGISTRATION_USERNAME_INVALID/);
+
+assert.match(client, /getTelegramPhoneVerificationStatus\(\)/);
+assert.match(client, /startTelegramPhoneVerification\(\)/);
+assert.match(client, /\/api\/phone-verification\/telegram\/status/);
+assert.match(client, /\/api\/phone-verification\/telegram\/start/);
+assert.match(client, /authorizationUrl\.origin !== 'https:\/\/oauth\.telegram\.org'/);
+assert.match(organizerOnboarding, /isBetterAuthEnabled\(\)/);
+assert.match(organizerOnboarding, /getTelegramPhoneVerificationStatus\(\)/);
+assert.match(organizerOnboarding, /startTelegramPhoneVerification\(\)/);
+assert.match(organizerOnboarding, /supabase\.auth\.verifyOtp/);
+assert.match(authWorker, /url\.pathname === "\/api\/phone-verification\/telegram\/status"/);
+assert.match(authWorker, /getSupabasePhoneVerificationStatus\(env, userId\)/);
+assert.match(authWorker, /new URL\("\/organizer", app\.origin\)/);
 
 // This is a transport scaffold only: the live app must keep one session source.
 assert.match(appContext, /getAuthSession\(\)/);
