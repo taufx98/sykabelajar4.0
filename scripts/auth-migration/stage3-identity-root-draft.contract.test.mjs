@@ -97,9 +97,9 @@ for (const name of [
   "private.complete_better_auth_email_verification",
   "private.complete_better_auth_phone_verification",
 ]) {
-  assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\\\.") + "[\\\\s\\\\S]{0,200}FROM PUBLIC, anon, authenticated, service_role", "i"),
+  assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\.") + "[\\s\\S]{0,200}FROM PUBLIC, anon, authenticated, service_role", "i"),
     "private helper must be inaccessible to service_role: " + name);
-  assert.doesNotMatch(draft, new RegExp("GRANT EXECUTE ON FUNCTION " + name.replaceAll(".", "\\\\.")),
+  assert.doesNotMatch(draft, new RegExp("GRANT EXECUTE ON FUNCTION " + name.replaceAll(".", "\\.")),
     "service_role must not execute private helper directly: " + name);
 }
 // Only public SECURITY DEFINER wrappers are the Worker RPC surface.
@@ -108,9 +108,9 @@ for (const name of [
   "public.better_auth_complete_email_verification",
   "public.better_auth_complete_phone_verification",
 ]) {
-  assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\\\."), "i"),
+  assert.match(draft, new RegExp("REVOKE ALL ON FUNCTION " + name.replaceAll(".", "\\."), "i"),
     "missing PUBLIC revoke for " + name);
-  assert.match(draft, new RegExp("GRANT EXECUTE ON FUNCTION " + name.replaceAll(".", "\\\\.") + "[\\\\s\\\\S]{0,240}TO service_role", "i"),
+  assert.match(draft, new RegExp("GRANT EXECUTE ON FUNCTION " + name.replaceAll(".", "\\.") + "[\\s\\S]{0,240}TO service_role", "i"),
     "missing public RPC service_role grant for " + name);
 }
 
