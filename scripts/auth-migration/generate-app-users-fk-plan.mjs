@@ -159,7 +159,8 @@ function boundedTimeoutGuard() {
 }
 
 /**
- * Generate review-only SQL in three phases:
+ * Generate review-only SQL in four phases:
+ * 0) seed UUID-only tombstones from application FK columns (never read auth.users),
  * 1) full preflight + resumable, bounded per-source-table expansion batches,
  * 2) resumable, bounded per-source-table validation batches,
  * 3) one globally atomic cutover after all replacement constraints validate.
@@ -185,20 +186,33 @@ export function generatePlan(snapshot) {
     "",
   ].join("\n");
 
+  const tombstoneSources = records.map((fk) => {
+    const rel = relation(fk);
+    const column = quoteIdentifier(fk.source_columns[0], "source_column");
+    return "SELECT " + column + " AS id FROM " + rel + " WHERE " + column + " IS NOT NULL";
+  });
+  const tombstoneSql = [
+    "-- GENERATED REVIEW PLAN ONLY — UUID-only FK compatibility tombstones.",
+    "-- This reads only the 69 application FK source columns; it never reads auth.users.",
+    "-- No email, credentials, sessions, provider identities, verification or user roles are copied.",
+    "-- Every inserted row is non-authenticatable and is marked legacy_reference.",
+    "BEGIN;",
+    boundedTimeoutGuard(),
+    "INSERT INTO private.app_users (id, identity_origin)",
+    "SELECT DISTINCT referenced.id, 'legacy_reference'",
+    "FROM (",
+    tombstoneSources.map((sql) => "  " + sql).join("\n  UNION\n"),
+    ") AS referenced",
+    "WHERE referenced.id IS NOT NULL",
+    "ON CONFLICT (id) DO NOTHING;",
+    "COMMIT;",
+    "",
+  ].join("\n");
+
   const preflightChecks = [
     [
-      "  IF to_regclass('auth.users') IS NULL THEN",
-      "    RAISE EXCEPTION 'EXPECTED_AUTH_USERS_TABLE_MISSING';",
-      "  END IF;",
       "  IF to_regclass('private.app_users') IS NULL THEN",
       "    RAISE EXCEPTION 'IDENTITY_ROOT_PRIVATE_APP_USERS_MISSING';",
-      "  END IF;",
-      "  IF EXISTS (",
-      "    SELECT 1 FROM auth.users AS legacy_user",
-      "    LEFT JOIN private.app_users AS identity_root ON identity_root.id = legacy_user.id",
-      "    WHERE identity_root.id IS NULL",
-      "  ) THEN",
-      "    RAISE EXCEPTION 'IDENTITY_ROOT_MISSING_LEGACY_USERS';",
       "  END IF;",
     ].join("\n"),
     ...records.flatMap((fk, index) => {
@@ -365,6 +379,7 @@ export function generatePlan(snapshot) {
   ]);
 
   return {
+    "00-identity-tombstones.sql": tombstoneSql,
     "01-preflight-expand.sql": header("full preflight + resumable bounded expansion") +
       boundedTimeoutGuard() + "\n\n" +
       "DO " + "$" + "$" + "\nBEGIN\n" + preflightChecks.join("\n\n") + "\nEND\n" + "$" + "$;\n\n" +
