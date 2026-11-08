@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   BetterAuthAdminAuthError,
   isBetterAuthTokenForIssuer,
@@ -13,6 +14,7 @@ const SUPABASE_URL = "https://ydamszdfsxqisanazdkb.supabase.co";
 const SERVICE_KEY = "staging-service-role-key-not-for-browser";
 const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = 1_800_000_000;
+const emailAdminSource = readFileSync(new URL("../src/email-admin.ts", import.meta.url), "utf8");
 
 function fakeToken(claims = {}) {
   const header = Buffer.from(JSON.stringify({ alg: "ES256", kid: "staging-key-1", typ: "JWT" })).toString("base64url");
@@ -193,6 +195,17 @@ test("missing staging server key and unavailable UserInfo/role services fail clo
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_CHECK_FAILED",
   );
   assert.equal(rolesDown.calls.length, 2);
+});
+
+test("email admin route verifies Better Auth separately and keeps the Supabase Auth default path", () => {
+  assert.match(emailAdminSource, /isBetterAuthTokenForIssuer\(accessToken, env\.BETTER_AUTH_URL\)/);
+  assert.match(emailAdminSource, /resolveBetterAuthAdminIdentity\(/);
+  assert.match(emailAdminSource, /supabaseBaseUrl\(env\)/);
+  assert.match(emailAdminSource, /\/auth\/v1\/user/);
+  assert.match(emailAdminSource, /\/rest\/v1\/rpc\/is_active_admin/);
+  assert.match(emailAdminSource, /SUPABASE_PROVISIONING_URL/);
+  assert.match(emailAdminSource, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(emailAdminSource, /BETTER_AUTH_ADMIN_REQUIRED/);
 });
 
 console.log("Better Auth email-admin bridge verification tests passed.");
