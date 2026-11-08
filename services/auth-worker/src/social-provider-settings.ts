@@ -91,7 +91,7 @@ async function readMeta(db: D1Database): Promise<SocialProviderMeta | null> {
     // The only safe environment-only fallback is before additive migration
     // 0007 exists. Quota, binding and transient D1 errors must never silently
     // switch a managed installation back to stale environment credentials.
-    if (/no such table:\\s*auth_social_provider_meta/i.test(reason)) return null;
+    if (/no such table:\s*auth_social_provider_meta/i.test(reason)) return null;
     throw new Error("SOCIAL_PROVIDER_CONFIGURATION_UNAVAILABLE");
   }
 }
