@@ -8,6 +8,14 @@ const paymentAdmin = readFileSync(new URL("payment-gateway-admin/index.ts", edge
 const paymentCreate = readFileSync(new URL("payment-gateway-create/index.ts", edgeRoot), "utf8");
 const paymentReconcile = readFileSync(new URL("payment-gateway-reconcile/index.ts", edgeRoot), "utf8");
 
+const cloudinarySignature = readFileSync(new URL("../../supabase/functions/get-cloudinary-signature/index.ts", import.meta.url), "utf8");
+const cloudinaryDelete = readFileSync(new URL("../../supabase/functions/cloudinary-delete-asset/index.ts", import.meta.url), "utf8");
+const cloudinaryUpload = readFileSync(new URL("../../supabase/functions/cloudinary-profile-upload/index.ts", import.meta.url), "utf8");
+const cloudinaryDeleteProfile = readFileSync(new URL("../../supabase/functions/cloudinary-delete-profile/index.ts", import.meta.url), "utf8");
+const midtransDelegate = readFileSync(new URL("../../supabase/functions/midtrans-create-payment/index.ts", import.meta.url), "utf8");
+const paymentWebhook = readFileSync(new URL("../../supabase/functions/payment-gateway-webhook/index.ts", import.meta.url), "utf8");
+const functionConfig = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
+
 test("shared application identity defaults to legacy Supabase and Better Auth is explicit opt-in", () => {
   assert.match(identityResolver, /AUTH_IDENTITY_MODE/);
   assert.match(identityResolver, /\?\.trim\(\) \|\| "supabase"/);
@@ -59,3 +67,50 @@ test("payment reconciliation scopes all order lookups and checks to the verified
 });
 
 console.log("Payment gateway identity migration contracts passed.");
+
+test("all migrated user-facing Cloudinary handlers share the fail-closed identity resolver", () => {
+  for (const [name, source] of [
+    ["get-cloudinary-signature", cloudinarySignature],
+    ["cloudinary-delete-asset", cloudinaryDelete],
+    ["cloudinary-profile-upload", cloudinaryUpload],
+    ["cloudinary-delete-profile", cloudinaryDeleteProfile],
+  ]) {
+    assert.match(source, /requireApplicationUser\(/, name + " must verify the caller in-handler");
+    assert.doesNotMatch(source, /auth\.getUser\(|\/auth\/v1\/user/, name + " must not retain the legacy Supabase Auth verifier");
+    assert.doesNotMatch(source, /service_role|SUPABASE_SERVICE_ROLE_KEY/, name + " must not bypass RLS for ownership checks");
+  }
+  assert.match(cloudinarySignature, /isOwnedCloudinaryPublicId/);
+  assert.match(cloudinaryDelete, /isOwnedCloudinaryPublicId/);
+  assert.match(cloudinaryDeleteProfile, /isOwnedCloudinaryPublicId/);
+});
+
+test("Cloudinary and payment handlers remain compatible with verified third-party issuer routing", () => {
+  for (const name of [
+    "get-cloudinary-signature",
+    "cloudinary-delete-asset",
+    "cloudinary-profile-upload",
+    "cloudinary-delete-profile",
+    "payment-gateway-admin",
+    "payment-gateway-create",
+    "payment-gateway-reconcile",
+    "midtrans-create-payment",
+  ]) {
+    const section = functionConfig.match(new RegExp("\\[functions\\." + name + "\\]\\s+verify_jwt\\s*=\\s*(true|false)"));
+    assert.ok(section, name + " must have an explicit platform gateway JWT policy");
+    assert.equal(section[1], "false", name + " must reach its in-handler identity verifier");
+  }
+  for (const name of ["cloudinary-profile-upload-v2", "cloudinary-delete-asset-v2"]) {
+    const section = functionConfig.match(new RegExp("\\[functions\\." + name + "\\]\\s+verify_jwt\\s*=\\s*(true|false)"));
+    assert.ok(section, name + " legacy alias must have an explicit gateway policy");
+    assert.equal(section[1], "true", name + " remains on its legacy Supabase JWT path until caller deprecation is confirmed");
+  }
+});
+
+test("payment compatibility delegate forwards the caller token and webhook keeps provider signature auth", () => {
+  assert.match(midtransDelegate, /req\.headers\.get\("Authorization"\)/);
+  assert.match(midtransDelegate, /\/functions\/v1\/payment-gateway-create/);
+  assert.match(midtransDelegate, /"Authorization": authorization/);
+  assert.match(paymentWebhook, /INVALID_SIGNATURE|SIGNATURE_REQUIRED/);
+  assert.match(paymentWebhook, /constantTimeEqual/);
+  assert.doesNotMatch(paymentWebhook, /requireApplicationUser\(/);
+});
