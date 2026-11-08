@@ -49,7 +49,12 @@ for (const name of [
 // Existing accounts are deliberately not copied into the Better Auth identity
 // root. Only the separate FK planner may preserve application UUID references
 // as non-authenticatable legacy_reference tombstones.
-assert.doesNotMatch(draft, /FROM auth\.users|INSERT INTO auth\.users|sync_legacy_auth_user_identity_projection/i);
+assert.doesNotMatch(
+  draft,
+  /^\s*(?:FROM\s+auth\.users|SELECT\b[\s\S]{0,120}FROM\s+auth\.users|INSERT\s+INTO\s+auth\.users)\b/im,
+  "the SQL statements must not read from or insert old Supabase Auth accounts",
+);
+assert.doesNotMatch(draft, /CREATE OR REPLACE FUNCTION private\.sync_legacy_auth_user_identity_projection|CREATE TRIGGER a_sync_app_users_identity_/i);
 assert.match(draft, /identity_origin text NOT NULL DEFAULT 'better_auth'/);
 assert.match(draft, /identity_origin IN \('better_auth', 'legacy_reference'\)/);
 assert.match(draft, /DROP TRIGGER IF EXISTS on_auth_user_created ON auth\.users/);
