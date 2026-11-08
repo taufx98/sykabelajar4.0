@@ -122,7 +122,7 @@ export function LoginProvidersSettingsPanel() {
         enabled: draft.enabled,
       });
       applySettings(value);
-      setMessage(\`\${PROVIDER_LABEL[provider]} berhasil disimpan secara terenkripsi di D1.\`);
+      setMessage(`${PROVIDER_LABEL[provider]} berhasil disimpan secara terenkripsi di D1.`);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -136,7 +136,7 @@ export function LoginProvidersSettingsPanel() {
       setError('Simpan Client ID dan Client Secret terlebih dahulu.');
       return;
     }
-    if (!enabled && !window.confirm(\`Nonaktifkan \${PROVIDER_LABEL[provider]}? Pengguna tidak dapat memakai provider ini untuk login.\`)) {
+    if (!enabled && !window.confirm(`Nonaktifkan ${PROVIDER_LABEL[provider]}? Pengguna tidak dapat memakai provider ini untuk login.`)) {
       return;
     }
     setBusyProvider(provider);
@@ -145,7 +145,7 @@ export function LoginProvidersSettingsPanel() {
     try {
       const value = await getStagingBetterAuthClient().setLoginProviderEnabled(provider, enabled);
       applySettings(value);
-      setMessage(\`\${PROVIDER_LABEL[provider]} \${enabled ? 'diaktifkan' : 'dinonaktifkan'}. Konfigurasi Worker diperbarui tanpa redeploy.\`);
+      setMessage(`${PROVIDER_LABEL[provider]} ${enabled ? 'diaktifkan' : 'dinonaktifkan'}. Konfigurasi Worker diperbarui tanpa redeploy.`);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
