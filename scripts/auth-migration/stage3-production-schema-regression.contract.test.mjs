@@ -42,7 +42,11 @@ assert.match(sql,/SET LOCAL ROLE anon/);
 assert.match(sql,/SET is_public=\(id = u_expired\)/i);
 assert.match(sql,/STAGE3_RLS_ANON_PUBLIC_PROFILE_READ_FAILED/);
 assert.match(sql,/STAGE3_PROFILE_ACCOUNT_TYPE_CLIENT_MUTATION_ALLOWED/);
+assert.match(sql,/CREATE TEMP TABLE stage3_profile_guard_probe/);
+assert.match(sql,/EXECUTE FUNCTION public\.prevent_profile_account_type_client_mutation\(\)/);
+assert.match(sql,/EXECUTE FUNCTION public\.prevent_profile_currency_client_mutation\(\)/);
 assert.match(sql,/STAGE3_PROFILE_CURRENCY_CLIENT_MUTATION_ALLOWED/);
+assert.match(sql,/STAGE3_PROFILE_CURRENCY_CLIENT_INSERT_ALLOWED/);
 assert.match(sql,/STAGE3_PROFILE_ADMIN_ACCOUNT_TYPE_MUTATION_ALLOWED/);
 assert.match(sql,/STAGE3_PROFILE_ADMIN_CURRENCY_MUTATION_ALLOWED/);
 
