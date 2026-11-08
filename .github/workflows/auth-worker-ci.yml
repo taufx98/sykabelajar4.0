@@ -22,6 +22,12 @@ on:
       - "scripts/auth-migration/payment-edge-auth-migration.test.mjs"
       - "scripts/auth-migration/frontend-auth-inventory.test.mjs"
       - "src/services/betterAuthApi.client.ts"
+      - "src/services/auth.service.ts"
+      - "src/services/betterAuthSessionBridge.mjs"
+      - "src/services/betterAuthSessionBridge.d.mts"
+      - "src/pages/AdminErrorIntelligencePage.tsx"
+      - "src/pages/RegisterPage.tsx"
+      - "scripts/auth-migration/better-auth-session-bridge.test.mjs"
       - "src/lib/supabase.ts"
       - "src/services/supabaseClientOptions.mjs"
       - "src/services/supabaseClientOptions.d.mts"
@@ -96,6 +102,9 @@ jobs:
 
       - name: Verify shared Supabase client auth-token source
         run: node ../../scripts/auth-migration/supabase-client-options.test.mjs
+
+      - name: Verify Better Auth cross-tab session synchronization
+        run: node ../../scripts/auth-migration/better-auth-session-bridge.test.mjs
 
       - name: Run local Worker, apply D1 migrations, and verify auth/OAuth flows
         shell: bash
