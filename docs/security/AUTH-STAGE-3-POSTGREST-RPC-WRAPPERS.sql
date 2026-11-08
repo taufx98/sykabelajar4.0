@@ -1,4 +1,9 @@
--- DRAFT ONLY — Stage 3 PostgREST bridge contract.
+-- SUPERSEDED REVIEW SNAPSHOT — do not apply this file independently.
+-- The authoritative current public RPC wrapper definitions and grants (including
+-- Better Auth phone completion and verified-phone status) are part of:
+--   docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql
+-- This earlier two-wrapper extract is retained for review history only.
+-- NOT a Supabase migration and NOT approved for production execution.
 -- NOT a Supabase migration and NOT approved for production execution.
 -- Apply only after a complete schema-only baseline exists and an isolated
 -- Free-plan Supabase project has accepted the Better Auth Custom OIDC issuer.
