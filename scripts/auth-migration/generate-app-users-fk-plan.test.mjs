@@ -23,7 +23,15 @@ const expand = plan["01-preflight-expand.sql"];
 const validate = plan["02-validate.sql"];
 const cutover = plan["03-cutover.sql"];
 
-assert.ok(expand && validate && cutover, "all three review phases must be generated");
+const tombstones = plan["00-identity-tombstones.sql"];
+assert.ok(tombstones && expand && validate && cutover, "the identity tombstone seed and all three FK phases must be generated");
+assert.equal((tombstones.match(/SELECT [^\n]+ AS id FROM/g) ?? []).length, 69,
+  "every reviewed FK source column must contribute to the legacy-reference tombstone query");
+assert.match(tombstones, /INSERT INTO private\.app_users \(id, identity_origin\)/);
+assert.match(tombstones, /'legacy_reference'/);
+assert.match(tombstones, /ON CONFLICT \(id\) DO NOTHING/);
+assert.doesNotMatch(tombstones, /auth\.users|email|password|credential|session|role/i,
+  "the tombstone seed must never read or copy account or authentication data");
 assert.equal((expand.match(/ADD CONSTRAINT/g) ?? []).length, 69);
 assert.equal((validate.match(/VALIDATE CONSTRAINT/g) ?? []).length, 69);
 assert.equal((cutover.match(/DROP CONSTRAINT/g) ?? []).length, 69);
@@ -44,7 +52,8 @@ assert.match(expand, /REPLACEMENT_FK_SEMANTIC_DRIFT:/);
 assert.match(validate, /REPLACEMENT_FK_MISSING:/);
 assert.match(validate, /convalidated/);
 assert.match(cutover, /REPLACEMENT_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED:/);
-assert.match(expand, /IDENTITY_ROOT_MISSING_LEGACY_USERS/);
+assert.doesNotMatch(expand, /IDENTITY_ROOT_MISSING_LEGACY_USERS|FROM auth\.users/,
+  "the FK cutover must not require migrating every old Auth account");
 assert.match(expand, /IDENTITY_ROOT_ORPHANS:/);
 assert.match(expand, /LIVE_FK_DRIFT:/);
 assert.match(expand, /TEMP_FK_NAME_COLLISION:/);
@@ -53,7 +62,7 @@ assert.match(expand, /ON DELETE SET NULL/);
 assert.match(cutover, /REPLACEMENT_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED:/);
 assert.match(cutover, /LEGACY_FK_MISSING_OR_SEMANTICS_CHANGED:/);
 
-for (const sql of Object.values(plan)) {
+for (const sql of [expand, validate, cutover]) {
   assert.doesNotMatch(sql, /\b(?:INSERT\s+INTO|UPDATE\s+[a-z_]+\s+SET|DELETE\s+FROM|COPY\s+)\b/i);
   assert.match(sql, /GENERATED REVIEW PLAN ONLY/);
 }
@@ -75,4 +84,4 @@ assert.throws(() => validateCatalog({ ...fixture, foreign_keys: [{ ...fixture.fo
 assert.throws(() => validateCatalog({ ...fixture, foreign_keys: [{ ...fixture.foreign_keys[0], on_delete: "UNKNOWN" }] }), /unsupported ON DELETE/);
 assert.throws(() => validateCatalog({ ...fixture, foreign_keys: [{ ...fixture.foreign_keys[0], validated: false }] }), /validated, non-deferrable/);
 
-console.log("Identity FK plan generator contract passed: 69 live constraints, exact delete semantics, preflight, three gated phases, no DB execution.");
+console.log("Identity FK plan generator contract passed: 69 live constraints, UUID-only tombstones, exact delete semantics, three gated FK phases, no DB execution.");
