@@ -87,10 +87,10 @@ BEGIN
     AND NOT pol.polpermissive
     AND pol.polcmd = '*'
     AND pol.polroles = ARRAY['authenticated'::regrole::oid]
-    AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-    AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
-    AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-    AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%';
+    AND COALESCE(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+    AND COALESCE(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
+    AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+    AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%';
   IF v_issuer_guards <> 61 THEN
     RAISE EXCEPTION 'STAGE3_ROLLBACK_ISSUER_GUARD_COUNT_MISMATCH: expected 61 restrictive policies, found %',
       v_issuer_guards;
@@ -130,10 +130,10 @@ BEGIN
       AND NOT pol.polpermissive
       AND pol.polcmd = '*'
       AND pol.polroles = ARRAY['authenticated'::regrole::oid]
-      AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-      AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
-      AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-      AND pg_catalog.coalesce(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
+      AND COALESCE(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+      AND COALESCE(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
+      AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+      AND COALESCE(pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
     ORDER BY ns.nspname, tbl.relname
   LOOP
     EXECUTE pg_catalog.format(
