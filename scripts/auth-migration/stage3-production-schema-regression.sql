@@ -870,6 +870,30 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_RLS_PROFILE_SELF_READ_FAILED';
   END IF;
 
+  -- Authenticated users cannot alter backend-owned profile role or wallet
+  -- fields, even when they target their own row.
+  v_caught := false;
+  BEGIN
+    UPDATE public.profiles SET account_type='teacher'
+    WHERE id='00000000-0000-4000-8000-00000000a001';
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_caught := true;
+  END;
+  IF NOT v_caught THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_ACCOUNT_TYPE_CLIENT_MUTATION_ALLOWED';
+  END IF;
+
+  v_caught := false;
+  BEGIN
+    UPDATE public.profiles SET edu_coin=coalesce(edu_coin,0)+1
+    WHERE id='00000000-0000-4000-8000-00000000a001';
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_caught := true;
+  END;
+  IF NOT v_caught THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_CURRENCY_CLIENT_MUTATION_ALLOWED';
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.user_roles
   WHERE user_id IN (
@@ -1540,6 +1564,30 @@ BEGIN
     '00000000-0000-4000-8000-00000000a009',
     '00000000-0000-4000-8000-00000000a012'
   );
+
+  -- A business admin still uses the SQL role authenticated; role-table
+  -- membership must not bypass backend-managed profile fields.
+  v_caught := false;
+  BEGIN
+    UPDATE public.profiles SET account_type='teacher'
+    WHERE id='00000000-0000-4000-8000-00000000a009';
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_caught := true;
+  END;
+  IF NOT v_caught THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_ADMIN_ACCOUNT_TYPE_MUTATION_ALLOWED';
+  END IF;
+
+  v_caught := false;
+  BEGIN
+    UPDATE public.profiles SET total_xp=coalesce(total_xp,0)+1
+    WHERE id='00000000-0000-4000-8000-00000000a009';
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_caught := true;
+  END;
+  IF NOT v_caught THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_ADMIN_CURRENCY_MUTATION_ALLOWED';
+  END IF;
 
   IF v_count <> 6 THEN
     RAISE EXCEPTION 'STAGE3_RLS_ADMIN_USER_ROLES_OVERLAY_FAILED';
