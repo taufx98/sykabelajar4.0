@@ -73,6 +73,7 @@ type JsonRecord = Record<string, unknown>;
 export interface BetterAuthApiClient {
   getSession(): Promise<BetterAuthSessionEnvelope | null>;
   getResourceToken(): Promise<string>;
+  getSupabaseAccessToken(): Promise<string | null>;
   signInWithEmail(email: string, password: string): Promise<BetterAuthSignInResult>;
   signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string): Promise<BetterAuthSocialSignInResult>;
   signUp(input: BetterAuthRegistrationInput): Promise<BetterAuthSignInResult>;
@@ -86,6 +87,162 @@ export interface BetterAuthApiClient {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;
 const ACCOUNT_TYPES = new Set<BetterAuthAccountType>(['student', 'teacher', 'organizer']);
+
+const FIRST_PARTY_OAUTH_CLIENT_ID = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y';
+const SUPABASE_RESOURCE_AUDIENCE = 'https://sykabelajar.my.id';
+const OAUTH_CALLBACK_URL = 'https://sykabelajar.my.id/auth/oidc/callback';
+const OAUTH_CALLBACK_ORIGIN = new URL(OAUTH_CALLBACK_URL).origin;
+const RESOURCE_TOKEN_REFRESH_MARGIN_MS = 45_000;
+const RESOURCE_TOKEN_MAX_TTL_SECONDS = 300;
+const OAUTH_CALLBACK_TIMEOUT_MS = 20_000;
+
+type OAuthCallbackMessage = {
+  source: 'sykabelajar-better-auth-oidc';
+  state: string;
+  code?: string | null;
+  issuer?: string | null;
+  error?: string | null;
+};
+
+type ValidatedResourceToken = {
+  token: string;
+  expiresAt: number;
+  userId: string;
+};
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '_');
+}
+
+function randomBase64Url(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  return base64Url(bytes);
+}
+
+async function createPkceChallenge(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return base64Url(new Uint8Array(digest));
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    throw new BetterAuthClientError(502, 'AUTH_RESOURCE_TOKEN_FORMAT_INVALID');
+  }
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const payload: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!isRecord(payload)) throw new Error('INVALID_JWT_PAYLOAD');
+    return payload;
+  } catch {
+    throw new BetterAuthClientError(502, 'AUTH_RESOURCE_TOKEN_FORMAT_INVALID');
+  }
+}
+
+function validateResourceAccessToken(
+  token: string,
+  userId: string,
+  expectedIssuer: string,
+  expiresIn: unknown,
+): number {
+  const payload = decodeJwtPayload(token);
+  const audience = payload.aud;
+  const audienceMatches = audience === SUPABASE_RESOURCE_AUDIENCE ||
+    (Array.isArray(audience) && audience.includes(SUPABASE_RESOURCE_AUDIENCE));
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expiration = Number(payload.exp);
+  const lifetime = Number(expiresIn);
+
+  if (
+    payload.iss !== expectedIssuer ||
+    payload.sub !== userId ||
+    payload.role !== 'authenticated' ||
+    !audienceMatches ||
+    !Number.isInteger(expiration) ||
+    expiration <= nowSeconds + 10 ||
+    expiration > nowSeconds + RESOURCE_TOKEN_MAX_TTL_SECONDS + 10 ||
+    !Number.isFinite(lifetime) ||
+    lifetime <= 0 ||
+    lifetime > RESOURCE_TOKEN_MAX_TTL_SECONDS
+  ) {
+    throw new BetterAuthClientError(502, 'AUTH_RESOURCE_TOKEN_CLAIMS_INVALID');
+  }
+  return expiration * 1000;
+}
+
+async function requestAuthorizationCode(
+  authorizeUrl: URL,
+  state: string,
+): Promise<{ code: string; issuer: string }> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    throw new BetterAuthClientError(503, 'AUTH_BROWSER_CONTEXT_REQUIRED');
+  }
+
+  return new Promise((resolve, reject) => {
+    const frame = document.createElement('iframe');
+    frame.title = 'SYKABELAJAR secure authentication';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.tabIndex = -1;
+    frame.style.position = 'fixed';
+    frame.style.width = '1px';
+    frame.style.height = '1px';
+    frame.style.opacity = '0';
+    frame.style.pointerEvents = 'none';
+    frame.style.border = '0';
+
+    let settled = false;
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', onMessage);
+      frame.remove();
+    };
+    const finish = (action: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      action();
+    };
+    const onMessage = (event: MessageEvent<unknown>) => {
+      if (event.origin !== OAUTH_CALLBACK_ORIGIN || event.source !== frame.contentWindow) return;
+      if (!isRecord(event.data) || event.data.source !== 'sykabelajar-better-auth-oidc') return;
+      const message = event.data as OAuthCallbackMessage;
+      if (message.state !== state) {
+        finish(() => reject(new BetterAuthClientError(401, 'AUTH_OAUTH_STATE_MISMATCH')));
+        return;
+      }
+      if (message.error) {
+        const code = message.error === 'login_required'
+          ? 'AUTH_SESSION_REQUIRED'
+          : message.error === 'consent_required'
+            ? 'AUTH_CONSENT_REQUIRED'
+            : 'AUTH_OAUTH_AUTHORIZATION_FAILED';
+        finish(() => reject(new BetterAuthClientError(401, code)));
+        return;
+      }
+      if (typeof message.code !== 'string' || !message.code ||
+          message.issuer !== authorizeUrl.origin + '/api/auth') {
+        finish(() => reject(new BetterAuthClientError(502, 'AUTH_OAUTH_CALLBACK_INVALID')));
+        return;
+      }
+      finish(() => resolve({ code: message.code!, issuer: message.issuer! }));
+    };
+    const timeout = window.setTimeout(
+      () => finish(() => reject(new BetterAuthClientError(504, 'AUTH_OAUTH_CALLBACK_TIMEOUT'))),
+      OAUTH_CALLBACK_TIMEOUT_MS,
+    );
+
+    window.addEventListener('message', onMessage);
+    frame.src = authorizeUrl.toString();
+    document.body.appendChild(frame);
+  });
+}
+
 
 function resolveAuthBaseUrl(authWorkerUrl: string): string {
   let parsed: URL;
@@ -171,6 +328,110 @@ export function createBetterAuthApiClient(options: {
 }): BetterAuthApiClient {
   const baseUrl = resolveAuthBaseUrl(options.authWorkerUrl);
   const fetchImpl = options.fetchImpl ?? fetch;
+  let cachedResourceToken: ValidatedResourceToken | null = null;
+  let resourceTokenGeneration = 0;
+  let resourceTokenInFlight: { userId: string; generation: number; promise: Promise<string> } | null = null;
+
+  function clearResourceTokenCache() {
+    resourceTokenGeneration += 1;
+    cachedResourceToken = null;
+    resourceTokenInFlight = null;
+  }
+
+  async function getResourceTokenForSession(session: BetterAuthSessionEnvelope): Promise<string> {
+    const userId = session.user.id;
+    if (cachedResourceToken?.userId === userId &&
+        cachedResourceToken.expiresAt > Date.now() + RESOURCE_TOKEN_REFRESH_MARGIN_MS) {
+      return cachedResourceToken.token;
+    }
+    if (resourceTokenInFlight?.userId === userId &&
+        resourceTokenInFlight.generation === resourceTokenGeneration) {
+      return resourceTokenInFlight.promise;
+    }
+
+    const generation = resourceTokenGeneration;
+    const promise = (async () => {
+      const verifier = randomBase64Url(64);
+      const state = randomBase64Url(32);
+      const challenge = await createPkceChallenge(verifier);
+      const authorizeUrl = new URL(baseUrl + '/oauth2/authorize');
+      authorizeUrl.search = new URLSearchParams({
+        response_type: 'code',
+        client_id: FIRST_PARTY_OAUTH_CLIENT_ID,
+        redirect_uri: OAUTH_CALLBACK_URL,
+        scope: 'openid profile email',
+        resource: SUPABASE_RESOURCE_AUDIENCE,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+        state,
+        prompt: 'none',
+      }).toString();
+
+      const authorization = await requestAuthorizationCode(authorizeUrl, state);
+      if (authorization.issuer !== baseUrl) {
+        throw new BetterAuthClientError(502, 'AUTH_OAUTH_ISSUER_MISMATCH');
+      }
+
+      let response: Response;
+      try {
+        response = await fetchImpl(baseUrl + '/oauth2/token', {
+          method: 'POST',
+          credentials: 'omit',
+          cache: 'no-store',
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: FIRST_PARTY_OAUTH_CLIENT_ID,
+            code: authorization.code,
+            redirect_uri: OAUTH_CALLBACK_URL,
+            code_verifier: verifier,
+            resource: SUPABASE_RESOURCE_AUDIENCE,
+          }).toString(),
+        });
+      } catch {
+        throw new BetterAuthClientError(503, 'AUTH_RESOURCE_TOKEN_UNAVAILABLE');
+      }
+
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        if (response.ok) throw new BetterAuthClientError(502, 'AUTH_RESOURCE_TOKEN_RESPONSE_INVALID');
+      }
+      if (!response.ok || !isRecord(payload)) {
+        const errorCode = isRecord(payload) && payload.error === 'invalid_grant'
+          ? 'AUTH_OAUTH_CODE_REJECTED'
+          : 'AUTH_RESOURCE_TOKEN_EXCHANGE_FAILED';
+        throw new BetterAuthClientError(response.status || 502, errorCode);
+      }
+      if (typeof payload.access_token !== 'string' ||
+          payload.token_type !== 'Bearer' ||
+          typeof payload.refresh_token === 'string') {
+        throw new BetterAuthClientError(502, 'AUTH_RESOURCE_TOKEN_RESPONSE_INVALID');
+      }
+
+      const expiresAt = validateResourceAccessToken(
+        payload.access_token,
+        userId,
+        baseUrl,
+        payload.expires_in,
+      );
+      if (generation === resourceTokenGeneration) {
+        cachedResourceToken = { userId, token: payload.access_token, expiresAt };
+      }
+      return payload.access_token;
+    })();
+
+    resourceTokenInFlight = { userId, generation, promise };
+    try {
+      return await promise;
+    } finally {
+      if (resourceTokenInFlight?.promise === promise) resourceTokenInFlight = null;
+    }
+  }
 
   async function request<T>(path: string, body?: JsonRecord): Promise<T> {
     let response: Response;
@@ -217,16 +478,28 @@ export function createBetterAuthApiClient(options: {
     },
 
     async getResourceToken() {
-      const payload = await request<unknown>('/token');
-      if (!isRecord(payload) || typeof payload.token !== 'string' || payload.token.length < 20) {
-        throw new BetterAuthClientError(502, 'AUTH_RESOURCE_TOKEN_RESPONSE_INVALID');
+      clearResourceTokenCache();
+      const session = await request<unknown>('/get-session');
+      if (!isBetterAuthSessionEnvelope(session) || session.user.emailVerified !== true) {
+        throw new BetterAuthClientError(401, 'AUTH_SESSION_REQUIRED');
       }
-      // The token is returned to the caller for one request only. Never persist
-      // it in localStorage, sessionStorage, IndexedDB, or application profile state.
-      return payload.token;
+      return getResourceTokenForSession(session);
+    },
+
+    async getSupabaseAccessToken() {
+      const payload = await request<unknown>('/get-session');
+      if (payload === null) {
+        clearResourceTokenCache();
+        return null;
+      }
+      if (!isBetterAuthSessionEnvelope(payload) || payload.user.emailVerified !== true) {
+        throw new BetterAuthClientError(401, 'AUTH_SESSION_RESPONSE_INVALID');
+      }
+      return getResourceTokenForSession(payload);
     },
 
     signInWithEmail(email, password) {
+      clearResourceTokenCache();
       return request<BetterAuthSignInResult>('/sign-in/email', {
         email: email.trim().toLowerCase(),
         password,
@@ -234,6 +507,7 @@ export function createBetterAuthApiClient(options: {
     },
 
     signInWithSocial(provider, callbackURL) {
+      clearResourceTokenCache();
       return request<BetterAuthSocialSignInResult>('/sign-in/social', {
         provider,
         callbackURL,
@@ -241,6 +515,7 @@ export function createBetterAuthApiClient(options: {
     },
 
     signUp(input) {
+      clearResourceTokenCache();
       return request<BetterAuthSignInResult>('/sign-up/email', normalizeRegistration(input));
     },
 
@@ -277,6 +552,7 @@ export function createBetterAuthApiClient(options: {
     },
 
     async signOut() {
+      clearResourceTokenCache();
       await request<unknown>('/sign-out', {});
     },
   };
