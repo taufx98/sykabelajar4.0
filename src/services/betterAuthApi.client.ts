@@ -56,6 +56,26 @@ export interface BetterAuthSocialSignInResult {
   redirect?: boolean;
 }
 
+export interface BetterAuthLoginProviderSetting {
+  provider: BetterAuthSocialProvider;
+  primary: boolean;
+  enabled: boolean;
+  clientId: string;
+  secretConfigured: boolean;
+  source: string;
+  callbackUrl: string;
+  status: string;
+  updatedAt: string | null;
+}
+
+export interface BetterAuthLoginProviderSettings {
+  revision: number;
+  managedMode: boolean;
+  encryptionKeyConfigured: boolean;
+  providers: BetterAuthLoginProviderSetting[];
+  instagram: { available: false; reason: string };
+}
+
 export class BetterAuthClientError extends Error {
   readonly status: number;
   readonly code: string;
@@ -77,6 +97,11 @@ export interface BetterAuthApiClient {
   getSupabaseAccessToken(): Promise<string | null>;
   signInWithEmail(email: string, password: string): Promise<BetterAuthSignInResult>;
   signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string): Promise<BetterAuthSocialSignInResult>;
+  getAvailableSocialProviders(): Promise<BetterAuthSocialProvider[]>;
+  getLoginProviderSettings(): Promise<BetterAuthLoginProviderSettings>;
+  saveLoginProvider(input: { provider: BetterAuthSocialProvider; clientId: string; clientSecret?: string; enabled?: boolean }): Promise<BetterAuthLoginProviderSettings>;
+  setLoginProviderEnabled(provider: BetterAuthSocialProvider, enabled: boolean): Promise<BetterAuthLoginProviderSettings>;
+  validateLoginProvider(provider: BetterAuthSocialProvider): Promise<{ ok: true; provider: BetterAuthSocialProvider; enabled: boolean; status: string; hostedSignInRequired: true; message: string }>;
   signUp(input: BetterAuthRegistrationInput): Promise<BetterAuthSignInResult>;
   sendVerificationEmail(email: string, callbackURL: string): Promise<void>;
   requestPasswordReset(email: string, redirectTo: string): Promise<void>;
@@ -461,6 +486,44 @@ export function createBetterAuthApiClient(options: {
     return payload as T;
   }
 
+  async function requestAdmin<T>(body?: JsonRecord): Promise<T> {
+    const session = await request<unknown>('/get-session');
+    if (!isBetterAuthSessionEnvelope(session) || session.user.emailVerified !== true) {
+      throw new BetterAuthClientError(401, 'AUTH_SESSION_REQUIRED');
+    }
+    const expiresAt = Date.parse(session.session.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      clearResourceTokenCache();
+      throw new BetterAuthClientError(401, 'AUTH_SESSION_EXPIRED');
+    }
+    const accessToken = await getResourceTokenForSession(session);
+    const workerOrigin = baseUrl.replace(/\\/api\\/auth$/, '');
+    let response: Response;
+    try {
+      response = await fetchImpl(workerOrigin + '/api/admin/login-providers', {
+        method: body === undefined ? 'GET' : 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          accept: 'application/json',
+          Authorization: 'Bearer ' + accessToken,
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    } catch {
+      throw new BetterAuthClientError(503, 'AUTH_WORKER_UNAVAILABLE');
+    }
+    let payload: unknown = null;
+    try {
+      payload = await response.json();
+    } catch {
+      if (response.ok) throw new BetterAuthClientError(502, 'AUTH_WORKER_BAD_RESPONSE');
+    }
+    if (!response.ok) throw new BetterAuthClientError(response.status, safeErrorCode(payload));
+    return payload as T;
+  }
+
   return {
     async getSession() {
       const payload = await request<unknown>('/get-session');
@@ -533,6 +596,46 @@ export function createBetterAuthApiClient(options: {
       return request<BetterAuthSocialSignInResult>('/sign-in/social', {
         provider,
         callbackURL,
+      });
+    },
+
+    async getAvailableSocialProviders() {
+      const payload = await request<unknown>('/providers');
+      if (!isRecord(payload) || !Array.isArray(payload.providers)) {
+        throw new BetterAuthClientError(502, 'AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID');
+      }
+      return payload.providers.filter(
+        (provider): provider is BetterAuthSocialProvider =>
+          provider === 'google' || provider === 'facebook' || provider === 'twitter',
+      );
+    },
+
+    getLoginProviderSettings() {
+      return requestAdmin<BetterAuthLoginProviderSettings>();
+    },
+
+    saveLoginProvider(input) {
+      return requestAdmin<BetterAuthLoginProviderSettings>({
+        action: 'save',
+        provider: input.provider,
+        clientId: input.clientId,
+        ...(input.clientSecret ? { clientSecret: input.clientSecret } : {}),
+        ...(typeof input.enabled === 'boolean' ? { enabled: input.enabled } : {}),
+      });
+    },
+
+    setLoginProviderEnabled(provider, enabled) {
+      return requestAdmin<BetterAuthLoginProviderSettings>({
+        action: 'set-enabled',
+        provider,
+        enabled,
+      });
+    },
+
+    validateLoginProvider(provider) {
+      return requestAdmin({
+        action: 'validate',
+        provider,
       });
     },
 
