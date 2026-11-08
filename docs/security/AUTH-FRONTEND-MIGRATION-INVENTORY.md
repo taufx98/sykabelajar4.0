@@ -1,10 +1,10 @@
 # Better Auth — Frontend auth migration inventory
 
-Status: reviewed source inventory with CI baseline guard; no frontend auth source changes made. Snapshot date: 6 November 2026. Scope: `security/auth-poc-stage-1`.
+Status: Stage 4 session-event plumbing prepared; Supabase Auth remains the live provider and Better Auth frontend transport remains disabled. Snapshot date: 8 November 2026. Scope: `security/auth-poc-stage-1`.
 
 ## Summary
 
-A recursive source scan of the current branch found **41 direct `supabase.auth` callsites across 22 frontend files** (plus the Cloudinary-signature Edge Function). The CI contract now includes the ZeptoMail Admin panel, Admin Chat Console and legacy private-chat service. The app is still wired to Supabase Auth. This is an exact branch baseline, not an assertion that the migration is complete.
+A recursive source scan of the current branch found **37 direct `supabase.auth` callsites across 20 frontend files** (plus the Cloudinary-signature Edge Function). The CI contract now includes the ZeptoMail Admin panel, Admin Chat Console and legacy private-chat service. The app is still wired to Supabase Auth. This is an exact branch baseline, not an assertion that the migration is complete.
 
 The first migration must not be a mechanical global replacement. Several calls currently provide different responsibilities: credential sign-in/sign-up/reset, cross-tab session lifecycle, profile and business-role hydration, direct user-scoped data calls, email/phone verification, password update, signed Cloudinary upload authorization and admin Edge Function bearer tokens.
 
@@ -13,10 +13,8 @@ The first migration must not be a mechanical global replacement. Several calls c
 | File | Calls found | Responsibility / migration treatment |
 |---|---:|---|
 | `src/services/auth.service.ts` | 7 | Current central wrappers: sign-in, sign-up, sign-out, getSession, auth-state subscription and reset-password. Replace behind a stable app-owned auth service only after Better Auth client/token adapter exists. |
-| `src/store/AppContext.tsx` | 2 | Initial session bootstrap, user hydration, guest fallback, auth-state subscription, sign-out cleanup, idle 25-minute logout and refresh of profile/roles/notifications. This is the main app session lifecycle and needs a single Better Auth session source. |
-| `src/App.tsx` | 2 | `ChatSessionIsolation` tracks current user and forces a reload when account identity changes/signs out. Preserve cache/private-state isolation, but move subscription to the new auth event contract. |
-| `src/lib/cacheAuthLifecycle.ts` | 1 | Clears user-specific client caches after auth identity changes. Rewire to the same central auth lifecycle; do not create a second subscription source. |
-| `src/services/organizerAuth.service.ts` | 2 | Clears organizer in-flight cache on auth changes and obtains current user UUID for organizer lookup. Use canonical verified Better Auth UUID. |
+| `src/store/AppContext.tsx` | 2 | Initial session bootstrap, user hydration, guest fallback, the only live provider auth-state subscription, sign-out cleanup, idle 25-minute logout and refresh of profile/roles/notifications. It publishes safe identity-only events to the shared session bus. |
+| `src/services/organizerAuth.service.ts` | 1 | Uses the shared session-event bus to clear organizer in-flight cache on identity changes/sign-out; the remaining direct call obtains the current Supabase user UUID until the Stage 4 token/session cutover. |
 | `src/services/daily-task.service.ts` | 1 | Uses current user ID to fetch daily tasks/claims. Keep RLS and owner checks; no request-body user ID trust. |
 | `src/services/ad.service.ts` | 3 | User-bound banner request creation and “my requests” reads. Replace user lookup with canonical app session identity. |
 | `src/pages/RegisterPage.tsx` | 1 | Reads the newly created Supabase session to upload an optional profile photo. New flow must wait for Better Auth account plus Stage 3 application identity provisioning; preserve Cloudinary upload after successful identity projection. |
@@ -39,7 +37,9 @@ The first migration must not be a mechanical global replacement. Several calls c
 
 ### App session and cache isolation
 
-`AppContext` currently owns identity bootstrap, app user hydration, role resolution, guest state, idle timeout and logout cleanup. `App.tsx` plus `cacheAuthLifecycle` also subscribe to auth changes. Stage 4 should introduce one typed app-level identity/session event source, then wire all listeners to it. Avoid parallel Supabase and Better Auth session subscriptions after cutover; that creates duplicate hydrations, stale identity state and account-switch leakage.
+`AppContext` owns identity bootstrap, app user hydration, role resolution, guest state, idle timeout and logout cleanup. It is now the only module that subscribes to the live auth provider's state-change stream. It publishes only the event type and current/previous UUID to `src/services/authSessionEvents.mjs`; no email, access token, refresh token or profile data is copied into the event bus.
+
+`App.tsx` account isolation, `cacheAuthLifecycle`, and organizer in-flight cache invalidation consume that same in-app event source instead of opening their own provider listeners. A token refresh for the same UUID does not clear user caches; a UUID switch or sign-out does. The bus replays its current identity snapshot to late subscribers, so consumers do not need extra `getSession()` calls. Supabase Auth remains the current provider until the Better Auth session coordinator and OIDC/token acceptance gates are ready. At cutover, the same publisher contract can be fed by Better Auth without changing these consumers.
 
 ### Application identity and roles
 
