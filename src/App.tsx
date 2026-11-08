@@ -15,6 +15,7 @@ import { ToastContainer } from '@/components/ui/ToastContainer';
 import { RouteMetadata } from '@/components/seo/RouteMetadata';
 
 const AuthOidcCallbackPage = lazy(() => import('@/pages/AuthOidcCallbackPage').then((module) => ({ default: module.AuthOidcCallbackPage })));
+const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })));
 const HomePage = lazy(() => import('@/pages/HomePage').then((module) => ({ default: module.HomePage })));
 const MyCompetitionsPage = lazy(() => import('@/pages/MyCompetitionsPage').then((module) => ({ default: module.MyCompetitionsPage })));
 const CompetitionDetailPage = lazy(() => import('@/pages/CompetitionDetailPage').then((module) => ({ default: module.CompetitionDetailPage })));
@@ -158,6 +159,7 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify/:code" element={<VerifyPage />} />
         <Route path="/auth/oidc/callback" element={<AuthOidcCallbackPage />} />
         <Route path="/sertifikat-kolektif/:code" element={<CollectiveCertificatePage />} />
