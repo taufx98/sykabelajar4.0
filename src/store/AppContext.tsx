@@ -239,7 +239,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data: subscription } = onAuthStateChange((event, session) => {
       // Invalidate the pending bootstrap and any profile/role hydration even
       // when a renewed session belongs to the same UUID.
-      authBootstrapGenerationRef.current += 1;
+      const authEventGeneration = ++authBootstrapGenerationRef.current;
       authHydrationGateRef.current?.invalidate();
       publishAuthSessionEvent(event, session?.user?.id ?? null);
       if (!aliveRef.current) return;
@@ -260,7 +260,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(GUEST_KEY);
 
       const hydrateFromCurrentEvent = () => {
-        if (!effectActive || !aliveRef.current || authUserRef.current?.id !== uid) return;
+        if (
+          !effectActive ||
+          !aliveRef.current ||
+          authBootstrapGenerationRef.current !== authEventGeneration ||
+          authUserRef.current?.id !== uid
+        ) return;
         const hydrationRequest = authHydrationGateRef.current!.begin();
         const isCurrentEvent = () => (
           effectActive &&
