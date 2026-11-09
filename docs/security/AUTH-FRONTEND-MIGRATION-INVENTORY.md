@@ -200,3 +200,7 @@ A shared same-origin redirect resolver now protects all Better Auth redirect ent
 - Regression coverage checks safe path/query/hash preservation, external schemes/hosts, protocol-relative URLs, backslash URL normalization, malformed origins and the Login/Register/service callsites. Auth Worker CI and Supabase Local CI both include the test in their path filters and test steps.
 
 This is branch-only source/test work. The newest GitHub Actions result is not yet confirmed; no CI pass is inferred from empty status/run queries, and production login remains on Supabase Auth.
+
+
+### Verification and recovery callback extension — 9 November 2026
+The same-origin guard also covers verification resend and password-recovery destinations. Both Better Auth and the legacy Supabase compatibility fallback now resolve callback URLs through the shared helper before passing them to their providers. Regression coverage checks the default verification path, reset path and both branch/service integrations. A local Node sanity check covered 14 representative inputs; this is not a CI pass or real email-delivery test.
