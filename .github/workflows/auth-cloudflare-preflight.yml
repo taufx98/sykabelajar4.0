@@ -111,13 +111,16 @@ jobs:
             }
           }
 
-          const [authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME] = await Promise.all([
+          const [authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME, zoneNS, zoneDS, parentNS] = await Promise.all([
             resolveDns("auth.sykabelajar.my.id", "A"),
             resolveDns("auth.sykabelajar.my.id", "AAAA"),
             resolveDns("auth.sykabelajar.my.id", "CNAME"),
             resolveDns("staging.sykabelajar.my.id", "A"),
             resolveDns("staging.sykabelajar.my.id", "AAAA"),
             resolveDns("staging.sykabelajar.my.id", "CNAME"),
+            resolveDns("sykabelajar.my.id", "NS"),
+            resolveDns("sykabelajar.my.id", "DS"),
+            resolveDns("my.id", "NS"),
           ]);
 
           const dbRows = Array.isArray(databases.result) ? databases.result : [];
@@ -180,8 +183,15 @@ jobs:
               pagesDomainStatus: pagesDomain?.status ?? null,
               pagesCertificateStatus: pagesDomain?.verification_data?.status ?? null,
               apiErrors: [...authDns.errorCodes, ...stagingDns.errorCodes, ...pagesProjects.errorCodes, ...pagesDomains.errorCodes],
+              publicDelegation: {
+                cloudflareAssignedNameservers: Array.isArray(zone?.name_servers) ? zone.name_servers : [],
+                publicZoneNameservers: zoneNS,
+                publicZoneDs: zoneDS,
+                publicParentNameservers: parentNS,
+              },
               doh: {
                 authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME,
+                zoneNS, zoneDS, parentNS,
               },
             },
           };
