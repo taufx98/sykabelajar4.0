@@ -121,6 +121,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   authUserRef.current = authUser;
   const authHydrationGateRef = useRef<ReturnType<typeof createAuthHydrationGate> | null>(null);
   if (!authHydrationGateRef.current) authHydrationGateRef.current = createAuthHydrationGate();
+  const authBootstrapGenerationRef = useRef(0);
   const guestRef = useRef(isGuest);
   guestRef.current = isGuest;
   const aliveRef = useRef(true);
@@ -133,6 +134,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearUserState = useCallback(() => {
+    authBootstrapGenerationRef.current += 1;
     authHydrationGateRef.current?.invalidate();
     setCurrentAuthUser(null);
     setUser(null);
@@ -193,11 +195,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     aliveRef.current = true;
     let effectActive = true;
-    const bootstrapRequest = authHydrationGateRef.current!.begin();
+    const bootstrapGeneration = ++authBootstrapGenerationRef.current;
+    authHydrationGateRef.current?.invalidate();
     const isBootstrapCurrent = () => (
       effectActive &&
       aliveRef.current &&
-      authHydrationGateRef.current?.isCurrent(bootstrapRequest) === true
+      authBootstrapGenerationRef.current === bootstrapGeneration
     );
 
     const bootstrap = async () => {
@@ -232,6 +235,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data: subscription } = onAuthStateChange((event, session) => {
       // Invalidate the pending bootstrap and any profile/role hydration even
       // when a renewed session belongs to the same UUID.
+      authBootstrapGenerationRef.current += 1;
       authHydrationGateRef.current?.invalidate();
       publishAuthSessionEvent(event, session?.user?.id ?? null);
       if (!aliveRef.current) return;
@@ -269,6 +273,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       effectActive = false;
       aliveRef.current = false;
+      authBootstrapGenerationRef.current += 1;
       authHydrationGateRef.current?.invalidate();
       subscription.subscription.unsubscribe();
     };
@@ -404,6 +409,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const userEmail = result.user.email ?? email.trim();
+      authBootstrapGenerationRef.current += 1;
       setCurrentAuthUser({ id: result.user.id, email: userEmail || undefined });
       setIsGuest(false);
       localStorage.removeItem(GUEST_KEY);
