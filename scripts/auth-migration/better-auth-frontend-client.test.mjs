@@ -194,7 +194,7 @@ assert.match(loginProvidersPanel, /const previewEnabled = isBetterAuthEnabled\(\
 assert.match(loginProvidersPanel, /clientSecret: ''/);
 assert.match(loginProvidersPanel, /draft\.clientSecret\.trim\(\) \? \{ clientSecret: draft\.clientSecret\.trim\(\) \} : \{\}/);
 
-assert.match(socialProviderSettings, /export const SOCIAL_LOGIN_PROVIDERS = \['google', 'facebook', 'twitter'\]/);
+assert.match(socialProviderSettings, /export const SOCIAL_LOGIN_PROVIDERS = \["google", "facebook", "twitter"\]/);
 assert.match(socialProviderSettings, /instagram:\s*\{ available: false/);
 assert.match(socialProviderSettings, /const authorization = await requireBetterAuthAdmin\(request, env\)/);
 assert.match(zeptoMailPanel, /sendMailToken: ''/);
