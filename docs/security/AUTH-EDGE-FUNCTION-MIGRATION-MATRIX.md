@@ -209,3 +209,14 @@ Validation: Cloudinary ownership source contracts and Supabase local two-user/RL
 - Auth Worker CI now includes a pinned Deno 2.9.8 type-check for the shared JWT adapter/resolver, the six Cloudinary handlers, the three payment handlers, and the Midtrans compatibility delegate, alongside the existing source-contract and frontend jobs.
 - No production Edge Function, secret, JWT configuration, payment setting, Cloudinary asset, SQL/RPC, RLS policy, or user record was changed. The current production Cloudinary V2 handlers remain version 9 and continue serving their existing runtime until a separately reviewed deployment.
 - CI for the current HEAD and hosted two-user Better Auth acceptance must still be inspected before this branch work is declared verified. No passing run is inferred from an empty status query.
+
+
+## Pinned external issuer JWKS correction — 9 November 2026
+
+The Stage 5 Edge verifier and the isolated Stage 2 probe now explicitly use the Better Auth issuer's own public key set. `@supabase/server@1.9.2` defaults to the Supabase project's configured JWKS; that default is wrong for Better Auth tokens. The branch adapter passes `env: { jwks: new URL("jwks", "https://auth.sykabelajar.my.id/api/auth/") }` to `createSupabaseContext()`, plus the fixed issuer and resource audience. Supabase's SDK still performs signature, key-ID, issuer and audience verification. The stricter local claim validator then checks UUID `sub`, `role=authenticated` and the maximum 300-second lifetime.
+
+Verifier/JWKS infrastructure failures map to 503 `AUTH_VERIFICATION_UNAVAILABLE`; absent/invalid caller credentials remain 401. No request-supplied JWKS URL or issuer is accepted.
+
+The isolated Free staging read-only `better-auth-oidc-acceptance` probe was refreshed to version 2. It uses the same JWKS override and queries only the synthetic `auth_oidc_acceptance_rows` fixture through caller-scoped RLS, selecting the actual `note` field. It remains `verify_jwt=false` only because the handler authenticates the request internally with the SDK. It performs no write and no service-role operation. This staging probe deployment is not a deployment of any application handler.
+
+A positive hosted call still requires a real verified staging session. Current CI for the latest branch head is not confirmed; source contracts and branch-local checks must not be described as a passing workflow until a run is inspected.
