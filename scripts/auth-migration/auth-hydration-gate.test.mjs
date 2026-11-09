@@ -88,5 +88,9 @@ test("AppContext bootstrap cannot restore a session after a newer auth event or 
   assert.match(listener, /authBootstrapGenerationRef\.current \+= 1;[\s\S]*authHydrationGateRef\.current\?\.invalidate\(\);[\s\S]*publishAuthSessionEvent/);
   assert.match(appContext, /const clearUserState = useCallback\(\(\) => \{\s*authBootstrapGenerationRef\.current \+= 1;/);
   assert.match(listener, /window\.setTimeout\(hydrateFromCurrentEvent, 0\)/);
+  assert.match(listener, /const hydrationRequest = authHydrationGateRef\.current!\.begin\(\)/);
+  assert.match(listener, /hydrateCurrentUser\(uid, email, undefined, hydrationRequest\)/);
+  assert.match(listener, /authHydrationGateRef\.current\?\.isCurrent\(hydrationRequest\) === true/);
+  assert.match(listener, /if \(isCurrentEvent\(\)\) clearUserState\(\)/);
 });
 console.log("Auth hydration gate contract passed: stale requests cannot overwrite a newer session.");
