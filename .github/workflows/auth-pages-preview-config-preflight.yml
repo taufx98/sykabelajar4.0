@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0001"
+      - ".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0003"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
-          marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0002"
+          marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0003"
           marker_present=false
           test -f "$marker" && marker_present=true
           printf 'event=%s ref=%s marker_present=%s\n' "$GITHUB_EVENT_NAME" "$GITHUB_REF" "$marker_present"
@@ -43,7 +43,7 @@ jobs:
             test "$marker_present" = "true"
             marker_body="$(cat "$marker")"
             printf 'marker_content=%s\n' "$marker_body"
-            test "$marker_body" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0002"
+            test "$marker_body" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0003"
           fi
 
       - name: Inspect only variable names and safe public configuration fingerprints
