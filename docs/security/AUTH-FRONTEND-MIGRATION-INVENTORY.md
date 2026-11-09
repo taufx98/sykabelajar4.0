@@ -100,7 +100,7 @@ This is a **disabled staging transport and session adapter**, not a production c
 
 The contract test `scripts/auth-migration/better-auth-frontend-client.test.mjs` pins the endpoint paths, email/session checks, role allowlist, no browser token persistence, explicit disabled-by-default flag and unchanged live Supabase session ownership. The additional `scripts/auth-migration/auth-session-events.test.mjs` exercises in-app snapshot replay and `scripts/auth-migration/better-auth-session-bridge.test.mjs` exercises cross-tab change notifications without broadcasting UUIDs or credentials. `AppContext` remains the single owner of provider listener/hydration, while `auth.service.ts` selects the configured provider. The organizer auth service now reads the canonical UUID from the shared identity-only session snapshot instead of making its own provider call. CI now guards the 17 remaining direct callsites across 6 frontend files.
 
-Remaining Stage 4 work is still substantial: replace the temporary transport with the pinned Better Auth client SDK or formally approve this typed fetch transport; complete hosted cross-tab/session-expiry acceptance and verify shared event publisher behavior; wire all remaining identity callsites to the canonical Better Auth UUID; finish email verification/recovery/password change/phone verification UX acceptance; and switch Cloudinary/admin Edge token retrieval through the short-lived resource token broker only after Stage 2/3/5 hosted identity and endpoint gates pass. No production frontend or login path has been changed.
+The Stage 4 source implementation now selects the typed HTTP/PKCE transport as the branch's single Better Auth client boundary; a second SDK is intentionally not added because the existing transport already owns the Worker protocol, and AppContext remains the only visible session owner. All remaining direct `supabase.auth` references have been classified as deliberate legacy-provider fallbacks, the organizer's legacy OTP branch, the shared access-token fallback, or private-chat code scheduled for the separate chat removal. The in-memory resource-token broker and shared Supabase client are wired for the exact isolated preview. Remaining Stage 4 work is hosted acceptance with a real Better Auth session (browser cookies, two-tab revalidation, expiry/logout, and real provider callback); these are verification gates, not reasons to repeat source implementation. Email delivery tests remain deferred by owner instruction. No production frontend or login path has been changed.
 
 
 ## Staging deployment checkpoint — 8 November 2026
@@ -171,3 +171,21 @@ A focused Stage 4 concurrency hardening pass was added after reviewing the Bette
 These are source and contract-test changes only. The Better Auth frontend flag remains disabled by default and the live production provider remains Supabase Auth. The CI run for the newest branch head must pass before treating these changes as verified; source inspection is not a replacement for the workflow result.
 
 The existing email verification, resend, and password-recovery code paths are intentionally **not being exercised through real delivery** in this workstream. The Worker transactional-email provider remains unconfigured by owner instruction; no provider was configured, no message was sent, and no email credit was consumed.
+
+
+## Stage 4 implementation reconciliation — 9 November 2026
+
+The source-side Stage 4 contract is implemented and reviewed on `security/auth-poc-stage-1`:
+
+- `auth.service.ts` is the provider-neutral boundary; Better Auth is selected only by the explicit, exact staging flag and isolated Supabase project allowlist. Production remains on Supabase Auth.
+- `AppContext` remains the single owner of visible auth state and the single provider listener. The generation gates cover bootstrap, event callbacks, refresh/profile hydration, stale same-user requests and React effect teardown.
+- The shared Supabase client obtains the Better Auth audience-restricted resource JWT through one in-memory broker. Supabase's persistent refresh-token/session storage is disabled only in external-auth preview mode; default Supabase Auth options remain unchanged.
+- Cross-tab notifications contain event metadata only. Each tab revalidates its own Worker cookie; session expiry uses the server-provided deadline plus focus/pageshow/visibility recovery rather than periodic polling.
+- Login, registration, role projection, Google/Facebook/X provider selection, password-change, recovery route, verification callback, and organizer Telegram-phone verification are wired through the provider boundary. Business roles still come from the application backend; self-registration cannot select admin.
+- The client transport is intentionally the typed Better Auth HTTP/PKCE boundary already present in this branch. No additional auth SDK or second session persistence owner is required for this architecture.
+
+### Stage 4 acceptance still open (not source rework)
+
+A real browser session on `staging.sykabelajar.my.id` is still needed for cookie, two-tab and session-expiry acceptance. The public DNS delegation for the auth/staging host remains unresolved, and staging OAuth credentials/admin bootstrap are not yet configured. These do not prevent local source/build/contract checks. Real transactional email delivery, verification and password-reset mail are explicitly deferred to the final email phase: do not configure ZeptoMail/Brevo, send mail, consume credits or weaken the verified-email gate to bypass it.
+
+The current source and contract tests are branch-only. No production login, account, Cloudflare secret, nameserver, database, Storage object, or Supabase Edge Function was changed by this checkpoint.
