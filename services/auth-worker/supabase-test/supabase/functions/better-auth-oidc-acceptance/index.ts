@@ -72,7 +72,7 @@ Deno.serve(async (request: Request) => {
   // This staging-only query must return rows owned by the verified UUID only.
   const { data, error } = await context.supabase
     .from("auth_oidc_acceptance_rows")
-    .select("id, owner_id, marker");
+    .select("id, owner_id, note");
 
   if (error) return json({ error: "OIDC_RLS_FIXTURE_QUERY_FAILED" }, 503);
 
