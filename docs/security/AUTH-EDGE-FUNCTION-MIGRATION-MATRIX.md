@@ -65,7 +65,7 @@ Use only two synthetic Better Auth accounts in an isolated Supabase Free project
 2. Complete Custom OIDC positive/negative acceptance against an isolated Supabase project. Do not register the issuer in production as a substitute.
 3. Complete Stage 3 `private.app_users`, provisioning, referral/email lifecycle and all 69 FK migration tests against the isolated target. Preserve phone-verification semantics for organizer creation.
 4. Implement the endpoint changes above as a separate reviewable Stage 5 commit, then run the two-user matrix and full payment/webhook/Cloudinary regression tests.
-5. Deploy the four user-facing functions only after explicit review of the exact function versions and verified project target. No production deploy is authorized by this document.
+5. Deploy the nine resolver-backed application handlers plus the compatibility delegate only after explicit review of the exact function versions, isolated positive/negative token and IDOR acceptance, and verified project target. No production deploy is authorized by this document.
 6. Confirm webhook endpoints remain reachable by providers and their signatures still validate. Keep `verify_jwt=false` only for external webhook/public endpoints with independent authentication or deliberately public responses.
 
 Any missing issuer/audience setting, unverified JWT, missing application identity projection, owner mismatch, failed admin check, or unverified payment-provider response must fail closed.
