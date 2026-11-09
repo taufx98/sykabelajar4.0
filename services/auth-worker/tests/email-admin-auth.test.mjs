@@ -12,7 +12,7 @@ const ISSUER = "https://auth.sykabelajar.my.id/api/auth";
 const AUTH_BASE_URL = "https://auth.sykabelajar.my.id";
 const RESOURCE = "https://sykabelajar.my.id";
 const SUPABASE_URL = "https://ydamszdfsxqisanazdkb.supabase.co";
-const SERVICE_KEY = "staging-service-role-key-not-for-browser";
+const PUBLISHABLE_KEY = "sb_publishable_staging_key_for_tests_only";
 const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = 1_800_000_000;
 const emailAdminSource = readFileSync(new URL("../src/email-admin.ts", import.meta.url), "utf8");
@@ -45,6 +45,9 @@ function makeFetch({ userInfo, roles, failUserInfo = false, failRoles = false } 
       }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
     if (String(url).startsWith(SUPABASE_URL + "/rest/v1/user_roles?")) {
+      assert.equal(init.headers.apikey, PUBLISHABLE_KEY);
+      assert.match(init.headers.Authorization, /^Bearer /);
+      assert.notEqual(init.headers.Authorization, "Bearer " + PUBLISHABLE_KEY);
       if (failRoles) return new Response("error", { status: 503 });
       return new Response(JSON.stringify(roles ?? [
         { user_id: USER_ID, role: "admin", is_active: true },
@@ -73,7 +76,7 @@ function input(overrides = {}) {
     authBaseUrl: AUTH_BASE_URL,
     resourceAudience: RESOURCE,
     supabaseUrl: SUPABASE_URL,
-    serviceRoleKey: SERVICE_KEY,
+    publishableKey: PUBLISHABLE_KEY,
     nowSeconds: NOW,
     verifyJwtImpl: verifyStub({
       iss: ISSUER,
@@ -111,8 +114,8 @@ test("Better Auth admin identity is signature-contract verified, UserInfo verifi
   assert.equal(roleUrl.searchParams.get("user_id"), "eq." + USER_ID);
   assert.equal(roleUrl.searchParams.get("role"), "eq.admin");
   assert.equal(roleUrl.searchParams.get("is_active"), "eq.true");
-  assert.equal(roleCall.init.headers.apikey, SERVICE_KEY);
-  assert.equal(roleCall.init.headers.Authorization, "Bearer " + SERVICE_KEY);
+  assert.equal(roleCall.init.headers.apikey, PUBLISHABLE_KEY);
+  assert.equal(roleCall.init.headers.Authorization, "Bearer " + fakeToken());
 });
 
 test("JWT business role, subject and maximum lifetime are independently guarded", async () => {
@@ -219,7 +222,7 @@ test("service-side role resolution fails closed for non-admin and cannot target 
 
 test("missing staging server key and unavailable UserInfo/role services fail closed", async () => {
   await assert.rejects(
-    resolveBetterAuthAdminIdentity(input({ serviceRoleKey: "" })),
+    resolveBetterAuthAdminIdentity(input({ publishableKey: "" })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_NOT_CONFIGURED",
   );
 
