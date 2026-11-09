@@ -30,6 +30,8 @@ test("staging OIDC Edge probe enforces exact issuer, UUID subject, resource audi
 
 test("staging OIDC Edge probe queries only the synthetic RLS fixture through the caller-scoped client", () => {
   assert.match(probe, /context\.supabase\s*\.from\("auth_oidc_acceptance_rows"\)/);
+  assert.match(probe, /\.select\("id, owner_id, note"\)/);
+  assert.doesNotMatch(probe, /owner_id, marker/);
   assert.doesNotMatch(probe, /context\.supabaseAdmin/);
   assert.doesNotMatch(probe, /\.(insert|update|upsert|delete)\s*\(/);
   assert.match(probe, /crossUserRows\.length > 0/);
