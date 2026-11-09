@@ -26,6 +26,8 @@ export interface AuthWorkerEnv {
   /** Hard-pinned isolated Free Stage 3 destination for Better Auth provisioning. */
   SUPABASE_PROVISIONING_URL?: string;
   SUPABASE_PUBLISHABLE_KEY?: string;
+  /** Public key for caller-scoped Better Auth admin-role reads in the isolated staging project. */
+  SUPABASE_PROVISIONING_PUBLISHABLE_KEY?: string;
   /** Server-only Supabase secret; never expose to browser bundles or logs. */
   SUPABASE_SERVICE_ROLE_KEY?: string;
   /** Explicit opt-in. Missing/false keeps the Worker in isolated auth-only mode. */
