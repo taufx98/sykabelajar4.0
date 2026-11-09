@@ -108,6 +108,7 @@ jobs:
             /^DEV_APP_ORIGIN = "https:\/\/staging\.sykabelajar\.my\.id"$/m,
             /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
             /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
+            /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_[A-Za-z0-9_-]+"$/m,
             /^SUPABASE_PROVISIONING_ENABLED = "(true|false)"$/m,
             /^AUTH_EMAIL_PROVIDER = "managed"$/m,
             /^OAUTH_CALLBACK_URL = "https:\/\/staging\.sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
