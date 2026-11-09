@@ -249,4 +249,81 @@ test("email admin route verifies Better Auth separately and keeps the Supabase A
   assert.match(emailAdminSource, /BETTER_AUTH_ADMIN_REQUIRED/);
 });
 
+
+test("email settings GET requires an active admin and projects no provider credential", () => {
+  const listStart = emailAdminSource.indexOf("async function listSettings");
+  const saveStart = emailAdminSource.indexOf("async function saveAccount", listStart);
+  assert.ok(listStart >= 0 && saveStart > listStart);
+  const projection = emailAdminSource.slice(listStart, saveStart);
+
+  assert.match(emailAdminSource, /export async function handleEmailAdminRequest/);
+  const handlerStart = emailAdminSource.indexOf("export async function handleEmailAdminRequest");
+  const handler = emailAdminSource.slice(handlerStart);
+  assert.match(handler, /const authorization = await requireActiveAdmin\(request, env\)/);
+  assert.ok(
+    handler.indexOf("requireActiveAdmin(request, env)") < handler.indexOf('if (request.method === "GET")'),
+    "GET must authenticate and authorize an active admin before reading settings",
+  );
+  assert.match(projection, /CASE WHEN length\(send_mail_token_ciphertext\) > 0 THEN 1 ELSE 0 END AS token_configured/);
+  for (const field of [
+    "id", "label", "provider", "sender_address", "sender_name",
+    "bounce_address", "token_configured", "created_at", "updated_at",
+  ]) assert.match(projection, new RegExp("\\b" + field + "\\b"));
+  assert.doesNotMatch(projection, /SELECT[^;]*send_mail_token_ciphertext\s*(?:,|FROM)/s,
+    "GET must not select provider ciphertext as a response field");
+  assert.match(projection, /tokenConfigured: row\.token_configured === 1/);
+  assert.doesNotMatch(projection, /sendMailToken|send_mail_token_ciphertext\s*:/);
+});
+
+test("saving email provider credentials encrypts new tokens before D1 and preserves only existing ciphertext", () => {
+  const start = emailAdminSource.indexOf("async function saveAccount");
+  const end = emailAdminSource.indexOf("async function activateAccount", start);
+  assert.ok(start >= 0 && end > start);
+  const save = emailAdminSource.slice(start, end);
+  assert.match(save, /let tokenCiphertext = existing\?\.send_mail_token_ciphertext \?\? ""/);
+  assert.match(save, /tokenCiphertext = await encryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, submittedToken\)/);
+  const encryption = save.indexOf("encryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, submittedToken)");
+  const write = save.indexOf(".bind(id, label, provider, senderAddress, senderName, bounceAddress || null, tokenCiphertext");
+  assert.ok(encryption >= 0 && write > encryption, "new email provider tokens must be encrypted before the database write");
+  assert.doesNotMatch(save, /\.bind\([^;]*submittedToken/);
+});
+
+test("activating email accounts validates the encrypted credential before switching the active account", () => {
+  const start = emailAdminSource.indexOf("async function activateAccount");
+  const end = emailAdminSource.indexOf("async function deleteAccount", start);
+  assert.ok(start >= 0 && end > start);
+  const activate = emailAdminSource.slice(start, end);
+  assert.match(activate, /SELECT send_mail_token_ciphertext FROM auth_email_accounts/);
+  assert.match(activate, /decryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, candidate\.send_mail_token_ciphertext\)/);
+  const verify = activate.indexOf("decryptEmailSecret(");
+  const switchActive = activate.indexOf("UPDATE auth_email_settings SET active_account_id");
+  assert.ok(verify >= 0 && switchActive > verify, "active account must not change until its stored token decrypts");
+  assert.match(activate, /EMAIL_ACCOUNT_SECRET_UNAVAILABLE/);
+});
+
+test("active email accounts cannot be deleted and admin test mail is rate-limited to the signed-in admin", () => {
+  const deleteStart = emailAdminSource.indexOf("async function deleteAccount");
+  const testStart = emailAdminSource.indexOf("async function testAccount", deleteStart);
+  const routeStart = emailAdminSource.indexOf("export async function handleEmailAdminRequest");
+  assert.ok(deleteStart >= 0 && testStart > deleteStart && routeStart > testStart);
+  const deleteAccount = emailAdminSource.slice(deleteStart, testStart);
+  const testAccount = emailAdminSource.slice(testStart, routeStart);
+
+  assert.match(deleteAccount, /SELECT active_account_id FROM auth_email_settings/);
+  assert.match(deleteAccount, /active_account_id === id/);
+  assert.match(deleteAccount, /ACTIVE_EMAIL_ACCOUNT_CANNOT_BE_DELETED/);
+  const activeCheck = deleteAccount.indexOf("active_account_id === id");
+  const deleteWrite = deleteAccount.indexOf("DELETE FROM auth_email_accounts");
+  assert.ok(activeCheck >= 0 && deleteWrite > activeCheck, "the active account guard must run before deletion");
+
+  assert.match(testAccount, /INSERT INTO auth_email_admin_test_limits/);
+  assert.match(testAccount, /last_sent_at <= \?3 RETURNING user_id/);
+  assert.match(testAccount, /\.bind\(user\.id, now, now - 60\)/);
+  assert.match(testAccount, /to: user\.email/);
+  assert.match(testAccount, /EMAIL_TEST_RATE_LIMITED/);
+  assert.match(testAccount, /account\.send_mail_token_ciphertext/);
+  assert.doesNotMatch(testAccount, /to:\s*body\./,
+    "admin test email recipient must come from the verified admin identity, never request input");
+});
+
 console.log("Better Auth email-admin bridge verification tests passed.");
