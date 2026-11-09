@@ -477,9 +477,28 @@ export function createBetterAuthApiClient(options: {
         baseUrl,
         payload.expires_in,
       );
-      if (generation === resourceTokenGeneration) {
-        cachedResourceToken = { userId, token: payload.access_token, expiresAt };
+
+      // The browser session may change while the silent OAuth iframe or token
+      // exchange is pending. Never return a resource token for the old session.
+      if (generation !== resourceTokenGeneration) {
+        throw new BetterAuthClientError(409, 'AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST');
       }
+      const latestSession = await request<unknown>('/get-session');
+      const latestSessionExpiresAt = isBetterAuthSessionEnvelope(latestSession)
+        ? Date.parse(latestSession.session.expiresAt)
+        : Number.NaN;
+      if (
+        generation !== resourceTokenGeneration ||
+        !isBetterAuthSessionEnvelope(latestSession) ||
+        latestSession.user.id !== userId ||
+        latestSession.user.emailVerified !== true ||
+        !Number.isFinite(latestSessionExpiresAt) ||
+        latestSessionExpiresAt <= Date.now()
+      ) {
+        throw new BetterAuthClientError(409, 'AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST');
+      }
+
+      cachedResourceToken = { userId, token: payload.access_token, expiresAt };
       return payload.access_token;
     })();
 
