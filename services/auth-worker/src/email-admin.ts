@@ -302,25 +302,35 @@ async function activateAccount(body: Record<string, unknown>, user: SupabaseAdmi
 
   const now = new Date().toISOString();
   const result = await env.DB.prepare(
-    "UPDATE auth_email_settings SET active_account_id = ?1, updated_at = ?2, updated_by = ?3 WHERE id = 1",
+    "UPDATE auth_email_settings SET active_account_id = ?1, updated_at = ?2, updated_by = ?3 " +
+    "WHERE id = 1 AND EXISTS (SELECT 1 FROM auth_email_accounts WHERE id = ?1)",
   ).bind(id, now, user.id).run();
   if (!result.success) return json({ ok: false, error: "EMAIL_ACCOUNT_ACTIVATE_FAILED" }, 500);
+  if (result.meta.changes !== 1) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
   return listSettings(env);
 }
 
 async function deleteAccount(body: Record<string, unknown>, env: AuthWorkerEnv): Promise<Response> {
   const id = nonEmpty(body.id);
   if (!id) return json({ ok: false, error: "EMAIL_ACCOUNT_REQUIRED" }, 422);
-  const active = await env.DB.prepare(
-    "SELECT active_account_id FROM auth_email_settings WHERE id = 1",
-  ).first<{ active_account_id: string | null }>();
-  if (active?.active_account_id === id) {
-    return json({ ok: false, error: "ACTIVE_EMAIL_ACCOUNT_CANNOT_BE_DELETED" }, 409);
-  }
+
+  // The active-account check belongs in the DELETE statement itself. A
+  // separate SELECT followed by DELETE can race with a concurrent activation;
+  // the FK's ON DELETE SET NULL would then silently clear active_account_id.
   const result = await env.DB.prepare(
-    "DELETE FROM auth_email_accounts WHERE id = ?1",
+    "DELETE FROM auth_email_accounts WHERE id = ?1 " +
+    "AND NOT EXISTS (SELECT 1 FROM auth_email_settings WHERE id = 1 AND active_account_id = ?1)",
   ).bind(id).run();
   if (!result.success) return json({ ok: false, error: "EMAIL_ACCOUNT_DELETE_FAILED" }, 500);
+  if (result.meta.changes !== 1) {
+    const active = await env.DB.prepare(
+      "SELECT active_account_id FROM auth_email_settings WHERE id = 1",
+    ).first<{ active_account_id: string | null }>();
+    if (active?.active_account_id === id) {
+      return json({ ok: false, error: "ACTIVE_EMAIL_ACCOUNT_CANNOT_BE_DELETED" }, 409);
+    }
+    return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
+  }
   return listSettings(env);
 }
 
