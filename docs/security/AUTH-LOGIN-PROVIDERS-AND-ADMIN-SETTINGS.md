@@ -89,3 +89,19 @@ Installing this skill adds AI project context; it does not itself install all UI
 ## Stage boundaries
 
 This is a **Stage 4 UI/auth-client requirement**. Stage 3 work may define backend schema/contract only after the production identity baseline is complete. Do not let the provider panel trigger a premature frontend cutover, merge PR #177, change production OAuth settings, or bypass the Stage 3 identity gates.
+
+
+## Admin role authorization hardening — 9 November 2026
+
+This later checkpoint supersedes the 8 November note above that said the dynamic provider panel/API had not yet been built.
+
+- The managed Google/Facebook/X configuration API and the Admin “Metode Login” panel source are now present in the migration branch. Provider credentials remain unconfigured; this is implementation readiness, not a completed social-login acceptance.
+- Both the provider-settings Admin API and the Better Auth path of the transactional-email Admin API use the same Better Auth resource-token verifier: ES256 signature/JWKS, exact issuer and audience, UUID subject, five-minute maximum lifetime, and matching verified-email UserInfo.
+- The final application-admin check is now caller-scoped. The Worker calls only `GET /rest/v1/user_roles` with the caller's Better Auth bearer token and the isolated staging project's public publishable key. It does not send the Supabase service-role key for an Admin role read.
+- The isolated staging fixture migration `20261109000002_admin_role_self_read.sql` has been applied to `sykabelajar-auth-staging` as migration `20261109152013_auth_admin_role_self_read`. Its SELECT policy requires both `user_id = auth.uid()` and issuer `https://auth.sykabelajar.my.id/api/auth`. Authenticated users have SELECT only; INSERT, UPDATE and DELETE are revoked. The Worker still filters for `role=admin` and `is_active=true`.
+- Read-only database inspection confirmed that exact policy, RLS enabled, SELECT allowed, writes denied, and enum USAGE allowed in staging. The local Supabase SQL test also checks that one Better Auth user sees only its own admin role, not a second user's role.
+- The production `public.user_roles` table was inspected read-only. It already has a SELECT policy containing the own-row predicate `auth.uid() = user_id`; its table RLS is enabled and authenticated SELECT is granted. No production policy or grant was changed.
+- The Worker source now pins the staging publishable key in `wrangler.toml` as a public key. The key is not a secret and is only the `apikey`; the caller's JWT remains the `Authorization` credential and RLS identity.
+- The independent Supabase service-role key remains necessary only if/when the separate Better Auth identity-provisioning path is explicitly enabled. `SUPABASE_PROVISIONING_ENABLED=false` remains unchanged; do not turn it on until the staging identity provisioning secret and its two-user lifecycle tests are ready.
+- The current source passed [Auth Worker CI #763](https://github.com/taufx98/sykabelajar4.0/actions/runs/42644262948) and [Supabase Local Auth Claims CI #523](https://github.com/taufx98/sykabelajar4.0/actions/runs/42644262701). A guarded Worker staging redeploy is still required to make this latest caller-scoped Admin verifier active on the hosted Worker.
+- No first staging admin identity or Google/Facebook/X credentials were created. Positive authenticated Admin, Storage, Realtime, Edge Function, and two-user IDOR acceptance still requires a real verified Better Auth staging session. No email was sent and no production configuration/data/schema was changed.
