@@ -11,6 +11,7 @@ import { updateProfile } from '@/services/profile.service';
 import { getSession as getAuthSession, isBetterAuthEnabled } from '@/services/auth.service';
 import type { CompetitionCategory, EducationLevel, Role } from '@/types';
 import { isValidReferralId } from '@/lib/referralAttribution';
+import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
 
 const MIN_PASSWORD_LENGTH = 8;
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;
@@ -25,7 +26,7 @@ export function RegisterPage(){
  const requestedRedirect = searchParams.get('redirect') || '/home';
  const rawReferralCode = searchParams.get('ref')?.trim() ?? '';
  const referralCode = isValidReferralId(rawReferralCode) ? rawReferralCode : '';
- const redirectTo = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/home';
+ const redirectTo = resolveSafeInternalRedirect(requestedRedirect, window.location.origin);
  const loginTo = redirectTo === '/home' ? '/login' : `/login?redirect=${encodeURIComponent(redirectTo)}`;
  const { register, toast } = useApp(); const fileRef=useRef<HTMLInputElement>(null); const [step,setStep]=useState(1); const [loading,setLoading]=useState(false); const [photoFile,setPhotoFile]=useState<File|null>(null); const [photoPreview,setPhotoPreview]=useState<string>('');
  const [showPw,setShowPw]=useState(false);const [showConfirmPw,setShowConfirmPw]=useState(false);const [form,setForm]=useState({email:'',password:'',confirmPassword:'',role:'pelajar' as Exclude<Role,'admin'>,displayName:'',username:'',birthDate:'',school:'',educationLevel:'' as EducationLevel|'',favoriteCategories:[] as CompetitionCategory[]});
