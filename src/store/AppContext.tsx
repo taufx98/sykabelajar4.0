@@ -237,12 +237,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void bootstrap();
 
     const { data: subscription } = onAuthStateChange((event, session) => {
+      if (!effectActive || !aliveRef.current) return;
+
       // Invalidate the pending bootstrap and any profile/role hydration even
       // when a renewed session belongs to the same UUID.
       const authEventGeneration = ++authBootstrapGenerationRef.current;
       authHydrationGateRef.current?.invalidate();
       publishAuthSessionEvent(event, session?.user?.id ?? null);
-      if (!aliveRef.current) return;
       if (event === 'SIGNED_OUT') {
         localStorage.removeItem(LAST_ACTIVITY_KEY);
         clearUserState();
