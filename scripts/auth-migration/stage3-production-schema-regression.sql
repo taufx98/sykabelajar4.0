@@ -848,6 +848,54 @@ BEGIN
 END;
 $stage3_regression$;
 
+-- Exercise the two remaining production profiles triggers against the
+-- provisioned synthetic profile. These assertions use the exact behavior
+-- captured from the schema-only production function definitions:
+-- normalize_profile_fields lower/upper/trims the three fields, and
+-- set_updated_at overwrites caller-supplied timestamps on every UPDATE.
+DO $stage3_profile_normalize_and_timestamp$
+DECLARE
+  v_username text;
+  v_institution text;
+  v_full_name text;
+  v_updated_at timestamptz;
+  v_sentinel constant timestamptz := '2000-01-01T00:00:00Z'::timestamptz;
+BEGIN
+  UPDATE public.profiles
+  SET username = '  Stage3_Profile_Trigger  ',
+      institution = '  sekolah trigger uji  ',
+      full_name = '  Trigger Profile Probe  '
+  WHERE id = '00000000-0000-4000-8000-00000000a001';
+
+  SELECT username, institution, full_name
+    INTO v_username, v_institution, v_full_name
+  FROM public.profiles
+  WHERE id = '00000000-0000-4000-8000-00000000a001';
+
+  IF v_username IS DISTINCT FROM 'stage3_profile_trigger'
+     OR v_institution IS DISTINCT FROM 'SEKOLAH TRIGGER UJI'
+     OR v_full_name IS DISTINCT FROM 'Trigger Profile Probe' THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_NORMALIZE_TRIGGER_BEHAVIOR_FAILED: username %, institution %, full_name %',
+      v_username, v_institution, v_full_name;
+  END IF;
+
+  -- Updating only updated_at does not fire the column-specific normalizer.
+  -- The unconditional BEFORE UPDATE timestamp trigger must still overwrite
+  -- this stale client-supplied value with the current transaction time.
+  UPDATE public.profiles
+  SET updated_at = v_sentinel
+  WHERE id = '00000000-0000-4000-8000-00000000a001';
+
+  SELECT updated_at INTO v_updated_at
+  FROM public.profiles
+  WHERE id = '00000000-0000-4000-8000-00000000a001';
+
+  IF v_updated_at IS NULL OR v_updated_at <= v_sentinel THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_UPDATED_AT_TRIGGER_BEHAVIOR_FAILED: %', v_updated_at;
+  END IF;
+END;
+$stage3_profile_normalize_and_timestamp$;
+
 -- Exercise the actual production profile guard trigger functions under
 -- authenticated without letting profile RLS filter the UPDATE before a trigger
 -- fires. This temporary probe table is transaction-local and uses the same
