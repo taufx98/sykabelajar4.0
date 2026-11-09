@@ -949,3 +949,8 @@ This checkpoint supersedes only the newer implementation details below; it does 
 ### Stage 4 callback boundary extension — 9 November 2026
 - The same-origin resolver is now also applied to email-verification resend callbacks and password-reset redirect parameters, including the legacy Supabase fallback. Login, registration, social OAuth, resend-verification and reset-password all use the same browser-origin validation boundary.
 - The regression test asserts the service wiring for these verification/reset paths. A Node-only helper sanity check passed 14 representative safe/unsafe URL cases; the full repository test suite and latest GitHub Actions are still unverified.
+
+
+### Staging probe runtime evidence — 9 November 2026
+
+Supabase unified Edge logs show multiple anonymous `POST` calls to `better-auth-oidc-acceptance` v2 on isolated project `ydamszdfsxqisanazdkb` at 13:28–13:30 UTC, all returning HTTP 401. This verifies the deployed probe's anonymous rejection path is reachable. It does not establish a positive token-backed call or cross-user RLS behavior with a real Better Auth session; those remain open.
