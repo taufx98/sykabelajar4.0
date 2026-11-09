@@ -119,7 +119,10 @@ function functionConfig(name) {
 
 test("Edge adapter delegates cryptographic JWT verification to pinned @supabase/server", () => {
   assert.match(edgeAdapter, /npm:@supabase\/server@1\.9\.2/);
-  assert.match(edgeAdapter, /createSupabaseContext\(request, \{ auth: "user" \}\)/);
+  assert.match(edgeAdapter, /createSupabaseContext\(request,[\s\S]*?auth: "user"[\s\S]*?issuer: EXPECTED_BETTER_AUTH_ISSUER[\s\S]*?audience: EXPECTED_RESOURCE_AUDIENCE[\s\S]*?env: \{[\s\S]*?jwks: betterAuthJwks/);
+  assert.match(edgeAdapter, /const betterAuthJwks = new URL\("jwks", issuer \+ "\/"\)/);
+  assert.match(edgeAdapter, /EXPECTED_BETTER_AUTH_ISSUER = "https:\/\/auth\.sykabelajar\.my\.id\/api\/auth"/);
+  assert.match(edgeAdapter, /EXPECTED_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"/);
   assert.match(edgeAdapter, /context\.jwtClaims/);
   assert.match(edgeAdapter, /context\.userClaims\?\.id/);
   assert.doesNotMatch(edgeAdapter, /jwt-decode|atob\(|crypto\.subtle|jsonwebtoken/i);
