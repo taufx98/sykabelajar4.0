@@ -16,7 +16,9 @@ alter table private.app_users
   add column email_verified_at timestamptz,
   add column phone_verified_at timestamptz,
   add column verified_phone_identity_hash text,
-  add column updated_at timestamptz not null default clock_timestamp();
+  add column updated_at timestamptz not null default clock_timestamp(),
+  add column identity_origin text not null default 'better_auth'
+    check (identity_origin in ('better_auth', 'legacy_reference'));
 
 create table public.profiles (
   id uuid primary key references private.app_users(id) on delete cascade,
@@ -264,6 +266,7 @@ declare
   v_referrer_id uuid;
   v_reward_amount integer;
   v_profile_rows integer := 0;
+  v_identity_origin text;
 begin
   if p_user_id is null then
     raise exception using errcode = '22023', message = 'USER_ID_REQUIRED';
@@ -272,23 +275,29 @@ begin
     raise exception using errcode = '22023', message = 'UNSUPPORTED_ACCOUNT_TYPE';
   end if;
 
-  insert into private.app_users (id, email_verified_at)
+  insert into private.app_users (id, email_verified_at, identity_origin)
   values (
     p_user_id,
     case when coalesce(p_email_verified, false)
-      then pg_catalog.clock_timestamp() else null end
+      then pg_catalog.clock_timestamp() else null end,
+    'better_auth'
   )
   on conflict (id) do nothing;
 
   -- Hooks can run concurrently after the D1 user row is committed. Serialize
-  -- projection retries for this UUID before deciding whether initial role
-  -- creation is still appropriate.
-  perform 1
-  from private.app_users
-  where id = p_user_id
+  -- projection retries before deciding whether initial role creation is still
+  -- appropriate. UUID-only legacy references are not authenticatable users.
+  select au.identity_origin
+    into v_identity_origin
+  from private.app_users au
+  where au.id = p_user_id
   for update;
   if not found then
     raise exception 'USER_IDENTITY_NOT_FOUND';
+  end if;
+  if v_identity_origin is distinct from 'better_auth' then
+    raise exception using errcode = '42501',
+      message = 'LEGACY_REFERENCE_IDENTITY_CANNOT_AUTHENTICATE';
   end if;
 
   insert into public.profiles
