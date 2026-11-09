@@ -182,3 +182,40 @@ test("temporary Worker errors do not cause a false signed-out event", async () =
 });
 
 console.log("Better Auth cross-tab session bridge contract passed.");
+
+
+test("invalidates cached resource tokens before every session revalidation", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const sequence = [];
+  const bridge = createBetterAuthSessionBridge({
+    onBeforeRefresh: () => sequence.push("invalidate-resource-token-cache"),
+    getSession: async () => {
+      sequence.push("read-authoritative-session");
+      return makeSession("user-a");
+    },
+    onChange: () => {},
+    windowObject,
+    documentObject,
+  });
+
+  // The mount-time baseline must invalidate stale tokens before asking the
+  // Worker for the authoritative session.
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(sequence.slice(0, 2), [
+    "invalidate-resource-token-cache",
+    "read-authoritative-session",
+  ]);
+
+  // A later explicit revalidation (for example after focus/pageshow) must do
+  // the same. This prevents Supabase from reusing a token while session state
+  // is being reconciled after a cross-tab/account transition.
+  await bridge.refresh();
+  assert.deepEqual(sequence.slice(2, 4), [
+    "invalidate-resource-token-cache",
+    "read-authoritative-session",
+  ]);
+
+  bridge.unsubscribe();
+});
