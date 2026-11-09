@@ -88,6 +88,7 @@ test("AppContext bootstrap cannot restore a session after a newer auth event or 
   assert.match(listener, /const authEventGeneration = \+\+authBootstrapGenerationRef\.current;[\s\S]*authHydrationGateRef\.current\?\.invalidate\(\);[\s\S]*publishAuthSessionEvent/);
   assert.match(appContext, /const clearUserState = useCallback\(\(\) => \{\s*authBootstrapGenerationRef\.current \+= 1;/);
   assert.match(listener, /window\.setTimeout\(hydrateFromCurrentEvent, 0\)/);
+  assert.match(listener, /^\s*if \(!effectActive \|\| !aliveRef\.current\) return;/);
   assert.match(listener, /const authEventGeneration = \+\+authBootstrapGenerationRef\.current/);
   assert.match(listener, /authBootstrapGenerationRef\.current !== authEventGeneration/);
   assert.match(listener, /const hydrationRequest = authHydrationGateRef\.current!\.begin\(\)/);
