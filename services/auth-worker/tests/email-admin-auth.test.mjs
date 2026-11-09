@@ -220,7 +220,7 @@ test("service-side role resolution fails closed for non-admin and cannot target 
   assert.equal(noNetwork.calls.length, 0);
 });
 
-test("missing staging server key and unavailable UserInfo/role services fail closed", async () => {
+test("missing staging publishable key and unavailable UserInfo/role services fail closed", async () => {
   await assert.rejects(
     resolveBetterAuthAdminIdentity(input({ publishableKey: "" })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_NOT_CONFIGURED",
