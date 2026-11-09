@@ -92,6 +92,27 @@ jobs:
       - name: Security contract tests
         run: npm test
 
+      - name: Setup Deno for migrated Supabase Edge Functions
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.8
+
+      - name: Type-check Better Auth identity adapter and migrated Edge handlers
+        working-directory: ${{ github.workspace }}
+        run: |
+          deno check \
+            supabase/functions/_shared/auth-claims.mjs \
+            supabase/functions/_shared/better-auth-user.ts \
+            supabase/functions/_shared/require-application-user.ts \
+            supabase/functions/get-cloudinary-signature/index.ts \
+            supabase/functions/cloudinary-profile-upload/index.ts \
+            supabase/functions/cloudinary-delete-asset/index.ts \
+            supabase/functions/cloudinary-delete-profile/index.ts \
+            supabase/functions/payment-gateway-admin/index.ts \
+            supabase/functions/payment-gateway-create/index.ts \
+            supabase/functions/payment-gateway-reconcile/index.ts \
+            supabase/functions/midtrans-create-payment/index.ts
+
       - name: Verify Supabase Custom OIDC and Edge Function auth contract
         run: node ../../scripts/auth-migration/edge-auth-claims.test.mjs
 
