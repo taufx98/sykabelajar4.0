@@ -75,16 +75,18 @@ test("AppContext bootstrap cannot restore a session after a newer auth event or 
     new URL("../../src/store/AppContext.tsx", import.meta.url),
     "utf8",
   );
-  const bootstrapStart = appContext.indexOf("const bootstrapRequest =");
+  const bootstrapStart = appContext.indexOf("const bootstrapGeneration =");
   const listenerStart = appContext.indexOf("onAuthStateChange((event, session)", bootstrapStart);
   const awardsStart = appContext.indexOf("// Awards are secondary to authentication.", listenerStart);
   assert.ok(bootstrapStart >= 0 && listenerStart > bootstrapStart && awardsStart > listenerStart);
 
   const bootstrap = appContext.slice(bootstrapStart, listenerStart);
   const listener = appContext.slice(listenerStart, awardsStart);
+  assert.match(bootstrap, /authBootstrapGenerationRef\.current === bootstrapGeneration/);
   assert.match(bootstrap, /await getAuthSession\(\);[\s\S]*if \(!isBootstrapCurrent\(\)\) return;/);
   assert.match(bootstrap, /if \(isBootstrapCurrent\(\)\) clearUserState\(\)/);
-  assert.match(listener, /authHydrationGateRef\.current\?\.invalidate\(\);[\s\S]*publishAuthSessionEvent/);
+  assert.match(listener, /authBootstrapGenerationRef\.current \+= 1;[\s\S]*authHydrationGateRef\.current\?\.invalidate\(\);[\s\S]*publishAuthSessionEvent/);
+  assert.match(appContext, /const clearUserState = useCallback\(\(\) => \{\s*authBootstrapGenerationRef\.current \+= 1;/);
   assert.match(listener, /window\.setTimeout\(hydrateFromCurrentEvent, 0\)/);
 });
 console.log("Auth hydration gate contract passed: stale requests cannot overwrite a newer session.");
