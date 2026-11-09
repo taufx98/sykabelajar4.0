@@ -252,3 +252,8 @@ The staging PostgreSQL fixture rows are retained as synthetic test fixtures; the
 - Verifier infrastructure/JWKS failures return 503 `AUTH_VERIFICATION_UNAVAILABLE`; missing or invalid bearer tokens remain 401. The issuer and JWKS host/path are fixed in source rather than being chosen by a request.
 - Read-only staging probe `better-auth-oidc-acceptance` was refreshed on isolated project `sykabelajar-auth-staging` to version 2. It reads only the synthetic `auth_oidc_acceptance_rows` fixture through the caller-scoped RLS client and selects its actual `note` column. It does not use a service-role client or perform writes. No application Edge handler or production project was deployed.
 - The positive hosted invocation still requires an already verified synthetic Better Auth session. Do not seed fake verified accounts, bypass the verified-email gate, or spend provider credits. Real email verification and recovery delivery remain final-phase work.
+
+
+### Probe v2 hosted anonymous rejection — 9 November 2026
+
+Supabase unified Edge logs for isolated project `ydamszdfsxqisanazdkb` contain multiple `POST` requests to `better-auth-oidc-acceptance` **version 2** at 13:28–13:30 UTC on 9 November 2026. Each returned HTTP **401**. This confirms the deployed probe denies unauthenticated calls after the v2 deployment. It is only negative/anonymous acceptance; there is no positive Better Auth token call in this evidence, and the browser/Storage/Realtime/Edge two-user matrix remains open.
