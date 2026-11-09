@@ -41,6 +41,6 @@ test("Pages custom domain is attached to the exact project before DNS verificati
   assert.match(workflow, /\/domains/);
   assert.match(workflow, /"POST"/);
   assert.match(workflow, /dns_records/);
-  assert.match(workflow, /Pages project identity\/subdomain/);
+  assert.match(workflow, /Pages project must match the exact taufx98\/sykabelajar4\.0 GitHub source/);
   assert.match(workflow, /domainDetail\.status/);
 });
