@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0002"
+      - ".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0003"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -44,12 +44,12 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker=".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0002"
+            marker=".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0003"
             test -f "$marker" || {
               echo "Blocked: the one-time staging-domain marker is missing." >&2
               exit 1
             }
-            test "$(cat "$marker")" = "ATTACH-STAGING-PAGES-DOMAIN-0002" || {
+            test "$(cat "$marker")" = "ATTACH-STAGING-PAGES-DOMAIN-0003" || {
               echo "Blocked: the staging-domain marker is not exact." >&2
               exit 1
             }
@@ -113,15 +113,22 @@ jobs:
           const zoneId = matchingZones[0].id;
 
           const projects = await request(
-            "/accounts/" + encodeURIComponent(accountId) + "/pages/projects?per_page=100&page=1",
+            "/accounts/" + encodeURIComponent(accountId) + "/pages/projects",
           );
           if (!Array.isArray(projects)) {
             throw new Error("Cloudflare Pages project inventory was not an array.");
           }
           const projectMatches = projects.filter((item) => item?.subdomain === projectAlias);
           if (projectMatches.length !== 1 || typeof projectMatches[0]?.name !== "string") {
+            const candidates = projects.map((item) => ({
+              name: item?.name ?? null,
+              subdomain: item?.subdomain ?? null,
+              repoOwner: item?.source?.config?.owner ?? null,
+              repoName: item?.source?.config?.repo_name ?? null,
+            }));
             throw new Error(
-              "Expected exactly one Pages project with the reviewed branch-alias parent; refusing to guess a project name.",
+              "Expected exactly one Pages project with the reviewed branch-alias parent; refusing to guess. Safe project inventory: " +
+              JSON.stringify(candidates),
             );
           }
           const projectName = projectMatches[0].name;

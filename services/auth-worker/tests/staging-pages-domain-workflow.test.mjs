@@ -12,13 +12,14 @@ test("Pages domain attachment is restricted to the Better Auth migration branch 
   assert.match(workflow, /security\/auth-poc-stage-1/);
   assert.match(workflow, /sykabelajar4/);
   assert.match(workflow, /security-auth-poc-stage-1\.sykabelajar4\.pages\.dev/);
-  assert.match(workflow, /pages\/projects\?per_page=100/);
+  assert.match(workflow, /pages\/projects/);
   assert.match(workflow, /sourceConfig\?\.owner !== "taufx98"/);
   assert.match(workflow, /sourceConfig\?\.repo_name !== "sykabelajar4\.0"/);
+  assert.match(workflow, /Safe project inventory/);
   assert.match(workflow, /branchDeployment/);
   assert.match(workflow, /metadataBranch === branchName/);
   assert.match(workflow, /staging\.sykabelajar\.my\.id/);
-  assert.match(workflow, /ATTACH-STAGING-PAGES-DOMAIN-0002/);
+  assert.match(workflow, /ATTACH-STAGING-PAGES-DOMAIN-0003/);
   assert.match(workflow, /ATTACH-staging\.sykabelajar\.my\.id-to-security-auth-poc-stage-1/);
 });
 
