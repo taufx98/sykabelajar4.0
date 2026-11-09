@@ -70,4 +70,21 @@ test("refreshUser and updateProfile reject stale same-UUID hydration results", (
   }
 });
 
+test("AppContext bootstrap cannot restore a session after a newer auth event or guest transition", () => {
+  const appContext = readFileSync(
+    new URL("../../src/store/AppContext.tsx", import.meta.url),
+    "utf8",
+  );
+  const bootstrapStart = appContext.indexOf("const bootstrapRequest =");
+  const listenerStart = appContext.indexOf("onAuthStateChange((event, session)", bootstrapStart);
+  const awardsStart = appContext.indexOf("// Awards are secondary to authentication.", listenerStart);
+  assert.ok(bootstrapStart >= 0 && listenerStart > bootstrapStart && awardsStart > listenerStart);
+
+  const bootstrap = appContext.slice(bootstrapStart, listenerStart);
+  const listener = appContext.slice(listenerStart, awardsStart);
+  assert.match(bootstrap, /await getAuthSession\(\);[\s\S]*if \(!isBootstrapCurrent\(\)\) return;/);
+  assert.match(bootstrap, /if \(isBootstrapCurrent\(\)\) clearUserState\(\)/);
+  assert.match(listener, /authHydrationGateRef\.current\?\.invalidate\(\);[\s\S]*publishAuthSessionEvent/);
+  assert.match(listener, /if \(bootstrapped\) window\.setTimeout\(hydrateFromCurrentEvent, 0\);[\s\S]*else hydrateFromCurrentEvent\(\);/);
+});
 console.log("Auth hydration gate contract passed: stale requests cannot overwrite a newer session.");
