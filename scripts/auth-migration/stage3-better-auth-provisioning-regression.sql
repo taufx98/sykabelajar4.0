@@ -178,6 +178,35 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_REFERRAL_PENDING_EVENT_MISSING';
   END IF;
 
+  -- Re-running the Better Auth provisioning hook must not create a second
+  -- legacy/referral signup event, overwrite the first profile, or change role.
+  PERFORM public.better_auth_provision_user(
+    u_referred, 'teacher', 'Retry Must Not Replace Referral Profile',
+    'ba-referred-retry', 'UNKNOWN-RETRY-CODE', false,
+    NULL, NULL, NULL, NULL
+  );
+  SELECT count(*) INTO v_count
+  FROM public.referral_events
+  WHERE referred_user_id = u_referred;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_REFERRAL_PROVISION_RETRY_DUPLICATED_EVENT';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = u_referred
+      AND full_name = 'Referral Referred'
+      AND username = 'ba-referred'
+      AND account_type = 'student'
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_REFERRAL_PROVISION_RETRY_OVERWROTE_PROFILE';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.user_roles
+  WHERE user_id = u_referred AND role = 'student'::public.app_role;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_REFERRAL_PROVISION_RETRY_CHANGED_ROLE';
+  END IF;
+
   INSERT INTO public.daily_checkins (
     user_id, checkin_date, reward_type, reward_amount, streak_day
   )
