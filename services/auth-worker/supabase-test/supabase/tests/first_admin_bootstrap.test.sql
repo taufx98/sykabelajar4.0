@@ -106,10 +106,10 @@ INSERT INTO private.app_users (id, identity_origin)
 VALUES ('92929292-9292-4292-8292-929292929292', 'legacy_reference');
 
 SELECT extensions.throws_ok(
-  $SELECT public.better_auth_provision_user(
+  $$SELECT public.better_auth_provision_user(
     '92929292-9292-4292-8292-929292929292',
     'student', 'Legacy UUID', 'legacy-user', NULL, TRUE
-  )$,
+  )$$,
   '42501',
   'LEGACY_REFERENCE_IDENTITY_CANNOT_AUTHENTICATE',
   'legacy UUID tombstones cannot be upgraded into Better Auth identities'
