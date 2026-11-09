@@ -1,6 +1,7 @@
 project_id = "mvdczyitbkxkldjughor"
 
 # Migrated handlers verify Supabase/Better Auth tokens inside requireApplicationUser().
+# The V2 compatibility aliases also verify through requireApplicationUser() in-handler.
 # Disable only the Supabase gateway verifier so a third-party issuer can reach that fail-closed handler.
 [functions.get-cloudinary-signature]
 verify_jwt = false
@@ -12,13 +13,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.cloudinary-profile-upload-v2]
-verify_jwt = true
+verify_jwt = false
 
 [functions.cloudinary-delete-asset]
 verify_jwt = false
 
 [functions.cloudinary-delete-asset-v2]
-verify_jwt = true
+verify_jwt = false
 
 [functions.cloudinary-delete-profile]
 verify_jwt = false
