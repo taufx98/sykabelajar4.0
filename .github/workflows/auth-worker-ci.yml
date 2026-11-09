@@ -31,6 +31,7 @@ on:
       - "src/pages/ResetPasswordPage.tsx"
       - "src/pages/AuthEmailVerifiedPage.tsx"
       - "scripts/auth-migration/better-auth-session-bridge.test.mjs"
+      - "scripts/auth-migration/auth-hydration-gate.test.mjs"
       - "src/lib/supabase.ts"
       - "src/services/supabaseClientOptions.mjs"
       - "src/services/supabaseClientOptions.d.mts"
