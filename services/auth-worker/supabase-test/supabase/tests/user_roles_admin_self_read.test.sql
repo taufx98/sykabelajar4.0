@@ -48,11 +48,17 @@ select is(
   'Better Auth user sees exactly one user_roles row'
 );
 select is(
+  (select count(*)::integer from public.user_roles
+   where user_id = '92929292-9292-4292-8292-929292929292'),
+  0,
+  'Better Auth user cannot read another account role'
+);
+select is(
   (select role::text from public.user_roles limit 1),
   'admin',
   'Better Auth user sees its own trusted admin role'
 );
 
 reset role;
-select * from finish();
+select * from extensions.finish();
 rollback;
