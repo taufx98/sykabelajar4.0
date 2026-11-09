@@ -32,6 +32,9 @@ on:
       - "src/pages/LoginPage.tsx"
       - "src/pages/ResetPasswordPage.tsx"
       - "src/pages/AuthEmailVerifiedPage.tsx"
+      - "src/lib/safeInternalRedirect.mjs"
+      - "src/lib/safeInternalRedirect.d.mts"
+      - "scripts/auth-migration/safe-internal-redirect.test.mjs"
       - "scripts/auth-migration/better-auth-session-bridge.test.mjs"
       - "scripts/auth-migration/auth-hydration-gate.test.mjs"
       - "src/lib/supabase.ts"
@@ -128,6 +131,9 @@ jobs:
 
       - name: Verify frontend Supabase Auth dependency inventory
         run: node ../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+
+      - name: Verify auth redirect stays on the exact application origin
+        run: node ../../scripts/auth-migration/safe-internal-redirect.test.mjs
 
       - name: Verify Better Auth frontend and organizer verification contracts
         run: node ../../scripts/auth-migration/better-auth-frontend-client.test.mjs
