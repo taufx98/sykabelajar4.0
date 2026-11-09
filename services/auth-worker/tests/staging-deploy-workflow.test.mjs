@@ -88,11 +88,11 @@ test("hosted staging deploy smoke test validates public providers and locks both
   assert.match(workflow, /public provider response must not expose client IDs, secrets, or private settings/);
   assert.ok(workflow.includes("/api/admin/login-providers"));
   assert.match(workflow, /Admin provider settings must reject requests without a Better Auth resource token/);
-  assert.match(workflow, /unauthenticatedAdminBody\\.error, "AUTH_REQUIRED"/);
+  assert.ok(workflow.includes('unauthenticatedAdminBody.error, "AUTH_REQUIRED"'));
   assert.match(workflow, /Admin provider settings must reject untrusted browser origins/);
   assert.ok(workflow.includes("/api/admin/email-settings"));
   assert.match(workflow, /Admin email settings must reject requests without a Better Auth resource token/);
-  assert.match(workflow, /unauthenticatedEmailAdminBody\\.error, "AUTH_REQUIRED"/);
+  assert.ok(workflow.includes('unauthenticatedEmailAdminBody.error, "AUTH_REQUIRED"'));
   assert.match(workflow, /Admin email settings must reject untrusted browser origins/);
   assert.match(workflow, /untrusted origins must not receive Admin CORS permission/);
 });
