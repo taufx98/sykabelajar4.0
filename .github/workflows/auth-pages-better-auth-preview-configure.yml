@@ -1,0 +1,200 @@
+name: Configure Better Auth isolated Pages Preview environment
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/CONFIGURE-BETTER-AUTH-PAGES-PREVIEW-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type CONFIGURE-ONLY-PREVIEW-BETTER-AUTH-STAGING"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configure-better-auth-pages-preview
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Add isolated Better Auth variables to Pages Preview only
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout the exact migration branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Verify branch and one-time configuration confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          marker=".github/auth-ops/CONFIGURE-BETTER-AUTH-PAGES-PREVIEW-0001"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "CONFIGURE-ONLY-PREVIEW-BETTER-AUTH-STAGING"
+          else
+            test "$GITHUB_EVENT_NAME" = "push"
+            test -f "$marker"
+            test "$(cat "$marker")" = "CONFIGURE-BETTER-AUTH-PAGES-PREVIEW-0001"
+          fi
+
+      - name: Update only the staging Preview variables, preserving existing Preview and Production config
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          if (!token || token.length < 20) throw new Error("Cloudflare API token is missing or invalid.");
+          if (!accountId || !/^[a-f0-9]{32}$/i.test(accountId)) throw new Error("Cloudflare account ID is missing or invalid.");
+
+          const api = "https://api.cloudflare.com/client/v4";
+          const headers = {
+            Authorization: "Bearer " + token,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          };
+          async function request(path, method = "GET", body) {
+            let response;
+            try {
+              response = await fetch(api + path, {
+                method,
+                headers,
+                ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+              });
+            } catch {
+              throw new Error("Cloudflare Pages configuration request failed.");
+            }
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.success !== true) {
+              const errors = (payload.errors ?? []).map((item) => ({
+                code: item.code,
+                message: String(item.message ?? "").slice(0, 160),
+              }));
+              throw new Error("Cloudflare Pages request rejected: " + JSON.stringify({
+                path, status: response.status, errors,
+              }));
+            }
+            return payload.result;
+          }
+
+          const projectAlias = "sykabelajar4.pages.dev";
+          const owner = "taufx98";
+          const repository = "sykabelajar4.0";
+          const stagingDomain = "staging.sykabelajar.my.id";
+          const stagingSupabaseUrl = "https://ydamszdfsxqisanazdkb.supabase.co";
+          const stagingSupabasePublishableKey = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v";
+          const workerUrl = "https://auth.sykabelajar.my.id";
+
+          const projects = await request("/accounts/" + encodeURIComponent(accountId) + "/pages/projects");
+          if (!Array.isArray(projects)) throw new Error("Pages project inventory was not an array.");
+          const matches = projects.filter((item) =>
+            item?.subdomain === projectAlias &&
+            item?.source?.type === "github" &&
+            item?.source?.config?.owner === owner &&
+            item?.source?.config?.repo_name === repository
+          );
+          if (matches.length !== 1) {
+            throw new Error("Expected exactly one reviewed Pages project for taufx98/sykabelajar4.0.");
+          }
+
+          const projectName = matches[0].name;
+          const projectPath = "/accounts/" + encodeURIComponent(accountId) +
+            "/pages/projects/" + encodeURIComponent(projectName);
+          const project = await request(projectPath);
+          if (
+            project?.name !== projectName ||
+            project?.subdomain !== projectAlias ||
+            project?.source?.config?.owner !== owner ||
+            project?.source?.config?.repo_name !== repository
+          ) throw new Error("Pages project source changed; refusing Preview configuration.");
+
+          const domains = Array.isArray(project.domains) ? project.domains : [];
+          if (!domains.includes(stagingDomain)) {
+            throw new Error("The exact staging custom domain is not attached to this Pages project.");
+          }
+
+          const deploymentConfigs = project.deployment_configs ?? {};
+          const preview = deploymentConfigs.preview ?? {};
+          const production = deploymentConfigs.production ?? {};
+          const currentVars = preview.env_vars && typeof preview.env_vars === "object"
+            ? preview.env_vars : {};
+
+          // Preserve every existing value exactly. Abort rather than risking the
+          // loss of any encrypted secret whose clear value is not safely reusable.
+          for (const [name, variable] of Object.entries(currentVars)) {
+            const kind = typeof variable === "string" ? "plain_text" : variable?.type;
+            const value = typeof variable === "string" ? variable : variable?.value;
+            if (kind !== "plain_text" || typeof value !== "string") {
+              throw new Error("Preview variable " + name + " is not a readable plain_text value; refusing a lossy update.");
+            }
+          }
+
+          const beforeSharedUrl = currentVars.VITE_SUPABASE_URL?.value ?? currentVars.VITE_SUPABASE_URL;
+          const beforeSharedKey = currentVars.VITE_SUPABASE_PUBLISHABLE_KEY?.value ?? currentVars.VITE_SUPABASE_PUBLISHABLE_KEY;
+          if (typeof beforeSharedUrl !== "string" || !beforeSharedUrl.trim()) {
+            throw new Error("The existing shared Preview Supabase URL is missing; no configuration was changed.");
+          }
+          if (typeof beforeSharedKey !== "string" || !beforeSharedKey.trim()) {
+            throw new Error("The existing shared Preview Supabase publishable key is missing; no configuration was changed.");
+          }
+
+          const nextVars = { ...currentVars };
+          const setPlainText = (name, value) => {
+            nextVars[name] = { type: "plain_text", value };
+          };
+          setPlainText("VITE_BETTER_AUTH_SUPABASE_URL", stagingSupabaseUrl);
+          setPlainText("VITE_BETTER_AUTH_SUPABASE_PUBLISHABLE_KEY", stagingSupabasePublishableKey);
+          setPlainText("VITE_BETTER_AUTH_FRONTEND_ENABLED", "true");
+          setPlainText("VITE_AUTH_WORKER_URL", workerUrl);
+
+          await request(projectPath, "PATCH", {
+            deployment_configs: {
+              preview: { ...preview, env_vars: nextVars },
+              production,
+            },
+          });
+
+          const verified = await request(projectPath);
+          const verifiedPreview = verified?.deployment_configs?.preview ?? {};
+          const verifiedVars = verifiedPreview.env_vars ?? {};
+          const getValue = (name) => {
+            const item = verifiedVars[name];
+            return typeof item === "string" ? item : item?.value;
+          };
+          const checks = {
+            stagingSupabaseUrl: getValue("VITE_BETTER_AUTH_SUPABASE_URL") === stagingSupabaseUrl,
+            stagingPublishableKey: getValue("VITE_BETTER_AUTH_SUPABASE_PUBLISHABLE_KEY") === stagingSupabasePublishableKey,
+            betterAuthFlag: getValue("VITE_BETTER_AUTH_FRONTEND_ENABLED") === "true",
+            authWorkerUrl: getValue("VITE_AUTH_WORKER_URL") === workerUrl,
+            sharedSupabaseUrlPreserved: getValue("VITE_SUPABASE_URL") === beforeSharedUrl,
+            sharedSupabaseKeyPreserved: getValue("VITE_SUPABASE_PUBLISHABLE_KEY") === beforeSharedKey,
+            stagingDomainPreserved: Array.isArray(verified.domains) && verified.domains.includes(stagingDomain),
+          };
+          if (Object.values(checks).some((value) => value !== true)) {
+            throw new Error("Pages Preview configuration read-back failed; inspect only the boolean result and repair manually.");
+          }
+          // Never print variable values or keys; only names and boolean checks.
+          console.log(JSON.stringify({
+            project: projectName,
+            environment: "preview",
+            updatedVariableNames: [
+              "VITE_BETTER_AUTH_SUPABASE_URL",
+              "VITE_BETTER_AUTH_SUPABASE_PUBLISHABLE_KEY",
+              "VITE_BETTER_AUTH_FRONTEND_ENABLED",
+              "VITE_AUTH_WORKER_URL",
+            ],
+            checks,
+            productionConfigIncludedInPatch: false,
+          }));
+          NODE
