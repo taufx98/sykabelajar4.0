@@ -6,6 +6,7 @@ import {
   createBetterAuthSessionBridge,
 } from '@/services/betterAuthSessionBridge.mjs';
 import { publishAuthSessionEvent } from '@/services/authSessionEvents.mjs';
+import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
 
 export const LOGIN_REJECTION_SIGNOUT_KEY = 'syka_login_rejection_signout_v1';
 
@@ -88,7 +89,9 @@ export async function signInWithSocial(
   if (!isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     throw new Error('BETTER_AUTH_SOCIAL_SIGNIN_DISABLED');
   }
-  const result = await getStagingBetterAuthClient().signInWithSocial(provider, callbackURL);
+  const safeCallbackPath = resolveSafeInternalRedirect(callbackURL, window.location.origin);
+  const safeCallbackURL = new URL(safeCallbackPath, window.location.origin).toString();
+  const result = await getStagingBetterAuthClient().signInWithSocial(provider, safeCallbackURL);
   if (result.url) window.location.assign(result.url);
   return result;
 }
