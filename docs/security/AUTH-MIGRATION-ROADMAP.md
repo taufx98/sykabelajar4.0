@@ -112,26 +112,34 @@ Detailed current blockers, the latest read-only Cloudflare/Supabase verification
 
 ## Stage 4 — Frontend
 
-- [ ] Add Better Auth client and a first-party OAuth Authorization Code + PKCE client.
-- [ ] Implement a single cached/single-flight Supabase access-token callback with refresh before the five-minute expiry.
-- [ ] Integrate the callback into the existing singleton Supabase client without removing RPC circuit breaker, cache, Realtime health or other client safeguards.
-- [ ] Replace every direct supabase.auth use with Better Auth session operations or the new token service.
-- [ ] Preserve AppContext bootstrap/hydration, route guards, global session persistence and one-login navigation across the application.
-- [ ] Preserve login/register UI and existing page designs; no broad UI redesign.
-- [ ] Verify route changes do not prompt for login again, including page reload and expired-token renewal.
-- [ ] Ensure Realtime receives updated tokens and behaves correctly after session renewal/logout.
-- [ ] Handle temporary Better Auth/D1 quota 503 and Cloudflare Worker Error 1027 without clearing the user's active application state; show a recovery message and retry after the advertised reset/availability check.
+<badge color="success">Source implementation on branch</badge> Hosted browser/provider acceptance remains open; production continues to use Supabase Auth by default.
+
+- [x] Implement the typed Better Auth HTTP client and first-party OAuth Authorization Code + PKCE flow. This branch intentionally keeps one typed transport instead of adding a second auth SDK/session owner.
+- [x] Implement the single-flight, in-memory Supabase resource-token broker with session/UUID/email-verification/expiry revalidation and post-PKCE account-switch race protection.
+- [x] Integrate external access-token mode into the existing singleton Supabase client while retaining the RPC circuit breaker, cache and existing client safeguards. Supabase Auth session persistence is disabled only in the explicit Better Auth staging mode.
+- [x] Route Better Auth preview operations through the provider-neutral auth service and classify remaining direct `supabase.auth` uses as legacy-provider fallbacks, the organizer's legacy OTP branch, shared access-token fallback, or the separately planned private-chat removal. Do not migrate private chat in this auth workstream.
+- [x] Preserve AppContext as the single visible auth-state owner; bootstrap, hydration, account-switch, stale callback and React cleanup guards are covered by source contract tests.
+- [x] Preserve existing login/register page design and wire provider discovery for Google/Facebook/X, registration roles, password change, recovery route and the server-validated email-verification callback.
+- [ ] Complete hosted browser acceptance for navigation/reload, real cookie behavior, cross-tab account changes and session expiry/logout on the staging custom domain.
+- [ ] Verify hosted Realtime re-authentication and session renewal using a real Better Auth session.
+- [ ] Verify quota/availability recovery UX in the browser for D1 503 and Cloudflare Worker Error 1027. The Worker's safe fail-closed responses and client session guards are implemented; user-facing recovery/retry acceptance remains open.
+- [ ] Real email verification and password-reset email delivery are deferred to the final email phase by owner instruction. Do not configure ZeptoMail/Brevo or weaken the verified-email gate in Stage 4.
 
 ## Stage 5 — Backend
 
-- [x] Add a shared, disabled-by-default identity boundary for verified Supabase/Better Auth JWTs and migrate the seven targeted signer/delete/upload/payment handlers in the branch; hosted token acceptance per endpoint and controlled deployment still remain open.
-- [ ] Complete the remaining active Edge Function and legacy alias audit; replace auth.getUser()/auth-v1-user dependencies only after callers, role/owner checks and webhook separation are verified.
-- [ ] Update SQL functions/triggers/RPCs that query auth.users, raw_user_meta_data or email_confirmed_at.
-- [ ] Continue using auth.uid() where its UUID-subject behavior is compatible and verified.
-- [ ] Preserve business-role authorization from application tables; never place admin/teacher/organizer business roles in the PostgreSQL JWT role claim.
-- [ ] Keep service-role credentials server-side only and use RLS-scoped clients for user data.
-- [ ] Verify email verification, sign-up, referrals, participant sessions, payment webhooks, storage, realtime and admin actions under the new issuer.
-- [ ] Review SECURITY DEFINER functions for owner/role/issuer/token checks; do not revoke grants indiscriminately.
+<badge color="success">Source implementation on branch</badge> Hosted Better Auth token acceptance and deployment remain open.
+
+- [x] Add the shared, disabled-by-default identity boundary. Supabase Auth remains the compatibility default; Better Auth uses pinned `@supabase/server@1.9.2` cryptographic verification plus exact issuer/audience/UUID/PostgreSQL-role/token-lifetime checks.
+- [x] Migrate nine application handlers in the branch: Cloudinary signer, profile upload + V2, generic asset delete + V2, profile delete, payment admin, payment create and payment reconcile. Keep the Midtrans compatibility delegate and provider webhooks on their separate intended paths.
+- [x] Audit the active production Edge Function inventory and preserve the intentionally public status/certificate paths, provider-signature webhooks and separate chat-media cleanup boundary. Both V2 Cloudinary aliases now have shared-resolver branch implementations and exact owner/resource/delivery checks.
+- [x] Bind checkout's initial order query to the verified user UUID; in reconciliation, verify ownership before reading the payment-intent row. Preserve payment provider signature/status/amount/currency/idempotency rules.
+- [x] Preserve business-role authorization in application tables and caller-scoped `is_active_admin()`; the PostgreSQL JWT role remains `authenticated`, never `admin`, `teacher` or `organizer_member`.
+- [x] Keep ownership/profile/organizer lookups on RLS-scoped clients; privileged payment settings and fulfilment operations remain server-side and occur only after their owner/admin/provider checks.
+- [x] Add regression contracts for all resolver-backed handlers, V2 aliases, webhook separation, checkout/reconcile ownership ordering and Deno 2.9.8 type-checking for the shared resolver plus all migrated handlers.
+- [ ] Complete hosted positive/negative Better Auth token and two-user IDOR acceptance for each handler in an isolated schema-compatible Supabase project. Do not enable `AUTH_IDENTITY_MODE=better-auth` in production before this passes.
+- [ ] Finish the full 109-policy operation/ownership/admin/public RLS matrix and SECURITY DEFINER review against the Stage 3 identity projection; do not bulk-edit grants or policies.
+- [ ] Verify Data API, Storage HTTP, Realtime WebSocket, Edge calls, referral/participant flows and payment/webhook regression under a real Better Auth issuer/session.
+- [ ] Deploy reviewed Edge Function versions only after Stages 2/3 hosted identity gates and the explicit deployment/project-target review are complete.
 
 ## Stage 6 — Demo reset and full testing
 
