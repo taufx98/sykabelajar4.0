@@ -1,6 +1,18 @@
 name: Auth Worker CI
 
 on:
+  pull_request:
+    branches:
+      - main
+      - security/auth-migration-phase-0
+    paths:
+      - "services/auth-worker/**"
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - "scripts/auth-migration/**"
+      - "src/**"
+      - ".github/workflows/auth-worker-ci.yml"
+      - "docs/security/**"
   push:
     branches:
       - security/auth-poc-stage-1
@@ -68,7 +80,7 @@ concurrency:
 
 jobs:
   check:
-    if: ${{ github.ref_name == 'security/auth-poc-stage-1' }}
+    if: ${{ github.head_ref == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-poc-stage-1' }}
     name: Audit, tests, D1 migration, OIDC/JWKS smoke test, and Worker dry run
     runs-on: ubuntu-latest
     defaults:
