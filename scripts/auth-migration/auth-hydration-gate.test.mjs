@@ -49,4 +49,25 @@ test("AppContext checks both request generation and current identity before publ
   assert.match(appContext, /if \(!profile\) \{\s*if \(!isHydrationCurrent\(\)\) return;\s*throw new Error\('PROFILE_NOT_FOUND'\);/);
 });
 
+test("refreshUser and updateProfile reject stale same-UUID hydration results", () => {
+  const appContext = readFileSync(
+    new URL("../../src/store/AppContext.tsx", import.meta.url),
+    "utf8",
+  );
+  const refreshStart = appContext.indexOf("const refreshUser = useCallback");
+  const updateStart = appContext.indexOf("const updateProfile = useCallback", refreshStart);
+  const nextActionStart = appContext.indexOf("const markNotificationRead = useCallback", updateStart);
+  assert.ok(refreshStart >= 0 && updateStart > refreshStart && nextActionStart > updateStart);
+
+  const refreshUser = appContext.slice(refreshStart, updateStart);
+  const updateProfile = appContext.slice(updateStart, nextActionStart);
+  for (const source of [refreshUser, updateProfile]) {
+    assert.match(source, /authHydrationGateRef\.current!\.begin\(\)/);
+    assert.match(source, /authHydrationGateRef\.current\?\.isCurrent\(hydrationRequest\)/);
+    assert.match(source, /authUserRef\.current\?\.id === current\.id/);
+    assert.match(source, /await getUserRoles\(current\.id\);\s*if \(!isHydrationCurrent\(\)\) return;/);
+    assert.match(source, /if \(!isHydrationCurrent\(\)\) return;[\s\S]*setUser\(/);
+  }
+});
+
 console.log("Auth hydration gate contract passed: stale requests cannot overwrite a newer session.");
