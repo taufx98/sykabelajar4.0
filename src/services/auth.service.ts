@@ -206,7 +206,11 @@ export async function sendVerificationEmail(email: string, callbackURL?: string)
     throw new Error('EMAIL_INVALID');
   }
 
-  const destination = callbackURL ?? new URL('/auth/verified', window.location.origin).toString();
+  const destinationPath = resolveSafeInternalRedirect(
+    callbackURL ?? '/auth/verified',
+    window.location.origin,
+  );
+  const destination = new URL(destinationPath, window.location.origin).toString();
   if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     await getStagingBetterAuthClient().sendVerificationEmail(normalizedEmail, destination);
     return;
@@ -221,13 +225,19 @@ export async function sendVerificationEmail(email: string, callbackURL?: string)
 }
 
 export async function resetPassword(email: string, redirectTo?: string) {
+  const redirectPath = resolveSafeInternalRedirect(
+    redirectTo ?? '/reset-password',
+    window.location.origin,
+  );
+  const destination = new URL(redirectPath, window.location.origin).toString();
   if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
-    const destination = redirectTo ?? new URL('/reset-password', window.location.origin).toString();
     await getStagingBetterAuthClient().requestPasswordReset(email, destination);
     return;
   }
 
-  const legacyRedirect = redirectTo ?? `${window.location.origin}/#/login`;
+  const legacyRedirectPath = redirectTo ?? '/#/login';
+  const safeLegacyPath = resolveSafeInternalRedirect(legacyRedirectPath, window.location.origin);
+  const legacyRedirect = new URL(safeLegacyPath, window.location.origin).toString();
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: legacyRedirect });
   if (error) throw error;
 }
