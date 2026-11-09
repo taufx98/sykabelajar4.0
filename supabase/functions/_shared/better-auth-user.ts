@@ -48,7 +48,10 @@ export async function requireBetterAuthUser(request: Request) {
 
   const context = result?.data;
   if (result?.error || !context) {
-    return { ok: false, status: 401, error: "AUTH_REQUIRED" };
+    const status = Number(result?.error?.status ?? 0);
+    return status >= 500
+      ? { ok: false, status: 503, error: "AUTH_VERIFICATION_UNAVAILABLE" }
+      : { ok: false, status: 401, error: "AUTH_REQUIRED" };
   }
 
   // jwtClaims are trusted only because createSupabaseContext has verified the
