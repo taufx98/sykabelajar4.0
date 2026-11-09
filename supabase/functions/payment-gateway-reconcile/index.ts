@@ -66,20 +66,25 @@ Deno.serve(async (req: Request) => {
   const { userId } = identity;
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const [{ data: order, error: orderError }, { data: intent, error: intentError }] = await Promise.all([
-    admin.from("orders")
-      .select("id,user_id,status,total,currency,payment_provider")
-      .eq("id", orderId)
-      .eq("user_id", userId)
-      .maybeSingle(),
-    admin.from("payment_intents")
-      .select("id,order_id,provider,provider_reference,amount,status,raw_meta")
-      .eq("order_id", orderId)
-      .maybeSingle(),
-  ]);
+  // Resolve ownership before reading any payment-intent record. The verified
+  // UUID is part of the database predicate, not merely a post-query check.
+  const { data: order, error: orderError } = await admin.from("orders")
+    .select("id,user_id,status,total,currency,payment_provider")
+    .eq("id", orderId)
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  if (orderError || intentError) return json({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
-  if (!order || !intent || order.user_id !== userId) return json({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
+  if (orderError) return json({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
+  if (!order || order.user_id !== userId) return json({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
+
+  // Only after the caller owns the order may service-role access its intent.
+  const { data: intent, error: intentError } = await admin.from("payment_intents")
+    .select("id,order_id,provider,provider_reference,amount,status,raw_meta")
+    .eq("order_id", order.id)
+    .maybeSingle();
+
+  if (intentError) return json({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
+  if (!intent) return json({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
 
   const orderStatus = str(order.status).toUpperCase();
   const intentStatus = str(intent.status).toUpperCase();
