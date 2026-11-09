@@ -12,11 +12,11 @@ const wranglerConfig = readFileSync(new URL("../wrangler.toml", import.meta.url)
 test("staging Worker deploy has one exact guarded push marker and manual fallback", () => {
   assert.match(workflow, /^on:\n  push:/m);
   assert.match(workflow, /branches:\n      - security\/auth-poc-stage-1/);
-  assert.match(workflow, /paths:\n      - "\.github\/auth-ops\/DEPLOY-STAGING-WORKER-0009"/);
+  assert.match(workflow, /paths:\n      - "\.github\/auth-ops\/DEPLOY-STAGING-WORKER-0010"/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /GITHUB_EVENT_NAME.*workflow_dispatch/);
   assert.match(workflow, /GITHUB_EVENT_NAME.*push/);
-  assert.match(workflow, /DEPLOY-STAGING-WORKER-0009/);
+  assert.match(workflow, /DEPLOY-STAGING-WORKER-0010/);
   assert.match(workflow, /DEPLOY-STAGING-WORKER-sykabelajar-auth-poc/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/security\/auth-poc-stage-1'/);
 });
