@@ -135,7 +135,7 @@ test("verified user adapter fails closed without exact issuer and resource audie
   assert.match(edgeAdapter, /AUTH_IDENTITY_CONFIGURATION_MISSING/);
   assert.match(edgeAdapter, /AUTH_SUBJECT_MISMATCH/);
   assert.match(edgeAdapter, /AUTH_POSTGRES_ROLE_INVALID/);
-  assert.match(edgeAdapter, /status >= 500[\\s\\S]*AUTH_VERIFICATION_UNAVAILABLE/);
+  assert.match(edgeAdapter, /status >= 500[\s\S]*AUTH_VERIFICATION_UNAVAILABLE/);
 });
 
 test("migrated handlers bypass gateway JWT verification only because the shared resolver verifies every request", () => {
