@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0003"
+      - ".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0004"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -26,13 +26,19 @@ jobs:
     name: Read-only inspect of preview Pages environment variable configuration
     runs-on: ubuntu-24.04
     steps:
+    steps:
+      - name: Checkout the exact migration branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
       - name: Verify the exact staging branch and one-time confirmation
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
-          marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0003"
+          marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0004"
           marker_present=false
           test -f "$marker" && marker_present=true
           printf 'event=%s ref=%s marker_present=%s\n' "$GITHUB_EVENT_NAME" "$GITHUB_REF" "$marker_present"
@@ -43,7 +49,7 @@ jobs:
             test "$marker_present" = "true"
             marker_body="$(cat "$marker")"
             printf 'marker_content=%s\n' "$marker_body"
-            test "$marker_body" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0003"
+            test "$marker_body" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0004"
           fi
 
       - name: Inspect only variable names and safe public configuration fingerprints
