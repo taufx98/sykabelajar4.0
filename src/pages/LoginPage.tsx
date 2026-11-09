@@ -64,8 +64,7 @@ export function LoginPage() {
   const handleSocialLogin = async (provider: BetterAuthSocialProvider) => {
     setSocialLoading(provider);
     try {
-      const callbackURL = new URL(redirectTo, window.location.origin).toString();
-      await signInWithSocial(provider, callbackURL);
+      await signInWithSocial(provider, redirectTo);
     } catch (error: any) {
       if (/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(error?.message ?? '')) {
         setNeedsEmailVerification(true);
