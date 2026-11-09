@@ -103,6 +103,8 @@ const cloudinarySignerSource = readFileSync(new URL("get-cloudinary-signature/in
 const cloudinaryDeleteSource = readFileSync(new URL("cloudinary-delete-asset/index.ts", edgeRoot), "utf8");
 const cloudinaryUploadSource = readFileSync(new URL("cloudinary-profile-upload/index.ts", edgeRoot), "utf8");
 const cloudinaryProfileDeleteSource = readFileSync(new URL("cloudinary-delete-profile/index.ts", edgeRoot), "utf8");
+const cloudinaryUploadV2Source = readFileSync(new URL("cloudinary-profile-upload-v2/index.ts", edgeRoot), "utf8");
+const cloudinaryDeleteV2Source = readFileSync(new URL("cloudinary-delete-asset-v2/index.ts", edgeRoot), "utf8");
 const paymentAdminSource = readFileSync(new URL("payment-gateway-admin/index.ts", edgeRoot), "utf8");
 const paymentCreateSource = readFileSync(new URL("payment-gateway-create/index.ts", edgeRoot), "utf8");
 const paymentReconcileSource = readFileSync(new URL("payment-gateway-reconcile/index.ts", edgeRoot), "utf8");
@@ -136,7 +138,9 @@ test("migrated handlers bypass gateway JWT verification only because the shared 
   for (const name of [
     "get-cloudinary-signature",
     "cloudinary-profile-upload",
+    "cloudinary-profile-upload-v2",
     "cloudinary-delete-asset",
+    "cloudinary-delete-asset-v2",
     "cloudinary-delete-profile",
     "payment-gateway-admin",
     "payment-gateway-create",
@@ -150,6 +154,8 @@ test("migrated handlers bypass gateway JWT verification only because the shared 
     cloudinarySignerSource,
     cloudinaryDeleteSource,
     cloudinaryUploadSource,
+    cloudinaryUploadV2Source,
+    cloudinaryDeleteV2Source,
     cloudinaryProfileDeleteSource,
     paymentAdminSource,
     paymentCreateSource,
@@ -164,12 +170,16 @@ test("migrated handlers bypass gateway JWT verification only because the shared 
   assert.doesNotMatch(applicationIdentityResolver, /SUPABASE_SERVICE_ROLE_KEY|service_role/i);
 });
 
-test("unmigrated legacy Cloudinary v2 aliases retain gateway JWT verification", () => {
+test("Cloudinary v2 compatibility aliases use the shared in-handler identity verifier", () => {
   for (const name of ["cloudinary-profile-upload-v2", "cloudinary-delete-asset-v2"]) {
-    assert.match(functionConfig(name), /verify_jwt\s*=\s*true/);
+    assert.match(functionConfig(name), /verify_jwt\\s*=\\s*false/);
   }
+  assert.match(cloudinaryUploadV2Source, /requireApplicationUser\\(/);
+  assert.match(cloudinaryDeleteV2Source, /requireApplicationUser\\(/);
+  assert.match(cloudinaryDeleteV2Source, /isOwnedCloudinaryPublicId/);
+  assert.match(cloudinaryDeleteV2Source, /INVALID_RESOURCE_TYPE/);
+  assert.match(cloudinaryDeleteV2Source, /INVALID_DELIVERY_TYPE/);
 });
-
 test("provider webhook endpoints remain JWT-exempt but keep provider signature verification", () => {
   for (const name of ["payment-webhook", "payment-gateway-webhook"]) {
     assert.match(functionConfig(name), /verify_jwt\s*=\s*false/);
