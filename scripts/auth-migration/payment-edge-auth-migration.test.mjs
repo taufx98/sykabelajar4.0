@@ -12,6 +12,8 @@ const cloudinarySignature = readFileSync(new URL("../../supabase/functions/get-c
 const cloudinaryDelete = readFileSync(new URL("../../supabase/functions/cloudinary-delete-asset/index.ts", import.meta.url), "utf8");
 const cloudinaryUpload = readFileSync(new URL("../../supabase/functions/cloudinary-profile-upload/index.ts", import.meta.url), "utf8");
 const cloudinaryDeleteProfile = readFileSync(new URL("../../supabase/functions/cloudinary-delete-profile/index.ts", import.meta.url), "utf8");
+const cloudinaryUploadV2 = readFileSync(new URL("../../supabase/functions/cloudinary-profile-upload-v2/index.ts", import.meta.url), "utf8");
+const cloudinaryDeleteV2 = readFileSync(new URL("../../supabase/functions/cloudinary-delete-asset-v2/index.ts", import.meta.url), "utf8");
 const midtransDelegate = readFileSync(new URL("../../supabase/functions/midtrans-create-payment/index.ts", import.meta.url), "utf8");
 const paymentWebhook = readFileSync(new URL("../../supabase/functions/payment-gateway-webhook/index.ts", import.meta.url), "utf8");
 const functionConfig = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
@@ -86,6 +88,8 @@ test("all migrated user-facing Cloudinary handlers share the fail-closed identit
     ["get-cloudinary-signature", cloudinarySignature],
     ["cloudinary-delete-asset", cloudinaryDelete],
     ["cloudinary-profile-upload", cloudinaryUpload],
+    ["cloudinary-profile-upload-v2", cloudinaryUploadV2],
+    ["cloudinary-delete-asset-v2", cloudinaryDeleteV2],
     ["cloudinary-delete-profile", cloudinaryDeleteProfile],
   ]) {
     const executableSource = stripSourceComments(source);
@@ -107,6 +111,8 @@ test("Cloudinary and payment handlers remain compatible with verified third-part
     "get-cloudinary-signature",
     "cloudinary-delete-asset",
     "cloudinary-profile-upload",
+    "cloudinary-profile-upload-v2",
+    "cloudinary-delete-asset-v2",
     "cloudinary-delete-profile",
     "payment-gateway-admin",
     "payment-gateway-create",
@@ -116,11 +122,6 @@ test("Cloudinary and payment handlers remain compatible with verified third-part
     const section = functionConfig.match(new RegExp("\\[functions\\." + name + "\\]\\s+verify_jwt\\s*=\\s*(true|false)"));
     assert.ok(section, name + " must have an explicit platform gateway JWT policy");
     assert.equal(section[1], "false", name + " must reach its in-handler identity verifier");
-  }
-  for (const name of ["cloudinary-profile-upload-v2", "cloudinary-delete-asset-v2"]) {
-    const section = functionConfig.match(new RegExp("\\[functions\\." + name + "\\]\\s+verify_jwt\\s*=\\s*(true|false)"));
-    assert.ok(section, name + " legacy alias must have an explicit gateway policy");
-    assert.equal(section[1], "true", name + " remains on its legacy Supabase JWT path until caller deprecation is confirmed");
   }
 });
 
