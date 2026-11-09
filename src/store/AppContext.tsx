@@ -264,8 +264,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         void refreshUnreadCount(uid);
       };
 
-      if (bootstrapped) window.setTimeout(hydrateFromCurrentEvent, 0);
-      else hydrateFromCurrentEvent();
+      // Defer PostgREST/profile work until after the provider listener returns.
+      window.setTimeout(hydrateFromCurrentEvent, 0);
     });
 
     return () => {
