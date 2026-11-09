@@ -97,7 +97,7 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
  *   authBaseUrl:string,
  *   resourceAudience:string,
  *   supabaseUrl:string,
- *   serviceRoleKey:string,
+ *   publishableKey:string,
  *   fetchImpl?:typeof fetch,
  *   verifyJwtImpl?:typeof jwtVerify,
  *   createJwksImpl?:typeof createRemoteJWKSet,
@@ -107,14 +107,14 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
 export async function resolveBetterAuthAdminIdentity(input) {
   const accessToken = typeof input?.accessToken === "string" ? input.accessToken.trim() : "";
   const resourceAudience = typeof input?.resourceAudience === "string" ? input.resourceAudience.trim() : "";
-  const serviceRoleKey = typeof input?.serviceRoleKey === "string" ? input.serviceRoleKey.trim() : "";
+  const publishableKey = typeof input?.publishableKey === "string" ? input.publishableKey.trim() : "";
   const authBaseUrl = typeof input?.authBaseUrl === "string" ? input.authBaseUrl : "";
   if (
     !accessToken ||
     accessToken.length > 8192 ||
     !resourceAudience ||
-    !serviceRoleKey ||
-    serviceRoleKey.length < 32
+    !publishableKey.startsWith("sb_publishable_") ||
+    publishableKey.length > 256
   ) {
     throw new BetterAuthAdminAuthError("BETTER_AUTH_ADMIN_NOT_CONFIGURED");
   }
@@ -225,8 +225,8 @@ export async function resolveBetterAuthAdminIdentity(input) {
     roleResponse = await fetchImpl(roleUrl.toString(), {
       method: "GET",
       headers: {
-        apikey: serviceRoleKey,
-        Authorization: "Bearer " + serviceRoleKey,
+        apikey: publishableKey,
+        Authorization: "Bearer " + accessToken,
         Accept: "application/json",
       },
       cache: "no-store",
