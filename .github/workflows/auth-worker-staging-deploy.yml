@@ -434,6 +434,25 @@ jobs:
                 "untrusted origins must not receive Admin CORS permission",
               );
 
+              const unauthenticatedEmailAdminResponse = await fetch(origin + "/api/admin/email-settings", {
+                headers: { Origin: previewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(unauthenticatedEmailAdminResponse.status, 401, "Admin email settings must reject requests without a Better Auth resource token");
+              const unauthenticatedEmailAdminBody = await unauthenticatedEmailAdminResponse.json();
+              assert.equal(unauthenticatedEmailAdminBody.error, "AUTH_REQUIRED");
+
+              const hostileEmailAdminResponse = await fetch(origin + "/api/admin/email-settings", {
+                headers: { Origin: "https://attacker.example", Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(hostileEmailAdminResponse.status, 403, "Admin email settings must reject untrusted browser origins");
+              assert.equal(
+                hostileEmailAdminResponse.headers.get("Access-Control-Allow-Origin"),
+                null,
+                "untrusted origins must not receive Admin email CORS permission",
+              );
+
               console.log(JSON.stringify({
                 health: "ok",
                 issuer: discovery.issuer,
