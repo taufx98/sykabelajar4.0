@@ -172,10 +172,10 @@ test("migrated handlers bypass gateway JWT verification only because the shared 
 
 test("Cloudinary v2 compatibility aliases use the shared in-handler identity verifier", () => {
   for (const name of ["cloudinary-profile-upload-v2", "cloudinary-delete-asset-v2"]) {
-    assert.match(functionConfig(name), /verify_jwt\\s*=\\s*false/);
+    assert.match(functionConfig(name), /verify_jwt\s*=\s*false/);
   }
-  assert.match(cloudinaryUploadV2Source, /requireApplicationUser\\(/);
-  assert.match(cloudinaryDeleteV2Source, /requireApplicationUser\\(/);
+  assert.match(cloudinaryUploadV2Source, /requireApplicationUser\(/);
+  assert.match(cloudinaryDeleteV2Source, /requireApplicationUser\(/);
   assert.match(cloudinaryDeleteV2Source, /isOwnedCloudinaryPublicId/);
   assert.match(cloudinaryDeleteV2Source, /INVALID_RESOURCE_TYPE/);
   assert.match(cloudinaryDeleteV2Source, /INVALID_DELIVERY_TYPE/);
