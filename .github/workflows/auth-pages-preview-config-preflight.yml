@@ -32,15 +32,18 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0002"
+          marker_present=false
+          test -f "$marker" && marker_present=true
+          printf 'event=%s ref=%s marker_present=%s\n' "$GITHUB_EVENT_NAME" "$GITHUB_REF" "$marker_present"
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             test "$CONFIRMATION" = "CHECK-BETTER-AUTH-PAGES-PREVIEW-CONFIG"
-          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0001"
-            test -f "$marker"
-            test "$(cat "$marker")" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0001"
           else
-            echo "Only guarded push or exact workflow_dispatch is accepted." >&2
-            exit 1
+            test "$GITHUB_EVENT_NAME" = "push"
+            test "$marker_present" = "true"
+            marker_body="$(cat "$marker")"
+            printf 'marker_content=%s\n' "$marker_body"
+            test "$marker_body" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0002"
           fi
 
       - name: Inspect only variable names and safe public configuration fingerprints
