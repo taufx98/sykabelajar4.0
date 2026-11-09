@@ -13,11 +13,11 @@ const config = readFileSync(configPath, "utf8");
 test("remote D1 schema migration has one exact guarded push marker and manual fallback", () => {
   assert.match(workflow, /^on:\n  push:/m);
   assert.match(workflow, /branches:\n      - security\/auth-poc-stage-1/);
-  assert.match(workflow, /paths:\n      - "\.github\/auth-ops\/APPLY-STAGING-D1-0007"/);
+  assert.match(workflow, /paths:\n      - "\.github\/auth-ops\/APPLY-STAGING-D1-0008"/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /GITHUB_EVENT_NAME.*workflow_dispatch/);
   assert.match(workflow, /GITHUB_EVENT_NAME.*push/);
-  assert.match(workflow, /APPLY-STAGING-D1-0007/);
+  assert.match(workflow, /APPLY-STAGING-D1-0008/);
   assert.match(workflow, /APPLY-TO-sykabelajar-auth-poc/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/security\/auth-poc-stage-1'/);
   assert.match(workflow, /migrationSha256/);
@@ -25,6 +25,7 @@ test("remote D1 schema migration has one exact guarded push marker and manual fa
   assert.match(workflow, /2d773a74cebf9f00ed95e42aa704855e3639827820875792874de5093519391f/);
   assert.match(workflow, /e29ecb4655bac013ded7db40051045d9c2507d3f7790b365cdbb8e2dfe1fd1b1/);
   assert.match(workflow, /b794cd2b217158ec2f5d540a646d0655c7504258b0bd49eda9131d5585233df7/);
+  assert.match(workflow, /e2a7a59e026c59f190076765f294878856cc7b3413a3741cc58055b7d1ca4297/);
 });
 
 test("workflow is hard-bound to the known isolated D1 name and UUID", () => {
@@ -47,6 +48,7 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
     "0005_telegram_phone_verification.sql",
     "0006_transactional_email_provider.sql",
     "0007_managed_social_login_providers.sql",
+    "0008_add_staging_oauth_callback.sql",
   ]) {
     assert.ok(workflow.includes(file), "missing migration guard for " + file);
   }
