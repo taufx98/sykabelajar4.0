@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0008"
+      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0009"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -69,7 +69,7 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0008"
+            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0009"
             test -f "$marker" || {
               echo "Blocked: the one-time staging Worker deployment marker is missing." >&2
               exit 1
