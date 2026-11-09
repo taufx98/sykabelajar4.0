@@ -281,6 +281,9 @@ test("saving email provider credentials encrypts new tokens before D1 and preser
   assert.ok(start >= 0 && end > start);
   const save = emailAdminSource.slice(start, end);
   assert.match(save, /let tokenCiphertext = existing\?\.send_mail_token_ciphertext \?\? ""/);
+  assert.match(save, /!existing\.send_mail_token_ciphertext/);
+  assert.match(save, /if \(!submittedToken && existing\?\.send_mail_token_ciphertext\)[\s\S]*?decryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, existing\.send_mail_token_ciphertext\)/);
+  assert.match(save, /EMAIL_ACCOUNT_SECRET_UNAVAILABLE/);
   assert.match(save, /tokenCiphertext = await encryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, submittedToken\)/);
   const encryption = save.indexOf("encryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, submittedToken)");
   const write = save.indexOf(".bind(id, label, provider, senderAddress, senderName, bounceAddress || null, tokenCiphertext");
