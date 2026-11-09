@@ -242,6 +242,7 @@ jobs:
               triggerName: entry.trigger_name,
               functionName: entry.function_schema + "." + entry.function_name,
               definition: entry.definition,
+              functionDefinition: entry.function_definition,
             }));
           if (profiles.length !== 4) {
             throw new Error("Expected exactly four production profiles triggers; found " + profiles.length);
