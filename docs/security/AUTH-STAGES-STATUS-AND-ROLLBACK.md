@@ -1,9 +1,9 @@
 # Better Auth migration — live readiness and rollback record
 
-Status date: 8 November 2026  
+Status date: 9 November 2026  
 Scope: SYKABELAJAR 4.0, production Supabase project `mvdczyitbkxkldjughor`, isolated Better Auth branch `security/auth-poc-stage-1`.
 
-This is a verified status record, not authorization to deploy or migrate production. The isolated staging Worker deployment succeeded on 6 November 2026 (run [#42190609080](https://github.com/taufx98/sykabelajar4.0/actions/runs/42190609080)); its hosted smoke test verified `/healthz`, OIDC discovery, exact issuer, endpoint hostnames, PKCE S256, and a public ES256 P-256 JWKS key. The Worker is live at `auth.sykabelajar.my.id` and bound to the dedicated D1. No production DDL/DML, production auth-provider configuration, account deletion, production DNS/route change, production Worker deployment, or real email sending was performed
+This is a verified status record, not authorization to deploy or migrate production. The isolated Cloudflare Worker script and dedicated D1 deployment were successfully provisioned on 6 November 2026 (run [#42190609080](https://github.com/taufx98/sykabelajar4.0/actions/runs/42190609080)); the historical deployment smoke test verified `/healthz`, OIDC discovery, issuer, PKCE S256 and ES256/P-256 JWKS at that time. **Current public reachability is blocked:** the latest 9 November checkpoint below records that `auth.sykabelajar.my.id` and `staging.sykabelajar.my.id` do not resolve publicly while registrar delegation still points to IDWebHost. Treat the Worker as deployed in Cloudflare, but do not claim current public hostname health until authoritative DNS delegation is reconciled and rechecked. No production DDL/DML, production auth-provider configuration, account deletion, production DNS/route change, production Worker deployment, or real email sending was performed
 
 ## Executive status
 
