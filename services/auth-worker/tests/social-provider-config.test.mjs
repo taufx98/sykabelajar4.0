@@ -134,3 +134,15 @@ test("provider toggles fail closed when encryption, verification or the last log
   assert.match(toggle, /usableRows\.length <= 1/);
   assert.match(toggle, /SOCIAL_PROVIDER_LAST_ENABLED_METHOD/);
 });
+
+
+test("Better Auth admin role checks use the caller JWT and staging publishable key, never service-role credentials", () => {
+  const emailAdmin = readFileSync(new URL("../src/email-admin.ts", import.meta.url), "utf8");
+  const adminVerifier = readFileSync(new URL("../src/email-admin-auth.mjs", import.meta.url), "utf8");
+  assert.match(settings, /publishableKey: env\\.SUPABASE_PROVISIONING_PUBLISHABLE_KEY/);
+  assert.match(emailAdmin, /publishableKey: env\\.SUPABASE_PROVISIONING_PUBLISHABLE_KEY/);
+  assert.match(adminVerifier, /apikey: publishableKey/);
+  assert.match(adminVerifier, /Authorization: "Bearer " \\+ accessToken/);
+  assert.doesNotMatch(settings + emailAdmin, /serviceRoleKey: env\\.SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(adminVerifier, /serviceRoleKey|SUPABASE_SERVICE_ROLE_KEY/);
+});
