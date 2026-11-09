@@ -16,7 +16,7 @@ test("Pages domain attachment is restricted to the Better Auth migration branch 
   assert.match(workflow, /sourceConfig\?\.owner !== "taufx98"/);
   assert.match(workflow, /sourceConfig\?\.repo_name !== "sykabelajar4\.0"/);
   assert.match(workflow, /Safe project inventory/);
-  assert.match(workflow, /deployments\\?env=preview&per_page=25/);
+  assert.ok(workflow.includes("/deployments?env=preview&per_page=25"));
   assert.match(workflow, /branchDeployment/);
   assert.match(workflow, /metadataBranch === branchName/);
   assert.match(workflow, /staging\.sykabelajar\.my\.id/);

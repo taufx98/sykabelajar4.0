@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0003"
+      - ".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0004"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -44,12 +44,12 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker=".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0003"
+            marker=".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0004"
             test -f "$marker" || {
               echo "Blocked: the one-time staging-domain marker is missing." >&2
               exit 1
             }
-            test "$(cat "$marker")" = "ATTACH-STAGING-PAGES-DOMAIN-0003" || {
+            test "$(cat "$marker")" = "ATTACH-STAGING-PAGES-DOMAIN-0004" || {
               echo "Blocked: the staging-domain marker is not exact." >&2
               exit 1
             }
