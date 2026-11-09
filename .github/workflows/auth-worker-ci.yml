@@ -9,7 +9,9 @@ on:
       - "supabase/functions/_shared/**"
       - "supabase/functions/get-cloudinary-signature/**"
       - "supabase/functions/cloudinary-delete-asset/**"
+      - "supabase/functions/cloudinary-delete-asset-v2/**"
       - "supabase/functions/cloudinary-profile-upload/**"
+      - "supabase/functions/cloudinary-profile-upload-v2/**"
       - "supabase/functions/cloudinary-delete-profile/**"
       - "supabase/functions/payment-gateway-admin/**"
       - "supabase/functions/payment-gateway-create/**"
@@ -106,7 +108,9 @@ jobs:
             supabase/functions/_shared/require-application-user.ts \
             supabase/functions/get-cloudinary-signature/index.ts \
             supabase/functions/cloudinary-profile-upload/index.ts \
+            supabase/functions/cloudinary-profile-upload-v2/index.ts \
             supabase/functions/cloudinary-delete-asset/index.ts \
+            supabase/functions/cloudinary-delete-asset-v2/index.ts \
             supabase/functions/cloudinary-delete-profile/index.ts \
             supabase/functions/payment-gateway-admin/index.ts \
             supabase/functions/payment-gateway-create/index.ts \
