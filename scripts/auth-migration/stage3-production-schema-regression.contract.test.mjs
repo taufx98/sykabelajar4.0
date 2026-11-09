@@ -110,6 +110,13 @@ assert.match(sql,/STAGE3_RLS_ANON_COMMENT_MODERATION_VISIBILITY_FAILED/);
 assert.match(sql,/STAGE3_RLS_ANON_FOLLOW_RELATIONSHIP_LEAK/);
 assert.match(sql,/STAGE3_RLS_FOLLOWER_SIDE_RELATIONSHIP_READ_FAILED/);
 assert.match(sql,/STAGE3_RLS_FOLLOWED_SIDE_RELATIONSHIP_READ_FAILED/);
+assert.match(sql,/STAGE3_LEGACY_AUTH_TRIGGERS_STILL_ACTIVE/);
+assert.match(sql,/STAGE3_LEGACY_AUTH_TRIGGER_FUNCTION_EXECUTE_STILL_GRANTED/);
+assert.match(sql,/STAGE3_PROFILE_TRIGGER_COUNT_CHANGED/);
+assert.match(sql,/STAGE3_PROFILE_SECURITY_GUARD_TRIGGER_MISSING_OR_DISABLED/);
+assert.match(sql,/profiles_account_type_backend_guard/);
+assert.match(sql,/profiles_currency_backend_guard/);
+
 assert.match(sql,/STAGE3_RLS_ANON_PRODUCT_REVIEW_PUBLIC_READ_FAILED/);
 assert.match(sql,/v_certificate_id constant uuid/);
 assert.match(sql,/v_product_id constant uuid/);
