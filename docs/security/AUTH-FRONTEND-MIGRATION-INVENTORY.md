@@ -1,6 +1,6 @@
 # Better Auth — Frontend auth migration inventory
 
-Status: Stage 4 provider-neutral adapter, social login controls, encrypted Admin provider settings and shared Supabase resource-token injection are present in branch; Supabase Auth remains the live provider and Better Auth frontend transport remains disabled by default. Snapshot date: 8 November 2026. Scope: `security/auth-poc-stage-1`.
+Status: Stage 4 provider-neutral adapter, social login controls, encrypted Admin provider settings and shared Supabase resource-token injection are present in branch; Supabase Auth remains the live provider and Better Auth frontend transport remains disabled by default. Snapshot date: 9 November 2026. Scope: `security/auth-poc-stage-1`.
 
 ## Summary
 
@@ -157,3 +157,17 @@ This is deadline-based revalidation, not periodic polling. Cross-tab messages st
 The Better Auth signup request now explicitly supplies the current app origin's `/auth/verified` callback. The provider-aware resend helper defaults to the same route. `AuthEmailVerifiedPage` does not trust callback query parameters: it calls the existing Worker-backed `getSession()` and shows the verified state only when the returned Better Auth session has `user.emailVerified === true`. If the browser has no verified session, it asks the user to sign in or request a new link; it does not create a session or alter identity state. The legacy Supabase Auth verification path remains on the existing `/verify/:code` route.
 
 The Worker integration test follows the actual signup verification URL, requires `callbackURL=https://<app-origin>/auth/verified`, completes verification through the Worker, and asserts that the HTTP redirect returns to the exact app origin/path. [Auth Worker CI #42511915688](https://github.com/taufx98/sykabelajar4.0/actions/runs/42511915688) passed both Worker integration/security tests and frontend lint/typecheck/build with this callback route included.
+
+## Session hydration and resource-token race guards — 9 November 2026
+
+A focused Stage 4 concurrency hardening pass was added after reviewing the Better Auth preview adapter and the shared AppContext lifecycle:
+
+- The PKCE resource-token broker now re-reads the Worker-backed `/get-session` after the authorization-code exchange and before caching or returning the Supabase resource JWT. It rejects the result if the session generation changed, the UUID differs, the email-verification flag is no longer true, or the latest session is expired. The failure is surfaced as `AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST`; the old account's in-flight token is not returned to a caller after an account switch.
+- `AppContext` now guards `refreshUser()` and `updateProfile()` with the same generation + UUID check used by initial profile/role hydration. A request from an earlier session, including a new login with the same UUID, cannot publish stale profile or role state.
+- Initial session bootstrap has a separate generation counter from profile hydration. Auth events, explicit state clearing, manual login and effect cleanup invalidate the pending bootstrap. This avoids a stale initial `getSession()` result restoring an older session.
+- Provider-listener profile work is deferred until after the listener returns. Each scheduled callback carries its own event generation and hydration generation; an older callback or error cannot clear a newer session. Effect-local teardown also prevents a cleaned-up React Strict Mode effect from publishing state.
+- The new `auth-hydration-gate.test.mjs` file is included in the `auth-worker-ci.yml` push path filter as well as the test steps, so edits to the regression test itself trigger CI.
+
+These are source and contract-test changes only. The Better Auth frontend flag remains disabled by default and the live production provider remains Supabase Auth. The CI run for the newest branch head must pass before treating these changes as verified; source inspection is not a replacement for the workflow result.
+
+The existing email verification, resend, and password-recovery code paths are intentionally **not being exercised through real delivery** in this workstream. The Worker transactional-email provider remains unconfigured by owner instruction; no provider was configured, no message was sent, and no email credit was consumed.
