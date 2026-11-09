@@ -83,15 +83,20 @@ test("Wrangler deploy command uses only supported arguments", () => {
   assert.doesNotMatch(deployStep, /--yes\b/);
 });
 
-test("hosted staging deploy smoke test validates public provider metadata and locked Admin API", () => {
-  assert.match(workflow, /\/api\/auth\/providers/);
+test("hosted staging deploy smoke test validates public providers and locks both Admin APIs", () => {
+  assert.match(workflow, /\\/api\\/auth\\/providers/);
   assert.match(workflow, /public provider response must not expose client IDs, secrets, or private settings/);
-  assert.match(workflow, /\/api\/admin\/login-providers/);
+  assert.match(workflow, /\\/api\\/admin\\/login-providers/);
   assert.match(workflow, /Admin provider settings must reject requests without a Better Auth resource token/);
-  assert.match(workflow, /unauthenticatedAdminBody\.error, "AUTH_REQUIRED"/);
+  assert.match(workflow, /unauthenticatedAdminBody\\.error, "AUTH_REQUIRED"/);
   assert.match(workflow, /Admin provider settings must reject untrusted browser origins/);
+  assert.match(workflow, /\\/api\\/admin\\/email-settings/);
+  assert.match(workflow, /Admin email settings must reject requests without a Better Auth resource token/);
+  assert.match(workflow, /unauthenticatedEmailAdminBody\\.error, "AUTH_REQUIRED"/);
+  assert.match(workflow, /Admin email settings must reject untrusted browser origins/);
   assert.match(workflow, /untrusted origins must not receive Admin CORS permission/);
 });
+
 
 test("OAuth encryption secret is created once and never rotated or logged", () => {
   const step = workflow.split("      - name: Ensure dedicated OAuth-provider encryption key exists without rotating")[1]
