@@ -248,7 +248,8 @@ test("email admin route verifies Better Auth separately and keeps the Supabase A
   assert.match(emailAdminSource, /\/auth\/v1\/user/);
   assert.match(emailAdminSource, /\/rest\/v1\/rpc\/is_active_admin/);
   assert.match(emailAdminSource, /SUPABASE_PROVISIONING_URL/);
-  assert.match(emailAdminSource, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(emailAdminSource, /SUPABASE_PROVISIONING_PUBLISHABLE_KEY/);
+  assert.doesNotMatch(emailAdminSource, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(emailAdminSource, /BETTER_AUTH_ADMIN_REQUIRED/);
 });
 
