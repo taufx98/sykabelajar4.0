@@ -168,6 +168,7 @@ export function onAuthStateChange(
 
   const client = getStagingBetterAuthClient();
   const bridge = createBetterAuthSessionBridge({
+    onBeforeRefresh: () => client.invalidateResourceTokenCache(),
     getSession: async () => {
       const session = await client.getSession();
       return session
