@@ -170,7 +170,7 @@ Worker version: `ab04efd9-5750-48c0-8dbe-56c2a6d1118a`.
 
 The isolated Supabase Free project `ydamszdfsxqisanazdkb` now exists, and its synthetic owner/issuer RLS fixture is applied. Local Supabase CI [#42264325438](https://github.com/taufx98/sykabelajar4.0/actions/runs/42264325438) passes with the additional hosted-issuer fixture migration/test. The actual Supabase Auth Custom OIDC integration is still not registered; the current Supabase app connector does not expose the Management API or Dashboard provider-write operation. Real Better Auth tokens therefore have not yet been accepted by Supabase, and downstream Data API/Storage/Realtime/Edge Function acceptance remains pending.
 
-No user/session was seeded in staging D1. Email Agent is still unconfigured, so do not attempt an end-to-end verified registration until ZeptoMail is configured.
+No user/session was seeded in staging D1 at this early checkpoint. Email Agent configuration remains intentionally deferred; this does not block local implementation, protocol tests, or OIDC acceptance using an already verified synthetic identity. Do not wait for ZeptoMail or send a real email during Stages 2–5.
 
 
 
@@ -198,7 +198,7 @@ Verified against the hosted Worker and the staging Supabase Data API:
 
 **Cleanup verified:** both synthetic users were deleted; the final remote D1 count for their users, sessions, and accounts was zero. The temporary `OIDC_ACCEPTANCE_TEST_TOKEN` Worker secret was removed and its absence was verified. The temporary acceptance-only helper code and workflow were then removed from the source branch; the regular staging Worker deployment is being restored so the live Worker no longer contains the temporary helper route.
 
-**What this run does not establish:** it does not test normal hosted password sign-up, email verification, or password reset; these remain blocked until Brevo Free is configured and a real test email succeeds. Storage and Realtime SQL policy semantics passed rollback-only fixtures, but full Storage API and Realtime WebSocket calls with a valid Better Auth token remain open. A read-only Edge Function probe is deployed but has not yet received a positive token-backed call. Do not treat Data API acceptance as proof for every Supabase surface.
+**What this run does not establish:** it does not test hosted password sign-up, email-verification delivery, or password-reset delivery; those mail-delivery tests are explicitly deferred to the final phase and are not Stages 2–5 gates. Storage and Realtime SQL policy semantics passed rollback-only fixtures, but full Storage API and Realtime WebSocket calls with a valid Better Auth token remain open. A read-only Edge Function probe is deployed but has not yet received a positive token-backed call. Do not treat Data API acceptance as proof for every Supabase surface.
 
 Production Supabase authentication settings, schema, users, and application data remain unchanged.
 
@@ -206,7 +206,7 @@ Production Supabase authentication settings, schema, users, and application data
 
 ## Clean staging Worker restored — verified 7 November 2026
 
-The temporary OIDC authorization-code acceptance helper was removed after the core hosted run. The latest staging Worker now includes Telegram phone-verification routes and the managed Brevo/ZeptoMail email dispatcher; it was deployed by [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803).
+The temporary OIDC authorization-code acceptance helper was removed after the core hosted run. The staging Worker includes Telegram phone-verification routes and a managed transactional-email dispatcher. Its provider account and real delivery remain intentionally unconfigured until the final email phase.
 
 - Worker version: `49495d57-d039-4a0e-9767-5963225f398b`
 - Health: `ok`
@@ -244,3 +244,11 @@ The staging PostgreSQL fixture rows are retained as synthetic test fixtures; the
 - Stage 4 email-verification and password-recovery pages/client calls remain source-tested; local Worker CI uses a mock delivery provider. These code paths can be completed and type-checked without proving external mail delivery.
 - A real verified staging identity for OIDC/Storage/Realtime/Edge acceptance must come from an already verified synthetic staging account or a staging-only social OAuth path. If neither is available because domain delegation or provider credentials are missing, continue the remaining source implementation and static/local tests; record only the hosted positive-session matrix as pending.
 - Actual email deliverability and end-to-end verification/recovery mail testing belong to the final stage after the core login/resource architecture is accepted.
+
+
+## Latest implementation correction — Better Auth JWKS and read-only probe v2 (9 November 2026)
+
+- Supabase `@supabase/server@1.9.2` verifies against the project JWKS by default. The shared Better Auth Edge adapter and isolated staging probe now explicitly override that default with `https://auth.sykabelajar.my.id/api/auth/jwks`, and pass the exact issuer and resource audience to the SDK.
+- Verifier infrastructure/JWKS failures return 503 `AUTH_VERIFICATION_UNAVAILABLE`; missing or invalid bearer tokens remain 401. The issuer and JWKS host/path are fixed in source rather than being chosen by a request.
+- Read-only staging probe `better-auth-oidc-acceptance` was refreshed on isolated project `sykabelajar-auth-staging` to version 2. It reads only the synthetic `auth_oidc_acceptance_rows` fixture through the caller-scoped RLS client and selects its actual `note` column. It does not use a service-role client or perform writes. No application Edge handler or production project was deployed.
+- The positive hosted invocation still requires an already verified synthetic Better Auth session. Do not seed fake verified accounts, bypass the verified-email gate, or spend provider credits. Real email verification and recovery delivery remain final-phase work.
