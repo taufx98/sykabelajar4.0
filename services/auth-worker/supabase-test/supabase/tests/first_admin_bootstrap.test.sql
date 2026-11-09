@@ -1,5 +1,5 @@
 BEGIN;
-SELECT extensions.plan(11);
+SELECT extensions.plan(15);
 
 SELECT extensions.ok(
   current_user = 'postgres',
@@ -100,6 +100,37 @@ SELECT extensions.is(
    WHERE id = '81818181-8181-4181-8181-818181818181'),
   0,
   'Better Auth staging bootstrap does not create a shadow Supabase Auth account'
+);
+
+INSERT INTO private.app_users (id, identity_origin)
+VALUES ('92929292-9292-4292-8292-929292929292', 'legacy_reference');
+
+SELECT extensions.throws_ok(
+  $SELECT public.better_auth_provision_user(
+    '92929292-9292-4292-8292-929292929292',
+    'student', 'Legacy UUID', 'legacy-user', NULL, TRUE
+  )$,
+  '42501',
+  'LEGACY_REFERENCE_IDENTITY_CANNOT_AUTHENTICATE',
+  'legacy UUID tombstones cannot be upgraded into Better Auth identities'
+);
+SELECT extensions.is(
+  (SELECT count(*)::integer FROM public.profiles
+   WHERE id = '92929292-9292-4292-8292-929292929292'),
+  0,
+  'legacy UUID bootstrap rejection creates no application profile'
+);
+SELECT extensions.is(
+  (SELECT count(*)::integer FROM public.user_roles
+   WHERE user_id = '92929292-9292-4292-8292-929292929292'),
+  0,
+  'legacy UUID bootstrap rejection creates no business role'
+);
+SELECT extensions.is(
+  (SELECT identity_origin FROM private.app_users
+   WHERE id = '92929292-9292-4292-8292-929292929292'),
+  'legacy_reference',
+  'legacy identity lineage remains unchanged after rejected provisioning'
 );
 
 SELECT * FROM extensions.finish();
