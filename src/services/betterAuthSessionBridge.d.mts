@@ -20,6 +20,7 @@ export function createBetterAuthSessionBridge(input: {
     type: string,
     session: BetterAuthSessionSnapshot | null,
   ) => void;
+  onBeforeRefresh?: () => void;
   windowObject?: Window | null;
   documentObject?: Document | null;
 }): {
