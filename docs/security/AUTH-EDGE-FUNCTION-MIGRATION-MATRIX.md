@@ -6,7 +6,7 @@ This is a staged implementation guide for Stage 5. It is not permission to deplo
 
 ## Verified implementation contract
 
-The supported Supabase server package is pinned to `@supabase/server@1.9.2`. The adapter in `supabase/functions/_shared/better-auth-user.ts` delegates cryptographic request-token verification to `createSupabaseContext(request, { auth: "user" })`. It never decodes a bearer token or implements JWT signature verification itself.
+The supported Supabase server package is pinned to `@supabase/server@1.9.2`. The adapter in `supabase/functions/_shared/better-auth-user.ts` delegates cryptographic request-token verification to `createSupabaseContext()` in `auth: "user"` mode. It explicitly overrides the SDK's default first-party Supabase JWKS with the pinned Better Auth JWKS URL `https://auth.sykabelajar.my.id/api/auth/jwks`, and passes the exact Better Auth issuer and resource audience to the SDK. This is important: the SDK's default JWKS source is the Supabase project's own Auth JWKS, which is not the Better Auth signing key set. The code never decodes a bearer token or implements JWT signature verification itself.
 
 After cryptographic verification, `auth-claims.mjs` enforces the SYKABELAJAR resource contract:
 - exact `BETTER_AUTH_ISSUER=https://auth.sykabelajar.my.id/api/auth`;
@@ -15,7 +15,7 @@ After cryptographic verification, `auth-claims.mjs` enforces the SYKABELAJAR res
 - PostgreSQL `role=authenticated` only (never `admin`, `teacher`, `organizer_member`, or `student`);
 - valid integer `iat`/`exp`, no future issue time beyond the 30-second clock tolerance, and maximum 300-second token lifetime.
 
-The adapter fails closed with 503 if the expected issuer/audience settings are missing, or 401 for an invalid caller token/claim. It returns both `ctx.supabase` (caller JWT + RLS) and `ctx.supabaseAdmin` (service-role bypass); the latter must not be used until the relevant owner/business-role check succeeds.
+The adapter fails closed with 503 if the expected issuer/audience configuration is missing or the pinned JWKS verifier is unavailable, and 401 for an invalid caller token/claim. The JWKS host/path cannot be supplied by the request or arbitrary environment URL. It returns both `ctx.supabase` (caller JWT + RLS) and `ctx.supabaseAdmin` (service-role bypass); the latter must not be used until the relevant owner/business-role check succeeds.
 
 The shared adapter now backs nine source-branch application handlers: six Cloudinary signer/upload/delete endpoints (including both V2 compatibility aliases) and the three payment admin/create/reconcile endpoints. `midtrans-create-payment` remains a compatibility delegate to the independently authenticated create handler. The default `AUTH_IDENTITY_MODE=supabase` preserves the existing Supabase Auth runtime; `better-auth` is an explicit opt-in and has not been enabled in production. No handler from this branch has been deployed. Cloudinary ownership checks use the canonical UUID returned by the resolver; payment handlers bind order reads to that verified UUID. These remain branch-only changes until isolated positive/negative token and A/B IDOR acceptance passes.
 
