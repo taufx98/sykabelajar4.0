@@ -105,3 +105,12 @@ This later checkpoint supersedes the 8 November note above that said the dynamic
 - The independent Supabase service-role key remains necessary only if/when the separate Better Auth identity-provisioning path is explicitly enabled. `SUPABASE_PROVISIONING_ENABLED=false` remains unchanged; do not turn it on until the staging identity provisioning secret and its two-user lifecycle tests are ready.
 - The current source passed [Auth Worker CI #763](https://github.com/taufx98/sykabelajar4.0/actions/runs/42644262948) and [Supabase Local Auth Claims CI #523](https://github.com/taufx98/sykabelajar4.0/actions/runs/42644262701). A guarded Worker staging redeploy is still required to make this latest caller-scoped Admin verifier active on the hosted Worker.
 - No first staging admin identity or Google/Facebook/X credentials were created. Positive authenticated Admin, Storage, Realtime, Edge Function, and two-user IDOR acceptance still requires a real verified Better Auth staging session. No email was sent and no production configuration/data/schema was changed.
+
+
+## First staging Admin dependency — 9 November 2026
+
+The provider settings panel is protected by both a verified Better Auth resource token and an active `user_roles.admin` row. Public signup cannot select admin. The owner-operated one-time staging bootstrap is documented in [AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP.md](AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP.md) and its SQL template. It requires a real, verified Better Auth session and the Supabase staging database owner; no public endpoint or privileged frontend action is created.
+
+The live staging identity fixture now has a guarded `identity_origin` field. Provisioning rejects `legacy_reference` tombstones; direct private helper execution is revoked. Local pgTAP and static bootstrap contracts passed in [Supabase Local Auth Claims CI #561](https://github.com/taufx98/sykabelajar4.0/actions/runs/42663635674) and [Auth Worker CI #812](https://github.com/taufx98/sykabelajar4.0/actions/runs/42663635818). The rollback-only staging SQL smoke verified the first-admin RPC/role path and legacy rejection, then left all staging identity tables empty.
+
+No first admin, Google OAuth credentials or real verified session exists yet. Once the owner installs the Google credential pair as Cloudflare Worker secrets for the isolated staging Worker, the runbook can be completed and Admin Metode Login used to save managed provider credentials. This does not require enabling the separate Supabase identity-provisioning service-role path.
