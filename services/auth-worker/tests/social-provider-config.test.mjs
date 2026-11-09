@@ -111,10 +111,14 @@ test("saving OAuth credentials encrypts the secret before the D1 write", () => {
   const end = settings.indexOf("async function setProviderEnabled", start);
   assert.ok(start >= 0 && end > start);
   const save = settings.slice(start, end);
-  assert.match(save, /const ciphertext = await encryptSocialProviderSecret\(key, suppliedSecret\)/);
+  assert.match(save, /let ciphertext = existing\?\.client_secret_ciphertext \?\? ""/);
+  assert.match(save, /if \(suppliedSecret\)[\s\S]*?ciphertext = await encryptSocialProviderSecret\(key, suppliedSecret\)/);
   assert.match(save, /client_secret_ciphertext/);
   assert.match(save, /\.bind\(provider, clientId, ciphertext, enabled \? 1 : 0, user\.id\)/);
   assert.doesNotMatch(save, /\.bind\([^;]*suppliedSecret/);
+  const encryption = save.indexOf("ciphertext = await encryptSocialProviderSecret(key, suppliedSecret)");
+  const write = save.indexOf("env.DB.batch([", encryption);
+  assert.ok(encryption >= 0 && write > encryption, "new secrets must be encrypted before D1 writes");
   assert.match(save, /SOCIAL_PROVIDER_CLIENT_SECRET_INVALID/);
 });
 
