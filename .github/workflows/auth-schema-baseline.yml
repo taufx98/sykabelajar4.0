@@ -249,6 +249,52 @@ jobs:
           }
           console.log("Production profiles trigger behavior inventory:");
           for (const trigger of profiles) console.log(JSON.stringify(trigger));
+
+          const policies = metadata.uid_policies ?? [];
+          const policyTables = metadata.uid_policy_tables ?? [];
+          if (policies.length !== 109 || policyTables.length !== 61) {
+            throw new Error("Expected 109 auth.uid policies on 61 tables; found " + policies.length + " policies on " + policyTables.length + " tables");
+          }
+          const byCommand = Object.fromEntries(
+            [...new Set(policies.map((policy) => policy.command))].sort().map((command) => [
+              command,
+              policies.filter((policy) => policy.command === command).length,
+            ]),
+          );
+          const byRole = {};
+          for (const policy of policies) {
+            for (const role of policy.roles ?? []) {
+              byRole[role] = (byRole[role] ?? 0) + 1;
+            }
+          }
+          const details = policies
+            .map((policy) => ({
+              table: policy.table_schema + "." + policy.table_name,
+              policy: policy.policy_name,
+              command: policy.command,
+              mode: policy.policy_mode,
+              roles: (policy.roles ?? []).join(",") || "(none)",
+            }))
+            .sort((a, b) => a.table.localeCompare(b.table) || a.policy.localeCompare(b.policy));
+          console.log("Production auth.uid policy inventory summary:");
+          console.log(JSON.stringify({ policies: policies.length, tables: policyTables.length, byCommand, byRole }));
+          for (const detail of details) console.log(JSON.stringify(detail));
+          const markdown = [
+            "",
+            "### Production auth.uid RLS inventory",
+            "",
+            "Total: **" + policies.length + " policies** across **" + policyTables.length + " tables**.",
+            "",
+            "**By command:** " + Object.entries(byCommand).map(([key, value]) => key + ": " + value).join(" · "),
+            "",
+            "**By role:** " + Object.entries(byRole).map(([key, value]) => key + ": " + value).join(" · "),
+            "",
+            "| Table | Policy | Command | Mode | Roles |",
+            "|---|---|---|---|---|",
+            ...details.map((item) => "| " + item.table + " | " + item.policy + " | " + item.command + " | " + item.mode + " | " + item.roles + " |"),
+          ].join("\\n");
+          await import("node:fs/promises").then(({ appendFile }) =>
+            appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + "\\n"));
           NODE
 
       - name: Restore schema into the disposable local Supabase database
