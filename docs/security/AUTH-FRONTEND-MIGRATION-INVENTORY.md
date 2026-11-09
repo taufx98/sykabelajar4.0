@@ -148,7 +148,7 @@ The user's login priority includes Instagram, but the current managed provider a
 
 ## Session expiry reconciliation — 9 November 2026
 
-The Better Auth session bridge now schedules a single revalidation at the server-provided session expiry deadline (with a one-second clock-boundary grace). When the Worker returns a renewed session for the same UUID, the bridge replaces the deadline without emitting a false sign-in/account-switch event. When the Worker returns no session, the normal signed-out transition is published. Bridge teardown clears the pending timeout.
+The Better Auth session bridge reads the current session once on mount to establish its internal identity/expiry baseline without duplicating AppContext's initial hydration callback. It then schedules a single revalidation at the server-provided session expiry deadline (with a one-second clock-boundary grace). When the Worker returns a renewed session for the same UUID, the bridge replaces the deadline without emitting a false sign-in/account-switch event. When the Worker returns no session, the normal signed-out transition is published. Bridge teardown clears the pending timeout.
 
 This is deadline-based revalidation, not periodic polling. Cross-tab messages still contain only event metadata; each tab independently asks the Worker for the authoritative session. Focus, pageshow, and visible-tab events remain the recovery path for browsers that throttle background timers. Regression coverage exercises expiry-triggered logout, same-user renewal, and timer cleanup. Hosted acceptance across two real preview tabs and a real Better Auth session remains pending.
 

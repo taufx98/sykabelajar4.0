@@ -123,14 +123,22 @@ test("session expiry is revalidated automatically, renewed sessions are reschedu
   documentObject.visibilityState = "visible";
   const received = [];
   let current = makeSession("user-a");
+  let sessionReads = 0;
   const bridge = createBetterAuthSessionBridge({
-    getSession: async () => current,
+    getSession: async () => {
+      sessionReads += 1;
+      return current;
+    },
     onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
     windowObject,
     documentObject,
   });
 
-  await bridge.refresh();
+  // Mount itself must establish the initial identity and expiry deadline;
+  // AppContext remains the only owner of the visible initial hydration event.
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(sessionReads, 1, "bridge mount must read the active provider session once");
+  assert.deepEqual(received, [], "initial session must not duplicate AppContext bootstrap");
   assert.equal(windowObject.timers.size, 1, "an authenticated session must schedule one expiry check");
   const [firstTimerId, firstTimer] = [...windowObject.timers.entries()][0];
   assert.ok(firstTimer.delay >= 60_000, "expiry check must run at or just after the server expiry");

@@ -193,6 +193,10 @@ export function createBetterAuthSessionBridge(input) {
   }
   documentObject?.addEventListener("visibilitychange", onVisibility);
 
+  // Prime the internal identity/expiry baseline on every mount. AppContext owns
+  // the visible INITIAL_SESSION callback through its separate bootstrap read.
+  void refresh(null);
+
   return {
     refresh: () => refresh(null),
     unsubscribe() {
