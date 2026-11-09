@@ -34,6 +34,7 @@ jobs:
           node --input-type=module <<'NODE'
           import { writeFileSync } from "node:fs";
           import { createHash } from "node:crypto";
+          import { execFileSync } from "node:child_process";
           const token = process.env.CLOUDFLARE_API_TOKEN;
           const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
           const base = "https://api.cloudflare.com/client/v4";
@@ -180,6 +181,72 @@ jobs:
           const domainRows = Array.isArray(workerDomains.result) ? workerDomains.result : [];
           const routeRows = Array.isArray(routes.result) ? routes.result : [];
 
+          // Query the authoritative nameservers for the parent zone (my.id)
+          // directly. A recursive "NS my.id" response is NOT the delegation
+          // for sykabelajar.my.id and must never be labeled as such.
+          function runDig(args) {
+            return execFileSync("dig", args, {
+              encoding: "utf8",
+              timeout: 10000,
+              stdio: ["ignore", "pipe", "ignore"],
+            });
+          }
+          function parseDigRecords(output, recordType) {
+            const records = [];
+            for (const line of output.split(/\r?\n/)) {
+              const match = line.trim().match(/^([^\s]+)\s+\d+\s+IN\s+(NS|DS)\s+(.+)$/i);
+              if (!match || match[2].toUpperCase() !== recordType) continue;
+              records.push({
+                name: match[1].replace(/\.$/, "").toLowerCase(),
+                value: match[3].trim().replace(/\.$/, "").toLowerCase(),
+              });
+            }
+            return records;
+          }
+          const parentAuthorityHosts = (Array.isArray(parentNS.answers) ? parentNS.answers : [])
+            .filter((answer) => answer.type === 2 && typeof answer.data === "string")
+            .map((answer) => answer.data.replace(/\.$/, "").toLowerCase());
+          const parentDelegationSnapshots = parentAuthorityHosts.map((parentServer) => {
+            try {
+              const nsOutput = runDig([
+                "@" + parentServer, "+norecurse", "+noall", "+authority",
+                "sykabelajar.my.id", "NS",
+              ]);
+              const dsOutput = runDig([
+                "@" + parentServer, "+norecurse", "+noall", "+answer", "+authority",
+                "sykabelajar.my.id", "DS",
+              ]);
+              return {
+                server: parentServer,
+                nameservers: parseDigRecords(nsOutput, "NS")
+                  .filter((record) => record.name === "sykabelajar.my.id")
+                  .map((record) => record.value)
+                  .sort(),
+                dsRecordCount: parseDigRecords(dsOutput, "DS")
+                  .filter((record) => record.name === "sykabelajar.my.id").length,
+                queried: true,
+              };
+            } catch {
+              return { server: parentServer, nameservers: [], dsRecordCount: 0, queried: false };
+            }
+          });
+          const parentPublishedDelegationNameservers = [...new Set(
+            parentDelegationSnapshots.flatMap((snapshot) => snapshot.nameservers),
+          )].sort();
+          const assignedNameservers = (Array.isArray(zone?.name_servers) ? zone.name_servers : [])
+            .map((server) => String(server).replace(/\.$/, "").toLowerCase())
+            .sort();
+          const sameNameservers = (left, right) =>
+            left.length === right.length && left.every((value, index) => value === right[index]);
+          const successfulParentQueries = parentDelegationSnapshots.filter((snapshot) => snapshot.queried);
+          const parentDelegationMatchesCloudflare = successfulParentQueries.length > 0 &&
+            successfulParentQueries.length === parentDelegationSnapshots.length &&
+            successfulParentQueries.every((snapshot) => sameNameservers(snapshot.nameservers, assignedNameservers));
+          const parentDelegationDsRecordCount = Math.max(
+            0,
+            ...parentDelegationSnapshots.map((snapshot) => snapshot.dsRecordCount),
+          );
+
           const summary = {
             accountScopedReadProof: {
               zoneRead: accountZones.success,
@@ -265,10 +332,20 @@ jobs:
               pagesCertificateStatus: pagesDomain?.verification_data?.status ?? null,
               apiErrors: [...zoneRecords.errorCodes, ...authDns.errorCodes, ...stagingDns.errorCodes, ...pagesProjects.errorCodes, ...pagesDomains.errorCodes],
               publicDelegation: {
-                cloudflareAssignedNameservers: Array.isArray(zone?.name_servers) ? zone.name_servers : [],
-                publicZoneNameservers: zoneNS,
-                publicZoneDs: zoneDS,
-                publicParentNameservers: parentNS,
+                cloudflareAssignedNameservers: assignedNameservers,
+                recursiveZoneNameservers: zoneNS,
+                recursiveZoneDs: zoneDS,
+                parentZone: "my.id",
+                parentAuthoritativeNameservers: parentAuthorityHosts,
+                parentDelegationQueries: parentDelegationSnapshots.map((snapshot) => ({
+                  server: snapshot.server,
+                  queried: snapshot.queried,
+                  delegationNameservers: snapshot.nameservers,
+                  dsRecordCount: snapshot.dsRecordCount,
+                })),
+                parentPublishedDelegationNameservers,
+                parentDelegationMatchesCloudflare,
+                parentDelegationDsRecordCount,
               },
               doh: {
                 authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME,
@@ -328,6 +405,9 @@ jobs:
           } else if (!summary.accountScopedReadProof.workerScriptsRead ||
                      !summary.workers.customDomainReadable || !summary.routes.readable) {
             console.warn("Worker Scripts/Custom Domain/Routes list APIs are not readable by this token. Hosted health, issuer, JWKS and D1 are verified; do not grant broad account Admin solely to read inventory.");
+          }
+          if (!parentDelegationMatchesCloudflare) {
+            console.warn("Could not confirm that the parent zone delegates sykabelajar.my.id to the exact Cloudflare-assigned nameservers. This is diagnostic only; do not change registrar nameservers until the complete authoritative DNS/mail record inventory and rollback plan are reviewed.");
           }
           NODE
 
