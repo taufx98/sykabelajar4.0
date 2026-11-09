@@ -448,25 +448,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refreshUser = useCallback(async () => {
     const current = authUserRef.current;
     if (!current) return;
+
+    const hydrationRequest = authHydrationGateRef.current!.begin();
+    const isHydrationCurrent = () => (
+      aliveRef.current &&
+      authHydrationGateRef.current?.isCurrent(hydrationRequest) === true &&
+      authUserRef.current?.id === current.id
+    );
+
     try {
       const profile = await getAuthenticatedProfileById(current.id);
-      if (!profile || !aliveRef.current || authUserRef.current?.id !== current.id) return;
+      if (!profile || !isHydrationCurrent()) return;
+
       const roles = await getUserRoles(current.id);
+      if (!isHydrationCurrent()) return;
       if (!roles.length) {
         await signOut().catch(() => undefined);
-        clearUserState();
+        if (isHydrationCurrent()) clearUserState();
         return;
       }
+
       const mapped = mapProfileToUser(profile, current.email);
+      if (!isHydrationCurrent()) return;
       setUser({ ...mapped, role: preferredRole(roles) });
     } catch (error) {
-      console.warn('[SykaBelajar] refreshUser failed', error);
+      if (isHydrationCurrent()) console.warn('[SykaBelajar] refreshUser failed', error);
     }
   }, [clearUserState]);
 
   const updateProfile = useCallback(async (data: Partial<User>) => {
     const current = authUserRef.current;
     if (!current) return;
+
+    const hydrationRequest = authHydrationGateRef.current!.begin();
+    const isHydrationCurrent = () => (
+      aliveRef.current &&
+      authHydrationGateRef.current?.isCurrent(hydrationRequest) === true &&
+      authUserRef.current?.id === current.id
+    );
+
     const patch: Record<string, unknown> = {};
     if (data.displayName !== undefined) patch.full_name = data.displayName;
     if (data.bio !== undefined) patch.bio = data.bio;
@@ -476,14 +496,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (data.educationLevel !== undefined) patch.grade = data.educationLevel;
     if (data.favoriteCategories !== undefined) patch.subjects = Array.isArray(data.favoriteCategories) ? data.favoriteCategories.join(',') : data.favoriteCategories;
     const fresh = await updateProfileRecord(current.id, patch);
-    if (!aliveRef.current || authUserRef.current?.id !== current.id) return;
+    if (!isHydrationCurrent()) return;
+
     const roles = await getUserRoles(current.id);
+    if (!isHydrationCurrent()) return;
     if (!roles.length) {
       await signOut().catch(() => undefined);
-      clearUserState();
+      if (isHydrationCurrent()) clearUserState();
       return;
     }
+
     const mapped = mapProfileToUser(fresh, current.email);
+    if (!isHydrationCurrent()) return;
     setUser({ ...mapped, role: preferredRole(roles) });
   }, [clearUserState]);
 
