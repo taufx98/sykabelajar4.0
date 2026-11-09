@@ -301,6 +301,8 @@ test("activating email accounts validates the encrypted credential before switch
   const verify = activate.indexOf("decryptEmailSecret(");
   const switchActive = activate.indexOf("UPDATE auth_email_settings SET active_account_id");
   assert.ok(verify >= 0 && switchActive > verify, "active account must not change until its stored token decrypts");
+  assert.match(activate, /EXISTS \(SELECT 1 FROM auth_email_accounts WHERE id = \?1\)/);
+  assert.match(activate, /result\.meta\.changes !== 1/);
   assert.match(activate, /EMAIL_ACCOUNT_SECRET_UNAVAILABLE/);
 });
 
@@ -312,12 +314,12 @@ test("active email accounts cannot be deleted and admin test mail is rate-limite
   const deleteAccount = emailAdminSource.slice(deleteStart, testStart);
   const testAccount = emailAdminSource.slice(testStart, routeStart);
 
-  assert.match(deleteAccount, /SELECT active_account_id FROM auth_email_settings/);
-  assert.match(deleteAccount, /active_account_id === id/);
+  assert.match(deleteAccount, /DELETE FROM auth_email_accounts WHERE id = \?1/);
+  assert.match(deleteAccount, /NOT EXISTS \(SELECT 1 FROM auth_email_settings WHERE id = 1 AND active_account_id = \?1\)/);
+  assert.match(deleteAccount, /result\.meta\.changes !== 1/);
   assert.match(deleteAccount, /ACTIVE_EMAIL_ACCOUNT_CANNOT_BE_DELETED/);
-  const activeCheck = deleteAccount.indexOf("active_account_id === id");
-  const deleteWrite = deleteAccount.indexOf("DELETE FROM auth_email_accounts");
-  assert.ok(activeCheck >= 0 && deleteWrite > activeCheck, "the active account guard must run before deletion");
+  assert.doesNotMatch(deleteAccount, /SELECT active_account_id FROM auth_email_settings[\s\S]*?DELETE FROM auth_email_accounts/,
+    "the active-account guard must be in the DELETE statement, not a racy separate pre-read");
 
   assert.match(testAccount, /INSERT INTO auth_email_admin_test_limits/);
   assert.match(testAccount, /last_sent_at <= \?3 RETURNING user_id/);
