@@ -193,10 +193,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     aliveRef.current = true;
     let bootstrapped = false;
+    const bootstrapRequest = authHydrationGateRef.current!.begin();
+    const isBootstrapCurrent = () => (
+      aliveRef.current &&
+      authHydrationGateRef.current?.isCurrent(bootstrapRequest) === true
+    );
 
     const bootstrap = async () => {
       try {
         const session = await getAuthSession();
+        // An auth event, logout, guest transition, or newer bootstrap invalidates
+        // this initial read. It must not restore an older provider snapshot.
+        if (!isBootstrapCurrent()) return;
+
         const sessionUser = session?.user;
         publishAuthSessionEvent('INITIAL_SESSION', sessionUser?.id ?? null);
         if (sessionUser) {
@@ -211,7 +220,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('[SykaBelajar] auth bootstrap failed', error);
-        if (aliveRef.current) clearUserState();
+        if (isBootstrapCurrent()) clearUserState();
       } finally {
         if (aliveRef.current) {
           bootstrapped = true;
@@ -223,6 +232,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void bootstrap();
 
     const { data: subscription } = onAuthStateChange((event, session) => {
+      // Invalidate the pending bootstrap and any profile/role hydration even
+      // when a renewed session belongs to the same UUID.
+      authHydrationGateRef.current?.invalidate();
       publishAuthSessionEvent(event, session?.user?.id ?? null);
       if (!aliveRef.current) return;
       if (event === 'SIGNED_OUT') {
@@ -230,7 +242,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clearUserState();
         return;
       }
-      if (!session?.user) return;
+      if (!session?.user) {
+        if (event === 'INITIAL_SESSION' && !guestRef.current) clearUserState();
+        return;
+      }
 
       const email = session.user.email ?? '';
       const uid = session.user.id;
@@ -238,20 +253,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsGuest(false);
       localStorage.removeItem(GUEST_KEY);
 
-      if (bootstrapped) {
-        window.setTimeout(() => {
-          if (!aliveRef.current || authUserRef.current?.id !== uid) return;
-          void hydrateCurrentUser(uid, email).catch((error) => {
-            console.error('[SykaBelajar] auth user hydration failed', error);
-            if (aliveRef.current && authUserRef.current?.id === uid) clearUserState();
-          });
-          void refreshUnreadCount(uid);
-        }, 0);
-      }
+      const hydrateFromCurrentEvent = () => {
+        if (!aliveRef.current || authUserRef.current?.id !== uid) return;
+        void hydrateCurrentUser(uid, email).catch((error) => {
+          console.error('[SykaBelajar] auth user hydration failed', error);
+          // hydrateCurrentUser owns a generation guard, so only its current
+          // request can reject for the active session.
+          if (aliveRef.current && authUserRef.current?.id === uid) clearUserState();
+        });
+        void refreshUnreadCount(uid);
+      };
+
+      if (bootstrapped) window.setTimeout(hydrateFromCurrentEvent, 0);
+      else hydrateFromCurrentEvent();
     });
 
     return () => {
       aliveRef.current = false;
+      authHydrationGateRef.current?.invalidate();
       subscription.subscription.unsubscribe();
     };
   }, [clearUserState, hydrateCurrentUser, refreshUnreadCount]);
