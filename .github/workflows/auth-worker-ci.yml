@@ -115,7 +115,7 @@ jobs:
       - name: Verify Better Auth cross-tab session synchronization
         run: node ../../scripts/auth-migration/better-auth-session-bridge.test.mjs
 
-      - name: Verify stale profile and role lookups cannot override a newer session or surface stale errors
+      - name: Verify stale auth hydration generations and rejection handling
         run: node ../../scripts/auth-migration/auth-hydration-gate.test.mjs
 
       - name: Run local Worker, apply D1 migrations, and verify auth/OAuth flows

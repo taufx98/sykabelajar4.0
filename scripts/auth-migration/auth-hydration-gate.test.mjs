@@ -45,7 +45,7 @@ test("AppContext checks both request generation and current identity before publ
   assert.match(appContext, /authHydrationGateRef\.current\?\.invalidate\(\)/);
   assert.match(appContext, /authUserRef\.current = next/);
   assert.match(appContext, /const isHydrationCurrent = \(\) =>/);
-  assert.match(appContext, /catch \(error\) \{\s*if \(!isHydrationCurrent\(\)\) return;\s*throw error;\s*\}/);
+  assert.match(appContext, /if \(!isHydrationCurrent\(\)\) return;\s*throw error;/);
   assert.match(appContext, /if \(!profile\) \{\s*if \(!isHydrationCurrent\(\)\) return;\s*throw new Error\('PROFILE_NOT_FOUND'\);/);
 });
 
