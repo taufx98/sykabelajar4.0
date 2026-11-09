@@ -113,6 +113,13 @@ assert.match(sql,/STAGE3_RLS_FOLLOWED_SIDE_RELATIONSHIP_READ_FAILED/);
 assert.match(sql,/STAGE3_LEGACY_AUTH_TRIGGERS_STILL_ACTIVE/);
 assert.match(sql,/STAGE3_LEGACY_AUTH_TRIGGER_FUNCTION_EXECUTE_STILL_GRANTED/);
 assert.match(sql,/STAGE3_PROFILE_TRIGGER_COUNT_CHANGED/);
+
+assert.match(sql,/STAGE3_PROFILE_NORMALIZE_TRIGGER_BEHAVIOR_FAILED/);
+assert.match(sql,/STAGE3_PROFILE_UPDATED_AT_TRIGGER_BEHAVIOR_FAILED/);
+assert.match(sql,/username = '  Stage3_Profile_Trigger  '/);
+assert.match(sql,/institution = '  sekolah trigger uji  '/);
+assert.match(sql,/full_name = '  Trigger Profile Probe  '/);
+assert.match(sql,/SET updated_at = v_sentinel/);
 assert.match(sql,/STAGE3_PROFILE_SECURITY_GUARD_TRIGGER_MISSING_OR_DISABLED/);
 assert.match(sql,/profiles_account_type_backend_guard/);
 assert.match(sql,/profiles_currency_backend_guard/);
