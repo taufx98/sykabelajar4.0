@@ -23,16 +23,15 @@ custom_domain = true
 AUTH_EMAIL_PROVIDER = "managed"
 BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
 APP_ORIGIN = "https://sykabelajar.my.id"
-# Exact Cloudflare Pages preview origin for the isolated migration branch.
-# Remove this value after the temporary Admin ZeptoMail staging setup is complete.
-DEV_APP_ORIGIN = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev"
+# Same-site custom domain pinned to the migration branch with a proxied CNAME.
+DEV_APP_ORIGIN = "https://staging.sykabelajar.my.id"
 SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
 # Server-only identity RPCs may target only the isolated Free Stage 3 fixture project.
 # Provision fresh Better Auth users only into the isolated Free Stage 3 project.
 # The Worker helper rejects every other Supabase origin; production remains on the legacy path.
 SUPABASE_PROVISIONING_ENABLED = "false"
 SUPABASE_PROVISIONING_URL = "https://ydamszdfsxqisanazdkb.supabase.co"
-OAUTH_CALLBACK_URL = "https://sykabelajar.my.id/auth/oidc/callback"
+OAUTH_CALLBACK_URL = "https://staging.sykabelajar.my.id/auth/oidc/callback"
 
 [observability]
 enabled = true

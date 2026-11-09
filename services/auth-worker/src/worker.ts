@@ -174,8 +174,13 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
     return json({ error: "OAUTH_CLIENT_BOOTSTRAP_URL_INVALID" }, 503);
   }
 
+  const productionCallbackUrl = new URL("/auth/oidc/callback", env.APP_ORIGIN).toString();
+  const stagingCallbackUrl = "https://staging.sykabelajar.my.id/auth/oidc/callback";
+  const approvedCallbackUrls = [productionCallbackUrl, stagingCallbackUrl];
+
   if (
-    parsedCallback.origin !== env.APP_ORIGIN ||
+    !approvedCallbackUrls.includes(callbackUrl) ||
+    parsedCallback.pathname !== "/auth/oidc/callback" ||
     parsedCallback.protocol !== "https:" ||
     parsedCallback.username ||
     parsedCallback.password ||
@@ -230,8 +235,10 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
       scopes.includes("openid") &&
       scopes.includes("profile") &&
       scopes.includes("email") &&
-      redirectUris.length === 1 &&
-      redirectUris[0] === callbackUrl &&
+      redirectUris.length === approvedCallbackUrls.length &&
+      approvedCallbackUrls.every((uri) => redirectUris.includes(uri)) &&
+      redirectUris.every((uri) => approvedCallbackUrls.includes(uri)) &&
+      redirectUris.includes(callbackUrl) &&
       grantTypes.length === 1 &&
       grantTypes[0] === "authorization_code" &&
       responseTypes.length === 1 &&

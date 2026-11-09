@@ -129,8 +129,11 @@ const ACCOUNT_TYPES = new Set<BetterAuthAccountType>(['student', 'teacher', 'org
 
 const FIRST_PARTY_OAUTH_CLIENT_ID = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y';
 const SUPABASE_RESOURCE_AUDIENCE = 'https://sykabelajar.my.id';
-const OAUTH_CALLBACK_URL = 'https://sykabelajar.my.id/auth/oidc/callback';
-const OAUTH_CALLBACK_ORIGIN = new URL(OAUTH_CALLBACK_URL).origin;
+const OAUTH_CALLBACK_PATH = '/auth/oidc/callback';
+const ALLOWED_OAUTH_CALLBACK_ORIGINS = new Set([
+  'https://sykabelajar.my.id',
+  'https://staging.sykabelajar.my.id',
+]);
 const RESOURCE_TOKEN_REFRESH_MARGIN_MS = 45_000;
 const RESOURCE_TOKEN_MAX_TTL_SECONDS = 300;
 const OAUTH_CALLBACK_TIMEOUT_MS = 20_000;
@@ -215,9 +218,21 @@ function validateResourceAccessToken(
   return expiration * 1000;
 }
 
+function resolveOAuthCallbackUrl(): string {
+  if (typeof window === 'undefined') {
+    throw new BetterAuthClientError(503, 'AUTH_BROWSER_CONTEXT_REQUIRED');
+  }
+  const origin = window.location.origin;
+  if (!ALLOWED_OAUTH_CALLBACK_ORIGINS.has(origin)) {
+    throw new BetterAuthClientError(403, 'AUTH_OAUTH_CALLBACK_ORIGIN_NOT_ALLOWED');
+  }
+  return new URL(OAUTH_CALLBACK_PATH, origin).toString();
+}
+
 async function requestAuthorizationCode(
   authorizeUrl: URL,
   state: string,
+  callbackOrigin: string,
 ): Promise<{ code: string; issuer: string }> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     throw new BetterAuthClientError(503, 'AUTH_BROWSER_CONTEXT_REQUIRED');
@@ -248,7 +263,7 @@ async function requestAuthorizationCode(
       action();
     };
     const onMessage = (event: MessageEvent<unknown>) => {
-      if (event.origin !== OAUTH_CALLBACK_ORIGIN || event.source !== frame.contentWindow) return;
+      if (event.origin !== callbackOrigin || event.source !== frame.contentWindow) return;
       if (!isRecord(event.data) || event.data.source !== 'sykabelajar-better-auth-oidc') return;
       const message = event.data as OAuthCallbackMessage;
       if (message.state !== state) {
@@ -394,12 +409,14 @@ export function createBetterAuthApiClient(options: {
     const promise = (async () => {
       const verifier = randomBase64Url(64);
       const state = randomBase64Url(32);
+      const callbackUrl = resolveOAuthCallbackUrl();
+      const callbackOrigin = new URL(callbackUrl).origin;
       const challenge = await createPkceChallenge(verifier);
       const authorizeUrl = new URL(baseUrl + '/oauth2/authorize');
       authorizeUrl.search = new URLSearchParams({
         response_type: 'code',
         client_id: FIRST_PARTY_OAUTH_CLIENT_ID,
-        redirect_uri: OAUTH_CALLBACK_URL,
+        redirect_uri: callbackUrl,
         scope: 'openid profile email',
         resource: SUPABASE_RESOURCE_AUDIENCE,
         code_challenge: challenge,
@@ -408,7 +425,7 @@ export function createBetterAuthApiClient(options: {
         prompt: 'none',
       }).toString();
 
-      const authorization = await requestAuthorizationCode(authorizeUrl, state);
+      const authorization = await requestAuthorizationCode(authorizeUrl, state, callbackOrigin);
       if (authorization.issuer !== baseUrl) {
         throw new BetterAuthClientError(502, 'AUTH_OAUTH_ISSUER_MISMATCH');
       }
@@ -427,7 +444,7 @@ export function createBetterAuthApiClient(options: {
             grant_type: 'authorization_code',
             client_id: FIRST_PARTY_OAUTH_CLIENT_ID,
             code: authorization.code,
-            redirect_uri: OAUTH_CALLBACK_URL,
+            redirect_uri: callbackUrl,
             code_verifier: verifier,
             resource: SUPABASE_RESOURCE_AUDIENCE,
           }).toString(),
@@ -773,22 +790,19 @@ export function isBetterAuthFrontendEnabled(): boolean {
     return false;
   }
 
-  // The opt-in must never activate on the production application hostname,
-  // even if a shared Cloudflare Pages build variable is misconfigured.
+  // Remote Better Auth is permitted only on the dedicated same-site custom
+  // domain. Generic *.pages.dev previews cannot send its SameSite=Lax cookie.
   if (typeof window === 'undefined') return false;
   const hostname = window.location.hostname.toLowerCase();
   const isLocalPreview = hostname === 'localhost' || hostname === '127.0.0.1';
-  const isPagesPreview = hostname.endsWith('.pages.dev');
-  if (!isLocalPreview && !isPagesPreview) return false;
+  const isStagingDomain = hostname === 'staging.sykabelajar.my.id';
 
   try {
     const worker = new URL(import.meta.env.VITE_AUTH_WORKER_URL);
     const localWorker = worker.hostname === 'localhost' || worker.hostname === '127.0.0.1';
-    return (
-      worker.protocol === 'https:' && worker.hostname === 'auth.sykabelajar.my.id'
-    ) || (
-      localWorker && worker.protocol === 'http:'
-    );
+    if (isLocalPreview) return localWorker && worker.protocol === 'http:';
+    return isStagingDomain && worker.protocol === 'https:' &&
+      worker.hostname === 'auth.sykabelajar.my.id';
   } catch {
     return false;
   }
