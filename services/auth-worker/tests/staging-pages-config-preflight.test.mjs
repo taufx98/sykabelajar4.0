@@ -23,11 +23,16 @@ test("Pages preflight checks the staging Supabase and Better Auth flag without p
   for (const name of [
     "VITE_SUPABASE_URL",
     "VITE_SUPABASE_PUBLISHABLE_KEY",
+    "VITE_BETTER_AUTH_SUPABASE_URL",
+    "VITE_BETTER_AUTH_SUPABASE_PUBLISHABLE_KEY",
     "VITE_BETTER_AUTH_FRONTEND_ENABLED",
     "VITE_AUTH_WORKER_URL",
   ]) assert.ok(workflow.includes(name));
-  assert.match(workflow, /ydamszdfsxqisanazdkb\.supabase\.co/);
-  assert.match(workflow, /auth\.sykabelajar\.my\.id/);
+  assert.match(workflow, /ydamszdfsxqisanazdkb\\.supabase\\.co/);
+  assert.match(workflow, /auth\\.sykabelajar\\.my\\.id/);
+  assert.match(workflow, /sharedPreviewSupabaseConfigPreserved/);
+  assert.match(workflow, /stagingSupabaseUrlTargetsIsolatedProject/);
+  assert.match(workflow, /stagingPublishableKeyConfigured/);
   assert.match(workflow, /previewVariableNames: names/);
   assert.match(workflow, /Never print variable values, key material, credentials or raw API responses/);
   assert.doesNotMatch(workflow, /console\.log\([^\n]*(?:value\(|envVars\[|publishableKey|token)/i);
