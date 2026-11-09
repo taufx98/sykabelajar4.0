@@ -7,7 +7,9 @@ const workflow = readFileSync(
   "utf8",
 );
 
-test("Pages preflight is pinned to the migration branch and exact repository project", () => {
+test("Pages preflight is pinned to the migration branch, exact repository, and matching one-time marker", () => {
+  assert.ok(workflow.includes(".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0003"));
+  assert.ok(workflow.includes('CHECK-AUTH-PAGES-PREVIEW-CONFIG-0003'));
   assert.match(workflow, /security\/auth-poc-stage-1/);
   assert.match(workflow, /sykabelajar4\.pages\.dev/);
   assert.match(workflow, /source\?\.config\?\.owner === "taufx98"/);
