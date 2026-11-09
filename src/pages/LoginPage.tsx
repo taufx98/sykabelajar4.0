@@ -6,12 +6,13 @@ import { useApp } from '@/store/AppContext';
 import { isBetterAuthEnabled, resetPassword, sendVerificationEmail, signInWithSocial } from '@/services/auth.service';
 import { getStagingBetterAuthClient, type BetterAuthSocialProvider } from '@/services/betterAuthApi.client';
 import { useLanguage } from '@/lib/LanguageContext';
+import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedRedirect = searchParams.get('redirect') || '/home';
-  const redirectTo = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/home';
+  const redirectTo = resolveSafeInternalRedirect(requestedRedirect, window.location.origin);
   const registerTo = redirectTo === '/home' ? '/register' : `/register?redirect=${encodeURIComponent(redirectTo)}`;
   const { login, toast } = useApp();
   const { language } = useLanguage();
