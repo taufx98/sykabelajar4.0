@@ -292,9 +292,9 @@ jobs:
             "| Table | Policy | Command | Mode | Roles |",
             "|---|---|---|---|---|",
             ...details.map((item) => "| " + item.table + " | " + item.policy + " | " + item.command + " | " + item.mode + " | " + item.roles + " |"),
-          ].join("\\n");
+          ].join("\n");
           await import("node:fs/promises").then(({ appendFile }) =>
-            appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + "\\n"));
+            appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + "\n"));
           NODE
 
       - name: Restore schema into the disposable local Supabase database
