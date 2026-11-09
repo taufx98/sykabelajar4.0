@@ -43,7 +43,7 @@ export async function requireBetterAuthUser(request: Request) {
       },
     });
   } catch {
-    return { ok: false, status: 401, error: "AUTH_REQUIRED" };
+    return { ok: false, status: 503, error: "AUTH_VERIFICATION_UNAVAILABLE" };
   }
 
   const context = result?.data;
