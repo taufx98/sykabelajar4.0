@@ -496,3 +496,42 @@ The branch's production-shaped Stage 3 draft retains the existing `get_my_referr
 ### 9 November 2026 — referral RPC and full-schema acceptance
 
 The 9 November branch adds exact output/ACL acceptance for the three referral read RPCs. The result-column contracts are held at 8/9/5 fields respectively; `last_login_at` is `NULL::timestamptz` rather than a mirror of `auth.users.last_sign_in_at`. The functions use an empty `search_path`, revoke EXECUTE from `PUBLIC`, `anon`, `authenticated`, and `service_role`, then grant only `authenticated`. The disposable SQL regression verifies referrer row scope, expected username/status/reward/activity fields, NULL last-login values, and anonymous/service-role denial. It was applied only to the temporary schema-only restore in [baseline run #42509768714](https://github.com/taufx98/sykabelajar4.0/actions/runs/42509768714); no production grant/function was changed.
+
+### Production RLS policy inventory — 9 November 2026
+
+A second schema-only export of production catalog metadata enumerated all **109 policies on 61 tables** whose USING or WITH CHECK expression references auth.uid(). It records the exact table, policy name, command, permissive/restrictive mode, target roles, and expression hashes in the workflow artifact/step summary; no policy definition or data row was modified by the inventory.
+
+| Command | Policy count |
+|---|---:|
+| SELECT | 55 |
+| INSERT | 19 |
+| UPDATE | 12 |
+| DELETE | 12 |
+| ALL | 11 |
+| **Total** | **109** |
+
+Target-role references (counts overlap when a policy has multiple roles):
+
+| Role | Policy references |
+|---|---:|
+| authenticated | 100 |
+| PUBLIC | 9 |
+| anon | 1 |
+
+The explicit PUBLIC policies in the snapshot are:
+
+| Table | Policy | Command |
+|---|---|---|
+| public.chat_media | chat_media_insert | INSERT |
+| public.chat_media | chat_media_select | SELECT |
+| public.chat_thread_reads | Users manage own chat reads | ALL |
+| public.currency_adjustment_logs | Admins can read adjustment logs | SELECT |
+| public.follows | Users delete own follows | DELETE |
+| public.follows | Users view related follows | SELECT |
+| public.organizers | organizers_select | SELECT |
+| public.profile_ui_settings | profile ui self write | ALL |
+| public.system_error_events | system_error_events_admin_select | SELECT |
+
+The single policy whose target roles include anon is public.profiles / profiles_public_read / SELECT / roles anon,authenticated. This is a known public-profile read surface, not evidence by itself of a data leak. The nine PUBLIC policies also must not be blindly removed: each must be reviewed for its row predicate, endpoint use and intended public behavior. The chat-related entries intersect the separately approved private-chat removal work; preserve comments and unrelated social functions.
+
+The Stage 3 issuer guard draft adds a restrictive Better Auth issuer guard to each of the 61 RLS-enabled tables in this inventory. That guard limits authenticated application sessions to the exact Better Auth issuer; it does not change the existing permissive policies, the public/anonymous read contract, grants or row data. The disposable acceptance confirms 61 guard policies and tests Better Auth, legacy Supabase Auth and attacker issuers on a probe table. It is not a substitute for a table/command/role operation matrix: final sign-off must verify all 109 original policies individually by SELECT/INSERT/UPDATE/DELETE/ALL semantics, ownership predicate, admin exception, and public/anon expectation before production cutover.
