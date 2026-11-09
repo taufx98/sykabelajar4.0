@@ -105,7 +105,7 @@ jobs:
       - name: Type-check Better Auth identity adapter and migrated Edge handlers
         working-directory: ${{ github.workspace }}
         run: |
-          deno check \
+          deno check --node-modules-dir=auto \
             supabase/functions/_shared/auth-claims.mjs \
             supabase/functions/_shared/better-auth-user.ts \
             supabase/functions/_shared/require-application-user.ts \
