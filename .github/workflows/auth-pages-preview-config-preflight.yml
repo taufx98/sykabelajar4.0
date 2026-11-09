@@ -1,0 +1,135 @@
+name: Better Auth Pages preview configuration preflight
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type CHECK-BETTER-AUTH-PAGES-PREVIEW-CONFIG"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-pages-preview-config-preflight
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Read-only inspect of preview Pages environment variable configuration
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify the exact staging branch and one-time confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "CHECK-BETTER-AUTH-PAGES-PREVIEW-CONFIG"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0001"
+            test -f "$marker"
+            test "$(cat "$marker")" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0001"
+          else
+            echo "Only guarded push or exact workflow_dispatch is accepted." >&2
+            exit 1
+          fi
+
+      - name: Inspect only variable names and safe public configuration fingerprints
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          if (!token || token.length < 20) throw new Error("Cloudflare API token is missing or invalid.");
+          if (!accountId || !/^[a-f0-9]{32}$/i.test(accountId)) throw new Error("Cloudflare account ID is missing or invalid.");
+
+          const api = "https://api.cloudflare.com/client/v4";
+          const headers = { Authorization: "Bearer " + token, Accept: "application/json" };
+          async function get(path) {
+            let response;
+            try {
+              response = await fetch(api + path, { headers });
+            } catch {
+              throw new Error("Cloudflare Pages configuration read failed; no mutation was attempted.");
+            }
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.success !== true) {
+              const errors = (payload.errors ?? []).map((item) => ({
+                code: item.code,
+                message: String(item.message ?? "").slice(0, 160),
+              }));
+              throw new Error("Cloudflare Pages read rejected: " + JSON.stringify({ path, status: response.status, errors }));
+            }
+            return payload.result;
+          }
+
+          const projects = await get("/accounts/" + encodeURIComponent(accountId) + "/pages/projects");
+          if (!Array.isArray(projects)) throw new Error("Pages project list was not an array.");
+          const matches = projects.filter((item) =>
+            item?.subdomain === "sykabelajar4.pages.dev" &&
+            item?.source?.config?.owner === "taufx98" &&
+            item?.source?.config?.repo_name === "sykabelajar4.0"
+          );
+          if (matches.length !== 1) throw new Error("Expected exactly one Pages project for taufx98/sykabelajar4.0.");
+
+          const projectName = matches[0].name;
+          const project = await get(
+            "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" + encodeURIComponent(projectName)
+          );
+          const preview = project?.deployment_configs?.preview ?? {};
+          const envVars = preview?.env_vars && typeof preview.env_vars === "object" ? preview.env_vars : {};
+          const names = Object.keys(envVars).sort();
+
+          function value(name) {
+            const item = envVars[name];
+            if (typeof item === "string") return item;
+            if (item && typeof item.value === "string") return item.value;
+            return "";
+          }
+          function hostOf(input) {
+            try {
+              const url = new URL(input);
+              return url.protocol === "https:" ? url.hostname.toLowerCase() : "";
+            } catch {
+              return "";
+            }
+          }
+
+          const supabaseHost = hostOf(value("VITE_SUPABASE_URL"));
+          const workerHost = hostOf(value("VITE_AUTH_WORKER_URL"));
+          const flagEnabled = value("VITE_BETTER_AUTH_FRONTEND_ENABLED").trim().toLowerCase() === "true";
+          const publishableConfigured = value("VITE_SUPABASE_PUBLISHABLE_KEY").trim().length > 0;
+          const stagingRefHost = "ydamszdfsxqisanazdkb.supabase.co";
+          const workerHostExpected = "auth.sykabelajar.my.id";
+          const checks = {
+            supabaseUrlTargetsIsolatedStaging: supabaseHost === stagingRefHost,
+            publishableKeyPresent: publishableConfigured,
+            betterAuthFrontendFlagEnabled: flagEnabled,
+            authWorkerUrlTargetsStableIssuer: workerHost === workerHostExpected,
+            previewBranchDomainIsExpected: Boolean(project.domains?.includes("staging.sykabelajar.my.id")),
+          };
+          const ready = Object.values(checks).every(Boolean);
+
+          // Never print variable values, key material, credentials or raw API responses.
+          console.log(JSON.stringify({
+            project: projectName,
+            source: "taufx98/sykabelajar4.0",
+            previewVariableNames: names,
+            checks,
+            betterAuthPreviewReady: ready,
+            readOnly: true,
+            noPagesOrDnsMutation: true,
+          }));
+          NODE
