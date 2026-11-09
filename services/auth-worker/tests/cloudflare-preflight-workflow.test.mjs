@@ -23,6 +23,12 @@ test("Cloudflare preflight reads auth and Pages staging DNS records without muta
   assert.match(workflow, /publicDelegation/);
   assert.match(workflow, /cloudflareZoneRecordInventory/);
   assert.match(workflow, /cloudflareZoneRecordTypeCounts/);
+  assert.match(workflow, /rootMX, rootTXT/);
+  assert.match(workflow, /wwwA, wwwAAAA, wwwCNAME/);
+  assert.match(workflow, /emailCNAME/);
+  assert.match(workflow, /txtRecordParity/);
+  assert.match(workflow, /matchesCloudflareZone: mxParity/);
+  assert.match(workflow, /valuesExposed: false/);
   assert.match(workflow, /dns_records\?per_page=100&page=1/);
   assert.doesNotMatch(workflow, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i);
   assert.doesNotMatch(workflow, /dns_records["'][^\n]*(?:POST|PATCH|DELETE)/i);

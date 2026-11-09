@@ -33,6 +33,7 @@ jobs:
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID secret." >&2; exit 1; }
           node --input-type=module <<'NODE'
           import { writeFileSync } from "node:fs";
+          import { createHash } from "node:crypto";
           const token = process.env.CLOUDFLARE_API_TOKEN;
           const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
           const base = "https://api.cloudflare.com/client/v4";
@@ -114,7 +115,11 @@ jobs:
             }
           }
 
-          const [authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME, zoneNS, zoneDS, parentNS] = await Promise.all([
+          const [authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME,
+            zoneNS, zoneDS, parentNS,
+            rootA, rootAAAA, rootCNAME, rootMX, rootTXT,
+            wwwA, wwwAAAA, wwwCNAME, emailCNAME,
+            dkim151028, dkimCf2024, openaiTXT] = await Promise.all([
             resolveDns("auth.sykabelajar.my.id", "A"),
             resolveDns("auth.sykabelajar.my.id", "AAAA"),
             resolveDns("auth.sykabelajar.my.id", "CNAME"),
@@ -124,7 +129,51 @@ jobs:
             resolveDns("sykabelajar.my.id", "NS"),
             resolveDns("sykabelajar.my.id", "DS"),
             resolveDns("my.id", "NS"),
+            resolveDns("sykabelajar.my.id", "A"),
+            resolveDns("sykabelajar.my.id", "AAAA"),
+            resolveDns("sykabelajar.my.id", "CNAME"),
+            resolveDns("sykabelajar.my.id", "MX"),
+            resolveDns("sykabelajar.my.id", "TXT"),
+            resolveDns("www.sykabelajar.my.id", "A"),
+            resolveDns("www.sykabelajar.my.id", "AAAA"),
+            resolveDns("www.sykabelajar.my.id", "CNAME"),
+            resolveDns("email.sykabelajar.my.id", "CNAME"),
+            resolveDns("151028._domainkey.sykabelajar.my.id", "TXT"),
+            resolveDns("cf2024-1._domainkey.sykabelajar.my.id", "TXT"),
+            resolveDns("openai.sykabelajar.my.id", "TXT"),
           ]);
+
+          const normalizeTxt = (value) => String(value ?? "")
+            .replace(/^"|"$/g, "")
+            .replace(/"\s*"/g, "");
+          const fingerprint = (value) => createHash("sha256").update(normalizeTxt(value)).digest("hex");
+          const cloudflareTxt = (Array.isArray(zoneRecords.result) ? zoneRecords.result : [])
+            .filter((row) => row.type === "TXT")
+            .map((row) => ({ name: row.name, fingerprint: fingerprint(row.content) }))
+            .sort((a, b) => a.name.localeCompare(b.name) || a.fingerprint.localeCompare(b.fingerprint));
+          const publicTxtAnswers = [
+            ["sykabelajar.my.id", rootTXT],
+            ["151028._domainkey.sykabelajar.my.id", dkim151028],
+            ["cf2024-1._domainkey.sykabelajar.my.id", dkimCf2024],
+            ["openai.sykabelajar.my.id", openaiTXT],
+          ].flatMap(([name, result]) => (Array.isArray(result?.answers) ? result.answers : [])
+            .filter((answer) => answer.type === 16)
+            .map((answer) => ({ name, fingerprint: fingerprint(answer.data) })))
+            .sort((a, b) => a.name.localeCompare(b.name) || a.fingerprint.localeCompare(b.fingerprint));
+          const txtFingerprintParity = JSON.stringify(cloudflareTxt) === JSON.stringify(publicTxtAnswers);
+          const cloudflareMx = (Array.isArray(zoneRecords.result) ? zoneRecords.result : [])
+            .filter((row) => row.type === "MX" && row.name === "sykabelajar.my.id")
+            .map((row) => ({ priority: Number(row.priority), destination: String(row.content ?? "").replace(/\.$/, "").toLowerCase() }))
+            .sort((a, b) => a.priority - b.priority || a.destination.localeCompare(b.destination));
+          const publicMx = (Array.isArray(rootMX?.answers) ? rootMX.answers : [])
+            .filter((answer) => answer.type === 15)
+            .map((answer) => {
+              const match = String(answer.data).trim().match(/^(\d+)\s+(.+)$/);
+              return match ? { priority: Number(match[1]), destination: match[2].replace(/\.$/, "").toLowerCase() } : null;
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.priority - b.priority || a.destination.localeCompare(b.destination));
+          const mxParity = JSON.stringify(cloudflareMx) === JSON.stringify(publicMx);
 
           const dbRows = Array.isArray(databases.result) ? databases.result : [];
           const workerRows = Array.isArray(scripts.result) ? scripts.result : [];
@@ -187,6 +236,21 @@ jobs:
                 counts[row.type] = (counts[row.type] ?? 0) + 1;
                 return counts;
               }, {}),
+              liveWebRecords: {
+                rootA, rootAAAA, rootCNAME, wwwA, wwwAAAA, wwwCNAME,
+              },
+              liveEmailRecords: {
+                rootMX: { answers: publicMx, matchesCloudflareZone: mxParity },
+                emailCNAME,
+              },
+              txtRecordParity: {
+                cloudflareCount: cloudflareTxt.length,
+                publicCount: publicTxtAnswers.length,
+                matches: txtFingerprintParity,
+                cloudflareNames: [...new Set(cloudflareTxt.map((row) => row.name))],
+                publicNames: [...new Set(publicTxtAnswers.map((row) => row.name))],
+                valuesExposed: false,
+              },
               authRecordsReadable: authDns.success,
               authRecords: (Array.isArray(authDns.result) ? authDns.result : []).map((row) => ({
                 type: row.type, name: row.name, content: row.content, proxied: row.proxied, ttl: row.ttl,
@@ -209,6 +273,9 @@ jobs:
               doh: {
                 authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME,
                 zoneNS, zoneDS, parentNS,
+                rootA, rootAAAA, rootCNAME, rootMX, rootTXT,
+                wwwA, wwwAAAA, wwwCNAME, emailCNAME,
+                dkim151028, dkimCf2024, openaiTXT,
               },
             },
           };
