@@ -58,6 +58,7 @@ trigger_meta AS (
     fn_ns.nspname::text AS function_schema,
     fn.proname::text AS function_name,
     pg_get_function_identity_arguments(fn.oid) AS function_identity_arguments,
+    pg_get_functiondef(fn.oid) AS function_definition,
     md5(pg_get_functiondef(fn.oid)) AS function_definition_md5
   FROM pg_trigger AS t
   JOIN pg_class AS tbl ON tbl.oid = t.tgrelid
