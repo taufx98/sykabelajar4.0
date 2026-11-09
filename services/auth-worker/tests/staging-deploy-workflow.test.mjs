@@ -44,7 +44,7 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /Run the guarded D1 migration workflow first/);
   assert.match(workflow, /SUPABASE_URL.*mvdczyitbkxkldjughor/);
   assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m);
-  assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_[A-Za-z0-9_-]+"$/m);
+  assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"$/m);
   assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_ENABLED = "(?:true|false)"$/m);
   assert.match(workflow, /const provisioningEnabled = \/\^SUPABASE_PROVISIONING_ENABLED/);
   assert.match(workflow, /if \(provisioningEnabled && !provisioningSecretReady\)/);
