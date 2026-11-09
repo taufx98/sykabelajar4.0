@@ -53,6 +53,6 @@ test("login, registration and OAuth service all use the same-origin redirect gua
   assert.match(authService, /new URL\(safeCallbackPath, window\.location\.origin\)/);
   assert.match(authService, /callbackURL \?\? '\/auth\/verified'/);
   assert.match(authService, /redirectTo \?\? '\/reset-password'/);
-  assert.match(authService, /resolveSafeInternalRedirect\(redirectPath, window\.location\.origin\)/);
+  assert.match(authService, /const redirectPath = resolveSafeInternalRedirect\(\s*redirectTo \?\? '\/reset-password',\s*window\.location\.origin,\s*\);/);
   assert.match(authService, /resolveSafeInternalRedirect\(legacyRedirectPath, window\.location\.origin\)/);
 });
