@@ -1835,6 +1835,61 @@ $stage3_rls_anon$;
 
 RESET ROLE;
 
+-- Stage 3 must stop the legacy Supabase Auth lifecycle before Better Auth
+-- sessions can be issued. The old rows remain intact; only the three legacy
+-- trigger entry points are retired and their trigger functions become private.
+DO $stage3_legacy_auth_trigger_retirement$
+DECLARE
+  v_count integer;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM pg_trigger
+  WHERE tgrelid = 'auth.users'::regclass
+    AND NOT tgisinternal
+    AND tgname IN (
+      'on_auth_user_created',
+      'trg_referral_signup_attribution',
+      'trg_referral_email_confirmed'
+    );
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_AUTH_TRIGGERS_STILL_ACTIVE: %', v_count;
+  END IF;
+
+  IF has_function_privilege('anon', 'public.handle_new_auth_user()', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.handle_new_auth_user()', 'EXECUTE')
+     OR has_function_privilege('service_role', 'public.handle_new_auth_user()', 'EXECUTE')
+     OR has_function_privilege('anon', 'private.capture_signup_referral()', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'private.capture_signup_referral()', 'EXECUTE')
+     OR has_function_privilege('service_role', 'private.capture_signup_referral()', 'EXECUTE')
+     OR has_function_privilege('anon', 'private.process_referral_email_confirmation()', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'private.process_referral_email_confirmation()', 'EXECUTE')
+     OR has_function_privilege('service_role', 'private.process_referral_email_confirmation()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_AUTH_TRIGGER_FUNCTION_EXECUTE_STILL_GRANTED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM pg_trigger
+  WHERE tgrelid = 'public.profiles'::regclass AND NOT tgisinternal;
+  IF v_count <> 4 THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_TRIGGER_COUNT_CHANGED: %', v_count;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'public.profiles'::regclass
+      AND tgname = 'profiles_account_type_backend_guard'
+      AND tgenabled <> 'D'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'public.profiles'::regclass
+      AND tgname = 'profiles_currency_backend_guard'
+      AND tgenabled <> 'D'
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_PROFILE_SECURITY_GUARD_TRIGGER_MISSING_OR_DISABLED';
+  END IF;
+END;
+$stage3_legacy_auth_trigger_retirement$;
+
 ROLLBACK;
 
-\echo 'Stage 3 production-shaped regression passed; every synthetic insert/update was rolled back.'
+\echo 'Stage 3 production-shaped regression passed; legacy Auth triggers retired, profile triggers preserved, and every synthetic insert/update rolled back.'
