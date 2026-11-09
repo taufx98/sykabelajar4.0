@@ -105,12 +105,12 @@ jobs:
             /^workers_dev = false$/m,
             /^BETTER_AUTH_URL = "https:\/\/auth\.sykabelajar\.my\.id"$/m,
             /^APP_ORIGIN = "https:\/\/sykabelajar\.my\.id"$/m,
-            /^DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m,
+            /^DEV_APP_ORIGIN = "https:\/\/staging\.sykabelajar\.my\.id"$/m,
             /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
             /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
             /^SUPABASE_PROVISIONING_ENABLED = "(true|false)"$/m,
             /^AUTH_EMAIL_PROVIDER = "managed"$/m,
-            /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
+            /^OAUTH_CALLBACK_URL = "https:\/\/staging\.sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
             /^pattern = "auth\.sykabelajar\.my\.id"$/m,
             /^custom_domain = true$/m,
           ];
@@ -121,7 +121,7 @@ jobs:
             throw new Error("Local-only schema bootstrap settings must never be deployed.");
           }
           writeFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-config-ok", "ok");
-          console.log("Verified the exact isolated Worker, D1, issuer, resource audience, OAuth callback, one approved Pages preview origin and Stage 3 Supabase provisioning target.");
+          console.log("Verified the exact isolated Worker, D1, issuer, resource audience, same-site staging callback/domain and Stage 3 Supabase provisioning target.");
           console.log("The legacy SUPABASE_URL remains production-only for the temporary Admin bridge; Better Auth identity provisioning is explicitly controlled and can target only the fixed Free staging Supabase project.");
           console.log("Existing Worker secrets will be preserved: this deployment does not enumerate, recreate, rotate, or delete secrets.");
           NODE
@@ -213,6 +213,27 @@ jobs:
           if (Number(row.social_provider_meta) !== 1) throw new Error("Expected exactly one managed social provider metadata row.");
           if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one fixed first-party public OAuth client.");
           console.log("Staging identity/challenge tables contain no users, sessions, accounts, verifications or pending phone challenges; one fixed public OAuth client is seeded.");
+          NODE
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT redirectUris AS redirect_uris FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y';" > "$RUNNER_TEMP/auth-worker-staging-redirects.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-redirects.json", "utf8"));
+          let raw;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.redirect_uris === "string") raw = value.redirect_uris;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const expected = ["https://sykabelajar.my.id/auth/oidc/callback", "https://staging.sykabelajar.my.id/auth/oidc/callback"];
+          let actual;
+          try { actual = JSON.parse(raw ?? ""); } catch { throw new Error("Could not parse the first-party OAuth redirect allowlist."); }
+          if (!Array.isArray(actual) || actual.length !== expected.length || expected.some((uri) => !actual.includes(uri)) || actual.some((uri) => !expected.includes(uri))) {
+            throw new Error("The first-party OAuth callback list does not match the exact production + staging allowlist.");
+          }
+          console.log("Verified the exact two-entry production and same-site staging OAuth callback allowlist.");
           NODE
 
       # BETTER_AUTH_SECRET, AUTH_EMAIL_ENCRYPTION_KEY, and OAUTH_CLIENT_BOOTSTRAP_TOKEN
@@ -335,16 +356,16 @@ jobs:
               const health = await getJson("/healthz");
               assert.equal(health.ok, true, "Worker must have a live D1 binding");
 
-              const previewOrigin = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev";
+              const previewOrigin = "https://staging.sykabelajar.my.id";
               const allowedPreview = await fetch(origin + "/healthz", {
                 headers: { Origin: previewOrigin },
                 redirect: "error",
               });
-              assert.equal(allowedPreview.status, 200, "the exact migration Pages preview must reach the staging Worker");
+              assert.equal(allowedPreview.status, 200, "the exact same-site migration branch domain must reach the staging Worker");
               assert.equal(
                 allowedPreview.headers.get("Access-Control-Allow-Origin"),
                 previewOrigin,
-                "the staging Worker must allow credentials only for the exact migration preview origin",
+                "the staging Worker must allow credentials only for the exact same-site staging origin",
               );
               const rejectedPreview = await fetch(origin + "/healthz", {
                 headers: { Origin: "https://attacker.example" },
@@ -377,7 +398,7 @@ jobs:
               assert.equal(
                 publicProvidersResponse.headers.get("Access-Control-Allow-Origin"),
                 previewOrigin,
-                "public provider list must allow only the exact migration preview",
+                "public provider list must allow only the exact same-site staging origin",
               );
               const publicProviders = await publicProvidersResponse.json();
               assert.equal(publicProviders.ok, true);

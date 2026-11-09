@@ -99,7 +99,7 @@ function cookieUuid() {
   return "poc-" + randomUUID() + "@example.test";
 }
 
-async function exchangeAuthorizationCode({ clientId, code, verifier }) {
+async function exchangeAuthorizationCode({ clientId, code, verifier, redirectUri = callbackUrl }) {
   return fetch(new URL("/api/auth/oauth2/token", baseUrl), {
     method: "POST",
     headers: {
@@ -109,7 +109,7 @@ async function exchangeAuthorizationCode({ clientId, code, verifier }) {
     body: new URLSearchParams({
       grant_type: "authorization_code",
       client_id: clientId,
-      redirect_uri: callbackUrl,
+      redirect_uri: redirectUri,
       code,
       code_verifier: verifier,
       resource: resourceAudience,
@@ -117,14 +117,14 @@ async function exchangeAuthorizationCode({ clientId, code, verifier }) {
   });
 }
 
-async function createAuthorizationCode({ clientId, cookie, includePkce = true, scope = "openid profile email" }) {
+async function createAuthorizationCode({ clientId, cookie, includePkce = true, scope = "openid profile email", redirectUri = callbackUrl }) {
   const verifier = randomBytes(48).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   const state = randomUUID();
   const nonce = randomUUID();
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: callbackUrl,
+    redirect_uri: redirectUri,
     response_type: "code",
     scope,
     resource: resourceAudience,
@@ -586,6 +586,24 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     const code = authorization.callback.searchParams.get("code");
     assert.ok(code, "valid S256 authorization request must return an authorization code");
     assert.ok(!authorization.callback.searchParams.has("error"), "valid PKCE request must not return OAuth error");
+
+    const stagingCallbackUrl = "https://staging.sykabelajar.my.id/auth/oidc/callback";
+    const stagingAuthorization = await createAuthorizationCode({
+      clientId: bootstrapData.client_id,
+      cookie,
+      includePkce: true,
+      redirectUri: stagingCallbackUrl,
+    });
+    assert.ok(stagingAuthorization.callback?.searchParams.has("code"),
+      "the exact same-site staging callback must be authorized by the first-party client");
+    const stagingTokenResponse = await exchangeAuthorizationCode({
+      clientId: bootstrapData.client_id,
+      code: stagingAuthorization.callback.searchParams.get("code"),
+      verifier: stagingAuthorization.verifier,
+      redirectUri: stagingCallbackUrl,
+    });
+    assert.equal(stagingTokenResponse.status, 200,
+      "the staging callback must exchange only with its matching redirect URI");
 
     const tokenResponse = await exchangeAuthorizationCode({
       clientId: bootstrapData.client_id,
