@@ -18,6 +18,13 @@ test("Cloudflare preflight reads auth and Pages staging DNS records without muta
   assert.match(workflow, /authA, authAAAA, authCNAME/);
   assert.match(workflow, /stagingA, stagingAAAA, stagingCNAME/);
   assert.match(workflow, /resolveDns\("sykabelajar\.my\.id", "NS"\)/);
+  assert.match(workflow, /import \{ execFileSync \} from "node:child_process"/);
+  assert.ok(workflow.includes('"@" + parentServer, "+norecurse", "+noall", "+authority",'));
+  assert.ok(workflow.includes('"sykabelajar.my.id", "NS"'));
+  assert.match(workflow, /parentPublishedDelegationNameservers/);
+  assert.match(workflow, /parentDelegationMatchesCloudflare/);
+  assert.match(workflow, /parentDelegationDsRecordCount/);
+  assert.doesNotMatch(workflow, /publicParentNameservers:\\s*parentNS/);
   assert.match(workflow, /resolveDns\("sykabelajar\.my\.id", "DS"\)/);
   assert.match(workflow, /resolveDns\("my\.id", "NS"\)/);
   assert.match(workflow, /publicDelegation/);
