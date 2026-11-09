@@ -238,9 +238,22 @@ async function saveAccount(
   ).bind(id).first<{ id: string; provider: EmailProvider; send_mail_token_ciphertext: string }>();
 
   if (body.id && !existing) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
-  if ((!existing || existing.provider !== provider) && !submittedToken) return json({ ok: false, error: "EMAIL_PROVIDER_CREDENTIAL_REQUIRED" }, 422);
+  if (
+    (!existing || existing.provider !== provider || !existing.send_mail_token_ciphertext) &&
+    !submittedToken
+  ) {
+    return json({ ok: false, error: "EMAIL_PROVIDER_CREDENTIAL_REQUIRED" }, 422);
+  }
   if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) {
     return json({ ok: false, error: "EMAIL_ENCRYPTION_NOT_CONFIGURED" }, 503);
+  }
+
+  if (!submittedToken && existing?.send_mail_token_ciphertext) {
+    try {
+      await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, existing.send_mail_token_ciphertext);
+    } catch {
+      return json({ ok: false, error: "EMAIL_ACCOUNT_SECRET_UNAVAILABLE" }, 503);
+    }
   }
 
   let tokenCiphertext = existing?.send_mail_token_ciphertext ?? "";
