@@ -16,6 +16,7 @@ import { getUserRoles, uiRoleToAccountType, type BackendRole } from '@/services/
 import { getUnreadNotificationCount } from '@/services/notification.service';
 import { toast as globalToast } from '@/lib/toast';
 import { publishAuthSessionEvent } from '@/services/authSessionEvents.mjs';
+import { createAuthHydrationGate } from '@/services/authHydrationGate.mjs';
 
 interface AppState {
   user: User | null;
@@ -118,13 +119,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const authUserRef = useRef(authUser);
   authUserRef.current = authUser;
+  const authHydrationGateRef = useRef<ReturnType<typeof createAuthHydrationGate> | null>(null);
+  if (!authHydrationGateRef.current) authHydrationGateRef.current = createAuthHydrationGate();
   const guestRef = useRef(isGuest);
   guestRef.current = isGuest;
   const aliveRef = useRef(true);
   const loadedAwardsFor = useRef<string | null>(null);
 
+  const setCurrentAuthUser = useCallback((next: { id: string; email?: string } | null) => {
+    if (authUserRef.current?.id !== next?.id) authHydrationGateRef.current?.invalidate();
+    authUserRef.current = next;
+    setAuthUser(next);
+  }, []);
+
   const clearUserState = useCallback(() => {
-    setAuthUser(null);
+    authHydrationGateRef.current?.invalidate();
+    setCurrentAuthUser(null);
     setUser(null);
     setNotifications([]);
     setAwards([]);
@@ -132,7 +142,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUnreadNotificationCount(0);
     loadedAwardsFor.current = null;
     liveAwards.length = 0;
-  }, []);
+  }, [setCurrentAuthUser]);
 
   const refreshUnreadCount = useCallback(async (userIdOverride?: string) => {
     const uid = userIdOverride ?? authUserRef.current?.id;
@@ -149,17 +159,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const hydrateCurrentUser = useCallback(async (userId: string, email = '', roles?: BackendRole[]) => {
+    const hydrationRequest = authHydrationGateRef.current!.begin();
     const [profile, resolvedRoles] = await Promise.all([
       getAuthenticatedProfileById(userId),
       roles ? Promise.resolve(roles) : getUserRoles(userId),
     ]);
     if (!profile) throw new Error('PROFILE_NOT_FOUND');
-    if (!aliveRef.current) return;
+    if (
+      !aliveRef.current ||
+      !authHydrationGateRef.current?.isCurrent(hydrationRequest) ||
+      authUserRef.current?.id !== userId
+    ) return;
 
     setUser({ ...mapProfileToUser(profile, email), role: preferredRole(resolvedRoles) });
-    setAuthUser({ id: userId, email: email || undefined });
-
-  }, []);
+    setCurrentAuthUser({ id: userId, email: email || undefined });
+  }, [setCurrentAuthUser]);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -172,7 +186,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         publishAuthSessionEvent('INITIAL_SESSION', sessionUser?.id ?? null);
         if (sessionUser) {
           const email = sessionUser.email ?? '';
-          setAuthUser({ id: sessionUser.id, email: email || undefined });
+          setCurrentAuthUser({ id: sessionUser.id, email: email || undefined });
           setIsGuest(false);
           localStorage.removeItem(GUEST_KEY);
           await hydrateCurrentUser(sessionUser.id, email);
@@ -205,7 +219,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const email = session.user.email ?? '';
       const uid = session.user.id;
-      setAuthUser({ id: uid, email: email || undefined });
+      setCurrentAuthUser({ id: uid, email: email || undefined });
       setIsGuest(false);
       localStorage.removeItem(GUEST_KEY);
 
@@ -357,7 +371,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const userEmail = result.user.email ?? email.trim();
-      setAuthUser({ id: result.user.id, email: userEmail || undefined });
+      setCurrentAuthUser({ id: result.user.id, email: userEmail || undefined });
       setIsGuest(false);
       localStorage.removeItem(GUEST_KEY);
       localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
