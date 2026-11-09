@@ -47,6 +47,11 @@ assert.match(callbackPage, /postMessage\(message, window\.location\.origin\)/);
 assert.doesNotMatch(callbackPage, /postMessage\(message, ['"]\*['"]\)/);
 assert.match(client, /clearResourceTokenCache\(\);\s*return null/);
 assert.match(client, /getSupabaseAccessToken\(\)[\s\S]*AUTH_SESSION_EXPIRED/);
+assert.match(client, /AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST/);
+assert.match(
+  client,
+  /const latestSession = await request<unknown>\('\/get-session'\);[\s\S]*latestSession\.user\.id !== userId[\s\S]*latestSession\.user\.emailVerified !== true[\s\S]*cachedResourceToken =/,
+);
 
 assert.match(callbackPage, /sykabelajar-better-auth-oidc/);
 assert.match(app, /auth\/oidc\/callback/);
