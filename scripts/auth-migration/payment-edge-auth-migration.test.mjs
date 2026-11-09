@@ -51,8 +51,11 @@ test("payment checkout keeps the verified canonical UUID as the sole order-owner
   assert.match(paymentCreate, /requireApplicationUser\(req\)/);
   assert.match(paymentCreate, /const \{ userId, userEmail \} = identity/);
   assert.match(paymentCreate, /order\.user_id !== userId/);
-  assert.match(paymentCreate, /\.eq\("id", orderId\)/);
+  assert.match(paymentCreate, /\.eq\("id", orderId\)[\s\S]*?\.eq\("user_id", userId\)/);
   assert.match(paymentCreate, /userEmail/);
+  const ownerFilter = paymentCreate.indexOf('.eq("user_id", userId)');
+  const ownerGuard = paymentCreate.indexOf("order.user_id !== userId");
+  assert.ok(ownerFilter >= 0 && ownerGuard > ownerFilter, "checkout must scope the database lookup before its defensive owner check");
   assert.doesNotMatch(paymentCreate, /auth\.getUser\(|authData\.user/);
   const identity = paymentCreate.indexOf("requireApplicationUser(req)");
   const serviceRole = paymentCreate.indexOf('createClient(supabaseUrl, serviceRoleKey)');
@@ -69,8 +72,11 @@ test("payment reconciliation scopes all order lookups and checks to the verified
   assert.doesNotMatch(paymentReconcile, /auth\.getUser\(|authData\.user/);
   const identity = paymentReconcile.indexOf("requireApplicationUser(req)");
   const serviceRole = paymentReconcile.indexOf('createClient(supabaseUrl, serviceRoleKey)');
-  const ownerGuard = paymentReconcile.indexOf('.eq("user_id", userId)');
-  assert.ok(identity >= 0 && serviceRole > identity && ownerGuard > serviceRole);
+  const ownerFilter = paymentReconcile.indexOf('.eq("user_id", userId)');
+  const ownerGuard = paymentReconcile.indexOf("order.user_id !== userId");
+  const intentLookup = paymentReconcile.indexOf('admin.from("payment_intents")');
+  assert.ok(identity >= 0 && serviceRole > identity && ownerFilter > serviceRole);
+  assert.ok(ownerGuard > ownerFilter && intentLookup > ownerGuard, "payment intent must not be read before order ownership is confirmed");
 });
 
 console.log("Payment gateway identity migration contracts passed.");
