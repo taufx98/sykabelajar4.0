@@ -10,10 +10,12 @@ const probe = readFileSync(probePath, "utf8");
 
 test("staging OIDC Edge probe delegates signature verification to pinned Supabase server SDK", () => {
   assert.match(probe, /npm:@supabase\/server@1\.9\.2/);
-  assert.match(probe, /createSupabaseContext\(request, \{ auth: "user" \}\)/);
+  assert.match(probe, /createSupabaseContext\(request,[\s\S]*?auth: "user"[\s\S]*?issuer: EXPECTED_ISSUER[\s\S]*?audience: EXPECTED_AUDIENCE[\s\S]*?env: \{ jwks: BETTER_AUTH_JWKS \}/);
+  assert.match(probe, /const BETTER_AUTH_JWKS = new URL\("jwks", EXPECTED_ISSUER \+ "\/"\)/);
   assert.match(probe, /context\.jwtClaims/);
   assert.match(probe, /context\.userClaims\?\.id/);
   assert.match(probe, /context\.userClaims\?\.role/);
+  assert.match(probe, /AUTH_VERIFICATION_UNAVAILABLE/);
   assert.doesNotMatch(probe, /jwt-decode|atob\(|crypto\.subtle|jsonwebtoken/i);
 });
 
