@@ -160,8 +160,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const hydrateCurrentUser = useCallback(async (userId: string, email = '', roles?: BackendRole[]) => {
-    const hydrationRequest = authHydrationGateRef.current!.begin();
+  const hydrateCurrentUser = useCallback(async (
+    userId: string,
+    email = '',
+    roles?: BackendRole[],
+    hydrationRequest = authHydrationGateRef.current!.begin(),
+  ) => {
     const isHydrationCurrent = () => (
       aliveRef.current &&
       authHydrationGateRef.current?.isCurrent(hydrationRequest) === true &&
@@ -257,11 +261,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const hydrateFromCurrentEvent = () => {
         if (!effectActive || !aliveRef.current || authUserRef.current?.id !== uid) return;
-        void hydrateCurrentUser(uid, email).catch((error) => {
+        const hydrationRequest = authHydrationGateRef.current!.begin();
+        const isCurrentEvent = () => (
+          effectActive &&
+          aliveRef.current &&
+          authHydrationGateRef.current?.isCurrent(hydrationRequest) === true &&
+          authUserRef.current?.id === uid
+        );
+        void hydrateCurrentUser(uid, email, undefined, hydrationRequest).catch((error) => {
           console.error('[SykaBelajar] auth user hydration failed', error);
-          // hydrateCurrentUser owns a generation guard, so only its current
-          // request can reject for the active session.
-          if (effectActive && aliveRef.current && authUserRef.current?.id === uid) clearUserState();
+          if (isCurrentEvent()) clearUserState();
         });
         void refreshUnreadCount(uid);
       };
