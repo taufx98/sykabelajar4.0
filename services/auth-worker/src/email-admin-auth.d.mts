@@ -13,7 +13,7 @@ export interface ResolveBetterAuthAdminIdentityInput {
   authBaseUrl: string;
   resourceAudience: string;
   supabaseUrl: string;
-  serviceRoleKey: string;
+  publishableKey: string;
   fetchImpl?: typeof fetch;
   verifyJwtImpl?: (
     jwt: string,
