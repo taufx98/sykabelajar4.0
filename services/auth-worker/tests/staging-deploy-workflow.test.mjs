@@ -26,7 +26,9 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /7a4f9008-a1c6-42b6-8a04-abde12699248/);
   assert.match(workflow, /auth\.sykabelajar\.my\.id/);
   assert.match(workflow, /DEV_APP_ORIGIN/);
-  assert.match(wranglerConfig, /^DEV_APP_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m);
+  assert.match(wranglerConfig, /^DEV_APP_ORIGIN = "https:\/\/staging\.sykabelajar\.my\.id"$/m);
+  assert.match(wranglerConfig, /^OAUTH_CALLBACK_URL = "https:\/\/staging\.sykabelajar\.my\.id\/auth\/oidc\/callback"$/m);
+  assert.match(workflow, /same-site staging callback\/domain/);
   assert.doesNotMatch(wranglerConfig, /^DEV_APP_ORIGIN = "https:\/\/\*\./m);
   assert.match(workflow, /workers_dev = false/);
   assert.match(workflow, /custom_domain = true/);
