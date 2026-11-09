@@ -160,16 +160,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const hydrateCurrentUser = useCallback(async (userId: string, email = '', roles?: BackendRole[]) => {
     const hydrationRequest = authHydrationGateRef.current!.begin();
-    const [profile, resolvedRoles] = await Promise.all([
-      getAuthenticatedProfileById(userId),
-      roles ? Promise.resolve(roles) : getUserRoles(userId),
-    ]);
-    if (!profile) throw new Error('PROFILE_NOT_FOUND');
-    if (
-      !aliveRef.current ||
-      !authHydrationGateRef.current?.isCurrent(hydrationRequest) ||
-      authUserRef.current?.id !== userId
-    ) return;
+    const isHydrationCurrent = () => (
+      aliveRef.current &&
+      authHydrationGateRef.current?.isCurrent(hydrationRequest) === true &&
+      authUserRef.current?.id === userId
+    );
+
+    let profile: Awaited<ReturnType<typeof getAuthenticatedProfileById>>;
+    let resolvedRoles: BackendRole[];
+    try {
+      [profile, resolvedRoles] = await Promise.all([
+        getAuthenticatedProfileById(userId),
+        roles ? Promise.resolve(roles) : getUserRoles(userId),
+      ]);
+    } catch (error) {
+      // An old request may fail after logout/account-switch. Do not let its
+      // rejection clear or sign out the newer session.
+      if (!isHydrationCurrent()) return;
+      throw error;
+    }
+
+    if (!profile) {
+      if (!isHydrationCurrent()) return;
+      throw new Error('PROFILE_NOT_FOUND');
+    }
+    if (!isHydrationCurrent()) return;
 
     setUser({ ...mapProfileToUser(profile, email), role: preferredRole(resolvedRoles) });
     setCurrentAuthUser({ id: userId, email: email || undefined });
