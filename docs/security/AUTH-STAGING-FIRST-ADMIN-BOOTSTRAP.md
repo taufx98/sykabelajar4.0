@@ -22,3 +22,10 @@ A read-only query before this runbook was prepared found zero rows in staging `p
 ## Stop conditions
 
 Stop without changing anything when the verified session response is missing, `emailVerified` is not exactly true, the UUID is not from the same Better Auth session, a legacy `auth.users` row/tombstone exists, any admin row already exists, the SQL Editor is not `postgres`, or the project ref is not the isolated staging ref above. Never run this procedure in production. Do not make `SUPABASE_PROVISIONING_ENABLED=true` as a shortcut; ongoing identity provisioning requires its own explicit review of the separate service-role secret and lifecycle acceptance.
+
+
+## Identity lineage guard
+
+The staging schema contains `private.app_users.identity_origin` with only `better_auth` and `legacy_reference` values. The provisioning RPC writes `better_auth` for a new identity and locks/rechecks the row on every retry. A UUID-only `legacy_reference` tombstone cannot be upgraded into a login identity, profile or business role. The SQL bootstrap intentionally rejects these rows before assigning admin.
+
+The migration and fixture contract has passed [Supabase Local Auth Claims CI #561](https://github.com/taufx98/sykabelajar4.0/actions/runs/42663635674). A live staging transaction also tested the RPC and legacy-reference rejection, then rolled back all synthetic rows; the staging identity tables remained empty.
