@@ -61,7 +61,6 @@ test("payment checkout keeps the verified canonical UUID as the sole order-owner
   assert.doesNotMatch(paymentCreate, /auth\.getUser\(|authData\.user/);
   const identity = paymentCreate.indexOf("requireApplicationUser(req)");
   const serviceRole = paymentCreate.indexOf('createClient(supabaseUrl, serviceRoleKey)');
-  const ownerGuard = paymentCreate.indexOf("order.user_id !== userId");
   assert.ok(identity >= 0 && serviceRole > identity && ownerGuard > serviceRole);
 });
 
