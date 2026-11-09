@@ -34,6 +34,7 @@ test("DNS changes fail closed and only point the exact CNAME to the proxied bran
 test("Pages custom domain is attached to the exact project before DNS verification", () => {
   assert.match(workflow, /\/pages\/projects\/.*\/domains/);
   assert.match(workflow, /"POST"/);
-  assert.match(workflow, /"DNS/);
+  assert.match(workflow, /dns_records/);
+  assert.match(workflow, /Pages project identity\/subdomain/);
   assert.match(workflow, /domainDetail\.status/);
 });
