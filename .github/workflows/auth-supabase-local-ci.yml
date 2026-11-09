@@ -8,8 +8,12 @@ on:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
       - "src/App.tsx"
+      - "src/lib/safeInternalRedirect.mjs"
+      - "src/lib/safeInternalRedirect.d.mts"
       - "src/store/AppContext.tsx"
       - "src/services/auth.service.ts"
+      - "src/lib/safeInternalRedirect.mjs"
+      - "src/lib/safeInternalRedirect.d.mts"
       - "src/services/betterAuthSessionBridge.mjs"
       - "src/services/betterAuthSessionBridge.d.mts"
       - "src/pages/AdminErrorIntelligencePage.tsx"
@@ -96,6 +100,7 @@ jobs:
       - name: Verify frontend auth inventory and shared session event source
         run: |
           node ../../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+          node ../../../scripts/auth-migration/safe-internal-redirect.test.mjs
           node ../../../scripts/auth-migration/auth-session-events.test.mjs
           node ../../../scripts/auth-migration/better-auth-session-bridge.test.mjs
 
