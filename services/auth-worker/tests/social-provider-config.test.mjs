@@ -80,3 +80,53 @@ test("Telegram phone verification is not registered as a social login provider",
   const socialBlock = auth.slice(auth.indexOf("const configuredSocialProviders"), auth.indexOf("return betterAuth"));
   assert.doesNotMatch(socialBlock, /telegram/i);
 });
+
+test("the Admin settings GET is authenticated and returns credential metadata only", () => {
+  const start = settings.indexOf("async function listAdminSettings");
+  const end = settings.indexOf("async function seedEnvironmentProviders", start);
+  assert.ok(start >= 0 && end > start, "the admin settings projection must be present");
+  const projection = settings.slice(start, end);
+
+  assert.match(settings, /export async function handleLoginProviderAdminRequest/);
+  const handlerStart = settings.indexOf("export async function handleLoginProviderAdminRequest");
+  const handler = settings.slice(handlerStart);
+  assert.match(handler, /const authorization = await requireBetterAuthAdmin\(request, env\)/);
+  assert.ok(handler.indexOf("requireBetterAuthAdmin(request, env)") < handler.indexOf("if (request.method === \"GET\")"),
+    "GET must pass the Better Auth admin check before returning settings");
+
+  for (const field of ["provider", "primary", "enabled", "clientId", "secretConfigured", "source", "callbackUrl", "status", "updatedAt"]) {
+    assert.match(projection, new RegExp("\\b" + field + "\\b"));
+  }
+  assert.match(projection, /instagram:\s*\{\s*available:\s*false/);
+  assert.doesNotMatch(projection, /clientSecret\s*:/,
+    "GET must never return a plaintext clientSecret property");
+  assert.doesNotMatch(projection, /client_secret_ciphertext\s*:/,
+    "GET must never return a ciphertext property");
+  assert.doesNotMatch(projection, /\.\.\.row|JSON\.stringify\(row\)/,
+    "GET must not serialize a D1 credential row wholesale");
+});
+
+test("saving OAuth credentials encrypts the secret before the D1 write", () => {
+  const start = settings.indexOf("async function saveProvider");
+  const end = settings.indexOf("async function setProviderEnabled", start);
+  assert.ok(start >= 0 && end > start);
+  const save = settings.slice(start, end);
+  assert.match(save, /const ciphertext = await encryptSocialProviderSecret\(key, suppliedSecret\)/);
+  assert.match(save, /client_secret_ciphertext/);
+  assert.match(save, /\.bind\(provider, clientId, ciphertext, enabled \? 1 : 0, user\.id\)/);
+  assert.doesNotMatch(save, /\.bind\([^;]*suppliedSecret/);
+  assert.match(save, /SOCIAL_PROVIDER_CLIENT_SECRET_INVALID/);
+});
+
+test("provider toggles fail closed when encryption, verification or the last login method is unsafe", () => {
+  const start = settings.indexOf("async function setProviderEnabled");
+  const end = settings.indexOf("async function validateProvider", start);
+  assert.ok(start >= 0 && end > start);
+  const toggle = settings.slice(start, end);
+  assert.match(toggle, /AUTH_PROVIDER_ENCRYPTION_KEY\.length < 32/);
+  assert.match(toggle, /provider === "facebook" && !emailVerificationConfigured/);
+  assert.match(toggle, /SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED/);
+  assert.match(toggle, /decryptSocialProviderSecret\(/);
+  assert.match(toggle, /usableRows\.length <= 1/);
+  assert.match(toggle, /SOCIAL_PROVIDER_LAST_ENABLED_METHOD/);
+});
