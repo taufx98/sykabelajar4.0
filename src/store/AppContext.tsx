@@ -174,8 +174,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         roles ? Promise.resolve(roles) : getUserRoles(userId),
       ]);
     } catch (error) {
-      // An old request may fail after logout/account-switch. Do not let its
-      // rejection clear or sign out the newer session.
+      // A request may fail after logout/account-switch, including a fresh login
+      // with the same UUID. Its rejection must not clear the newer session.
       if (!isHydrationCurrent()) return;
       throw error;
     }
