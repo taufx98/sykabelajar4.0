@@ -192,9 +192,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     aliveRef.current = true;
-    let bootstrapped = false;
+    let effectActive = true;
     const bootstrapRequest = authHydrationGateRef.current!.begin();
     const isBootstrapCurrent = () => (
+      effectActive &&
       aliveRef.current &&
       authHydrationGateRef.current?.isCurrent(bootstrapRequest) === true
     );
@@ -222,10 +223,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error('[SykaBelajar] auth bootstrap failed', error);
         if (isBootstrapCurrent()) clearUserState();
       } finally {
-        if (aliveRef.current) {
-          bootstrapped = true;
-          setAuthLoading(false);
-        }
+        if (effectActive && aliveRef.current) setAuthLoading(false);
       }
     };
 
@@ -254,12 +252,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(GUEST_KEY);
 
       const hydrateFromCurrentEvent = () => {
-        if (!aliveRef.current || authUserRef.current?.id !== uid) return;
+        if (!effectActive || !aliveRef.current || authUserRef.current?.id !== uid) return;
         void hydrateCurrentUser(uid, email).catch((error) => {
           console.error('[SykaBelajar] auth user hydration failed', error);
           // hydrateCurrentUser owns a generation guard, so only its current
           // request can reject for the active session.
-          if (aliveRef.current && authUserRef.current?.id === uid) clearUserState();
+          if (effectActive && aliveRef.current && authUserRef.current?.id === uid) clearUserState();
         });
         void refreshUnreadCount(uid);
       };
@@ -269,6 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
+      effectActive = false;
       aliveRef.current = false;
       authHydrationGateRef.current?.invalidate();
       subscription.subscription.unsubscribe();
