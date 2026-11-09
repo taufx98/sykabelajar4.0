@@ -1,0 +1,213 @@
+name: Attach Better Auth same-site staging Pages domain
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type ATTACH-staging.sykabelajar.my.id-to-security-auth-poc-stage-1 to attach the branch-specific staging domain"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-pages-staging-domain
+  cancel-in-progress: false
+
+jobs:
+  attach:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Attach only the isolated Pages staging domain and branch CNAME
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+
+      - name: Verify exact branch and one-time confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1" || {
+            echo "Blocked: staging domain changes are allowed only from security/auth-poc-stage-1." >&2
+            exit 1
+          }
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "ATTACH-staging.sykabelajar.my.id-to-security-auth-poc-stage-1" || {
+              echo "Blocked: the exact staging-domain confirmation was not supplied." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker=".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0001"
+            test -f "$marker" || {
+              echo "Blocked: the one-time staging-domain marker is missing." >&2
+              exit 1
+            }
+            test "$(cat "$marker")" = "ATTACH-STAGING-PAGES-DOMAIN-0001" || {
+              echo "Blocked: the staging-domain marker is not exact." >&2
+              exit 1
+            }
+          else
+            echo "Blocked: only a guarded push or explicit manual dispatch is accepted." >&2
+            exit 1
+          fi
+
+      - name: Attach branch-pinned custom domain with fail-closed DNS checks
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          if (!token || token.length < 20) throw new Error("CLOUDFLARE_API_TOKEN is missing or invalid.");
+          if (!accountId || !/^[a-f0-9]{32}$/i.test(accountId)) throw new Error("CLOUDFLARE_ACCOUNT_ID is missing or invalid.");
+
+          const projectName = "sykabelajar4";
+          const projectAlias = "sykabelajar4.pages.dev";
+          const branchAlias = "security-auth-poc-stage-1.sykabelajar4.pages.dev";
+          const domain = "staging.sykabelajar.my.id";
+          const zoneName = "sykabelajar.my.id";
+          const base = "https://api.cloudflare.com/client/v4";
+          const headers = {
+            Authorization: "Bearer " + token,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          };
+
+          async function request(path, method = "GET", body) {
+            let response;
+            try {
+              response = await fetch(base + path, {
+                method,
+                headers,
+                ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+              });
+            } catch {
+              throw new Error("Cloudflare API network request failed; no later mutation was attempted.");
+            }
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.success !== true) {
+              const errors = (payload.errors ?? []).map((item) => ({
+                code: item.code,
+                message: String(item.message ?? "").slice(0, 180),
+              }));
+              const safe = JSON.stringify({ status: response.status, errors });
+              throw new Error("Cloudflare API rejected the guarded request: " + safe);
+            }
+            return payload.result;
+          }
+
+          const zoneRows = await request("/zones?name=" + encodeURIComponent(zoneName) + "&per_page=50");
+          const matchingZones = Array.isArray(zoneRows) ? zoneRows.filter((z) => z.name === zoneName && z.status === "active") : [];
+          if (matchingZones.length !== 1) {
+            throw new Error("Expected exactly one active Cloudflare zone for sykabelajar.my.id; refusing DNS changes.");
+          }
+          const zoneId = matchingZones[0].id;
+
+          const project = await request(
+            "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" + encodeURIComponent(projectName),
+          );
+          if (project?.name !== projectName || project?.subdomain !== projectAlias) {
+            throw new Error("Cloudflare Pages project identity/subdomain did not match the reviewed staging project.");
+          }
+
+          let domains = await request(
+            "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" +
+            encodeURIComponent(projectName) + "/domains",
+          );
+          if (!Array.isArray(domains)) throw new Error("Cloudflare Pages custom-domain inventory was not an array.");
+          let attached = domains.find((item) => item?.name === domain);
+          if (!attached) {
+            await request(
+              "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" +
+              encodeURIComponent(projectName) + "/domains",
+              "POST",
+              { name: domain },
+            );
+            domains = await request(
+              "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" +
+              encodeURIComponent(projectName) + "/domains",
+            );
+            if (!Array.isArray(domains)) throw new Error("Could not verify Pages custom-domain association after creation.");
+            attached = domains.find((item) => item?.name === domain);
+          }
+          if (!attached || attached.name !== domain) {
+            throw new Error("The staging domain is not associated with the reviewed Pages project.");
+          }
+
+          const dnsPath = "/zones/" + encodeURIComponent(zoneId) + "/dns_records?name=" +
+            encodeURIComponent(domain) + "&per_page=100";
+          let records = await request(dnsPath);
+          if (!Array.isArray(records)) throw new Error("Cloudflare DNS inventory response was invalid.");
+          records = records.filter((record) => record?.name === domain);
+
+          if (records.length > 1) {
+            throw new Error("Multiple DNS records already exist at staging.sykabelajar.my.id; refusing to modify any of them.");
+          }
+
+          let record = records[0] ?? null;
+          if (record && record.type !== "CNAME") {
+            throw new Error("A non-CNAME DNS record already owns staging.sykabelajar.my.id; refusing to overwrite it.");
+          }
+          const allowedTargets = new Set([projectAlias, branchAlias]);
+          if (record && !allowedTargets.has(String(record.content ?? "").replace(/\.$/, ""))) {
+            throw new Error("The existing staging CNAME points to an unrelated destination; refusing to change it.");
+          }
+
+          const desiredRecord = {
+            type: "CNAME",
+            name: domain,
+            content: branchAlias,
+            ttl: 1,
+            proxied: true,
+          };
+          if (!record) {
+            record = await request("/zones/" + encodeURIComponent(zoneId) + "/dns_records", "POST", desiredRecord);
+          } else if (
+            String(record.content ?? "").replace(/\.$/, "") !== branchAlias ||
+            record.proxied !== true
+          ) {
+            record = await request(
+              "/zones/" + encodeURIComponent(zoneId) + "/dns_records/" + encodeURIComponent(record.id),
+              "PATCH",
+              desiredRecord,
+            );
+          }
+
+          if (
+            record?.type !== "CNAME" ||
+            record?.name !== domain ||
+            String(record?.content ?? "").replace(/\.$/, "") !== branchAlias ||
+            record?.proxied !== true
+          ) {
+            throw new Error("Cloudflare did not confirm the exact proxied branch CNAME.");
+          }
+
+          const domainDetail = await request(
+            "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" +
+            encodeURIComponent(projectName) + "/domains/" + encodeURIComponent(domain),
+          );
+          if (domainDetail?.name !== domain) {
+            throw new Error("Pages custom-domain detail did not match the requested hostname.");
+          }
+
+          console.log(JSON.stringify({
+            project: projectName,
+            branch: "security/auth-poc-stage-1",
+            domain,
+            cname: branchAlias,
+            proxied: true,
+            pagesDomainStatus: domainDetail.status ?? attached.status ?? "unknown",
+            certificateStatus: domainDetail.verification_data?.status ?? "unknown",
+            noWorkerDeployment: true,
+            noD1Mutation: true,
+          }));
+          NODE

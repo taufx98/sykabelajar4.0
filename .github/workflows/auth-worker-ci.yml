@@ -221,7 +221,10 @@ jobs:
           assert.deepEqual(JSON.parse(row.scopes), ["openid", "profile", "email"]);
           assert.deepEqual(JSON.parse(row.grant_types), ["authorization_code"]);
           assert.deepEqual(JSON.parse(row.response_types), ["code"]);
-          assert.deepEqual(JSON.parse(row.redirect_uris), ["https://sykabelajar.my.id/auth/oidc/callback"]);
+          assert.deepEqual(JSON.parse(row.redirect_uris), [
+            "https://sykabelajar.my.id/auth/oidc/callback",
+            "https://staging.sykabelajar.my.id/auth/oidc/callback",
+          ]);
           console.log("Verified the fixed first-party OAuth client seed, PKCE, resource and exact callback in the migrated D1 database.");
           NODE
 
