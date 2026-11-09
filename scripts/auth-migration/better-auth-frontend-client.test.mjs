@@ -18,6 +18,9 @@ const cloudinaryService = readFileSync(new URL("../../src/services/cloudinary.se
 const profileSettingsPage = readFileSync(new URL("../../src/pages/ProfileInterfaceSettingsPage.tsx", import.meta.url), "utf8");
 const adminPage = readFileSync(new URL("../../src/pages/AdminPage.tsx", import.meta.url), "utf8");
 const zeptoMailPanel = readFileSync(new URL("../../src/components/admin/ZeptoMailSettingsPanel.tsx", import.meta.url), "utf8");
+const loginProvidersPanel = readFileSync(new URL("../../src/components/admin/LoginProvidersSettingsPanel.tsx", import.meta.url), "utf8");
+const socialProviderSettings = readFileSync(new URL("../../services/auth-worker/src/social-provider-settings.ts", import.meta.url), "utf8");
+
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
 const loginPage = readFileSync(new URL("../../src/pages/LoginPage.tsx", import.meta.url), "utf8");
 const registerPage = readFileSync(new URL("../../src/pages/RegisterPage.tsx", import.meta.url), "utf8");
@@ -171,5 +174,31 @@ assert.match(accessTokenProvider, /supabase\.auth\.getSession\(\)/);
 assert.match(cloudinaryService, /getSupabaseResourceAccessToken\(\)/);
 assert.doesNotMatch(cloudinaryService, /supabase\.auth/);
 
+
+
+const settingsTabIndex = adminPage.indexOf("tab === 'settings'");
+assert.ok(settingsTabIndex >= 0);
+const settingsTab = adminPage.slice(settingsTabIndex, settingsTabIndex + 650);
+assert.match(settingsTab, /<LoginProvidersSettingsPanel\s*\/>/);
+assert.match(settingsTab, /<ZeptoMailSettingsPanel\s*\/>/);
+
+assert.match(loginProvidersPanel, /const PROVIDER_ORDER: BetterAuthSocialProvider\[\] = \['google', 'facebook', 'twitter'\]/);
+assert.match(loginProvidersPanel, /Google \/ Gmail/);
+assert.match(loginProvidersPanel, /Facebook/);
+assert.match(loginProvidersPanel, /X \/ Twitter/);
+assert.match(loginProvidersPanel, /Instagram/);
+assert.match(loginProvidersPanel, /Badge>Unavailable<\/Badge/);
+assert.match(loginProvidersPanel, /settings\.instagram\.reason/);
+assert.match(loginProvidersPanel, /Tidak ada tombol aktivasi atau workaround/);
+assert.match(loginProvidersPanel, /const previewEnabled = isBetterAuthEnabled\(\)/);
+assert.match(loginProvidersPanel, /clientSecret: ''/);
+assert.match(loginProvidersPanel, /draft\.clientSecret\.trim\(\) \? \{ clientSecret: draft\.clientSecret\.trim\(\) \} : \{\}/);
+
+assert.match(socialProviderSettings, /export const SOCIAL_LOGIN_PROVIDERS = \['google', 'facebook', 'twitter'\]/);
+assert.match(socialProviderSettings, /instagram:\s*\{ available: false/);
+assert.match(socialProviderSettings, /const authorization = await requireBetterAuthAdmin\(request, env\)/);
+assert.match(zeptoMailPanel, /sendMailToken: ''/);
+assert.match(zeptoMailPanel, /getSupabaseResourceAccessToken\(\)/);
+assert.match(zeptoMailPanel, /AUTH_WORKER_URL_NOT_CONFIGURED/);
 
 console.log("Better Auth frontend transport contract passed; Supabase Auth remains the sole live app session source.");
