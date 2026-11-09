@@ -21,6 +21,9 @@ test("Cloudflare preflight reads auth and Pages staging DNS records without muta
   assert.match(workflow, /resolveDns\("sykabelajar\.my\.id", "DS"\)/);
   assert.match(workflow, /resolveDns\("my\.id", "NS"\)/);
   assert.match(workflow, /publicDelegation/);
+  assert.match(workflow, /cloudflareZoneRecordInventory/);
+  assert.match(workflow, /cloudflareZoneRecordTypeCounts/);
+  assert.match(workflow, /dns_records\?per_page=100&page=1/);
   assert.doesNotMatch(workflow, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i);
   assert.doesNotMatch(workflow, /dns_records["'][^\n]*(?:POST|PATCH|DELETE)/i);
 });

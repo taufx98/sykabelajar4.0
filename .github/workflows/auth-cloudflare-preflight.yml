@@ -65,6 +65,9 @@ jobs:
           const zone = Array.isArray(accountZones.result)
             ? accountZones.result.find((item) => item.name === "sykabelajar.my.id")
             : null;
+          const zoneRecords = zone
+            ? await read("/zones/" + encodeURIComponent(zone.id) + "/dns_records?per_page=100&page=1")
+            : { status: null, success: false, result: null, errorCodes: ["ZONE_NOT_FOUND_OR_UNREADABLE"] };
           const authDns = zone
             ? await read("/zones/" + encodeURIComponent(zone.id) + "/dns_records?name=auth.sykabelajar.my.id&per_page=100")
             : { status: null, success: false, result: null, errorCodes: ["ZONE_NOT_FOUND_OR_UNREADABLE"] };
@@ -170,6 +173,20 @@ jobs:
             },
             dns: {
               nameservers: Array.isArray(zone?.name_servers) ? zone.name_servers : [],
+              cloudflareZoneRecordsReadable: zoneRecords.success,
+              cloudflareZoneRecordCount: Array.isArray(zoneRecords.result) ? zoneRecords.result.length : 0,
+              cloudflareZoneRecordInventory: (Array.isArray(zoneRecords.result) ? zoneRecords.result : []).map((row) => ({
+                type: row.type,
+                name: row.name,
+                proxied: row.proxied,
+                ttl: row.ttl,
+                content: ["A", "AAAA", "CNAME"].includes(row.type) ? row.content : undefined,
+                priority: row.type === "MX" ? row.priority : undefined,
+              })),
+              cloudflareZoneRecordTypeCounts: (Array.isArray(zoneRecords.result) ? zoneRecords.result : []).reduce((counts, row) => {
+                counts[row.type] = (counts[row.type] ?? 0) + 1;
+                return counts;
+              }, {}),
               authRecordsReadable: authDns.success,
               authRecords: (Array.isArray(authDns.result) ? authDns.result : []).map((row) => ({
                 type: row.type, name: row.name, content: row.content, proxied: row.proxied, ttl: row.ttl,
@@ -182,7 +199,7 @@ jobs:
               pagesProjectFoundExactlyOnce: pagesProjectMatches.length === 1,
               pagesDomainStatus: pagesDomain?.status ?? null,
               pagesCertificateStatus: pagesDomain?.verification_data?.status ?? null,
-              apiErrors: [...authDns.errorCodes, ...stagingDns.errorCodes, ...pagesProjects.errorCodes, ...pagesDomains.errorCodes],
+              apiErrors: [...zoneRecords.errorCodes, ...authDns.errorCodes, ...stagingDns.errorCodes, ...pagesProjects.errorCodes, ...pagesDomains.errorCodes],
               publicDelegation: {
                 cloudflareAssignedNameservers: Array.isArray(zone?.name_servers) ? zone.name_servers : [],
                 publicZoneNameservers: zoneNS,
