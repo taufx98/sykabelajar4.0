@@ -112,7 +112,7 @@ Detailed current blockers, the latest read-only Cloudflare/Supabase verification
 
 ## Stage 4 — Frontend
 
-<badge color="success">Source implementation on branch</badge> Hosted browser/provider acceptance remains open; production continues to use Supabase Auth by default.
+**Source implementation on branch.** Hosted browser/provider acceptance remains open; production continues to use Supabase Auth by default.
 
 - [x] Implement the typed Better Auth HTTP client and first-party OAuth Authorization Code + PKCE flow. This branch intentionally keeps one typed transport instead of adding a second auth SDK/session owner.
 - [x] Implement the single-flight, in-memory Supabase resource-token broker with session/UUID/email-verification/expiry revalidation and post-PKCE account-switch race protection.
