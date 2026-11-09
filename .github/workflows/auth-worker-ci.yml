@@ -50,6 +50,10 @@ on:
       - "scripts/auth-migration/better-auth-session-bridge.test.mjs"
       - "scripts/auth-migration/auth-hydration-gate.test.mjs"
       - "src/lib/supabase.ts"
+      - "src/lib/env.ts"
+      - "src/lib/supabaseEnvironment.mjs"
+      - "src/lib/supabaseEnvironment.d.mts"
+      - "scripts/auth-migration/supabase-environment-selection.test.mjs"
       - "src/services/supabaseClientOptions.mjs"
       - "src/services/supabaseClientOptions.d.mts"
       - "scripts/auth-migration/supabase-client-options.test.mjs"
@@ -152,6 +156,9 @@ jobs:
 
       - name: Verify shared Supabase client auth-token source
         run: node ../../scripts/auth-migration/supabase-client-options.test.mjs
+
+      - name: Verify hostname-scoped staging Supabase environment selection
+        run: node ../../scripts/auth-migration/supabase-environment-selection.test.mjs
 
       - name: Verify Better Auth email-admin JWT and staging authorization
         run: node tests/email-admin-auth.test.mjs
