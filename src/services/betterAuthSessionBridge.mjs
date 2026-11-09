@@ -67,6 +67,7 @@ export function broadcastBetterAuthSessionEvent(type, options = {}) {
  * @param {{
  *   getSession:()=>Promise<{user:{id:string,email?:string},session:{expiresAt:string}}|null>,
  *   onChange:(type:string,session:{user:{id:string,email?:string},session:{expiresAt:string}}|null)=>void,
+ *   onBeforeRefresh?:()=>void,
  *   windowObject?:Window|null,
  *   documentObject?:Document|null
  * }} input
@@ -127,6 +128,14 @@ export function createBetterAuthSessionBridge(input) {
   };
 
   const refresh = async (hint) => {
+    if (closed) return;
+    // Invalidate the local resource-token/session lease before every explicit
+    // provider revalidation (focus, tab event, expiry and initial mount).
+    try {
+      input.onBeforeRefresh?.();
+    } catch {
+      // Cache invalidation is best-effort and must not block session recovery.
+    }
     const version = ++requestVersion;
     let session;
     try {
