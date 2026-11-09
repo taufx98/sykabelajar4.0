@@ -828,3 +828,45 @@ The 9 November acceptance run that captured this metadata and completed schema r
 - The current head additionally hardens concurrent activation/deletion of transactional email accounts with a single guarded SQL mutation and verifies the affected-row count; it does not change provider secrets or production email settings.
 
 **Not complete / still gated:** real Google/Facebook/X credentials and a first staging-admin bootstrap; actual ZeptoMail delivery; hosted Telegram consent/callback; hosted Better Auth Storage, Realtime and two-user Edge/IDOR tests; exhaustive operation-by-operation review/sign-off for all 109 RLS policies; PR base/mergeability reconciliation; and explicit owner approval/rollback sign-off. Production login flag, Supabase schema/ACL/RLS/triggers, Edge Functions, Cloudflare Worker, user records, credentials and Cloudinary assets remain unchanged.
+
+
+## Stage 4 hosted frontend checkpoint — 9 November 2026 (DNS delegation blocker)
+
+This checkpoint supersedes older Stage 4 statements in this document that described the Better Auth frontend transport as entirely unimported or Stage 4 as not started. It does **not** authorize production cutover.
+
+### Completed on the isolated branch/staging resources
+
+- The Better Auth session bridge now performs one initial provider-session read on mount, then schedules one revalidation at the server-issued session expiry. Same-user renewal refreshes the deadline without a false sign-in event; an expired session emits the normal signed-out transition; bridge teardown clears the timer. This is deadline-based revalidation, not periodic polling.
+- The frontend Better Auth transport is enabled only by explicit preview configuration and only for the isolated Free Supabase staging project. Remote browser use is restricted to the exact same-site origin `https://staging.sykabelajar.my.id`; generic `*.pages.dev` preview hosts are intentionally rejected because they are cross-site from the auth Worker's `SameSite=Lax` cookie.
+- The OAuth callback resolver accepts only `https://sykabelajar.my.id/auth/oidc/callback` and `https://staging.sykabelajar.my.id/auth/oidc/callback`. Worker bootstrap validation requires that exact two-entry redirect allowlist, and D1 migration 0008 adds the staging callback to the single fixed public first-party PKCE client.
+- The guarded D1 migration workflow successfully applied migration 0008 to the dedicated non-production D1 `sykabelajar-auth-poc`. The deployment workflow verified the 20 expected tables and confirmed that the Better Auth user, session, account, verification and phone-challenge tables were still empty.
+- The Pages project `sykabelajar` is associated with `staging.sykabelajar.my.id`; its proxied CNAME points to the exact `security-auth-poc-stage-1.sykabelajar4.pages.dev` branch alias. Cloudflare currently reports the Pages custom-domain status as `pending` and certificate status as `active`.
+- The isolated Worker `sykabelajar-auth-poc` deployed successfully using the existing secret bindings. The dedicated OAuth-provider encryption secret was preserved; it was not rotated. Supabase identity provisioning remains disabled.
+- Auth Worker CI [#42570149130](https://github.com/taufx98/sykabelajar4.0/actions/runs/42570149130) passed both jobs on code head `6ccf4140ca52b8ca3644c5ee4b40b428ce81c405`: Worker/security/D1/OIDC local integration and frontend lint/typecheck/build. This is branch/staging validation, not production validation.
+
+### Current hosted blocker — authoritative nameserver delegation
+
+The deployed Worker hosted health/OIDC/JWKS acceptance did **not** pass. GitHub Actions recorded `getaddrinfo ENOTFOUND auth.sykabelajar.my.id`; independent public DNS-over-HTTPS checks also returned NXDOMAIN for `auth.sykabelajar.my.id` and `staging.sykabelajar.my.id`.
+
+Cloudflare assigns these nameservers to the `sykabelajar.my.id` zone:
+
+- `rita.ns.cloudflare.com`
+- `wilson.ns.cloudflare.com`
+
+The publicly delegated nameservers are still:
+
+- `ns1.idwebhost.id`
+- `ns2.idwebhost.id`
+
+Therefore Cloudflare's zone records are not yet authoritative on the public DNS. The zone has 11 records in the Cloudflare dashboard/API inventory: the apex Pages CNAME, the email/ZeptoMail CNAME, the staging Pages CNAME, the auth Worker AAAA record, three Cloudflare Email Routing MX records, and four TXT records. The public DNS check found the three MX destinations and the email CNAME consistent with the Cloudflare copy. It found only three of the four Cloudflare TXT selectors publicly, with `cf2024-1._domainkey.sykabelajar.my.id` absent from the public answers. The public resolver also returned no apex A/AAAA/CNAME answer and NXDOMAIN for `www.sykabelajar.my.id`; verify whether those names are intentionally unused or have records/types outside this inventory before changing registrar delegation.
+
+**Do not switch nameservers automatically.** A nameserver cutover affects the entire domain, not only the Better Auth subdomain. Before any cutover, reconcile the full IDWebHost authoritative zone with the Cloudflare copy, especially the website apex/`www`, all MX, SPF/DKIM/DMARC and service-verification TXT records. No registrar nameserver change was made by this checkpoint. No production Worker, production Supabase schema/data/Auth settings, user records, roles, Edge Functions or production login route were changed.
+
+### Remaining Stage 4 acceptance gates
+
+1. Reconcile the complete current IDWebHost DNS zone against the Cloudflare zone and obtain owner approval for any registrar nameserver change. After the nameserver delegation is updated by the domain owner/registrar, re-run public DNS, Pages-domain and hosted Worker health/discovery/JWKS checks.
+2. Test the staging frontend on `https://staging.sykabelajar.my.id` with real browser cookies, initial-session hydration, cross-tab synchronization and expiry/logout.
+3. Complete real hosted signup/login/password recovery and social OAuth callback tests. Google/Facebook/X credentials and an initial staging-admin account are still absent; email delivery remains deferred and unconfigured by owner instruction. Do not create, activate or spend on a transactional-email account during this login-first workstream.
+4. Complete positive Supabase Data API, Storage HTTP, Realtime WebSocket and staging Edge-function/two-user tests using a real Better Auth session. These are cross-stage acceptance prerequisites, not production deployment.
+5. Keep PR #177 Draft/unmerged. Do not start Stage 5/6/7 work or change production until Stage 4 hosted acceptance, Stage 5 endpoint review, base reconciliation and owner-approved rollback gates are complete.
+
