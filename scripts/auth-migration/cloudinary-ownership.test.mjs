@@ -11,6 +11,10 @@ const deleteEndpointPath = fileURLToPath(new URL("../../supabase/functions/cloud
 const deleteEndpoint = readFileSync(deleteEndpointPath, "utf8");
 const profileUploadPath = fileURLToPath(new URL("../../supabase/functions/cloudinary-profile-upload/index.ts", import.meta.url));
 const profileUploadEndpoint = readFileSync(profileUploadPath, "utf8");
+const profileUploadV2Endpoint = readFileSync(
+  new URL("../../supabase/functions/cloudinary-profile-upload-v2/index.ts", import.meta.url),
+  "utf8",
+);
 const profileDeletePath = fileURLToPath(new URL("../../supabase/functions/cloudinary-delete-profile/index.ts", import.meta.url));
 const profileDeleteEndpoint = readFileSync(profileDeletePath, "utf8");
 const supabaseConfig = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
@@ -200,4 +204,38 @@ test("ownership checks happen before Cloudinary credentials are used to create a
   const signingSecret = endpoint.indexOf('Deno.env.get("CLOUDINARY_API_SECRET")');
   const signature = endpoint.indexOf("crypto.subtle.digest");
   assert.ok(ownerCheck >= 0 && signingSecret > ownerCheck && signature > signingSecret);
+});
+
+
+test("both Cloudinary profile upload endpoints handle bearer CORS preflight before auth", () => {
+  for (const [name, source] of [
+    ["cloudinary-profile-upload", profileUploadEndpoint],
+    ["cloudinary-profile-upload-v2", profileUploadV2Endpoint],
+  ]) {
+    assert.match(source, /Access-Control-Allow-Origin/);
+    assert.match(source, /Access-Control-Allow-Headers[^\n]*authorization[^\n]*content-type/i);
+    assert.match(source, /Access-Control-Allow-Methods[^\n]*POST[^\n]*OPTIONS/i);
+    assert.match(source, /req\.method === "OPTIONS"/);
+    assert.match(source, /status: 204/);
+    const preflight = source.indexOf('if (req.method === "OPTIONS")');
+    const identity = source.indexOf("requireApplicationUser(req)");
+    assert.ok(preflight >= 0 && identity > preflight, name + " must answer browser preflight before verifying the bearer token");
+    assert.match(source, /req\.method !== "POST"/);
+    assert.match(source, /file\.size\s*>\s*5\s*\*\s*1024\s*\*\s*1024/);
+    assert.match(source, /kind !== "profile" && kind !== "cover"/);
+    assert.match(source, /AbortSignal\.timeout\(12_000\)/);
+    assert.match(source, /redirect: "error"/);
+    assert.match(source, /CLOUDINARY_UPLOAD_FAILED/);
+    assert.match(source, /CLOUDINARY_UPLOAD_NOT_CONFIGURED/);
+    assert.doesNotMatch(source, /body\.get\(["']user_id["']\)|body\.get\(["']owner_id["']\)/);
+  }
+  assert.match(supabaseConfig, /\[functions\.cloudinary-profile-upload\][\s\S]*?verify_jwt = false/);
+  assert.match(supabaseConfig, /\[functions\.cloudinary-profile-upload-v2\][\s\S]*?verify_jwt = false/);
+});
+
+test("V2 Cloudinary profile upload preserves its legacy response shape", () => {
+  assert.match(profileUploadV2Endpoint, /asset_id: result\.asset_id/);
+  assert.match(profileUploadV2Endpoint, /kind,/);
+  assert.doesNotMatch(profileUploadV2Endpoint, /user_id:\s*userId/);
+  assert.match(profileUploadEndpoint, /user_id:\s*userId/);
 });
