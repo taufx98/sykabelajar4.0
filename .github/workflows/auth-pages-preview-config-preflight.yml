@@ -115,17 +115,19 @@ jobs:
             }
           }
 
-          const supabaseHost = hostOf(value("VITE_SUPABASE_URL"));
-          const workerHost = hostOf(value("VITE_AUTH_WORKER_URL"));
+          const sharedSupabaseHost = hostOf(value("VITE_SUPABASE_URL"));
+          const stagingSupabaseHost = hostOf(value("VITE_BETTER_AUTH_SUPABASE_URL"));
+          const stagingWorkerHost = hostOf(value("VITE_AUTH_WORKER_URL"));
           const flagEnabled = value("VITE_BETTER_AUTH_FRONTEND_ENABLED").trim().toLowerCase() === "true";
-          const publishableConfigured = value("VITE_SUPABASE_PUBLISHABLE_KEY").trim().length > 0;
+          const stagingPublishableKey = value("VITE_BETTER_AUTH_SUPABASE_PUBLISHABLE_KEY");
           const stagingRefHost = "ydamszdfsxqisanazdkb.supabase.co";
           const workerHostExpected = "auth.sykabelajar.my.id";
           const checks = {
-            supabaseUrlTargetsIsolatedStaging: supabaseHost === stagingRefHost,
-            publishableKeyPresent: publishableConfigured,
+            sharedPreviewSupabaseConfigPreserved: Boolean(sharedSupabaseHost) && sharedSupabaseHost !== stagingRefHost,
+            stagingSupabaseUrlTargetsIsolatedProject: stagingSupabaseHost === stagingRefHost,
+            stagingPublishableKeyConfigured: stagingPublishableKey.startsWith("sb_publishable_"),
             betterAuthFrontendFlagEnabled: flagEnabled,
-            authWorkerUrlTargetsStableIssuer: workerHost === workerHostExpected,
+            authWorkerUrlTargetsStableIssuer: stagingWorkerHost === workerHostExpected,
             previewBranchDomainIsExpected: Boolean(project.domains?.includes("staging.sykabelajar.my.id")),
           };
           const ready = Object.values(checks).every(Boolean);
