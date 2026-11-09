@@ -921,3 +921,26 @@ This checkpoint records source work on `security/auth-poc-stage-1`; it does not 
 - The changed source, config, CI paths and regression tests have been re-read from the branch and source invariants checked. This is not a substitute for a passing CI run: the latest HEAD workflow result must be inspected before marking the branch validated.
 - Hosted Better Auth cookie/browser, Storage HTTP, Realtime WebSocket, positive Edge token and two-user IDOR acceptance still need an actual verified staging session. Public DNS delegation, staging admin bootstrap and OAuth credentials remain live external acceptance prerequisites; email provider setup is not one of them.
 - PR #177 remains Draft/unmerged and base reconciliation is still required. No Edge Function has been deployed, no `AUTH_IDENTITY_MODE=better-auth` setting enabled in production, no production RLS/RPC/trigger/FK change applied, and no production Auth/login/Cloudflare/DNS/secret/account state changed.
+
+
+## Better Auth continuation checkpoint — 9 November 2026, evening
+
+This checkpoint supersedes only the newer implementation details below; it does not close hosted acceptance or authorize cutover.
+
+### Stage 2 — verifier and staging probe correction
+- Re-read the pinned `@supabase/server@1.9.2` verifier behavior. Its default `user` mode uses the Supabase project's JWKS, not the Better Auth issuer's signing key set. The shared Better Auth adapter now explicitly supplies the fixed `https://auth.sykabelajar.my.id/api/auth/jwks` URL through the SDK `env.jwks` override, and passes the exact Better Auth issuer and SYKABELAJAR resource audience. Cryptographic signature verification remains inside the SDK; no hand-written JWT signature code was added.
+- The shared adapter returns 503 `AUTH_VERIFICATION_UNAVAILABLE` for an unavailable JWKS/verifier and 401 for missing/invalid bearer tokens. Expected issuer, audience and JWKS URL are fixed in source.
+- The isolated Free staging read-only `better-auth-oidc-acceptance` probe was updated to **version 2** on project `ydamszdfsxqisanazdkb`. The probe uses the same pinned Better Auth JWKS/issuer/audience, reads only the synthetic RLS fixture through the caller-scoped client, selects its actual `note` column, and performs no writes or service-role operations. No application Edge handler was deployed.
+- A positive probe invocation still requires an already verified synthetic Better Auth session. Email setup is not a prerequisite; do not create fake verified accounts or weaken the email-verification gate.
+
+### Stage 4 — same-origin redirect guard
+- Added shared `resolveSafeInternalRedirect()` and applied it to LoginPage, RegisterPage and the Better Auth social OAuth callback boundary. The helper resolves the candidate URL against the actual current origin and falls back to `/home` when it is external, protocol-relative, malformed or browser-normalized backslash authority syntax.
+- Added regression checks for safe in-app path/query/hash preservation, external/protocol-relative URLs, JavaScript/data URLs, backslash authority redirects, and wiring through login/register/social auth service.
+- Added the test path to both Auth Worker CI and Supabase Local CI trigger/test lists. A local Node sanity check of representative URL cases returned the expected same-origin paths/fallbacks; this is not a claim that the full GitHub Actions suite passed.
+
+### Latest validation and hard blockers
+- The latest PR head at this checkpoint is recorded in GitHub as a Draft PR #177. The GitHub commit-status lookup returned no status rows, and the available commit-workflow lookup returned no PR-triggered runs for this SHA. Do not report the newest source/tests as CI-passing until an actual successful workflow run is retrieved.
+- PR #177 remains `mergeable=false`. Base `security/auth-migration-phase-0` has advanced **17 commits** beyond the merge base; do not force-merge, blindly change the PR base, or discard those changes. A reviewed three-way reconciliation is still required.
+- Public auth/staging DNS delegation, browser session acceptance, OAuth credentials/admin bootstrap, positive Storage HTTP, private Realtime WebSocket, Edge probe token invocation and two-user endpoint IDOR matrix remain open. Production Stage 3 identity/FK/issuer migration still requires explicit approval, maintenance window, read-only preflight and rollback review.
+- Transactional email sender setup, real verification mail and password-recovery mail remain intentionally deferred to the final phase. No provider configuration, real email send or credit consumption occurred.
+- No production Edge Function, auth mode, Supabase schema/RPC/trigger/FK/RLS policy, login setting, Cloudflare secret, DNS/nameserver, payment setting, Cloudinary asset, user or account was changed. The only hosted function refresh in this checkpoint is the read-only staging acceptance probe v2.
