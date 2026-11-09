@@ -17,7 +17,8 @@ alter table private.app_users
   add column phone_verified_at timestamptz,
   add column verified_phone_identity_hash text,
   add column updated_at timestamptz not null default clock_timestamp(),
-  add column identity_origin text not null default 'better_auth'
+  add column identity_origin text not null default 'better_auth',
+  add constraint app_users_identity_origin_check
     check (identity_origin in ('better_auth', 'legacy_reference'));
 
 create table public.profiles (
