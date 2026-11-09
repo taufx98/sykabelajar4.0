@@ -944,3 +944,8 @@ This checkpoint supersedes only the newer implementation details below; it does 
 - Public auth/staging DNS delegation, browser session acceptance, OAuth credentials/admin bootstrap, positive Storage HTTP, private Realtime WebSocket, Edge probe token invocation and two-user endpoint IDOR matrix remain open. Production Stage 3 identity/FK/issuer migration still requires explicit approval, maintenance window, read-only preflight and rollback review.
 - Transactional email sender setup, real verification mail and password-recovery mail remain intentionally deferred to the final phase. No provider configuration, real email send or credit consumption occurred.
 - No production Edge Function, auth mode, Supabase schema/RPC/trigger/FK/RLS policy, login setting, Cloudflare secret, DNS/nameserver, payment setting, Cloudinary asset, user or account was changed. The only hosted function refresh in this checkpoint is the read-only staging acceptance probe v2.
+
+
+### Stage 4 callback boundary extension — 9 November 2026
+- The same-origin resolver is now also applied to email-verification resend callbacks and password-reset redirect parameters, including the legacy Supabase fallback. Login, registration, social OAuth, resend-verification and reset-password all use the same browser-origin validation boundary.
+- The regression test asserts the service wiring for these verification/reset paths. A Node-only helper sanity check passed 14 representative safe/unsafe URL cases; the full repository test suite and latest GitHub Actions are still unverified.
