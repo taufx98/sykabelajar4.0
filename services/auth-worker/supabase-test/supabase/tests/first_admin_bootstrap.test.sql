@@ -1,5 +1,5 @@
 BEGIN;
-SELECT extensions.plan(10);
+SELECT extensions.plan(11);
 
 SELECT extensions.ok(
   current_user = 'postgres',
