@@ -99,7 +99,7 @@ jobs:
                 code: item.code,
                 message: String(item.message ?? "").slice(0, 180),
               }));
-              const safe = JSON.stringify({ status: response.status, errors });
+              const safe = JSON.stringify({ path, status: response.status, errors });
               throw new Error("Cloudflare API rejected the guarded request: " + safe);
             }
             return payload.result;
@@ -149,7 +149,7 @@ jobs:
 
           const deployments = await request(
             "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" +
-            encodeURIComponent(projectName) + "/deployments?env=preview&per_page=100",
+            encodeURIComponent(projectName) + "/deployments?env=preview&per_page=25",
           );
           if (!Array.isArray(deployments)) throw new Error("Pages preview deployment inventory was not an array.");
           const branchDeployment = deployments.find((deployment) => {
