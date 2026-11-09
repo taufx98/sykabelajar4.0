@@ -487,3 +487,9 @@ The owner requirement still prioritizes Google/Gmail, Instagram, Facebook and X/
 ### Stage 4 email callback closure — 9 November 2026
 
 The remaining signup-email callback route is now implemented: Better Auth signup and resend both return to `/auth/verified`; the page verifies state only by reading the Worker-backed session's `emailVerified` field. The Worker auth integration test follows the actual verification email link and checks the redirect origin/path. [Auth Worker CI #42511915688](https://github.com/taufx98/sykabelajar4.0/actions/runs/42511915688) passed Worker integration/security tests plus frontend lint, typecheck and build. The older Supabase Auth verification path remains separate at `/verify/:code`.
+
+## 9 November — profile triggers and policy inventory
+
+The schema-only baseline captured all four live profile trigger definitions, including the full bodies of normalize_profile_fields() and set_updated_at(). New rollback-only production-shaped SQL assertions exercise both functions, in addition to the existing account-type and wallet/currency trigger tests. The same export enumerated 109 auth.uid() policies across 61 tables and produced a command/role inventory: 55 SELECT, 19 INSERT, 12 UPDATE, 12 DELETE, 11 ALL; target-role references include 100 authenticated, 9 PUBLIC, and one anon (overlapping role counts). The nine PUBLIC policy entries and the anon-inclusive public profile read are documented for targeted review, not bulk removal.
+
+The snapshot run [#42555805128](https://github.com/taufx98/sykabelajar4.0/actions/runs/42555805128) passed schema-only export/restore and the existing Stage 3 production-shaped acceptance suite before the newly added profile-trigger assertions. A later run on the current head must pass to validate those new assertions. No production DDL, policy, trigger, grant, data or credential was changed.
