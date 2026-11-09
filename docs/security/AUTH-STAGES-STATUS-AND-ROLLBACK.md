@@ -898,3 +898,26 @@ Per owner instruction, real email verification, resend delivery and password-rec
 - Stage 2 still requires positive Storage HTTP, private Realtime WebSocket and Edge Function calls with an actual verified Better Auth session. No substitute synthetic fixture should be reported as a live protocol test.
 - Stage 3 production identity/FK/issuer migration remains gated on explicit owner approval, maintenance window, read-only preflight and rollback review. No production migration was applied.
 - Stage 5 endpoint deployment and two-user IDOR acceptance with Better Auth tokens remain gated on Stages 2–4 and a schema-compatible isolated project. Keep `AUTH_IDENTITY_MODE=supabase` as the compatibility default.
+
+
+## Stage 4–5 source implementation checkpoint — 9 November 2026
+
+This checkpoint records source work on `security/auth-poc-stage-1`; it does not mark hosted acceptance or production deployment complete.
+
+### Stage 4 — frontend source
+- The provider-neutral typed Better Auth HTTP/PKCE transport remains the single Better Auth client boundary. It is selected only for the exact staging host, Worker host and isolated Supabase project under the explicit preview flag.
+- AppContext remains the sole visible session owner. Bootstrap/event/profile hydration generations, disposed callback guards, cross-tab revalidation and expiry handling are in the branch.
+- The single Supabase client supplies an in-memory Better Auth resource JWT in preview mode; it disables Supabase's own persistent auth session only for that mode. Existing Supabase Auth remains the production/default path.
+- Login, role hydration, registration, Google/Facebook/X provider selection, password change, recovery route, verification callback and organizer phone-verification provider boundary are source-integrated. Remaining direct auth calls are classified compatibility paths or the separately planned private-chat removal; comments and other social functionality are not part of this auth branch.
+- Transactional email delivery/verification/recovery mail testing is intentionally deferred. Do not configure ZeptoMail/Brevo, send a test email, consume credits or weaken the email-verification/resource-token gate.
+
+### Stage 5 — backend source
+- Nine user-facing Cloudinary/payment handlers now use the shared `requireApplicationUser()` resolver: signer, upload, upload V2, delete asset, delete asset V2, profile delete, payment admin, create and reconcile. `midtrans-create-payment` remains a compatibility delegate that forwards the caller bearer to the independently verified create handler.
+- The two Cloudinary V2 aliases retain their endpoints and upload response shape but now have branch implementations using the common verifier. V2 delete restricts deletion to the caller's exact UUID profile/cover IDs, `image`, and `upload`.
+- Checkout's initial order lookup is constrained by both order ID and verified UUID. Reconciliation confirms the caller-owned order before reading its payment-intent row. Admin continues to execute `is_active_admin()` with caller context before privileged settings operations. Provider webhooks continue provider-signature authentication; public status and certificate flows remain intentionally distinct.
+- Branch CI now includes Deno 2.9.8 type-checking for the shared JWT adapter/resolver, all nine user-facing handlers and the Midtrans delegate, in addition to the source-contract and frontend checks.
+
+### Verification and deployment boundary
+- The changed source, config, CI paths and regression tests have been re-read from the branch and source invariants checked. This is not a substitute for a passing CI run: the latest HEAD workflow result must be inspected before marking the branch validated.
+- Hosted Better Auth cookie/browser, Storage HTTP, Realtime WebSocket, positive Edge token and two-user IDOR acceptance still need an actual verified staging session. Public DNS delegation, staging admin bootstrap and OAuth credentials remain live external acceptance prerequisites; email provider setup is not one of them.
+- PR #177 remains Draft/unmerged and base reconciliation is still required. No Edge Function has been deployed, no `AUTH_IDENTITY_MODE=better-auth` setting enabled in production, no production RLS/RPC/trigger/FK change applied, and no production Auth/login/Cloudflare/DNS/secret/account state changed.
