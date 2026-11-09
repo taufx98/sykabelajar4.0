@@ -1,6 +1,8 @@
 const CHANNEL_NAME = "sykabelajar-better-auth-session";
 const STORAGE_KEY = "sykabelajar_better_auth_session_event_v1";
 const SOURCE = "sykabelajar-better-auth-session";
+const MAX_TIMEOUT_DELAY_MS = 2_147_483_647;
+const EXPIRY_RECHECK_GRACE_MS = 1_000;
 const VALID_EVENTS = new Set([
   "SIGNED_IN",
   "SIGNED_OUT",
@@ -83,6 +85,19 @@ export function createBetterAuthSessionBridge(input) {
   let currentUserId = null;
   let requestVersion = 0;
   let channel = null;
+  let expiryTimer = null;
+  const scheduleTimeout = typeof windowObject?.setTimeout === "function"
+    ? windowObject.setTimeout.bind(windowObject)
+    : setTimeout;
+  const cancelTimeout = typeof windowObject?.clearTimeout === "function"
+    ? windowObject.clearTimeout.bind(windowObject)
+    : clearTimeout;
+
+  const clearExpiryTimer = () => {
+    if (expiryTimer === null) return;
+    cancelTimeout(expiryTimer);
+    expiryTimer = null;
+  };
 
   const deliver = (type, session) => {
     if (closed) return;
@@ -91,6 +106,24 @@ export function createBetterAuthSessionBridge(input) {
     } catch {
       // A consumer error must not prevent future auth/session reconciliation.
     }
+  };
+
+  // Revalidate once when the server-issued Better Auth session expires. Focus,
+  // pageshow and visibility events remain the fallback when browsers throttle
+  // timers in background tabs. This is a deadline check, not periodic polling.
+  const scheduleExpiryCheck = (session) => {
+    clearExpiryTimer();
+    const expiresAt = Date.parse(session?.session?.expiresAt ?? "");
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return;
+
+    const delay = Math.min(
+      MAX_TIMEOUT_DELAY_MS,
+      Math.max(0, expiresAt - Date.now() + EXPIRY_RECHECK_GRACE_MS),
+    );
+    expiryTimer = scheduleTimeout(() => {
+      expiryTimer = null;
+      if (!closed) void refresh(null);
+    }, delay);
   };
 
   const refresh = async (hint) => {
@@ -104,6 +137,7 @@ export function createBetterAuthSessionBridge(input) {
     }
     if (closed || version !== requestVersion) return;
 
+    scheduleExpiryCheck(session);
     const nextUserId = typeof session?.user?.id === "string"
       ? session.user.id
       : null;
@@ -165,6 +199,7 @@ export function createBetterAuthSessionBridge(input) {
       if (closed) return;
       closed = true;
       requestVersion += 1;
+      clearExpiryTimer();
       if (windowObject) {
         windowObject.removeEventListener("storage", onStorage);
         windowObject.removeEventListener("focus", onFocus);

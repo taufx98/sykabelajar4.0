@@ -7,6 +7,27 @@ import {
 
 class EventTargetMock {
   listeners = new Map();
+  timers = new Map();
+  nextTimerId = 1;
+
+  setTimeout(callback, delay) {
+    const id = this.nextTimerId++;
+    this.timers.set(id, { callback, delay });
+    return id;
+  }
+
+  clearTimeout(id) {
+    this.timers.delete(id);
+  }
+
+  runTimeout(id) {
+    const timer = this.timers.get(id);
+    if (!timer) return false;
+    this.timers.delete(id);
+    timer.callback();
+    return true;
+  }
+
   addEventListener(type, listener) {
     const items = this.listeners.get(type) ?? new Set();
     items.add(listener);
@@ -94,6 +115,45 @@ test("focus reconciliation ignores unchanged identity and reports a changed acco
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(received, [{ type: "SIGNED_IN", userId: "user-b" }]);
   bridge.unsubscribe();
+});
+
+test("session expiry is revalidated automatically, renewed sessions are rescheduled, and unsubscribe clears the timer", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const received = [];
+  let current = makeSession("user-a");
+  const bridge = createBetterAuthSessionBridge({
+    getSession: async () => current,
+    onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
+    windowObject,
+    documentObject,
+  });
+
+  await bridge.refresh();
+  assert.equal(windowObject.timers.size, 1, "an authenticated session must schedule one expiry check");
+  const [firstTimerId, firstTimer] = [...windowObject.timers.entries()][0];
+  assert.ok(firstTimer.delay >= 60_000, "expiry check must run at or just after the server expiry");
+
+  // The session remains valid and is extended by the server when revalidated.
+  current = makeSession("user-a");
+  assert.equal(windowObject.runTimeout(firstTimerId), true);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [], "an unchanged identity must not emit a false auth transition");
+  assert.equal(windowObject.timers.size, 1, "a renewed session must receive a fresh expiry timer");
+
+  current = null;
+  const [renewedTimerId] = [...windowObject.timers.keys()];
+  assert.equal(windowObject.runTimeout(renewedTimerId), true);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [{ type: "SIGNED_OUT", userId: null }]);
+
+  // No pending callback may survive bridge teardown.
+  current = makeSession("user-a");
+  await bridge.refresh();
+  assert.equal(windowObject.timers.size, 1);
+  bridge.unsubscribe();
+  assert.equal(windowObject.timers.size, 0);
 });
 
 test("temporary Worker errors do not cause a false signed-out event", async () => {
