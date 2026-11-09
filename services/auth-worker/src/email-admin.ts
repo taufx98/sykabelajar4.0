@@ -98,7 +98,7 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
         authBaseUrl: env.BETTER_AUTH_URL,
         resourceAudience: env.SUPABASE_RESOURCE_AUDIENCE,
         supabaseUrl: env.SUPABASE_PROVISIONING_URL ?? "",
-        serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+        publishableKey: env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY ?? "",
       });
       return { user };
     } catch (error) {
