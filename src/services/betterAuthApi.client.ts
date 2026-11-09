@@ -106,6 +106,7 @@ export interface BetterAuthApiClient {
   getSession(): Promise<BetterAuthSessionEnvelope | null>;
   getResourceToken(): Promise<string>;
   getSupabaseAccessToken(): Promise<string | null>;
+  invalidateResourceTokenCache(): void;
   signInWithEmail(email: string, password: string): Promise<BetterAuthSignInResult>;
   signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string): Promise<BetterAuthSocialSignInResult>;
   getAvailableSocialProviders(): Promise<BetterAuthSocialProvider[]>;
@@ -135,6 +136,7 @@ const ALLOWED_OAUTH_CALLBACK_ORIGINS = new Set([
   'https://staging.sykabelajar.my.id',
 ]);
 const RESOURCE_TOKEN_REFRESH_MARGIN_MS = 45_000;
+const SESSION_VALIDATION_CACHE_MS = 30_000;
 const RESOURCE_TOKEN_MAX_TTL_SECONDS = 300;
 const OAUTH_CALLBACK_TIMEOUT_MS = 20_000;
 
@@ -385,13 +387,23 @@ export function createBetterAuthApiClient(options: {
   const workerOrigin = baseUrl.replace(/\/api\/auth$/, '');
   const fetchImpl = options.fetchImpl ?? fetch;
   let cachedResourceToken: ValidatedResourceToken | null = null;
+  let cachedVerifiedSession: { userId: string; expiresAt: number; checkedAt: number } | null = null;
   let resourceTokenGeneration = 0;
   let resourceTokenInFlight: { userId: string; generation: number; promise: Promise<string> } | null = null;
 
   function clearResourceTokenCache() {
     resourceTokenGeneration += 1;
     cachedResourceToken = null;
+    cachedVerifiedSession = null;
     resourceTokenInFlight = null;
+  }
+
+  function recordVerifiedSession(session: BetterAuthSessionEnvelope) {
+    cachedVerifiedSession = {
+      userId: session.user.id,
+      expiresAt: Date.parse(session.session.expiresAt),
+      checkedAt: Date.now(),
+    };
   }
 
   async function getResourceTokenForSession(session: BetterAuthSessionEnvelope): Promise<string> {
@@ -498,6 +510,7 @@ export function createBetterAuthApiClient(options: {
         throw new BetterAuthClientError(409, 'AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST');
       }
 
+      recordVerifiedSession(latestSession);
       cachedResourceToken = { userId, token: payload.access_token, expiresAt };
       return payload.access_token;
     })();
@@ -659,6 +672,7 @@ export function createBetterAuthApiClient(options: {
         clearResourceTokenCache();
         throw new BetterAuthClientError(401, 'AUTH_SESSION_EXPIRED');
       }
+      recordVerifiedSession(payload);
       return payload;
     },
 
@@ -673,10 +687,24 @@ export function createBetterAuthApiClient(options: {
         clearResourceTokenCache();
         throw new BetterAuthClientError(401, 'AUTH_SESSION_EXPIRED');
       }
+      recordVerifiedSession(session);
       return getResourceTokenForSession(session);
     },
 
     async getSupabaseAccessToken() {
+      const now = Date.now();
+      const lease = cachedVerifiedSession;
+      if (
+        cachedResourceToken &&
+        lease &&
+        lease.userId === cachedResourceToken.userId &&
+        lease.expiresAt > now &&
+        now - lease.checkedAt < SESSION_VALIDATION_CACHE_MS &&
+        cachedResourceToken.expiresAt > now + RESOURCE_TOKEN_REFRESH_MARGIN_MS
+      ) {
+        return cachedResourceToken.token;
+      }
+
       const payload = await request<unknown>('/get-session');
       if (payload === null) {
         clearResourceTokenCache();
@@ -695,7 +723,12 @@ export function createBetterAuthApiClient(options: {
         clearResourceTokenCache();
         throw new BetterAuthClientError(401, 'AUTH_SESSION_EXPIRED');
       }
+      recordVerifiedSession(payload);
       return getResourceTokenForSession(payload);
+    },
+
+    invalidateResourceTokenCache() {
+      clearResourceTokenCache();
     },
 
     signInWithEmail(email, password) {
@@ -778,6 +811,7 @@ export function createBetterAuthApiClient(options: {
         throw new BetterAuthClientError(400, 'PASSWORD_RESET_INPUT_INVALID');
       }
       await request<unknown>('/reset-password', { token: token.trim(), newPassword });
+      clearResourceTokenCache();
     },
 
     async changePassword(currentPassword, newPassword, revokeOtherSessions = true) {
