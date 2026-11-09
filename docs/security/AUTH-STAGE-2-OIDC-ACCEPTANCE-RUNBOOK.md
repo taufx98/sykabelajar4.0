@@ -1,6 +1,6 @@
 # Stage 2 — OIDC/JWT hosted acceptance runbook
 
-Status as of 7 November 2026: **Supabase Custom OIDC, hosted Better Auth token acceptance, Data API and two-user RLS acceptance have passed on the isolated Free staging project.** Storage owner/issuer RLS and Realtime private-topic policy semantics have now passed transaction-scoped synthetic tests. A read-only Edge Function acceptance probe is deployed to staging, and its source/contract is checked in CI. Full hosted Storage API and Realtime WebSocket tests, plus a positive Edge Function invocation with a real Better Auth access token, remain pending until the staging Brevo sender is configured and a verified synthetic user/session can be created. This runbook never authorizes production OIDC changes.
+Status as of 7 November 2026: **Supabase Custom OIDC, hosted Better Auth token acceptance, Data API and two-user RLS acceptance have passed on the isolated Free staging project.** Storage owner/issuer RLS and Realtime private-topic policy semantics have now passed transaction-scoped synthetic tests. A read-only Edge Function acceptance probe is deployed to staging, and its source/contract is checked in CI. Full hosted Storage API and Realtime WebSocket tests, plus a positive Edge Function invocation with a real Better Auth access token, remain pending until a verified synthetic staging user/session is available. A transactional email sender is not required for Stage 2 protocol acceptance: use an already verified synthetic test account or an approved staging-only social-login path. Do not configure Zoho/ZeptoMail/Brevo, send real email, or consume credits during Stages 2–5. Email-verification and password-recovery delivery are deferred to the final phase. This runbook never authorizes production OIDC changes.
 
 ## Fixed issuer contract
 
@@ -94,7 +94,7 @@ Use at least two synthetic Better Auth accounts with distinct UUIDs. Do not use 
 
 ## Current blockers and safe continuation
 
-- Stage 1 remote D1 migrations 0000–0006 are applied (18 tables), and the provider-aware/Telegram-capable Worker is deployed by [#42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803). Email mode is `managed`; the owner must verify the sender domain, add and activate a Brevo Free API Key through Admin, and run the admin-only test email. Do not buy ZeptoMail credits or enable auto top-up.
+- Stage 1 remote D1 migrations and the provider-aware/Telegram-capable Worker are already documented in the staging checkpoints. Transactional email provider setup and real delivery are deliberately deferred to the final phase; they are not prerequisites for frontend auth integration, resource-token validation, Edge JWT verification, Storage/Realtime acceptance, or the source/contract CI.
 - The Custom OIDC provider is already registered on isolated Free Supabase project `ydamszdfsxqisanazdkb`; hosted acceptance passed in [#42328168345](https://github.com/taufx98/sykabelajar4.0/actions/runs/42328168345). Do not create a second project, branch, or paid development environment.
 - Telegram remains disabled until BotFather app registration, exact callback allowlisting, Worker Client ID/Secret and real hosted consent/callback acceptance are complete.
 - Storage owner/issuer RLS and Realtime private-topic policy semantics passed rollback-only SQL fixtures. Actual Storage API upload/download and Realtime WebSocket join/broadcast with a real Better Auth token remain untested.
@@ -236,3 +236,11 @@ The staging PostgreSQL fixture rows are retained as synthetic test fixtures; the
 - Supabase provisioning contract: PASS on staging through a rollback-only synthetic RPC test. Organizer maps to `organizer_member`; email and phone verification are idempotent; a duplicate Telegram subject is rejected; only the SHA-256 phone identity hash is stored. All generated identities were rolled back and `private.app_users` remains empty.
 - Edge probe: `better-auth-oidc-acceptance` version 1 is ACTIVE on the isolated project, and its source is in `services/auth-worker/supabase-test/supabase/functions/better-auth-oidc-acceptance/index.ts`. Static CI contract tests and Deno type-check are now wired. A positive hosted invocation still needs a real Better Auth access token.
 - No production schema, Storage, Realtime, Edge Function, user, or authentication settings were changed.
+
+
+## Stage 4/5 continuation — email delivery explicitly deferred (9 November 2026)
+
+- Do not configure Zoho/ZeptoMail, Brevo, sender domains or API tokens during Stages 2–5. Do not send a real test email or spend provider credits.
+- Stage 4 email-verification and password-recovery pages/client calls remain source-tested; local Worker CI uses a mock delivery provider. These code paths can be completed and type-checked without proving external mail delivery.
+- A real verified staging identity for OIDC/Storage/Realtime/Edge acceptance must come from an already verified synthetic staging account or a staging-only social OAuth path. If neither is available because domain delegation or provider credentials are missing, continue the remaining source implementation and static/local tests; record only the hosted positive-session matrix as pending.
+- Actual email deliverability and end-to-end verification/recovery mail testing belong to the final stage after the core login/resource architecture is accepted.
