@@ -189,3 +189,14 @@ The source-side Stage 4 contract is implemented and reviewed on `security/auth-p
 A real browser session on `staging.sykabelajar.my.id` is still needed for cookie, two-tab and session-expiry acceptance. The public DNS delegation for the auth/staging host remains unresolved, and staging OAuth credentials/admin bootstrap are not yet configured. These do not prevent local source/build/contract checks. Real transactional email delivery, verification and password-reset mail are explicitly deferred to the final email phase: do not configure ZeptoMail/Brevo, send mail, consume credits or weaken the verified-email gate to bypass it.
 
 The current source and contract tests are branch-only. No production login, account, Cloudflare secret, nameserver, database, Storage object, or Supabase Edge Function was changed by this checkpoint.
+
+
+## Same-origin redirect boundary — 9 November 2026
+
+A shared same-origin redirect resolver now protects all Better Auth redirect entry points reviewed in Stage 4:
+
+- Login and registration resolve the `redirect` query parameter against `window.location.origin`; external, protocol-relative, malformed, and backslash authority forms fall back to `/home`.
+- The provider-neutral `signInWithSocial()` boundary independently revalidates its callback argument before constructing the absolute Better Auth callback URL. It does not rely solely on LoginPage sanitization.
+- Regression coverage checks safe path/query/hash preservation, external schemes/hosts, protocol-relative URLs, backslash URL normalization, malformed origins and the Login/Register/service callsites. Auth Worker CI and Supabase Local CI both include the test in their path filters and test steps.
+
+This is branch-only source/test work. The newest GitHub Actions result is not yet confirmed; no CI pass is inferred from empty status/run queries, and production login remains on Supabase Auth.
