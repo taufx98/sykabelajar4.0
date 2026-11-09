@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0001"
+      - ".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0002"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -44,12 +44,12 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker=".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0001"
+            marker=".github/auth-ops/ATTACH-STAGING-PAGES-DOMAIN-0002"
             test -f "$marker" || {
               echo "Blocked: the one-time staging-domain marker is missing." >&2
               exit 1
             }
-            test "$(cat "$marker")" = "ATTACH-STAGING-PAGES-DOMAIN-0001" || {
+            test "$(cat "$marker")" = "ATTACH-STAGING-PAGES-DOMAIN-0002" || {
               echo "Blocked: the staging-domain marker is not exact." >&2
               exit 1
             }
@@ -70,8 +70,8 @@ jobs:
           if (!token || token.length < 20) throw new Error("CLOUDFLARE_API_TOKEN is missing or invalid.");
           if (!accountId || !/^[a-f0-9]{32}$/i.test(accountId)) throw new Error("CLOUDFLARE_ACCOUNT_ID is missing or invalid.");
 
-          const projectName = "sykabelajar4";
           const projectAlias = "sykabelajar4.pages.dev";
+          const branchName = "security/auth-poc-stage-1";
           const branchAlias = "security-auth-poc-stage-1.sykabelajar4.pages.dev";
           const domain = "staging.sykabelajar.my.id";
           const zoneName = "sykabelajar.my.id";
@@ -112,11 +112,49 @@ jobs:
           }
           const zoneId = matchingZones[0].id;
 
+          const projects = await request(
+            "/accounts/" + encodeURIComponent(accountId) + "/pages/projects?per_page=100&page=1",
+          );
+          if (!Array.isArray(projects)) {
+            throw new Error("Cloudflare Pages project inventory was not an array.");
+          }
+          const projectMatches = projects.filter((item) => item?.subdomain === projectAlias);
+          if (projectMatches.length !== 1 || typeof projectMatches[0]?.name !== "string") {
+            throw new Error(
+              "Expected exactly one Pages project with the reviewed branch-alias parent; refusing to guess a project name.",
+            );
+          }
+          const projectName = projectMatches[0].name;
           const project = await request(
             "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" + encodeURIComponent(projectName),
           );
-          if (project?.name !== projectName || project?.subdomain !== projectAlias) {
-            throw new Error("Cloudflare Pages project identity/subdomain did not match the reviewed staging project.");
+          const source = project?.source ?? {};
+          const sourceConfig = source?.config ?? {};
+          if (
+            project?.name !== projectName ||
+            project?.subdomain !== projectAlias ||
+            source?.type !== "github" ||
+            sourceConfig?.owner !== "taufx98" ||
+            sourceConfig?.repo_name !== "sykabelajar4.0"
+          ) {
+            throw new Error("Pages project must match the exact taufx98/sykabelajar4.0 GitHub source and reviewed subdomain.");
+          }
+
+          const deployments = await request(
+            "/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" +
+            encodeURIComponent(projectName) + "/deployments?env=preview&per_page=100",
+          );
+          if (!Array.isArray(deployments)) throw new Error("Pages preview deployment inventory was not an array.");
+          const branchDeployment = deployments.find((deployment) => {
+            const aliases = Array.isArray(deployment?.aliases) ? deployment.aliases : [];
+            const branchAliasMatch = aliases.some((alias) =>
+              String(alias).replace(/^https?:\/\//, "").replace(/\/.*$/, "") === branchAlias
+            );
+            const metadataBranch = deployment?.deployment_trigger?.metadata?.branch;
+            return branchAliasMatch || metadataBranch === branchName;
+          });
+          if (!branchDeployment) {
+            throw new Error("No preview deployment for security/auth-poc-stage-1 was found; refusing to bind a custom domain.");
           }
 
           let domains = await request(
