@@ -2,6 +2,7 @@ import { createSupabaseContext } from "npm:@supabase/server@1.9.2";
 
 const EXPECTED_ISSUER = "https://auth.sykabelajar.my.id/api/auth";
 const EXPECTED_AUDIENCE = "https://sykabelajar.my.id";
+const BETTER_AUTH_JWKS = new URL("jwks", EXPECTED_ISSUER + "/");
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function json(body: unknown, status = 200): Response {
@@ -16,21 +17,32 @@ function json(body: unknown, status = 200): Response {
 
 /**
  * Staging-only, read-only acceptance probe for the Better Auth Custom OIDC
- * issuer. Platform verify_jwt is disabled because @supabase/server validates
- * the third-party JWT inside this handler. No service-role client is used.
+ * issuer. Platform verify_jwt is disabled because the handler uses the pinned
+ * @supabase/server verifier with the exact Better Auth JWKS/issuer/audience.
+ * No service-role client is used.
  */
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
 
   let result;
   try {
-    result = await createSupabaseContext(request, { auth: "user" });
+    result = await createSupabaseContext(request, {
+      auth: "user",
+      issuer: EXPECTED_ISSUER,
+      audience: EXPECTED_AUDIENCE,
+      env: { jwks: BETTER_AUTH_JWKS },
+    });
   } catch {
-    return json({ error: "AUTH_REQUIRED" }, 401);
+    return json({ error: "AUTH_VERIFICATION_UNAVAILABLE" }, 503);
   }
 
   const context = result?.data;
-  if (result?.error || !context) return json({ error: "AUTH_REQUIRED" }, 401);
+  if (result?.error || !context) {
+    const status = Number(result?.error?.status ?? 0);
+    return status >= 500
+      ? json({ error: "AUTH_VERIFICATION_UNAVAILABLE" }, 503)
+      : json({ error: "AUTH_REQUIRED" }, 401);
+  }
 
   const claims = context.jwtClaims as Record<string, unknown> | undefined;
   const userId = typeof claims?.sub === "string" ? claims.sub : "";
