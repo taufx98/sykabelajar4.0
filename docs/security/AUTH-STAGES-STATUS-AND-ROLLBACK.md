@@ -870,3 +870,31 @@ Therefore Cloudflare's zone records are not yet authoritative on the public DNS.
 4. Complete positive Supabase Data API, Storage HTTP, Realtime WebSocket and staging Edge-function/two-user tests using a real Better Auth session. These are cross-stage acceptance prerequisites, not production deployment.
 5. Keep PR #177 Draft/unmerged. Do not start Stage 5/6/7 work or change production until Stage 4 hosted acceptance, Stage 5 endpoint review, base reconciliation and owner-approved rollback gates are complete.
 
+
+## Stage 4 concurrency hardening checkpoint — 9 November 2026
+
+This records source-only changes made on `security/auth-poc-stage-1` after the hosted frontend/DNS checkpoint. It is not an acceptance or deployment claim.
+
+- The Better Auth PKCE resource-token broker now checks the Worker session again after token exchange and before caching or returning the resource token. A changed generation, different UUID, unverified email flag, or expired/missing session rejects the in-flight result with `AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST`. This closes the case where an old account's delayed token response could reach a caller after an account switch.
+- `AppContext` now generation-guards `refreshUser()` and `updateProfile()`, including after both the profile read and role read. The guard compares both request generation and the active UUID, so an older request cannot publish stale profile/role data after another login, even when the UUID matches.
+- Initial `getSession()` bootstrap now has an independent generation from profile hydration. New auth events, explicit state clear, manual login and effect cleanup invalidate older bootstrap work. Auth-event hydration is deferred outside the provider callback, captures its own event/hydration generations, and only its still-current failure may clear the active session.
+- React effect cleanup is tracked per effect instance; a stale Strict Mode effect cannot publish profile state or update loading state after cleanup.
+- `auth-hydration-gate.test.mjs` now covers the refresh/update/bootstrap/event-generation source contracts. The file was added to the `auth-worker-ci.yml` push-path filter so test-only edits trigger the same Auth Worker CI.
+
+### Verification boundary
+
+- The changed source and test files were re-read from the branch and their core static invariants were checked during this session. This is source inspection only; it does not establish a passing GitHub Actions run.
+- The workflow path filter now includes the hydration test and the latest workflow file change should trigger Auth Worker CI. Do not mark the new tests as passing until the run for the resulting head is inspected.
+- No Worker or Pages deployment, D1 migration, Supabase function deployment, production SQL/ACL/RLS/trigger change, production login flag change, OAuth credential setup, user bootstrap, nameserver update, or email-provider setup was performed in this checkpoint.
+
+### Explicit email deferral
+
+Per owner instruction, real email verification, resend delivery and password-recovery delivery are **skipped for this login-first workstream**. The Worker transactional-email provider remains unconfigured; no real email was sent, no sender or token was activated, and no credits were purchased or consumed. Keep these tests/configuration as the final phase after login and identity migration acceptance. The code must continue to fail closed for unverified users; do not forge an `emailVerified` state to bypass the missing provider.
+
+### Remaining independent gates
+
+- PR #177 is still Draft/unmerged and GitHub reports `mergeable=false`; do not force-merge or blindly retarget its base.
+- Hosted DNS/browser acceptance remains blocked by the previously recorded mismatch between IDWebHost public nameserver delegation and the Cloudflare zone. Do not change registrar nameservers until the full authoritative DNS zone is reconciled and the domain owner approves it.
+- Stage 2 still requires positive Storage HTTP, private Realtime WebSocket and Edge Function calls with an actual verified Better Auth session. No substitute synthetic fixture should be reported as a live protocol test.
+- Stage 3 production identity/FK/issuer migration remains gated on explicit owner approval, maintenance window, read-only preflight and rollback review. No production migration was applied.
+- Stage 5 endpoint deployment and two-user IDOR acceptance with Better Auth tokens remain gated on Stages 2–4 and a schema-compatible isolated project. Keep `AUTH_IDENTITY_MODE=supabase` as the compatibility default.
