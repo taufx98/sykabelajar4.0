@@ -230,6 +230,26 @@ jobs:
           test -s "$SCHEMA_BASELINE_OUTPUT_DIR/auth-storage-custom.sql"
           test -s "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json"
 
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const metadata = JSON.parse(readFileSync(
+            process.env.SCHEMA_BASELINE_OUTPUT_DIR + "/production-catalog-metadata.json",
+            "utf8",
+          ));
+          const profiles = (metadata.auth_and_profile_triggers ?? [])
+            .filter((entry) => entry.table_schema === "public" && entry.table_name === "profiles")
+            .map((entry) => ({
+              triggerName: entry.trigger_name,
+              functionName: entry.function_schema + "." + entry.function_name,
+              definition: entry.definition,
+            }));
+          if (profiles.length !== 4) {
+            throw new Error("Expected exactly four production profiles triggers; found " + profiles.length);
+          }
+          console.log("Production profiles trigger behavior inventory:");
+          for (const trigger of profiles) console.log(JSON.stringify(trigger));
+          NODE
+
       - name: Restore schema into the disposable local Supabase database
         if: steps.credentials.outputs.available == 'true'
         run: |
