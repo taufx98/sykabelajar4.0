@@ -44,9 +44,9 @@ test("AppContext checks both request generation and current identity before publ
   assert.match(appContext, /authUserRef\.current\?\.id !== userId/);
   assert.match(appContext, /authHydrationGateRef\.current\?\.invalidate\(\)/);
   assert.match(appContext, /authUserRef\.current = next/);
-  assert.match(appContext, /const isHydrationCurrent = \\(\\) =>/);
-  assert.match(appContext, /catch \\(error\\) \\{\\s*if \\(!isHydrationCurrent\\(\\)\\) return;\\s*throw error;\\s*\\}/);
-  assert.match(appContext, /if \\(!profile\\) \\{\\s*if \\(!isHydrationCurrent\\(\\)\\) return;\\s*throw new Error\\('PROFILE_NOT_FOUND'\\);/);
+  assert.match(appContext, /const isHydrationCurrent = \(\) =>/);
+  assert.match(appContext, /catch \(error\) \{\s*if \(!isHydrationCurrent\(\)\) return;\s*throw error;\s*\}/);
+  assert.match(appContext, /if \(!profile\) \{\s*if \(!isHydrationCurrent\(\)\) return;\s*throw new Error\('PROFILE_NOT_FOUND'\);/);
 });
 
 console.log("Auth hydration gate contract passed: stale requests cannot overwrite a newer session.");
