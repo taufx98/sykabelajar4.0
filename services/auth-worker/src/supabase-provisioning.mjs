@@ -24,15 +24,23 @@ function requireProvisioningConfig(env) {
   const urlValue = typeof env.SUPABASE_PROVISIONING_URL === "string"
     ? env.SUPABASE_PROVISIONING_URL.trim()
     : "";
-  const serviceKey = typeof env.SUPABASE_SERVICE_ROLE_KEY === "string"
+  const provisioningApiKey = typeof env.SUPABASE_PROVISIONING_API_KEY === "string"
+    ? env.SUPABASE_PROVISIONING_API_KEY.trim()
+    : "";
+  const legacyServiceRoleKey = typeof env.SUPABASE_SERVICE_ROLE_KEY === "string"
     ? env.SUPABASE_SERVICE_ROLE_KEY.trim()
     : "";
 
-  if (!urlValue || !serviceKey) {
+  if (provisioningApiKey && legacyServiceRoleKey && provisioningApiKey !== legacyServiceRoleKey) {
+    throw new Error("SUPABASE_PROVISIONING_KEY_BINDINGS_CONFLICT");
+  }
+  const provisioningKey = provisioningApiKey || legacyServiceRoleKey;
+
+  if (!urlValue || !provisioningKey) {
     throw new Error("SUPABASE_PROVISIONING_CONFIGURATION_MISSING");
   }
   // A publishable key is never a server-side provisioning credential.
-  if (serviceKey.startsWith("sb_publishable_")) {
+  if (provisioningKey.startsWith("sb_publishable_")) {
     throw new Error("SUPABASE_PROVISIONING_SECRET_KEY_REQUIRED");
   }
 
@@ -58,7 +66,7 @@ function requireProvisioningConfig(env) {
     throw new Error("SUPABASE_PROVISIONING_URL_NOT_ALLOWED");
   }
 
-  return { baseUrl: url.origin, serviceKey };
+  return { baseUrl: url.origin, provisioningKey };
 }
 
 /**
@@ -162,7 +170,7 @@ function normalizeUser(user) {
  * @param {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} fetchImpl
  */
 async function invokeRpc(env, rpcName, payload, fetchImpl) {
-  const { baseUrl, serviceKey } = requireProvisioningConfig(env);
+  const { baseUrl, provisioningKey } = requireProvisioningConfig(env);
   const endpoint = new URL(`/rest/v1/rpc/${rpcName}`, baseUrl);
 
   let response;
@@ -170,12 +178,12 @@ async function invokeRpc(env, rpcName, payload, fetchImpl) {
     response = await fetchImpl(endpoint.toString(), {
       method: "POST",
       headers: {
-        apikey: serviceKey,
+        apikey: provisioningKey,
         // Supabase sb_secret_* keys are opaque API keys, not JWTs. Sending
         // them as Bearer tokens triggers JWT verification and is incorrect.
         // Legacy service_role JWTs still require the Authorization header.
-        ...(!serviceKey.startsWith("sb_secret_")
-          ? { Authorization: `Bearer ${serviceKey}` }
+        ...(!provisioningKey.startsWith("sb_secret_")
+          ? { Authorization: `Bearer ${provisioningKey}` }
           : {}),
         "Content-Type": "application/json",
         Accept: "application/json",
