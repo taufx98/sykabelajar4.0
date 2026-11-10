@@ -36,7 +36,7 @@ const env = {
   // Keep the production URL for the existing Admin bridge; it must never be used for provisioning.
   SUPABASE_URL: "https://mvdczyitbkxkldjughor.supabase.co",
   SUPABASE_PROVISIONING_URL: "https://ydamszdfsxqisanazdkb.supabase.co",
-  SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
+  SUPABASE_PROVISIONING_API_KEY: SERVICE_KEY, 
   DB: createD1Mock().DB,
 };
 
@@ -152,9 +152,38 @@ test("a fresh unverified student account provisions with least-privilege default
   });
 });
 
+test("legacy SUPABASE_SERVICE_ROLE_KEY binding remains compatible during migration", async () => {
+  const legacyEnv = {
+    ...env,
+    SUPABASE_PROVISIONING_API_KEY: "",
+    SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
+  };
+  let captured;
+  await reconcileSupabaseApplicationIdentity(legacyEnv, {
+    id: USER_ID,
+    name: "Legacy Binding User",
+  }, async (url, init) => {
+    captured = { url: String(url), headers: init.headers };
+    return response({ user_id: USER_ID });
+  });
+  assert.equal(captured.headers.apikey, SERVICE_KEY);
+  assert.equal(captured.headers.Authorization, `Bearer ${SERVICE_KEY}`);
+});
+
+test("conflicting preferred and legacy provisioning key bindings fail closed", async () => {
+  await assert.rejects(
+    reconcileSupabaseApplicationIdentity({
+      ...env,
+      SUPABASE_PROVISIONING_API_KEY: "sb_secret_preferred",
+      SUPABASE_SERVICE_ROLE_KEY: "legacy-service-role-value",
+    }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
+    /SUPABASE_PROVISIONING_KEY_BINDINGS_CONFLICT/,
+  );
+});
+
 test("new Supabase sb_secret keys use apikey only and are never sent as Bearer JWTs", async () => {
   const secretKey = "sb_secret_staging_test_only";
-  const secretEnv = { ...env, SUPABASE_SERVICE_ROLE_KEY: secretKey };
+  const secretEnv = { ...env, SUPABASE_PROVISIONING_API_KEY: secretKey };
   const calls = [];
 
   await reconcileSupabaseApplicationIdentity(secretEnv, {
@@ -182,7 +211,7 @@ test("a Supabase publishable key cannot be used for server-side provisioning", a
   await assert.rejects(
     reconcileSupabaseApplicationIdentity({
       ...env,
-      SUPABASE_SERVICE_ROLE_KEY: "sb_publishable_not_a_server_secret",
+      SUPABASE_PROVISIONING_API_KEY: "sb_publishable_not_a_server_secret",
     }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
     /SUPABASE_PROVISIONING_SECRET_KEY_REQUIRED/,
   );
@@ -363,6 +392,7 @@ test("missing server secret and unsafe provisioning target fail closed", async (
   await assert.rejects(
     reconcileSupabaseApplicationIdentity({
       ...env,
+      SUPABASE_PROVISIONING_API_KEY: "",
       SUPABASE_SERVICE_ROLE_KEY: "",
     }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
     /SUPABASE_PROVISIONING_CONFIGURATION_MISSING/,
