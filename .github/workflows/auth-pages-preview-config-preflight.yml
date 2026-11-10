@@ -116,6 +116,7 @@ jobs:
           }
 
           const sharedSupabaseHost = hostOf(value("VITE_SUPABASE_URL"));
+          const sharedSupabasePublishableKey = value("VITE_SUPABASE_PUBLISHABLE_KEY");
           const stagingSupabaseHost = hostOf(value("VITE_BETTER_AUTH_SUPABASE_URL"));
           const stagingWorkerHost = hostOf(value("VITE_AUTH_WORKER_URL"));
           const flagEnabled = value("VITE_BETTER_AUTH_FRONTEND_ENABLED").trim().toLowerCase() === "true";
@@ -124,6 +125,7 @@ jobs:
           const workerHostExpected = "auth.sykabelajar.my.id";
           const checks = {
             sharedPreviewSupabaseConfigPreserved: Boolean(sharedSupabaseHost) && sharedSupabaseHost !== stagingRefHost,
+            sharedSupabasePublishableKeyConfigured: Boolean(sharedSupabasePublishableKey),
             stagingSupabaseUrlTargetsIsolatedProject: stagingSupabaseHost === stagingRefHost,
             stagingPublishableKeyConfigured: stagingPublishableKey.startsWith("sb_publishable_"),
             betterAuthFrontendFlagEnabled: flagEnabled,
