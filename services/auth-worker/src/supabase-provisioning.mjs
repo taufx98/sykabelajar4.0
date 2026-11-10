@@ -31,7 +31,7 @@ function requireProvisioningConfig(env) {
     ? env.SUPABASE_SERVICE_ROLE_KEY.trim()
     : "";
 
-  if (provisioningApiKey && legacyServiceRoleKey && provisioningApiKey !== legacyServiceRoleKey) {
+  if (provisioningApiKey && legacyServiceRoleKey) {
     throw new Error("SUPABASE_PROVISIONING_KEY_BINDINGS_CONFLICT");
   }
   const provisioningKey = provisioningApiKey || legacyServiceRoleKey;
