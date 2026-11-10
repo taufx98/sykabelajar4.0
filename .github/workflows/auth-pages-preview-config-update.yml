@@ -137,8 +137,9 @@ jobs:
           for (const [name, item] of Object.entries(existing)) {
             if (typeof item === "string") {
               merged[name] = { type: "plain_text", value: item };
-            } else if (!item || typeof item.value !== "string" ||
-              !["plain_text", "secret_text"].includes(item.type)) {
+            } else if (!item || item.type !== "plain_text" || typeof item.value !== "string") {
+              // Existing VITE_* values must be plain text. Refuse to rewrite any
+              // encrypted value that Cloudflare might mask in a project GET.
               throw new Error("EXISTING_PREVIEW_VARIABLE_CANNOT_BE_PRESERVED");
             }
           }
