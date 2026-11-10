@@ -21,15 +21,17 @@ Detailed current blockers, the latest read-only Cloudflare/Supabase verification
 
 | Stage | Scope | Current status |
 |---|---|---|
-| 1 | Cloudflare foundation | Deployed isolated Free Worker/D1; hosted health, exact issuer, PKCE S256, ES256/JWKS, CORS and Admin denial tests pass. Pages Preview is Better Auth-ready and the real-browser login page renders. Blocked: Google Client ID/Secret are absent; provider discovery is empty. ZeptoMail is skipped. |
-| 2 | OIDC and JWT | Hosted Custom OIDC core and synthetic Data API/two-user ownership tests pass. Blocked: positive Storage, Realtime WebSocket and Edge tests require a real verified Better Auth session/token. |
+| 1 | Cloudflare foundation | Deployed isolated Free Worker/D1; hosted health, exact issuer, PKCE S256, ES256/JWKS, CORS and Admin denial tests pass. Pages Preview is Better Auth-ready and the real-browser login page renders. Remaining hosted acceptance: a real verified email/password session and lifecycle. Email delivery remains deferred; Google OAuth is optional and is not a prerequisite. Do not fake `emailVerified`. |
+| 2 | OIDC and JWT | Hosted Custom OIDC core and synthetic Data API/two-user ownership tests pass. Remaining hosted acceptance: positive Storage, Realtime WebSocket and Edge tests require a real verified Better Auth session/token. Do not substitute a synthetic token for this acceptance or make Google OAuth a mandatory provider. |
 | 3 | Supabase identity foundation | Staging identity root, lineage guard, server-only provisioning RPC, phone-status RPC and profile/role owner-only RLS are present. Rollback-only live two-user SQL/RLS test passed. Blocked: Worker service-role binding is absent, so provisioning stays off and no real owner/admin identity exists. Production schema is untouched. |
-| 4 | Frontend | Auth adapter/session bridge, Better Auth client, login/register/recovery routes and Admin provider panel are in branch. Real Chromium proves /login mounts correctly. Blocked: Google OAuth has no client credentials; real session lifecycle/browser acceptance remains open. |
+| 4 | Frontend | Auth adapter/session bridge, Better Auth client, login/register/recovery routes and Admin provider panel are in branch. Real Chromium proves /login mounts correctly. Remaining hosted acceptance: real session hydration, refresh, cross-tab, expiry and logout. Google OAuth and external email delivery are optional/deferred, not blockers to code-level frontend migration. |
 | 5 | Backend | Pinned JWT verifier, dual-mode auth resolver, caller UUID ownership and Cloudinary/payment handler source migrations pass CI. Blocked: app Edge Functions are not deployed; real-token two-user IDOR and Cloudinary/payment/Storage/Realtime/Edge regressions and SQL/RLS policy audit remain. |
 | 6 | Demo reset and full testing | First-admin bootstrap SQL/runbook and synthetic guard tests are prepared. Not started: no real bootstrap, no demo-account reset, and no complete role/business regression. |
 | 7 | Production cutover | Not started. No Production settings/secrets/schema/RLS/RPC/FK/trigger/Edge/DNS/account/login change. Requires separate approval, preflight, maintenance window and rollback rehearsal. |
 
 Latest acceptance details and exact blockers are maintained in AUTH-STAGES-STATUS-AND-ROLLBACK.md. Older stage checklists below are implementation history; where wording conflicts, the verified status above and the live readiness record supersede them.
+
+**Login-provider boundary:** email/password is the core Better Auth login path. Google OAuth is optional. Transactional email delivery (Zoho/ZeptoMail or another sender) remains explicitly deferred. Continue code, schema, CI, and isolated-staging work without either provider; only claim hosted email-verification/session acceptance after a real verified session exists.
 
 ## Stage 1 — Cloudflare foundation
 
