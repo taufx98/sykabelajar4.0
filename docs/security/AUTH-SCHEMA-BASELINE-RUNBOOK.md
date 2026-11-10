@@ -1,4 +1,4 @@
-# Auth migration schema-only baseline runbook
+# Auth pg-deltation schema-only baseline runbook
 
 Status: automated schema-only export and disposable restore succeeded in GitHub Actions [#42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543) on 7 November 2026. The production schema dump and Auth/Storage custom DDL diff were restored into an ephemeral local Supabase stack; structural checks passed and confirmed that zero `auth.users` and zero `public.profiles` rows were imported. An exact row-by-row FK comparison and adversarial contract tests were added and passed in [run #42370809198](https://github.com/taufx98/sykabelajar4.0/actions/runs/42370809198). The 69 restored FKs match the reviewed catalog exactly, including their names, source/target mapping, columns, update/delete actions, validation, MATCH and deferrability. The workflow uploads no schema artifact, commits no dump, and performs no production DDL/DML. This runbook does not authorize a production migration.
 
@@ -12,7 +12,7 @@ The existing `scripts/supabase-full-migrate.sh` is **not** suitable for this tas
 
 The branch now contains [Auth Production Schema Baseline](../../.github/workflows/auth-schema-baseline.yml). It runs on a push to the PoC branch or via the Actions workflow-dispatch button. Once the single database secret exists, the job:
 
-1. Uses Supabase CLI **3.0.0** in v3 remote mode. It does not call `supabase login`, `supabase link`, a project picker, or any production write command.
+1. Uses Supabase CLI **3.1.0** in v3 remote mode. It does not call `supabase login`, `supabase link`, a project picker, or any production write command.
 2. Uses the existing production project's **shared session pooler** URI because GitHub-hosted runners are IPv4-only. The expected connection is port **5432**, username `postgres.mvdczyitbkxkldjughor`, and a host ending in `.pooler.supabase.com`.
 3. Exports only schema and custom Auth/Storage DDL, plus password-free compatibility metadata. It never requests application rows or custom role definitions.
 4. Restores the files into a fresh, disposable local Supabase stack inside that GitHub runner and checks the expected production shape: 69 FKs across 62 source tables, 3 Auth triggers, 4 profile triggers, 36 profile columns, 109 `auth.uid()` policies, and all ten Auth-dependent application functions.
@@ -26,9 +26,9 @@ The early workflow attempts on 7 November were safely stopped by secret-format p
 
 Use `scripts/auth-migration/export-schema-baseline.sh`. It requires Supabase CLI 3.0.0, Node.js (for a connection-target guard), local Docker and `psql`, creates a temporary output directory outside the repository, then:
 
-1. Connects with the explicit remote database URI using Supabase CLI v3's `--remote=<uri>` flag; no project linking or CLI login is required.
+1. Connects with the explicit remote database URI using Supabase CLI v3.1.0's `--remote=<uri>` flag; no project linking or CLI login is required.
 2. Runs the default `supabase db dump` schema export to create `schema.sql`. Supabase documents that the default dump does not contain data or custom roles.
-3. Runs the read-only `supabase db diff --use-migra --schema auth,storage --remote=<uri>` comparison and saves custom managed-schema DDL separately, so custom triggers on `auth.users` and Storage policies are not silently missed.
+3. Runs the read-only `supabase db diff --use-pg-delta --schema auth,storage --remote=<uri>` comparison and saves custom managed-schema DDL separately, so custom triggers on `auth.users` and Storage policies are not silently missed.
 4. Records the PostgreSQL version and extension versions for local compatibility checks.
 5. Rejects an unexpected `COPY ... FROM stdin` data block, writes checksums, and does not perform a restore or deploy.
 
@@ -65,7 +65,7 @@ bash scripts/auth-migration/export-schema-baseline.sh
 unset SUPABASE_DB_URL
 ```
 
-The local fallback uses an explicit remote URI with CLI v3; it does not require CLI login or project linking. It uses no new Supabase project, branch, paid service, or Cloudflare deployment. The database export and diff are read-only; the only files written are local temporary schema/metadata artifacts.
+The local fallback uses an explicit remote URI with CLI v3.1.0; it does not require CLI login or project linking. It uses no new Supabase project, branch, paid service, or Cloudflare deployment. The database export and diff are read-only; the only files written are local temporary schema/metadata artifacts.
 
 ## Output and handling
 
