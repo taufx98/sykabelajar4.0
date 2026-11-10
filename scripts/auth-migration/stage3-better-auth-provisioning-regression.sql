@@ -354,7 +354,7 @@ $stage3_better_auth_private_projection$;
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
-  '{"sub":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5","role":"authenticated"}', true);
+  '{"sub":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}', true);
 SELECT set_config('request.jwt.claim.sub','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5',true);
 SELECT set_config('request.jwt.claim.role','authenticated',true);
 
@@ -365,7 +365,7 @@ END;
 $stage3_better_auth_organizer_one$;
 
 SELECT set_config('request.jwt.claims',
-  '{"sub":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6","role":"authenticated"}', true);
+  '{"sub":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}', true);
 SELECT set_config('request.jwt.claim.sub','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6',true);
 SELECT set_config('request.jwt.claim.role','authenticated',true);
 
