@@ -1,0 +1,88 @@
+name: Better Auth staging browser smoke
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/workflows/auth-pages-staging-browser-smoke.yml"
+      - ".github/auth-ops/RUN-AUTH-STAGING-BROWSER-SMOKE-0001"
+      - "e2e/staging/login-smoke.spec.ts"
+      - "playwright.staging.config.ts"
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: auth-staging-browser-smoke
+  cancel-in-progress: false
+
+jobs:
+  browser-smoke:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Verify the deployed staging login page renders
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Wait for the matching Cloudflare Pages deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const headers = {
+            Accept: "application/vnd.github+json",
+            Authorization: "Bearer " + process.env.GH_TOKEN,
+            "X-GitHub-Api-Version": "2022-11-28",
+          };
+          const endpoint = `https://api.github.com/repos/${process.env.REPOSITORY}/commits/${process.env.COMMIT_SHA}/check-runs?per_page=100`;
+          for (let attempt = 0; attempt < 36; attempt += 1) {
+            const response = await fetch(endpoint, { headers });
+            if (!response.ok) {
+              throw new Error(`Cannot verify Pages deployment check (HTTP ${response.status}).`);
+            }
+            const payload = await response.json();
+            const check = (payload.check_runs ?? []).find((item) => item.name === "Cloudflare Pages");
+            if (check?.status === "completed") {
+              if (check.conclusion !== "success") {
+                throw new Error("Cloudflare Pages did not successfully deploy this exact staging commit.");
+              }
+              console.log("Cloudflare Pages deployment completed successfully for the exact tested commit.");
+              process.exit(0);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+          }
+          throw new Error("Timed out waiting for the matching Cloudflare Pages deployment check.");
+          NODE
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install browser-test dependencies without changing the lockfile
+        run: |
+          npm ci --no-audit --no-fund
+          npm install --no-save --no-package-lock --ignore-scripts @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+
+      - name: Verify staging login route in a real browser
+        env:
+          AUTH_STAGING_BASE_URL: https://staging.sykabelajar.my.id
+        run: npx playwright test --config=playwright.staging.config.ts
+
+      - name: Upload browser diagnostics only on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-staging-browser-diagnostics
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 3
