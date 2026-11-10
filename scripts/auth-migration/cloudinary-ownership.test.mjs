@@ -128,7 +128,8 @@ test("the shared identity resolver defaults to legacy Supabase Auth and only opt
   );
   assert.match(identityModeResolver, /STAGING_BETTER_AUTH_SUPABASE_URL/);
   assert.match(identityModeResolver, /https:\/\/ydamszdfsxqisanazdkb\.supabase\.co/);
-  assert.match(identityModeResolver, /https:\/\/mvdczyitbkxkldjughor\.supabase\.co/ ===/);
+  assert.ok(identityModeResolver.includes("return normalizeUrl(supabaseUrl) === STAGING_BETTER_AUTH_SUPABASE_URL"));
+  assert.ok(identityModeResolver.includes(": \"supabase\";"));
   assert.match(identityResolver, /mode === "better-auth"/);
   assert.match(identityResolver, /requireBetterAuthUser\(request\)/);
   assert.match(identityResolver, /supabase\.auth\.getUser\(\)/);
