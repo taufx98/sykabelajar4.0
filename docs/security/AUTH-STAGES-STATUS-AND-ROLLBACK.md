@@ -1,3 +1,21 @@
+## Current Better Auth checkpoint — 10 November 2026
+
+This checkpoint supersedes earlier head and CI references below. It records the current branch state; an in-progress baseline run is not acceptance evidence and does not authorize Production cutover.
+
+- Repository: `taufx98/sykabelajar4.0`; branch: `security/auth-poc-stage-1`; branch head at this checkpoint: `106393fb1caf688d1e4167204a0f31fae79369b7`. PR #177 is open, Draft, unmerged and mergeable.
+- Latest isolated Worker version remains `8dfa4dd7-f693-4e27-ad83-cc6af19702f8`, deployed by [Auth Worker Staging Deploy #42835586318](https://github.com/taufx98/sykabelajar4.0/actions/runs/42835586318). Hosted health, issuer, discovery, PKCE S256 and ES256/P-256 JWKS checks passed; no user/session/admin was seeded.
+- [Auth Worker CI #42845884212](https://github.com/taufx98/sykabelajar4.0/actions/runs/42845884212) and [Supabase Local Auth Claims CI #42846448557](https://github.com/taufx98/sykabelajar4.0/actions/runs/42846448557) passed. The local claims suite includes the current anonymous-claim isolation contract.
+- Stage 3 regression root cause was test-context leakage: the anonymous fixture left a preceding administrator's plural JWT claims in `request.jwt.claims`. The fixture now resets `request.jwt.claim`, `request.jwt.claims` and `request.jwt.claim.sub`; the contract requires all three.
+- The schema-only export pipeline now pins Supabase CLI 3.1.0 and explicitly uses `pg-delta`. Its read-only Production catalog/psql connection retains TLS. The `PGSSLMODE` environment override is removed only for the local shadow diff, so the local non-TLS listener is not mistakenly forced to negotiate SSL.
+- [Auth Production Schema Baseline #42846448678](https://github.com/taufx98/sykabelajar4.0/actions/runs/42846448678) is the current disposable full-schema export/restore run. It has passed static contracts and local-stack startup and is currently executing the schema-only export step. It has **not yet passed** restore, 69-FK verification/cutover simulation, provisioning/referral/organizer behavior, anonymous RLS, issuer guard, or rollback acceptance. Earlier failure #42844181638 exposed the anonymous JWT fixture leak; #42845571276 exposed the inherited TLS setting on the local shadow connection. Neither failure modified Production.
+- Production has 125 tables while isolated staging has 20 (112 Production tables not yet represented in staging; seven staging-only items are migration/identity fixtures). Staging still has only the `better-auth-oidc-acceptance` Edge Function. Do not deploy the nine Cloudinary/payment application handlers until the business schema and per-function secrets are installed and reviewed.
+- Stage 4 organizer phone verification is provider-aware: Better Auth staging uses the Worker Telegram challenge/status API; the existing Supabase Auth SMS OTP path remains only in the Production compatibility branch.
+- `SUPABASE_PROVISIONING_ENABLED=false` remains set. Cloudflare metadata still shows no `SUPABASE_PROVISIONING_API_KEY` or legacy `SUPABASE_SERVICE_ROLE_KEY`. The owner prerequisite is one server-only `sb_secret_*` key for the isolated Supabase staging project, added as Cloudflare Worker Secret `SUPABASE_PROVISIONING_API_KEY`. Do not put it in Pages, GitHub source/logs or chat. Do not activate provisioning before key-scope review.
+- Transactional email remains deferred; Google OAuth is optional. Do not manufacture `emailVerified=true` or weaken the verified-email session gate.
+- Production Supabase `mvdczyitbkxkldjughor`, DB2, Production Pages, DNS, users, Edge Functions, auth routing and live data remain unchanged. No account reset, PR merge, or Production cutover occurred.
+
+---
+
 ## Current Better Auth installation checkpoint — 10 November 2026
 
 This is the latest verified state of the seven-stage migration. It supersedes earlier Worker/CI head references below. It does not authorize production cutover.
