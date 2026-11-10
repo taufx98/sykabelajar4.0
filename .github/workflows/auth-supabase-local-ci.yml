@@ -220,7 +220,7 @@ jobs:
               changed.api += 1;
               return `port = ${apiPort}`;
             }
-            if (section === "db" && /^port\\s*=/.test(line)) {
+            if (section === "db" && /^port\s*=/.test(line)) {
               changed.db += 1;
               return `port = ${databasePort}`;
             }
