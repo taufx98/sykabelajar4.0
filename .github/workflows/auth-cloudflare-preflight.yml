@@ -23,6 +23,11 @@ jobs:
     name: Read-only Cloudflare account and staging resource inspection
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout the exact isolated auth branch (read only)
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
       - name: Verify Cloudflare credentials and inspect staging prerequisites
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
