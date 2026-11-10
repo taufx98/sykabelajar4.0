@@ -1,2 +1,2 @@
 RUN-AUTH-STAGING-BROWSER-SMOKE-0001
-rerun-after-stage3-disposable-baseline-success-20261110-2305
+verify-register-and-password-recovery-ui-only-20261110-2305
