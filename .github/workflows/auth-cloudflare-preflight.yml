@@ -419,9 +419,8 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          cd services/auth-worker
           set +e
-          npx --yes wrangler@4.156.2 secret list --name sykabelajar-auth-poc --format json \
+          npx --yes wrangler@4.156.2 secret list --name sykabelajar-auth-poc --format json --config services/auth-worker/wrangler.toml \
             > "$RUNNER_TEMP/auth-worker-secret-bindings.json" \
             2> "$RUNNER_TEMP/auth-worker-secret-list.stderr"
           list_status=$?
