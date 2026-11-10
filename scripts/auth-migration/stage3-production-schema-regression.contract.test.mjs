@@ -39,11 +39,11 @@ for (const match of fixtureDeclarations) {
 
 assert.match(sql,/SET LOCAL ROLE authenticated/);
 assert.match(sql,/SET LOCAL ROLE anon/);
-assert.match(sql,/set_config\('request\\.jwt\\.claim','',true\)/,
+assert.match(sql,/set_config\('request\.jwt\.claim','',true\)/,
   "anonymous RLS tests must clear the singular JWT claim fallback");
-assert.match(sql,/set_config\('request\\.jwt\\.claims','\\{\"role\":\"anon\"\\}',true\)/,
+assert.match(sql,/set_config\('request\.jwt\.claims','\{"role":"anon"\}',true\)/,
   "anonymous RLS tests must replace any prior admin JWT claims");
-assert.match(sql,/set_config\('request\\.jwt\\.claim\\.sub','',true\)/,
+assert.match(sql,/set_config\('request\.jwt\.claim\.sub','',true\)/,
   "anonymous RLS tests must clear the direct subject setting");
 assert.match(sql,/SET is_public=\(id = u_expired\)/i);
 assert.match(sql,/STAGE3_RLS_ANON_PUBLIC_PROFILE_READ_FAILED/);
