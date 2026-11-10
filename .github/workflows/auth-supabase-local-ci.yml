@@ -210,13 +210,13 @@ jobs:
           }
 
           const path = "supabase/config.toml";
-          const lines = readFileSync(path, "utf8").split("\\n");
+          const lines = readFileSync(path, "utf8").split("\n");
           let section = "";
           const changed = { api: 0, db: 0, shadow: 0 };
           const output = lines.map((line) => {
-            const sectionMatch = line.match(/^\\s*\\[([^\\]]+)\\]\\s*$/);
+            const sectionMatch = line.match(/^\s*\[([^\]]+)\]\s*$/);
             if (sectionMatch) section = sectionMatch[1];
-            if (section === "api" && /^port\\s*=/.test(line)) {
+            if (section === "api" && /^port\s*=/.test(line)) {
               changed.api += 1;
               return `port = ${apiPort}`;
             }
@@ -224,7 +224,7 @@ jobs:
               changed.db += 1;
               return `port = ${databasePort}`;
             }
-            if (section === "db" && /^shadow_port\\s*=/.test(line)) {
+            if (section === "db" && /^shadow_port\s*=/.test(line)) {
               changed.shadow += 1;
               return `shadow_port = ${shadowPort}`;
             }
@@ -233,7 +233,7 @@ jobs:
           if (changed.api !== 1 || changed.db !== 1 || changed.shadow !== 1) {
             throw new Error("Expected exactly one API, database and shadow port entry in the local Supabase config.");
           }
-          writeFileSync(path, output.join("\\n"));
+          writeFileSync(path, output.join("\n"));
           console.log(JSON.stringify({ apiPort, databasePort, shadowPort, runId, configOnly: true }));
           NODE
 
