@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT extensions.plan(16);
+SELECT extensions.plan(14);
 
 INSERT INTO private.app_users (id, identity_origin)
 VALUES
