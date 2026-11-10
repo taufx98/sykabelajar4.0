@@ -286,7 +286,7 @@ CREATE OR REPLACE FUNCTION public.create_organizer(p_name text, p_slug text)
  RETURNS TABLE(id uuid, name text, slug text, access_code text)
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'private'
+ SET search_path TO ''
 AS $function$
 declare
   v_uid uuid := auth.uid();
@@ -296,7 +296,12 @@ declare
   v_code text := encode(extensions.gen_random_bytes(5), 'hex');
   v_slug text := lower(regexp_replace(trim(p_slug), '[^a-zA-Z0-9]+', '-', 'g'));
   v_identity_hash text;
+  v_identity_origin text;
 begin
+  if (select auth.jwt() ->> 'iss') is distinct from 'https://auth.sykabelajar.my.id/api/auth' then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
+
   if v_uid is null then
     raise exception 'UNAUTHORIZED';
   end if;
@@ -321,13 +326,16 @@ begin
     raise exception 'ORGANIZER_LIMIT_REACHED';
   end if;
 
-  select au.email_verified_at, au.phone_verified_at, au.verified_phone_identity_hash
-    into v_email_verified_at, v_phone_verified_at, v_identity_hash
+  select au.email_verified_at, au.phone_verified_at, au.verified_phone_identity_hash, au.identity_origin
+    into v_email_verified_at, v_phone_verified_at, v_identity_hash, v_identity_origin
   from private.app_users au
   where au.id = v_uid;
 
   if not found then
     raise exception 'USER_NOT_FOUND';
+  end if;
+  if v_identity_origin is distinct from 'better_auth' then
+    raise exception 'BETTER_AUTH_IDENTITY_REQUIRED';
   end if;
   if v_email_verified_at is null then
     raise exception 'EMAIL_VERIFICATION_REQUIRED';
