@@ -7,6 +7,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const script = readFileSync(path.join(here, 'export-schema-baseline.sh'), 'utf8');
 
 assert.ok(script.includes('supabase db dump -f "$OUTPUT_DIR/schema.sql" --remote="$SUPABASE_DB_URL"'));
+assert.ok(script.includes('SHADOW_MIGRATIONS_DIR="$SUPABASE_CLI_WORKDIR/supabase/migrations"'));
+assert.ok(script.includes('cp "$OUTPUT_DIR/schema.sql" "$SHADOW_MIGRATIONS_DIR/20261110000000_production_schema_shadow_baseline.sql"'));
+assert.ok(script.includes('full, data-free public schema in its'));
+assert.ok(script.includes('diff remains restricted to auth,storage'));
+assert.ok(script.includes('refusing to seed the disposable diff baseline'));
 assert.ok(script.includes('SUPABASE_CLI_WORKDIR="${SUPABASE_CLI_WORKDIR:-$REPO_ROOT}"'));
 assert.ok(script.includes('SCHEMA_BASELINE_OUTPUT_DIR'));
 assert.ok(script.includes('PGPASSFILE="$OUTPUT_DIR/.schema-baseline.pgpass"'));
