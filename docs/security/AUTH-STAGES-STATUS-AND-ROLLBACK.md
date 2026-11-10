@@ -1,4 +1,4 @@
-## Worker installation checkpoint — 10 November 2026, 19:45 WIB
+## Worker installation checkpoint — 10 November 2026
 
 This checkpoint records the latest isolated staging Worker installation. It does not authorize app-auth cutover or any Production mutation.
 
