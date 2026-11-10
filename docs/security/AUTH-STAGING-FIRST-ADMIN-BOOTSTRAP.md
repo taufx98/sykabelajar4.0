@@ -42,3 +42,17 @@ Stop without changing anything when the verified session response is missing, `e
 The staging schema contains `private.app_users.identity_origin` with only `better_auth` and `legacy_reference` values. The provisioning RPC writes `better_auth` for a new identity and locks/rechecks the row on every retry. A UUID-only `legacy_reference` tombstone cannot be upgraded into a login identity, profile or business role. The SQL bootstrap intentionally rejects these rows before assigning admin.
 
 The migration and fixture contract has passed [Supabase Local Auth Claims CI #561](https://github.com/taufx98/sykabelajar4.0/actions/runs/42663635674). A live staging transaction also tested the RPC and legacy-reference rejection, then rolled back all synthetic rows; the staging identity tables remained empty.
+
+
+## Hosted staging acceptance updates — 10 November 2026
+
+The staging-only Supabase project now has two additive alignment migrations beyond the original first-admin preparation:
+
+- better_auth_phone_status_rpc: adds the server-only public phone-verification status wrapper expected by the Worker. Only service_role may execute it; no client role can call it.
+- better_auth_profile_hydration: adds the minimal profile fields confirmed by .github/profile-runtime-contract.md, grants authenticated SELECT only, and limits reads to auth.uid() with the exact Better Auth issuer. Anonymous profile reads remain denied.
+
+A live rollback-only SQL test successfully used two synthetic Better Auth UUIDs and confirmed that user A can read A's profile and business role but cannot read user B's profile or role. The transaction was rolled back. No real user, session, profile, role or admin was created.
+
+Separate Worker provisioning prerequisite: the Cloudflare Worker currently has no SUPABASE_SERVICE_ROLE_KEY secret binding. Keep SUPABASE_PROVISIONING_ENABLED=false. Do not place a Supabase service-role key in Pages variables, repository files, Actions logs or chat. Only add it as a Worker secret for sykabelajar-auth-poc after verifying it is the Free staging project's key and reviewing the Worker RPC scope; then separately review and deploy the enabling flag. This secret is intentionally not replaced by the publishable key.
+
+The read-only Cloudflare preflight reports whether the Google OAuth pair and service-role secret bindings exist by name/type only. Latest result: both Google secret bindings and the service-role secret binding are absent. The Google flow cannot be accepted until both Google secrets are installed together and the staging Worker is deployed once.
