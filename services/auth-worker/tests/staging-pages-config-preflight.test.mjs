@@ -8,8 +8,8 @@ const workflow = readFileSync(
 );
 
 test("Pages preflight is pinned to the migration branch, exact repository, and matching one-time marker", () => {
-  assert.ok(workflow.includes(".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0006"));
-  assert.ok(workflow.includes('CHECK-AUTH-PAGES-PREVIEW-CONFIG-0006'));
+  assert.ok(workflow.includes(".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0007"));
+  assert.ok(workflow.includes('CHECK-AUTH-PAGES-PREVIEW-CONFIG-0007'));
   assert.ok(workflow.includes("actions/checkout@v7"));
   assert.equal((workflow.match(/^    steps:$/gm) ?? []).length, 1);
   assert.match(workflow, /security\/auth-poc-stage-1/);
@@ -35,6 +35,7 @@ test("Pages preflight checks the staging Supabase and Better Auth flag without p
   assert.match(workflow, /stagingSupabaseUrlTargetsIsolatedProject/);
   assert.match(workflow, /stagingPublishableKeyConfigured/);
   assert.match(workflow, /previewVariableNames: names/);
+  assert.match(workflow, /previewVariableTypes: variableTypes/);
   assert.match(workflow, /Never print variable values, key material, credentials or raw API responses/);
   assert.doesNotMatch(workflow, /console\.log\([^\n]*(?:value\(|envVars\[|publishableKey|token)/i);
 });
