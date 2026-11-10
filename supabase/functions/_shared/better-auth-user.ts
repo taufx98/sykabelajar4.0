@@ -10,9 +10,9 @@ const EXPECTED_RESOURCE_AUDIENCE = "https://sykabelajar.my.id";
  * third-party JWT verifier. The verifier must use Better Auth's own public
  * JWKS, not the Supabase project's first-party Auth JWKS.
  *
- * Required server-only Edge Function environment:
- * - BETTER_AUTH_ISSUER=https://auth.sykabelajar.my.id/api/auth
- * - BETTER_AUTH_RESOURCE_AUDIENCE=https://sykabelajar.my.id
+ * On the exact isolated staging Supabase project, the issuer and audience
+ * are supplied from pinned constants when environment overrides are absent.
+ * Other projects must explicitly set both server-side values.
  *
  * The returned ctx.supabase is scoped to the caller's RLS policies.
  * ctx.supabaseAdmin bypasses RLS and must only be used after explicit
