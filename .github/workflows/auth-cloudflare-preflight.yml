@@ -468,6 +468,7 @@ jobs:
             googleClientSecretSecretPresent: hasSecret("GOOGLE_CLIENT_SECRET"),
             googleOAuthPairComplete:
               hasSecret("GOOGLE_CLIENT_ID") && hasSecret("GOOGLE_CLIENT_SECRET"),
+            stagingSupabaseProvisioningApiKeyPresent: hasSecret("SUPABASE_PROVISIONING_API_KEY") || hasSecret("SUPABASE_SERVICE_ROLE_KEY"),
             stagingSupabaseServiceRoleSecretPresent: hasSecret("SUPABASE_SERVICE_ROLE_KEY"),
           };
           const summary = {
