@@ -200,12 +200,13 @@ jobs:
           if (!Number.isSafeInteger(runId) || runId <= 0) {
             throw new Error("A valid GitHub run ID is required for isolated local Supabase ports.");
           }
-          // Give each CI run its own three-port block so concurrent hosted
-          // Actions jobs never contend for the same Docker DB/API/shadow ports.
-          const databasePort = 55002 + (runId % 900) * 3;
+          // Give each CI run a three-port block in the high user-port range.
+          // This avoids Supabase's historical 543xx ports and Linux's common
+          // ephemeral range (32768-60999), while keeping concurrent runs apart.
+          const databasePort = 62002 + (runId % 1000) * 3;
           const apiPort = databasePort - 1;
           const shadowPort = databasePort - 2;
-          if (databasePort > 57699 || shadowPort < 55000) {
+          if (databasePort > 64999 || shadowPort < 62000) {
             throw new Error("Generated local Supabase ports are outside the reserved CI range.");
           }
 
