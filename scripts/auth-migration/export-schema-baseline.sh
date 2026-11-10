@@ -127,7 +127,10 @@ printf 'Exporting schema-only custom database objects using Supabase CLI v3 remo
   printf 'Capturing custom Auth/Storage DDL separately...\n'
   # The empty disposable CLI workdir is used by the workflow to capture all custom managed-schema DDL.
   # The explicit migra engine is compatible with session-pooler connections and legacy projects.
-  supabase db diff --use-pg-delta --schema auth,storage --remote="$SUPABASE_DB_URL" > "$OUTPUT_DIR/auth-storage-custom.sql"
+  # PGSSLMODE=require is exported for direct read-only Production catalog/psql
+  # connections above. The CLI also opens a local shadow database without TLS;
+  # keep TLS in the remote URL and remove only the inherited env override here.
+  env -u PGSSLMODE supabase db diff --use-pg-delta --schema auth,storage --remote="$SUPABASE_DB_URL" > "$OUTPUT_DIR/auth-storage-custom.sql"
 )
 
 printf 'Recording PostgreSQL version and installed extension versions...\n'
