@@ -1,3 +1,20 @@
+## Current Better Auth checkpoint — 10 November 2026 (schema-diff dependency fix)
+
+This checkpoint supersedes the preceding branch-head reference. It does not authorize Production cutover.
+
+- Branch head: `48bf947214d33dbb66604b88ece60fa242b70d41`; PR #177 remains Draft, open and unmerged.
+- Latest deployed isolated Worker remains `8dfa4dd7-f693-4e27-ad83-cc6af19702f8`; no Worker secret or runtime provisioning flag was changed.
+- The exporter uses Supabase CLI 3.1.0 and `pg-delta`, preserves TLS on the explicit Production URL, and removes `PGSSLMODE` only for the local shadow operation.
+- The latest baseline attempt [#42846448678](https://github.com/taufx98/sykabelajar4.0/actions/runs/42846448678) successfully exported the Production schema-only dump and reached pg-delta. It then failed because the filtered `auth,storage` plan referenced `public.handle_new_auth_user()`, which was not present in the shadow target. The exporter now verifies the dump has no COPY data blocks and seeds it as a temporary shadow migration, giving pg-delta the cross-schema public dependencies while keeping generated diff output limited to `auth,storage`.
+- [Auth Production Schema Baseline #42847997448](https://github.com/taufx98/sykabelajar4.0/actions/runs/42847997448) is the current rerun with this dependency fix; it is in progress and is **not yet passed**. Its later steps must verify exact 69-FK parity, disposable atomic cutover, Stage 3 provisioning/referral/organizer behavior, anonymous RLS, issuer guard and rollback.
+- [Auth Worker CI #42847042816](https://github.com/taufx98/sykabelajar4.0/actions/runs/42847042816) and [Supabase Local Auth Claims CI #42847043026](https://github.com/taufx98/sykabelajar4.0/actions/runs/42847043026) passed on the preceding source checkpoint. The newest Worker and Local Claims CI pair for the exporter/test commit is running separately.
+- Better Auth staging phone verification uses the Worker Telegram flow; Production retains its Supabase Auth SMS compatibility branch. Staging business Edge Functions remain undeployed until the full schema and required Cloudinary/payment secrets are present.
+- Staging still contains 20 tables versus 125 in Production; 112 Production tables are not yet represented in staging. One acceptance Edge Function is deployed. Provisioning stays disabled because no `SUPABASE_PROVISIONING_API_KEY` exists.
+- The owner action remains: create one staging-only `sb_secret_*` in Supabase staging and add it as Cloudflare Worker Secret `SUPABASE_PROVISIONING_API_KEY`. Do not transmit the key in chat or enable provisioning until its scope is reviewed. Transactional email remains deferred; do not bypass the verified-email rule.
+- Production Supabase, DB2, Pages Production, DNS, live users, existing Edge Functions and Production authentication remain unchanged.
+
+---
+
 ## Current Better Auth checkpoint — 10 November 2026
 
 This checkpoint supersedes earlier head and CI references below. It records the current branch state; an in-progress baseline run is not acceptance evidence and does not authorize Production cutover.
