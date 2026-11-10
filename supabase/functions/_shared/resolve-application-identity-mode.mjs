@@ -7,7 +7,7 @@ export const BETTER_AUTH_RESOURCE_AUDIENCE =
 
 function normalizeUrl(value) {
   if (typeof value !== "string") return "";
-  return value.trim().replace(/\\/+$/, "");
+  return value.trim().replace(/\/+$/, "");
 }
 
 /**
