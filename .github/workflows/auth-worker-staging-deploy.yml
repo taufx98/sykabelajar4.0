@@ -272,16 +272,18 @@ jobs:
           const provisioningEnabled = /^SUPABASE_PROVISIONING_ENABLED = "true"$/m.test(
             (await import("node:fs")).readFileSync("wrangler.toml", "utf8"),
           );
-          const provisioningBindings = listedBody.result.filter((item) => item?.name === "SUPABASE_SERVICE_ROLE_KEY");
+          const provisioningBindings = listedBody.result.filter((item) =>
+            item?.name === "SUPABASE_PROVISIONING_API_KEY" || item?.name === "SUPABASE_SERVICE_ROLE_KEY",
+          );
           const provisioningSecretReady =
             provisioningBindings.length === 1 && provisioningBindings[0].type === "secret_text";
           if (provisioningEnabled && !provisioningSecretReady) {
-            throw new Error("Identity provisioning is enabled but the server-only Supabase staging secret is missing or has an unexpected type. Worker was not deployed.");
+            throw new Error("Identity provisioning is enabled but exactly one server-only Supabase staging API key binding is required. Worker was not deployed.");
           }
           if (!provisioningEnabled) {
-            console.log("Staging identity projection remains disabled; no service-role secret is required for this deployment.");
+            console.log("Staging identity projection remains disabled; no provisioning API key is required for this deployment.");
           } else {
-            console.log("Verified server-only Supabase staging service-role secret binding by name/type only; its value was not read.");
+            console.log("Verified server-only Supabase staging API key binding by name/type only; its value was not read.");
           }
           const matches = listedBody.result.filter((item) => item?.name === secretName);
           if (matches.length > 1) {
