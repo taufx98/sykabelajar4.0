@@ -1,6 +1,30 @@
 BEGIN;
 
-SELECT extensions.plan(32);
+SELECT extensions.plan(35);
+
+SELECT extensions.ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'create_organizer'
+      AND p.proconfig @> ARRAY['search_path=""']::text[]
+  ),
+  'create_organizer SECURITY DEFINER path is pinned to empty'
+);
+SELECT extensions.ok(
+  NOT pg_catalog.has_function_privilege(
+    'anon', 'public.create_organizer(text,text)', 'EXECUTE'
+  ),
+  'anonymous callers cannot execute organizer creation'
+);
+SELECT extensions.ok(
+  pg_catalog.has_function_privilege(
+    'authenticated', 'public.create_organizer(text,text)', 'EXECUTE'
+  ),
+  'signed-in callers retain the intended organizer onboarding RPC'
+);
 
 SELECT extensions.ok(
   ARRAY['student','teacher','organizer_member','admin']::text[] <@
