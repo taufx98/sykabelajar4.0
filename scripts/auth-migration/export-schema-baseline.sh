@@ -45,7 +45,7 @@ if (!directMatch && !poolerMatch) {
 NODE
 
 CLI_VERSION="$(supabase --version 2>/dev/null || true)"
-[[ "$CLI_VERSION" == *"3.0.0"* ]] || die "Expected Supabase CLI 3.0.0 for a reproducible export; found: ${CLI_VERSION:-unknown}"
+[[ "$CLI_VERSION" == *"3.1.0"* ]] || die "Expected Supabase CLI 3.1.0 for a reproducible export; found: ${CLI_VERSION:-unknown}"
 
 REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")/../.." rev-parse --show-toplevel)"
 SUPABASE_CLI_WORKDIR="${SUPABASE_CLI_WORKDIR:-$REPO_ROOT}"
@@ -127,7 +127,7 @@ printf 'Exporting schema-only custom database objects using Supabase CLI v3 remo
   printf 'Capturing custom Auth/Storage DDL separately...\n'
   # The empty disposable CLI workdir is used by the workflow to capture all custom managed-schema DDL.
   # The explicit migra engine is compatible with session-pooler connections and legacy projects.
-  supabase db diff --use-migra --schema auth,storage --remote="$SUPABASE_DB_URL" > "$OUTPUT_DIR/auth-storage-custom.sql"
+  supabase db diff --use-pg-delta --schema auth,storage --remote="$SUPABASE_DB_URL" > "$OUTPUT_DIR/auth-storage-custom.sql"
 )
 
 printf 'Recording PostgreSQL version and installed extension versions...\n'
