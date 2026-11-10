@@ -218,6 +218,10 @@ DECLARE
   v_phone_verified_at timestamptz;
   v_identity_hash text;
 BEGIN
+  IF (SELECT auth.jwt() ->> 'iss') IS DISTINCT FROM 'https://auth.sykabelajar.my.id/api/auth' THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
   IF v_uid IS NULL THEN RAISE EXCEPTION 'UNAUTHORIZED'; END IF;
 
   IF NOT EXISTS (
