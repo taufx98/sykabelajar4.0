@@ -217,6 +217,7 @@ DECLARE
   v_email_verified_at timestamptz;
   v_phone_verified_at timestamptz;
   v_identity_hash text;
+  v_identity_origin text;
 BEGIN
   IF (SELECT auth.jwt() ->> 'iss') IS DISTINCT FROM 'https://auth.sykabelajar.my.id/api/auth' THEN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
@@ -240,12 +241,15 @@ BEGIN
   END IF;
 
   SELECT au.email_verified_at, au.phone_verified_at,
-         au.verified_phone_identity_hash
-    INTO v_email_verified_at, v_phone_verified_at, v_identity_hash
+         au.verified_phone_identity_hash, au.identity_origin
+    INTO v_email_verified_at, v_phone_verified_at, v_identity_hash, v_identity_origin
   FROM private.app_users au
   WHERE au.id = v_uid;
 
   IF NOT FOUND THEN RAISE EXCEPTION 'USER_NOT_FOUND'; END IF;
+  IF v_identity_origin IS DISTINCT FROM 'better_auth' THEN
+    RAISE EXCEPTION 'BETTER_AUTH_IDENTITY_REQUIRED';
+  END IF;
   IF v_email_verified_at IS NULL THEN RAISE EXCEPTION 'EMAIL_VERIFICATION_REQUIRED'; END IF;
   IF v_phone_verified_at IS NULL OR v_identity_hash IS NULL
      OR v_identity_hash !~ '^[a-f0-9]{64}$' THEN
