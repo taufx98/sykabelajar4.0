@@ -52,3 +52,54 @@ test('the staging Worker exposes its safe OAuth provider discovery contract', as
   expect(providers.every((provider) => ['google', 'facebook', 'twitter'].includes(String(provider)))).toBe(true);
   console.log('STAGING_AUTH_SOCIAL_PROVIDERS=' + (providers.length ? providers.join(',') : '(none configured)'));
 });
+
+test('configured Google OAuth starts with state and a secure same-site state cookie', async ({ page, baseURL, context }) => {
+  const discovery = await page.request.get('https://auth.sykabelajar.my.id/api/auth/providers', {
+    headers: { Origin: baseURL! },
+  });
+  expect(discovery.status()).toBe(200);
+  const providerPayload = await discovery.json() as { providers?: unknown };
+  const providers = Array.isArray(providerPayload.providers) ? providerPayload.providers : [];
+  test.skip(!providers.includes('google'), 'Google OAuth Worker secrets are not configured yet.');
+
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+
+  const flow = await page.evaluate(async () => {
+    const response = await fetch('https://auth.sykabelajar.my.id/api/auth/sign-in/social', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'google',
+        callbackURL: 'https://staging.sykabelajar.my.id/home',
+      }),
+    });
+    const payload = await response.json().catch(() => null) as { url?: unknown } | null;
+    if (!response.ok || !payload || typeof payload.url !== 'string') {
+      return { status: response.status, authorizationUrlValid: false, statePresent: false, redirectUri: null, authorizationHost: null };
+    }
+    const authorizationUrl = new URL(payload.url);
+    return {
+      status: response.status,
+      authorizationUrlValid: authorizationUrl.protocol === 'https:',
+      statePresent: Boolean(authorizationUrl.searchParams.get('state')),
+      redirectUri: authorizationUrl.searchParams.get('redirect_uri'),
+      authorizationHost: authorizationUrl.hostname,
+    };
+  });
+
+  expect(flow.status, 'Better Auth should accept the configured Google provider').toBe(200);
+  expect(flow.authorizationUrlValid).toBe(true);
+  expect(flow.authorizationHost).toBe('accounts.google.com');
+  expect(flow.statePresent, 'Google authorization URL must include the state parameter').toBe(true);
+  expect(flow.redirectUri).toBe('https://auth.sykabelajar.my.id/api/auth/callback/google');
+
+  const cookies = await context.cookies('https://auth.sykabelajar.my.id');
+  const stateCookies = cookies.filter((cookie) => cookie.name.toLowerCase().includes('state'));
+  expect(stateCookies.length, 'the browser must retain a Better Auth OAuth state cookie on the auth host').toBeGreaterThan(0);
+  for (const cookie of stateCookies) {
+    expect(cookie.secure, 'OAuth state cookie must be Secure').toBe(true);
+    expect(cookie.sameSite, 'OAuth state cookie must use SameSite=Lax').toBe('Lax');
+  }
+});
