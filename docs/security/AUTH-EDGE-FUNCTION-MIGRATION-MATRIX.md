@@ -1,8 +1,8 @@
 # Better Auth — Supabase Edge Function migration matrix
 
-Status: **dual-mode adapter and nine branch handler migrations implemented; Better Auth remains disabled by default and no application Edge Function from this branch is deployed**. Source checkpoint refreshed: 9 November 2026.
+Status (10 November 2026): **dual-mode adapter and nine branch handler migrations implemented; Better Auth remains opt-in; only the dedicated `better-auth-oidc-acceptance` function is deployed to the isolated staging project. None of the application Edge handlers from this matrix has been deployed.**
 
-This is a staged implementation guide for Stage 5. It is not permission to deploy Edge Functions or alter production secrets. The Supabase project currently connected to this workspace is production-only; the Better Auth issuer must first pass Supabase Custom OIDC acceptance in an isolated test project, and Stage 3 identity provisioning/FK work must be approved before the user-facing functions are changed.
+This is the Stage 5 implementation/deployment guide. The isolated project `ydamszdfsxqisanazdkb` is not a production clone: it contains the Better Auth identity/organizer/referral fixture schema and only the OIDC acceptance function. Application Edge handlers must not be deployed against this partial schema. The complete handler source and `verify_jwt` configuration are ready in the branch; app-handler deployment remains gated on installing the required application schema and staging-only Edge environment/secrets. Production Edge Functions and secrets remain unchanged. This document does not authorize production deployment.
 
 ## Verified implementation contract
 
@@ -61,12 +61,12 @@ Use only two synthetic Better Auth accounts in an isolated Supabase Free project
 
 ## Deployment sequence / stop conditions
 
-1. Finish the real schema-only baseline export from the owner's trusted local environment; create the reproducible local database baseline.
-2. Complete Custom OIDC positive/negative acceptance against an isolated Supabase project. Do not register the issuer in production as a substitute.
-3. Complete Stage 3 `private.app_users`, provisioning, referral/email lifecycle and all 69 FK migration tests against the isolated target. Preserve phone-verification semantics for organizer creation.
-4. Implement the endpoint changes above as a separate reviewable Stage 5 commit, then run the two-user matrix and full payment/webhook/Cloudinary regression tests.
-5. Deploy the nine resolver-backed application handlers plus the compatibility delegate only after explicit review of the exact function versions, isolated positive/negative token and IDOR acceptance, and verified project target. No production deploy is authorized by this document.
-6. Confirm webhook endpoints remain reachable by providers and their signatures still validate. Keep `verify_jwt=false` only for external webhook/public endpoints with independent authentication or deliberately public responses.
+1. The schema-only production export and restore into a disposable local Supabase stack now complete; only the final rollback-only behavior/RLS regression remains for the end-of-build acceptance phase. No production writes were made.
+2. Supabase Custom OIDC is registered against the isolated staging issuer; the dedicated `better-auth-oidc-acceptance` function is deployed there. No production issuer registration is implied.
+3. The staging `private.app_users` identity root, provisioning RPCs, profile hydration, phone-status wrapper and organizer issuer/identity-origin guards are applied additively. The staging identity tables remain empty. Worker provisioning remains disabled until a server-only staging secret is installed and reviewed.
+4. Nine resolver-backed application handlers and their shared adapter are implemented in source. `AUTH_IDENTITY_MODE=supabase` remains the compatibility default; `better-auth` is a server-side opt-in. The Worker, D1 and frontend preview are already installed in staging.
+5. Before deploying application handlers, populate the isolated target with the application schema they depend on and configure their staging-only issuer/audience/environment/secrets. Do not deploy endpoints that would fail due to missing business tables or Cloudinary/payment secrets. Then deploy the nine handlers plus compatibility delegate as a separate staging-only operation.
+6. End-of-build acceptance will run the two-user IDOR matrix and full payment/webhook/Cloudinary/Storage/Realtime regressions. Keep provider webhooks authenticated by signatures and keep public endpoints limited to their documented public response. No production deploy is authorized by this document.
 
 Any missing issuer/audience setting, unverified JWT, missing application identity projection, owner mismatch, failed admin check, or unverified payment-provider response must fail closed.
 
