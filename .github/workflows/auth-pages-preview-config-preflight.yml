@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0006"
+      - ".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0007"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
-          marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0006"
+          marker=".github/auth-ops/CHECK-AUTH-PAGES-PREVIEW-CONFIG-0007"
           marker_present=false
           test -f "$marker" && marker_present=true
           printf 'event=%s ref=%s marker_present=%s\n' "$GITHUB_EVENT_NAME" "$GITHUB_REF" "$marker_present"
@@ -48,7 +48,7 @@ jobs:
             test "$marker_present" = "true"
             marker_body="$(cat "$marker")"
             printf 'marker_content=%s\n' "$marker_body"
-            test "$marker_body" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0006"
+            test "$marker_body" = "CHECK-AUTH-PAGES-PREVIEW-CONFIG-0007"
           fi
 
       - name: Inspect only variable names and safe public configuration fingerprints
@@ -99,6 +99,10 @@ jobs:
           const preview = project?.deployment_configs?.preview ?? {};
           const envVars = preview?.env_vars && typeof preview.env_vars === "object" ? preview.env_vars : {};
           const names = Object.keys(envVars).sort();
+          const variableTypes = Object.fromEntries(names.map((name) => [
+            name,
+            typeof envVars[name] === "string" ? "plain_text" : String(envVars[name]?.type ?? "unknown"),
+          ]));
 
           function value(name) {
             const item = envVars[name];
@@ -139,6 +143,7 @@ jobs:
             project: projectName,
             source: "taufx98/sykabelajar4.0",
             previewVariableNames: names,
+            previewVariableTypes: variableTypes,
             checks,
             betterAuthPreviewReady: ready,
             readOnly: true,
