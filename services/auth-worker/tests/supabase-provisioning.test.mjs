@@ -36,7 +36,7 @@ const env = {
   // Keep the production URL for the existing Admin bridge; it must never be used for provisioning.
   SUPABASE_URL: "https://mvdczyitbkxkldjughor.supabase.co",
   SUPABASE_PROVISIONING_URL: "https://ydamszdfsxqisanazdkb.supabase.co",
-  SUPABASE_PROVISIONING_API_KEY: SERVICE_KEY, 
+  SUPABASE_PROVISIONING_API_KEY: SERVICE_KEY,
   DB: createD1Mock().DB,
 };
 
@@ -170,7 +170,7 @@ test("legacy SUPABASE_SERVICE_ROLE_KEY binding remains compatible during migrati
   assert.equal(captured.headers.Authorization, `Bearer ${SERVICE_KEY}`);
 });
 
-test("conflicting preferred and legacy provisioning key bindings fail closed", async () => {
+test("multiple preferred and legacy provisioning key bindings fail closed", async () => {
   await assert.rejects(
     reconcileSupabaseApplicationIdentity({
       ...env,
