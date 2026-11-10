@@ -44,5 +44,8 @@ test("Cloudflare preflight reads auth and Pages staging DNS records without muta
 test("preflight output contains only DNS metadata and never credentials", () => {
   assert.match(workflow, /type: row\.type, name: row\.name, content: row\.content, proxied: row\.proxied/);
   assert.match(workflow, /errorCodes/);
+  assert.match(workflow, /auth-worker-secret-readiness\.json/);
+  assert.match(workflow, /stagingSupabaseProvisioningApiKeyPresent/);
+  assert.match(workflow, /noSecretValuesReadOrPrinted/);
   assert.doesNotMatch(workflow, /console\.log\([^\n]*(?:token|secret|authorization)/i);
 });
