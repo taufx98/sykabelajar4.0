@@ -490,6 +490,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: auth-cloudflare-preflight-snapshot
-          path: ${{ runner.temp }}/auth-cloudflare-preflight-summary.json
+          path: |
+            ${{ runner.temp }}/auth-cloudflare-preflight-summary.json
+            ${{ runner.temp }}/auth-worker-secret-readiness.json
           if-no-files-found: ignore
           retention-days: 3
