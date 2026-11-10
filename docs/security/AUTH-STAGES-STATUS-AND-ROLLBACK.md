@@ -1,3 +1,17 @@
+## Worker installation checkpoint — 10 November 2026, 19:45 WIB
+
+This checkpoint records the latest isolated staging Worker installation. It does not authorize app-auth cutover or any Production mutation.
+
+- Branch: `security/auth-poc-stage-1`; latest commit at this checkpoint: `a62139b8ea1199bcea4d071ee5e82e2b2cef6f26`. PR #177 remains Draft, open, unmerged and mergeable.
+- [Auth Worker Staging Deploy #42818170382](https://github.com/taufx98/sykabelajar4.0/actions/runs/42818170382) completed successfully. Cloudflare deployed Worker version `0a136c92-9421-4216-8cc8-68ac27b61106` to the isolated `sykabelajar-auth-poc` Worker.
+- Deployment guard verified all 20 remote D1 tables, seven Better Auth user-registration columns, provider-aware email schema, exact redirect allowlist, and zero staging users/sessions/accounts/verification rows/phone challenges before deployment. Existing Worker secrets were preserved; no values were read, rotated, or printed.
+- Post-deploy hosted checks passed: `/healthz`, exact issuer `https://auth.sykabelajar.my.id/api/auth`, discovery endpoints, PKCE S256 metadata, and public ES256/P-256 JWKS. The staging origin was accepted and attacker origin rejected.
+- Worker deploy output confirms `emailAgentConfigured=false` and `googleOAuthCredentialsConfigured=false`; neither integration is required for deploying the Better Auth/OIDC core. No signup, user, session or role was seeded.
+- `SUPABASE_PROVISIONING_ENABLED=false` remains unchanged because no server-only staging Supabase key is installed. The Worker-side idempotent provisioning hooks are installed in code but do not create application identities yet.
+- Current-head [Auth Worker CI #42818177046](https://github.com/taufx98/sykabelajar4.0/actions/runs/42818177046) and [Supabase Local Auth Claims CI #42818176934](https://github.com/taufx98/sykabelajar4.0/actions/runs/42818176934) also passed.
+- The Supabase staging project intentionally contains the 20-row auth/identity fixture schema only; it is not a complete application-schema clone. It has one deployed Edge Function, `better-auth-oidc-acceptance`. Do not deploy all application Edge Functions against this incomplete schema. The full application schema/Edge runtime setup remains a Stage 3/5 build task before end-of-build acceptance.
+- Production Supabase, DB2, Pages Production, DNS, user accounts, application Edge Functions and login routing remain untouched.
+
 ## Stage 5 authorization hardening and current CI checkpoint — 10 November 2026, 18:42 WIB
 
 This checkpoint supersedes the older PR-head and `create_organizer` findings in the 10 November login-first checkpoint above. It records isolated staging and CI evidence only; it does not authorize production changes.
