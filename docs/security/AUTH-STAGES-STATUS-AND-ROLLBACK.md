@@ -2,7 +2,7 @@
 
 This checkpoint supersedes earlier branch-head and CI references below. It records a successful **disposable local schema baseline and migration simulation**; it does not authorize production cutover.
 
-- Branch head at this checkpoint: `98a6d7ce2dcd2143433967e3adf2688b0a019b94`; PR #177 remains open, Draft, unmerged and mergeable.
+- Branch head after this status-record update: `f7dfd71abb7e7d965f78af939b5524fd68eb4ad1`; PR #177 remains open, Draft and unmerged.
 - Latest isolated Worker version remains `8dfa4dd7-f693-4e27-ad83-cc6af19702f8`. Hosted health, exact issuer, discovery, PKCE S256 and public ES256/P-256 JWKS checks previously passed. No Worker secret, identity-provisioning flag or hosted user state was changed in this work.
 - [Auth Worker CI #42848016831](https://github.com/taufx98/sykabelajar4.0/actions/runs/42848016831) and [Supabase Local Auth Claims CI #42848017032](https://github.com/taufx98/sykabelajar4.0/actions/runs/42848017032) both passed.
 - [Auth Production Schema Baseline #42847997448](https://github.com/taufx98/sykabelajar4.0/actions/runs/42847997448) completed successfully. It exported Production schema-only metadata, restored it to a disposable local Supabase stack with zero imported `auth.users` / `public.profiles` rows, reconstructed the audited function ACLs in that local stack, and verified the exact production baseline shape (69 FKs across 62 source tables, 3 Auth triggers, 4 profile triggers, 36 profile columns, 109 `auth.uid()` policies and ten Auth-dependent functions).
@@ -16,9 +16,9 @@ This checkpoint supersedes earlier branch-head and CI references below. It recor
 - Production Supabase `mvdczyitbkxkldjughor`, DB2, Production Pages, DNS, live users, existing Edge Functions and Production authentication remain unchanged. No reset, PR merge or Production cutover occurred.
 
 
-## Current Better Auth checkpoint — 10 November 2026
+## Historical checkpoint (superseded) — 10 November 2026
 
-This checkpoint supersedes earlier head and CI references below. It records the current branch state; an in-progress baseline run is not acceptance evidence and does not authorize Production cutover.
+This older snapshot is retained for audit history only. Its in-progress baseline statement below was superseded by the successful disposable Stage 3 baseline recorded in the current checkpoint above.
 
 - Repository: `taufx98/sykabelajar4.0`; branch: `security/auth-poc-stage-1`; branch head at this checkpoint: `106393fb1caf688d1e4167204a0f31fae79369b7`. PR #177 is open, Draft, unmerged and mergeable.
 - Latest isolated Worker version remains `8dfa4dd7-f693-4e27-ad83-cc6af19702f8`, deployed by [Auth Worker Staging Deploy #42835586318](https://github.com/taufx98/sykabelajar4.0/actions/runs/42835586318). Hosted health, issuer, discovery, PKCE S256 and ES256/P-256 JWKS checks passed; no user/session/admin was seeded.
