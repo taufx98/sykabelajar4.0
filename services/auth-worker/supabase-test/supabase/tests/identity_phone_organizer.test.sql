@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT extensions.plan(36);
+SELECT extensions.plan(37);
 
 SELECT extensions.ok(
   EXISTS (
@@ -90,6 +90,11 @@ VALUES
  ('50505050-5050-4050-8050-505050505050',NULL),
  ('60606060-6060-4060-8060-606060606060',clock_timestamp()),
  ('70707070-7070-4070-8070-707070707070',clock_timestamp());
+
+INSERT INTO private.app_users(id, identity_origin)
+VALUES ('80808080-8080-4080-8080-808080808080','legacy_reference');
+INSERT INTO public.user_roles(user_id,role,is_active)
+VALUES ('80808080-8080-4080-8080-808080808080','organizer_member',true);
 
 INSERT INTO public.profiles(id,full_name,username,account_type)
 VALUES
@@ -248,6 +253,15 @@ SELECT extensions.throws_ok(
   $SELECT * FROM public.create_organizer('Legacy Issuer','legacy-issuer')$,
   'P0001','BETTER_AUTH_ISSUER_REQUIRED',
   'Supabase Auth issuer cannot invoke the Better Auth-only organizer RPC'
+);
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"80808080-8080-4080-8080-808080808080","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}',true);
+SELECT set_config('request.jwt.claim.sub','80808080-8080-4080-8080-808080808080',true);
+SELECT extensions.throws_ok(
+  $SELECT * FROM public.create_organizer('Legacy Tombstone','legacy-tombstone')$,
+  'P0001','BETTER_AUTH_IDENTITY_REQUIRED',
+  'FK-only legacy reference identities cannot invoke Better Auth organizer creation'
 );
 
 SELECT set_config('request.jwt.claims',
