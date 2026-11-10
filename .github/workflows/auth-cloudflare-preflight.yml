@@ -411,6 +411,75 @@ jobs:
           }
           NODE
 
+      - name: Read only staging Worker secret names and types (never values)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          cd services/auth-worker
+          set +e
+          npx --yes wrangler@4.156.2 secret list --name sykabelajar-auth-poc --format json \
+            > "$RUNNER_TEMP/auth-worker-secret-bindings.json" \
+            2> "$RUNNER_TEMP/auth-worker-secret-list.stderr"
+          list_status=$?
+          set -e
+          if [ "$list_status" -ne 0 ]; then
+            echo '{"secretMetadataReadable":false,"error":"WORKER_SECRET_METADATA_READ_FAILED","noSecretValuesReadOrPrinted":true}'
+            exit 0
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const path = process.env.RUNNER_TEMP + "/auth-worker-secret-bindings.json";
+          let rows;
+          try {
+            rows = JSON.parse(readFileSync(path, "utf8"));
+          } catch {
+            console.log(JSON.stringify({
+              secretMetadataReadable: false,
+              error: "WORKER_SECRET_METADATA_RESPONSE_INVALID",
+              noSecretValuesReadOrPrinted: true,
+            }));
+            process.exit(0);
+          }
+          if (!Array.isArray(rows) || rows.some((row) =>
+            !row || typeof row.name !== "string" || typeof row.type !== "string"
+          )) {
+            console.log(JSON.stringify({
+              secretMetadataReadable: false,
+              error: "WORKER_SECRET_METADATA_RESPONSE_INVALID",
+              noSecretValuesReadOrPrinted: true,
+            }));
+            process.exit(0);
+          }
+          const hasSecret = (name) => rows.filter((row) =>
+            row.name === name && row.type === "secret_text"
+          ).length === 1;
+          const checks = {
+            betterAuthSecretPresent: hasSecret("BETTER_AUTH_SECRET"),
+            oauthProviderEncryptionKeyPresent: hasSecret("AUTH_PROVIDER_ENCRYPTION_KEY"),
+            googleClientIdSecretPresent: hasSecret("GOOGLE_CLIENT_ID"),
+            googleClientSecretSecretPresent: hasSecret("GOOGLE_CLIENT_SECRET"),
+            googleOAuthPairComplete:
+              hasSecret("GOOGLE_CLIENT_ID") && hasSecret("GOOGLE_CLIENT_SECRET"),
+            stagingSupabaseServiceRoleSecretPresent: hasSecret("SUPABASE_SERVICE_ROLE_KEY"),
+          };
+          const summary = {
+            worker: "sykabelajar-auth-poc",
+            secretMetadataReadable: true,
+            checks,
+            noSecretValuesReadOrPrinted: true,
+          };
+          console.log(JSON.stringify(summary));
+          writeFileSync(
+            process.env.RUNNER_TEMP + "/auth-worker-secret-readiness.json",
+            JSON.stringify(summary, null, 2),
+            { mode: 0o600 },
+          );
+          NODE
+
       - name: Upload sanitized Cloudflare resource snapshot
         if: always()
         uses: actions/upload-artifact@v4
