@@ -2,7 +2,7 @@
 
 This checkpoint supersedes earlier branch-head and CI references below. It records a successful **disposable local schema baseline and migration simulation**; it does not authorize production cutover.
 
-- Branch head after this status-record update: `05fe4ddd7db19281e56e02f7b2f6cd90438fbe88`; PR #177 remains open, Draft and unmerged.
+- Implementation checkpoint covered by the passing Worker/Local Auth CI and full Stage 3 baseline: `780bbb62558642f7a7a63aa2fac730e7afcae687`. Later commits only refreshed this status record and PR description; PR #177 remains open, Draft and unmerged.
 - Latest isolated Worker version remains `8dfa4dd7-f693-4e27-ad83-cc6af19702f8`. Hosted health, exact issuer, discovery, PKCE S256 and public ES256/P-256 JWKS checks previously passed. No Worker secret, identity-provisioning flag or hosted user state was changed in this work.
 - [Auth Worker CI #42848016831](https://github.com/taufx98/sykabelajar4.0/actions/runs/42848016831) and [Supabase Local Auth Claims CI #42848017032](https://github.com/taufx98/sykabelajar4.0/actions/runs/42848017032) both passed.
 - [Auth Production Schema Baseline #42847997448](https://github.com/taufx98/sykabelajar4.0/actions/runs/42847997448) completed successfully. It exported Production schema-only metadata, restored it to a disposable local Supabase stack with zero imported `auth.users` / `public.profiles` rows, reconstructed the audited function ACLs in that local stack, and verified the exact production baseline shape (69 FKs across 62 source tables, 3 Auth triggers, 4 profile triggers, 36 profile columns, 109 `auth.uid()` policies and ten Auth-dependent functions).
