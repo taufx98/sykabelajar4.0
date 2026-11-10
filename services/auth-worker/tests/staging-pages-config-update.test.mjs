@@ -22,6 +22,8 @@ test("Pages update changes Preview only and preserves all existing Preview confi
   assert.ok(workflow.includes('const merged = { ...existing };'));
   assert.ok(workflow.includes("sharedPreviewSupabaseUrlPreserved"));
   assert.ok(workflow.includes("sharedPreviewSupabaseKeyPreserved"));
+  assert.ok(workflow.includes("item.type !== \"plain_text\""));
+  assert.ok(workflow.includes("EXISTING_PREVIEW_VARIABLE_CANNOT_BE_PRESERVED"));
   assert.ok(workflow.includes("productionConfigUnchanged"));
   assert.ok(workflow.includes("productionBranchUnchanged"));
   assert.ok(workflow.includes("productionTouched: false"));
