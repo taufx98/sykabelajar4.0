@@ -516,7 +516,7 @@ DECLARE
   v_referral_reward_amount integer;
   v_now timestamptz := clock_timestamp();
 BEGIN
-  IF (SELECT auth.jwt() ->> 'iss') = 'https://auth.sykabelajar.my.id/api/auth' IS NOT TRUE THEN
+  IF (SELECT auth.jwt() ->> 'iss') IS DISTINCT FROM 'https://auth.sykabelajar.my.id/api/auth' THEN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
   END IF;
   IF v_user_id IS NULL THEN
