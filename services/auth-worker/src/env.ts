@@ -30,7 +30,7 @@ export interface AuthWorkerEnv {
   SUPABASE_PROVISIONING_PUBLISHABLE_KEY?: string;
   /** Preferred server-only Supabase provisioning key (`sb_secret_*` or legacy service_role JWT); never expose to browser bundles or logs. */
   SUPABASE_PROVISIONING_API_KEY?: string;
-  /** Deprecated binding name retained for existing deployments using a legacy service_role JWT. */
+  /** Backward-compatible alias for existing deployments; prefer SUPABASE_PROVISIONING_API_KEY. */
   SUPABASE_SERVICE_ROLE_KEY?: string;
   /** Explicit opt-in. Missing/false keeps the Worker in isolated auth-only mode. */
   SUPABASE_PROVISIONING_ENABLED?: string;
