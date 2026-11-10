@@ -8,10 +8,8 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const sourceRoot = join(repoRoot, "src");
 const expected = {
   "src/components/organizer/OrganizerWorkspaceOnboarding.tsx": 4,
-  "src/pages/AdminChatConsolePage.tsx": 2,
   "src/services/applicationAccessToken.ts": 1,
   "src/services/auth.service.ts": 9,
-  "src/services/chat.service.ts": 3,
 };
 
 function collectSourceFiles(directory) {
@@ -37,18 +35,24 @@ function scanAuthCallsites() {
 test("Stage 4 frontend Supabase Auth inventory matches the reviewed file-by-file baseline", () => {
   const actual = scanAuthCallsites();
   assert.deepEqual(actual, Object.fromEntries(Object.entries(expected).sort(([a], [b]) => a.localeCompare(b))));
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 19);
-  assert.equal(Object.keys(actual).length, 5);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 14);
+  assert.equal(Object.keys(actual).length, 3);
 });
 
 test("the inventory document remains present next to its tracked source baseline", () => {
   const inventoryPath = join(repoRoot, "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md");
   const inventory = readFileSync(inventoryPath, "utf8");
-  assert.ok(inventory.includes('19 direct `supabase.auth` callsites across 5 frontend files'));
+  assert.ok(inventory.includes('14 direct provider calls across 3 frontend files'));
   assert.match(inventory, /Organizer email\/phone verification/);
   assert.match(inventory, /Cloudinary remains the media system of record/);
-  assert.match(inventory, /Legacy private-chat service[\s\S]*not migrate(?: it)? to Better Auth/);
-  assert.match(inventory, /comments and other social features remain/);
+  assert.match(inventory, /Chat feature behavior is unchanged/);
+  assert.match(inventory, /Admin Chat Console behavior and its Supabase data\/Realtime access remain unchanged/);
+  const chatService = readFileSync(join(repoRoot, "src/services/chat.service.ts"), "utf8");
+  const adminChatConsole = readFileSync(join(repoRoot, "src/pages/AdminChatConsolePage.tsx"), "utf8");
+  assert.match(chatService, /getCurrentApplicationUserId/);
+  assert.doesNotMatch(chatService, /\\bsupabase\\.auth\\b/);
+  assert.match(adminChatConsole, /getCurrentApplicationUserId/);
+  assert.doesNotMatch(adminChatConsole, /\\bsupabase\\.auth\\b/);
 });
 
 test("Stage 4 registration form matches the Better Auth password and username contract", () => {
