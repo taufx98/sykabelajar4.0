@@ -161,9 +161,18 @@ jobs:
           const after = await request("GET", path);
           const afterPreview = after?.deployment_configs?.preview;
           const afterVars = afterPreview?.env_vars ?? {};
+          function canonical(value) {
+            if (Array.isArray(value)) return value.map(canonical);
+            if (value && typeof value === "object") {
+              return Object.fromEntries(
+                Object.keys(value).sort().map((key) => [key, canonical(value[key])]),
+              );
+            }
+            return value;
+          }
           const productionUnchanged =
-            JSON.stringify(after?.deployment_configs?.production ?? null) ===
-            JSON.stringify(deploymentConfigs?.production ?? null);
+            JSON.stringify(canonical(after?.deployment_configs?.production ?? null)) ===
+            JSON.stringify(canonical(deploymentConfigs?.production ?? null));
           const checks = {
             exactPagesProject: after?.name === projectName &&
               after?.source?.config?.owner === "taufx98" &&
