@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT extensions.plan(35);
+SELECT extensions.plan(36);
 
 SELECT extensions.ok(
   EXISTS (
@@ -215,7 +215,7 @@ SELECT extensions.is(
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
-  '{"sub":"70707070-7070-4070-8070-707070707070","role":"authenticated"}',true);
+  '{"sub":"70707070-7070-4070-8070-707070707070","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}',true);
 SELECT set_config('request.jwt.claim.sub','70707070-7070-4070-8070-707070707070',true);
 SELECT extensions.throws_ok(
   $$SELECT * FROM public.create_organizer('No Phone','no-phone')$$,
@@ -224,7 +224,7 @@ SELECT extensions.throws_ok(
 );
 
 SELECT set_config('request.jwt.claims',
-  '{"sub":"50505050-5050-4050-8050-505050505050","role":"authenticated"}',true);
+  '{"sub":"50505050-5050-4050-8050-505050505050","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}',true);
 SELECT set_config('request.jwt.claim.sub','50505050-5050-4050-8050-505050505050',true);
 SELECT extensions.throws_ok(
   $$SELECT * FROM public.create_organizer('No Email','no-email')$$,
@@ -233,7 +233,7 @@ SELECT extensions.throws_ok(
 );
 
 SELECT set_config('request.jwt.claims',
-  '{"sub":"60606060-6060-4060-8060-606060606060","role":"authenticated"}',true);
+  '{"sub":"60606060-6060-4060-8060-606060606060","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}',true);
 SELECT set_config('request.jwt.claim.sub','60606060-6060-4060-8060-606060606060',true);
 SELECT extensions.throws_ok(
   $$SELECT * FROM public.create_organizer('No Role','no-role')$$,
@@ -242,7 +242,16 @@ SELECT extensions.throws_ok(
 );
 
 SELECT set_config('request.jwt.claims',
-  '{"sub":"10101010-1010-4010-8010-101010101010","role":"authenticated"}',true);
+  '{"sub":"10101010-1010-4010-8010-101010101010","role":"authenticated","iss":"https://ydamszdfsxqisanazdkb.supabase.co/auth/v1"}',true);
+SELECT set_config('request.jwt.claim.sub','10101010-1010-4010-8010-101010101010',true);
+SELECT extensions.throws_ok(
+  $SELECT * FROM public.create_organizer('Legacy Issuer','legacy-issuer')$,
+  'P0001','BETTER_AUTH_ISSUER_REQUIRED',
+  'Supabase Auth issuer cannot invoke the Better Auth-only organizer RPC'
+);
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"10101010-1010-4010-8010-101010101010","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}',true);
 SELECT set_config('request.jwt.claim.sub','10101010-1010-4010-8010-101010101010',true);
 SELECT extensions.lives_ok(
   $$SELECT * FROM public.create_organizer('Organizer Alpha','organizer-alpha')$$,
@@ -265,7 +274,7 @@ SELECT extensions.throws_ok(
 );
 
 SELECT set_config('request.jwt.claims',
-  '{"sub":"20202020-2020-4020-8020-202020202020","role":"authenticated"}',true);
+  '{"sub":"20202020-2020-4020-8020-202020202020","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}',true);
 SELECT set_config('request.jwt.claim.sub','20202020-2020-4020-8020-202020202020',true);
 SELECT extensions.throws_ok(
   $$SELECT * FROM public.create_organizer('Organizer Beta','organizer-beta')$$,
