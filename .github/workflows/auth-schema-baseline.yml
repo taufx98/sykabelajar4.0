@@ -138,7 +138,7 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         uses: supabase/setup-cli@v3
         with:
-          version: 3.0.0
+          version: 3.1.0
 
       - name: Test exact restored FK catalog verifier contract
         if: steps.credentials.outputs.available == 'true'
