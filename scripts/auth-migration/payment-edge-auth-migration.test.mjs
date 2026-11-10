@@ -27,7 +27,10 @@ function stripSourceComments(source) {
 
 test("shared application identity defaults to legacy Supabase and Better Auth is explicit opt-in", () => {
   assert.match(identityResolver, /AUTH_IDENTITY_MODE/);
-  assert.match(identityResolver, /\?\.trim\(\) \|\| "supabase"/);
+  assert.match(identityResolver, /resolveApplicationIdentityMode/);
+  const modeResolver = readFileSync(new URL("../../supabase/functions/_shared/resolve-application-identity-mode.mjs", import.meta.url), "utf8");
+  assert.ok(modeResolver.includes("return normalizeUrl(supabaseUrl) === STAGING_BETTER_AUTH_SUPABASE_URL"));
+  assert.ok(modeResolver.includes(": \"supabase\";"));
   assert.match(identityResolver, /mode === "better-auth"/);
   assert.match(identityResolver, /requireBetterAuthUser\(request\)/);
   assert.match(identityResolver, /supabase\.auth\.getUser\(\)/);
