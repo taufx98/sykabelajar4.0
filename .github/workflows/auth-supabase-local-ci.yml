@@ -189,6 +189,54 @@ jobs:
         with:
           version: 3.0.0
 
+      - name: Allocate collision-resistant local Supabase ports
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+
+          const runId = Number(process.env.GITHUB_RUN_ID);
+          if (!Number.isSafeInteger(runId) || runId <= 0) {
+            throw new Error("A valid GitHub run ID is required for isolated local Supabase ports.");
+          }
+          // Give each CI run its own three-port block so concurrent hosted
+          // Actions jobs never contend for the same Docker DB/API/shadow ports.
+          const databasePort = 55002 + (runId % 900) * 3;
+          const apiPort = databasePort - 1;
+          const shadowPort = databasePort - 2;
+          if (databasePort > 57699 || shadowPort < 55000) {
+            throw new Error("Generated local Supabase ports are outside the reserved CI range.");
+          }
+
+          const path = "supabase/config.toml";
+          const lines = readFileSync(path, "utf8").split("\\n");
+          let section = "";
+          const changed = { api: 0, db: 0, shadow: 0 };
+          const output = lines.map((line) => {
+            const sectionMatch = line.match(/^\\s*\\[([^\\]]+)\\]\\s*$/);
+            if (sectionMatch) section = sectionMatch[1];
+            if (section === "api" && /^port\\s*=/.test(line)) {
+              changed.api += 1;
+              return `port = ${apiPort}`;
+            }
+            if (section === "db" && /^port\\s*=/.test(line)) {
+              changed.db += 1;
+              return `port = ${databasePort}`;
+            }
+            if (section === "db" && /^shadow_port\\s*=/.test(line)) {
+              changed.shadow += 1;
+              return `shadow_port = ${shadowPort}`;
+            }
+            return line;
+          });
+          if (changed.api !== 1 || changed.db !== 1 || changed.shadow !== 1) {
+            throw new Error("Expected exactly one API, database and shadow port entry in the local Supabase config.");
+          }
+          writeFileSync(path, output.join("\\n"));
+          console.log(JSON.stringify({ apiPort, databasePort, shadowPort, runId, configOnly: true }));
+          NODE
+
       - name: Start isolated local Supabase
         run: supabase start
 
