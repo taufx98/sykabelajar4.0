@@ -250,7 +250,7 @@ SELECT set_config('request.jwt.claims',
   '{"sub":"10101010-1010-4010-8010-101010101010","role":"authenticated","iss":"https://ydamszdfsxqisanazdkb.supabase.co/auth/v1"}',true);
 SELECT set_config('request.jwt.claim.sub','10101010-1010-4010-8010-101010101010',true);
 SELECT extensions.throws_ok(
-  $SELECT * FROM public.create_organizer('Legacy Issuer','legacy-issuer')$,
+  'SELECT * FROM public.create_organizer(''Legacy Issuer'',''legacy-issuer'')',
   'P0001','BETTER_AUTH_ISSUER_REQUIRED',
   'Supabase Auth issuer cannot invoke the Better Auth-only organizer RPC'
 );
@@ -259,7 +259,7 @@ SELECT set_config('request.jwt.claims',
   '{"sub":"80808080-8080-4080-8080-808080808080","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}',true);
 SELECT set_config('request.jwt.claim.sub','80808080-8080-4080-8080-808080808080',true);
 SELECT extensions.throws_ok(
-  $SELECT * FROM public.create_organizer('Legacy Tombstone','legacy-tombstone')$,
+  'SELECT * FROM public.create_organizer(''Legacy Tombstone'',''legacy-tombstone'')',
   'P0001','BETTER_AUTH_IDENTITY_REQUIRED',
   'FK-only legacy reference identities cannot invoke Better Auth organizer creation'
 );
