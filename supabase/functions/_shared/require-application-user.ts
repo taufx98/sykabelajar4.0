@@ -26,9 +26,10 @@ export type ApplicationIdentityResult =
   | ApplicationIdentityFailure;
 
 /**
- * Resolve the canonical application UUID using exactly one configured token
- * verifier. The compatibility default remains Supabase Auth; Better Auth is
- * enabled only by the server-side AUTH_IDENTITY_MODE="better-auth" variable.
+ * Resolve the canonical application UUID using exactly one token verifier.
+ * Production and other projects default to Supabase Auth. The exact isolated
+ * Free staging Supabase URL selects Better Auth automatically when no explicit
+ * AUTH_IDENTITY_MODE is set; an explicit server-side mode always takes priority.
  *
  * Both modes return a caller-scoped Supabase client. This function never
  * creates or returns a service-role client and never accepts a body-supplied
