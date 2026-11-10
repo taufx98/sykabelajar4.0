@@ -1,3 +1,23 @@
+## Stage 5 authorization hardening and current CI checkpoint — 10 November 2026, 18:42 WIB
+
+This checkpoint supersedes the older PR-head and `create_organizer` findings in the 10 November login-first checkpoint above. It records isolated staging and CI evidence only; it does not authorize production changes.
+
+- PR #177 is still open, Draft, unmerged and mergeable. Branch `security/auth-poc-stage-1`; verified head `a03f17235c1ed3690d3b755c3f1779de561dd39b`.
+- Current-head validation passed:
+  - [Auth Worker CI #916](https://github.com/taufx98/sykabelajar4.0/actions/runs/42809358257) — Worker security contracts, D1/OIDC/JWKS integration and frontend lint/typecheck/build.
+  - [Supabase Local Auth Claims CI #648](https://github.com/taufx98/sykabelajar4.0/actions/runs/42809358352) — 8 pgTAP files, **176 assertions**, including the 37-assertion phone/organizer contract with empty search_path, no anonymous execute, preserved authenticated onboarding permission, rejection of the Supabase Auth issuer, and rejection of `legacy_reference` UUID tombstones.
+  - [Cloudflare staging read-only preflight](https://github.com/taufx98/sykabelajar4.0/actions/runs/42809353123) — success; no Worker secret values were read.
+- Applied two additive DDL migrations only to isolated Supabase staging `ydamszdfsxqisanazdkb`:
+  - `20261110113206_harden_stage3_create_organizer_search_path`
+  - `20261110113945_require_better_auth_issuer_for_organizer`
+- Post-apply catalog verification for `public.create_organizer(text,text)`: owner remains `postgres`; it remains `SECURITY DEFINER`; `search_path=""`; `anon` cannot execute; `authenticated` and `service_role` retain the intended grants. The function now checks the exact Better Auth issuer `https://auth.sykabelajar.my.id/api/auth` and requires `private.app_users.identity_origin='better_auth'` before the existing organizer-role, verified-email, trusted-phone and one-free-claim checks. It is intentional that authenticated users can call this RPC for organizer onboarding; do not blindly revoke that grant. The remaining Advisor warning is therefore retained for function-by-function review, not hidden or mass-revoked.
+- The local Supabase fixture, pgTAP test and Stage 3 identity-root draft are aligned with those two safeguards. The local migration filenames match the version numbers recorded by the hosted staging migration history.
+- Read-only staging row counts after the migrations: `auth.users=0`, `private.app_users=0`, `public.profiles=0`, `public.user_roles=0`, `public.user_settings=0`. No synthetic user/admin was created or left behind.
+- The top-level roadmap now makes the login-provider boundary explicit: email/password is the core login path; Google OAuth is optional; transactional email is deferred. The real hosted session acceptance is still pending because Better Auth correctly requires genuine email verification and no delivery provider or optional social provider is configured. Do not fabricate `emailVerified` or weaken that security gate.
+- `SUPABASE_PROVISIONING_ENABLED=false` remains unchanged; no staging provisioning secret was installed. Positive real-token Storage, Realtime WebSocket and application Edge Function acceptance, real browser session lifecycle, app Edge deployment, and full role/business regression remain open.
+- Production Supabase `mvdczyitbkxkldjughor`, DB2, production Pages/login routing, DNS, app Edge Functions and user data were not modified. PR was not merged and production cutover was not attempted.
+
+
 # Better Auth migration — live readiness and rollback record
 
 Status date: 10 November 2026  
