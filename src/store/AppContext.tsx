@@ -97,7 +97,6 @@ function mapProfileToUser(profile: Record<string, unknown>, email = ''): User {
     emblems: [],
     followers: 0,
     following: 0,
-    verified: String(profile.status ?? '') === 'ACTIVE',
     pembina: profile.pembina ? String(profile.pembina) : undefined,
     grade: profile.grade ? String(profile.grade) : undefined,
     badgeShowcase: Array.isArray(profile.badge_showcase) ? profile.badge_showcase : [],

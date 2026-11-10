@@ -39,4 +39,4 @@ Known production `profiles` fields verified during the post-merge audit include:
 - accept_messages
 - verification_type
 
-Do not add derived/nonexistent fields such as `competitions_joined`, `role`, `city`, or `country` to direct profile selects unless the database schema is first changed and deployed with all required compatibility controls.
+Do not add derived/nonexistent fields such as `competitions_joined`, `role`, `city`, `country`, or `status` to direct profile selects unless the database schema is first changed and deployed with all required compatibility controls. The verified-profile badge must not be inferred from an unverified `status` field; keep `User.verified` unset until a trusted profile/RPC source is defined.
