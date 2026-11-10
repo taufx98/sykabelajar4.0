@@ -124,6 +124,24 @@ printf 'Exporting schema-only custom database objects using Supabase CLI v3 remo
   # Default db dump exports schema only; it intentionally omits data and custom roles.
   supabase db dump -f "$OUTPUT_DIR/schema.sql" --remote="$SUPABASE_DB_URL"
 
+  [[ -s "$OUTPUT_DIR/schema.sql" ]] || die 'The schema dump is empty.'
+  if grep -Eq '^[[:space:]]*COPY[[:space:]].*[[:space:]]FROM stdin;' "$OUTPUT_DIR/schema.sql"; then
+    die 'The schema dump unexpectedly contains a COPY data block; refusing to seed the disposable diff baseline.'
+  fi
+
+  # pg-delta validates cross-schema dependencies. The Auth trigger
+  # on auth.users calls public.handle_new_auth_user(), so a diff filtered to
+  # auth,storage must still have the full, data-free public schema in its
+  # disposable shadow baseline. This temporary migration is applied only to
+  # the CLI shadow database; the emitted diff remains restricted to auth,storage.
+  SHADOW_MIGRATIONS_DIR="$SUPABASE_CLI_WORKDIR/supabase/migrations"
+  mkdir -p "$SHADOW_MIGRATIONS_DIR"
+  if [[ -n "$(find "$SHADOW_MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' -print -quit)" ]]; then
+    die 'Expected an empty temporary migration directory before preparing the schema-only shadow baseline.'
+  fi
+  cp "$OUTPUT_DIR/schema.sql" "$SHADOW_MIGRATIONS_DIR/20261110000000_production_schema_shadow_baseline.sql"
+  printf 'Prepared a schema-only dependency baseline for the disposable pg-delta shadow database...\n'
+
   printf 'Capturing custom Auth/Storage DDL separately...\n'
   # The empty disposable CLI workdir is used by the workflow to capture all custom managed-schema DDL.
   # The explicit migra engine is compatible with session-pooler connections and legacy projects.
