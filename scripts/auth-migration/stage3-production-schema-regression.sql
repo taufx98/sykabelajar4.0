@@ -1858,9 +1858,10 @@ RESET ROLE;
 -- An anonymous caller receives no private profile rows and cannot invoke the
 -- protected organizer creation RPC.
 SET LOCAL ROLE anon;
--- Clear both JWT claim settings. auth.uid() falls back to the `sub` in
--- request.jwt.claims when request.jwt.claim.sub is empty; without this reset,
--- the previous admin fixture would accidentally retain anonymous privileges.
+-- Clear the complete request JWT context. auth.jwt() prefers singular
+-- request.jwt.claim before plural request.jwt.claims, while auth.uid() falls
+-- back to the plural claims when the direct subject is empty. Leaving any
+-- claim from the preceding admin fixture would falsely grant anon visibility.
 SELECT set_config('request.jwt.claim','',true);
 SELECT set_config('request.jwt.claims','{"role":"anon"}',true);
 SELECT set_config('request.jwt.claim.sub','',true);
