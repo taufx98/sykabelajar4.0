@@ -3,6 +3,7 @@ import {
   type SupabaseClient,
 } from "npm:@supabase/supabase-js@2.57.4";
 import { requireBetterAuthUser } from "./better-auth-user.ts";
+import { resolveApplicationIdentityMode } from "./resolve-application-identity-mode.mjs";
 
 type CallerSupabaseClient = SupabaseClient;
 
@@ -36,7 +37,10 @@ export type ApplicationIdentityResult =
 export async function requireApplicationUser(
   request: Request,
 ): Promise<ApplicationIdentityResult> {
-  const mode = Deno.env.get("AUTH_IDENTITY_MODE")?.trim() || "supabase";
+  const mode = resolveApplicationIdentityMode({
+    configuredMode: Deno.env.get("AUTH_IDENTITY_MODE"),
+    supabaseUrl: Deno.env.get("SUPABASE_URL"),
+  });
   if (mode !== "supabase" && mode !== "better-auth") {
     return {
       ok: false,
