@@ -28,8 +28,8 @@ test("Pages preflight checks the staging Supabase and Better Auth flag without p
     "VITE_BETTER_AUTH_FRONTEND_ENABLED",
     "VITE_AUTH_WORKER_URL",
   ]) assert.ok(workflow.includes(name));
-  assert.match(workflow, /ydamszdfsxqisanazdkb\\.supabase\\.co/);
-  assert.match(workflow, /auth\\.sykabelajar\\.my\\.id/);
+  assert.ok(workflow.includes("ydamszdfsxqisanazdkb.supabase.co"));
+  assert.ok(workflow.includes("auth.sykabelajar.my.id"));
   assert.match(workflow, /sharedPreviewSupabaseConfigPreserved/);
   assert.match(workflow, /sharedSupabasePublishableKeyConfigured/);
   assert.match(workflow, /stagingSupabaseUrlTargetsIsolatedProject/);
