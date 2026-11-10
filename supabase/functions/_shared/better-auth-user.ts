@@ -1,5 +1,6 @@
 import { createSupabaseContext } from "npm:@supabase/server@1.9.2";
 import { validateBetterAuthClaims } from "./auth-claims.mjs";
+import { resolveBetterAuthVerifierConfig } from "./resolve-application-identity-mode.mjs";
 
 const EXPECTED_BETTER_AUTH_ISSUER = "https://auth.sykabelajar.my.id/api/auth";
 const EXPECTED_RESOURCE_AUDIENCE = "https://sykabelajar.my.id";
@@ -18,8 +19,11 @@ const EXPECTED_RESOURCE_AUDIENCE = "https://sykabelajar.my.id";
  * owner/business-role checks in the calling function.
  */
 export async function requireBetterAuthUser(request: Request) {
-  const issuer = Deno.env.get("BETTER_AUTH_ISSUER")?.trim();
-  const audience = Deno.env.get("BETTER_AUTH_RESOURCE_AUDIENCE")?.trim();
+  const { issuer, audience } = resolveBetterAuthVerifierConfig({
+    supabaseUrl: Deno.env.get("SUPABASE_URL"),
+    issuer: Deno.env.get("BETTER_AUTH_ISSUER"),
+    audience: Deno.env.get("BETTER_AUTH_RESOURCE_AUDIENCE"),
+  });
   if (
     issuer !== EXPECTED_BETTER_AUTH_ISSUER ||
     audience !== EXPECTED_RESOURCE_AUDIENCE
