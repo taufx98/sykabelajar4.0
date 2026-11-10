@@ -31,6 +31,7 @@ test("Pages preflight checks the staging Supabase and Better Auth flag without p
   assert.match(workflow, /ydamszdfsxqisanazdkb\\.supabase\\.co/);
   assert.match(workflow, /auth\\.sykabelajar\\.my\\.id/);
   assert.match(workflow, /sharedPreviewSupabaseConfigPreserved/);
+  assert.match(workflow, /sharedSupabasePublishableKeyConfigured/);
   assert.match(workflow, /stagingSupabaseUrlTargetsIsolatedProject/);
   assert.match(workflow, /stagingPublishableKeyConfigured/);
   assert.match(workflow, /previewVariableNames: names/);
