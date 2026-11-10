@@ -1,4 +1,4 @@
-# Auth pg-deltation schema-only baseline runbook
+# Auth migration schema-only baseline runbook
 
 Status: automated schema-only export and disposable restore succeeded in GitHub Actions [#42367689543](https://github.com/taufx98/sykabelajar4.0/actions/runs/42367689543) on 7 November 2026. The production schema dump and Auth/Storage custom DDL diff were restored into an ephemeral local Supabase stack; structural checks passed and confirmed that zero `auth.users` and zero `public.profiles` rows were imported. An exact row-by-row FK comparison and adversarial contract tests were added and passed in [run #42370809198](https://github.com/taufx98/sykabelajar4.0/actions/runs/42370809198). The 69 restored FKs match the reviewed catalog exactly, including their names, source/target mapping, columns, update/delete actions, validation, MATCH and deferrability. The workflow uploads no schema artifact, commits no dump, and performs no production DDL/DML. This runbook does not authorize a production migration.
 
@@ -24,11 +24,13 @@ The early workflow attempts on 7 November were safely stopped by secret-format p
 
 ## Safe exporter
 
-Use `scripts/auth-migration/export-schema-baseline.sh`. It requires Supabase CLI 3.0.0, Node.js (for a connection-target guard), local Docker and `psql`, creates a temporary output directory outside the repository, then:
+Use `scripts/auth-migration/export-schema-baseline.sh`. It requires Supabase CLI 3.1.0, Node.js (for a connection-target guard), local Docker and `psql`, creates a temporary output directory outside the repository, then:
 
 1. Connects with the explicit remote database URI using Supabase CLI v3.1.0's `--remote=<uri>` flag; no project linking or CLI login is required.
 2. Runs the default `supabase db dump` schema export to create `schema.sql`. Supabase documents that the default dump does not contain data or custom roles.
 3. Runs the read-only `supabase db diff --use-pg-delta --schema auth,storage --remote=<uri>` comparison and saves custom managed-schema DDL separately, so custom triggers on `auth.users` and Storage policies are not silently missed.
+
+The exporter keeps `PGSSLMODE=require` for read-only Production catalog/`psql` operations. For the custom-schema diff only, it removes that inherited environment override with `env -u PGSSLMODE`; the explicit Production connection URL still carries `sslmode=require`, while the disposable local shadow database can use its default non-TLS listener. This avoids applying Production's TLS requirement to localhost.
 4. Records the PostgreSQL version and extension versions for local compatibility checks.
 5. Rejects an unexpected `COPY ... FROM stdin` data block, writes checksums, and does not perform a restore or deploy.
 
