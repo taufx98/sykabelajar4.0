@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { validateBetterAuthClaims } from "../../supabase/functions/_shared/auth-claims.mjs";
+import { resolveApplicationIdentityMode, resolveBetterAuthVerifierConfig, STAGING_BETTER_AUTH_SUPABASE_URL } from "../../supabase/functions/_shared/resolve-application-identity-mode.mjs";
 
 const ISSUER = "https://auth.sykabelajar.my.id/api/auth";
 const AUDIENCE = "https://sykabelajar.my.id";
@@ -19,6 +20,71 @@ function validClaims(overrides = {}) {
     ...overrides,
   };
 }
+
+test("only the exact isolated staging project selects Better Auth by default", () => {
+  assert.equal(
+    resolveApplicationIdentityMode({ supabaseUrl: STAGING_BETTER_AUTH_SUPABASE_URL }),
+    "better-auth",
+  );
+  assert.equal(
+    resolveApplicationIdentityMode({ supabaseUrl: STAGING_BETTER_AUTH_SUPABASE_URL + "/" }),
+    "better-auth",
+  );
+  for (const supabaseUrl of [
+    "https://mvdczyitbkxkldjughor.supabase.co",
+    "https://another-staging-project.supabase.co",
+    "",
+    undefined,
+  ]) {
+    assert.equal(resolveApplicationIdentityMode({ supabaseUrl }), "supabase");
+  }
+});
+
+test("explicit identity mode overrides the staging default and invalid modes fail closed", () => {
+  assert.equal(
+    resolveApplicationIdentityMode({
+      configuredMode: "supabase",
+      supabaseUrl: STAGING_BETTER_AUTH_SUPABASE_URL,
+    }),
+    "supabase",
+  );
+  assert.equal(
+    resolveApplicationIdentityMode({
+      configuredMode: "better-auth",
+      supabaseUrl: "https://mvdczyitbkxkldjughor.supabase.co",
+    }),
+    "better-auth",
+  );
+  assert.equal(
+    resolveApplicationIdentityMode({
+      configuredMode: "unsafe-mode",
+      supabaseUrl: STAGING_BETTER_AUTH_SUPABASE_URL,
+    }),
+    "invalid",
+  );
+});
+
+test("Better Auth verifier defaults are supplied only for the exact staging project", () => {
+  const staged = resolveBetterAuthVerifierConfig({
+    supabaseUrl: STAGING_BETTER_AUTH_SUPABASE_URL,
+  });
+  assert.equal(staged.issuer, ISSUER);
+  assert.equal(staged.audience, AUDIENCE);
+
+  const production = resolveBetterAuthVerifierConfig({
+    supabaseUrl: "https://mvdczyitbkxkldjughor.supabase.co",
+  });
+  assert.equal(production.issuer, "");
+  assert.equal(production.audience, "");
+
+  const overridden = resolveBetterAuthVerifierConfig({
+    supabaseUrl: STAGING_BETTER_AUTH_SUPABASE_URL,
+    issuer: "https://attacker.example/api/auth",
+    audience: AUDIENCE,
+  });
+  assert.equal(overridden.issuer, "https://attacker.example/api/auth");
+  assert.equal(overridden.audience, AUDIENCE);
+});
 
 test("accepts only a verified Better Auth UUID identity for the exact issuer and audience", () => {
   const result = validateBetterAuthClaims(validClaims(), { issuer: ISSUER, audience: AUDIENCE, nowSeconds: NOW });
@@ -129,13 +195,17 @@ test("Edge adapter delegates cryptographic JWT verification to pinned @supabase/
   assert.doesNotMatch(edgeAdapter, /auth\.getUser\(/);
 });
 
-test("verified user adapter fails closed without exact issuer and resource audience config", () => {
+test("verified user adapter uses the staging-pinned configuration resolver and fails closed elsewhere", () => {
   assert.match(edgeAdapter, /BETTER_AUTH_ISSUER/);
   assert.match(edgeAdapter, /BETTER_AUTH_RESOURCE_AUDIENCE/);
+  assert.match(edgeAdapter, /resolveBetterAuthVerifierConfig/);
   assert.match(edgeAdapter, /AUTH_IDENTITY_CONFIGURATION_MISSING/);
   assert.match(edgeAdapter, /AUTH_SUBJECT_MISMATCH/);
   assert.match(edgeAdapter, /AUTH_POSTGRES_ROLE_INVALID/);
   assert.match(edgeAdapter, /status >= 500[\s\S]*AUTH_VERIFICATION_UNAVAILABLE/);
+  const appResolver = readFileSync(new URL("_shared/require-application-user.ts", edgeRoot), "utf8");
+  assert.match(appResolver, /resolveApplicationIdentityMode/);
+  assert.match(appResolver, /AUTH_IDENTITY_MODE/);
 });
 
 test("migrated handlers bypass gateway JWT verification only because the shared resolver verifies every request", () => {
