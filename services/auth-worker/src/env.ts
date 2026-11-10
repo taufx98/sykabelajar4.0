@@ -28,7 +28,9 @@ export interface AuthWorkerEnv {
   SUPABASE_PUBLISHABLE_KEY?: string;
   /** Public key for caller-scoped Better Auth admin-role reads in the isolated staging project. */
   SUPABASE_PROVISIONING_PUBLISHABLE_KEY?: string;
-  /** Server-only Supabase secret; never expose to browser bundles or logs. */
+  /** Preferred server-only Supabase provisioning key (`sb_secret_*` or legacy service_role JWT); never expose to browser bundles or logs. */
+  SUPABASE_PROVISIONING_API_KEY?: string;
+  /** Deprecated binding name retained for existing deployments using a legacy service_role JWT. */
   SUPABASE_SERVICE_ROLE_KEY?: string;
   /** Explicit opt-in. Missing/false keeps the Worker in isolated auth-only mode. */
   SUPABASE_PROVISIONING_ENABLED?: string;
