@@ -1,0 +1,195 @@
+name: Better Auth Pages preview configuration update
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/CONFIGURE-AUTH-PAGES-PREVIEW-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type CONFIGURE-BETTER-AUTH-PAGES-PREVIEW"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: better-auth-pages-preview-config-update
+  cancel-in-progress: false
+
+jobs:
+  update-preview-only:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Configure only the isolated Pages Preview environment
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout the exact migration branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Verify exact branch and one-time marker
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          marker=".github/auth-ops/CONFIGURE-AUTH-PAGES-PREVIEW-0001"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "CONFIGURE-BETTER-AUTH-PAGES-PREVIEW"
+          else
+            test "$GITHUB_EVENT_NAME" = "push"
+            test -f "$marker"
+            test "$(cat "$marker")" = "CONFIGURE-AUTH-PAGES-PREVIEW-0001"
+          fi
+
+      - name: Merge Better Auth settings into Preview only and verify production is unchanged
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          if (!token || token.length < 20) throw new Error("CLOUDFLARE_TOKEN_MISSING");
+          if (!accountId || !/^[a-f0-9]{32}$/i.test(accountId)) throw new Error("CLOUDFLARE_ACCOUNT_ID_INVALID");
+
+          const repoConfig = readFileSync("services/auth-worker/wrangler.toml", "utf8");
+          const publishableKey = repoConfig.match(/^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "([^"]+)"$/m)?.[1] ?? "";
+          if (!publishableKey.startsWith("sb_publishable_") || publishableKey.length > 256) {
+            throw new Error("STAGING_PUBLISHABLE_KEY_NOT_PINNED");
+          }
+
+          const api = "https://api.cloudflare.com/client/v4";
+          const projectName = "sykabelajar";
+          const branch = "security/auth-poc-stage-1";
+          const stagingDomain = "staging.sykabelajar.my.id";
+          const stagingSupabaseUrl = "https://ydamszdfsxqisanazdkb.supabase.co";
+          const stagingWorkerUrl = "https://auth.sykabelajar.my.id";
+
+          async function request(method, path, body) {
+            let response;
+            try {
+              response = await fetch(api + path, {
+                method,
+                headers: {
+                  Authorization: "Bearer " + token,
+                  Accept: "application/json",
+                  ...(body ? { "Content-Type": "application/json" } : {}),
+                },
+                ...(body ? { body: JSON.stringify(body) } : {}),
+              });
+            } catch {
+              throw new Error("CLOUDFLARE_PAGES_REQUEST_UNAVAILABLE");
+            }
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || result.success !== true) {
+              throw new Error("CLOUDFLARE_PAGES_REQUEST_REJECTED_" + response.status);
+            }
+            return result.result;
+          }
+
+          const path = "/accounts/" + encodeURIComponent(accountId) +
+            "/pages/projects/" + encodeURIComponent(projectName);
+          const before = await request("GET", path);
+          if (
+            before?.name !== projectName ||
+            before?.source?.config?.owner !== "taufx98" ||
+            before?.source?.config?.repo_name !== "sykabelajar4.0"
+          ) throw new Error("PAGES_PROJECT_REPOSITORY_MISMATCH");
+
+          if (!Array.isArray(before.domains) || !before.domains.includes(stagingDomain)) {
+            throw new Error("PAGES_STAGING_DOMAIN_NOT_ATTACHED");
+          }
+          if (before.production_branch === branch) {
+            throw new Error("MIGRATION_BRANCH_MUST_NOT_BE_PRODUCTION");
+          }
+
+          const deploymentConfigs = before.deployment_configs;
+          const preview = deploymentConfigs?.preview;
+          if (!preview || typeof preview !== "object") throw new Error("PAGES_PREVIEW_CONFIG_MISSING");
+          const existing = preview.env_vars && typeof preview.env_vars === "object"
+            ? preview.env_vars
+            : {};
+
+          function readValue(item) {
+            if (typeof item === "string") return item;
+            if (item && typeof item.value === "string") return item.value;
+            return "";
+          }
+
+          const sharedUrl = readValue(existing.VITE_SUPABASE_URL);
+          const sharedKey = readValue(existing.VITE_SUPABASE_PUBLISHABLE_KEY);
+          if (!sharedUrl || !sharedKey) throw new Error("SHARED_PREVIEW_SUPABASE_CONFIG_MISSING");
+          if (new URL(sharedUrl).hostname === "ydamszdfsxqisanazdkb.supabase.co") {
+            throw new Error("SHARED_PREVIEW_SUPABASE_MUST_NOT_BE_REPOINTED");
+          }
+
+          // Preserve every existing Preview variable and every existing Preview
+          // deployment setting; only merge four explicitly scoped staging keys.
+          const merged = { ...existing };
+          for (const [name, item] of Object.entries(existing)) {
+            if (typeof item === "string") {
+              merged[name] = { type: "plain_text", value: item };
+            } else if (!item || typeof item.value !== "string" ||
+              !["plain_text", "secret_text"].includes(item.type)) {
+              throw new Error("EXISTING_PREVIEW_VARIABLE_CANNOT_BE_PRESERVED");
+            }
+          }
+
+          const additions = {
+            VITE_BETTER_AUTH_SUPABASE_URL: stagingSupabaseUrl,
+            VITE_BETTER_AUTH_SUPABASE_PUBLISHABLE_KEY: publishableKey,
+            VITE_BETTER_AUTH_FRONTEND_ENABLED: "true",
+            VITE_AUTH_WORKER_URL: stagingWorkerUrl,
+          };
+          for (const [name, value] of Object.entries(additions)) {
+            merged[name] = { type: "plain_text", value };
+          }
+
+          const nextPreview = { ...preview, env_vars: merged };
+          const body = { deployment_configs: { preview: nextPreview } };
+          await request("PATCH", path, body);
+
+          const after = await request("GET", path);
+          const afterPreview = after?.deployment_configs?.preview;
+          const afterVars = afterPreview?.env_vars ?? {};
+          const productionUnchanged =
+            JSON.stringify(after?.deployment_configs?.production ?? null) ===
+            JSON.stringify(deploymentConfigs?.production ?? null);
+          const checks = {
+            exactPagesProject: after?.name === projectName &&
+              after?.source?.config?.owner === "taufx98" &&
+              after?.source?.config?.repo_name === "sykabelajar4.0",
+            stagingDomainStillAttached: Array.isArray(after?.domains) && after.domains.includes(stagingDomain),
+            sharedPreviewSupabaseUrlPreserved: readValue(afterVars.VITE_SUPABASE_URL) === sharedUrl,
+            sharedPreviewSupabaseKeyPreserved: readValue(afterVars.VITE_SUPABASE_PUBLISHABLE_KEY) === sharedKey,
+            stagingSupabaseUrlConfigured: readValue(afterVars.VITE_BETTER_AUTH_SUPABASE_URL) === stagingSupabaseUrl,
+            stagingPublishableKeyConfigured: readValue(afterVars.VITE_BETTER_AUTH_SUPABASE_PUBLISHABLE_KEY) === publishableKey,
+            betterAuthFrontendFlagEnabled: readValue(afterVars.VITE_BETTER_AUTH_FRONTEND_ENABLED) === "true",
+            authWorkerUrlConfigured: readValue(afterVars.VITE_AUTH_WORKER_URL) === stagingWorkerUrl,
+            productionConfigUnchanged: productionUnchanged,
+            productionBranchUnchanged: after?.production_branch === before.production_branch &&
+              after.production_branch !== branch,
+          };
+          if (!Object.values(checks).every(Boolean)) throw new Error("PAGES_PREVIEW_POST_UPDATE_VERIFICATION_FAILED");
+
+          console.log(JSON.stringify({
+            project: projectName,
+            source: "taufx98/sykabelajar4.0",
+            branch,
+            environmentChanged: "preview",
+            previewVariableNames: Object.keys(afterVars).sort(),
+            checks,
+            productionTouched: false,
+            dnsTouched: false,
+            oauthCredentialsTouched: false,
+            emailCredentialsTouched: false,
+          }));
+          NODE
