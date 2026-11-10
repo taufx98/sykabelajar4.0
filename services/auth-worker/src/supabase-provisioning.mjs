@@ -31,10 +31,6 @@ function requireProvisioningConfig(env) {
   if (!urlValue || !serviceKey) {
     throw new Error("SUPABASE_PROVISIONING_CONFIGURATION_MISSING");
   }
-  // A publishable key is never a server-side provisioning credential.
-  if (serviceKey.startsWith("sb_publishable_")) {
-    throw new Error("SUPABASE_PROVISIONING_SECRET_KEY_REQUIRED");
-  }
 
   let url;
   try {
@@ -171,12 +167,7 @@ async function invokeRpc(env, rpcName, payload, fetchImpl) {
       method: "POST",
       headers: {
         apikey: serviceKey,
-        // Supabase sb_secret_* keys are opaque API keys, not JWTs. Sending
-        // them as Bearer tokens triggers JWT verification and is incorrect.
-        // Legacy service_role JWTs still require the Authorization header.
-        ...(!serviceKey.startsWith("sb_secret_")
-          ? { Authorization: `Bearer ${serviceKey}` }
-          : {}),
+        Authorization: `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },

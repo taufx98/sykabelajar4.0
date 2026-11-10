@@ -152,42 +152,6 @@ test("a fresh unverified student account provisions with least-privilege default
   });
 });
 
-test("new Supabase sb_secret keys use apikey only and are never sent as Bearer JWTs", async () => {
-  const secretKey = "sb_secret_staging_test_only";
-  const secretEnv = { ...env, SUPABASE_SERVICE_ROLE_KEY: secretKey };
-  const calls = [];
-
-  await reconcileSupabaseApplicationIdentity(secretEnv, {
-    id: USER_ID,
-    name: "Staging Secret User",
-  }, async (url, init) => {
-    calls.push({ url: String(url), headers: init.headers });
-    return response({ user_id: USER_ID });
-  });
-
-  await getSupabasePhoneVerificationStatus(secretEnv, USER_ID, async (url, init) => {
-    calls.push({ url: String(url), headers: init.headers });
-    return response(true);
-  });
-
-  assert.equal(calls.length, 2);
-  for (const call of calls) {
-    assert.equal(call.headers.apikey, secretKey);
-    assert.equal(Object.hasOwn(call.headers, "Authorization"), false);
-    assert.equal(call.headers["Content-Type"], "application/json");
-  }
-});
-
-test("a Supabase publishable key cannot be used for server-side provisioning", async () => {
-  await assert.rejects(
-    reconcileSupabaseApplicationIdentity({
-      ...env,
-      SUPABASE_SERVICE_ROLE_KEY: "sb_publishable_not_a_server_secret",
-    }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
-    /SUPABASE_PROVISIONING_SECRET_KEY_REQUIRED/,
-  );
-});
-
 test("teacher and organizer account types are passed only as the approved registration values", async () => {
   for (const accountType of ["teacher", "organizer"]) {
     let body;

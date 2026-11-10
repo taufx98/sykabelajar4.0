@@ -8,8 +8,9 @@
 -- 1. The account exists in D1 and the browser can read
 --    https://auth.sykabelajar.my.id/api/auth/get-session.
 -- 2. The returned user.id is the UUID inserted below and user.emailVerified=true.
--- 3. The signed-in Google account is controlled by the project owner. Do not use
---    an unverified email, session cookie or copied access token in this script.
+-- 3. The signed-in Better Auth account is controlled by the project owner.
+--    A genuine trusted verification method must have set emailVerified=true.
+--    Do not use an unverified email, session cookie or copied access token.
 -- 4. The Worker currently uses the stable Better Auth issuer and the Supabase
 --    staging Custom OIDC project. The current_user below must be postgres.
 --
