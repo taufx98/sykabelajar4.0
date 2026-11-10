@@ -128,6 +128,29 @@ assert.match(draft, /APPLICATION_PROFILE_NOT_READY/);
 assert.match(draft, /IF v_profile_rows > 0 THEN[\s\S]{0,260}existing_role\.user_id = p_user_id/i);
 assert.doesNotMatch(draft, /ON CONFLICT \(user_id, role\) DO UPDATE SET is_active = true/i);
 
+// User-facing SECURITY DEFINER RPCs must bind the caller to the Better Auth issuer.
+// RLS issuer policies do not protect SECURITY DEFINER bodies because they execute
+// with the function owner's privileges.
+for (const name of [
+  "public.get_my_referrals",
+  "public.get_my_referrals_v2",
+  "public.get_my_verified_referrals",
+  "public.register_for_competition",
+]) {
+  const start = draft.indexOf("CREATE OR REPLACE FUNCTION " + name + "(");
+  const end = draft.indexOf("$function$;", start);
+  assert.ok(start >= 0 && end > start, "missing Better Auth caller RPC: " + name);
+  const definition = draft.slice(start, end);
+  assert.match(definition, /auth[.]jwt\(\)[\s\S]{0,220}https:\/\/auth[.]sykabelajar[.]my[.]id\/api\/auth/,
+    "SECURITY DEFINER caller RPC must require the exact Better Auth issuer: " + name);
+}
+assert.match(draft, /REVOKE ALL ON FUNCTION public[.]get_my_verified_referrals\(\)[\s\S]{0,180}FROM PUBLIC, anon, authenticated, service_role;/i,
+  "legacy anonymous EXECUTE must be removed from get_my_verified_referrals");
+assert.match(draft, /GRANT EXECUTE ON FUNCTION public[.]get_my_verified_referrals\(\) TO authenticated;/i,
+  "the signed-in referral API contract must remain available");
+assert.doesNotMatch(draft, /GRANT EXECUTE ON FUNCTION public[.]get_my_verified_referrals\(\)[\s\S]{0,120}TO anon/i,
+  "do not reintroduce anonymous EXECUTE on get_my_verified_referrals");
+
 // Private SECURITY DEFINER helpers are never directly executable by the Worker.
 for (const name of [
   "private.provision_better_auth_user",
