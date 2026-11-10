@@ -34,6 +34,33 @@ test('staging /login mounts React and renders the email/password form', async ({
   expect(pageErrors, 'the browser must not report uncaught JavaScript exceptions').toEqual([]);
 });
 
+test('staging /register renders the first email/password step without creating an account', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message.slice(0, 500)));
+
+  const response = await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  expect(response?.status()).toBe(200);
+  await expect(page.locator('#root')).toBeVisible();
+  await expect(page.locator('#root')).not.toBeEmpty();
+  await expect(page.getByRole('heading', { name: /^(Buat Akun|Create an Account)$/ })).toBeVisible();
+  await expect(page.locator('input[type="email"]')).toBeVisible();
+  await expect(page.locator('input[type="password"]')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /^(Lanjut|Continue)$/ })).toBeDisabled();
+  expect(pageErrors, 'registration must not throw before the user submits the form').toEqual([]);
+});
+
+test('staging login recovery control opens the email form without sending a reset email', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message.slice(0, 500)));
+
+  const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  expect(response?.status()).toBe(200);
+  await page.getByRole('button', { name: /^(Lupa password\?|Forgot password\?)$/ }).click();
+  await expect(page.getByPlaceholder(/^(Email kamu|Your email)$/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(Kirim Link Reset|Send reset link)$/ })).toBeVisible();
+  expect(pageErrors, 'password recovery form must not throw before submit').toEqual([]);
+});
+
 test('the staging Worker exposes its safe OAuth provider discovery contract', async ({ request, baseURL }) => {
   const response = await request.get('https://auth.sykabelajar.my.id/api/auth/providers', {
     headers: { Origin: baseURL! },
