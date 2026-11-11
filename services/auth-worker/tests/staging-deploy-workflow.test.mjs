@@ -66,6 +66,12 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /auth_social_provider_meta/);
   assert.match(workflow, /social_provider_meta/);
   assert.match(workflow, /phone_challenges/);
+  assert.match(workflow, /active_sessions_for_unverified_users/);
+  assert.match(workflow, /no unverified user has an active session/);
+  assert.match(workflow, /existing staging identities are preserved/);
+  assert.doesNotMatch(workflow, /Staging D1 unexpectedly contains .* rows; refusing deployment/);
+  assert.match(workflow, /emailVerificationConfigured/);
+  assert.match(workflow, /\["emailVerificationConfigured", "issuer", "ok", "providers"\]/);
   assert.match(workflow, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(workflow, /SUPABASE_SERVICE_ROLE_KEY:\s*\$\{\{\s*secrets\./i,
     "the service-role key value must remain a Worker secret and must never be injected into the Actions runner");
