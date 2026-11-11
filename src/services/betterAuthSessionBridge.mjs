@@ -159,12 +159,21 @@ export function createBetterAuthSessionBridge(input) {
 
     const previousUserId = currentUserId;
     currentUserId = nextUserId;
-    if (hint) {
-      deliver(hint, session);
+
+    // A cross-tab message is only a wake-up hint, never an auth decision.
+    // Another tab may have switched accounts (or signed out) before this
+    // request reached the Worker. Derive sign-in/out exclusively from the
+    // authoritative session returned by Better Auth.
+    if (previousUserId !== nextUserId) {
+      deliver(nextUserId ? "SIGNED_IN" : "SIGNED_OUT", session);
       return;
     }
-    if (previousUserId === nextUserId) return;
-    deliver(nextUserId ? "SIGNED_IN" : "SIGNED_OUT", session);
+
+    // Same-identity events may still require profile/password-recovery
+    // consumers to refresh, but sign-in/out hints must not create transitions.
+    if (session && (hint === "USER_UPDATED" || hint === "PASSWORD_RECOVERY")) {
+      deliver(hint, session);
+    }
   };
 
   const receive = (raw) => {
