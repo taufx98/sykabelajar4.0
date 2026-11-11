@@ -202,6 +202,7 @@ jobs:
             (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges,
             (SELECT COUNT(*) FROM auth_social_provider_settings) AS social_provider_settings,
             (SELECT COUNT(*) FROM session s JOIN user u ON u.id = s.userId WHERE u.emailVerified = 0 AND julianday(s.expiresAt) > julianday('now')) AS active_sessions_for_unverified_users,
+            (SELECT email_verification_required FROM auth_runtime_settings WHERE id = 1) AS email_verification_required,
             (SELECT COUNT(*) FROM auth_social_provider_meta WHERE id = 1) AS social_provider_meta,
             (SELECT COUNT(*) FROM auth_runtime_settings WHERE id = 1) AS auth_runtime_settings_rows,
             (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
@@ -225,10 +226,15 @@ jobs:
             }
           }
           // A routine code deploy must preserve previously created staging accounts.
-          // It does not migrate or mutate D1. The critical security invariant is that
-          // no unverified identity may already own an active Better Auth session.
-          if (Number(row.active_sessions_for_unverified_users) !== 0) {
-            throw new Error("An unverified staging account has an active session; refusing Worker deployment.");
+          // Active unverified sessions are expected only while the staging-only
+          // email-verification bypass is explicitly disabled in the D1 policy.
+          // When verification is required again, block deployment if any remain.
+          const verificationPolicy = String(row.email_verification_required);
+          if (verificationPolicy !== "0" && verificationPolicy !== "1") {
+            throw new Error("Staging email-verification policy is missing or invalid; refusing Worker deployment.");
+          }
+          if (verificationPolicy === "1" && Number(row.active_sessions_for_unverified_users) !== 0) {
+            throw new Error("An unverified staging account has an active session while email verification is required; refusing Worker deployment.");
           }
           if (Number(row.social_provider_meta) !== 1) throw new Error("Expected exactly one managed social provider metadata row.");
           if (Number(row.auth_runtime_settings_rows) !== 1) throw new Error("Expected exactly one Admin auth runtime settings row; apply guarded staging migration 0009 before deployment.");
