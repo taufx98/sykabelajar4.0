@@ -26,6 +26,7 @@ export function LoginPage() {
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [emailVerificationConfigured, setEmailVerificationConfigured] = useState<boolean | null>(null);
+  const [emailVerificationRequired, setEmailVerificationRequired] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [socialProviders, setSocialProviders] = useState<BetterAuthSocialProvider[]>([]);
   const [socialLoading, setSocialLoading] = useState<BetterAuthSocialProvider | null>(null);
@@ -38,16 +39,19 @@ export function LoginPage() {
     void Promise.all([
       client.getAvailableSocialProviders(),
       client.getEmailVerificationConfigured(),
+      client.getEmailVerificationRequired(),
     ])
-      .then(([providers, emailReady]) => {
+      .then(([providers, emailReady, verificationRequired]) => {
         if (!active) return;
         setSocialProviders(providers);
         setEmailVerificationConfigured(emailReady);
+        setEmailVerificationRequired(verificationRequired);
       })
       .catch(() => {
         if (!active) return;
         setSocialProviders([]);
         setEmailVerificationConfigured(false);
+        setEmailVerificationRequired(true);
       });
     return () => { active = false; };
   }, [betterAuthPreview]);
@@ -168,7 +172,7 @@ export function LoginPage() {
                   {text('Lanjutkan dengan ', 'Continue with ')}{providerLabel[provider]}
                 </Button>)}
               </div>
-              {socialProviders.includes('facebook') && <p className="mt-2 text-[11px] text-slate-500">{text('Facebook memerlukan verifikasi email SYKABELAJAR sebelum sesi dapat dibuat.','Facebook requires SYKABELAJAR email verification before a session can be created.')}</p>}
+              {emailVerificationRequired && socialProviders.includes('facebook') && <p className="mt-2 text-[11px] text-slate-500">{text('Facebook memerlukan verifikasi email SYKABELAJAR sebelum sesi dapat dibuat.','Facebook requires SYKABELAJAR email verification before a session can be created.')}</p>}
               <div className="relative my-5"><div className="absolute inset-0 flex items-center"><span className="w-full border-t surface-border"/></div><div className="relative flex justify-center"><span className="surface-bg px-3 text-xs text-slate-500">{text('atau masuk dengan email','or sign in with email')}</span></div></div>
             </div>}
 
@@ -181,7 +185,7 @@ export function LoginPage() {
               <div><label className="label">Email</label><div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type="email" className="input pl-9" placeholder={text("nama@email.com","name@email.com")} value={email} onChange={(e) => { setEmail(e.target.value); setNeedsEmailVerification(false); }} autoComplete="email" /></div></div>
               <div><label className="label">Password</label><div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input type={showPassword ? "text" : "password"} className="input pl-9 pr-10" placeholder={text("Password","Password")} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void handleLogin()} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
             </div>
-            {needsEmailVerification && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+            {needsEmailVerification && emailVerificationRequired && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
               <p className="text-sm font-medium text-fg">{text('Email belum terverifikasi','Email not verified')}</p>
               <p className="mt-1 text-xs text-slate-500">{emailVerificationConfigured === false
                 ? text('Layanan pengiriman email verifikasi belum aktif di staging. Login tetap ditolak sampai email berhasil diverifikasi.','The staging verification email service is not active. Sign-in remains blocked until the email is verified.')
