@@ -25,8 +25,8 @@ test("only an authenticated active Better Auth admin can read or change the sett
   assert.match(runtime, /isBetterAuthTokenForIssuer\(token,\s*env\.BETTER_AUTH_URL\)/);
   assert.match(runtime, /resolveBetterAuthAdminIdentity\(/);
   assert.match(runtime, /BETTER_AUTH_ADMIN_REQUIRED/);
-  assert.match(runtime, /request\.method === "GET"/);
-  assert.match(runtime, /request\.method !== "PUT"/);
+  assert.match(runtime, /request\.method\s*===\s*"GET"/);
+  assert.match(runtime, /request\.method\s*!==\s*"PUT"/);
   assert.match(runtime, /typeof body\?\.emailVerificationRequired !== "boolean"/);
   assert.match(runtime, /updated_by=\?2/);
   assert.match(worker, /url\.pathname === "\/api\/admin\/auth-runtime-settings"/);
