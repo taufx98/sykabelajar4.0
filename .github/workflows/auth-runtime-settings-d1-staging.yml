@@ -116,6 +116,43 @@ jobs:
           }
           console.log("Confirmed staging-only runtime policy: email verification temporarily disabled.");
           NODE
+      - name: Verify hosted Worker reflects the temporary bypass
+        if: ${{ steps.target.outputs.operation == 'temporary_bypass' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const origin = "https://auth.sykabelajar.my.id";
+          const response = await fetch(origin + "/api/auth/providers", {
+            headers: { Origin: "https://staging.sykabelajar.my.id", Accept: "application/json" },
+          });
+          assert.equal(response.status, 200, "public provider discovery must remain available");
+          const payload = await response.json();
+          assert.equal(payload.emailVerificationRequired, false, "Worker must read the disabled staging policy from D1 without redeploy");
+          assert.equal(payload.issuer, origin + "/api/auth");
+          const adminResponse = await fetch(origin + "/api/admin/auth-runtime-settings", {
+            headers: { Origin: "https://staging.sykabelajar.my.id", Accept: "application/json" },
+          });
+          assert.equal(adminResponse.status, 401, "runtime policy endpoint must still require an authenticated Admin");
+          const hostile = await fetch(origin + "/api/admin/auth-runtime-settings", {
+            headers: { Origin: "https://attacker.example", Accept: "application/json" },
+          });
+          assert.equal(hostile.status, 403, "runtime policy endpoint must reject untrusted browser origins");
+          console.log("Hosted staging Worker confirms verification bypass is active and the Admin policy API remains protected.");
+          NODE
+      - name: Verify hosted Worker reflects required email verification
+        if: ${{ steps.target.outputs.operation == 'require_verification' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const origin = "https://auth.sykabelajar.my.id";
+          const response = await fetch(origin + "/api/auth/providers", {
+            headers: { Origin: "https://staging.sykabelajar.my.id", Accept: "application/json" },
+          });
+          assert.equal(response.status, 200);
+          const payload = await response.json();
+          assert.equal(payload.emailVerificationRequired, true, "Worker must reflect verification re-enabled in D1");
+          console.log("Hosted staging Worker confirms email verification is required again.");
+          NODE
       - name: Require email verification again on staging D1
         if: ${{ steps.target.outputs.operation == 'require_verification' }}
         run: |
