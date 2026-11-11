@@ -7,6 +7,7 @@ import {
 } from '@/services/betterAuthSessionBridge.mjs';
 import { publishAuthSessionEvent } from '@/services/authSessionEvents.mjs';
 import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
+import { confirmSessionAfterSignIn } from '@/services/authSessionConfirmation.mjs';
 
 export const LOGIN_REJECTION_SIGNOUT_KEY = 'syka_login_rejection_signout_v1';
 
@@ -69,9 +70,10 @@ function toApplicationSession(
 export async function signIn(email: string, password: string) {
   if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     const client = getStagingBetterAuthClient();
+    // The credential POST is sent exactly once. Only the subsequent safe
+    // session GET receives bounded retries if cookie visibility is delayed.
     await client.signInWithEmail(email.trim(), password);
-    const session = await client.getSession();
-    if (!session) throw new Error('AUTH_SESSION_NOT_CREATED');
+    const session = await confirmSessionAfterSignIn(() => client.getSession());
     publishAuthSessionEvent('SIGNED_IN', session.user.id);
     broadcastBetterAuthSessionEvent('SIGNED_IN');
     return { user: session.user, session: session.session };
