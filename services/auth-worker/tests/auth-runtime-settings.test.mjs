@@ -75,7 +75,7 @@ test("registration and login screens follow the same public runtime policy", () 
   assert.match(register, /window\.location\.replace\(redirectTo\)/);
   assert.doesNotMatch(register, /betterAuthPreview && emailVerificationConfigured !== true/);
   assert.match(login, /client\.getEmailVerificationRequired\(\)/);
-  assert.match(login, /emailVerificationRequired && needsEmailVerification/);
+  assert.match(login, /needsEmailVerification && emailVerificationRequired/);
 });
 
 test("resource-token exchange accepts unverified staging sessions only while the runtime policy is disabled", () => {
