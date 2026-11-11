@@ -243,6 +243,68 @@ async function clearProfileBootstrapFields(env, userId) {
 }
 
 /**
+ * A successful Supabase identity projection is durable across Worker isolates.
+ * The existing internal-config table is D1-only and never exposed to clients.
+ * Keep email verification state in the marker so a verification transition
+ * triggers one final trusted projection before the next session is created.
+ *
+ * @param {string} userId
+ */
+function identityProjectionKey(userId) {
+  return "identity_projection:" + userId;
+}
+
+/**
+ * @param {AuthWorkerEnv} env
+ * @param {{userId:string,emailVerified:boolean}} identity
+ */
+async function markIdentityProjectionCurrent(env, identity) {
+  try {
+    const result = await env.DB.prepare(`
+      INSERT INTO auth_worker_internal_config (key, value)
+      VALUES (?1, ?2)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).bind(
+      identityProjectionKey(identity.userId),
+      identity.emailVerified ? "verified" : "unverified",
+    ).run();
+    if (!result.success) throw new Error("D1_IDENTITY_PROJECTION_MARKER_NOT_CONFIRMED");
+  } catch {
+    throw new Error("BETTER_AUTH_IDENTITY_PROJECTION_MARK_FAILED");
+  }
+}
+
+/**
+ * Reuse the successful D1 marker only when the email-verification state still
+ * matches the Better Auth user row. Missing/stale markers always fail closed
+ * through a fresh idempotent Supabase projection.
+ *
+ * @param {AuthWorkerEnv} env
+ * @param {Record<string, unknown>} user
+ * @param {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} [fetchImpl]
+ */
+export async function ensureSupabaseApplicationIdentity(env, user, fetchImpl = fetch) {
+  if (!isSupabaseProvisioningEnabled(env)) return { enabled: false, userId: null, reused: false };
+
+  const identity = normalizeUser(user);
+  try {
+    const row = await env.DB.prepare(
+      "SELECT value FROM auth_worker_internal_config WHERE key = ?1 LIMIT 1",
+    ).bind(identityProjectionKey(identity.userId)).first();
+    const expected = identity.emailVerified ? "verified" : "unverified";
+    if (row?.value === expected) {
+      return { enabled: true, userId: identity.userId, reused: true };
+    }
+  } catch {
+    // A marker read error is not evidence that projection is complete.
+    // Reconcile below; if D1 itself is unavailable the write fails closed.
+  }
+
+  const result = await reconcileSupabaseApplicationIdentity(env, user, fetchImpl);
+  return { ...result, reused: false };
+}
+
+/**
  * Ensures the application identity exists before a Better Auth session can
  * be created. RPCs are deliberately idempotent because D1 and Postgres cannot
  * participate in a single transaction.
@@ -291,6 +353,10 @@ export async function reconcileSupabaseApplicationIdentity(env, user, fetchImpl 
   ) {
     await clearProfileBootstrapFields(env, identity.userId);
   }
+
+  // Persist only after both trusted RPC projection and D1 bootstrap cleanup
+  // have succeeded. A missing marker causes the next login to retry safely.
+  await markIdentityProjectionCurrent(env, identity);
 
   return { enabled: true, userId: identity.userId };
 }
