@@ -172,45 +172,66 @@ function normalizeUser(user) {
 async function invokeRpc(env, rpcName, payload, fetchImpl) {
   const { baseUrl, provisioningKey } = requireProvisioningConfig(env);
   const endpoint = new URL(`/rest/v1/rpc/${rpcName}`, baseUrl);
+  // These two identity/email RPCs are transactionally idempotent: repeated
+  // projection uses the existing UUID/profile and referral uniqueness guards,
+  // while email verification is a no-op once complete. Retry only them.
+  // Never retry auth credential POSTs or phone-verification mutations here.
+  const retryableProjection = rpcName === PROVISION_RPC || rpcName === VERIFY_EMAIL_RPC;
+  const maxAttempts = retryableProjection ? 2 : 1;
+  const headers = {
+    apikey: provisioningKey,
+    // Supabase sb_secret_* keys are opaque API keys, not JWTs. Sending
+    // them as Bearer tokens triggers JWT verification and is incorrect.
+    // Legacy service_role JWTs still require the Authorization header.
+    ...(!provisioningKey.startsWith("sb_secret_")
+      ? { Authorization: `Bearer ${provisioningKey}` }
+      : {}),
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  const body = JSON.stringify(payload);
 
-  let response;
-  try {
-    response = await fetchImpl(endpoint.toString(), {
-      method: "POST",
-      headers: {
-        apikey: provisioningKey,
-        // Supabase sb_secret_* keys are opaque API keys, not JWTs. Sending
-        // them as Bearer tokens triggers JWT verification and is incorrect.
-        // Legacy service_role JWTs still require the Authorization header.
-        ...(!provisioningKey.startsWith("sb_secret_")
-          ? { Authorization: `Bearer ${provisioningKey}` }
-          : {}),
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(8000),
-    });
-  } catch {
-    // Do not include provider/network error text, URLs or key material.
-    throw new Error("SUPABASE_PROVISIONING_UNAVAILABLE");
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    let response;
+    try {
+      response = await fetchImpl(endpoint.toString(), {
+        method: "POST",
+        headers,
+        body,
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch {
+      if (attempt + 1 < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        continue;
+      }
+      // Do not include provider/network error text, URLs or key material.
+      throw new Error("SUPABASE_PROVISIONING_UNAVAILABLE");
+    }
+
+    if ((response.status === 429 || response.status >= 500) && attempt + 1 < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      continue;
+    }
+
+    if (!response.ok) {
+      // Never echo the PostgREST error body: database errors can contain SQL,
+      // user data or implementation details.
+      throw new Error(
+        response.status === 404
+          ? "SUPABASE_PROVISIONING_RPC_NOT_INSTALLED"
+          : "SUPABASE_PROVISIONING_REJECTED",
+      );
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      throw new Error("SUPABASE_PROVISIONING_RESPONSE_INVALID");
+    }
   }
 
-  if (!response.ok) {
-    // Never echo the PostgREST error body: database errors can contain SQL,
-    // user data or implementation details.
-    throw new Error(
-      response.status === 404
-        ? "SUPABASE_PROVISIONING_RPC_NOT_INSTALLED"
-        : "SUPABASE_PROVISIONING_REJECTED",
-    );
-  }
-
-  try {
-    return await response.json();
-  } catch {
-    throw new Error("SUPABASE_PROVISIONING_RESPONSE_INVALID");
-  }
+  throw new Error("SUPABASE_PROVISIONING_UNAVAILABLE");
 }
 
 /**
