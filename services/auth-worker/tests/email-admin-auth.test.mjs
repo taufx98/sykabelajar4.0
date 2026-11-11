@@ -336,3 +336,36 @@ test("active email accounts cannot be deleted and admin test mail is rate-limite
 });
 
 console.log("Better Auth email-admin bridge verification tests passed.");
+
+
+test("unverified email is accepted only when the staging verification policy explicitly allows it", async () => {
+  const unverifiedInfo = {
+    sub: USER_ID,
+    email: "staging-owner@example.test",
+    email_verified: false,
+  };
+  const allowedNetwork = makeFetch({ userInfo: unverifiedInfo });
+  const user = await resolveBetterAuthAdminIdentity(input({
+    allowUnverifiedEmail: true,
+    fetchImpl: allowedNetwork.fetchImpl,
+  }));
+  assert.deepEqual(user, { id: USER_ID, email: "staging-owner@example.test" });
+  assert.equal(allowedNetwork.calls.length, 2, "the active admin role must still be checked after UserInfo");
+
+  const deniedNetwork = makeFetch({ userInfo: unverifiedInfo });
+  await assert.rejects(
+    resolveBetterAuthAdminIdentity(input({ fetchImpl: deniedNetwork.fetchImpl })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_USERINFO_INVALID",
+  );
+  assert.equal(deniedNetwork.calls.length, 1, "default policy must reject an unverified email before role lookup");
+
+  const nonAdminNetwork = makeFetch({ userInfo: unverifiedInfo, roles: [{ user_id: USER_ID, role: "student", is_active: true }] });
+  await assert.rejects(
+    resolveBetterAuthAdminIdentity(input({
+      allowUnverifiedEmail: true,
+      fetchImpl: nonAdminNetwork.fetchImpl,
+    })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_REQUIRED",
+  );
+  assert.equal(nonAdminNetwork.calls.length, 2, "temporary email bypass must never bypass the admin-role check");
+});
