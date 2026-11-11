@@ -8,6 +8,7 @@ import type { FacebookProfile, TwitterProfile } from "better-auth/social-provide
 import type { SocialProviderRuntimeConfig } from "./social-provider-settings";
 import {
   completeSupabaseEmailVerification,
+  ensureSupabaseApplicationIdentity,
   isSupabaseProvisioningEnabled,
   normalizeBetterAuthRegistration,
   reconcileSupabaseApplicationIdentity,
@@ -274,10 +275,12 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
             if (!isSupabaseProvisioningEnabled(env)) return { data: session };
 
             // A previous after-hook may have failed after the D1 user row was
-            // committed. Retry the idempotent Postgres projection here and
-            // withhold this session until the identity exists.
+            // committed. Reconcile only when no successful D1 projection marker
+            // exists or the user's email-verification state has changed. Once
+            // projected, login no longer depends on a Supabase provisioning
+            // round-trip; app roles are still read independently from Supabase.
             try {
-              await reconcileSupabaseApplicationIdentity(env, user as Record<string, unknown>);
+              await ensureSupabaseApplicationIdentity(env, user as Record<string, unknown>);
             } catch {
               throw new APIError("INTERNAL_SERVER_ERROR", {
                 message: "APPLICATION_IDENTITY_NOT_READY",
