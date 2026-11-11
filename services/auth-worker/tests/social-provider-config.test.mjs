@@ -146,3 +146,14 @@ test("Better Auth admin role checks use the caller JWT and staging publishable k
   assert.doesNotMatch(settings + emailAdmin, /serviceRoleKey: env\.SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(adminVerifier, /serviceRoleKey|SUPABASE_SERVICE_ROLE_KEY/);
 });
+
+test("public provider discovery exposes email verification readiness without provider credentials", () => {
+  const start = settings.indexOf("export async function getPublicSocialLoginProviders");
+  const end = settings.indexOf("export async function handleLoginProviderAdminRequest", start);
+  assert.ok(start >= 0 && end > start, "public provider discovery must be present");
+  const handler = settings.slice(start, end);
+  assert.match(handler, /isAuthEmailVerificationConfigured\(env\)/);
+  assert.match(handler, /emailVerificationConfigured/);
+  assert.match(handler, /Promise\.all/);
+  assert.doesNotMatch(handler, /sender_address|send_mail_token_ciphertext|client_secret/);
+});
