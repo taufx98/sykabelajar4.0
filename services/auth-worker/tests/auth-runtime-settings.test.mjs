@@ -14,6 +14,7 @@ const register = read("../../../src/pages/RegisterPage.tsx");
 const login = read("../../../src/pages/LoginPage.tsx");
 const policyWorkflow = read("../../../.github/workflows/auth-runtime-settings-d1-staging.yml");
 const firstAdminBootstrap = read("../../../docs/security/AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP-UNVERIFIED.sql");
+const firstAdminBootstrap = read("../../../docs/security/AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP-UNVERIFIED.sql");
 
 test("email verification runtime policy is additive and defaults to required", () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS auth_runtime_settings/);
@@ -111,4 +112,16 @@ test("unverified first-admin bootstrap never forges email verification or bypass
   assert.match(firstAdminBootstrap, /role = 'admin'/);
   assert.match(firstAdminBootstrap, /STAGING_FIRST_ADMIN_ALREADY_BOOTSTRAPPED/);
   assert.match(firstAdminBootstrap, /auth\.users/);
+});
+
+test("unverified first-admin bootstrap is owner-only, identity-pinned, and never verifies the email", () => {
+  assert.match(firstAdminBootstrap, /current_user <> 'postgres'/);
+  assert.match(firstAdminBootstrap, /identity_origin = 'better_auth'/);
+  assert.match(firstAdminBootstrap, /FROM auth\.users WHERE id = v_user_id/);
+  assert.match(firstAdminBootstrap, /email_verified_at IS NOT NULL/);
+  assert.match(firstAdminBootstrap, /public\.better_auth_provision_user\([\s\S]*?FALSE/);
+  assert.match(firstAdminBootstrap, /INSERT INTO public\.user_roles \(user_id, role, is_active\)/);
+  assert.match(firstAdminBootstrap, /v_admin_rows <> 0/);
+  assert.match(firstAdminBootstrap, /REPLACE_WITH_OWNER_CONFIRMED_BETTER_AUTH_UUID/);
+  assert.doesNotMatch(firstAdminBootstrap, /UPDATE private\.app_users[\s\S]{0,200}email_verified_at\s*=/);
 });
