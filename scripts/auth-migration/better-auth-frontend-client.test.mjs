@@ -211,4 +211,22 @@ assert.match(zeptoMailPanel, /sendMailToken: ''/);
 assert.match(zeptoMailPanel, /getSupabaseResourceAccessToken\(\)/);
 assert.match(zeptoMailPanel, /AUTH_WORKER_URL_NOT_CONFIGURED/);
 
+// Refresh/focus checks must reuse a still-valid resource token, and all
+// session/status reads must be deduplicated and recover from transient GETs.
+assert.match(client, /EMAIL_VERIFICATION_POLICY_CACHE_MS = 15_000/);
+assert.match(client, /sessionReadInFlight/);
+assert.match(client, /const pending = request<unknown>\('\/get-session'\)/);
+assert.match(client, /safeRead && \(response\.status === 429 \|\| response\.status >= 500\)/);
+assert.match(client, /if \(!safeRead \|\| attempt === 2\)/);
+assert.match(authSessionBridge, /onSessionChanged: \(\) => client\.invalidateResourceTokenCache\(\)/);
+assert.doesNotMatch(sessionBridge, /onBeforeRefresh/);
+assert.match(sessionBridge, /input\.onSessionChanged\?\.\(\)/);
+assert.match(appContext, /AUTH_READ_RETRY_DELAYS_MS = \[150, 400\]/);
+assert.match(appContext, /retryTransientAuthRead\(\(\) => getAuthSession\(\)\)/);
+assert.match(appContext, /isDefinitiveAuthRejection\(error\) \|\| isDefinitiveIdentityFailure\(error\)/);
+assert.match(appContext, /setAuthUnavailable\(true\)/);
+assert.match(appContext, /retryAuthSession/);
+assert.match(app, /authUnavailable, retryAuthSession/);
+assert.match(app, /Sesi belum dinyatakan berakhir/);
+
 console.log("Better Auth frontend transport contract passed; Supabase Auth remains the sole live app session source.");
