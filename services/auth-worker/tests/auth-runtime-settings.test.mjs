@@ -10,6 +10,9 @@ const auth = read("../src/auth.ts");
 const social = read("../src/social-provider-settings.ts");
 const client = read("../../../src/services/betterAuthApi.client.ts");
 const panel = read("../../../src/components/admin/AuthVerificationSettingsPanel.tsx");
+const register = read("../../../src/pages/RegisterPage.tsx");
+const login = read("../../../src/pages/LoginPage.tsx");
+const policyWorkflow = read("../../../.github/workflows/auth-runtime-settings-d1-staging.yml");
 
 test("email verification runtime policy is additive and defaults to required", () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS auth_runtime_settings/);
@@ -86,7 +89,7 @@ test("D1 policy toggle workflow is hard-pinned to staging and supports explicit 
   assert.match(policyWorkflow, /database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"/);
   assert.match(policyWorkflow, /SET-TEMPORARY-EMAIL-BYPASS-ON-STAGING-ONLY/);
   assert.match(policyWorkflow, /REQUIRE-EMAIL-VERIFICATION-ON-STAGING-ONLY/);
-  assert.ok(policyWorkflow.indexOf("SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001") < policyWorkflow.indexOf("SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001"),
+  assert.ok(policyWorkflow.indexOf("elif [ -f ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001 ]") < policyWorkflow.indexOf("elif [ -f ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001 ]"),
     "re-enable marker must take precedence over the retained bypass marker");
   assert.match(policyWorkflow, /email_verification_required=0/);
   assert.match(policyWorkflow, /email_verification_required=1/);
