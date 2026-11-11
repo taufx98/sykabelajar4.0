@@ -428,8 +428,9 @@ test("an email-verification state transition forces one projection refresh and t
   };
   const calls = [];
   const fetchImpl = async (url, init) => {
-    calls.push({ url: String(url), body: JSON.parse(init.body) });
-    return calls.length === 1
+    const endpoint = String(url);
+    calls.push({ url: endpoint, body: JSON.parse(init.body) });
+    return endpoint.endsWith("/better_auth_provision_user")
       ? response({ user_id: USER_ID, account_type: "student" })
       : response(true);
   };
