@@ -378,8 +378,15 @@ jobs:
 
           const origin = "https://auth.sykabelajar.my.id";
           const expectedIssuer = origin + "/api/auth";
+          const REQUEST_TIMEOUT_MS = 8_000;
+          function fetchWithTimeout(input, init = {}) {
+            return fetch(input, {
+              ...init,
+              signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+            });
+          }
           async function getJson(path) {
-            const response = await fetch(origin + path, { redirect: "error" });
+            const response = await fetchWithTimeout(origin + path, { redirect: "error" });
             const raw = await response.text();
             let data;
             try { data = JSON.parse(raw); } catch { throw new Error(path + " returned non-JSON HTTP " + response.status); }
@@ -395,7 +402,7 @@ jobs:
               assert.equal(health.ok, true, "Worker must have a live D1 binding");
 
               const previewOrigin = "https://staging.sykabelajar.my.id";
-              const allowedPreview = await fetch(origin + "/healthz", {
+              const allowedPreview = await fetchWithTimeout(origin + "/healthz", {
                 headers: { Origin: previewOrigin },
                 redirect: "error",
               });
@@ -405,7 +412,7 @@ jobs:
                 previewOrigin,
                 "the staging Worker must allow credentials only for the exact same-site staging origin",
               );
-              const rejectedPreview = await fetch(origin + "/healthz", {
+              const rejectedPreview = await fetchWithTimeout(origin + "/healthz", {
                 headers: { Origin: "https://attacker.example" },
                 redirect: "error",
               });
@@ -428,7 +435,7 @@ jobs:
                 key.kty === "EC" && key.crv === "P-256" && key.alg === "ES256" &&
                 typeof key.kid === "string" && key.kid.length > 0 && !Object.hasOwn(key, "d")
               ), "JWKS must publish only a public P-256 ES256 key with kid");
-              const publicProvidersResponse = await fetch(origin + "/api/auth/providers", {
+              const publicProvidersResponse = await fetchWithTimeout(origin + "/api/auth/providers", {
                 headers: { Origin: previewOrigin, Accept: "application/json" },
                 redirect: "error",
               });
@@ -456,14 +463,14 @@ jobs:
                 "boolean",
                 "public provider discovery must expose the runtime verification policy as a boolean",
               );
-              assert.equal(publicProviders.emailVerificationRequired, true, "staging must remain verification-required until an admin explicitly disables it");
+              assert.equal(publicProviders.emailVerificationRequired, false, "owner-approved temporary staging bypass must remain enabled until the auth migration is complete");
               assert.deepEqual(
                 Object.keys(publicProviders).sort(),
                 ["emailVerificationConfigured", "emailVerificationRequired", "issuer", "ok", "providers"],
                 "public provider response must not expose client IDs, secrets, or private settings",
               );
 
-              const unauthenticatedAdminResponse = await fetch(origin + "/api/admin/login-providers", {
+              const unauthenticatedAdminResponse = await fetchWithTimeout(origin + "/api/admin/login-providers", {
                 headers: { Origin: previewOrigin, Accept: "application/json" },
                 redirect: "error",
               });
@@ -471,7 +478,7 @@ jobs:
               const unauthenticatedAdminBody = await unauthenticatedAdminResponse.json();
               assert.equal(unauthenticatedAdminBody.error, "AUTH_REQUIRED");
 
-              const hostileAdminResponse = await fetch(origin + "/api/admin/login-providers", {
+              const hostileAdminResponse = await fetchWithTimeout(origin + "/api/admin/login-providers", {
                 headers: { Origin: "https://attacker.example", Accept: "application/json" },
                 redirect: "error",
               });
@@ -482,7 +489,7 @@ jobs:
                 "untrusted origins must not receive Admin CORS permission",
               );
 
-              const unauthenticatedEmailAdminResponse = await fetch(origin + "/api/admin/email-settings", {
+              const unauthenticatedEmailAdminResponse = await fetchWithTimeout(origin + "/api/admin/email-settings", {
                 headers: { Origin: previewOrigin, Accept: "application/json" },
                 redirect: "error",
               });
@@ -490,7 +497,7 @@ jobs:
               const unauthenticatedEmailAdminBody = await unauthenticatedEmailAdminResponse.json();
               assert.equal(unauthenticatedEmailAdminBody.error, "AUTH_REQUIRED");
 
-              const hostileEmailAdminResponse = await fetch(origin + "/api/admin/email-settings", {
+              const hostileEmailAdminResponse = await fetchWithTimeout(origin + "/api/admin/email-settings", {
                 headers: { Origin: "https://attacker.example", Accept: "application/json" },
                 redirect: "error",
               });
@@ -501,7 +508,7 @@ jobs:
                 "untrusted origins must not receive Admin email CORS permission",
               );
 
-              const unauthenticatedRuntimeSettingsResponse = await fetch(origin + "/api/admin/auth-runtime-settings", {
+              const unauthenticatedRuntimeSettingsResponse = await fetchWithTimeout(origin + "/api/admin/auth-runtime-settings", {
                 headers: { Origin: previewOrigin, Accept: "application/json" },
                 redirect: "error",
               });
@@ -509,7 +516,7 @@ jobs:
               const unauthenticatedRuntimeSettingsBody = await unauthenticatedRuntimeSettingsResponse.json();
               assert.equal(unauthenticatedRuntimeSettingsBody.error, "AUTH_REQUIRED");
 
-              const hostileRuntimeSettingsResponse = await fetch(origin + "/api/admin/auth-runtime-settings", {
+              const hostileRuntimeSettingsResponse = await fetchWithTimeout(origin + "/api/admin/auth-runtime-settings", {
                 headers: { Origin: "https://attacker.example", Accept: "application/json" },
                 redirect: "error",
               });
