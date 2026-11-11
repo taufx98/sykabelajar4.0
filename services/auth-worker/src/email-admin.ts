@@ -99,6 +99,7 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
         resourceAudience: env.SUPABASE_RESOURCE_AUDIENCE,
         supabaseUrl: env.SUPABASE_PROVISIONING_URL ?? "",
         publishableKey: env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY ?? "",
+        allowUnverifiedEmail: !(await readEmailVerificationPolicy(env)),
       });
       return { user };
     } catch (error) {
