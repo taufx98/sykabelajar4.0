@@ -399,6 +399,9 @@ export function createBetterAuthApiClient(options: {
     cachedResourceToken = null;
     cachedVerifiedSession = null;
     resourceTokenInFlight = null;
+    // Do not let a pre-logout or pre-account-switch read be reused by a later
+    // caller after the active authentication identity has changed.
+    sessionReadInFlight = null;
   }
 
   function recordVerifiedSession(session: BetterAuthSessionEnvelope) {
