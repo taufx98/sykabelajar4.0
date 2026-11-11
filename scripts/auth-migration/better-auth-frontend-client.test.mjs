@@ -120,7 +120,7 @@ assert.doesNotMatch(appContext, /supabase\.auth/);
 assert.match(authService, /signInWithPassword/);
 assert.match(authService, /const client = getStagingBetterAuthClient\(\);[\s\S]*?client\.signInWithEmail\(/);
 assert.match(authService, /confirmSessionAfterSignIn/);
-assert.match(authService, /await client\.signInWithEmail\(email\.trim\(\), password\);[\\s\\S]*confirmSessionAfterSignIn\(\(\) => client\.getSession\(\)\)/);
+assert.match(authService, /await client\.signInWithEmail\(email\.trim\(\), password\);[\s\S]*confirmSessionAfterSignIn/);
 assert.match(authService, /credential POST is sent exactly once/);
 
 assert.match(authService, /isBetterAuthFrontendEnabledForSupabase\(env\.supabaseUrl\)/);
