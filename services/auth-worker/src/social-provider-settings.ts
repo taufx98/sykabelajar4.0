@@ -492,6 +492,7 @@ export async function getPublicSocialLoginProviders(env: AuthWorkerEnv): Promise
     issuer: new URL(env.BETTER_AUTH_URL).origin + "/api/auth",
     // Public readiness boolean only. Never expose sender details or credentials.
     emailVerificationConfigured,
+    emailVerificationRequired: await readEmailVerificationPolicy(env),
   });
 }
 
