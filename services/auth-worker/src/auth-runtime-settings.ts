@@ -12,7 +12,7 @@ async function requireAdmin(request:Request,env:AuthWorkerEnv):Promise<AdminChec
  if(!isAllowedOrigin(origin,[env.APP_ORIGIN,...(env.DEV_APP_ORIGIN?[env.DEV_APP_ORIGIN]:[])]))return {response:json({ok:false,error:"ORIGIN_NOT_ALLOWED"},403)};
  const token=request.headers.get("Authorization")?.replace(/^Bearer\s+/,"").trim();
  if(!token||token.length>8192||!isBetterAuthTokenForIssuer(token,env.BETTER_AUTH_URL))return {response:json({ok:false,error:"AUTH_REQUIRED"},401)};
- try{return {user:await resolveBetterAuthAdminIdentity({accessToken:token,authBaseUrl:env.BETTER_AUTH_URL,resourceAudience:env.SUPABASE_RESOURCE_AUDIENCE,supabaseUrl:env.SUPABASE_PROVISIONING_URL??"",publishableKey:env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY??"")}}catch(e){
+ try{return {user:await resolveBetterAuthAdminIdentity({accessToken:token,authBaseUrl:env.BETTER_AUTH_URL,resourceAudience:env.SUPABASE_RESOURCE_AUDIENCE,supabaseUrl:env.SUPABASE_PROVISIONING_URL??"",publishableKey:env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY??""})}}catch(e){
   const code=e instanceof BetterAuthAdminAuthError?e.code:"";
   return {response:json({ok:false,error:code==="BETTER_AUTH_ADMIN_REQUIRED"?"ADMIN_REQUIRED":"ADMIN_AUTH_UNAVAILABLE"},code==="BETTER_AUTH_ADMIN_REQUIRED"?403:503)};
  }
