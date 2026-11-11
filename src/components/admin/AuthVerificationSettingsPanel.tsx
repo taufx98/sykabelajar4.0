@@ -4,9 +4,11 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { getStagingBetterAuthClient } from '@/services/betterAuthApi.client';
+import { isBetterAuthEnabled } from '@/services/auth.service';
 
 type Policy={emailVerificationRequired:boolean;updatedAt:string|null;updatedBy:string|null};
 export function AuthVerificationSettingsPanel(){
+ if (!isBetterAuthEnabled()) return null;
  const [policy,setPolicy]=useState<Policy|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  const load=async()=>{setLoading(true);setError('');try{const value=await getStagingBetterAuthClient().getAuthRuntimeSettings();setPolicy(value);}catch(e){setError(e instanceof Error?e.message:'AUTH_RUNTIME_SETTINGS_UNAVAILABLE')}finally{setLoading(false)}};
  useEffect(()=>{void load()},[]);
