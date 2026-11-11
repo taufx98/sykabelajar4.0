@@ -55,7 +55,8 @@ test('an unverified Better Auth sign-in shows the email verification prompt', as
   await page.getByRole('button', { name: /^Masuk$/ }).click();
 
   await expect(page.getByText('Email belum terverifikasi')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Kirim ulang tautan verifikasi' })).toBeVisible();
+  await expect(page.getByText(/Layanan pengiriman email verifikasi belum aktif di staging/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Kirim ulang tautan verifikasi' })).toBeDisabled();
   expect(signInIntercepted, 'the staging login form must call the Better Auth Worker').toBe(true);
 });
 
@@ -72,6 +73,13 @@ test('staging /register renders the first email/password step without creating a
   await expect(page.locator('input[type="password"]')).toHaveCount(2);
   await expect(page.getByRole('button', { name: /^(Lanjut|Continue)$/ })).toBeDisabled();
   expect(pageErrors, 'registration must not throw before the user submits the form').toEqual([]);
+});
+
+test('staging registration explains that account creation is paused until verification email delivery is active', async ({ page }) => {
+  const response = await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole('heading', { name: /^(Buat Akun|Create an Account)$/ })).toBeVisible();
+  await expect(page.getByText(/Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi/)).toBeVisible();
 });
 
 test('staging login recovery control opens the email form without sending a reset email', async ({ page }) => {
@@ -99,6 +107,8 @@ test('the staging Worker exposes its safe OAuth provider discovery contract', as
   });
   expect(payload).toHaveProperty('providers');
   expect(Array.isArray((payload as { providers?: unknown }).providers)).toBe(true);
+  expect(typeof (payload as { emailVerificationConfigured?: unknown }).emailVerificationConfigured)
+    .toBe('boolean');
 
   const providers = (payload as { providers: unknown[] }).providers;
   expect(providers.every((provider) => ['google', 'facebook', 'twitter'].includes(String(provider)))).toBe(true);
