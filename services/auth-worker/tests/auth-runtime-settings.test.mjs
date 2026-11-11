@@ -8,8 +8,8 @@ const runtime = read("../src/auth-runtime-settings.ts");
 const worker = read("../src/worker.ts");
 const auth = read("../src/auth.ts");
 const social = read("../src/social-provider-settings.ts");
-const client = read("../../src/services/betterAuthApi.client.ts");
-const panel = read("../../src/components/admin/AuthVerificationSettingsPanel.tsx");
+const client = read("../../../src/services/betterAuthApi.client.ts");
+const panel = read("../../../src/components/admin/AuthVerificationSettingsPanel.tsx");
 
 test("email verification runtime policy is additive and defaults to required", () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS auth_runtime_settings/);
