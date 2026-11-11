@@ -70,11 +70,10 @@ function json(data: unknown, status = 200): Response {
 function safeDiagnostic(error: unknown): { name: string; message: string } {
   if (!(error instanceof Error)) return { name: "UnknownError", message: "unclassified" };
   const message = error.message
-    .replace(/https?:\/\/\S+/g, "[URL]")
-    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "[REDACTED]")
-    .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL]")
-    .replace(/[\r
-]+/g, " ")
+    .replace(/https?:\\/\\/\\S+/g, "[URL]")
+    .replace(/\\b[A-Za-z0-9_-]{32,}\\b/g, "[REDACTED]")
+    .replace(/\\b[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}\\b/g, "[EMAIL]")
+    .replace(/\\s+/g, " ")
     .slice(0, 180);
   return { name: error.name.slice(0, 60), message: message || "unclassified" };
 }
