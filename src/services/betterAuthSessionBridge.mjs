@@ -129,13 +129,9 @@ export function createBetterAuthSessionBridge(input) {
 
   const refresh = async (hint) => {
     if (closed) return;
-    // Invalidate the local resource-token/session lease before every explicit
-    // provider revalidation (focus, tab event, expiry and initial mount).
-    try {
-      input.onBeforeRefresh?.();
-    } catch {
-      // Cache invalidation is best-effort and must not block session recovery.
-    }
+    // A focus/visibility check must not evict a still-valid resource token.
+    // The token is invalidated only after the authoritative read proves that
+    // the signed-in identity actually changed.
     const version = ++requestVersion;
     let session;
     try {
