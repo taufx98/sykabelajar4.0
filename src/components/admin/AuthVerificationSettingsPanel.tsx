@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ShieldCheck, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -10,8 +10,8 @@ type Policy={emailVerificationRequired:boolean;updatedAt:string|null;updatedBy:s
 export function AuthVerificationSettingsPanel(){
  const previewEnabled = isBetterAuthEnabled();
  const [policy,setPolicy]=useState<Policy|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
- const load=async()=>{if(!previewEnabled)return;setLoading(true);setError('');try{const value=await getStagingBetterAuthClient().getAuthRuntimeSettings();setPolicy(value);}catch(e){setError(e instanceof Error?e.message:'AUTH_RUNTIME_SETTINGS_UNAVAILABLE')}finally{setLoading(false)}};
- useEffect(()=>{void load()},[previewEnabled]);
+ const load=useCallback(async()=>{if(!previewEnabled)return;setLoading(true);setError('');try{const value=await getStagingBetterAuthClient().getAuthRuntimeSettings();setPolicy(value);}catch(e){setError(e instanceof Error?e.message:'AUTH_RUNTIME_SETTINGS_UNAVAILABLE')}finally{setLoading(false)}},[previewEnabled]);
+ useEffect(()=>{void load()},[load]);
  const save=async(required:boolean)=>{if(!window.confirm(required?'Aktifkan kembali verifikasi email? Pengguna baru perlu email terverifikasi sebelum login.':'Nonaktifkan sementara verifikasi email? Akun baru dapat login tanpa membuktikan kepemilikan alamat email.'))return;setSaving(true);setError('');setMessage('');try{const next=await getStagingBetterAuthClient().setEmailVerificationRequired(required);setPolicy(next);setMessage(required?'Verifikasi email diwajibkan kembali.':'Bypass verifikasi email aktif.')}catch(e){setError(e instanceof Error?e.message:'AUTH_RUNTIME_SETTINGS_SAVE_FAILED')}finally{setSaving(false)}};
  if (!previewEnabled) return null;
  return <Card className="p-5 space-y-4">
