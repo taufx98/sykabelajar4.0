@@ -1,5 +1,5 @@
 import type { AuthWorkerEnv } from "./env";
-import { isAuthEmailVerificationConfigured } from "./email";
+import { isAuthEmailVerificationConfigured } from "./email";\nimport { readEmailVerificationPolicy } from "./auth-runtime-settings";
 import {
   decryptSocialProviderSecret,
   encryptSocialProviderSecret,
