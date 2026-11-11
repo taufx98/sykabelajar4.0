@@ -605,6 +605,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (authBootstrapGenerationRef.current !== requestGeneration) return;
       if (isDefinitiveAuthRejection(error) || isDefinitiveIdentityFailure(error)) {
         clearUserState();
+        setAuthLoading(false);
       } else {
         setAuthUnavailable(true);
       }
