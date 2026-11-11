@@ -112,6 +112,7 @@ export interface BetterAuthApiClient {
   signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string): Promise<BetterAuthSocialSignInResult>;
   getAvailableSocialProviders(): Promise<BetterAuthSocialProvider[]>;
   getEmailVerificationConfigured(): Promise<boolean>;
+  getEmailVerificationRequired(): Promise<boolean>;
   getLoginProviderSettings(): Promise<BetterAuthLoginProviderSettings>;
   getAuthRuntimeSettings(): Promise<{ emailVerificationRequired: boolean; updatedAt: string | null; updatedBy: string | null }>;
   setEmailVerificationRequired(required: boolean): Promise<{ emailVerificationRequired: boolean; updatedAt: string | null; updatedBy: string | null }>;
@@ -405,6 +406,7 @@ export function createBetterAuthApiClient(options: {
   }
 
   async function getResourceTokenForSession(session: BetterAuthSessionEnvelope): Promise<string> {
+    const emailVerificationRequired = await getEmailVerificationRequired();
     const userId = session.user.id;
     if (cachedResourceToken?.userId === userId &&
         cachedResourceToken.expiresAt > Date.now() + RESOURCE_TOKEN_REFRESH_MARGIN_MS) {
@@ -501,7 +503,7 @@ export function createBetterAuthApiClient(options: {
         generation !== resourceTokenGeneration ||
         !isBetterAuthSessionEnvelope(latestSession) ||
         latestSession.user.id !== userId ||
-        latestSession.user.emailVerified !== true ||
+        (emailVerificationRequired && latestSession.user.emailVerified !== true) ||
         !Number.isFinite(latestSessionExpiresAt) ||
         latestSessionExpiresAt <= Date.now()
       ) {
@@ -519,12 +521,6 @@ export function createBetterAuthApiClient(options: {
     } finally {
       if (resourceTokenInFlight?.promise === promise) resourceTokenInFlight = null;
     }
-  }
-
-  async function isEmailVerificationRequired(): Promise<boolean> {
-    const payload=await request<unknown>('/providers');
-    if(!isRecord(payload)||typeof payload.emailVerificationRequired!=='boolean')throw new BetterAuthClientError(502,'AUTH_VERIFICATION_POLICY_INVALID');
-    return payload.emailVerificationRequired;
   }
 
   async function getEmailVerificationRequired(): Promise<boolean> {
@@ -784,6 +780,10 @@ export function createBetterAuthApiClient(options: {
 
     getEmailVerificationConfigured() {
       return getEmailVerificationConfigured();
+    },
+
+    getEmailVerificationRequired() {
+      return getEmailVerificationRequired();
     },
 
     getLoginProviderSettings() {
