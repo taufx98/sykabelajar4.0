@@ -1,3 +1,19 @@
+## Latest checkpoint — 11 November 2026 (guarded staging Worker deployment)
+
+This checkpoint supersedes the earlier statement that the Worker-side email-readiness guard was source-only. The updated Worker is now deployed to the isolated staging hostname. It does not authorize PR merge or Production cutover.
+
+- Branch: `security/auth-poc-stage-1`; deployment commit: `0ad597ce02c94b19f6cc741b5f303af11490691f`; PR #177 remains open, Draft and unmerged.
+- [Auth Worker Staging Deploy #42982191205](https://github.com/taufx98/sykabelajar4.0/actions/runs/42982191205) completed successfully. Deployed Worker version: `79c86a42-de44-4b6a-874d-89465a9c467d`.
+- The guarded deployment verified the fixed Worker/D1/domain and isolated Supabase staging target, all 20 remote D1 tables, all seven Better Auth registration/profile columns, the managed email schema, the exact public OAuth callback allowlist, and the retained D1 identity aggregates. It confirmed one Better Auth user (unverified), one account credential, zero sessions, zero verification records, zero phone challenges, and zero active sessions for unverified users. Existing D1 identity state was preserved; no D1 migration/reset ran.
+- The Worker deployment preflight confirmed `SUPABASE_PROVISIONING_ENABLED=true`, the fixed isolated staging provisioning URL, and the required single server-only staging API-key binding by name/type only. Secret values were not read or logged. The dedicated OAuth-provider encryption secret already existed and was preserved without rotation.
+- Hosted smoke checks passed: `/healthz`, exact issuer `https://auth.sykabelajar.my.id/api/auth`, discovery, ES256/P-256 public JWKS, PKCE S256, same-site staging CORS allowlist, rejection of an untrusted origin, safe public provider discovery, and unauthenticated/untrusted-origin rejection for both Admin settings APIs.
+- The deployed Worker includes the Stage 1 direct `POST /api/auth/sign-up/email` readiness guard added in `services/auth-worker/src/worker.ts`. When managed email verification delivery is unavailable it rejects registration before Better Auth can create another D1 identity. Local Worker integration/security tests and the readiness contract test passed in [Auth Worker CI #42981004924](https://github.com/taufx98/sykabelajar4.0/actions/runs/42981004924). No additional hosted signup was submitted; the existing unverified test identity remains intact.
+- Current hosted readiness remains unavailable: `emailAgentConfigured=false`; the actual email verification sender remains deferred by owner instruction. No email provider was configured, no test email was sent, no verification state was fabricated, and no session was created. The verified-session end-to-end lifecycle and positive real-token Supabase Storage/Realtime/Edge acceptance remain open pending a genuinely verified session.
+- A read-only post-deploy query of Supabase staging still reports `auth.users=0`, `private.app_users=1`, `public.profiles=1`, and `public.user_roles=1`. No identity/profile/role row was removed or reset.
+- Supabase Production DB2, Production Pages, DNS/auth routing, production users, schema, RLS, RPCs, FKs, triggers, secrets, and Edge Functions remain unchanged. No Production operation, PR merge, or cutover occurred.
+
+---
+
 ## Latest checkpoint — 11 November 2026 (session race and signup boundary hardening)
 
 This checkpoint records two narrowly scoped authentication fixes on the current branch. It does not claim a new hosted Worker deployment, a verified staging session, PR merge, or Production cutover.
