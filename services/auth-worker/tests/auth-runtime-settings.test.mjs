@@ -14,7 +14,6 @@ const register = read("../../../src/pages/RegisterPage.tsx");
 const login = read("../../../src/pages/LoginPage.tsx");
 const policyWorkflow = read("../../../.github/workflows/auth-runtime-settings-d1-staging.yml");
 const firstAdminBootstrap = read("../../../docs/security/AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP-UNVERIFIED.sql");
-const firstAdminBootstrap = read("../../../docs/security/AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP-UNVERIFIED.sql");
 
 test("email verification runtime policy is additive and defaults to required", () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS auth_runtime_settings/);
