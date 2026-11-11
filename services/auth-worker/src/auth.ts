@@ -127,7 +127,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
     trustedOrigins,
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: true,
+      requireEmailVerification: emailVerificationRequired,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
         await sendAuthEmail(env, {
