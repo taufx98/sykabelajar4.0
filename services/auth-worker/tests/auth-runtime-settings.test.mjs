@@ -16,13 +16,13 @@ test("email verification runtime policy is additive and defaults to required", (
   assert.match(migration, /email_verification_required INTEGER NOT NULL DEFAULT 1/);
   assert.match(migration, /CHECK \(email_verification_required IN \(0, 1\)\)/);
   assert.match(migration, /INSERT OR IGNORE INTO auth_runtime_settings/);
-  assert.match(runtime, /row\?\.email_verification_required !== 0/,
+  assert.match(runtime, /row\?\.email_verification_required\s*!==\s*0/,
     "missing table/row/query failures must fail safe to verification required");
 });
 
 test("only an authenticated active Better Auth admin can read or change the setting", () => {
   assert.match(runtime, /isAllowedOrigin\(origin/);
-  assert.match(runtime, /isBetterAuthTokenForIssuer\(token, env\.BETTER_AUTH_URL\)/);
+  assert.match(runtime, /isBetterAuthTokenForIssuer\(token,\s*env\.BETTER_AUTH_URL\)/);
   assert.match(runtime, /resolveBetterAuthAdminIdentity\(/);
   assert.match(runtime, /BETTER_AUTH_ADMIN_REQUIRED/);
   assert.match(runtime, /request\.method === "GET"/);
