@@ -202,6 +202,7 @@ async function requireBetterAuthAdmin(request: Request, env: AuthWorkerEnv): Pro
       resourceAudience: env.SUPABASE_RESOURCE_AUDIENCE,
       supabaseUrl: env.SUPABASE_PROVISIONING_URL ?? "",
       publishableKey: env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY ?? "",
+      allowUnverifiedEmail: !(await readEmailVerificationPolicy(env)),
     });
     return { user };
   } catch (error) {
