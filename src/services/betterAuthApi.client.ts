@@ -111,6 +111,7 @@ export interface BetterAuthApiClient {
   signInWithEmail(email: string, password: string): Promise<BetterAuthSignInResult>;
   signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string): Promise<BetterAuthSocialSignInResult>;
   getAvailableSocialProviders(): Promise<BetterAuthSocialProvider[]>;
+  getEmailVerificationConfigured(): Promise<boolean>;
   getLoginProviderSettings(): Promise<BetterAuthLoginProviderSettings>;
   saveLoginProvider(input: { provider: BetterAuthSocialProvider; clientId: string; clientSecret?: string; enabled?: boolean }): Promise<BetterAuthLoginProviderSettings>;
   setLoginProviderEnabled(provider: BetterAuthSocialProvider, enabled: boolean): Promise<BetterAuthLoginProviderSettings>;
@@ -518,6 +519,14 @@ export function createBetterAuthApiClient(options: {
     }
   }
 
+  async function getEmailVerificationConfigured(): Promise<boolean> {
+    const payload = await request<unknown>('/providers');
+    if (!isRecord(payload) || typeof payload.emailVerificationConfigured !== 'boolean') {
+      throw new BetterAuthClientError(502, 'AUTH_VERIFICATION_CONFIGURATION_INVALID');
+    }
+    return payload.emailVerificationConfigured;
+  }
+
   async function request<T>(path: string, body?: JsonRecord): Promise<T> {
     let response: Response;
     try {
@@ -753,6 +762,10 @@ export function createBetterAuthApiClient(options: {
       );
     },
 
+    getEmailVerificationConfigured() {
+      return getEmailVerificationConfigured();
+    },
+
     getLoginProviderSettings() {
       return requestAdmin<BetterAuthLoginProviderSettings>();
     },
@@ -782,12 +795,18 @@ export function createBetterAuthApiClient(options: {
       });
     },
 
-    signUp(input) {
+    async signUp(input) {
       clearResourceTokenCache();
+      if (!(await getEmailVerificationConfigured())) {
+        throw new BetterAuthClientError(503, 'EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED');
+      }
       return request<BetterAuthSignInResult>('/sign-up/email', normalizeRegistration(input));
     },
 
     async sendVerificationEmail(email, callbackURL) {
+      if (!(await getEmailVerificationConfigured())) {
+        throw new BetterAuthClientError(503, 'EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED');
+      }
       await request<unknown>('/send-verification-email', {
         email: email.trim().toLowerCase(),
         callbackURL,
