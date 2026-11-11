@@ -56,12 +56,12 @@ jobs:
 
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             operation="$REQUESTED_OPERATION"
-          elif [ -f ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001 ]; then
-            operation="temporary_bypass"
-            test "$(cat ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001)" = "SET-TEMPORARY-EMAIL-BYPASS-ON-STAGING-ONLY"
           elif [ -f ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001 ]; then
             operation="require_verification"
             test "$(cat ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001)" = "REQUIRE-EMAIL-VERIFICATION-ON-STAGING-ONLY"
+          elif [ -f ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001 ]; then
+            operation="temporary_bypass"
+            test "$(cat ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001)" = "SET-TEMPORARY-EMAIL-BYPASS-ON-STAGING-ONLY"
           else
             operation="apply_0009"
             test "$(cat ../../.github/auth-ops/APPLY-STAGING-D1-0009)" = "APPLY-TO-sykabelajar-auth-poc-runtime-settings"
@@ -99,11 +99,21 @@ jobs:
           npx wrangler d1 execute sykabelajar-auth-poc --remote --command "SELECT name FROM sqlite_master WHERE type='table' AND name='auth_runtime_settings';" > "$RUNNER_TEMP/runtime-settings-table.txt"
           grep -q "auth_runtime_settings" "$RUNNER_TEMP/runtime-settings-table.txt"
           npx wrangler d1 execute sykabelajar-auth-poc --remote --command "UPDATE auth_runtime_settings SET email_verification_required=0, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_by='temporary-staging-bypass-bootstrap' WHERE id=1;"
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --command "SELECT email_verification_required FROM auth_runtime_settings WHERE id=1;" > "$RUNNER_TEMP/runtime-settings-after.txt"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT email_verification_required FROM auth_runtime_settings WHERE id=1;" > "$RUNNER_TEMP/runtime-settings-after.json"
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
-          const raw = readFileSync(process.env.RUNNER_TEMP + "/runtime-settings-after.txt", "utf8");
-          if (!/\b0\b/.test(raw)) throw new Error("Staging email-verification bypass did not persist as disabled.");
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/runtime-settings-after.json", "utf8"));
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "email_verification_required")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (!row || Number(row.email_verification_required) !== 0) {
+            throw new Error("Staging email-verification bypass did not persist as disabled.");
+          }
           console.log("Confirmed staging-only runtime policy: email verification temporarily disabled.");
           NODE
       - name: Require email verification again on staging D1
@@ -111,10 +121,20 @@ jobs:
         run: |
           set -euo pipefail
           npx wrangler d1 execute sykabelajar-auth-poc --remote --command "UPDATE auth_runtime_settings SET email_verification_required=1, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_by='staging-verification-reenabled' WHERE id=1;"
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --command "SELECT email_verification_required FROM auth_runtime_settings WHERE id=1;" > "$RUNNER_TEMP/runtime-settings-after.txt"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT email_verification_required FROM auth_runtime_settings WHERE id=1;" > "$RUNNER_TEMP/runtime-settings-after.json"
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
-          const raw = readFileSync(process.env.RUNNER_TEMP + "/runtime-settings-after.txt", "utf8");
-          if (!/\b1\b/.test(raw)) throw new Error("Staging email-verification policy did not return to REQUIRED.");
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/runtime-settings-after.json", "utf8"));
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "email_verification_required")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (!row || Number(row.email_verification_required) !== 1) {
+            throw new Error("Staging email-verification policy did not return to REQUIRED.");
+          }
           console.log("Confirmed staging runtime policy: email verification required.");
           NODE
