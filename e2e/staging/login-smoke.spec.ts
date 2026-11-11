@@ -201,3 +201,32 @@ test('configured Google OAuth starts with state and a secure same-site state coo
     expect(cookie.sameSite, 'OAuth state cookie must use SameSite=Lax').toBe('Lax');
   }
 });
+
+test('a stalled staging sign-in request exits the loading state after the bounded timeout', async ({ page }) => {
+  let signInRequests = 0;
+  await page.route('https://auth.sykabelajar.my.id/api/auth/sign-in/email', async (route) => {
+    signInRequests += 1;
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+    try {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ user: { id: '00000000-0000-4000-8000-000000000001', email: 'timeout@example.test' } }),
+      });
+    } catch {
+      // The browser should abort the stalled fetch when the auth timeout fires.
+    }
+  });
+
+  const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  expect(response?.status()).toBe(200);
+  await page.locator('#login-email').fill('timeout@example.test');
+  await page.locator('#login-password').fill('not-a-real-password');
+  const signInButton = page.getByRole('button', { name: /^Masuk$/ });
+  await signInButton.click();
+
+  await expect(signInButton, 'the login button must leave its loading state after the Worker timeout')
+    .toBeEnabled({ timeout: 16_000 });
+  await expect(page.getByText('AUTH_REQUEST_TIMEOUT')).toBeVisible();
+  expect(signInRequests, 'credential POST must not be automatically replayed').toBe(1);
+});
