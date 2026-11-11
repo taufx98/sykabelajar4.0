@@ -34,29 +34,25 @@ test('staging /login mounts React and renders the email/password form', async ({
   expect(pageErrors, 'the browser must not report uncaught JavaScript exceptions').toEqual([]);
 });
 
-test('an unverified Better Auth sign-in shows the email verification prompt', async ({ page }) => {
+test('staging login respects the disabled email-verification policy', async ({ page }) => {
   let signInIntercepted = false;
   await page.route('https://auth.sykabelajar.my.id/api/auth/sign-in/email', async (route) => {
     signInIntercepted = true;
     await route.fulfill({
-      status: 403,
+      status: 401,
       contentType: 'application/json',
-      body: JSON.stringify({
-        code: 'FORBIDDEN',
-        message: 'EMAIL_VERIFICATION_REQUIRED',
-      }),
+      body: JSON.stringify({ code: 'INVALID_EMAIL_OR_PASSWORD' }),
     });
   });
 
   const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
   expect(response?.status()).toBe(200);
-  await page.locator('input[type="email"]').fill('unverified-auth-smoke@example.test');
+  await page.locator('input[type="email"]').fill('staging-policy-smoke@example.test');
   await page.locator('input[type="password"]').fill('not-a-real-account-password');
   await page.getByRole('button', { name: /^Masuk$/ }).click();
 
-  await expect(page.getByText('Email belum terverifikasi')).toBeVisible();
-  await expect(page.getByText(/Layanan pengiriman email verifikasi belum aktif di staging/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Kirim ulang tautan verifikasi' })).toBeDisabled();
+  await expect(page.getByText('Email belum terverifikasi')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Kirim ulang tautan verifikasi' })).toHaveCount(0);
   expect(signInIntercepted, 'the staging login form must call the Better Auth Worker').toBe(true);
 });
 
@@ -75,11 +71,11 @@ test('staging /register renders the first email/password step without creating a
   expect(pageErrors, 'registration must not throw before the user submits the form').toEqual([]);
 });
 
-test('staging registration explains that account creation is paused until verification email delivery is active', async ({ page }) => {
+test('staging registration is not blocked by missing email delivery while bypass is active', async ({ page }) => {
   const response = await page.goto('/register', { waitUntil: 'domcontentloaded' });
   expect(response?.status()).toBe(200);
   await expect(page.getByRole('heading', { name: /^(Buat Akun|Create an Account)$/ })).toBeVisible();
-  await expect(page.getByText(/Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi/)).toBeVisible();
+  await expect(page.getByText(/Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi/)).toHaveCount(0);
 });
 
 test('staging login recovery control opens the email form without sending a reset email', async ({ page }) => {
@@ -109,6 +105,10 @@ test('the staging Worker exposes its safe OAuth provider discovery contract', as
   expect(Array.isArray((payload as { providers?: unknown }).providers)).toBe(true);
   expect(typeof (payload as { emailVerificationConfigured?: unknown }).emailVerificationConfigured)
     .toBe('boolean');
+  expect(typeof (payload as { emailVerificationRequired?: unknown }).emailVerificationRequired)
+    .toBe('boolean');
+  expect((payload as { emailVerificationRequired: boolean }).emailVerificationRequired)
+    .toBe(false);
 
   const providers = (payload as { providers: unknown[] }).providers;
   expect(providers.every((provider) => ['google', 'facebook', 'twitter'].includes(String(provider)))).toBe(true);
