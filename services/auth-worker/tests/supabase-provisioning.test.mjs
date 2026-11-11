@@ -7,28 +7,42 @@ import {
   isSupabaseProvisioningEnabled,
   normalizeBetterAuthRegistration,
   reconcileSupabaseApplicationIdentity,
+  ensureSupabaseApplicationIdentity,
 } from "../src/supabase-provisioning.mjs";
 
 const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SERVICE_KEY = "test-service-role-key-never-log";
 function createD1Mock({ fail = false, changes = 1 } = {}) {
   const calls = [];
+  const valuesByKey = new Map();
   const DB = {
     prepare(query) {
       return {
         bind(...values) {
           return {
             async run() {
-              calls.push({ query: String(query), values });
+              calls.push({ query: String(query), values, operation: "run" });
               if (fail) throw new Error("internal D1 failure");
+              if (/INSERT INTO auth_worker_internal_config/i.test(String(query))) {
+                valuesByKey.set(String(values[0]), String(values[1]));
+              }
               return { success: true, meta: { changes } };
+            },
+            async first() {
+              calls.push({ query: String(query), values, operation: "first" });
+              if (fail) throw new Error("internal D1 failure");
+              if (/SELECT value FROM auth_worker_internal_config/i.test(String(query))) {
+                const value = valuesByKey.get(String(values[0]));
+                return value === undefined ? null : { value };
+              }
+              return null;
             },
           };
         },
       };
     },
   };
-  return { DB, calls };
+  return { DB, calls, valuesByKey };
 }
 
 const env = {
@@ -364,7 +378,7 @@ test("successful Postgres projection clears transient profile fields from D1 but
     subjects: "math,science",
   }, async () => response({ user_id: USER_ID, account_type: "teacher" }));
 
-  assert.equal(d1.calls.length, 1);
+  assert.equal(d1.calls.length, 2);
   assert.match(d1.calls[0].query, /"referralCode" = NULL/);
   assert.match(d1.calls[0].query, /"birthDate" = NULL/);
   assert.match(d1.calls[0].query, /"institution" = NULL/);
@@ -372,6 +386,92 @@ test("successful Postgres projection clears transient profile fields from D1 but
   assert.match(d1.calls[0].query, /"subjects" = NULL/);
   assert.doesNotMatch(d1.calls[0].query, /"accountType"|"username"/);
   assert.deepEqual(d1.calls[0].values, [USER_ID]);
+  assert.match(d1.calls[1].query, /INSERT INTO auth_worker_internal_config/);
+  assert.deepEqual(d1.calls[1].values, ["identity_projection:" + USER_ID, "unverified"]);
+  assert.equal(d1.valuesByKey.get("identity_projection:" + USER_ID), "unverified");
+});
+
+test("a completed identity projection is reused on subsequent logins without another Supabase RPC", async () => {
+  const d1 = createD1Mock();
+  const stagingEnv = { ...env, DB: d1.DB };
+  const user = {
+    id: USER_ID,
+    name: "Student One",
+    accountType: "student",
+    emailVerified: false,
+  };
+  let remoteCalls = 0;
+
+  await reconcileSupabaseApplicationIdentity(stagingEnv, user, async () => {
+    remoteCalls += 1;
+    return response({ user_id: USER_ID, account_type: "student" });
+  });
+  assert.equal(remoteCalls, 1);
+  assert.equal(d1.valuesByKey.get("identity_projection:" + USER_ID), "unverified");
+
+  const result = await ensureSupabaseApplicationIdentity(stagingEnv, user, async () => {
+    remoteCalls += 1;
+    return response({ user_id: USER_ID, account_type: "student" });
+  });
+  assert.deepEqual(result, { enabled: true, userId: USER_ID, reused: true });
+  assert.equal(remoteCalls, 1, "an established D1 projection must not depend on a Supabase RPC during login");
+});
+
+test("an email-verification state transition forces one projection refresh and then becomes reusable", async () => {
+  const d1 = createD1Mock();
+  const stagingEnv = { ...env, DB: d1.DB };
+  const user = {
+    id: USER_ID,
+    name: "Student One",
+    accountType: "student",
+    emailVerified: false,
+  };
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(init.body) });
+    return calls.length === 1
+      ? response({ user_id: USER_ID, account_type: "student" })
+      : response(true);
+  };
+
+  await reconcileSupabaseApplicationIdentity(stagingEnv, user, fetchImpl);
+  const verifiedUser = { ...user, emailVerified: true };
+  const refreshed = await ensureSupabaseApplicationIdentity(stagingEnv, verifiedUser, fetchImpl);
+  assert.deepEqual(refreshed, { enabled: true, userId: USER_ID, reused: false });
+  assert.equal(calls.length, 3, "verification transition must reconcile identity and trusted email state once");
+  assert.equal(d1.valuesByKey.get("identity_projection:" + USER_ID), "verified");
+
+  const reused = await ensureSupabaseApplicationIdentity(stagingEnv, verifiedUser, fetchImpl);
+  assert.deepEqual(reused, { enabled: true, userId: USER_ID, reused: true });
+  assert.equal(calls.length, 3);
+});
+
+test("a missing projection marker causes reconciliation, and D1 marker failures fail closed", async () => {
+  const missing = createD1Mock();
+  let calls = 0;
+  const result = await ensureSupabaseApplicationIdentity({ ...env, DB: missing.DB }, {
+    id: USER_ID,
+    name: "New User",
+    accountType: "student",
+    emailVerified: false,
+  }, async () => {
+    calls += 1;
+    return response({ user_id: USER_ID });
+  });
+  assert.deepEqual(result, { enabled: true, userId: USER_ID, reused: false });
+  assert.equal(calls, 1);
+
+  const broken = createD1Mock({ fail: true });
+  await assert.rejects(
+    reconcileSupabaseApplicationIdentity({ ...env, DB: broken.DB }, {
+      id: USER_ID,
+      name: "New User",
+      accountType: "student",
+      emailVerified: false,
+    }, async () => response({ user_id: USER_ID })),
+    /BETTER_AUTH_IDENTITY_PROJECTION_MARK_FAILED/,
+    "the Worker must never claim a projection is reusable unless D1 confirms its marker",
+  );
 });
 
 test("D1 bootstrap cleanup failure prevents the auth session projection from being treated as complete", async () => {
