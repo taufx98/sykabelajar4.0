@@ -123,6 +123,34 @@ test('the staging Worker exposes its safe OAuth provider discovery contract', as
   console.log('STAGING_AUTH_SOCIAL_PROVIDERS=' + (providers.length ? providers.join(',') : '(none configured)'));
 });
 
+test('staging browser can complete Supabase REST CORS preflight for external Bearer tokens', async ({ page }) => {
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+
+  // This deliberately invalid JWT can never read account data. A zero-row
+  // query verifies only that the browser can pass CORS preflight for the same
+  // apikey + Authorization headers used by the external Better Auth token.
+  const result = await page.evaluate(async () => {
+    const response = await fetch(
+      'https://ydamszdfsxqisanazdkb.supabase.co/rest/v1/user_roles?select=role&limit=0',
+      {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+        headers: {
+          apikey: 'sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v',
+          Authorization: 'Bearer invalid-cors-preflight-probe',
+          Accept: 'application/json',
+        },
+      },
+    );
+    return { status: response.status, type: response.type };
+  });
+
+  expect(result.type, 'the cross-origin Supabase response must be CORS-readable').toBe('cors');
+  expect(result.status, 'a response after CORS preflight must reach Supabase REST').toBeGreaterThan(0);
+});
+
 test('configured Google OAuth starts with state and a secure same-site state cookie', async ({ page, baseURL, context }) => {
   const discovery = await page.request.get('https://auth.sykabelajar.my.id/api/auth/providers', {
     headers: { Origin: baseURL! },
