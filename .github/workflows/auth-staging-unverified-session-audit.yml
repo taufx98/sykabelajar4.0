@@ -74,7 +74,8 @@ jobs:
             (SELECT COUNT(*) FROM \"user\" WHERE emailVerified = 1) AS verified_users,
             (SELECT COUNT(*) FROM \"session\") AS total_sessions,
             (SELECT COUNT(*) FROM \"session\" s JOIN \"user\" u ON u.id = s.userId WHERE u.emailVerified = 0 AND s.expiresAt > CURRENT_TIMESTAMP) AS active_sessions_for_unverified_users,
-            (SELECT COUNT(*) FROM verification WHERE identifier LIKE '%email%') AS email_verification_records,
+            (SELECT COUNT(*) FROM verification) AS total_verification_records,
+            (SELECT COUNT(*) FROM verification WHERE julianday(expiresAt) > julianday('now')) AS unexpired_verification_records,
             (SELECT CASE WHEN EXISTS (
               SELECT 1 FROM auth_email_settings s
               JOIN auth_email_accounts a ON a.id = s.active_account_id
@@ -103,7 +104,8 @@ jobs:
             "verified_users",
             "total_sessions",
             "active_sessions_for_unverified_users",
-            "email_verification_records",
+            "total_verification_records",
+            "unexpired_verification_records",
             "email_delivery_configured",
           ];
           for (const field of fields) {
