@@ -1,3 +1,18 @@
+## Latest checkpoint — 11 November 2026 (Stage 4 first-login reliability)
+
+This checkpoint records the owner's follow-up acceptance: five refreshes/navigation cycles remained authenticated; a student opening `/admin` was redirected to `/home` without logout; and a five-minute idle session remained valid. The remaining symptom is an intermittent first password-login attempt that reports an incorrect credential, while a second attempt with the same credential succeeds.
+
+- **Provisioning bottleneck removed from established logins:** `services/auth-worker/src/supabase-provisioning.mjs` now stores a D1-only `identity_projection:<UUID>` marker in the existing `auth_worker_internal_config` table after the Supabase identity/profile projection and any bootstrap cleanup have succeeded. The marker records only whether the user's email is verified. `session.create.before` calls `ensureSupabaseApplicationIdentity`; an existing matching marker avoids repeating the provisioning RPC on every login. Missing markers and email-verification state changes still force the trusted, idempotent Supabase projection before session creation. A failed D1 marker write fails closed.
+- **Role freshness is unchanged:** the D1 marker does not cache business roles. Frontend hydration still reads the active `user_roles` from Supabase on every login, so an Admin-to-Student or Student-to-Admin change is not masked by the provisioning optimization. The server-side `/admin` role guard and RLS/JWT contracts are unchanged.
+- **Post-login session visibility:** `src/services/authSessionConfirmation.mjs` retries only the safe `/get-session` read for a bounded period after Better Auth accepts the credential POST. The password POST is sent exactly once. Definitive credential and email-verification rejections are not retried or converted into success.
+- Regression coverage: `services/auth-worker/tests/supabase-provisioning.test.mjs` covers marker reuse, email-verification transitions, missing markers and fail-closed writes; `scripts/auth-migration/auth-session-confirmation.test.mjs` covers delayed cookies, transient Worker errors, definitive rejection and bounded failure.
+- [Auth Worker CI #43014956420](https://github.com/taufx98/sykabelajar4.0/actions/runs/43014956420) passed: frontend lint/typecheck/build, Worker audit/tests, local D1 migrations, OIDC/JWKS smoke and Worker dry-run.
+- [Supabase Local Auth Claims CI #43014956436](https://github.com/taufx98/sykabelajar4.0/actions/runs/43014956436) passed: Edge/JWT contracts, local PostgreSQL role/ownership/RLS checks and auth boundary checks.
+- Branch head at the time of the staging deploy trigger: `43c7176948c3b2a13385106dfebc25002bac65ec`; PR #177 remains open, Draft and unmerged. The exact guarded staging deploy marker was committed to trigger the Worker-only staging deployment. The GitHub Actions integration available for this session exposes PR-triggered workflow runs but not the push-triggered staging deployment run, so this checkpoint does **not** claim the new Worker version is hosted or health-checked.
+- Supabase Production DB2 `mvdczyitbkxkldjughor`, production Pages/DNS/auth routing, production users, schema, RLS, RPCs, FKs, triggers, secrets and Edge Functions remain unchanged. No account reset, PR merge, or Production cutover was performed.
+
+---
+
 ## Latest checkpoint — 11 November 2026 (Stage 4 session stability and request recovery)
 
 This checkpoint records the owner-reported staging login/role tests and the follow-up frontend transport/session hardening. It supersedes prior statements about the latest Stage 4 code state, but does not claim a staging deployment or Production cutover.
