@@ -127,7 +127,7 @@ jobs:
           console.log("Existing Worker secrets will be preserved: this deployment does not enumerate, recreate, rotate, or delete secrets.");
           NODE
 
-      - name: Verify all 20 remote D1 tables and empty staging identity state
+      - name: Verify all 20 remote D1 tables and safe existing staging identity state
         run: |
           set -euo pipefail
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
@@ -193,7 +193,17 @@ jobs:
           console.log("Verified provider-aware transactional email schema.");
           NODE
 
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM user) AS users, (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM account) AS accounts, (SELECT COUNT(*) FROM verification) AS verifications, (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges, (SELECT COUNT(*) FROM auth_social_provider_settings) AS social_provider_settings, (SELECT COUNT(*) FROM auth_social_provider_meta WHERE id = 1) AS social_provider_meta, (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT
+            (SELECT COUNT(*) FROM user) AS users,
+            (SELECT COUNT(*) FROM user WHERE emailVerified = 0) AS unverified_users,
+            (SELECT COUNT(*) FROM session) AS sessions,
+            (SELECT COUNT(*) FROM account) AS accounts,
+            (SELECT COUNT(*) FROM verification) AS verifications,
+            (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges,
+            (SELECT COUNT(*) FROM auth_social_provider_settings) AS social_provider_settings,
+            (SELECT COUNT(*) FROM session s JOIN user u ON u.id = s.userId WHERE u.emailVerified = 0 AND julianday(s.expiresAt) > julianday('now')) AS active_sessions_for_unverified_users,
+            (SELECT COUNT(*) FROM auth_social_provider_meta WHERE id = 1) AS social_provider_meta,
+            (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -208,12 +218,29 @@ jobs:
           }
           visit(payload);
           if (!row) throw new Error("Could not parse remote staging identity-state check.");
-          for (const field of ["users","sessions","accounts","verifications","phone_challenges","social_provider_settings"]) {
-            if (Number(row[field]) !== 0) throw new Error("Staging D1 unexpectedly contains " + field + " rows; refusing deployment.");
+          for (const field of ["users","unverified_users","sessions","accounts","verifications","phone_challenges","social_provider_settings","active_sessions_for_unverified_users"]) {
+            if (!Number.isSafeInteger(Number(row[field])) || Number(row[field]) < 0) {
+              throw new Error("Staging D1 returned an invalid aggregate for " + field + "; refusing deployment.");
+            }
+          }
+          // A routine code deploy must preserve previously created staging accounts.
+          // It does not migrate or mutate D1. The critical security invariant is that
+          // no unverified identity may already own an active Better Auth session.
+          if (Number(row.active_sessions_for_unverified_users) !== 0) {
+            throw new Error("An unverified staging account has an active session; refusing Worker deployment.");
           }
           if (Number(row.social_provider_meta) !== 1) throw new Error("Expected exactly one managed social provider metadata row.");
           if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one fixed first-party public OAuth client.");
-          console.log("Staging identity/challenge tables contain no users, sessions, accounts, verifications or pending phone challenges; one fixed public OAuth client is seeded.");
+          console.log("Verified existing staging identity state without exposing user data: " + JSON.stringify({
+            users: Number(row.users),
+            unverifiedUsers: Number(row.unverified_users),
+            sessions: Number(row.sessions),
+            accounts: Number(row.accounts),
+            verificationRecords: Number(row.verifications),
+            pendingPhoneChallenges: Number(row.phone_challenges),
+            activeSessionsForUnverifiedUsers: Number(row.active_sessions_for_unverified_users),
+          }));
+          console.log("PASS: existing D1 identities are preserved and no unverified user has an active session.");
           NODE
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT redirectUris AS redirect_uris FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y';" > "$RUNNER_TEMP/auth-worker-staging-redirects.json"
 
@@ -411,9 +438,14 @@ jobs:
                 publicProviders.providers.every((provider) => ["google", "facebook", "twitter"].includes(provider)),
                 "public provider list must not expose unsupported or arbitrary providers",
               );
+              assert.equal(
+                typeof publicProviders.emailVerificationConfigured,
+                "boolean",
+                "public provider discovery must expose only the boolean email verification readiness state",
+              );
               assert.deepEqual(
                 Object.keys(publicProviders).sort(),
-                ["issuer", "ok", "providers"],
+                ["emailVerificationConfigured", "issuer", "ok", "providers"],
                 "public provider response must not expose client IDs, secrets, or private settings",
               );
 
