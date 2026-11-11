@@ -23,7 +23,7 @@ function requireHttpsOrigin(value: string, label: string, allowLocalhost = false
   return url.origin;
 }
 
-export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProviderRuntimeConfig) {
+export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProviderRuntimeConfig, emailVerificationRequired = true) {
   if (!env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < 32) {
     throw new Error("BETTER_AUTH_SECRET_MUST_BE_AT_LEAST_32_CHARACTERS");
   }
@@ -139,7 +139,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
       },
     },
     emailVerification: {
-      sendOnSignUp: true,
+      sendOnSignUp: emailVerificationRequired,
       autoSignInAfterVerification: true,
       afterEmailVerification: async (user) => {
         if (!isSupabaseProvisioningEnabled(env)) return;
@@ -265,7 +265,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
             // Google, Facebook and X sign-in. Facebook has no trustworthy
             // provider email_verified claim, and social signup alone must
             // never create an authenticated session before local verification.
-            if (user.emailVerified !== true) {
+            if (emailVerificationRequired && user.emailVerified !== true) {
               throw new APIError("FORBIDDEN", {
                 message: "EMAIL_VERIFICATION_REQUIRED",
               });
