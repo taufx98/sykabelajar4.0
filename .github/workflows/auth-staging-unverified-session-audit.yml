@@ -1,0 +1,117 @@
+name: Better Auth staging unverified-session audit
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/AUDIT-STAGING-IDENTITY-SESSIONS-0001"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-staging-unverified-session-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Read-only audit of isolated Better Auth D1 sessions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout exact auth staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+
+      - name: Install locked Worker dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify fixed staging D1 configuration
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const config = readFileSync("wrangler.toml", "utf8");
+          const required = [
+            /^name = "sykabelajar-auth-poc"$/m,
+            /^database_name = "sykabelajar-auth-poc"$/m,
+            /^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m,
+            /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
+          ];
+          if (!required.every((pattern) => pattern.test(config))) {
+            throw new Error("Blocked: Worker/D1 or staging Supabase target differs from the fixed isolated staging configuration.");
+          }
+          if (/mvdczyitbkxkldjughor/.test(config)) {
+            throw new Error("Blocked: Production Supabase reference found in staging provisioning configuration.");
+          }
+          console.log("Verified the dedicated staging Worker/D1 and isolated Supabase staging target.");
+          NODE
+
+      - name: Read aggregate Better Auth user and session state
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT
+            (SELECT COUNT(*) FROM \"user\") AS total_users,
+            (SELECT COUNT(*) FROM \"user\" WHERE emailVerified = 0) AS unverified_users,
+            (SELECT COUNT(*) FROM \"user\" WHERE emailVerified = 1) AS verified_users,
+            (SELECT COUNT(*) FROM \"session\") AS total_sessions,
+            (SELECT COUNT(*) FROM \"session\" s JOIN \"user\" u ON u.id = s.userId WHERE u.emailVerified = 0 AND s.expiresAt > CURRENT_TIMESTAMP) AS active_sessions_for_unverified_users,
+            (SELECT COUNT(*) FROM verification WHERE identifier LIKE '%email%') AS email_verification_records,
+            (SELECT CASE WHEN EXISTS (
+              SELECT 1 FROM auth_email_settings s
+              JOIN auth_email_accounts a ON a.id = s.active_account_id
+              WHERE s.id = 1 AND s.active_account_id IS NOT NULL
+            ) THEN 1 ELSE 0 END) AS email_delivery_configured;" > "$RUNNER_TEMP/auth-staging-session-audit.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const raw = readFileSync(process.env.RUNNER_TEMP + "/auth-staging-session-audit.json", "utf8");
+          const payload = JSON.parse(raw);
+          const candidates = [];
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "active_sessions_for_unverified_users")) candidates.push(value);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const row = candidates[0];
+          if (!row) throw new Error("Could not parse the aggregate D1 audit result.");
+
+          const fields = [
+            "total_users",
+            "unverified_users",
+            "verified_users",
+            "total_sessions",
+            "active_sessions_for_unverified_users",
+            "email_verification_records",
+            "email_delivery_configured",
+          ];
+          for (const field of fields) {
+            if (!Number.isFinite(Number(row[field]))) throw new Error("Unexpected D1 aggregate field: " + field);
+          }
+          console.log("STAGING_D1_AUTH_AUDIT=" + JSON.stringify(Object.fromEntries(fields.map((key) => [key, Number(row[key])]))));
+          if (Number(row.active_sessions_for_unverified_users) > 0) {
+            throw new Error("SECURITY_FINDING: an unverified Better Auth user has an active session in staging D1.");
+          }
+          console.log("PASS: no active D1 session belongs to an unverified Better Auth user.");
+          NODE
