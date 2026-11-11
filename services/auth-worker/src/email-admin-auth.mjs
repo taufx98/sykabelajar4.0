@@ -208,7 +208,8 @@ export async function resolveBetterAuthAdminIdentity(input) {
   const email = typeof userInfo?.email === "string" ? userInfo.email.trim() : "";
   if (
     userInfo?.sub !== payload.sub ||
-    userInfo?.email_verified !== true ||
+    typeof userInfo?.email_verified !== "boolean" ||
+    (!allowUnverifiedEmail && userInfo.email_verified !== true) ||
     email.length > 254 ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   ) {
