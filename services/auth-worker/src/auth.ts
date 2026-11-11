@@ -72,7 +72,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
           google: {
             clientId: googleClientId,
             clientSecret: googleClientSecret,
-            requireEmailVerification: true,
+            requireEmailVerification: emailVerificationRequired,
           },
         }
       : {}),
@@ -109,7 +109,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
               }
               return {};
             },
-            requireEmailVerification: true,
+            requireEmailVerification: emailVerificationRequired,
           },
         }
       : {}),
