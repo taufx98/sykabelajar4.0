@@ -202,7 +202,8 @@ jobs:
             (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges,
             (SELECT COUNT(*) FROM auth_social_provider_settings) AS social_provider_settings,
             (SELECT COUNT(*) FROM session s JOIN user u ON u.id = s.userId WHERE u.emailVerified = 0 AND julianday(s.expiresAt) > julianday('now')) AS active_sessions_for_unverified_users,
-            (SELECT COUNT(*) FROM auth_social_provider_meta WHERE id = 1) AS social_provider_meta,\n            (SELECT COUNT(*) FROM auth_runtime_settings WHERE id = 1) AS auth_runtime_settings_rows,
+            (SELECT COUNT(*) FROM auth_social_provider_meta WHERE id = 1) AS social_provider_meta,
+            (SELECT COUNT(*) FROM auth_runtime_settings WHERE id = 1) AS auth_runtime_settings_rows,
             (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
 
           node --input-type=module <<'NODE'
@@ -230,6 +231,7 @@ jobs:
             throw new Error("An unverified staging account has an active session; refusing Worker deployment.");
           }
           if (Number(row.social_provider_meta) !== 1) throw new Error("Expected exactly one managed social provider metadata row.");
+          if (Number(row.auth_runtime_settings_rows) !== 1) throw new Error("Expected exactly one Admin auth runtime settings row; apply guarded staging migration 0009 before deployment.");
           if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one fixed first-party public OAuth client.");
           console.log("Verified existing staging identity state without exposing user data: " + JSON.stringify({
             users: Number(row.users),
