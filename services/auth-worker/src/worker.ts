@@ -29,6 +29,7 @@ import {
 type CachedAuthInstance = {
   revision: number;
   managedMode: boolean;
+  emailVerificationRequired: boolean;
   auth: ReturnType<typeof createAuth>;
 };
 const authInstances = new WeakMap<object, CachedAuthInstance>();
@@ -36,11 +37,13 @@ const authInstances = new WeakMap<object, CachedAuthInstance>();
 async function getAuth(env: AuthWorkerEnv) {
   const key = env.DB as object;
   const config = await readSocialProviderConfiguration(env);
+  const emailVerificationRequired = await readEmailVerificationPolicy(env);
   const existing = authInstances.get(key);
   if (
     existing &&
     existing.revision === config.revision &&
-    existing.managedMode === config.managedMode
+    existing.managedMode === config.managedMode &&
+    existing.emailVerificationRequired === emailVerificationRequired
   ) {
     return existing.auth;
   }
@@ -49,6 +52,7 @@ async function getAuth(env: AuthWorkerEnv) {
   authInstances.set(key, {
     revision: config.revision,
     managedMode: config.managedMode,
+    emailVerificationRequired,
     auth,
   });
   return auth;
@@ -528,7 +532,8 @@ export default {
     // the Worker boundary so direct Better Auth API calls cannot create an
     // unverified account when the verification-email sender is unavailable.
     if (request.method === "POST" && url.pathname === "/api/auth/sign-up/email") {
-      const emailDeliveryReady = await isAuthEmailVerificationConfigured(env);
+      const verificationRequired = await readEmailVerificationPolicy(env);
+      const emailDeliveryReady = !verificationRequired || await isAuthEmailVerificationConfigured(env);
       if (!emailDeliveryReady) {
         return applyResponseHeaders(
           json({ error: "EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED" }, 503),
