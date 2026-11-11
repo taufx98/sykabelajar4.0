@@ -97,7 +97,7 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
  *   authBaseUrl:string,
  *   resourceAudience:string,
  *   supabaseUrl:string,
- *   publishableKey:string,
+ *   publishableKey:string,\n *   allowUnverifiedEmail?:boolean,
  *   fetchImpl?:typeof fetch,
  *   verifyJwtImpl?:typeof jwtVerify,
  *   createJwksImpl?:typeof createRemoteJWKSet,
@@ -107,7 +107,7 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
 export async function resolveBetterAuthAdminIdentity(input) {
   const accessToken = typeof input?.accessToken === "string" ? input.accessToken.trim() : "";
   const resourceAudience = typeof input?.resourceAudience === "string" ? input.resourceAudience.trim() : "";
-  const publishableKey = typeof input?.publishableKey === "string" ? input.publishableKey.trim() : "";
+  const publishableKey = typeof input?.publishableKey === "string" ? input.publishableKey.trim() : "";\n  const allowUnverifiedEmail = input?.allowUnverifiedEmail === true;
   const authBaseUrl = typeof input?.authBaseUrl === "string" ? input.authBaseUrl : "";
   if (
     !accessToken ||
