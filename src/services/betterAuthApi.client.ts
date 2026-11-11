@@ -112,7 +112,9 @@ export interface BetterAuthApiClient {
   signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string): Promise<BetterAuthSocialSignInResult>;
   getAvailableSocialProviders(): Promise<BetterAuthSocialProvider[]>;
   getEmailVerificationConfigured(): Promise<boolean>;
-  getLoginProviderSettings(): Promise<BetterAuthLoginProviderSettings>;\n  getAuthRuntimeSettings(): Promise<{emailVerificationRequired:boolean;updatedAt:string|null;updatedBy:string|null}>;\n  setEmailVerificationRequired(required:boolean): Promise<{emailVerificationRequired:boolean;updatedAt:string|null;updatedBy:string|null}>;
+  getLoginProviderSettings(): Promise<BetterAuthLoginProviderSettings>;
+  getAuthRuntimeSettings(): Promise<{emailVerificationRequired:boolean;updatedAt:string|null;updatedBy:string|null}>;
+  setEmailVerificationRequired(required:boolean): Promise<{emailVerificationRequired:boolean;updatedAt:string|null;updatedBy:string|null}>;
   saveLoginProvider(input: { provider: BetterAuthSocialProvider; clientId: string; clientSecret?: string; enabled?: boolean }): Promise<BetterAuthLoginProviderSettings>;
   setLoginProviderEnabled(provider: BetterAuthSocialProvider, enabled: boolean): Promise<BetterAuthLoginProviderSettings>;
   validateLoginProvider(provider: BetterAuthSocialProvider): Promise<{ ok: true; provider: BetterAuthSocialProvider; enabled: boolean; status: string; hostedSignInRequired: true; message: string }>;
@@ -519,7 +521,13 @@ export function createBetterAuthApiClient(options: {
     }
   }
 
-  async function isEmailVerificationRequired(): Promise<boolean> {\n    const payload=await request<unknown>('/providers');\n    if(!isRecord(payload)||typeof payload.emailVerificationRequired!=='boolean')throw new BetterAuthClientError(502,'AUTH_VERIFICATION_POLICY_INVALID');\n    return payload.emailVerificationRequired;\n  }\n\n  async function getEmailVerificationConfigured(): Promise<boolean> {
+  async function isEmailVerificationRequired(): Promise<boolean> {
+    const payload=await request<unknown>('/providers');
+    if(!isRecord(payload)||typeof payload.emailVerificationRequired!=='boolean')throw new BetterAuthClientError(502,'AUTH_VERIFICATION_POLICY_INVALID');
+    return payload.emailVerificationRequired;
+  }
+
+  async function getEmailVerificationConfigured(): Promise<boolean> {
     const payload = await request<unknown>('/providers');
     if (!isRecord(payload) || typeof payload.emailVerificationConfigured !== 'boolean') {
       throw new BetterAuthClientError(502, 'AUTH_VERIFICATION_CONFIGURATION_INVALID');
