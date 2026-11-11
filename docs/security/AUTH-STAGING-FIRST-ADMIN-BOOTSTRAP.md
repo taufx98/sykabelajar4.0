@@ -49,3 +49,36 @@ A live rollback-only SQL test successfully used two synthetic Better Auth UUIDs 
 The staging-only Cloudflare Worker Secret `SUPABASE_PROVISIONING_API_KEY` is now present and verified by name/type through read-only preflight [#42853474928](https://github.com/taufx98/sykabelajar4.0/actions/runs/42853474928), attempt 2. The key value was never read or printed. The guarded Worker deployment [#42949849642](https://github.com/taufx98/sykabelajar4.0/actions/runs/42949849642) then confirmed exactly one server-only binding and deployed with `SUPABASE_PROVISIONING_ENABLED=true` and the hard-pinned staging project URL. The four provisioning/verification/phone wrappers were independently checked as `postgres`-owned SECURITY DEFINER functions with empty `search_path` and EXECUTE limited to `service_role`. This enables future verified Better Auth identity projection only; it did not create an account, session, profile, business role or admin. The six identity-related row counts remain zero.
 
 Transactional email remains deferred and no sender is active; Google/social login remains optional. Do not manufacture a verified account or perform first-admin bootstrap until a genuine Better Auth session reports `emailVerified: true`. The owner-operated bootstrap in this runbook remains prepared, unexecuted and staging-only.
+
+
+## Temporary staging email-verification bypass and first Admin bootstrap — 11 November 2026
+
+The staging-only Better Auth Worker now supports an Admin-managed runtime policy stored in D1 table `auth_runtime_settings`. The table was applied through guarded migration #42992509775 and defaults to `email_verification_required=1`. Worker version `9c89a8cc-13fe-4209-b883-cd1309b7905e` includes the policy API and hosted smoke checks. The Admin panel is integrated at **Admin → Pengaturan → Verifikasi Email Better Auth** and is hidden outside the Better Auth staging frontend.
+
+### Enable bypass for the current staging build
+
+The owner-authorized staging-only operation is provided by `.github/workflows/auth-runtime-settings-d1-staging.yml`. It is hard-pinned to branch `security/auth-poc-stage-1`, D1 name `sykabelajar-auth-poc`, and the reviewed staging D1 UUID. To activate the temporary bypass, add the exact one-time marker file `.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001` with content:
+
+```text
+SET-TEMPORARY-EMAIL-BYPASS-ON-STAGING-ONLY
+```
+
+The workflow writes only `email_verification_required=0` to the isolated staging D1 row and verifies that exact value. It does not modify Worker secrets, Production D1, Supabase Production, DNS, Pages Production, or user records. The Worker reads the runtime policy on requests; a redeploy is not required to apply or revert the policy.
+
+To require verification again, add `.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001` with content `REQUIRE-EMAIL-VERIFICATION-ON-STAGING-ONLY`. The required marker intentionally takes precedence over the retained bypass marker. The re-enable operation writes `email_verification_required=1`; after doing this, accounts whose email is still unverified cannot continue to open a session until a genuine verification flow has been completed.
+
+### Bootstrap the first staging Admin while email is unverified
+
+The current staging inventory showed one Better Auth-provisioned application identity with a `student` role and no active `admin` role. Therefore the panel is correctly protected but cannot yet be managed by that student account. The owner must designate the first staging Admin once:
+
+1. Enable the staging-only bypass marker above.
+2. Sign in at `https://staging.sykabelajar.my.id` using the owner-controlled account. Open `https://auth.sykabelajar.my.id/api/auth/get-session` in that same browser and confirm the account is the intended owner identity and `emailVerified=false`. Copy only `user.id` (UUID); never copy cookies or tokens.
+3. In the SQL Editor for staging project `ydamszdfsxqisanazdkb`, running as `postgres`, review and execute `docs/security/AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP-UNVERIFIED.sql` after replacing its sentinel UUID with that exact session UUID.
+4. Sign out and back in, then open **Admin → Pengaturan**. The runtime policy endpoint still checks the Better Auth token signature, issuer, audience, UUID subject, expiry, trusted origin and active `user_roles.admin` membership. The temporary bypass relaxes only the email-verified claim check; it never grants an Admin role by itself.
+5. Once the transactional email provider is configured and the Admin address has been genuinely verified, use the panel to enable verification again. This revokes future unverified session access; it does not mark existing addresses verified.
+
+The unverified bootstrap SQL explicitly keeps `private.app_users.email_verified_at IS NULL`, rejects any shadow `auth.users` row, requires zero pre-existing Admin rows, and does not create a public Admin signup path. It is owner-operated and staging-only. Do not apply it to Production.
+
+### Current limits
+
+The temporary bypass is a staging test convenience, not proof of mailbox ownership. Password reset, verification email sending, and any feature that explicitly needs a verified email remain dependent on a configured sender. Google OAuth and ZeptoMail are not prerequisites for the basic email/password staging test and remain deferred. The bypass has not yet been activated by this checkpoint; the D1 value remains `1` pending the final CI gate and explicit staging marker operation.
