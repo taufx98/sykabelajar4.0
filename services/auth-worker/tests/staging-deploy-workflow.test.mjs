@@ -60,10 +60,12 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /auth_email_accounts/);
   assert.match(workflow, /auth-worker-staging-email-provider.json/);
   assert.match(workflow, /Transactional email provider migration 0006 is missing/);
-  assert.match(workflow, /expected\.length !== 20/);
+  assert.match(workflow, /expected\.length !== 21/);
   assert.match(workflow, /auth_phone_verification_challenges/);
   assert.match(workflow, /auth_social_provider_settings/);
   assert.match(workflow, /auth_social_provider_meta/);
+  assert.match(workflow, /auth_runtime_settings/);
+  assert.match(workflow, /auth_runtime_settings_rows/);
   assert.match(workflow, /social_provider_meta/);
   assert.match(workflow, /phone_challenges/);
   assert.match(workflow, /active_sessions_for_unverified_users/);
