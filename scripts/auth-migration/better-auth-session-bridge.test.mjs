@@ -184,37 +184,43 @@ test("temporary Worker errors do not cause a false signed-out event", async () =
 console.log("Better Auth cross-tab session bridge contract passed.");
 
 
-test("invalidates cached resource tokens before every session revalidation", async () => {
+test("resource tokens remain cached on same-user refresh and invalidate only after an identity transition", async () => {
   const windowObject = new EventTargetMock();
   const documentObject = new EventTargetMock();
   documentObject.visibilityState = "visible";
   const sequence = [];
+  let current = makeSession("user-a");
   const bridge = createBetterAuthSessionBridge({
-    onBeforeRefresh: () => sequence.push("invalidate-resource-token-cache"),
+    onSessionChanged: () => sequence.push("invalidate-resource-token-cache"),
     getSession: async () => {
       sequence.push("read-authoritative-session");
-      return makeSession("user-a");
+      return current;
     },
-    onChange: () => {},
+    onChange: (type) => sequence.push("auth-event:" + type),
     windowObject,
     documentObject,
   });
 
-  // The mount-time baseline must invalidate stale tokens before asking the
-  // Worker for the authoritative session.
+  // Establishing the initial baseline and checking the same identity must not
+  // evict a valid five-minute resource token or trigger another PKCE exchange.
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(sequence.slice(0, 2), [
-    "invalidate-resource-token-cache",
+  assert.deepEqual(sequence, ["read-authoritative-session"]);
+  await bridge.refresh();
+  assert.deepEqual(sequence, [
+    "read-authoritative-session",
     "read-authoritative-session",
   ]);
 
-  // A later explicit revalidation (for example after focus/pageshow) must do
-  // the same. This prevents Supabase from reusing a token while session state
-  // is being reconciled after a cross-tab/account transition.
-  await bridge.refresh();
-  assert.deepEqual(sequence.slice(2, 4), [
-    "invalidate-resource-token-cache",
+  // A cross-tab logout is authoritatively confirmed before cache invalidation.
+  current = null;
+  windowObject.emit("focus");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(sequence, [
     "read-authoritative-session",
+    "read-authoritative-session",
+    "read-authoritative-session",
+    "invalidate-resource-token-cache",
+    "auth-event:SIGNED_OUT",
   ]);
 
   bridge.unsubscribe();
