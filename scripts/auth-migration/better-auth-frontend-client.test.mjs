@@ -233,4 +233,14 @@ assert.match(appContext, /retryAuthSession/);
 assert.match(app, /authUnavailable, retryAuthSession/);
 assert.match(app, /Sesi belum dinyatakan berakhir/);
 
+
+// Login controls expose stable names/IDs for browser autofill and labels.
+assert.match(loginPage, /<label className="label" htmlFor="login-email">Email<\/label>/);
+assert.match(loginPage, /<input id="login-email" name="email" type="email"/);
+assert.match(loginPage, /<label className="label" htmlFor="login-password">Password<\/label>/);
+assert.match(loginPage, /<input id="login-password" name="password"/);
+assert.match(loginPage, /<label className="label" htmlFor="forgot-password-email">Email<\/label>/);
+assert.match(loginPage, /<input id="forgot-password-email" name="forgotEmail"/);
+assert.match(loginPage, /aria-label=\{showPassword \? text\("Sembunyikan password","Hide password"\)/);
+
 console.log("Better Auth frontend transport contract passed; Supabase Auth remains the sole live app session source.");
