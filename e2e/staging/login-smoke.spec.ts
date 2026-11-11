@@ -34,6 +34,31 @@ test('staging /login mounts React and renders the email/password form', async ({
   expect(pageErrors, 'the browser must not report uncaught JavaScript exceptions').toEqual([]);
 });
 
+test('an unverified Better Auth sign-in shows the email verification prompt', async ({ page }) => {
+  let signInIntercepted = false;
+  await page.route('https://auth.sykabelajar.my.id/api/auth/sign-in/email', async (route) => {
+    signInIntercepted = true;
+    await route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 'FORBIDDEN',
+        message: 'EMAIL_VERIFICATION_REQUIRED',
+      }),
+    });
+  });
+
+  const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  expect(response?.status()).toBe(200);
+  await page.locator('input[type="email"]').fill('unverified-auth-smoke@example.test');
+  await page.locator('input[type="password"]').fill('not-a-real-account-password');
+  await page.getByRole('button', { name: /^Masuk$/ }).click();
+
+  await expect(page.getByText('Email belum terverifikasi')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Kirim ulang tautan verifikasi' })).toBeVisible();
+  expect(signInIntercepted, 'the staging login form must call the Better Auth Worker').toBe(true);
+});
+
 test('staging /register renders the first email/password step without creating an account', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message.slice(0, 500)));
