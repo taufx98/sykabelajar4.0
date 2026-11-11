@@ -53,9 +53,11 @@ test("X login uses the built-in Twitter provider and verified-email gate", () =>
 test("email verification remains required by default but the runtime policy can temporarily disable the gate", () => {
   const hookStart = auth.indexOf("session: {");
   const hook = auth.slice(hookStart, auth.indexOf("account: {", hookStart));
-  assert.match(auth, /emailVerificationRequired = true/);\n  assert.match(hook, /emailVerificationRequired && user\.emailVerified !== true/);
+  assert.match(auth, /emailVerificationRequired = true/);
+  assert.match(hook, /emailVerificationRequired && user\.emailVerified !== true/);
   assert.match(hook, /EMAIL_VERIFICATION_REQUIRED/);
-  assert.match(auth, /requireEmailVerification: emailVerificationRequired/);\n  assert.match(auth, /sendOnSignUp: emailVerificationRequired/);
+  assert.match(auth, /requireEmailVerification: emailVerificationRequired/);
+  assert.match(auth, /sendOnSignUp: emailVerificationRequired/);
   assert.match(auth, /autoSignInAfterVerification: true/);
 });
 
@@ -153,7 +155,8 @@ test("public provider discovery exposes email verification readiness without pro
   assert.ok(start >= 0 && end > start, "public provider discovery must be present");
   const handler = settings.slice(start, end);
   assert.match(handler, /isAuthEmailVerificationConfigured\(env\)/);
-  assert.match(handler, /emailVerificationConfigured/);\n  assert.match(handler, /emailVerificationRequired/);
+  assert.match(handler, /emailVerificationConfigured/);
+  assert.match(handler, /emailVerificationRequired/);
   assert.match(handler, /Promise\.all/);
   assert.doesNotMatch(handler, /sender_address|send_mail_token_ciphertext|client_secret/);
 });
