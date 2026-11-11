@@ -151,9 +151,11 @@ export function createBetterAuthSessionBridge(input) {
       ? session.user.id
       : null;
     if (!initialized) {
+      // The first read establishes a baseline only. AppContext owns initial
+      // session hydration; even a queued cross-tab hint must not masquerade as
+      // a transition before this bridge knows the previous identity.
       initialized = true;
       currentUserId = nextUserId;
-      if (hint) deliver(hint, session);
       return;
     }
 
