@@ -67,7 +67,7 @@ export function broadcastBetterAuthSessionEvent(type, options = {}) {
  * @param {{
  *   getSession:()=>Promise<{user:{id:string,email?:string},session:{expiresAt:string}}|null>,
  *   onChange:(type:string,session:{user:{id:string,email?:string},session:{expiresAt:string}}|null)=>void,
- *   onBeforeRefresh?:()=>void,
+ *   onSessionChanged?:()=>void,
  *   windowObject?:Window|null,
  *   documentObject?:Document|null
  * }} input
