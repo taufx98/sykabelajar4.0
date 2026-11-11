@@ -22,10 +22,10 @@ The resolver returns a caller-scoped RLS client. A service-role client must only
 | Handler | Direct table/RPC dependencies in source | Additional environment/configuration |
 |---|---|---|
 | `get-cloudinary-signature` | `profiles(id, username)`; `organizers(id, slug, owner_user_id)` when an organizer public ID is requested | `CLOUDINARY_API_SECRET`, `CLOUDINARY_API_KEY`, `CLOUDINARY_CLOUD_NAME`; optional `CLOUDINARY_PROFILE_PRESET` |
-| `cloudinary-profile-upload` | Shared identity resolver only; no direct table query | No additional handler-specific environment variable found in source |
-| `cloudinary-profile-upload-v2` | Shared identity resolver only; no direct table query | No additional handler-specific environment variable found in source |
+| `cloudinary-profile-upload` | Shared identity resolver only; no direct table query | `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_CLOUD_NAME` |
+| `cloudinary-profile-upload-v2` | Shared identity resolver only; no direct table query | `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_CLOUD_NAME` |
 | `cloudinary-delete-asset` / `cloudinary-delete-asset-v2` | Shared identity resolver and Cloudinary ownership helper; no direct table query in handler | No additional handler-specific environment variable found in handler source; inspect any downstream Cloudinary helper before deployment |
-| `cloudinary-delete-profile` | `profiles(id, username)` | No additional handler-specific environment variable found in handler source |
+| `cloudinary-delete-profile` | `profiles(id, username)` | `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_CLOUD_NAME` |
 | `payment-gateway-admin` | `payment_gateway_state`, `payment_gateway_configs`, RPC `is_active_admin` under the caller JWT | `MIDTRANS_ENV`, `MIDTRANS_SERVER_KEY`, `MIDTRANS_CLIENT_KEY`; Supabase runtime service-role environment |
 | `payment-gateway-create` | `orders`, nested `order_items`, `organizer_payment_methods`, `payment_gateway_state`, `payment_gateway_configs`, `payment_intents`, `profiles(full_name, whatsapp)` | `MIDTRANS_ENV`, `MIDTRANS_SERVER_KEY`; XenithPay credentials are read from the selected row in `payment_gateway_configs.secret_config`; Supabase runtime service-role environment |
 | `payment-gateway-reconcile` | `orders`, `payment_intents`, `payment_gateway_configs`, `payment_events`, RPC `process_payment_gateway_success` | XenithPay credentials are read from `payment_gateway_configs.secret_config`; Supabase runtime service-role environment |
