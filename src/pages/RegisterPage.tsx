@@ -59,7 +59,8 @@ export function RegisterPage(){
    if(!result.ok){toast(result.error||'Pendaftaran gagal.','error');return;}
    // A disabled email-verification policy can create an immediate Better Auth session.
    // Refresh the app shell after signup so its auth bridge hydrates that cookie.
-   const session=await getAuthSession();
+   let session=null;
+   try{session=await getAuthSession()}catch(error){if(!/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(error instanceof Error?error.message:''))throw error;}
    if(photoFile && session?.user){const up=await uploadProfileImage(photoFile,'profile',form.username);await updateProfile(session.user.id,{avatar_url:up.secure_url,avatar_public_id:up.public_id,avatar_width:up.width,avatar_height:up.height,avatar_version:up.version?String(up.version):null,avatar_resource_type:up.resource_type||'image'});}
    if (betterAuthPreview && emailVerificationRequired) {
      if(photoFile && !session?.user) toast('Akun berhasil dibuat. Foto profil dapat diunggah setelah verifikasi email dan login pertama.','info');
