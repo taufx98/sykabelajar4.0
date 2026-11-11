@@ -293,3 +293,46 @@ test("same-identity sign-in hints are ignored while verified profile events stil
 
   bridge.unsubscribe();
 });
+
+
+test("cross-tab hints received during initial session discovery do not emit a false transition", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const received = [];
+  const pendingReads = [];
+  let readCount = 0;
+  const bridge = createBetterAuthSessionBridge({
+    getSession: () => {
+      readCount += 1;
+      if (readCount <= 2) {
+        return new Promise((resolve) => { pendingReads[readCount - 1] = resolve; });
+      }
+      return Promise.resolve(null);
+    },
+    onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
+    windowObject,
+    documentObject,
+  });
+
+  assert.equal(readCount, 1, "bridge mount begins the initial authoritative read");
+  windowObject.emit("storage", {
+    key: "sykabelajar_better_auth_session_event_v1",
+    newValue: JSON.stringify({ source: "sykabelajar-better-auth-session", type: "SIGNED_OUT" }),
+  });
+  assert.equal(readCount, 2, "cross-tab message triggers an authoritative re-read");
+
+  // The newer read establishes user B as the initial baseline; the older
+  // in-flight read is ignored. Neither may dispatch a synthetic transition.
+  pendingReads[1](makeSession("user-b"));
+  await new Promise((resolve) => setImmediate(resolve));
+  pendingReads[0](makeSession("user-a"));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, []);
+
+  windowObject.emit("focus");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [{ type: "SIGNED_OUT", userId: null }]);
+
+  bridge.unsubscribe();
+});
