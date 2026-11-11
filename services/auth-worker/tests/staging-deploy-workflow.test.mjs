@@ -68,7 +68,7 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /phone_challenges/);
   assert.match(workflow, /active_sessions_for_unverified_users/);
   assert.match(workflow, /no unverified user has an active session/);
-  assert.match(workflow, /existing staging identities are preserved/);
+  assert.match(workflow, /existing staging identity state without exposing user data/);
   assert.doesNotMatch(workflow, /Staging D1 unexpectedly contains .* rows; refusing deployment/);
   assert.match(workflow, /emailVerificationConfigured/);
   assert.match(workflow, /\["emailVerificationConfigured", "issuer", "ok", "providers"\]/);
