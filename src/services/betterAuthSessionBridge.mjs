@@ -163,6 +163,11 @@ export function createBetterAuthSessionBridge(input) {
     // request reached the Worker. Derive sign-in/out exclusively from the
     // authoritative session returned by Better Auth.
     if (previousUserId !== nextUserId) {
+      try {
+        input.onSessionChanged?.();
+      } catch {
+        // Invalidation is best-effort; the authoritative session transition wins.
+      }
       deliver(nextUserId ? "SIGNED_IN" : "SIGNED_OUT", session);
       return;
     }
