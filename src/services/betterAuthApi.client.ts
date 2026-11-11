@@ -144,6 +144,7 @@ const RESOURCE_TOKEN_REFRESH_MARGIN_MS = 45_000;
 const SESSION_VALIDATION_CACHE_MS = 30_000;
 const RESOURCE_TOKEN_MAX_TTL_SECONDS = 300;
 const OAUTH_CALLBACK_TIMEOUT_MS = 20_000;
+const AUTH_API_REQUEST_TIMEOUT_MS = 12_000;
 
 type OAuthCallbackMessage = {
   source: 'sykabelajar-better-auth-oidc';
@@ -394,6 +395,23 @@ export function createBetterAuthApiClient(options: {
   let sessionReadInFlight: Promise<unknown> | null = null;
   const EMAIL_VERIFICATION_POLICY_CACHE_MS = 15_000;
 
+  async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, AUTH_API_REQUEST_TIMEOUT_MS);
+    try {
+      return await fetchImpl(url, { ...init, signal: controller.signal });
+    } catch (error) {
+      if (timedOut) throw new BetterAuthClientError(504, 'AUTH_REQUEST_TIMEOUT');
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
   function clearResourceTokenCache() {
     resourceTokenGeneration += 1;
     cachedResourceToken = null;
@@ -451,7 +469,7 @@ export function createBetterAuthApiClient(options: {
 
       let response: Response;
       try {
-        response = await fetchImpl(baseUrl + '/oauth2/token', {
+        response = await fetchWithTimeout(baseUrl + '/oauth2/token', {
           method: 'POST',
           credentials: 'omit',
           cache: 'no-store',
@@ -468,7 +486,8 @@ export function createBetterAuthApiClient(options: {
             resource: SUPABASE_RESOURCE_AUDIENCE,
           }).toString(),
         });
-      } catch {
+      } catch (error) {
+        if (error instanceof BetterAuthClientError && error.code === 'AUTH_REQUEST_TIMEOUT') throw error;
         throw new BetterAuthClientError(503, 'AUTH_RESOURCE_TOKEN_UNAVAILABLE');
       }
 
@@ -586,7 +605,7 @@ export function createBetterAuthApiClient(options: {
     // sign-up, sign-out, password, or admin mutation requests.
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        response = await fetchImpl(baseUrl + path, {
+        response = await fetchWithTimeout(baseUrl + path, {
           method: safeRead ? 'GET' : 'POST',
           credentials: 'include',
           cache: 'no-store',
@@ -596,8 +615,12 @@ export function createBetterAuthApiClient(options: {
           },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
-      } catch {
-        if (!safeRead || attempt === 2) {
+      } catch (error) {
+        if (error instanceof BetterAuthClientError && error.code === 'AUTH_REQUEST_TIMEOUT') {
+          // GETs are safe to retry, but a timeout is retried only once to keep
+          // the login/initial-session UI responsive. Credential POSTs are never replayed.
+          if (!safeRead || attempt >= 1) throw error;
+        } else if (!safeRead || attempt === 2) {
           throw new BetterAuthClientError(503, 'AUTH_WORKER_UNAVAILABLE');
         }
         await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
@@ -625,7 +648,7 @@ export function createBetterAuthApiClient(options: {
   async function requestWorker<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise<T> {
     let response: Response;
     try {
-      response = await fetchImpl(workerOrigin + path, {
+      response = await fetchWithTimeout(workerOrigin + path, {
         method,
         credentials: 'include',
         cache: 'no-store',
@@ -635,7 +658,8 @@ export function createBetterAuthApiClient(options: {
         },
         ...(method === 'POST' ? { body: '{}' } : {}),
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof BetterAuthClientError && error.code === 'AUTH_REQUEST_TIMEOUT') throw error;
       throw new BetterAuthClientError(503, 'AUTH_WORKER_UNAVAILABLE');
     }
 
@@ -664,7 +688,7 @@ export function createBetterAuthApiClient(options: {
     const workerOrigin = baseUrl.replace(/\/api\/auth$/, '');
     let response: Response;
     try {
-      response = await fetchImpl(workerOrigin + endpoint, {
+      response = await fetchWithTimeout(workerOrigin + endpoint, {
         method: body === undefined ? 'GET' : (method ?? 'POST'),
         credentials: 'include',
         cache: 'no-store',
@@ -675,7 +699,8 @@ export function createBetterAuthApiClient(options: {
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof BetterAuthClientError && error.code === 'AUTH_REQUEST_TIMEOUT') throw error;
       throw new BetterAuthClientError(503, 'AUTH_WORKER_UNAVAILABLE');
     }
     let payload: unknown = null;
