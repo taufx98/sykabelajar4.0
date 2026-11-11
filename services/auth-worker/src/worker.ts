@@ -8,6 +8,7 @@ import {
 } from "./security.mjs";
 import { createD1QuotaResponse } from "./d1-quota.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
+import { isAuthEmailVerificationConfigured } from "./email";
 import {
   getPublicSocialLoginProviders,
   handleLoginProviderAdminRequest,
@@ -514,6 +515,19 @@ export default {
 
     if (!url.pathname.startsWith("/api/auth/") && url.pathname !== "/api/auth") {
       return applyResponseHeaders(json({ error: "NOT_FOUND" }, 404), corsHeaders);
+    }
+
+    // The frontend readiness check is only UX. Enforce the same gate at
+    // the Worker boundary so direct Better Auth API calls cannot create an
+    // unverified account when the verification-email sender is unavailable.
+    if (request.method === "POST" && url.pathname === "/api/auth/sign-up/email") {
+      const emailDeliveryReady = await isAuthEmailVerificationConfigured(env);
+      if (!emailDeliveryReady) {
+        return applyResponseHeaders(
+          json({ error: "EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED" }, 503),
+          corsHeaders,
+        );
+      }
     }
 
     try {
