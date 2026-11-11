@@ -1,0 +1,120 @@
+name: Auth Worker CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - security/auth-migration-phase-0
+    paths:
+      - "services/auth-worker/**"
+      - ".github/workflows/auth-worker-ci.yml"
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - "services/auth-worker/**"
+      - ".github/workflows/auth-worker-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-worker-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: ${{ github.head_ref == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-poc-stage-1' }}
+    name: Audit, tests, D1 migration, OIDC/JWKS smoke test, and Worker dry run
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package.json
+
+      - name: Install pinned direct dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check dependency advisories
+        run: npm audit --audit-level=high
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Security contract tests
+        run: npm test
+
+      - name: Apply bootstrap-state migration to local D1
+        run: npx wrangler d1 migrations apply sykabelajar-auth-poc --local
+
+      - name: Start local Worker and generate Better Auth D1 schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCHEMA_TOKEN="$(openssl rand -hex 32)"
+          printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" > .dev.vars
+          npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
+          WORKER_PID=$!
+          trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
+          WORKER_READY=false
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8787/bootz > /dev/null; then
+              WORKER_READY=true
+              break
+            fi
+            if ! kill -0 "$WORKER_PID" 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          if [ "$WORKER_READY" != "true" ]; then
+            echo "Local Worker did not become healthy. Startup log follows:"
+            cat "$RUNNER_TEMP/auth-worker.log"
+            exit 1
+          fi
+          if ! curl --silent --show-error --fail http://127.0.0.1:8787/healthz; then
+            echo "Worker boots, but D1 readiness check failed. Startup log follows:"
+            cat "$RUNNER_TEMP/auth-worker.log"
+            exit 1
+          fi
+          AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 D1_SCHEMA_BOOTSTRAP_TOKEN="$SCHEMA_TOKEN" npm run auth:schema:generate
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const discoveryResponse = await fetch("http://127.0.0.1:8787/api/auth/.well-known/openid-configuration");
+          assert.equal(discoveryResponse.status, 200, "OIDC discovery must respond 200");
+          const discovery = await discoveryResponse.json();
+          assert.equal(new URL(discovery.issuer).hostname, "localhost", "issuer must use the local Worker host");
+          assert.ok(discovery.authorization_endpoint, "authorization endpoint must be advertised");
+          assert.ok(discovery.token_endpoint, "token endpoint must be advertised");
+          assert.ok(discovery.jwks_uri, "JWKS URI must be advertised");
+          const jwksResponse = await fetch(discovery.jwks_uri.replace("localhost", "127.0.0.1"));
+          assert.equal(jwksResponse.status, 200, "JWKS endpoint must respond 200");
+          const jwks = await jwksResponse.json();
+          assert.ok(Array.isArray(jwks.keys) && jwks.keys.length > 0, "JWKS must contain a signing key");
+          assert.ok(jwks.keys.some((key) => key.kty === "EC" && key.alg === "ES256" && key.kid), "JWKS must publish an ES256 key with kid");
+          console.log("OIDC issuer:", discovery.issuer);
+          console.log("JWKS keys:", jwks.keys.length);
+          NODE
+
+      - name: Bundle Worker without deploying
+        run: npm run build
+
+      - name: Upload generated schema and dependency lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-worker-poc-review-artifacts
+          path: |
+            services/auth-worker/migrations/0001_better_auth.sql
+            services/auth-worker/package-lock.json
+          if-no-files-found: warn
+          retention-days: 7
