@@ -490,44 +490,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    let authenticationEstablished = false;
+    let authenticatedIdentity: { id: string; email?: string } | null = null;
     try {
       const result = await signIn(email.trim(), password);
       if (!result.user) return { ok: false, error: 'Login gagal: sesi pengguna tidak tersedia.' };
-      authenticationEstablished = true;
+      authenticatedIdentity = {
+        id: result.user.id,
+        email: result.user.email ?? email.trim(),
+      };
 
       // Role eligibility is resolved from the backend only. Never accept a role
       // selected at login as evidence of authorization.
-      const roles = await getUserRoles(result.user.id);
+      const roles = await retryTransientAuthRead(() => getUserRoles(result.user.id));
       if (!roles.length) {
         await signOutRejectedLogin();
-        authenticationEstablished = false;
+        authenticatedIdentity = null;
+        clearUserState();
         return { ok: false, error: 'Akun belum memiliki role aktif di backend. Hubungi administrator.' };
       }
 
-      const userEmail = result.user.email ?? email.trim();
+      const userEmail = authenticatedIdentity.email ?? email.trim();
       authBootstrapGenerationRef.current += 1;
       setCurrentAuthUser({ id: result.user.id, email: userEmail || undefined });
       setIsGuest(false);
+      setAuthUnavailable(false);
       localStorage.removeItem(GUEST_KEY);
       localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
-      await hydrateCurrentUser(result.user.id, userEmail, roles);
+      await retryTransientAuthRead(() => hydrateCurrentUser(result.user.id, userEmail, roles));
       void refreshUnreadCount(result.user.id);
-      authenticationEstablished = false;
+      authenticatedIdentity = null;
       return { ok: true };
     } catch (error: unknown) {
-      // If authentication succeeded but role/profile resolution failed, do not
-      // leave a partially authenticated client session behind.
-      if (authenticationEstablished) {
-        try {
-          await signOutRejectedLogin();
-        } catch {
-          clearUserState();
+      // A successful password check followed by a temporary Worker/PostgREST
+      // outage must not be converted into a false sign-out. Keep the cookie and
+      // offer a retry; only explicit rejection or missing backend identity is
+      // treated as a definitive failure.
+      if (authenticatedIdentity) {
+        if (isDefinitiveAuthRejection(error) || isDefinitiveIdentityFailure(error)) {
+          try {
+            await signOutRejectedLogin();
+          } catch {
+            clearUserState();
+          }
+        } else {
+          setCurrentAuthUser(authenticatedIdentity);
+          setIsGuest(false);
+          setAuthUnavailable(true);
         }
       }
       return { ok: false, error: error instanceof Error ? error.message : 'Email atau password tidak valid.' };
     }
-  }, [clearUserState, hydrateCurrentUser, refreshUnreadCount]);
+  }, [clearUserState, hydrateCurrentUser, refreshUnreadCount, setCurrentAuthUser]);
 
   const register = useCallback(async (data: Partial<User> & { email: string; password: string; referralCode?: string }) => {
     try {
