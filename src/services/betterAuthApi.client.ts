@@ -115,8 +115,6 @@ export interface BetterAuthApiClient {
   getLoginProviderSettings(): Promise<BetterAuthLoginProviderSettings>;
   getAuthRuntimeSettings(): Promise<{ emailVerificationRequired: boolean; updatedAt: string | null; updatedBy: string | null }>;
   setEmailVerificationRequired(required: boolean): Promise<{ emailVerificationRequired: boolean; updatedAt: string | null; updatedBy: string | null }>;
-  getAuthRuntimeSettings(): Promise<{emailVerificationRequired:boolean;updatedAt:string|null;updatedBy:string|null}>;
-  setEmailVerificationRequired(required:boolean): Promise<{emailVerificationRequired:boolean;updatedAt:string|null;updatedBy:string|null}>;
   saveLoginProvider(input: { provider: BetterAuthSocialProvider; clientId: string; clientSecret?: string; enabled?: boolean }): Promise<BetterAuthLoginProviderSettings>;
   setLoginProviderEnabled(provider: BetterAuthSocialProvider, enabled: boolean): Promise<BetterAuthLoginProviderSettings>;
   validateLoginProvider(provider: BetterAuthSocialProvider): Promise<{ ok: true; provider: BetterAuthSocialProvider; enabled: boolean; status: string; hostedSignInRequired: true; message: string }>;
@@ -549,7 +547,7 @@ export function createBetterAuthApiClient(options: {
     let response: Response;
     try {
       response = await fetchImpl(baseUrl + path, {
-        method: body === undefined ? 'GET' : (method ?? 'POST'),
+        method: body === undefined ? 'GET' : 'POST',
         credentials: 'include',
         cache: 'no-store',
         headers: {
@@ -615,7 +613,7 @@ export function createBetterAuthApiClient(options: {
     let response: Response;
     try {
       response = await fetchImpl(workerOrigin + endpoint, {
-        method: body === undefined ? 'GET' : 'POST',
+        method: body === undefined ? 'GET' : (method ?? 'POST'),
         credentials: 'include',
         cache: 'no-store',
         headers: {
