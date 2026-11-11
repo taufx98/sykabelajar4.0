@@ -478,12 +478,17 @@ async function validateProvider(
 }
 
 export async function getPublicSocialLoginProviders(env: AuthWorkerEnv): Promise<Response> {
-  const config = await readSocialProviderConfiguration(env);
+  const [config, emailVerificationConfigured] = await Promise.all([
+    readSocialProviderConfiguration(env),
+    isAuthEmailVerificationConfigured(env),
+  ]);
   const availableProviders = SOCIAL_LOGIN_PROVIDERS.filter((provider) => Boolean(config.providers[provider]));
   return json({
     ok: true,
     providers: availableProviders,
     issuer: new URL(env.BETTER_AUTH_URL).origin + "/api/auth",
+    // Public readiness boolean only. Never expose sender details or credentials.
+    emailVerificationConfigured,
   });
 }
 
