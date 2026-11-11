@@ -13,6 +13,7 @@ const panel = read("../../../src/components/admin/AuthVerificationSettingsPanel.
 const register = read("../../../src/pages/RegisterPage.tsx");
 const login = read("../../../src/pages/LoginPage.tsx");
 const policyWorkflow = read("../../../.github/workflows/auth-runtime-settings-d1-staging.yml");
+const firstAdminBootstrap = read("../../../docs/security/AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP-UNVERIFIED.sql");
 
 test("email verification runtime policy is additive and defaults to required", () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS auth_runtime_settings/);
@@ -93,4 +94,21 @@ test("D1 policy toggle workflow is hard-pinned to staging and supports explicit 
     "re-enable marker must take precedence over the retained bypass marker");
   assert.match(policyWorkflow, /email_verification_required=0/);
   assert.match(policyWorkflow, /email_verification_required=1/);
+});
+
+test("policy toggle verifies the hosted Worker and keeps the Admin endpoint protected", () => {
+  assert.match(policyWorkflow, /payload\.emailVerificationRequired, false/);
+  assert.match(policyWorkflow, /payload\.emailVerificationRequired, true/);
+  assert.match(policyWorkflow, /adminResponse\.status, 401/);
+  assert.match(policyWorkflow, /hostile\.status, 403/);
+});
+
+test("unverified first-admin bootstrap never forges email verification or bypasses owner-only safeguards", () => {
+  assert.match(firstAdminBootstrap, /current_user <> 'postgres'/);
+  assert.match(firstAdminBootstrap, /identity_origin = 'better_auth'/);
+  assert.match(firstAdminBootstrap, /email_verified_at IS NOT NULL/);
+  assert.match(firstAdminBootstrap, /FALSE,/);
+  assert.match(firstAdminBootstrap, /role = 'admin'/);
+  assert.match(firstAdminBootstrap, /STAGING_FIRST_ADMIN_ALREADY_BOOTSTRAPPED/);
+  assert.match(firstAdminBootstrap, /auth\.users/);
 });
