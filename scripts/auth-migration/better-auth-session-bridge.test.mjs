@@ -219,3 +219,77 @@ test("invalidates cached resource tokens before every session revalidation", asy
 
   bridge.unsubscribe();
 });
+
+
+test("stale cross-tab sign-in/out hints cannot override the authoritative current account", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const received = [];
+  let current = makeSession("user-a");
+  const bridge = createBetterAuthSessionBridge({
+    getSession: async () => current,
+    onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
+    windowObject,
+    documentObject,
+  });
+
+  await bridge.refresh();
+  assert.deepEqual(received, []);
+
+  // A delayed SIGNED_OUT notification from another tab arrives after this
+  // tab has already authenticated a different account. Server state wins.
+  current = makeSession("user-b");
+  windowObject.emit("storage", {
+    key: "sykabelajar_better_auth_session_event_v1",
+    newValue: JSON.stringify({ source: "sykabelajar-better-auth-session", type: "SIGNED_OUT" }),
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [{ type: "SIGNED_IN", userId: "user-b" }]);
+
+  // Conversely, a delayed SIGNED_IN notification must not preserve an
+  // account after the authoritative session has become null.
+  current = null;
+  windowObject.emit("storage", {
+    key: "sykabelajar_better_auth_session_event_v1",
+    newValue: JSON.stringify({ source: "sykabelajar-better-auth-session", type: "SIGNED_IN" }),
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [
+    { type: "SIGNED_IN", userId: "user-b" },
+    { type: "SIGNED_OUT", userId: null },
+  ]);
+
+  bridge.unsubscribe();
+});
+
+test("same-identity sign-in hints are ignored while verified profile events still propagate", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const received = [];
+  const current = makeSession("user-a");
+  const bridge = createBetterAuthSessionBridge({
+    getSession: async () => current,
+    onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
+    windowObject,
+    documentObject,
+  });
+
+  await bridge.refresh();
+  windowObject.emit("storage", {
+    key: "sykabelajar_better_auth_session_event_v1",
+    newValue: JSON.stringify({ source: "sykabelajar-better-auth-session", type: "SIGNED_IN" }),
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [], "a stale sign-in hint must not force an unnecessary re-hydration");
+
+  windowObject.emit("storage", {
+    key: "sykabelajar_better_auth_session_event_v1",
+    newValue: JSON.stringify({ source: "sykabelajar-better-auth-session", type: "USER_UPDATED" }),
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [{ type: "USER_UPDATED", userId: "user-a" }]);
+
+  bridge.unsubscribe();
+});
