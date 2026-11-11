@@ -3,21 +3,25 @@ import { isAllowedOrigin } from "./security.mjs";
 import { BetterAuthAdminAuthError, isBetterAuthTokenForIssuer, resolveBetterAuthAdminIdentity } from "./email-admin-auth.mjs";
 
 type RuntimePolicy = { email_verification_required: number; updated_at: string; updated_by: string };
+type AdminIdentity = { id: string; email: string };
+type AdminCheck = { user: AdminIdentity } | { response: Response };
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
-async function admin(request:Request,env:AuthWorkerEnv){
+
+async function requireAdmin(request:Request,env:AuthWorkerEnv):Promise<AdminCheck>{
  const origin=request.headers.get("Origin");
- if(!isAllowedOrigin(origin,[env.APP_ORIGIN,...(env.DEV_APP_ORIGIN?[env.DEV_APP_ORIGIN]:[])]))return {error:json({ok:false,error:"ORIGIN_NOT_ALLOWED"},403)} as const;
+ if(!isAllowedOrigin(origin,[env.APP_ORIGIN,...(env.DEV_APP_ORIGIN?[env.DEV_APP_ORIGIN]:[])]))return {response:json({ok:false,error:"ORIGIN_NOT_ALLOWED"},403)};
  const token=request.headers.get("Authorization")?.replace(/^Bearer\s+/,"").trim();
- if(!token||token.length>8192||!isBetterAuthTokenForIssuer(token,env.BETTER_AUTH_URL))return {error:json({ok:false,error:"AUTH_REQUIRED"},401)} as const;
- try{return {user:await resolveBetterAuthAdminIdentity({accessToken:token,authBaseUrl:env.BETTER_AUTH_URL,resourceAudience:env.SUPABASE_RESOURCE_AUDIENCE,supabaseUrl:env.SUPABASE_PROVISIONING_URL??"",publishableKey:env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY??""})}catch(e){
- const code=e instanceof BetterAuthAdminAuthError?e.code:"";
- return {error:json({ok:false,error:code==="BETTER_AUTH_ADMIN_REQUIRED"?"ADMIN_REQUIRED":"ADMIN_AUTH_UNAVAILABLE"},code==="BETTER_AUTH_ADMIN_REQUIRED"?403:503)} as const;
- }}
+ if(!token||token.length>8192||!isBetterAuthTokenForIssuer(token,env.BETTER_AUTH_URL))return {response:json({ok:false,error:"AUTH_REQUIRED"},401)};
+ try{return {user:await resolveBetterAuthAdminIdentity({accessToken:token,authBaseUrl:env.BETTER_AUTH_URL,resourceAudience:env.SUPABASE_RESOURCE_AUDIENCE,supabaseUrl:env.SUPABASE_PROVISIONING_URL??"",publishableKey:env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY??"")}}catch(e){
+  const code=e instanceof BetterAuthAdminAuthError?e.code:"";
+  return {response:json({ok:false,error:code==="BETTER_AUTH_ADMIN_REQUIRED"?"ADMIN_REQUIRED":"ADMIN_AUTH_UNAVAILABLE"},code==="BETTER_AUTH_ADMIN_REQUIRED"?403:503)};
+ }
+}
 export async function readEmailVerificationPolicy(env:AuthWorkerEnv):Promise<boolean>{
  try{const row=await env.DB.prepare("SELECT email_verification_required FROM auth_runtime_settings WHERE id=1").first<{email_verification_required:number}>();return row?.email_verification_required!==0;}catch{return true;}
 }
 export async function handleAuthRuntimeSettings(request:Request,env:AuthWorkerEnv):Promise<Response>{
- const checked=await admin(request,env);if("error"in checked)return checked.error;
+ const checked=await requireAdmin(request,env);if("response"in checked)return checked.response;
  if(request.method==="GET"){
   try{const row=await env.DB.prepare("SELECT email_verification_required,updated_at,updated_by FROM auth_runtime_settings WHERE id=1").first<RuntimePolicy>();if(!row)return json({ok:false,error:"AUTH_RUNTIME_SETTINGS_NOT_MIGRATED"},503);return json({ok:true,emailVerificationRequired:row.email_verification_required===1,updatedAt:row.updated_at,updatedBy:row.updated_by});}catch{return json({ok:false,error:"AUTH_RUNTIME_SETTINGS_NOT_MIGRATED"},503)}
  }
