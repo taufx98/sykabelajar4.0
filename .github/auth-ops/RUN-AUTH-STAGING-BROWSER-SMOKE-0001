@@ -2,3 +2,4 @@ RUN-AUTH-STAGING-BROWSER-SMOKE-0001
 verify-current-staging-login-register-recovery-ui-20261111
 verify-bypass-enabled-login-register-recovery-ui-20261111
 verify-active-email-bypass-current-checkpoint-20261111
+verify-login-fields-accessibility-and-active-bypass-20261111

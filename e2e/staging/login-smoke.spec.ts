@@ -24,7 +24,13 @@ test('staging /login mounts React and renders the email/password form', async ({
   await expect(page.locator('#root')).toBeVisible();
   await expect(page.locator('#root')).not.toBeEmpty();
   await expect(page.locator('input[type="email"]'), 'email input must render').toBeVisible();
+  await expect(page.locator('input[type="email"]')).toHaveAttribute('id', 'login-email');
+  await expect(page.locator('input[type="email"]')).toHaveAttribute('name', 'email');
+  await expect(page.getByLabel('Email')).toHaveAttribute('id', 'login-email');
   await expect(page.locator('input[type="password"]'), 'password input must render').toBeVisible();
+  await expect(page.locator('input[type="password"]')).toHaveAttribute('id', 'login-password');
+  await expect(page.locator('input[type="password"]')).toHaveAttribute('name', 'password');
+  await expect(page.getByLabel('Password')).toHaveAttribute('id', 'login-password');
   await expect(
     page.getByRole('heading', { name: /^(Masuk|Sign in)$/ }),
     'the login heading must render',
@@ -85,7 +91,9 @@ test('staging login recovery control opens the email form without sending a rese
   const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
   expect(response?.status()).toBe(200);
   await page.getByRole('button', { name: /^(Lupa password\?|Forgot password\?)$/ }).click();
-  await expect(page.getByPlaceholder(/^(Email kamu|Your email)$/)).toBeVisible();
+  await expect(page.locator('#forgot-password-email')).toBeVisible();
+  await expect(page.locator('#forgot-password-email')).toHaveAttribute('name', 'forgotEmail');
+  await expect(page.getByLabel('Email').nth(1)).toHaveAttribute('id', 'forgot-password-email');
   await expect(page.getByRole('button', { name: /^(Kirim Link Reset|Send reset link)$/ })).toBeVisible();
   expect(pageErrors, 'password recovery form must not throw before submit').toEqual([]);
 });
