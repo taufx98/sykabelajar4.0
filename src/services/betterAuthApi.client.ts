@@ -558,7 +558,7 @@ export function createBetterAuthApiClient(options: {
 
   async function readSessionPayload(): Promise<unknown> {
     if (sessionReadInFlight) return sessionReadInFlight;
-    const pending = readSessionPayload();
+    const pending = request<unknown>('/get-session');
     sessionReadInFlight = pending;
     try {
       return await pending;
