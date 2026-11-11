@@ -304,6 +304,27 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       "Better Auth user ID must be a UUID",
     );
 
+    // A valid password is not sufficient to create a session before the
+    // user's email challenge has been completed. This specifically guards the
+    // unverified-login regression observed in hosted staging.
+    const unverifiedSignIn = await authRequest("/sign-in/email", {
+      method: "POST",
+      body: { email, password: initialPassword },
+    });
+    assert.equal(unverifiedSignIn.ok, false, "unverified user must not sign in");
+    assert.equal(
+      sessionCookie(unverifiedSignIn),
+      "",
+      "unverified sign-in response must not issue a session cookie",
+    );
+    const unauthenticatedSession = await authRequest("/get-session");
+    assert.equal(unauthenticatedSession.status, 200, "anonymous session lookup must remain a successful read");
+    assert.equal(
+      await parseJson(unauthenticatedSession),
+      null,
+      "unverified signup must leave no authenticated session before email verification",
+    );
+
     const verificationMessage = mailMessages.find((message) => message.category === "verify-email" && message.to === email);
     assert.ok(verificationMessage, "sign-up must deliver a verification email through the configured webhook");
     const verificationUrl = mailUrl(verificationMessage);
