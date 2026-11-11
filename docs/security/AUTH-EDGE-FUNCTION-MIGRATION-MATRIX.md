@@ -1,10 +1,18 @@
 # Better Auth — Supabase Edge Function migration matrix
 
-Status (11 November 2026): **dual-mode adapter and nine branch handler migrations implemented; isolated staging identity provisioning is now enabled; application Edge handlers remain source-only.**
+Status (11 November 2026): **the shared Better Auth identity verifier and the required source-level auth compatibility changes are implemented; isolated staging provisioning is enabled.** Application business handlers remain on their existing deployment targets until an approved cutover.
 
-The staging Worker deploy [#42949849642](https://github.com/taufx98/sykabelajar4.0/actions/runs/42949849642) passed and activated the reviewed server-only identity projection for the fixed Free project `ydamszdfsxqisanazdkb`. The Worker secret was verified by name/type only; its value was never read or logged. The four staging provisioning/email/phone RPCs are owned by `postgres`, have empty `search_path`, and are callable only by `service_role`. Public registration still cannot request admin. No user or admin was created; all hosted identity table counts remain zero.
+## Scope boundary — read before using this matrix
 
-This isolated project is not a Production clone: it currently contains 20 auth/identity/referral/organizer fixture tables and only the OIDC acceptance Edge Function. Production has 125 tables. The nine Cloudinary/payment application handlers must not be deployed against this partial schema. Their source and `verify_jwt` configuration are ready in the branch; deployment remains gated on the specific business-schema dependencies and per-function staging-only secrets/environment. Production handlers and secrets remain unchanged. This document does not authorize Production deployment.
+This matrix inventories existing backend entry points that relied on Supabase Auth and records how their authentication checks accept a verified Better Auth identity. It is not a request to rebuild those handlers or their business logic.
+
+- The only in-scope Stage 5 work is authentication verification, canonical user identity resolution, and preserving existing authorization checks where they depend on the identity provider.
+- The Cloudinary, payment, Shop, competition, and other business operations remain existing application functionality. Their schemas, provider credentials, secrets, and deployments are **not** prerequisites for Better Auth login, session, OIDC, or staging identity acceptance.
+- Do not copy the Production business schema or data to the isolated auth staging project. Do not deploy these application handlers to auth staging just to test login.
+- The auth staging project needs only the auth/identity fixture schema and its isolated provisioning/OIDC acceptance functions. Backend auth compatibility can be validated through type checks, contract/security tests, JWT/RLS tests, and a disposable local schema-only baseline where needed.
+- During the separately approved Production cutover, deploy any required auth-verifier-compatible handler versions while retaining their existing business schema, secrets, authorization rules, and request/response behavior. This matrix does not authorize deployment or Production changes.
+
+The staging Worker deploy [#42949849642](https://github.com/taufx98/sykabelajar4.0/actions/runs/42949849642) passed and activated the reviewed server-only identity projection for the fixed Free project `ydamszdfsxqisanazdkb`. The Worker secret was verified by name/type only; its value was never read or logged. The four staging provisioning/email/phone RPC wrappers are restricted to `service_role`. Public registration cannot request admin. No user or admin was created; all hosted identity table counts remain zero.
 
 ## Verified implementation contract
 
