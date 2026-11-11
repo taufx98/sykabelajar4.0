@@ -22,6 +22,8 @@ interface AppState {
   user: User | null;
   isAuthenticated: boolean;
   authLoading: boolean;
+  authUnavailable: boolean;
+  retryAuthSession: () => Promise<void>;
   isGuest: boolean;
   notifications: AppNotification[];
   unreadNotificationCount: number;
@@ -52,6 +54,68 @@ const GUEST_KEY = 'sykabelajar_guest_mode_v1';
 const IDLE_TIMEOUT_MS = 25 * 60 * 1000;
 const LAST_ACTIVITY_KEY = 'sykabelajar_last_activity_v1';
 const ACTIVITY_PERSIST_INTERVAL_MS = 5000;
+const AUTH_READ_RETRY_DELAYS_MS = [150, 400] as const;
+
+function authErrorCode(error: unknown): string {
+  if (!error || typeof error !== 'object') return '';
+  const value = error as { code?: unknown; message?: unknown };
+  const code = typeof value.code === 'string' ? value.code : '';
+  const message = typeof value.message === 'string' ? value.message : '';
+  return code || (/^[A-Z0-9_]{2,80}$/.test(message) ? message : '');
+}
+
+function isTransientAuthReadError(error: unknown): boolean {
+  const value = error && typeof error === 'object'
+    ? error as { status?: unknown; statusCode?: unknown }
+    : {};
+  const status = Number(value.status ?? value.statusCode ?? 0);
+  const code = authErrorCode(error);
+  if (status === 429 || status >= 500) return true;
+  if ([
+    'AUTH_REQUEST_FAILED',
+    'AUTH_WORKER_UNAVAILABLE',
+    'AUTH_WORKER_BAD_RESPONSE',
+    'AUTH_SERVICE_UNAVAILABLE',
+    'AUTH_RESOURCE_TOKEN_UNAVAILABLE',
+    'AUTH_RESOURCE_TOKEN_EXCHANGE_FAILED',
+    'AUTH_OAUTH_CALLBACK_TIMEOUT',
+  ].includes(code)) return true;
+  return error instanceof TypeError && /fetch|network|load failed/i.test(error.message);
+}
+
+function isDefinitiveAuthRejection(error: unknown): boolean {
+  const code = authErrorCode(error);
+  const value = error && typeof error === 'object'
+    ? error as { status?: unknown; statusCode?: unknown }
+    : {};
+  const status = Number(value.status ?? value.statusCode ?? 0);
+  return status === 401 ||
+    [
+      'AUTH_SESSION_EXPIRED',
+      'AUTH_SESSION_REQUIRED',
+      'AUTHENTICATION_REQUIRED',
+      'EMAIL_VERIFICATION_REQUIRED',
+      'EMAIL_NOT_VERIFIED',
+      'EMAIL_NOT_CONFIRMED',
+    ].includes(code);
+}
+
+function isDefinitiveIdentityFailure(error: unknown): boolean {
+  const code = authErrorCode(error);
+  return code === 'PROFILE_NOT_FOUND' || code === 'ROLE_NOT_ASSIGNED';
+}
+
+async function retryTransientAuthRead<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const delay = AUTH_READ_RETRY_DELAYS_MS[attempt];
+      if (!isTransientAuthReadError(error) || delay === undefined) throw error;
+      await new Promise((resolve) => window.setTimeout(resolve, delay));
+    }
+  }
+}
 
 async function signOutRejectedLogin() {
   if (typeof window !== 'undefined') window.sessionStorage.setItem(LOGIN_REJECTION_SIGNOUT_KEY, '1');
@@ -108,6 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [authUser, setAuthUser] = useState<{ id: string; email?: string } | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authUnavailable, setAuthUnavailable] = useState(false);
   const [isGuest, setIsGuest] = useState(() => localStorage.getItem(GUEST_KEY) === '1');
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
@@ -136,6 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     authBootstrapGenerationRef.current += 1;
     authHydrationGateRef.current?.invalidate();
     setCurrentAuthUser(null);
+    setAuthUnavailable(false);
     setUser(null);
     setNotifications([]);
     setAwards([]);
@@ -193,6 +259,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setUser({ ...mapProfileToUser(profile, email), role: preferredRole(resolvedRoles) });
     setCurrentAuthUser({ id: userId, email: email || undefined });
+    setAuthUnavailable(false);
   }, [setCurrentAuthUser]);
 
   useEffect(() => {
@@ -208,7 +275,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const bootstrap = async () => {
       try {
-        const session = await getAuthSession();
+        const session = await retryTransientAuthRead(() => getAuthSession());
         // An auth event, logout, guest transition, or newer bootstrap invalidates
         // this initial read. It must not restore an older provider snapshot.
         if (!isBootstrapCurrent()) return;
@@ -227,7 +294,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('[SykaBelajar] auth bootstrap failed', error);
-        if (isBootstrapCurrent()) clearUserState();
+        if (isBootstrapCurrent()) {
+          // A failed network/Worker read is not proof that the cookie session
+          // ended. Preserve the session snapshot and show an explicit retry
+          // state instead of silently sending a signed-in user to /login.
+          if (isDefinitiveAuthRejection(error) || isDefinitiveIdentityFailure(error)) {
+            clearUserState();
+          } else {
+            setAuthUnavailable(true);
+          }
+        }
       } finally {
         if (effectActive && aliveRef.current) setAuthLoading(false);
       }
@@ -257,6 +333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const uid = session.user.id;
       setCurrentAuthUser({ id: uid, email: email || undefined });
       setIsGuest(false);
+      setAuthUnavailable(false);
       localStorage.removeItem(GUEST_KEY);
 
       const hydrateFromCurrentEvent = () => {
@@ -273,9 +350,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           authHydrationGateRef.current?.isCurrent(hydrationRequest) === true &&
           authUserRef.current?.id === uid
         );
-        void hydrateCurrentUser(uid, email, undefined, hydrationRequest).catch((error) => {
+        void retryTransientAuthRead(() => hydrateCurrentUser(uid, email, undefined, hydrationRequest)).catch((error) => {
           console.error('[SykaBelajar] auth user hydration failed', error);
-          if (isCurrentEvent()) clearUserState();
+          if (isCurrentEvent()) {
+            if (isDefinitiveAuthRejection(error) || isDefinitiveIdentityFailure(error)) {
+              clearUserState();
+            } else {
+              setAuthUnavailable(true);
+            }
+          }
         });
         void refreshUnreadCount(uid);
       };
@@ -483,6 +566,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [clearUserState]);
 
+  const retryAuthSession = useCallback(async () => {
+    const requestGeneration = ++authBootstrapGenerationRef.current;
+    authHydrationGateRef.current?.invalidate();
+    setAuthUnavailable(false);
+    setAuthLoading(true);
+    try {
+      const session = await retryTransientAuthRead(() => getAuthSession());
+      if (authBootstrapGenerationRef.current !== requestGeneration) return;
+      if (!session?.user) {
+        clearUserState();
+        setAuthLoading(false);
+        return;
+      }
+
+      const email = session.user.email ?? '';
+      setCurrentAuthUser({ id: session.user.id, email: email || undefined });
+      setIsGuest(false);
+      localStorage.removeItem(GUEST_KEY);
+      await retryTransientAuthRead(() => hydrateCurrentUser(session.user.id, email));
+      if (authBootstrapGenerationRef.current !== requestGeneration) return;
+      setAuthUnavailable(false);
+      void refreshUnreadCount(session.user.id);
+    } catch (error) {
+      if (authBootstrapGenerationRef.current !== requestGeneration) return;
+      if (isDefinitiveAuthRejection(error) || isDefinitiveIdentityFailure(error)) {
+        clearUserState();
+      } else {
+        setAuthUnavailable(true);
+      }
+    } finally {
+      if (authBootstrapGenerationRef.current === requestGeneration) setAuthLoading(false);
+    }
+  }, [clearUserState, hydrateCurrentUser, refreshUnreadCount, setCurrentAuthUser]);
+
   const refreshUser = useCallback(async () => {
     const current = authUserRef.current;
     if (!current) return;
@@ -621,6 +738,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     user,
     isAuthenticated: !!authUser,
     authLoading,
+    authUnavailable,
+    retryAuthSession,
     isGuest,
     notifications,
     unreadNotificationCount,
@@ -644,7 +763,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addComment,
     toast,
     refreshUser,
-  }), [user, authUser, authLoading, isGuest, notifications, unreadNotificationCount, refreshUnreadCount, awards, certificates, orders, feed, login, register, loginAsGuest, logout, updateProfile, markNotificationRead, markAllNotificationsRead, addPoints, addNotification, addOrder, togglePostLike, toggleCommentLike, addComment, toast, refreshUser]);
+  }), [user, authUser, authLoading, authUnavailable, retryAuthSession, isGuest, notifications, unreadNotificationCount, refreshUnreadCount, awards, certificates, orders, feed, login, register, loginAsGuest, logout, updateProfile, markNotificationRead, markAllNotificationsRead, addPoints, addNotification, addOrder, togglePostLike, toggleCommentLike, addComment, toast, refreshUser]);
 
   return (
     <AppContext.Provider value={value}>
