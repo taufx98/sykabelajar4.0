@@ -234,7 +234,10 @@ async function listAdminSettings(env: AuthWorkerEnv): Promise<Response> {
   }
   const configured = new Map(rows.map((row) => [row.provider, row]));
   const environment = meta.managed_mode === 1 ? {} : environmentProviders(env);
-  const emailVerificationConfigured = await isAuthEmailVerificationConfigured(env);
+  const [emailVerificationConfigured, emailVerificationRequired] = await Promise.all([
+    isAuthEmailVerificationConfigured(env),
+    readEmailVerificationPolicy(env),
+  ]);
   const providers = SOCIAL_LOGIN_PROVIDERS.map((provider) => {
     const row = configured.get(provider);
     const envCredentials = environment[provider];
@@ -242,7 +245,7 @@ async function listAdminSettings(env: AuthWorkerEnv): Promise<Response> {
     const secretConfigured = Boolean(row?.client_secret_ciphertext || envCredentials?.clientSecret);
     const decryptable = !row || !row.enabled || Boolean(env.AUTH_PROVIDER_ENCRYPTION_KEY && env.AUTH_PROVIDER_ENCRYPTION_KEY.length >= 32);
     const storedEnabled = meta.managed_mode === 1 ? row?.enabled === 1 && decryptable : Boolean(envCredentials);
-    const emailBlocked = provider === "facebook" && !emailVerificationConfigured;
+    const emailBlocked = provider === "facebook" && emailVerificationRequired && !emailVerificationConfigured;
     return {
       provider,
       primary: provider === "google",
@@ -263,6 +266,7 @@ async function listAdminSettings(env: AuthWorkerEnv): Promise<Response> {
     managedMode: meta.managed_mode === 1,
     encryptionKeyConfigured: Boolean(env.AUTH_PROVIDER_ENCRYPTION_KEY && env.AUTH_PROVIDER_ENCRYPTION_KEY.length >= 32),
     emailVerificationConfigured,
+    emailVerificationRequired,
     providers,
     instagram: { available: false, reason: "Instagram consumer accounts are not supported as a general login provider." },
   });
@@ -355,17 +359,20 @@ async function saveProvider(
   const enabled = typeof body.enabled === "boolean"
     ? body.enabled
     : existing ? existing.enabled === 1 : provider === "google";
-  const emailVerificationConfigured = await isAuthEmailVerificationConfigured(env);
-  if (enabled && provider === "facebook" && !emailVerificationConfigured) {
+  const [emailVerificationConfigured, emailVerificationRequired] = await Promise.all([
+    isAuthEmailVerificationConfigured(env),
+    readEmailVerificationPolicy(env),
+  ]);
+  if (enabled && provider === "facebook" && emailVerificationRequired && !emailVerificationConfigured) {
     return json({ ok: false, error: "SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED" }, 409);
   }
 
   const currentRows = await readRows(env.DB);
   const isUsableEnabled = (row: SocialProviderRow) =>
-    row.enabled === 1 && (row.provider !== "facebook" || emailVerificationConfigured);
+    row.enabled === 1 && (row.provider !== "facebook" || !emailVerificationRequired || emailVerificationConfigured);
   const otherEnabledCount = currentRows.filter((row) => row.provider !== provider && isUsableEnabled(row)).length;
   const currentProviderEnabled = existing?.enabled === 1 &&
-    (provider !== "facebook" || emailVerificationConfigured);
+    (provider !== "facebook" || !emailVerificationRequired || emailVerificationConfigured);
   if (!enabled && currentProviderEnabled && otherEnabledCount === 0) {
     return json({ ok: false, error: "SOCIAL_PROVIDER_LAST_ENABLED_METHOD" }, 409);
   }
@@ -417,8 +424,11 @@ async function setProviderEnabled(
   if (body.enabled && (!env.AUTH_PROVIDER_ENCRYPTION_KEY || env.AUTH_PROVIDER_ENCRYPTION_KEY.length < 32)) {
     return json({ ok: false, error: "SOCIAL_PROVIDER_ENCRYPTION_NOT_CONFIGURED" }, 503);
   }
-  const emailVerificationConfigured = await isAuthEmailVerificationConfigured(env);
-  if (body.enabled && provider === "facebook" && !emailVerificationConfigured) {
+  const [emailVerificationConfigured, emailVerificationRequired] = await Promise.all([
+    isAuthEmailVerificationConfigured(env),
+    readEmailVerificationPolicy(env),
+  ]);
+  if (body.enabled && provider === "facebook" && emailVerificationRequired && !emailVerificationConfigured) {
     return json({ ok: false, error: "SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED" }, 409);
   }
   if (body.enabled) {
