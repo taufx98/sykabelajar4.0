@@ -65,3 +65,29 @@ test("Admin panel can disable and re-enable the policy and is hidden outside Bet
   assert.match(panel, /window\.confirm/);
   assert.match(panel, /Bypass berarti alamat email belum terbukti milik pengguna/);
 });
+
+test("registration and login screens follow the same public runtime policy", () => {
+  assert.match(register, /client\.getEmailVerificationRequired\(\)/);
+  assert.match(register, /betterAuthPreview && emailVerificationRequired && emailVerificationConfigured !== true/);
+  assert.match(register, /window\.location\.replace\(redirectTo\)/);
+  assert.doesNotMatch(register, /betterAuthPreview && emailVerificationConfigured !== true/);
+  assert.match(login, /client\.getEmailVerificationRequired\(\)/);
+  assert.match(login, /emailVerificationRequired && needsEmailVerification/);
+});
+
+test("resource-token exchange accepts unverified staging sessions only while the runtime policy is disabled", () => {
+  assert.match(client, /const emailVerificationRequired = await getEmailVerificationRequired\(\)/);
+  assert.match(client, /emailVerificationRequired && latestSession\.user\.emailVerified !== true/);
+});
+
+test("D1 policy toggle workflow is hard-pinned to staging and supports explicit re-enable", () => {
+  assert.match(policyWorkflow, /branches: \[security\/auth-poc-stage-1\]/);
+  assert.match(policyWorkflow, /database_name = "sykabelajar-auth-poc"/);
+  assert.match(policyWorkflow, /database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"/);
+  assert.match(policyWorkflow, /SET-TEMPORARY-EMAIL-BYPASS-ON-STAGING-ONLY/);
+  assert.match(policyWorkflow, /REQUIRE-EMAIL-VERIFICATION-ON-STAGING-ONLY/);
+  assert.ok(policyWorkflow.indexOf("SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001") < policyWorkflow.indexOf("SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001"),
+    "re-enable marker must take precedence over the retained bypass marker");
+  assert.match(policyWorkflow, /email_verification_required=0/);
+  assert.match(policyWorkflow, /email_verification_required=1/);
+});
