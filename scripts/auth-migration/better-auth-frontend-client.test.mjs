@@ -50,7 +50,7 @@ assert.match(client, /getSupabaseAccessToken\(\)[\s\S]*AUTH_SESSION_EXPIRED/);
 assert.match(client, /AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST/);
 assert.match(
   client,
-  /const latestSession = await readSessionPayload\\(\\);[\\s\\S]*latestSession\\.user\\.id !== userId[\\s\\S]*latestSession\\.user\\.emailVerified !== true[\\s\\S]*cachedResourceToken =/,
+  /const latestSession = await readSessionPayload\(\);[\s\S]*latestSession\.user\.id !== userId[\s\S]*latestSession\.user\.emailVerified !== true[\s\S]*cachedResourceToken =/,
 );
 
 assert.match(callbackPage, /sykabelajar-better-auth-oidc/);
