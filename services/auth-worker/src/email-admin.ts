@@ -8,6 +8,7 @@ import {
   isBetterAuthTokenForIssuer,
   resolveBetterAuthAdminIdentity,
 } from "./email-admin-auth.mjs";
+import { readEmailVerificationPolicy } from "./auth-runtime-settings";
 
 type SupabaseAdminUser = { id: string; email: string };
 type EmailProvider = "zeptomail" | "brevo";
