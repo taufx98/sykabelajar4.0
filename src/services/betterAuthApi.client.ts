@@ -389,6 +389,10 @@ export function createBetterAuthApiClient(options: {
   let cachedVerifiedSession: { userId: string; expiresAt: number; checkedAt: number } | null = null;
   let resourceTokenGeneration = 0;
   let resourceTokenInFlight: { userId: string; generation: number; promise: Promise<string> } | null = null;
+  let cachedEmailVerificationPolicy: { required: boolean; checkedAt: number } | null = null;
+  let emailVerificationPolicyInFlight: Promise<boolean> | null = null;
+  let sessionReadInFlight: Promise<unknown> | null = null;
+  const EMAIL_VERIFICATION_POLICY_CACHE_MS = 15_000;
 
   function clearResourceTokenCache() {
     resourceTokenGeneration += 1;
@@ -495,7 +499,7 @@ export function createBetterAuthApiClient(options: {
       if (generation !== resourceTokenGeneration) {
         throw new BetterAuthClientError(409, 'AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST');
       }
-      const latestSession = await request<unknown>('/get-session');
+      const latestSession = await readSessionPayload();
       const latestSessionExpiresAt = isBetterAuthSessionEnvelope(latestSession)
         ? Date.parse(latestSession.session.expiresAt)
         : Number.NaN;
@@ -524,11 +528,43 @@ export function createBetterAuthApiClient(options: {
   }
 
   async function getEmailVerificationRequired(): Promise<boolean> {
-    const payload = await request<unknown>('/providers');
-    if (!isRecord(payload) || typeof payload.emailVerificationRequired !== 'boolean') {
-      throw new BetterAuthClientError(502, 'AUTH_VERIFICATION_POLICY_INVALID');
+    const now = Date.now();
+    if (
+      cachedEmailVerificationPolicy &&
+      now - cachedEmailVerificationPolicy.checkedAt < EMAIL_VERIFICATION_POLICY_CACHE_MS
+    ) {
+      return cachedEmailVerificationPolicy.required;
     }
-    return payload.emailVerificationRequired;
+    if (emailVerificationPolicyInFlight) return emailVerificationPolicyInFlight;
+
+    const pending = (async () => {
+      const payload = await request<unknown>('/providers');
+      if (!isRecord(payload) || typeof payload.emailVerificationRequired !== 'boolean') {
+        throw new BetterAuthClientError(502, 'AUTH_VERIFICATION_POLICY_INVALID');
+      }
+      cachedEmailVerificationPolicy = {
+        required: payload.emailVerificationRequired,
+        checkedAt: Date.now(),
+      };
+      return payload.emailVerificationRequired;
+    })();
+    emailVerificationPolicyInFlight = pending;
+    try {
+      return await pending;
+    } finally {
+      if (emailVerificationPolicyInFlight === pending) emailVerificationPolicyInFlight = null;
+    }
+  }
+
+  async function readSessionPayload(): Promise<unknown> {
+    if (sessionReadInFlight) return sessionReadInFlight;
+    const pending = readSessionPayload();
+    sessionReadInFlight = pending;
+    try {
+      return await pending;
+    } finally {
+      if (sessionReadInFlight === pending) sessionReadInFlight = null;
+    }
   }
 
   async function getEmailVerificationConfigured(): Promise<boolean> {
@@ -540,22 +576,39 @@ export function createBetterAuthApiClient(options: {
   }
 
   async function request<T>(path: string, body?: JsonRecord): Promise<T> {
-    let response: Response;
-    try {
-      response = await fetchImpl(baseUrl + path, {
-        method: body === undefined ? 'GET' : 'POST',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: {
-          accept: 'application/json',
-          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-        },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      });
-    } catch {
-      throw new BetterAuthClientError(503, 'AUTH_WORKER_UNAVAILABLE');
+    const safeRead = body === undefined;
+    let response: Response | null = null;
+
+    // Only retry idempotent GET requests. Never automatically replay sign-in,
+    // sign-up, sign-out, password, or admin mutation requests.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = await fetchImpl(baseUrl + path, {
+          method: safeRead ? 'GET' : 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            accept: 'application/json',
+            ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+      } catch {
+        if (!safeRead || attempt === 2) {
+          throw new BetterAuthClientError(503, 'AUTH_WORKER_UNAVAILABLE');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+        continue;
+      }
+
+      if (safeRead && (response.status === 429 || response.status >= 500) && attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+        continue;
+      }
+      break;
     }
 
+    if (!response) throw new BetterAuthClientError(503, 'AUTH_WORKER_UNAVAILABLE');
     let payload: unknown = null;
     try {
       payload = await response.json();
@@ -595,7 +648,7 @@ export function createBetterAuthApiClient(options: {
 
   async function requestAdmin<T>(body?: JsonRecord, endpoint='/api/admin/login-providers', method?: 'POST' | 'PUT'): Promise<T> {
     const verificationRequired = await getEmailVerificationRequired();
-    const session = await request<unknown>('/get-session');
+    const session = await readSessionPayload();
     if (!isBetterAuthSessionEnvelope(session) || (verificationRequired && session.user.emailVerified !== true)) {
       throw new BetterAuthClientError(401, 'AUTH_SESSION_REQUIRED');
     }
@@ -672,7 +725,7 @@ export function createBetterAuthApiClient(options: {
 
     async getSession() {
       const verificationRequired = await getEmailVerificationRequired();
-      const payload = await request<unknown>('/get-session');
+      const payload = await readSessionPayload();
       if (payload === null) {
         clearResourceTokenCache();
         return null;
@@ -696,7 +749,7 @@ export function createBetterAuthApiClient(options: {
 
     async getResourceToken() {
       const verificationRequired = await getEmailVerificationRequired();
-      const session = await request<unknown>('/get-session');
+      const session = await readSessionPayload();
       if (!isBetterAuthSessionEnvelope(session) || (verificationRequired && session.user.emailVerified !== true)) {
         clearResourceTokenCache();
         throw new BetterAuthClientError(401, 'AUTH_SESSION_REQUIRED');
@@ -725,7 +778,7 @@ export function createBetterAuthApiClient(options: {
         return cachedResourceToken.token;
       }
 
-      const payload = await request<unknown>('/get-session');
+      const payload = await readSessionPayload();
       if (payload === null) {
         clearResourceTokenCache();
         return null;
@@ -797,6 +850,10 @@ export function createBetterAuthApiClient(options: {
 
     async setEmailVerificationRequired(required: boolean) {
       const payload = await requestAdmin<{ ok: boolean; emailVerificationRequired: boolean; updatedAt?: string; updatedBy?: string }>({ emailVerificationRequired: required }, '/api/admin/auth-runtime-settings', 'PUT');
+      cachedEmailVerificationPolicy = {
+        required: payload.emailVerificationRequired,
+        checkedAt: Date.now(),
+      };
       clearResourceTokenCache();
       return { emailVerificationRequired: payload.emailVerificationRequired, updatedAt: payload.updatedAt ?? null, updatedBy: payload.updatedBy ?? null };
     },
