@@ -124,9 +124,11 @@ async function buildRuntimeConfig(
   providers: Partial<Record<SocialLoginProvider, SocialProviderCredentials>>,
 ): Promise<SocialProviderRuntimeConfig> {
   const safeProviders = { ...providers };
-  // Facebook does not provide a trusted email_verified signal. It must remain
-  // unavailable until a SYKABELAJAR transactional verification path exists.
-  if (safeProviders.facebook && !(await isAuthEmailVerificationConfigured(env))) {
+  const verificationRequired = await readEmailVerificationPolicy(env);
+  // Facebook lacks a trusted email_verified claim. It may be enabled only
+  // when local verification is required and a delivery provider is ready, or
+  // when an admin explicitly disables local email verification for staging.
+  if (safeProviders.facebook && verificationRequired && !(await isAuthEmailVerificationConfigured(env))) {
     delete safeProviders.facebook;
   }
   return { managedMode, revision, providers: safeProviders };
