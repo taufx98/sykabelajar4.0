@@ -83,8 +83,9 @@ test("AppContext bootstrap cannot restore a session after a newer auth event or 
   const bootstrap = appContext.slice(bootstrapStart, listenerStart);
   const listener = appContext.slice(listenerStart, awardsStart);
   assert.match(bootstrap, /authBootstrapGenerationRef\.current === bootstrapGeneration/);
-  assert.match(bootstrap, /await getAuthSession\(\);[\s\S]*if \(!isBootstrapCurrent\(\)\) return;/);
-  assert.match(bootstrap, /if \(isBootstrapCurrent\(\)\) clearUserState\(\)/);
+  assert.match(bootstrap, /retryTransientAuthRead\(\(\) => getAuthSession\(\)\);[\s\S]*if \(!isBootstrapCurrent\(\)\) return;/);
+  assert.match(bootstrap, /if \(isBootstrapCurrent\(\)\) \{[\s\S]*isDefinitiveAuthRejection\(error\)[\s\S]*setAuthUnavailable\(true\)/);
+  assert.match(bootstrap, /A failed network\/Worker read is not proof that the cookie session/);
   assert.match(listener, /const authEventGeneration = \+\+authBootstrapGenerationRef\.current;[\s\S]*authHydrationGateRef\.current\?\.invalidate\(\);[\s\S]*publishAuthSessionEvent/);
   assert.match(appContext, /const clearUserState = useCallback\(\(\) => \{\s*authBootstrapGenerationRef\.current \+= 1;/);
   assert.match(listener, /window\.setTimeout\(hydrateFromCurrentEvent, 0\)/);
@@ -92,8 +93,8 @@ test("AppContext bootstrap cannot restore a session after a newer auth event or 
   assert.match(listener, /const authEventGeneration = \+\+authBootstrapGenerationRef\.current/);
   assert.match(listener, /authBootstrapGenerationRef\.current !== authEventGeneration/);
   assert.match(listener, /const hydrationRequest = authHydrationGateRef\.current!\.begin\(\)/);
-  assert.match(listener, /hydrateCurrentUser\(uid, email, undefined, hydrationRequest\)/);
+  assert.match(listener, /retryTransientAuthRead\(\(\) => hydrateCurrentUser\(uid, email, undefined, hydrationRequest\)\)/);
   assert.match(listener, /authHydrationGateRef\.current\?\.isCurrent\(hydrationRequest\) === true/);
-  assert.match(listener, /if \(isCurrentEvent\(\)\) clearUserState\(\)/);
+  assert.match(listener, /if \(isCurrentEvent\(\)\) \{[\s\S]*isDefinitiveAuthRejection\(error\)[\s\S]*setAuthUnavailable\(true\)/);
 });
 console.log("Auth hydration gate contract passed: stale requests cannot overwrite a newer session.");
