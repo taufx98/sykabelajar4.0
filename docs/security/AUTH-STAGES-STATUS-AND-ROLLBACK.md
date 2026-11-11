@@ -1,3 +1,20 @@
+## Latest checkpoint — 11 November 2026 (Stage 4 session stability and request recovery)
+
+This checkpoint records the owner-reported staging login/role tests and the follow-up frontend transport/session hardening. It supersedes prior statements about the latest Stage 4 code state, but does not claim a staging deployment or Production cutover.
+
+- Owner-reported staging behavior before the fix: login succeeds; refresh/session persistence is intermittent; the selected Supabase staging business role is reflected in the app; a student is denied access to `/admin`; the frontend occasionally reports `AUTH_REQUEST_FAILED` and feels slow.
+- **Resource-token reuse:** `src/services/betterAuthSessionBridge.mjs` no longer invalidates the in-memory Supabase resource JWT on every focus, visibility, or pageshow check. The cache is invalidated only after the authoritative Worker read confirms an identity transition.
+- **Worker request efficiency/recovery:** `src/services/betterAuthApi.client.ts` caches the public email-verification policy for 15 seconds, deduplicates concurrent `/get-session` reads, retries only idempotent GETs after network/429/5xx failures, and never auto-replays sign-in, sign-up, sign-out, password or admin mutations.
+- **No false logout on transient failures:** `src/store/AppContext.tsx` retries transient session/profile/role reads. A failed Worker/PostgREST read no longer clears the local authenticated identity by default; explicit session rejection or a missing profile/role remains a definitive failure. Protected routes show a retry state when session status is temporarily unavailable instead of silently redirecting to `/login`.
+- Role authorization was not weakened: `/admin` remains accessible only to an active admin role. A student must be redirected away from that route, not signed out merely because access is denied.
+- Regression contracts cover same-user resource-token reuse, identity-change invalidation, transient Worker errors, safe GET retries, session-read deduplication, and AppContext bootstrap recovery.
+- [Auth Worker CI #43008647281](https://github.com/taufx98/sykabelajar4.0/actions/runs/43008647281) passed: frontend lint/typecheck/build, Worker tests, D1 migration checks, OIDC/JWKS smoke and Worker dry-run.
+- [Supabase Local Auth Claims CI #43008647248](https://github.com/taufx98/sykabelajar4.0/actions/runs/43008647248) passed: Edge/JWT/RLS contracts, local PostgreSQL ownership/role checks, staging anonymous-probe rejection and auth inventory checks.
+- Branch head at this checkpoint: `356307c4335b649d3610421cde7c9e1c459ccb76`; PR #177 remains open, Draft and unmerged. These are source/CI-verified changes only. No new staging deployment was performed in this checkpoint.
+- Supabase Production DB2 `mvdczyitbkxkldjughor`, production Pages/DNS/auth routing, users, schema, RLS, RPCs, FKs, triggers, secrets and Edge Functions remain unchanged. No account reset, PR merge or Production cutover was performed.
+
+---
+
 ## Latest checkpoint — 11 November 2026 (guarded staging Worker deployment)
 
 This checkpoint supersedes the earlier statement that the Worker-side email-readiness guard was source-only. The updated Worker is now deployed to the isolated staging hostname. It does not authorize PR merge or Production cutover.
