@@ -166,6 +166,86 @@ test("a fresh unverified student account provisions with least-privilege default
   });
 });
 
+test("identity provisioning retries one transient network failure without changing its idempotent payload", async () => {
+  const d1 = createD1Mock();
+  const calls = [];
+  const result = await reconcileSupabaseApplicationIdentity({ ...env, DB: d1.DB }, {
+    id: USER_ID,
+    name: "Retry User",
+    accountType: "student",
+    emailVerified: false,
+  }, async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(init.body) });
+    if (calls.length === 1) throw new Error("temporary socket reset");
+    return response({ user_id: USER_ID, account_type: "student" });
+  });
+
+  assert.deepEqual(result, { enabled: true, userId: USER_ID });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, calls[1].url);
+  assert.deepEqual(calls[0].body, calls[1].body);
+  assert.equal(calls[1].body.p_user_id, USER_ID);
+});
+
+test("identity and email-verification RPCs retry one transient 5xx, while permanent 4xx errors fail immediately", async () => {
+  const d1 = createD1Mock();
+  const calls = [];
+  const result = await reconcileSupabaseApplicationIdentity({ ...env, DB: d1.DB }, {
+    id: USER_ID,
+    name: "Verified Retry User",
+    accountType: "student",
+    emailVerified: true,
+  }, async (url, init) => {
+    const endpoint = String(url);
+    const body = JSON.parse(init.body);
+    calls.push({ endpoint, body });
+    const sameRpcAttempts = calls.filter((item) => item.endpoint === endpoint).length;
+    if (sameRpcAttempts === 1) return response({ message: "temporary provider outage" }, 503);
+    return endpoint.endsWith("/better_auth_provision_user")
+      ? response({ user_id: USER_ID, account_type: "student" })
+      : response(true);
+  });
+
+  assert.deepEqual(result, { enabled: true, userId: USER_ID });
+  assert.equal(calls.length, 4, "both idempotent identity and verification RPCs receive one retry");
+  assert.deepEqual(calls[0].body, calls[1].body);
+  assert.deepEqual(calls[2].body, calls[3].body);
+  assert.equal(d1.valuesByKey.get("identity_projection:" + USER_ID), "verified");
+
+  let permanentCalls = 0;
+  await assert.rejects(
+    reconcileSupabaseApplicationIdentity({ ...env, DB: createD1Mock().DB }, {
+      id: USER_ID,
+      name: "Permanent Failure User",
+      accountType: "student",
+      emailVerified: false,
+    }, async () => {
+      permanentCalls += 1;
+      return response({ message: "bad request" }, 400);
+    }),
+    /SUPABASE_PROVISIONING_REJECTED/,
+  );
+  assert.equal(permanentCalls, 1, "permanent 4xx responses must never be retried");
+});
+
+test("phone verification mutations are not included in identity-projection retries", async () => {
+  let calls = 0;
+  await assert.rejects(
+    completeSupabasePhoneVerification(env, {
+      userId: USER_ID,
+      verifiedAt: "2026-11-07T00:00:00.000Z",
+      phoneHash: "f".repeat(64),
+      providerSubject: "987654321",
+      phoneDigitsCount: 13,
+    }, async () => {
+      calls += 1;
+      return response({ message: "temporary server failure" }, 503);
+    }),
+    /SUPABASE_PROVISIONING_REJECTED/,
+  );
+  assert.equal(calls, 1);
+});
+
 test("legacy SUPABASE_SERVICE_ROLE_KEY binding remains compatible during migration", async () => {
   const legacyEnv = {
     ...env,
