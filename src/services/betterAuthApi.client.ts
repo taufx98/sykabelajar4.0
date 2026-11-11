@@ -9,6 +9,7 @@
  * It uses the Better Auth HTTP contract directly so the frontend lockfile and
  * production bundle do not acquire a second auth SDK before that decision.
  */
+import { safeBetterAuthErrorCode } from './betterAuthErrorCode.mjs';
 export type BetterAuthAccountType = 'student' | 'teacher' | 'organizer';
 export type BetterAuthSocialProvider = 'google' | 'facebook' | 'twitter';
 
@@ -321,13 +322,7 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function safeErrorCode(body: unknown): string {
-  if (!isRecord(body)) return 'AUTH_REQUEST_FAILED';
-  const candidate = [body.code, body.error, body.message].find(
-    (value) => typeof value === 'string' && /^[A-Z0-9_]{2,80}$/.test(value),
-  );
-  return typeof candidate === 'string' ? candidate : 'AUTH_REQUEST_FAILED';
-}
+const safeErrorCode = safeBetterAuthErrorCode;
 
 function isBetterAuthSessionEnvelope(value: unknown): value is BetterAuthSessionEnvelope {
   if (!isRecord(value) || !isRecord(value.user) || !isRecord(value.session)) return false;
