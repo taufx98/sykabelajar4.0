@@ -526,19 +526,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // offer a retry; only explicit rejection or missing backend identity is
       // treated as a definitive failure.
       if (authenticatedIdentity) {
-        if (isDefinitiveAuthRejection(error) || isDefinitiveIdentityFailure(error)) {
+        // Better Auth has already accepted the credentials and confirmed its
+        // session. A later 401/network/database failure belongs to Supabase
+        // role/profile hydration, not to the password check. Only an explicit
+        // missing profile/role is a definitive identity failure.
+        if (isDefinitiveIdentityFailure(error)) {
           try {
             await signOutRejectedLogin();
           } catch {
             clearUserState();
           }
+          authenticatedIdentity = null;
         } else {
           setCurrentAuthUser(authenticatedIdentity);
           setIsGuest(false);
           setAuthUnavailable(true);
+          localStorage.removeItem(GUEST_KEY);
+          localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+          // Continue to the protected app shell. AuthGuard shows its dedicated
+          // session-recovery action, so the user never re-enters a password.
+          return { ok: true };
         }
       }
-      return { ok: false, error: error instanceof Error ? error.message : 'Email atau password tidak valid.' };
+      const code = authErrorCode(error);
+      const message = error instanceof Error && error.message
+        ? error.message
+        : code || 'LOGIN_REQUEST_FAILED';
+      return { ok: false, error: message };
     }
   }, [clearUserState, hydrateCurrentUser, refreshUnreadCount, setCurrentAuthUser]);
 
