@@ -8,7 +8,8 @@ import {
 } from "./security.mjs";
 import { createD1QuotaResponse } from "./d1-quota.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
-import { isAuthEmailVerificationConfigured } from "./email";\nimport { handleAuthRuntimeSettings, readEmailVerificationPolicy } from "./auth-runtime-settings";
+import { isAuthEmailVerificationConfigured } from "./email";
+import { handleAuthRuntimeSettings, readEmailVerificationPolicy } from "./auth-runtime-settings";
 import {
   getPublicSocialLoginProviders,
   handleLoginProviderAdminRequest,
@@ -68,7 +69,8 @@ function safeDiagnostic(error: unknown): { name: string; message: string } {
     .replace(/https?:\/\/\S+/g, "[URL]")
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "[REDACTED]")
     .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL]")
-    .replace(/[\r\n]+/g, " ")
+    .replace(/[\r
+]+/g, " ")
     .slice(0, 180);
   return { name: error.name.slice(0, 60), message: message || "unclassified" };
 }
@@ -492,7 +494,12 @@ export default {
       }
     }
 
-    if (url.pathname === "/api/admin/auth-runtime-settings") {\n      try { return applyResponseHeaders(await handleAuthRuntimeSettings(request, env), corsHeaders); }\n      catch { return applyResponseHeaders(json({ ok: false, error: "AUTH_RUNTIME_SETTINGS_UNAVAILABLE" }, 503), corsHeaders); }\n    }\n\n    if (url.pathname === "/api/admin/login-providers") {
+    if (url.pathname === "/api/admin/auth-runtime-settings") {
+      try { return applyResponseHeaders(await handleAuthRuntimeSettings(request, env), corsHeaders); }
+      catch { return applyResponseHeaders(json({ ok: false, error: "AUTH_RUNTIME_SETTINGS_UNAVAILABLE" }, 503), corsHeaders); }
+    }
+
+    if (url.pathname === "/api/admin/login-providers") {
       try {
         const response = await handleLoginProviderAdminRequest(request, env);
         return applyResponseHeaders(response, corsHeaders);
