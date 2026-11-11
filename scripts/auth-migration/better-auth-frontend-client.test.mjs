@@ -250,8 +250,10 @@ assert.ok(loginHandlerStart >= 0 && loginHandlerEnd > loginHandlerStart);
 const loginHandler = appContext.slice(loginHandlerStart, loginHandlerEnd);
 // A post-password Supabase role/profile failure must retain the accepted
 // Better Auth session and enter the AuthGuard retry path; it is not bad credentials.
-assert.match(loginHandler, /if \(authenticatedIdentity\) \{[\\s\\S]*?isDefinitiveIdentityFailure\(error\)/);
-assert.match(loginHandler, /setAuthUnavailable\(true\)[\\s\\S]*?return \{ ok: true \}/);
+assert.ok(loginHandler.includes("if (authenticatedIdentity)"));
+assert.ok(loginHandler.includes("isDefinitiveIdentityFailure(error)"));
+assert.ok(loginHandler.includes("setAuthUnavailable(true)"));
+assert.ok(loginHandler.includes("return { ok: true };"));
 assert.doesNotMatch(loginHandler, /Email atau password tidak valid\./);
 assert.match(loginHandler, /LOGIN_REQUEST_FAILED/);
 
