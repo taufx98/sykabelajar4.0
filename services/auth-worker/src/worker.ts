@@ -9,6 +9,7 @@ import {
 import { createD1QuotaResponse } from "./d1-quota.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
 import { isAuthEmailVerificationConfigured } from "./email";
+import { handleAuthRuntimeSettings, readEmailVerificationPolicy } from "./auth-runtime-settings";
 import {
   getPublicSocialLoginProviders,
   handleLoginProviderAdminRequest,
@@ -28,6 +29,7 @@ import {
 type CachedAuthInstance = {
   revision: number;
   managedMode: boolean;
+  emailVerificationRequired: boolean;
   auth: ReturnType<typeof createAuth>;
 };
 const authInstances = new WeakMap<object, CachedAuthInstance>();
@@ -35,19 +37,22 @@ const authInstances = new WeakMap<object, CachedAuthInstance>();
 async function getAuth(env: AuthWorkerEnv) {
   const key = env.DB as object;
   const config = await readSocialProviderConfiguration(env);
+  const emailVerificationRequired = await readEmailVerificationPolicy(env);
   const existing = authInstances.get(key);
   if (
     existing &&
     existing.revision === config.revision &&
-    existing.managedMode === config.managedMode
+    existing.managedMode === config.managedMode &&
+    existing.emailVerificationRequired === emailVerificationRequired
   ) {
     return existing.auth;
   }
 
-  const auth = createAuth(env, config);
+  const auth = createAuth(env, config, emailVerificationRequired);
   authInstances.set(key, {
     revision: config.revision,
     managedMode: config.managedMode,
+    emailVerificationRequired,
     auth,
   });
   return auth;
@@ -68,7 +73,7 @@ function safeDiagnostic(error: unknown): { name: string; message: string } {
     .replace(/https?:\/\/\S+/g, "[URL]")
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "[REDACTED]")
     .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL]")
-    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
     .slice(0, 180);
   return { name: error.name.slice(0, 60), message: message || "unclassified" };
 }
@@ -492,6 +497,11 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/admin/auth-runtime-settings") {
+      try { return applyResponseHeaders(await handleAuthRuntimeSettings(request, env), corsHeaders); }
+      catch { return applyResponseHeaders(json({ ok: false, error: "AUTH_RUNTIME_SETTINGS_UNAVAILABLE" }, 503), corsHeaders); }
+    }
+
     if (url.pathname === "/api/admin/login-providers") {
       try {
         const response = await handleLoginProviderAdminRequest(request, env);
@@ -521,7 +531,8 @@ export default {
     // the Worker boundary so direct Better Auth API calls cannot create an
     // unverified account when the verification-email sender is unavailable.
     if (request.method === "POST" && url.pathname === "/api/auth/sign-up/email") {
-      const emailDeliveryReady = await isAuthEmailVerificationConfigured(env);
+      const verificationRequired = await readEmailVerificationPolicy(env);
+      const emailDeliveryReady = !verificationRequired || await isAuthEmailVerificationConfigured(env);
       if (!emailDeliveryReady) {
         return applyResponseHeaders(
           json({ error: "EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED" }, 503),

@@ -42,7 +42,7 @@ test("Facebook login requests email and rejects profiles without a usable email"
 
 test("X login uses the built-in Twitter provider and verified-email gate", () => {
   assert.match(auth, /twitter:\s*\{/);
-  assert.match(auth, /requireEmailVerification:\s*true/);
+  assert.match(auth, /requireEmailVerification:\s*emailVerificationRequired/);
   // Better Auth 1.7.16's built-in Twitter provider requests users.email and
   // maps X's confirmed_email response to emailVerified=true.
   assert.match(auth, /Better Auth 1\.7\.16 requests users\.email by default/);
@@ -50,17 +50,19 @@ test("X login uses the built-in Twitter provider and verified-email gate", () =>
   assert.match(auth, /profile\.data\.email\.trim\(\)/);
 });
 
-test("all password and social sessions are blocked until SYKABELAJAR email verification", () => {
+test("email verification remains required by default but the runtime policy can temporarily disable the gate", () => {
   const hookStart = auth.indexOf("session: {");
   const hook = auth.slice(hookStart, auth.indexOf("account: {", hookStart));
-  assert.match(hook, /user\.emailVerified !== true/);
+  assert.match(auth, /emailVerificationRequired = true/);
+  assert.match(hook, /emailVerificationRequired && user\.emailVerified !== true/);
   assert.match(hook, /EMAIL_VERIFICATION_REQUIRED/);
-  assert.match(auth, /sendOnSignUp: true/);
+  assert.match(auth, /requireEmailVerification: emailVerificationRequired/);
+  assert.match(auth, /sendOnSignUp: emailVerificationRequired/);
   assert.match(auth, /autoSignInAfterVerification: true/);
 });
 
 
-test("Facebook is runtime-filtered and cannot be enabled without the deferred email path", () => {
+test("Facebook requires local email delivery only while the email-verification policy is enabled", () => {
   const email = readFileSync(new URL("../src/email.ts", import.meta.url), "utf8");
   const delivery = readFileSync(new URL("../src/email-delivery.mjs", import.meta.url), "utf8");
   assert.match(email, /export async function isAuthEmailVerificationConfigured/);
@@ -70,7 +72,7 @@ test("Facebook is runtime-filtered and cannot be enabled without the deferred em
   const readiness = email.slice(email.indexOf("export async function isAuthEmailVerificationConfigured"), email.indexOf("export async function sendAuthEmail"));
   assert.doesNotMatch(readiness, /sendAuthEmail\(|deliverAuthEmail\(/,
     "checking readiness must not send a verification email");
-  assert.match(settings, /safeProviders\.facebook && !\(await isAuthEmailVerificationConfigured\(env\)\)/);
+  assert.match(settings, /safeProviders\.facebook && verificationRequired && !\(await isAuthEmailVerificationConfigured\(env\)\)/);
   assert.match(settings, /SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED/);
   assert.match(settings, /emailVerificationConfigured/);
   assert.match(delivery, /export function isEmailDeliveryConfigured/);
@@ -128,7 +130,7 @@ test("provider toggles fail closed when encryption, verification or the last log
   assert.ok(start >= 0 && end > start);
   const toggle = settings.slice(start, end);
   assert.match(toggle, /AUTH_PROVIDER_ENCRYPTION_KEY\.length < 32/);
-  assert.match(toggle, /provider === "facebook" && !emailVerificationConfigured/);
+  assert.match(toggle, /provider === "facebook" && emailVerificationRequired && !emailVerificationConfigured/);
   assert.match(toggle, /SOCIAL_PROVIDER_EMAIL_VERIFICATION_REQUIRED/);
   assert.match(toggle, /decryptSocialProviderSecret\(/);
   assert.match(toggle, /usableRows\.length <= 1/);
@@ -154,6 +156,7 @@ test("public provider discovery exposes email verification readiness without pro
   const handler = settings.slice(start, end);
   assert.match(handler, /isAuthEmailVerificationConfigured\(env\)/);
   assert.match(handler, /emailVerificationConfigured/);
+  assert.match(handler, /emailVerificationRequired/);
   assert.match(handler, /Promise\.all/);
   assert.doesNotMatch(handler, /sender_address|send_mail_token_ciphertext|client_secret/);
 });

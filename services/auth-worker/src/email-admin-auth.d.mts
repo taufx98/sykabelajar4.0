@@ -14,6 +14,7 @@ export interface ResolveBetterAuthAdminIdentityInput {
   resourceAudience: string;
   supabaseUrl: string;
   publishableKey: string;
+  allowUnverifiedEmail?: boolean;
   fetchImpl?: typeof fetch;
   verifyJwtImpl?: (
     jwt: string,

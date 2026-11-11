@@ -127,10 +127,10 @@ jobs:
           console.log("Existing Worker secrets will be preserved: this deployment does not enumerate, recreate, rotate, or delete secrets.");
           NODE
 
-      - name: Verify all 20 remote D1 tables and safe existing staging identity state
+      - name: Verify all 21 remote D1 tables and safe existing staging identity state
         run: |
           set -euo pipefail
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings','auth_runtime_settings') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -149,12 +149,12 @@ jobs:
             "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
             "auth_worker_internal_config","jwks","oauthAccessToken","oauthClient","oauthClientAssertion",
             "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
-            "session","user","verification","auth_phone_verification_challenges","auth_social_provider_meta","auth_social_provider_settings"
+            "session","user","verification","auth_phone_verification_challenges","auth_social_provider_meta","auth_social_provider_settings","auth_runtime_settings"
           ];
           const missing = expected.filter((name) => !found.has(name));
           if (missing.length) throw new Error("Remote staging D1 is missing tables: " + missing.join(", "));
-          if (expected.length !== 20) throw new Error("The reviewed staging schema contract must contain exactly 20 tables.");
-          console.log("Verified all " + expected.length + " remote staging D1 tables, including Telegram verification and managed social-login settings.");
+          if (expected.length !== 21) throw new Error("The reviewed staging schema contract must contain exactly 21 tables.");
+          console.log("Verified all " + expected.length + " remote staging D1 tables, including Telegram verification, managed social-login settings, and Admin auth runtime settings.");
           NODE
 
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-user-columns.json"
@@ -203,6 +203,7 @@ jobs:
             (SELECT COUNT(*) FROM auth_social_provider_settings) AS social_provider_settings,
             (SELECT COUNT(*) FROM session s JOIN user u ON u.id = s.userId WHERE u.emailVerified = 0 AND julianday(s.expiresAt) > julianday('now')) AS active_sessions_for_unverified_users,
             (SELECT COUNT(*) FROM auth_social_provider_meta WHERE id = 1) AS social_provider_meta,
+            (SELECT COUNT(*) FROM auth_runtime_settings WHERE id = 1) AS auth_runtime_settings_rows,
             (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
 
           node --input-type=module <<'NODE'
@@ -218,7 +219,7 @@ jobs:
           }
           visit(payload);
           if (!row) throw new Error("Could not parse remote staging identity-state check.");
-          for (const field of ["users","unverified_users","sessions","accounts","verifications","phone_challenges","social_provider_settings","active_sessions_for_unverified_users"]) {
+          for (const field of ["users","unverified_users","sessions","accounts","verifications","phone_challenges","social_provider_settings","active_sessions_for_unverified_users","auth_runtime_settings_rows"]) {
             if (!Number.isSafeInteger(Number(row[field])) || Number(row[field]) < 0) {
               throw new Error("Staging D1 returned an invalid aggregate for " + field + "; refusing deployment.");
             }
@@ -230,6 +231,7 @@ jobs:
             throw new Error("An unverified staging account has an active session; refusing Worker deployment.");
           }
           if (Number(row.social_provider_meta) !== 1) throw new Error("Expected exactly one managed social provider metadata row.");
+          if (Number(row.auth_runtime_settings_rows) !== 1) throw new Error("Expected exactly one Admin auth runtime settings row; apply guarded staging migration 0009 before deployment.");
           if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one fixed first-party public OAuth client.");
           console.log("Verified existing staging identity state without exposing user data: " + JSON.stringify({
             users: Number(row.users),

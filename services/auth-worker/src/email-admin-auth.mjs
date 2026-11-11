@@ -98,6 +98,7 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
  *   resourceAudience:string,
  *   supabaseUrl:string,
  *   publishableKey:string,
+ *   allowUnverifiedEmail?:boolean,
  *   fetchImpl?:typeof fetch,
  *   verifyJwtImpl?:typeof jwtVerify,
  *   createJwksImpl?:typeof createRemoteJWKSet,
@@ -108,6 +109,7 @@ export async function resolveBetterAuthAdminIdentity(input) {
   const accessToken = typeof input?.accessToken === "string" ? input.accessToken.trim() : "";
   const resourceAudience = typeof input?.resourceAudience === "string" ? input.resourceAudience.trim() : "";
   const publishableKey = typeof input?.publishableKey === "string" ? input.publishableKey.trim() : "";
+  const allowUnverifiedEmail = input?.allowUnverifiedEmail === true;
   const authBaseUrl = typeof input?.authBaseUrl === "string" ? input.authBaseUrl : "";
   if (
     !accessToken ||
@@ -206,7 +208,8 @@ export async function resolveBetterAuthAdminIdentity(input) {
   const email = typeof userInfo?.email === "string" ? userInfo.email.trim() : "";
   if (
     userInfo?.sub !== payload.sub ||
-    userInfo?.email_verified !== true ||
+    typeof userInfo?.email_verified !== "boolean" ||
+    (!allowUnverifiedEmail && userInfo.email_verified !== true) ||
     email.length > 254 ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   ) {
