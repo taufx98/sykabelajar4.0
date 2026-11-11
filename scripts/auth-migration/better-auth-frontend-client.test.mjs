@@ -26,6 +26,12 @@ const loginPage = readFileSync(new URL("../../src/pages/LoginPage.tsx", import.m
 const registerPage = readFileSync(new URL("../../src/pages/RegisterPage.tsx", import.meta.url), "utf8");
 
 
+assert.match(client, /AUTH_API_REQUEST_TIMEOUT_MS = 12_000/);
+assert.match(client, /new AbortController\(\)/);
+assert.match(client, /signal: controller\.signal/);
+assert.match(client, /AUTH_REQUEST_TIMEOUT/);
+assert.match(client, /Credential POSTs are never replayed/);
+assert.ok((client.match(/fetchWithTimeout\(/g) ?? []).length >= 5);
 assert.match(client, /credentials:\s*'include'/);
 assert.match(client, /cache:\s*'no-store'/);
 assert.match(client, /\/get-session/);
