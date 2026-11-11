@@ -25,6 +25,7 @@ export function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
   const [verificationLoading, setVerificationLoading] = useState(false);
+  const [emailVerificationConfigured, setEmailVerificationConfigured] = useState<boolean | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [socialProviders, setSocialProviders] = useState<BetterAuthSocialProvider[]>([]);
   const [socialLoading, setSocialLoading] = useState<BetterAuthSocialProvider | null>(null);
@@ -33,9 +34,21 @@ export function LoginPage() {
   useEffect(() => {
     if (!betterAuthPreview) return;
     let active = true;
-    void getStagingBetterAuthClient().getAvailableSocialProviders()
-      .then((providers) => { if (active) setSocialProviders(providers); })
-      .catch(() => { if (active) setSocialProviders([]); });
+    const client = getStagingBetterAuthClient();
+    void Promise.all([
+      client.getAvailableSocialProviders(),
+      client.getEmailVerificationConfigured(),
+    ])
+      .then(([providers, emailReady]) => {
+        if (!active) return;
+        setSocialProviders(providers);
+        setEmailVerificationConfigured(emailReady);
+      })
+      .catch(() => {
+        if (!active) return;
+        setSocialProviders([]);
+        setEmailVerificationConfigured(false);
+      });
     return () => { active = false; };
   }, [betterAuthPreview]);
 
@@ -81,6 +94,13 @@ export function LoginPage() {
   };
 
   const handleResendVerification = async () => {
+    if (emailVerificationConfigured !== true) {
+      toast(text(
+        'Layanan pengiriman email verifikasi belum dikonfigurasi di staging. Akun tetap terkunci sampai email terverifikasi.',
+        'The staging verification email service is not configured. The account stays locked until the email is verified.',
+      ), 'info');
+      return;
+    }
     if (!email.trim()) {
       toast(text('Masukkan email akun terlebih dahulu.','Enter your account email first.'), 'error');
       return;
@@ -163,8 +183,10 @@ export function LoginPage() {
             </div>
             {needsEmailVerification && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
               <p className="text-sm font-medium text-fg">{text('Email belum terverifikasi','Email not verified')}</p>
-              <p className="mt-1 text-xs text-slate-500">{text('Periksa kotak masuk dan folder spam. Kamu dapat meminta tautan verifikasi dikirim kembali.','Check your inbox and spam folder. You can request another verification link.')}</p>
-              <Button fullWidth size="sm" variant="outline" className="mt-3" loading={verificationLoading} disabled={verificationLoading || !email.trim()} onClick={() => void handleResendVerification()}>{text('Kirim ulang tautan verifikasi','Resend verification link')}</Button>
+              <p className="mt-1 text-xs text-slate-500">{emailVerificationConfigured === false
+                ? text('Layanan pengiriman email verifikasi belum aktif di staging. Login tetap ditolak sampai email berhasil diverifikasi.','The staging verification email service is not active. Sign-in remains blocked until the email is verified.')
+                : text('Periksa kotak masuk dan folder spam. Kamu dapat meminta tautan verifikasi dikirim kembali.','Check your inbox and spam folder. You can request another verification link.')}</p>
+              <Button fullWidth size="sm" variant="outline" className="mt-3" loading={verificationLoading} disabled={verificationLoading || !email.trim() || emailVerificationConfigured !== true} onClick={() => void handleResendVerification()}>{text('Kirim ulang tautan verifikasi','Resend verification link')}</Button>
             </div>}
             <div className="flex justify-end mt-3"><button onClick={() => { setForgotEmail(email); setShowForgot(true); }} className="text-xs text-accent hover:underline">{text('Lupa password?','Forgot password?')}</button></div>
             <Button fullWidth size="lg" className="mt-6" loading={loading} onClick={() => void handleLogin()} icon={<ArrowRight size={18} />}>Masuk</Button>
