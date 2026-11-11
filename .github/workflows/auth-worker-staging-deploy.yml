@@ -445,9 +445,15 @@ jobs:
                 "boolean",
                 "public provider discovery must expose only the boolean email verification readiness state",
               );
+              assert.equal(
+                typeof publicProviders.emailVerificationRequired,
+                "boolean",
+                "public provider discovery must expose the runtime verification policy as a boolean",
+              );
+              assert.equal(publicProviders.emailVerificationRequired, true, "staging must remain verification-required until an admin explicitly disables it");
               assert.deepEqual(
                 Object.keys(publicProviders).sort(),
-                ["emailVerificationConfigured", "issuer", "ok", "providers"],
+                ["emailVerificationConfigured", "emailVerificationRequired", "issuer", "ok", "providers"],
                 "public provider response must not expose client IDs, secrets, or private settings",
               );
 
@@ -487,6 +493,25 @@ jobs:
                 hostileEmailAdminResponse.headers.get("Access-Control-Allow-Origin"),
                 null,
                 "untrusted origins must not receive Admin email CORS permission",
+              );
+
+              const unauthenticatedRuntimeSettingsResponse = await fetch(origin + "/api/admin/auth-runtime-settings", {
+                headers: { Origin: previewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(unauthenticatedRuntimeSettingsResponse.status, 401, "runtime verification settings must reject unauthenticated requests");
+              const unauthenticatedRuntimeSettingsBody = await unauthenticatedRuntimeSettingsResponse.json();
+              assert.equal(unauthenticatedRuntimeSettingsBody.error, "AUTH_REQUIRED");
+
+              const hostileRuntimeSettingsResponse = await fetch(origin + "/api/admin/auth-runtime-settings", {
+                headers: { Origin: "https://attacker.example", Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(hostileRuntimeSettingsResponse.status, 403, "runtime verification settings must reject untrusted browser origins");
+              assert.equal(
+                hostileRuntimeSettingsResponse.headers.get("Access-Control-Allow-Origin"),
+                null,
+                "untrusted origins must not receive runtime settings CORS permission",
               );
 
               console.log(JSON.stringify({
