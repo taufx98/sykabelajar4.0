@@ -1,3 +1,20 @@
+## Latest checkpoint — 11 November 2026 (session race and signup boundary hardening)
+
+This checkpoint records two narrowly scoped authentication fixes on the current branch. It does not claim a new hosted Worker deployment, a verified staging session, PR merge, or Production cutover.
+
+- Branch: `security/auth-poc-stage-1`; current implementation head: `31a8be696b592fbf5f76b4cdaab8d6140e4e8ef2`; PR #177 remains open, Draft and unmerged.
+- **Stage 4 cross-tab session reconciliation:** `src/services/betterAuthSessionBridge.mjs` now treats BroadcastChannel/storage messages only as wake-up hints. Sign-in/sign-out transitions are derived from the authoritative Better Auth `/get-session` result and the previous UUID, not from a possibly stale event label. The first read only establishes a baseline; it never emits a synthetic transition. Same-identity `USER_UPDATED` and `PASSWORD_RECOVERY` notifications remain supported.
+- Regression coverage in `scripts/auth-migration/better-auth-session-bridge.test.mjs` covers stale sign-out after account switch, stale sign-in after logout, same-identity events, and a notification arriving while initial session discovery is still in flight.
+- **Stage 1 registration boundary:** `services/auth-worker/src/worker.ts` now checks `isAuthEmailVerificationConfigured(env)` for direct `POST /api/auth/sign-up/email` requests before invoking Better Auth. If email verification delivery is unavailable, the Worker returns `503 EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED` before D1 user creation. This closes the API bypass around the frontend readiness check and prevents more unverified orphan registrations. Existing sign-in, social-provider behavior, and the mandatory verified-email session gate are unchanged.
+- `services/auth-worker/tests/email-verification-readiness.test.mjs` now checks that the Worker-level registration guard runs before the Better Auth handler. Existing frontend readiness checks remain.
+- [Auth Worker CI #42981004924](https://github.com/taufx98/sykabelajar4.0/actions/runs/42981004924) passed on the current head: dependency audit, Worker typecheck/security contracts, full local Worker + D1 migration + email-verification/OIDC/PKCE/session integration, Worker dry-run bundle, frontend lint/typecheck/build.
+- [Supabase Local Auth Claims CI #42981005183](https://github.com/taufx98/sykabelajar4.0/actions/runs/42981005183) passed on the same head: Better Auth Edge JWT contracts, Deno type checks, deployed staging probe anonymous rejection, live FK snapshot/dry-run plan checks, and isolated local PostgreSQL JWT/RLS tests.
+- The runtime change in `services/auth-worker/src/worker.ts` is **source- and CI-verified but not yet deployed to the hosted staging Worker**. The last confirmed deployed Worker remains version `61b418bd-95cc-4410-ac79-7c25b313f48a` from run #42960910450. The guarded staging deployment workflow is not part of these two CI runs.
+- The existing staging identity was not reset. The latest read-only staging inventory remains one `private.app_users` row, one profile, one role, and zero `auth.users` rows. A real verified Better Auth session still does not exist; do not fake email verification or create a session for the unverified account.
+- Supabase Production DB2, Production Pages, DNS/auth routing, production users, schema, RLS, RPCs, FKs, triggers, secrets, and Edge Functions remain unchanged. No Production operation or migration was performed.
+
+---
+
 ## Latest checkpoint — 11 November 2026 (staging account audit + email-readiness fix)
 
 This checkpoint supersedes all earlier branch, deployment, and browser-test references below. It records the first real Better Auth staging registration, its read-only session audit, the email-readiness UX fix, and the successful staging Worker deployment. It does **not** authorize Production changes or PR merge.
