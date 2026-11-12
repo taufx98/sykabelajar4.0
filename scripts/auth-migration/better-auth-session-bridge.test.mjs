@@ -61,9 +61,121 @@ test("broadcast sends only event metadata, never identity or credentials", () =>
   };
 
   assert.equal(broadcastBetterAuthSessionEvent("SIGNED_OUT", { windowObject }), true);
-  assert.deepEqual(sent, [{ source: "sykabelajar-better-auth-session", type: "SIGNED_OUT" }]);
+  assert.equal(sent.length, 1);
+  assert.deepEqual(
+    { source: sent[0].source, type: sent[0].type },
+    { source: "sykabelajar-better-auth-session", type: "SIGNED_OUT" },
+  );
+  assert.equal(typeof sent[0].senderId, "string");
+  assert.ok(sent[0].senderId.length > 0);
   assert.equal(closed, 1);
   assert.throws(() => broadcastBetterAuthSessionEvent("UNKNOWN", { windowObject }));
+});
+
+test("same-tab BroadcastChannel echo does not invalidate the token exchange that login just started", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const channels = [];
+  class Channel {
+    constructor(name) {
+      this.name = name;
+      this.closed = false;
+      this.onmessage = null;
+      channels.push(this);
+    }
+    postMessage(message) {
+      // BroadcastChannel sends to other channel objects, including one owned
+      // by this same page, but not back to the sending object.
+      for (const target of channels) {
+        if (target !== this && !target.closed) target.onmessage?.({ data: message });
+      }
+    }
+    close() { this.closed = true; }
+  }
+  windowObject.BroadcastChannel = Channel;
+
+  let current = null;
+  let sessionReads = 0;
+  let invalidations = 0;
+  const received = [];
+  const bridge = createBetterAuthSessionBridge({
+    getSession: async () => {
+      sessionReads += 1;
+      return current;
+    },
+    onSessionChanged: () => { invalidations += 1; },
+    onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
+    windowObject,
+    documentObject,
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(sessionReads, 1, "mount establishes the initial signed-out baseline");
+
+  current = makeSession("user-a");
+  assert.equal(broadcastBetterAuthSessionEvent("SIGNED_IN", { windowObject }), true);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(sessionReads, 1, "a page must ignore its own BroadcastChannel notification");
+  assert.equal(invalidations, 0, "same-tab login must not invalidate its own resource-token exchange");
+  assert.deepEqual(received, [], "AppContext owns same-tab login hydration");
+  bridge.unsubscribe();
+});
+
+test("a broadcast from another tab still revalidates the authoritative session", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const channels = [];
+  class Channel {
+    constructor(name) {
+      this.name = name;
+      this.onmessage = null;
+      this.closed = false;
+      channels.push(this);
+    }
+    postMessage(message) {
+      for (const target of channels) {
+        if (target !== this && !target.closed) target.onmessage?.({ data: message });
+      }
+    }
+    close() { this.closed = true; }
+  }
+  windowObject.BroadcastChannel = Channel;
+
+  let current = null;
+  let sessionReads = 0;
+  let invalidations = 0;
+  const received = [];
+  const bridge = createBetterAuthSessionBridge({
+    getSession: async () => {
+      sessionReads += 1;
+      return current;
+    },
+    onSessionChanged: () => { invalidations += 1; },
+    onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
+    windowObject,
+    documentObject,
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  current = makeSession("user-a");
+  const receiver = channels.find((channel) => !channel.closed);
+  assert.ok(receiver);
+  receiver.onmessage?.({
+    data: {
+      source: "sykabelajar-better-auth-session",
+      type: "SIGNED_IN",
+      senderId: "another-tab",
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(sessionReads, 2, "a different tab must trigger an authoritative session read");
+  assert.equal(invalidations, 1, "a confirmed identity transition invalidates the previous resource token");
+  assert.deepEqual(received, [{ type: "SIGNED_IN", userId: "user-a" }]);
+  bridge.unsubscribe();
 });
 
 test("session bridge revalidates cross-tab events and detects a new signed-out transition", async () => {
