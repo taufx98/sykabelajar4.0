@@ -1,3 +1,17 @@
+## Latest Stage 4 Better Auth expiry reconciliation — 12 November 2026
+
+This update is limited to the Better Auth login/session path.
+
+- The shared Better Auth session bridge now treats an authoritative HTTP 401 or explicit `AUTH_SESSION_EXPIRED`, `AUTH_SESSION_REQUIRED`, `AUTHENTICATION_REQUIRED`, and email-verification rejection as a definitive invalid session. It transitions the previously authenticated tab to `SIGNED_OUT` and invalidates the in-memory Supabase resource-token cache.
+- Temporary network, Worker 5xx and D1 quota errors are still **not** interpreted as logout. The existing identity snapshot remains until an authoritative session read succeeds or returns a definitive rejection; focus/pageshow/visibility reconciliation can recover it without a polling loop.
+- Added bridge integration-contract tests for both sides of the boundary: expiry clears the active identity/cache, while a transient Worker 503 does not sign the user out and a later successful read preserves the same user.
+- Auth Worker CI [#1369](https://github.com/taufx98/sykabelajar4.0/actions/runs/43243368591) passed on commit `0d181df8c2436c836a4e02000b28be599fda7f30`, including typecheck, security contracts, cross-tab/session bridge checks and the Worker/D1 auth flow. Supabase Local Auth Claims CI [#1014](https://github.com/taufx98/sykabelajar4.0/actions/runs/43243368520) was still running its disposable local Supabase RLS job at the time this checkpoint was written.
+- Supabase's current `accessToken` contract calls the callback on Realtime connect and each heartbeat (default 25 seconds). The app already supplies one dynamic callback that asks the Better Auth resource-token broker for the current token; the broker refreshes inside a 45-second expiry margin and has single-flight/user-binding tests. No second manual `realtime.setAuth` token source was added.
+- Still requiring owner/browser acceptance: allow a real staging session to reach expiry and confirm the browser redirects/recovers correctly; observe Realtime continuity across a real token renewal; test visible recovery on a D1 quota 503 and the custom-domain Worker Error 1027 path. No forced logout or D1 quota exhaustion was performed in the hosted staging account.
+- No Production auth routing, account, schema, RLS, RPC, Worker, DNS or Pages configuration was changed. PR #177 remains Draft and unmerged.
+
+---
+
 ## Latest Stage 5 payment fulfillment role/ACL and webhook acceptance — 12 November 2026
 
 The earlier `SERVICE_ROLE_REQUIRED` failure was traced to two separate issues in the local rehearsal: (1) the payment fulfillment RPC checked the legacy `request.jwt.claim.role` setting instead of the current JSON `request.jwt.claims` role; and (2) the schema-only restore did not reconstruct this one function's Production EXECUTE ACL. Both are now handled explicitly in disposable acceptance, without changing Production.
