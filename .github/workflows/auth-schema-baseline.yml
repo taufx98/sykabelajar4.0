@@ -835,6 +835,7 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: |
           set -euo pipefail
+          cd "$SUPABASE_CLI_WORKDIR"
           eval "$(supabase status -o env)"
           echo "STAGE5_API_URL=$API_URL" >> "$GITHUB_ENV"
           echo "STAGE5_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
@@ -844,10 +845,8 @@ jobs:
           CLOUDINARY_API_SECRET=stage5-disposable-only-not-a-provider-secret
           CLOUDINARY_CLOUD_NAME=invalid-stage5-disposable-cloud
           ENV
-          (
-            cd "$SUPABASE_CLI_WORKDIR"
-            supabase functions serve --env-file "$RUNNER_TEMP/stage5-edge-functions.env"
-          ) > "$RUNNER_TEMP/stage5-edge-functions.log" 2>&1 &
+          supabase functions serve --env-file "$RUNNER_TEMP/stage5-edge-functions.env" \
+            > "$RUNNER_TEMP/stage5-edge-functions.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/stage5-edge-functions.pid"
 
           probe_status="000"
