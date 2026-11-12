@@ -1,3 +1,23 @@
+## Live migration recheck — 12 November 2026
+
+This checkpoint supersedes earlier summaries below wherever they describe Stage 2 as pending, the first Admin as absent, or the latest CI as still running.
+
+- **Repository:** PR [#177](https://github.com/taufx98/sykabelajar4.0/pull/177) remains open, Draft, and unmerged. Branch `security/auth-poc-stage-1` is at `fab4dc2d420acdd8a108bf1a6a2ee6dad8be50ff`.
+- **Current-head CI:** [Auth Worker CI #43243815961](https://github.com/taufx98/sykabelajar4.0/actions/runs/43243815961) and [Supabase Local Auth Claims CI #43243815620](https://github.com/taufx98/sykabelajar4.0/actions/runs/43243815620) both completed successfully on that head. The Worker CI included session-bridge expiry/transient-failure contracts, frontend lint/typecheck/build, D1/Worker auth tests, JWT verifier contracts and the existing migrated-handler checks.
+- **Stage 1:** the owner confirms hosted staging email/password login reaches the app on first attempt and logout works. The temporary email-verification bypass is staging-only and is not proof of mailbox verification. Real verification-email and password-reset delivery remain deferred; do not fabricate `emailVerified`.
+- **Stage 2:** the owner-run Admin acceptance panel reports **4/4 passed** with a real staging Better Auth session: Data API/profile/role isolation, private Storage ownership, private Realtime topic isolation, and the read-only Edge probe. Do not ask the owner to repeat this matrix without a relevant regression.
+- **Stage 3:** the full schema-only Production export/restore, 69-FK forward/cutover/rollback rehearsal, identity lifecycle, issuer and RLS regression passed on disposable local Supabase. The live Production identity cutover has not occurred.
+- **Stage 4:** refresh/session restore, account switching, cross-tab logout, and normal logout are owner-accepted. The definitive-expiry versus transient-Worker-error bridge fix is included at current head and CI-green. Still pending only owner/browser acceptance for a real expiry/reauthentication, a live Realtime heartbeat through resource-token renewal, and visible recovery for D1 quota 503 / custom-domain Error 1027.
+- **Stage 5:** shared Better Auth verifier and nine auth-adapted handler implementations are in source. Two-user handler ownership/IDOR and synthetic webhook/service-role checks passed in the full-schema disposable Edge Runtime rehearsal [Auth Production Schema Baseline #43241370848](https://github.com/taufx98/sykabelajar4.0/actions/runs/43241370848). This local fixture acceptance is not a claim that those nine handlers have been called with the real hosted Better Auth token. Keep the remaining token-to-handler acceptance isolated to a schema-compatible disposable environment; do not deploy business handlers or copy business schema/data into the auth-only Supabase staging project.
+- **Stage 6:** a read-only staging recheck found one `better_auth` identity, one linked profile, one linked role row with `role=admin`, and zero `auth.users` rows. Do not repeat first-admin bootstrap. No demo account was reset. Any cleanup still requires exact identification of disposable accounts and their dependent test rows before approval.
+- **Stage 7:** Production cutover remains blocked and unauthorized.
+
+**Scope guard:** live Midtrans/XenithPay or Cloudinary provider transactions, broad unrelated Security Advisor remediation, and guest banner analytics hardening are not standalone Better Auth migration gates. Preserve their business behavior; change an existing handler only at the authentication/identity boundary when a direct dependency requires it.
+
+**Production safety:** no Production DB2 schema/data, Supabase Auth, RLS, RPC, FK, trigger, Edge Function, secret, Pages configuration, DNS, or auth routing was changed. No PR merge or Production cutover occurred.
+
+---
+
 ## Latest Stage 4 Better Auth expiry reconciliation — 12 November 2026
 
 This update is limited to the Better Auth login/session path.
