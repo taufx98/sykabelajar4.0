@@ -184,7 +184,7 @@ function functionConfig(name) {
 }
 
 test("Supabase server's peer SDK version exports the required CORS subpath", () => {
-  assert.match(applicationIdentityResolver, /npm:@supabase\\/supabase-js@2\\.95\\.0/);
+  assert.ok(applicationIdentityResolver.includes("npm:@supabase/supabase-js@2.95.0"));
 });
 
 test("Edge adapter delegates cryptographic JWT verification to pinned @supabase/server", () => {
