@@ -1,3 +1,31 @@
+## Latest Stage 5 targeted ACL disposable acceptance — 12 November 2026
+
+This checkpoint records a narrowly scoped Production ACL review and a successful test of its draft against a schema-only disposable restore. It does **not** authorize applying the draft to Production.
+
+### What the read-only Production review established
+
+- Security Advisor reported 23 RLS-enabled/no-policy tables. Three public tables had the materially unsafe combination of RLS enabled, zero policies, and broad table grants to both `anon` and `authenticated`: `competition_status_history`, `notification_deliveries`, and `supabase_system_logs`.
+- Catalog checks confirmed the browser roles held SELECT/INSERT/UPDATE/DELETE and additional table-level privileges on these tables. No column-level ACL overrides were present.
+- Repository searches found no direct frontend `.from(...)` access to those three tables. `competition_status_history` is read by server-side `SECURITY DEFINER` reporting/publication functions and written by the competition status trigger; the other operational tables have no browser-facing direct access in the repository.
+- Other RLS-enabled/no-policy tables were not swept into this change: the private schema tables and portal/chat/exam/payment operational tables did not expose the same browser ACL combination in the catalog review.
+
+### Targeted Stage 5 draft and acceptance
+
+- Added `docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql`, deliberately outside `supabase/migrations`. It first fails closed unless the three tables still have RLS enabled, zero policies, the expected browser grants, and trusted-role access.
+- The draft revokes table privileges only from `PUBLIC`, `anon`, and `authenticated`. It leaves RLS enabled, creates no new policies, and preserves `service_role` and `postgres` privileges. Postconditions verify browser CRUD is no longer granted and trusted-role CRUD remains.
+- Added a source contract and wired the draft into Auth Production Schema Baseline CI only after a schema-only Production export has been restored into an isolated local Supabase database.
+- Full-schema baseline CI [#172](https://github.com/taufx98/sykabelajar4.0/actions/runs/43219993563) passed, including the three-table ACL preflight/revoke/postcondition, Stage 3 forward rehearsal, issuer/RLS acceptance and full rollback rehearsal. Auth Worker CI [#1349](https://github.com/taufx98/sykabelajar4.0/actions/runs/43220005118) and Supabase Local Auth Claims CI [#983](https://github.com/taufx98/sykabelajar4.0/actions/runs/43220005225) also passed at source head `47543c37e476b1890788d7ba31d0084e4b93a040`.
+- The disposable restore contains no Production row data and was destroyed at the end of the job. Production schema, ACLs, RLS, RPCs, Edge Functions, accounts, secrets, DNS and Pages remain unchanged.
+
+### Stage 5 still open
+
+- The table ACL draft is now disposable-accepted, not Production-applied.
+- Per-handler two-user IDOR testing and full Cloudinary/payment business-flow regression remain open. Source contracts and Deno type checks are not equivalent to executing the business handlers as two distinct signed-in users against a populated disposable business schema.
+- The 46 `anon` and 202 `authenticated` `SECURITY DEFINER` Advisor findings remain under function-by-function classification. Public read APIs, participant/portal token flows, admin-guarded functions and time-based status transitions must not be indiscriminately revoked.
+- No blanket grant revocation or broad RLS rewrite is authorized.
+
+---
+
 ## Latest Stage 4 quota recovery and Stage 5 production authorization review — 12 November 2026
 
 This checkpoint records CI-verified staging source changes and a read-only Production authorization review. It does not authorize a Production schema, RLS, RPC, secret, Edge Function, account, DNS or Pages change.
