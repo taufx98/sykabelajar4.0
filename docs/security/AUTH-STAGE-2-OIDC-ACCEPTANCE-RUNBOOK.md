@@ -1,5 +1,26 @@
 # Stage 2 — OIDC/JWT hosted acceptance runbook
 
+## Latest hosted Edge probe correction — 12 November 2026
+
+The owner ran the four-surface acceptance panel on the staging site and reported **3/4 passed**. Better Auth session/Data API/profile/role, Storage and Realtime all passed. The Edge check returned “Failed to send a request to the Edge Function”.
+
+The isolated staging Edge Function logs showed that the browser preflight request `OPTIONS` received HTTP 405. The handler previously returned `METHOD_NOT_ALLOWED` for every method other than POST, so the browser did not send the authenticated POST. This was a CORS/preflight defect, not yet a positive or negative JWT-verification result.
+
+The correction is deployed to isolated Free project `ydamszdfsxqisanazdkb` as `better-auth-oidc-acceptance` **version 3**:
+
+- Handles the staging browser preflight with HTTP 204.
+- Allows only origin `https://staging.sykabelajar.my.id` (no wildcard origin), methods POST/OPTIONS and Supabase client request headers.
+- Rejects untrusted origins with HTTP 403 and no `Access-Control-Allow-Origin`.
+- Keeps the existing exact Better Auth issuer/JWKS/audience verification, UUID subject, Postgres role `authenticated`, access-token lifetime maximum 300 seconds, caller-scoped Supabase client, RLS fixture query, and read-only response unchanged.
+
+**Hosted verification passed:** trusted staging preflight returned 204; untrusted-origin preflight returned 403 without a CORS grant; anonymous POST returned 401 `AUTH_REQUIRED`. The requests were served by deployed version 3. Auth Worker CI [#43204434638](https://github.com/taufx98/sykabelajar4.0/actions/runs/43204434638) and Supabase Local Auth Claims CI [#43204434746](https://github.com/taufx98/sykabelajar4.0/actions/runs/43204434746) passed, including Deno type-check, the acceptance-panel source contract, and the actual hosted CORS allow/deny smoke test.
+
+**Remaining Stage 2 owner action:** repeat **Admin → Pengaturan → Uji Penerimaan Better Auth — Staging → Jalankan tes** while signed in to `https://staging.sykabelajar.my.id`. The function preflight is now verified, but the positive authenticated POST with the owner's active resource token is still pending. The panel does not display or copy the token. If the Edge check fails after preflight, use the safe response code and hosted function invocation log to investigate JWT/JWKS/claims; do not weaken verification or platform security.
+
+Only this staging function was deployed. Production Supabase, Production auth settings, data, schema, functions, DNS and Pages were not touched. The Stage 2 harness must not be run on Production.
+
+---
+
 Status as of 7 November 2026: **Supabase Custom OIDC, hosted Better Auth token acceptance, Data API and two-user RLS acceptance have passed on the isolated Free staging project.** Storage owner/issuer RLS and Realtime private-topic policy semantics have now passed transaction-scoped synthetic tests. A read-only Edge Function acceptance probe is deployed to staging, and its source/contract is checked in CI. Full hosted Storage API and Realtime WebSocket tests, plus a positive Edge Function invocation with a real Better Auth access token, remain pending until a verified synthetic staging user/session is available. A transactional email sender is not required for Stage 2 protocol acceptance: use an already verified synthetic test account or an approved staging-only social-login path. Do not configure Zoho/ZeptoMail/Brevo, send real email, or consume credits during Stages 2–5. Email-verification and password-recovery delivery are deferred to the final phase. This runbook never authorizes production OIDC changes.
 
 ## Fixed issuer contract
