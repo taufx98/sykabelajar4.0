@@ -61,6 +61,22 @@ function midtransSignature(orderId, statusCode, grossAmount) {
     .digest("hex");
 }
 
+async function readOwnEduCoinBalance(token) {
+  const response = await fetch(
+    apiUrl + "/rest/v1/profiles?id=eq." + users.a.id + "&select=edu_coin",
+    {
+      headers: {
+        apikey: anonKey,
+        authorization: "Bearer " + token,
+      },
+    },
+  );
+  const body = await response.json().catch(() => ({}));
+  assert.equal(response.status, 200, "owner profile read must succeed: " + JSON.stringify(body));
+  assert.ok(Array.isArray(body) && body.length === 1, "owner profile row must be visible through RLS");
+  return Number(body[0].edu_coin ?? 0);
+}
+
 async function invokeMidtransWebhook(payload) {
   const response = await fetch(webhookUrl, {
     method: "POST",
@@ -243,5 +259,48 @@ assert.equal(terminalCancelResult.body.ignored, true);
 assert.equal(terminalCancelResult.body.reason, "PAID_IS_TERMINAL");
 assert.equal(terminalCancelResult.body.status, "PAID");
 
+// Real shop fulfillment branch: EDU_COIN_TOPUP credits coin_amount * quantity.
+// The user reads only their own profile row through the authenticated Data API.
+const coinBalanceBefore = await readOwnEduCoinBalance(tokenA);
+const topupWebhookPayload = {
+  order_id: "11111111-1111-4111-8111-111111111111",
+  status_code: "200",
+  gross_amount: "1000.00",
+  transaction_id: "stage5-local-edu-coin-transaction",
+  transaction_status: "settlement",
+  payment_type: "bank_transfer",
+};
+const topupWebhook = await invokeMidtransWebhook({
+  ...topupWebhookPayload,
+  signature_key: midtransSignature(
+    topupWebhookPayload.order_id,
+    topupWebhookPayload.status_code,
+    topupWebhookPayload.gross_amount,
+  ),
+});
+assert.equal(topupWebhook.status, 200,
+  "Edu Coin top-up webhook should fulfill: " + JSON.stringify(topupWebhook.body));
+assert.equal(topupWebhook.body.ok, true);
+assert.equal(topupWebhook.body.status, "PAID");
+assert.equal(topupWebhook.body.duplicate, false);
 
-console.log("Stage 5 local Edge integration passed: two distinct Auth UUIDs, Cloudinary owner isolation, admin authorization, payment-order IDOR, and signed Midtrans webhook settlement/replay checks.");
+const coinBalanceAfter = await readOwnEduCoinBalance(tokenA);
+assert.equal(coinBalanceAfter, coinBalanceBefore + 500,
+  "Edu Coin balance must increase by metadata.coin_amount multiplied by order-item quantity");
+
+const topupReplay = await invokeMidtransWebhook({
+  ...topupWebhookPayload,
+  signature_key: midtransSignature(
+    topupWebhookPayload.order_id,
+    topupWebhookPayload.status_code,
+    topupWebhookPayload.gross_amount,
+  ),
+});
+assert.equal(topupReplay.status, 200);
+assert.equal(topupReplay.body.duplicate, true);
+assert.equal(await readOwnEduCoinBalance(tokenA), coinBalanceAfter,
+  "replaying the same signed webhook must not credit Edu Coin a second time");
+
+
+
+console.log("Stage 5 local Edge integration passed: two distinct Auth UUIDs, Cloudinary owner isolation, admin authorization, payment-order IDOR, signed Midtrans webhook checks, and idempotent Edu Coin top-up fulfillment.");

@@ -118,6 +118,13 @@ VALUES
     'SNAP', 'MIDTRANS', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
   (
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'PENDING_PAYMENT',
+    1000, 0, 0, 1000, 'IDR',
+    'SNAP', 'MIDTRANS', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  ),
+  (
     'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     'PENDING_PAYMENT',
@@ -157,6 +164,20 @@ VALUES (
   '{}'::jsonb
 );
 
+INSERT INTO public.order_items (
+  order_id, product_type, product_ref, name, quantity, unit_price, line_total, metadata
+)
+VALUES (
+  '11111111-1111-4111-8111-111111111111',
+  'EDU_COIN_TOPUP',
+  'stage5-local-edu-coin-250',
+  'Stage 5 Local Edu Coin 250',
+  2,
+  500,
+  1000,
+  '{"shop_metadata":{"coin_amount":"250"}}'::jsonb
+);
+
 INSERT INTO public.payment_intents (
   id, order_id, provider, provider_reference, amount, status, raw_meta
 )
@@ -165,6 +186,19 @@ VALUES (
   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'MIDTRANS',
   'stage5-local-fixture-reference',
+  1000,
+  'PENDING',
+  '{"environment":"sandbox"}'::jsonb
+);
+
+INSERT INTO public.payment_intents (
+  id, order_id, provider, provider_reference, amount, status, raw_meta
+)
+VALUES (
+  '22222222-2222-4222-8222-222222222222',
+  '11111111-1111-4111-8111-111111111111',
+  'MIDTRANS',
+  'stage5-local-edu-coin-reference',
   1000,
   'PENDING',
   '{"environment":"sandbox"}'::jsonb
