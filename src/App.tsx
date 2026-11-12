@@ -2,7 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { lazy, Suspense, type ReactNode, useEffect } from 'react';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { subscribeAuthSessionEvents } from '@/services/authSessionEvents.mjs';
-import { LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
+import { LOGIN_IN_PROGRESS_KEY, LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
+import { shouldReloadForAuthSessionEvent } from '@/services/authSessionIsolation.mjs';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ChatUXBridge } from '@/components/chat/ChatUXBridge';
 import { OrganizerShell } from '@/components/layout/OrganizerShell';
@@ -128,12 +129,12 @@ function ChatSessionIsolation() {
         return;
       }
 
-      const accountChanged = event.identityChanged && event.previousUserId !== null;
-      if (event.type === 'SIGNED_OUT' || accountChanged) {
-        if (!reloading) {
-          reloading = true;
-          window.location.reload();
-        }
+      const loginStartedAt = Number(sessionStorage.getItem(LOGIN_IN_PROGRESS_KEY));
+      if (!shouldReloadForAuthSessionEvent(event, loginStartedAt)) return;
+
+      if (!reloading) {
+        reloading = true;
+        window.location.reload();
       }
     });
 
