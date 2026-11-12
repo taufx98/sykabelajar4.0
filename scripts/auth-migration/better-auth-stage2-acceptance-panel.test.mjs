@@ -62,6 +62,21 @@ test("Edge acceptance handler pins issuer, audience and caller claims and runs r
   assert.match(panel, /data\.read_only !== true/);
 });
 
+test("staging Edge acceptance probe handles browser CORS preflight without widening its origin", () => {
+  assert.match(edge, /const STAGING_APP_ORIGIN = "https:\\/\\/staging\\.sykabelajar\\.my\\.id"/);
+  assert.match(edge, /if \(origin && origin !== STAGING_APP_ORIGIN\)/);
+  assert.match(edge, /if \(request\.method === "OPTIONS"\)/);
+  assert.match(edge, /status: 204, headers: responseHeaders/);
+  assert.match(edge, /Access-Control-Allow-Origin/);
+  assert.match(edge, /Access-Control-Allow-Methods/);
+  assert.match(edge, /Access-Control-Allow-Headers/);
+  assert.match(edge, /CORS_REQUEST_HEADER_NOT_ALLOWED/);
+  assert.match(edge, /"authorization"/);
+  assert.match(edge, /"x-client-info"/);
+  assert.match(edge, /"apikey"/);
+  assert.match(edge, /"content-type"/);
+});
+
 test("acceptance UI never prints or copies a bearer token and states staging-only behavior", () => {
   assert.match(panel, /Tidak menampilkan atau menyalin token/);
   assert.match(panel, /Jangan jalankan di Production/);
