@@ -7,7 +7,12 @@ import {
 } from '@/services/betterAuthSessionBridge.mjs';
 import { publishAuthSessionEvent } from '@/services/authSessionEvents.mjs';
 import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
-import { confirmSessionAfterSignIn } from '@/services/authSessionConfirmation.mjs';
+import {
+  confirmSessionAfterSignIn,
+  getAuthRetryAtUtc,
+  isD1FreeQuotaError,
+  isValidBetterAuthSignInUser,
+} from '@/services/authSessionConfirmation.mjs';
 
 export const LOGIN_REJECTION_SIGNOUT_KEY = 'syka_login_rejection_signout_v1';
 export const LOGIN_IN_PROGRESS_KEY = 'syka_auth_login_in_progress_v1';
@@ -73,11 +78,28 @@ export async function signIn(email: string, password: string) {
     const client = getStagingBetterAuthClient();
     // The credential POST is sent exactly once. Only the subsequent safe
     // session GET receives bounded retries if cookie visibility is delayed.
-    await client.signInWithEmail(email.trim(), password);
-    const session = await confirmSessionAfterSignIn(() => client.getSession());
-    publishAuthSessionEvent('SIGNED_IN', session.user.id);
-    broadcastBetterAuthSessionEvent('SIGNED_IN');
-    return { user: session.user, session: session.session };
+    const credentialResult = await client.signInWithEmail(email.trim(), password);
+    try {
+      const session = await confirmSessionAfterSignIn(() => client.getSession());
+      publishAuthSessionEvent('SIGNED_IN', session.user.id);
+      broadcastBetterAuthSessionEvent('SIGNED_IN');
+      return { user: session.user, session: session.session };
+    } catch (error) {
+      const retryAtUtc = getAuthRetryAtUtc(error);
+      // The successful credential response can preserve the account identity,
+      // but it is not proof of a readable session or a Supabase resource token.
+      // On the exact D1 daily quota response, show recovery until get-session works.
+      if (!isD1FreeQuotaError(error) || !retryAtUtc ||
+          !isValidBetterAuthSignInUser(credentialResult.user)) {
+        throw error;
+      }
+      broadcastBetterAuthSessionEvent('SIGNED_IN');
+      return {
+        user: credentialResult.user,
+        session: null,
+        authUnavailableRetryAtUtc: retryAtUtc,
+      };
+    }
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });

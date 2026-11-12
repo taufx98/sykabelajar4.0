@@ -1,3 +1,8 @@
+export function isValidBetterAuthSignInUser(user: unknown): user is {
+  id: string;
+  email: string;
+  emailVerified: boolean;
+};
 export function isD1FreeQuotaError(error: unknown): boolean;
 export function getAuthRetryAtUtc(error: unknown): string | null;
 

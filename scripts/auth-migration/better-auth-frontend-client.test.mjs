@@ -126,6 +126,10 @@ assert.doesNotMatch(appContext, /supabase\.auth/);
 assert.match(authService, /signInWithPassword/);
 assert.match(authService, /const client = getStagingBetterAuthClient\(\);[\s\S]*?client\.signInWithEmail\(/);
 assert.match(authService, /confirmSessionAfterSignIn/);
+assert.match(authService, /if \(!isD1FreeQuotaError\(error\) \|\| !retryAtUtc \|\|/);
+assert.match(authService, /session: null,[\s\S]*authUnavailableRetryAtUtc: retryAtUtc/);
+assert.match(appContext, /quotaRetryAtUtcFromCredential/);
+
 assert.match(authService, /await client\.signInWithEmail\(email\.trim\(\), password\);[\s\S]*confirmSessionAfterSignIn/);
 assert.match(authService, /credential POST is sent exactly once/);
 

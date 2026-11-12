@@ -4,6 +4,7 @@ import {
   confirmSessionAfterSignIn,
   getAuthRetryAtUtc,
   isD1FreeQuotaError,
+  isValidBetterAuthSignInUser,
 } from "../../src/services/authSessionConfirmation.mjs";
 
 test("returns an immediately available session without extra reads", async () => {
@@ -43,6 +44,21 @@ test("retries transient Worker failures after successful credential submission",
   }, { retryDelaysMs: [0] });
   assert.equal(session, expected);
   assert.equal(reads, 2);
+});
+
+test("accepts only a valid UUID/email identity from a successful credential response", () => {
+  assert.equal(isValidBetterAuthSignInUser({
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    email: "student@example.test",
+    emailVerified: false,
+  }), true);
+  for (const user of [
+    null,
+    {},
+    { id: "not-a-uuid", email: "student@example.test", emailVerified: false },
+    { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", email: "", emailVerified: false },
+    { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", email: "student@example.test", emailVerified: "false" },
+  ]) assert.equal(isValidBetterAuthSignInUser(user), false);
 });
 
 test("does not retry definitive authentication or verification rejections", async () => {

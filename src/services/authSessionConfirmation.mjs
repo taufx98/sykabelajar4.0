@@ -1,5 +1,18 @@
 const DEFAULT_RETRY_DELAYS_MS = [120, 300];
 const D1_QUOTA_ERROR = /^D1_FREE_TIER_ROWS_(?:READ|WRITTEN)_LIMIT_REACHED$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isValidBetterAuthSignInUser(user) {
+  return Boolean(
+    user &&
+    typeof user === "object" &&
+    typeof user.id === "string" &&
+    UUID_PATTERN.test(user.id) &&
+    typeof user.email === "string" &&
+    user.email.trim().length > 0 &&
+    typeof user.emailVerified === "boolean"
+  );
+}
 
 export function isD1FreeQuotaError(error) {
   if (!error || typeof error !== "object") return false;
