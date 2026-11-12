@@ -1,3 +1,30 @@
+## Latest Stage 4 quota recovery and Stage 5 production authorization review — 12 November 2026
+
+This checkpoint records CI-verified staging source changes and a read-only Production authorization review. It does not authorize a Production schema, RLS, RPC, secret, Edge Function, account, DNS or Pages change.
+
+### Stage 4 — D1 daily-quota recovery
+
+- The Worker quota response is recognized only when the exact degraded-availability marker and a valid `retry_at_utc` are present; the client does not expose provider errors or tokens.
+- Safe session/status GETs skip their short transient retry loop for the known D1 daily row-read/write quota response. The UI shows the server-provided retry instant.
+- **First-login edge case fixed:** when the credential POST returns success but the immediately following session GET fails specifically because of D1's daily quota, the client preserves only the UUID/email/email-verification fields from the successful credential response. The returned object deliberately has `session: null`; it does not create a session, resource JWT or refresh token. AppContext carries the retry instant into the recovery screen while role/profile hydration is unavailable. An ordinary credential failure, unrecognized error or malformed identity does not take this fallback.
+- Tests reject invalid UUID/email/verification shapes and verify that quota GET failures are not retried immediately. The Auth Worker CI source head passed Auth Worker CI [#1339](https://github.com/taufx98/sykabelajar4.0/actions/runs/43215366631) and [#1340](https://github.com/taufx98/sykabelajar4.0/actions/runs/43215374718); Supabase Local Auth Claims CI [#970](https://github.com/taufx98/sykabelajar4.0/actions/runs/43215366690) and [#971](https://github.com/taufx98/sykabelajar4.0/actions/runs/43215374693) also passed. Frontend lint, typecheck and build passed.
+- No deliberate D1 quota exhaustion was performed. This validates the client and Worker response contract, not an actual exhausted Cloudflare account. Error 1027 is rejected outside Worker execution and remains a custom-domain route acceptance gate.
+
+### Stage 5 — read-only Production authorization review
+
+- Supabase Security Advisor was queried at **2026-11-12 12:11 UTC**. Current findings: **23** RLS-enabled tables without policies (INFO), **46** `SECURITY DEFINER` functions executable by `anon` (WARN), **202** executable by `authenticated` (WARN), and leaked-password protection disabled (WARN).
+- A read-only catalog/function-definition query confirmed:
+  - `public.is_active_admin(uuid)` is `SECURITY DEFINER`, is not executable by `anon`, is executable by `authenticated`, and binds the requested UID to `auth.uid()` unless the caller is already an admin.
+  - `public.process_payment_gateway_success(uuid,text,uuid)` is `SECURITY DEFINER`, is not executable by `anon` or `authenticated`, requires the `service_role` request role, locks its order/payment-intent rows, and verifies provider and amount before fulfillment.
+  - Production `public.create_organizer(text,text)` is still the legacy version: it reads `auth.users` email/phone verification and uses `search_path=public,private`. The Stage 3 disposable-accepted draft replaces that dependency and hardens the function, but Production is unchanged.
+  - Production `public.get_my_verified_referrals()` remains executable by `anon` as well as `authenticated`; its query is scoped by `auth.uid()`, but the broad ACL still appears in Security Advisor. The accepted Stage 3 identity draft revokes `anon` and preserves the intended signed-in grant.
+  - `public.get_my_referrals()` and `public.get_my_referrals_v2()` are not executable by `anon`; their `SECURITY DEFINER` definitions use an empty search path.
+- The 23 no-policy tables include private/internal state and operational tables, and the callable function findings include public/portal APIs with their own explicit token/role checks. They require a function-by-function and table-by-table classification. **Do not** apply blanket policy creation, EXECUTE revocation or conversion to `SECURITY INVOKER`.
+- Stage 5 source contracts and Deno type-checks remain green for the shared JWT verifier and migrated Cloudinary/payment handlers. Still open: authenticated two-user endpoint-level IDOR and end-to-end Cloudinary/payment business-flow regression against a full application-schema disposable runtime. The dedicated Stage 2 OIDC acceptance Edge Function is not a substitute for these endpoint tests.
+- Only read-only Production catalog/Advisor queries were executed for this review. No Production data or configuration was changed.
+
+---
+
 ## Latest Stage 4 quota-recovery acceptance — 12 November 2026
 
 - The Better Auth Worker emits a safe D1 daily read/write quota 503 with a stable error code, `Retry-After`, `retry_at_utc`, and `X-Auth-Availability: degraded`. The frontend now accepts the retry timestamp only from that explicit degraded marker.
