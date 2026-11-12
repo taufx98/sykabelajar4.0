@@ -10,7 +10,7 @@ assert.match(draft, /to_regprocedure\('public\.process_payment_gateway_success\(
 assert.match(draft, /pg_get_functiondef/);
 assert.match(draft, /request\.jwt\.claims/);
 assert.match(draft, /request\.jwt\.claim\.role/);
-assert.match(draft, /v_stage5_jwt_claims ->> 'role'/);
+assert.match(draft, /v_stage5_jwt_claims ->> ''role''/);
 assert.match(draft, /SERVICE_ROLE_REQUIRED/);
 assert.match(draft, /JSON request claims take precedence over the legacy compatibility setting/);
 assert.match(draft, /STAGE5_PAYMENT_ROLE_DECLARATION_ANCHOR_DRIFT/);
