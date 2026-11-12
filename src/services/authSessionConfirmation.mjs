@@ -1,4 +1,16 @@
 const DEFAULT_RETRY_DELAYS_MS = [120, 300];
+const D1_QUOTA_ERROR = /^D1_FREE_TIER_ROWS_(?:READ|WRITTEN)_LIMIT_REACHED$/;
+
+export function isD1FreeQuotaError(error) {
+  if (!error || typeof error !== "object") return false;
+  const value = error.code ?? error.message;
+  return typeof value === "string" && D1_QUOTA_ERROR.test(value);
+}
+
+export function getAuthRetryAtUtc(error) {
+  if (!error || typeof error !== "object" || typeof error.retryAtUtc !== "string") return null;
+  return Number.isFinite(Date.parse(error.retryAtUtc)) ? error.retryAtUtc : null;
+}
 
 /**
  * Confirm the cookie session after Better Auth has already accepted a
@@ -31,14 +43,14 @@ export async function confirmSessionAfterSignIn(readSession, options = {}) {
       const code = error && typeof error === "object" && typeof error.code === "string"
         ? error.code
         : "";
-      const transient = status === 429 || status >= 500 ||
+      const transient = !isD1FreeQuotaError(error) && (status === 429 || status >= 500 ||
         [
           "AUTH_WORKER_UNAVAILABLE",
           "AUTH_WORKER_BAD_RESPONSE",
           "AUTH_SERVICE_UNAVAILABLE",
           "AUTH_REQUEST_FAILED",
         ].includes(code) ||
-        (error instanceof TypeError && /fetch|network|load failed/i.test(error.message));
+        (error instanceof TypeError && /fetch|network|load failed/i.test(error.message)));
 
       if (!transient) throw error;
       lastTransientError = error;

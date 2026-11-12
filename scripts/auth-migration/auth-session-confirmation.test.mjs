@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { confirmSessionAfterSignIn } from "../../src/services/authSessionConfirmation.mjs";
+import {
+  confirmSessionAfterSignIn,
+  getAuthRetryAtUtc,
+  isD1FreeQuotaError,
+} from "../../src/services/authSessionConfirmation.mjs";
 
 test("returns an immediately available session without extra reads", async () => {
   const expected = { user: { id: "user-a" } };
@@ -55,6 +59,25 @@ test("does not retry definitive authentication or verification rejections", asyn
     (error) => error === rejection,
   );
   assert.equal(reads, 1);
+});
+
+test("does not retry a D1 daily quota response before its Retry-After time", async () => {
+  let reads = 0;
+  const quotaError = Object.assign(new Error("D1_FREE_TIER_ROWS_READ_LIMIT_REACHED"), {
+    status: 503,
+    code: "D1_FREE_TIER_ROWS_READ_LIMIT_REACHED",
+    retryAtUtc: "2026-11-13T00:00:00.000Z",
+  });
+  assert.equal(isD1FreeQuotaError(quotaError), true);
+  assert.equal(getAuthRetryAtUtc(quotaError), "2026-11-13T00:00:00.000Z");
+  await assert.rejects(
+    confirmSessionAfterSignIn(async () => {
+      reads += 1;
+      throw quotaError;
+    }, { retryDelaysMs: [0, 0, 0] }),
+    (error) => error === quotaError,
+  );
+  assert.equal(reads, 1, "a daily quota error must not trigger immediate GET retries");
 });
 
 test("reports an explicit session-confirmation failure after bounded anonymous reads", async () => {

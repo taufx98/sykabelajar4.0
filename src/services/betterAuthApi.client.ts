@@ -91,12 +91,14 @@ export interface BetterAuthLoginProviderSettings {
 export class BetterAuthClientError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly retryAtUtc: string | null;
 
-  constructor(status: number, code: string) {
+  constructor(status: number, code: string, options: { retryAtUtc?: string | null } = {}) {
     super(code);
     this.name = 'BetterAuthClientError';
     this.status = status;
     this.code = code;
+    this.retryAtUtc = options.retryAtUtc ?? null;
   }
 }
 
@@ -328,6 +330,17 @@ function isRecord(value: unknown): value is JsonRecord {
 }
 
 const safeErrorCode = safeBetterAuthErrorCode;
+
+function createResponseError(response: Response, payload: unknown): BetterAuthClientError {
+  const retryAtValue = response.headers.get('X-Auth-Availability') === 'degraded' &&
+      isRecord(payload) && typeof payload.retry_at_utc === 'string'
+    ? payload.retry_at_utc
+    : null;
+  const retryAtUtc = retryAtValue && Number.isFinite(Date.parse(retryAtValue))
+    ? retryAtValue
+    : null;
+  return new BetterAuthClientError(response.status, safeErrorCode(payload), { retryAtUtc });
+}
 
 function isBetterAuthSessionEnvelope(value: unknown): value is BetterAuthSessionEnvelope {
   if (!isRecord(value) || !isRecord(value.user) || !isRecord(value.session)) return false;
@@ -627,7 +640,8 @@ export function createBetterAuthApiClient(options: {
         continue;
       }
 
-      if (safeRead && (response.status === 429 || response.status >= 500) && attempt < 2) {
+      if (safeRead && response.headers.get('X-Auth-Availability') !== 'degraded' &&
+          (response.status === 429 || response.status >= 500) && attempt < 2) {
         await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
         continue;
       }
@@ -641,7 +655,7 @@ export function createBetterAuthApiClient(options: {
     } catch {
       if (response.ok) throw new BetterAuthClientError(502, 'AUTH_WORKER_BAD_RESPONSE');
     }
-    if (!response.ok) throw new BetterAuthClientError(response.status, safeErrorCode(payload));
+    if (!response.ok) throw createResponseError(response, payload);
     return payload as T;
   }
 
@@ -669,7 +683,7 @@ export function createBetterAuthApiClient(options: {
     } catch {
       if (response.ok) throw new BetterAuthClientError(502, 'AUTH_WORKER_BAD_RESPONSE');
     }
-    if (!response.ok) throw new BetterAuthClientError(response.status, safeErrorCode(payload));
+    if (!response.ok) throw createResponseError(response, payload);
     return payload as T;
   }
 
@@ -709,7 +723,7 @@ export function createBetterAuthApiClient(options: {
     } catch {
       if (response.ok) throw new BetterAuthClientError(502, 'AUTH_WORKER_BAD_RESPONSE');
     }
-    if (!response.ok) throw new BetterAuthClientError(response.status, safeErrorCode(payload));
+    if (!response.ok) throw createResponseError(response, payload);
     return payload as T;
   }
 
