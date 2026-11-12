@@ -535,3 +535,46 @@ The explicit PUBLIC policies in the snapshot are:
 The single policy whose target roles include anon is public.profiles / profiles_public_read / SELECT / roles anon,authenticated. This is a known public-profile read surface, not evidence by itself of a data leak. The nine PUBLIC policies also must not be blindly removed: each must be reviewed for its row predicate, endpoint use and intended public behavior. The chat-related entries intersect the separately approved private-chat removal work; preserve comments and unrelated social functions.
 
 The Stage 3 issuer guard draft adds a restrictive Better Auth issuer guard to each of the 61 RLS-enabled tables in this inventory. That guard limits authenticated application sessions to the exact Better Auth issuer; it does not change the existing permissive policies, the public/anonymous read contract, grants or row data. The disposable acceptance confirms 61 guard policies and tests Better Auth, legacy Supabase Auth and attacker issuers on a probe table. It is not a substitute for a table/command/role operation matrix: final sign-off must verify all 109 original policies individually by SELECT/INSERT/UPDATE/DELETE/ALL semantics, ownership predicate, admin exception, and public/anon expectation before production cutover.
+
+## Live Production catalog revalidation — 12 November 2026
+
+A fresh read-only query of Production project `mvdczyitbkxkldjughor` was compared with the committed 69-entry FK snapshot. No rows, emails, credentials or user UUIDs were exported.
+
+| Dependency | Live result |
+|---|---:|
+| Application foreign keys to `auth.users(id)` | **69 across 62 tables** |
+| FK semantics | **69/69 exact snapshot match**; 42 CASCADE, 18 SET NULL, 8 NO ACTION, 1 RESTRICT |
+| RLS policies referencing `auth.uid()` | **109 across 61 tables** (108 public, 1 private) |
+| SQL functions whose definitions reference `auth.uid()` | **189** |
+| SQL functions whose definitions directly reference `auth.users` | **8** |
+| Non-internal triggers on `auth.users` | **3** |
+| `private.app_users` | **Absent** |
+
+The eight function definitions that directly reference `auth.users` are:
+- `private.apply_referral_qualification(uuid,text,timestamptz)`
+- `private.capture_signup_referral()`
+- `public.create_organizer(text,text)`
+- `public.get_my_referrals()`
+- `public.get_my_referrals_v2()`
+- `public.get_my_verified_referrals()`
+- `public.register_for_competition(...)`
+- `public.verify_pending_referrals()`
+
+The three live `auth.users` triggers remain:
+- `on_auth_user_created` → `public.handle_new_auth_user()`
+- `trg_referral_signup_attribution` → `private.capture_signup_referral()`
+- `trg_referral_email_confirmed` → `private.process_referral_email_confirmation()`
+
+The original ten-function lifecycle inventory above intentionally covers both direct `auth.users` SQL references and adjacent metadata/email-verification trigger dependencies. The fresh count of eight is the narrower direct-source match, not a reduction in the lifecycle migration scope.
+
+## Production Security Advisor recheck — 12 November 2026
+
+The latest read-only Production Security Advisor run reports:
+- **23** RLS-enabled tables with no policies (INFO). These may intentionally be private/internal tables reached only through reviewed RPCs; inspect each table's intended access path before changing policy.
+- **46** public-schema `SECURITY DEFINER` functions executable by `anon`.
+- **202** public-schema `SECURITY DEFINER` functions executable by `authenticated`.
+- Leaked-password protection disabled (WARN).
+
+These counts are inventory signals, not proof that every function is exploitable. The live set includes intentional public content/certificate RPCs and collective participant/portal operations protected by their own access-token checks, alongside authenticated admin/business functions that check `auth.uid()` and business roles. In particular, `sync_competition_registration_status(uuid)` is intentionally callable by `anon` and `authenticated` to advance registration state from stored timestamps; its grant was explicit in the application migration history. Stage 5 must classify each function by caller contract, body checks, search_path, owner, grants, and data returned. Do not mass-revoke EXECUTE, mass-convert functions to SECURITY INVOKER, or create blanket RLS policies.
+
+The 23 no-policy tables and `private.organizer_access_codes`' RLS-disabled design remain individual review gates. No Production policy/grant/schema setting was changed by this audit.
