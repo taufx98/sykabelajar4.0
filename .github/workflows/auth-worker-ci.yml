@@ -43,6 +43,8 @@ on:
       - "src/services/betterAuthSessionBridge.mjs"
       - "src/services/betterAuthSessionBridge.d.mts"
       - "src/pages/AdminErrorIntelligencePage.tsx"
+      - "src/pages/AdminPage.tsx"
+      - "src/components/admin/BetterAuthAcceptancePanel.tsx"
       - "src/pages/RegisterPage.tsx"
       - "src/pages/LoginPage.tsx"
       - "src/pages/ResetPasswordPage.tsx"
