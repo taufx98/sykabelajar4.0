@@ -1,8 +1,12 @@
 # First Admin bootstrap — isolated Better Auth staging only
 
-Status: **prepared, not executed**. Project target: Supabase Free staging project `ydamszdfsxqisanazdkb`; issuer: `https://auth.sykabelajar.my.id/api/auth`.
+Status: **a staging Admin identity is now present; do not execute this bootstrap again.** Project target: Supabase Free staging project `ydamszdfsxqisanazdkb`; issuer: `https://auth.sykabelajar.my.id/api/auth`.
 
 This is an owner-operated, one-time database procedure. It intentionally creates no HTTP endpoint and does not allow public registration to request the `admin` role. Never use the SQL file against production.
+
+## Current staging recheck — 12 November 2026
+
+A read-only check of isolated Supabase staging `ydamszdfsxqisanazdkb` confirms one `better_auth` identity joined to one profile and one `public.user_roles` row with `role=admin`; `auth.users` has zero rows. The first-admin prerequisite is therefore already satisfied in staging. Do **not** execute either bootstrap SQL or insert another Admin while that row exists. The procedure below is retained as historical/recovery guidance only; any future re-bootstrap requires a fresh read-only inventory, a verified owner-selected session, and explicit approval. This check does not claim the email address is verified.
 
 ## Order of operations
 
