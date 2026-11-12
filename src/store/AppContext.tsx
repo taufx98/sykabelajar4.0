@@ -495,7 +495,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       // Prevent same-tab account-change isolation from hard-reloading the
       // login route before LoginPage can finish its post-auth redirect.
-      window.sessionStorage.setItem(LOGIN_IN_PROGRESS_KEY, String(Date.now()));
+      try { window.sessionStorage.setItem(LOGIN_IN_PROGRESS_KEY, String(Date.now())); } catch { /* Best-effort same-tab reload guard. */ }
       const result = await signIn(email.trim(), password);
       if (!result.user) return { ok: false, error: 'Login gagal: sesi pengguna tidak tersedia.' };
       authenticatedIdentity = {
@@ -558,7 +558,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         : code || 'LOGIN_REQUEST_FAILED';
       return { ok: false, error: message };
     } finally {
-      window.sessionStorage.removeItem(LOGIN_IN_PROGRESS_KEY);
+      try { window.sessionStorage.removeItem(LOGIN_IN_PROGRESS_KEY); } catch { /* Best-effort cleanup. */ }
     }
   }, [clearUserState, hydrateCurrentUser, refreshUnreadCount, setCurrentAuthUser]);
 
