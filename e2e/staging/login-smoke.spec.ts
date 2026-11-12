@@ -77,6 +77,58 @@ test('staging /register renders the first email/password step without creating a
   expect(pageErrors, 'registration must not throw before the user submits the form').toEqual([]);
 });
 
+test('staging registration wizard exposes labelled fields and keyboard-friendly role/category choices', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message.slice(0, 500)));
+
+  const response = await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  expect(response?.status()).toBe(200);
+
+  const email = page.locator('#register-email');
+  const password = page.locator('#register-password');
+  const passwordConfirm = page.locator('#register-password-confirm');
+  await expect(page.getByLabel(/^(Email)$/)).toHaveAttribute('id', 'register-email');
+  await expect(page.getByLabel(/^(Password)$/)).toHaveAttribute('id', 'register-password');
+  await expect(page.getByLabel(/^(Konfirmasi Password|Confirm password)$/)).toHaveAttribute('id', 'register-password-confirm');
+  await expect(email).toHaveAttribute('name', 'email');
+  await expect(email).toHaveAttribute('autocomplete', 'email');
+  await expect(password).toHaveAttribute('name', 'password');
+  await expect(password).toHaveAttribute('autocomplete', 'new-password');
+  await expect(passwordConfirm).toHaveAttribute('name', 'confirmPassword');
+
+  await email.fill('auth-ui-smoke@example.test');
+  await password.fill('Testing123!');
+  await passwordConfirm.fill('Testing123!');
+  await page.getByRole('button', { name: /^(Lanjut|Continue)$/ }).click();
+
+  await expect(page.getByLabel(/^(Nama Lengkap|Full name)$/)).toHaveAttribute('id', 'register-full-name');
+  await expect(page.getByLabel(/^Username$/)).toHaveAttribute('id', 'register-username');
+  await expect(page.getByLabel(/^(Tanggal Lahir|Date of birth)$/)).toHaveAttribute('id', 'register-birth-date');
+  await expect(page.getByLabel(/^(Sekolah \/ Institusi|School \/ Institution)$/)).toHaveAttribute('id', 'register-school');
+
+  const roleGroup = page.getByRole('group', { name: /^(Jenis akun|Account type)$/ });
+  await expect(roleGroup).toBeVisible();
+  await expect(roleGroup.locator('button[aria-pressed="true"]')).toHaveCount(1);
+  await expect(roleGroup.getByRole('button', { name: 'Pelajar' })).toBeVisible();
+
+  const education = page.locator('#register-education-level');
+  await expect(education).toHaveAttribute('name', 'educationLevel');
+  const firstEducationOption = await education.locator('option').nth(1).getAttribute('value');
+  expect(firstEducationOption).toBeTruthy();
+  await education.selectOption(firstEducationOption!);
+
+  await page.locator('#register-full-name').fill('Auth UI Test');
+  await page.locator('#register-username').fill('auth-ui-smoke');
+  await page.locator('#register-birth-date').fill('2000-01-01');
+  await page.locator('#register-school').fill('Staging UI Test School');
+  await page.getByRole('button', { name: /^(Lanjut|Continue)$/ }).click();
+
+  const categoryGroup = page.getByRole('group', { name: /^(Kategori lomba favorit|Favorite competition categories)$/ });
+  await expect(categoryGroup).toBeVisible();
+  await expect(categoryGroup.locator('button').first()).toBeVisible();
+  expect(pageErrors, 'the registration wizard must not throw while changing steps').toEqual([]);
+});
+
 test('staging registration is not blocked by missing email delivery while bypass is active', async ({ page }) => {
   const response = await page.goto('/register', { waitUntil: 'domcontentloaded' });
   expect(response?.status()).toBe(200);
