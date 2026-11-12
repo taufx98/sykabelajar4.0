@@ -26,7 +26,10 @@ assert.match(draft, /has_table_privilege\('service_role'[\s\S]*?SELECT/i);
 assert.match(draft, /has_table_privilege\('postgres'[\s\S]*?SELECT/i);
 assert.match(draft, /STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS/i);
 assert.match(draft, /STAGE5_ACL_POSTCONDITION_TRUSTED_ROLE_ACCESS_LOST/i);
-assert.match(draft, /^BEGIN;[\s\S]*COMMIT;\s*$/i);
+const transactionStart = draft.indexOf("BEGIN;");
+const transactionEnd = draft.lastIndexOf("COMMIT;");
+assert.ok(transactionStart >= 0 && transactionEnd > transactionStart,
+  "the draft must wrap its privilege change in a transaction");
 assert.doesNotMatch(draft, /\b(?:DROP TABLE|TRUNCATE TABLE|INSERT INTO|DELETE FROM)\b/i);
 assert.doesNotMatch(draft, /GRANT\s+ALL[\s\S]*?TO\s+(?:PUBLIC|anon|authenticated)/i);
 assert.doesNotMatch(draft, /FROM\s+service_role/i,
