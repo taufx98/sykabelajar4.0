@@ -8,6 +8,7 @@ import {
   getSession as getAuthSession,
   onAuthStateChange,
   LOGIN_REJECTION_SIGNOUT_KEY,
+  LOGIN_IN_PROGRESS_KEY,
 } from '@/services/auth.service';
 import { getAuthenticatedProfileById, getProfileById, updateProfile as updateProfileRecord } from '@/services/profile.service';
 import { loadAwards } from '@/services/runtime.service';
@@ -492,6 +493,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     let authenticatedIdentity: { id: string; email?: string } | null = null;
     try {
+      // Prevent same-tab account-change isolation from hard-reloading the
+      // login route before LoginPage can finish its post-auth redirect.
+      window.sessionStorage.setItem(LOGIN_IN_PROGRESS_KEY, String(Date.now()));
       const result = await signIn(email.trim(), password);
       if (!result.user) return { ok: false, error: 'Login gagal: sesi pengguna tidak tersedia.' };
       authenticatedIdentity = {
@@ -553,6 +557,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ? error.message
         : code || 'LOGIN_REQUEST_FAILED';
       return { ok: false, error: message };
+    } finally {
+      window.sessionStorage.removeItem(LOGIN_IN_PROGRESS_KEY);
     }
   }, [clearUserState, hydrateCurrentUser, refreshUnreadCount, setCurrentAuthUser]);
 
