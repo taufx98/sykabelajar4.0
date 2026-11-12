@@ -70,6 +70,8 @@ on:
       - "src/store/AppContext.tsx"
       - "src/lib/cacheAuthLifecycle.ts"
       - "src/App.tsx"
+      - "src/services/authSessionIsolation.mjs"
+      - "scripts/auth-migration/auth-session-isolation.test.mjs"
       - "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md"
       - "scripts/auth-migration/auth-session-events.test.mjs"
       - "src/vite-env.d.ts"
@@ -168,6 +170,9 @@ jobs:
 
       - name: Verify Better Auth cross-tab session synchronization
         run: node ../../scripts/auth-migration/better-auth-session-bridge.test.mjs
+
+      - name: Verify login transitions do not hard-reload before navigation
+        run: node ../../scripts/auth-migration/auth-session-isolation.test.mjs
 
       - name: Verify stale auth hydration generations and rejection handling
         run: node ../../scripts/auth-migration/auth-hydration-gate.test.mjs
