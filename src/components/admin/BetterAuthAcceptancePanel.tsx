@@ -91,6 +91,7 @@ export function BetterAuthAcceptancePanel() {
         const ownedPath = userId + '/' + crypto.randomUUID() + '.txt';
         const foreignPath = crypto.randomUUID() + '/' + crypto.randomUUID() + '.txt';
         let ownedUploaded = false;
+        let storageFailure: unknown = null;
         try {
           const upload = await storage.upload(ownedPath, new Blob([marker], { type: 'text/plain' }), {
             contentType: 'text/plain',
@@ -111,12 +112,19 @@ export function BetterAuthAcceptancePanel() {
             await storage.remove([foreignPath]);
             throw new Error('STORAGE_CROSS_USER_UPLOAD_WAS_ALLOWED');
           }
-        } finally {
-          if (ownedUploaded) {
+        } catch (error) {
+          storageFailure = error;
+        }
+
+        if (ownedUploaded) {
+          try {
             const cleanup = await storage.remove([ownedPath]);
-            if (cleanup.error) throw cleanup.error;
+            if (cleanup.error && !storageFailure) storageFailure = cleanup.error;
+          } catch (cleanupError) {
+            if (!storageFailure) storageFailure = cleanupError;
           }
         }
+        if (storageFailure) throw storageFailure;
         return 'Upload, download, dan penghapusan file sendiri berhasil; folder UUID lain ditolak';
       });
 
