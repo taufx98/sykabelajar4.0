@@ -71,6 +71,7 @@ on:
       - "src/lib/cacheAuthLifecycle.ts"
       - "src/App.tsx"
       - "src/services/authSessionIsolation.mjs"
+      - "src/services/authSessionIsolation.d.mts"
       - "scripts/auth-migration/auth-session-isolation.test.mjs"
       - "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md"
       - "scripts/auth-migration/auth-session-events.test.mjs"
