@@ -9,6 +9,8 @@ on:
       - ".github/auth-ops/RUN-AUTH-STAGING-BROWSER-SMOKE-0001"
       - "e2e/staging/login-smoke.spec.ts"
       - "playwright.staging.config.ts"
+      - "src/components/admin/BetterAuthAcceptancePanel.tsx"
+  workflow_dispatch: {}
 
 permissions:
   contents: read
