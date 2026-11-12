@@ -3,6 +3,21 @@ import { verifyStage3BaselineMetadata } from "./verify-stage3-baseline-metadata.
 
 const makeMetadata = () => ({
   auth_dependent_functions: Array.from({ length: 10 }, (_, i) => ({ name: "function_" + i, definition_md5: "f" + i })),
+  stage5_payment_fulfillment_function: {
+    schema_name: "public",
+    function_name: "process_payment_gateway_success",
+    identity_arguments: "p_order_id uuid, p_provider text, p_payment_intent_id uuid",
+    security_definer: true,
+    function_config: ["search_path=public, private, pg_catalog"],
+    function_acl_entries: [
+      { grantee: "postgres", privilege_type: "EXECUTE", is_grantable: true, grantor: "postgres" },
+      { grantee: "service_role", privilege_type: "EXECUTE", is_grantable: false, grantor: "postgres" },
+    ],
+    anon_execute: false,
+    authenticated_execute: false,
+    service_role_execute: true,
+    postgres_execute: true,
+  },
   auth_and_profile_triggers: Array.from({ length: 7 }, (_, i) => ({ name: "trigger_" + i, definition_md5: "t" + i })),
   uid_policies: Array.from({ length: 109 }, (_, i) => ({ name: "policy_" + i, using_expression_md5: "u" + i, check_expression_md5: "c" + i })),
   uid_policy_tables: Array.from({ length: 61 }, (_, i) => ({ name: "table_" + i, row_security_enabled: true })),

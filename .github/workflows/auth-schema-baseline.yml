@@ -36,6 +36,8 @@ on:
       - "supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql"
       - "scripts/auth-migration/generate-stage3-function-acl-restore.mjs"
       - "scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs"
+      - "scripts/auth-migration/generate-stage5-payment-function-acl-restore.mjs"
+      - "scripts/auth-migration/generate-stage5-payment-function-acl-restore.test.mjs"
       - "scripts/auth-migration/stage5-business-edge-two-user.integration.test.mjs"
       - "scripts/auth-migration/stage5-edge-two-user-fixtures.sql"
       - "supabase/functions/_shared/**"
@@ -168,6 +170,9 @@ jobs:
       - name: Test Stage 3 function ACL restore generator contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
+
+      - name: Test Stage 5 payment function ACL restore generator contract
+        run: node scripts/auth-migration/generate-stage5-payment-function-acl-restore.test.mjs
 
       - name: Test create_organizer PL/pgSQL ambiguity fix contract
         if: steps.credentials.outputs.available == 'true'
@@ -359,6 +364,23 @@ jobs:
             echo ""
             echo "- Reconstructed ACLs for the ten audited Auth-dependent functions from production metadata in the disposable local database only"
             echo "- No production grant/revoke statement was executed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          node scripts/auth-migration/generate-stage5-payment-function-acl-restore.mjs \
+            --metadata "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json" \
+            --out "$RUNNER_TEMP/stage5-payment-function-acl.sql"
+
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$RUNNER_TEMP/stage5-payment-function-acl.sql:/baseline/stage5-payment-function-acl.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage5-payment-function-acl.sql
+
+          {
+            echo "- Restored the payment fulfillment function's exact service_role-only ACL from Production metadata on the disposable database only"
+            echo "- No Production grant/revoke statement was executed"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify the restored production schema shape and zero imported user rows
@@ -903,5 +925,5 @@ jobs:
       - name: Remove schema export and temporary local project
         if: always()
         run: |
-          rm -f "$RUNNER_TEMP/restored-auth-users-fks.json" "$RUNNER_TEMP/restored-stage3-baseline-metadata.json" "$RUNNER_TEMP/stage3-function-acls.sql"
+          rm -f "$RUNNER_TEMP/restored-auth-users-fks.json" "$RUNNER_TEMP/restored-stage3-baseline-metadata.json" "$RUNNER_TEMP/stage3-function-acls.sql" "$RUNNER_TEMP/stage5-payment-function-acl.sql"
           rm -rf "$SCHEMA_BASELINE_OUTPUT_DIR" "$SUPABASE_CLI_WORKDIR"

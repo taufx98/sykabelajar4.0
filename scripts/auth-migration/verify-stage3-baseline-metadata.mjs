@@ -15,6 +15,21 @@ export function verifyStage3BaselineMetadata(production, restored) {
   assert.ok(restored && typeof restored === "object" && !Array.isArray(restored),
     "Restored metadata must be a JSON object.");
 
+  assert.ok(
+    production.stage5_payment_fulfillment_function &&
+      typeof production.stage5_payment_fulfillment_function === "object",
+    "Production payment fulfillment function metadata is missing.",
+  );
+  assert.ok(
+    restored.stage5_payment_fulfillment_function &&
+      typeof restored.stage5_payment_fulfillment_function === "object",
+    "Restored payment fulfillment function metadata is missing.",
+  );
+  assert.equal(production.stage5_payment_fulfillment_function.schema_name, "public",
+    "Production payment fulfillment function schema changed.");
+  assert.equal(production.stage5_payment_fulfillment_function.function_name, "process_payment_gateway_success",
+    "Production payment fulfillment function identity changed.");
+
   for (const [section, expectedCount] of Object.entries(EXPECTED_COUNTS)) {
     assert.ok(Array.isArray(production[section]), "Production metadata section missing: " + section);
     assert.ok(Array.isArray(restored[section]), "Restored metadata section missing: " + section);

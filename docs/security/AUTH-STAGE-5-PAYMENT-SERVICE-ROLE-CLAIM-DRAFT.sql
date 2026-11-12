@@ -16,13 +16,17 @@ DECLARE
   v_new_guard text := E'  v_stage5_jwt_claims := nullif(current_setting(''request.jwt.claims'', true), '''')::jsonb;\n  v_stage5_role := coalesce(\n    nullif(v_stage5_jwt_claims ->> ''role'', ''''),\n    nullif(current_setting(''request.jwt.claim.role'', true), '''')\n  );\n  if coalesce(v_stage5_role, '''') <> ''service_role'' then raise exception ''SERVICE_ROLE_REQUIRED''; end if;';
   v_prosecdef boolean;
   v_proconfig text;
+  v_original_acl aclitem[];
+  v_after_acl aclitem[];
 BEGIN
   IF v_function_oid IS NULL THEN
     RAISE EXCEPTION 'STAGE5_PAYMENT_ROLE_FUNCTION_MISSING';
   END IF;
 
-  SELECT pg_get_functiondef(v_function_oid)
-  INTO v_definition;
+  SELECT pg_get_functiondef(v_function_oid), p.proacl
+  INTO v_definition, v_original_acl
+  FROM pg_proc AS p
+  WHERE p.oid = v_function_oid;
 
   IF position('v_stage5_jwt_claims' IN v_definition) > 0
      OR position('v_stage5_role' IN v_definition) > 0 THEN
@@ -48,10 +52,14 @@ BEGIN
 
   EXECUTE v_definition;
 
-  SELECT p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '')
-  INTO v_prosecdef, v_proconfig
-  FROM pg_proc p
+  SELECT p.prosecdef, coalesce(array_to_string(p.proconfig, ','), ''), p.proacl
+  INTO v_prosecdef, v_proconfig, v_after_acl
+  FROM pg_proc AS p
   WHERE p.oid = v_function_oid;
+
+  IF v_after_acl IS DISTINCT FROM v_original_acl THEN
+    RAISE EXCEPTION 'STAGE5_PAYMENT_ROLE_FUNCTION_ACL_MUTATED';
+  END IF;
 
   IF v_prosecdef IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'STAGE5_PAYMENT_ROLE_SECURITY_DEFINER_CHANGED';

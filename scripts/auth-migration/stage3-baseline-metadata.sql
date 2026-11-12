@@ -47,6 +47,37 @@ WITH function_meta AS (
       'verify_pending_referrals'
     )
 ),
+stage5_payment_function_meta AS (
+  SELECT
+    n.nspname::text AS schema_name,
+    p.proname::text AS function_name,
+    pg_get_function_identity_arguments(p.oid) AS identity_arguments,
+    p.prosecdef AS security_definer,
+    COALESCE(to_jsonb(p.proconfig), '[]'::jsonb) AS function_config,
+    COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'grantee',
+          CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE grantee.rolname::text END,
+          'privilege_type', acl.privilege_type,
+          'is_grantable', acl.is_grantable,
+          'grantor', grantor.rolname::text
+        )
+        ORDER BY CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE grantee.rolname::text END,
+          acl.privilege_type
+      )
+      FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+      LEFT JOIN pg_roles AS grantee ON grantee.oid = acl.grantee
+      JOIN pg_roles AS grantor ON grantor.oid = acl.grantor
+    ), '[]'::jsonb) AS function_acl_entries,
+    has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_execute,
+    has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_execute,
+    has_function_privilege('service_role', p.oid, 'EXECUTE') AS service_role_execute,
+    has_function_privilege('postgres', p.oid, 'EXECUTE') AS postgres_execute
+  FROM pg_proc AS p
+  JOIN pg_namespace AS n ON n.oid = p.pronamespace
+  WHERE p.oid = to_regprocedure('public.process_payment_gateway_success(uuid,text,uuid)')
+),
 trigger_meta AS (
   SELECT
     ns.nspname::text AS table_schema,
@@ -124,6 +155,8 @@ profile_columns AS (
   WHERE table_schema = 'public' AND table_name = 'profiles'
 )
 SELECT jsonb_build_object(
+  'stage5_payment_fulfillment_function',
+    (SELECT to_jsonb(f) FROM stage5_payment_function_meta AS f),
   'auth_dependent_functions',
     COALESCE((
       SELECT jsonb_agg(to_jsonb(f) ORDER BY f.schema_name, f.function_name, f.identity_arguments)
