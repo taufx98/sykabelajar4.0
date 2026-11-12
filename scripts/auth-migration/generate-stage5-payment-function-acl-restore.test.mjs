@@ -9,7 +9,7 @@ const metadata = {
     security_definer: true,
     function_config: ["search_path=public, private, pg_catalog"],
     function_acl_entries: [
-      { grantee: "postgres", privilege_type: "EXECUTE", is_grantable: true, grantor: "postgres" },
+      { grantee: "postgres", privilege_type: "EXECUTE", is_grantable: false, grantor: "postgres" },
       { grantee: "service_role", privilege_type: "EXECUTE", is_grantable: false, grantor: "postgres" },
     ],
     anon_execute: false,
