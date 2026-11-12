@@ -63,7 +63,7 @@ test("Edge acceptance handler pins issuer, audience and caller claims and runs r
 });
 
 test("staging Edge acceptance probe handles browser CORS preflight without widening its origin", () => {
-  assert.match(edge, /const STAGING_APP_ORIGIN = "https:\\/\\/staging\\.sykabelajar\\.my\\.id"/);
+  assert.ok(edge.includes('const STAGING_APP_ORIGIN = "https://staging.sykabelajar.my.id"'));
   assert.match(edge, /if \(origin && origin !== STAGING_APP_ORIGIN\)/);
   assert.match(edge, /if \(request\.method === "OPTIONS"\)/);
   assert.match(edge, /status: 204, headers: responseHeaders/);
