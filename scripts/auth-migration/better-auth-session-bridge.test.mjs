@@ -276,6 +276,90 @@ test("session expiry is revalidated automatically, renewed sessions are reschedu
   assert.equal(windowObject.timers.size, 0);
 });
 
+test("a definitive Better Auth session expiry emits signed-out and invalidates the resource token", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const received = [];
+  let current = makeSession("user-a");
+  let rejection = null;
+  let invalidations = 0;
+  const bridge = createBetterAuthSessionBridge({
+    getSession: async () => {
+      if (rejection) throw rejection;
+      return current;
+    },
+    onSessionChanged: () => { invalidations += 1; },
+    onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
+    windowObject,
+    documentObject,
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(windowObject.timers.size, 1, "valid session must schedule its server expiry check");
+  rejection = Object.assign(new Error("AUTH_SESSION_EXPIRED"), {
+    status: 401,
+    code: "AUTH_SESSION_EXPIRED",
+  });
+  const [expiryTimerId] = [...windowObject.timers.keys()];
+  assert.equal(windowObject.runTimeout(expiryTimerId), true);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(received, [{ type: "SIGNED_OUT", userId: null }]);
+  assert.equal(invalidations, 1, "expired identity must invalidate its cached Supabase resource token");
+  assert.equal(windowObject.timers.size, 0, "expired session must not receive another expiry timer");
+
+  bridge.unsubscribe();
+});
+
+test("a temporary Worker outage during expiry preserves the session until an authoritative read succeeds", async () => {
+  const windowObject = new EventTargetMock();
+  const documentObject = new EventTargetMock();
+  documentObject.visibilityState = "visible";
+  const received = [];
+  let current = makeSession("user-a");
+  let rejection = null;
+  let invalidations = 0;
+  const bridge = createBetterAuthSessionBridge({
+    getSession: async () => {
+      if (rejection) throw rejection;
+      return current;
+    },
+    onSessionChanged: () => { invalidations += 1; },
+    onChange: (type, session) => received.push({ type, userId: session?.user.id ?? null }),
+    windowObject,
+    documentObject,
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  rejection = Object.assign(new Error("AUTH_WORKER_UNAVAILABLE"), {
+    status: 503,
+    code: "AUTH_WORKER_UNAVAILABLE",
+  });
+  const [expiryTimerId] = [...windowObject.timers.keys()];
+  assert.equal(windowObject.runTimeout(expiryTimerId), true);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(received, [], "a 503 is not proof of logout");
+  assert.equal(invalidations, 0, "a temporary outage must not invalidate the active identity");
+  assert.equal(windowObject.timers.size, 0, "the deadline timer is consumed without creating a polling loop");
+
+  // Focus/resume performs a new authoritative read and can continue the
+  // session when the Worker recovers.
+  rejection = null;
+  windowObject.emit("focus");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [], "the unchanged identity must remain signed in");
+  assert.equal(windowObject.timers.size, 1, "the recovered session receives a new expiry deadline");
+
+  current = null;
+  windowObject.emit("focus");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, [{ type: "SIGNED_OUT", userId: null }]);
+  assert.equal(invalidations, 1);
+  bridge.unsubscribe();
+});
+
 test("temporary Worker errors do not cause a false signed-out event", async () => {
   const windowObject = new EventTargetMock();
   const documentObject = new EventTargetMock();

@@ -23,6 +23,22 @@ const VALID_EVENTS = new Set([
   "PASSWORD_RECOVERY",
 ]);
 
+const DEFINITIVE_SESSION_ERROR_CODES = new Set([
+  "AUTH_SESSION_EXPIRED",
+  "AUTH_SESSION_REQUIRED",
+  "AUTHENTICATION_REQUIRED",
+  "EMAIL_VERIFICATION_REQUIRED",
+  "EMAIL_NOT_VERIFIED",
+  "EMAIL_NOT_CONFIRMED",
+]);
+
+function isDefinitiveSessionRejection(error) {
+  if (!error || typeof error !== "object") return false;
+  const status = Number(error.status ?? error.statusCode ?? 0);
+  if (status === 401) return true;
+  return typeof error.code === "string" && DEFINITIVE_SESSION_ERROR_CODES.has(error.code);
+}
+
 function isValidEvent(value) {
   return typeof value === "string" && VALID_EVENTS.has(value);
 }
@@ -153,9 +169,15 @@ export function createBetterAuthSessionBridge(input) {
     let session;
     try {
       session = await input.getSession();
-    } catch {
-      // Network/Worker errors are not evidence of a signed-out session.
-      return;
+    } catch (error) {
+      // Network/Worker/quota failures are not evidence of a signed-out session.
+      // A definitive provider rejection (401 or an explicit expired/required
+      // session code) is different: fail closed and reconcile the old identity
+      // to signed-out so the shell does not retain an expired login indefinitely.
+      if (closed || version !== requestVersion || !isDefinitiveSessionRejection(error)) {
+        return;
+      }
+      session = null;
     }
     if (closed || version !== requestVersion) return;
 
