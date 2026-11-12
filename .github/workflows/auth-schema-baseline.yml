@@ -180,6 +180,10 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs
 
+      - name: Test Stage 5 targeted no-policy table ACL draft contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs
+
       - name: Prepare an empty disposable Supabase project
         if: steps.credentials.outputs.available == 'true'
         run: |
@@ -641,6 +645,19 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-issuer-guard-regression.sql
           echo "- Verified legacy Supabase and Better Auth issuer access; rejected an untrusted issuer; rolled back all fixtures" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 5 no-policy table ACL draft to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql:/baseline/stage5-no-policy-table-acl-draft.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage5-no-policy-table-acl-draft.sql
+          echo "- Tested targeted anon/authenticated table-grant revocation for three RLS-enabled/no-policy tables on the disposable restore only; service_role and postgres access remained intact" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Simulate fail-closed 69-FK rollback on disposable restore only
         if: steps.credentials.outputs.available == 'true'
