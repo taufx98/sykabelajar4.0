@@ -206,6 +206,17 @@ test("verified user adapter uses the staging-pinned configuration resolver and f
   const appResolver = readFileSync(new URL("_shared/require-application-user.ts", edgeRoot), "utf8");
   assert.match(appResolver, /resolveApplicationIdentityMode/);
   assert.match(appResolver, /AUTH_IDENTITY_MODE/);
+  assert.doesNotMatch(
+    appResolver,
+    /^import\s*\{\s*requireBetterAuthUser\s*\}\s*from\s*["']\.\/better-auth-user\.ts["']/m,
+    "Supabase Auth mode must not eagerly load the Better Auth server/JWKS adapter",
+  );
+  assert.match(
+    appResolver,
+    /if \(mode === "better-auth"\)[\s\S]*?await import\("\.\/better-auth-user\.ts"\)/,
+    "the Better Auth adapter must load only inside the explicit Better Auth branch",
+  );
+
 });
 
 test("migrated handlers bypass gateway JWT verification only because the shared resolver verifies every request", () => {

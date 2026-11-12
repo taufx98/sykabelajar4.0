@@ -2,7 +2,6 @@ import {
   createClient,
   type SupabaseClient,
 } from "npm:@supabase/supabase-js@2.57.4";
-import { requireBetterAuthUser } from "./better-auth-user.ts";
 import { resolveApplicationIdentityMode } from "./resolve-application-identity-mode.mjs";
 
 type CallerSupabaseClient = SupabaseClient;
@@ -57,6 +56,11 @@ export async function requireApplicationUser(
   }
 
   if (mode === "better-auth") {
+    // Load the Better Auth verifier only for Better Auth projects. The normal
+    // Supabase Auth path should not initialise @supabase/server or its JWKS
+    // dependencies; this also keeps the legacy Production adapter isolated
+    // from the staging-only Better Auth runtime.
+    const { requireBetterAuthUser } = await import("./better-auth-user.ts");
     const identity = await requireBetterAuthUser(request);
     if (!identity.ok) {
       return {
