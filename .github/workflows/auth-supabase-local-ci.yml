@@ -151,6 +151,38 @@ jobs:
             echo "Blocked: unexpected staging publishable key." >&2
             exit 1
           }
+          preflight_headers="$RUNNER_TEMP/staging-oidc-probe-preflight-headers.txt"
+          preflight_status="$(curl --silent --show-error --max-time 15 --output /dev/null --dump-header "$preflight_headers" --write-out '%{http_code}' \
+            --request OPTIONS "$STAGING_SUPABASE_URL/functions/v1/better-auth-oidc-acceptance" \
+            --header "Origin: https://staging.sykabelajar.my.id" \
+            --header "Access-Control-Request-Method: POST" \
+            --header "Access-Control-Request-Headers: authorization, apikey, content-type, x-client-info")"
+          if [ "$preflight_status" != "204" ]; then
+            echo "Staging OIDC Edge probe must accept the exact staging CORS preflight (expected HTTP 204, received $preflight_status)." >&2
+            cat "$preflight_headers"
+            exit 1
+          fi
+          grep -qi '^access-control-allow-origin: https://staging.sykabelajar.my.id' "$preflight_headers"
+          grep -qi '^access-control-allow-methods: .*POST' "$preflight_headers"
+          grep -qi '^access-control-allow-headers: .*authorization.*apikey.*content-type.*x-client-info' "$preflight_headers" || {
+            echo "Staging OIDC Edge probe did not allow the required Supabase client headers." >&2
+            cat "$preflight_headers"
+            exit 1
+          }
+
+          denied_headers="$RUNNER_TEMP/staging-oidc-probe-denied-origin-headers.txt"
+          denied_status="$(curl --silent --show-error --max-time 15 --output /dev/null --dump-header "$denied_headers" --write-out '%{http_code}' \
+            --request OPTIONS "$STAGING_SUPABASE_URL/functions/v1/better-auth-oidc-acceptance" \
+            --header "Origin: https://attacker.example" \
+            --header "Access-Control-Request-Method: POST" \
+            --header "Access-Control-Request-Headers: authorization, apikey, content-type, x-client-info")"
+          if [ "$denied_status" != "403" ] || grep -qi '^access-control-allow-origin:' "$denied_headers"; then
+            echo "Staging OIDC Edge probe must reject an untrusted origin without CORS permission." >&2
+            cat "$denied_headers"
+            exit 1
+          fi
+          echo "Hosted staging Edge probe accepts only the exact staging origin for browser preflight."
+
           response_body="$RUNNER_TEMP/staging-oidc-probe-anonymous.json"
           status="$(curl --silent --show-error --max-time 15 --output "$response_body" --write-out '%{http_code}' \
             --request POST "$STAGING_SUPABASE_URL/functions/v1/better-auth-oidc-acceptance" \
