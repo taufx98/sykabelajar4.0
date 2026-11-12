@@ -93,6 +93,7 @@ export async function signIn(email: string, password: string) {
           !isValidBetterAuthSignInUser(credentialResult.user)) {
         throw error;
       }
+      publishAuthSessionEvent('SIGNED_IN', credentialResult.user.id);
       broadcastBetterAuthSessionEvent('SIGNED_IN');
       return {
         user: credentialResult.user,

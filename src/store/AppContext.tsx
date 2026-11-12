@@ -631,6 +631,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const email = session.user.email ?? '';
+      publishAuthSessionEvent('INITIAL_SESSION', session.user.id);
       setCurrentAuthUser({ id: session.user.id, email: email || undefined });
       setIsGuest(false);
       localStorage.removeItem(GUEST_KEY);
