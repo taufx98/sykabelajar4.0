@@ -1,3 +1,15 @@
+## Latest Stage 4 quota-recovery acceptance — 12 November 2026
+
+- The Better Auth Worker emits a safe D1 daily read/write quota 503 with a stable error code, `Retry-After`, `retry_at_utc`, and `X-Auth-Availability: degraded`. The frontend now accepts the retry timestamp only from that explicit degraded marker.
+- Safe session GETs no longer retry rapidly after the D1 daily-quota response. The error is not treated as an expired/rejected session: the Better Auth identity snapshot is preserved, the recovery UI explains that the session was not deleted, and the next retry time is rendered in Asia/Jakarta local time.
+- A dedicated unit test proves a D1 quota error is read once (no immediate retry) and exposes the server retry instant. The normal transient Worker failure retry behavior and definitive auth rejection behavior remain covered.
+- **Current-head CI:** Auth Worker CI [#1335](https://github.com/taufx98/sykabelajar4.0/actions/runs/43213967466) and Supabase Local Auth Claims CI [#966](https://github.com/taufx98/sykabelajar4.0/actions/runs/43213967352) both passed on `b311f46bb32e9789b5a7a64acef421374749de2d`. Auth Worker CI completed the security contracts, D1 migrations/local Worker OIDC/JWKS smoke, Edge Deno type checks, frontend lint, typecheck and production build without deployment.
+- This is **D1 row-quota recovery**, not a second authentication authority. No automatic Supabase Auth login fallback was introduced. A Cloudflare Workers request-cap Error 1027 occurs before Worker code and still needs custom-domain routing verification; it must not be described as Supabase Auth failover.
+- **Still open in Stage 4:** owner/browser acceptance for a real session expiry + reauthentication and an expiring resource token over a live Realtime connection. Automated cross-tab/session bridge tests already cover expiry scheduling and dynamic token callbacks; this does not replace the final browser exercise.
+- No Production deploy, D1 change, Supabase schema or data write, DNS/Pages change, or account reset was performed by this work.
+
+---
+
 ## Latest Stage 3 disposable full-schema acceptance — 12 November 2026
 
 This checkpoint supersedes earlier statements that the revised no-account-backfill Stage 3 draft still awaits a fresh full-schema disposable rehearsal.
