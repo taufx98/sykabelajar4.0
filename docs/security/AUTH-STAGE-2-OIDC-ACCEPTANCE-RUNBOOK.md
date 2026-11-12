@@ -1,3 +1,15 @@
+## Probe version 7 follow-up — 12 November 2026
+
+The isolated read-only `better-auth-oidc-acceptance` Edge Function was redeployed as **version 7 ACTIVE** after aligning the shared resolver/staging mirror with `@supabase/supabase-js@2.95.0` (required by the pinned `@supabase/server@1.9.2` CORS export). Its source still imports the exact `requireApplicationUser()` adapter used by the migrated handler boundaries, queries only `auth_oidc_acceptance_rows` with the caller-scoped client, and performs no business writes.
+
+Hosted negative checks against the deployed v7 endpoint passed in [Supabase Local Auth Claims CI #43263432252](https://github.com/taufx98/sykabelajar4.0/actions/runs/43263432252): staging preflight HTTP 204, untrusted origin HTTP 403 without a CORS grant, anonymous POST HTTP 401 `AUTH_REQUIRED`, and malformed bearer HTTP 401 `AUTH_REQUIRED`.
+
+The previous owner-run **4/4** real Better Auth session result remains recorded above for the earlier probe version. Because v7 changes the shared verifier's SDK dependency, rerun the Admin acceptance panel while signed in on `https://staging.sykabelajar.my.id` to reconfirm the positive authenticated Edge request on v7. Do not copy or expose the token. The current CI negative checks and ephemeral-key Deno tests are not a substitute for this owner-run hosted positive session check.
+
+No business handler was deployed to the auth-only staging project, and no Production resource was changed.
+
+---
+
 ## Latest owner result — 12 November 2026 (real Better Auth session 4/4 passed)
 
 The owner has now rerun the Admin acceptance panel after the staging OPTIONS/CORS correction. **All four checks passed** with the signed-in Better Auth session:

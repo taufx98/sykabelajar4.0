@@ -1,3 +1,37 @@
+## Latest verified checkpoint — 12 November 2026, head 834c89095a20a44a97fabcfbb09bfa04fd2680d7
+
+### Repository and CI
+- PR [#177](https://github.com/taufx98/sykabelajar4.0/pull/177) remains open, Draft, unmerged and mergeable. Branch: `security/auth-poc-stage-1`.
+- [Auth Worker CI #43263432235](https://github.com/taufx98/sykabelajar4.0/actions/runs/43263432235) passed: Worker audit/tests, D1 migration/local auth/OIDC/JWKS smoke/dry-run, Edge typecheck and frontend lint/typecheck/build without deploy.
+- [Supabase Local Auth Claims CI #43263432252](https://github.com/taufx98/sykabelajar4.0/actions/runs/43263432252) passed: current shared-verifier Deno integration tests, actual migrated handler boundary test, hosted staging negative probe checks, and local PostgreSQL/RLS suite (**9 SQL files, 192 tests, PASS**).
+- [Auth Production Schema Baseline #43263418307](https://github.com/taufx98/sykabelajar4.0/actions/runs/43263418307) passed: schema-only Production export, disposable restore, 69 FK/62 tables, 109 `auth.uid()` policies, issuer/identity provisioning, 69-FK rollback rehearsal and two-user local Edge integration. The job verified zero imported Auth/profile user rows, stopped local Supabase and removed the temporary schema export/workspace.
+- The current commit's Cloudflare Pages check is successful. These CI/Pages checks do not authorize a Production deploy or cutover.
+
+### Stage 5 — actual handler boundary evidence
+- Aligned `supabase/functions/_shared/require-application-user.ts` and the isolated staging mirror to `@supabase/supabase-js@2.95.0`, because `@supabase/server@1.9.2` requires the SDK's `./cors` export. No business schema or data changed.
+- Added `supabase/functions/cloudinary-profile-upload/better-auth-auth-boundary.test.ts`; the handler's request entry is now exported as `handleCloudinaryProfileUpload`, with the deployed entry still served by `Deno.serve` when it is the main module.
+- The Deno test creates an ephemeral ES256 key/JWKS in memory. The actual migrated handler accepts one valid signed identity through the shared verifier, then stops at its ordinary `INVALID_IMAGE_KIND` validation branch before Cloudinary is called. Six invalid tokens (malformed, wrong issuer, wrong audience, expired, wrong Postgres role, non-UUID subject and wrong signing key) are rejected at HTTP 401. The test is synthetic; it does not use the Better Auth D1 private key or a real hosted session.
+- The same CI run also verifies the isolated read-only staging Edge probe's negative behavior: exact staging CORS preflight 204, hostile origin 403, anonymous 401 and malformed bearer 401.
+
+### Staging endpoint state
+- Supabase staging project `ydamszdfsxqisanazdkb` has `better-auth-oidc-acceptance` **version 7 ACTIVE**. It uses the shared resolver from the current source branch and remains read-only; it is not a deployed Cloudinary/payment business handler.
+- Owner-run Admin acceptance panel previously passed 4/4 on a real Better Auth session before the v7 SDK alignment. **The positive real-session POST has not yet been reconfirmed after v7**; a signed-in Admin should rerun Admin → Pengaturan → Uji Penerimaan Better Auth — Staging. The panel does not display or copy the token.
+- Stage 4 still needs owner/browser acceptance for actual session expiry/reauthentication, a live Realtime heartbeat through resource-token renewal, visible D1 503 recovery and custom-domain Worker Error 1027. D1 quotas were not exhausted to test recovery.
+
+### Seven-stage boundary
+- Stage 1: first-attempt staging email/password login and logout are owner-accepted. Real mailbox verification/password-reset delivery remains deferred; no email verification state was forged.
+- Stage 2: prior 4/4 real-session acceptance remains valid for the tested surfaces, but repeat the positive Edge panel check against v7.
+- Stage 3: full schema-only disposable identity/FK/issuer/RLS/provisioning and rollback rehearsal passed; no Production identity migration.
+- Stage 4: core bridge/token broker and expiry/transient-error code are implemented and CI-verified; owner/browser checks listed above remain.
+- Stage 5: current source/runtime contract and actual one-handler ES256 boundary test pass. Full-schema local two-user Edge tests passed using synthetic **Supabase Auth** local users; they are not a real Better Auth session. Real staging-token acceptance through migrated business handlers remains open.
+- Stage 6: four-role local RLS matrix passed; per-role runtime route/RPC/Edge checks with Better Auth-issued tokens and exact demo/test identity classification remain open. No account reset/deletion occurred.
+- Stage 7: no Production cutover is authorized. The production rollback model remains identity-aware: Better Auth and Supabase Auth accounts are not interchangeable; do not remove either side or silently fail over issuers.
+
+### Production safety
+No Production DB2 schema/data, Supabase Auth, RLS, RPC, FK, trigger, account, secret, Edge Function, Pages configuration, DNS or auth routing was changed. No demo account was reset. No PR merge or Production cutover occurred.
+
+---
+
 ## Latest Stage 6 four-role regression acceptance — 12 November 2026
 
 - Added `services/auth-worker/supabase-test/supabase/tests/user_roles_business_role_matrix.test.sql` with 16 pgTAP assertions covering `student`, `teacher`, `organizer_member`, and `admin` in the isolated local Supabase fixture.

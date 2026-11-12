@@ -107,7 +107,7 @@ This is a separate identity architecture, not a small quota-handling switch. It 
 
 - [x] Document the D1/Supabase responsibility split and prohibit unsafe transparent auth failover.
 - [x] Add safe Worker handling for the exact documented D1 daily read/write quota errors.
-- [ ] Validate the new quota handler and all existing Worker auth/OIDC flows in current-head CI.
+- [x] Validate the D1 daily read/write quota handler and existing Worker auth/OIDC flows in current-head CI: Auth Worker CI [#43263432235](https://github.com/taufx98/sykabelajar4.0/actions/runs/43263432235) runs `npm test` (`node --test tests/*.test.mjs`), including `tests/d1-quota.test.mjs` (read/write classification, nested causes, non-quota errors, safe 503, no-store, and Retry-After); the same run passed Worker typecheck, OIDC/JWKS smoke and dry-run.
 - [x] Stage 4: preserve the current auth identity snapshot on a known D1 daily-quota response, avoid rapid retry loops, and show the server-provided UTC retry point in the recovery UI.
 - [ ] Stage 4: test Cloudflare Error 1027 / Worker request-cap handling on the eventual custom-domain route; the Worker cannot intercept a request rejected before execution.
 - [ ] After staging D1 exists: configure dashboard monitoring/notifications and baseline normal rows-read, rows-written, request and storage use.
