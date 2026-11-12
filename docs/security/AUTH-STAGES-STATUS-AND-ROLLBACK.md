@@ -1661,3 +1661,14 @@ The current documentation/role-audit head `b1490752c9680c35a8b6866fac67ae8f88b13
 - [Supabase Local Auth Claims CI #43255367451](https://github.com/taufx98/sykabelajar4.0/actions/runs/43255367451) — success.
 
 These checks validate the current branch snapshot; the docs-only commit did not change the previously tested runtime source. PR #177 remains open, Draft and unmerged.
+
+
+### Four-role RLS matrix acceptance — 12 November 2026
+
+Owner-added test `services/auth-worker/supabase-test/supabase/tests/user_roles_business_role_matrix.test.sql` adds 16 pgTAP assertions over four disposable Better Auth identity-root UUIDs: `student`, `teacher`, `organizer_member`, and `admin`. Under SQL role `authenticated`, each subject sees exactly one own row in `public.user_roles`, retains its canonical business-role value, carries PostgreSQL JWT claim `role=authenticated`, and cannot read another subject's role row. The test runs inside `BEGIN ... ROLLBACK` on local disposable Supabase.
+
+- [Supabase Local Auth Claims CI #43256267828](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256267828) — passed, including the role matrix.
+- [Auth Worker CI #43256267857](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256267857) — passed.
+- [Auth Cloudflare Staging Preflight #43256248427](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256248427) — passed; read-only staging resource inspection only.
+
+This closes the local **role claim/RLS row-visibility contract** for all four business roles. It does not cryptographically verify a real ES256 token and does not prove route/RPC/Edge business authorization for each role; those positive signed-token checks remain separate. The test created no persistent staging or Production identities. A read-only aggregate of Supabase staging remains: one `private.app_users`, one profile, one active admin role, zero `auth.users`, and two synthetic RLS fixture rows.
