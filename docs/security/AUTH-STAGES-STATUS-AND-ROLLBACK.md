@@ -1,3 +1,19 @@
+## Latest Stage 5 two-user Edge integration acceptance — 12 November 2026
+
+This checkpoint supersedes the earlier note that per-handler two-user IDOR verification remained entirely untested. The actual migrated Edge handlers have now been exercised against a full-schema, schema-only disposable restore and an isolated local Supabase Edge Runtime.
+
+- **Environment:** Auth Production Schema Baseline CI [#179](https://github.com/taufx98/sykabelajar4.0/actions/runs/43229718921) exported Production schema only, restored it locally without user rows, replayed Stage 3 identity-root/69-FK/issuer/RLS/rollback checks, applied the Stage 5 three-table ACL draft, seeded two synthetic Auth users and invoked the handlers through the local Edge Runtime. The temporary Supabase stack and export were removed at job end.
+- **Identity separation:** two distinct local Auth accounts signed in successfully and their tokens mapped to their exact UUIDs.
+- **Cloudinary owner checks:** user A can request a signature for A's canonical profile asset; A is denied when requesting B's profile signature. Asset deletion handlers reject B's UUID- and username-based namespaces when called by A. Both profile upload handlers authenticate A and derive ownership from the verified identity; the deliberately invalid upload kind stops before any external Cloudinary call.
+- **Privileged payment settings:** student A is denied by `payment-gateway-admin`; the separate active admin B can read the settings response. Admin authorization is tested with the signed-in caller context before service-role access.
+- **Payment order IDOR:** `payment-gateway-create` and `payment-gateway-reconcile` return `ORDER_NOT_FOUND` for B's order when called by A. A's own order passes the owner lookup and proceeds only to the deliberately disabled/unsupported-provider branch.
+- **Nine handlers covered:** `get-cloudinary-signature`, `cloudinary-profile-upload`, `cloudinary-profile-upload-v2`, `cloudinary-delete-asset`, `cloudinary-delete-asset-v2`, `cloudinary-delete-profile`, `payment-gateway-admin`, `payment-gateway-create`, and `payment-gateway-reconcile`.
+- **Result:** the local two-user Edge integration step completed successfully. Auth Worker CI [#1358](https://github.com/taufx98/sykabelajar4.0/actions/runs/43229730162), Supabase Local Auth Claims CI [#996](https://github.com/taufx98/sykabelajar4.0/actions/runs/43229718930) and [#997](https://github.com/taufx98/sykabelajar4.0/actions/runs/43229730063) passed at source head `7931937cc64923dad6dcf1a74a9969cd5666c357`.
+- **Scope limit:** this test intentionally did not make real Cloudinary upload/delete calls or Midtrans/XenithPay transactions/webhooks. It proves owner/admin/IDOR checks and the pre-provider branches, not external-provider sandbox settlement, webhook signature/amount/idempotency end-to-end, or all business roles. Those remain separate Stage 5/6 acceptance items.
+- **Production boundary:** no Production table grant, RLS policy, RPC, Edge Function, account, secret, DNS or Pages configuration was modified. All synthetic users/orders and provider configuration existed only in the disposable local database; cleanup succeeded. PR #177 remains Draft and unmerged.
+
+---
+
 ## Latest Stage 5 targeted ACL disposable acceptance — 12 November 2026
 
 This checkpoint records a narrowly scoped Production ACL review and a successful test of its draft against a schema-only disposable restore. It does **not** authorize applying the draft to Production.
