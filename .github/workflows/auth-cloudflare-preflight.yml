@@ -416,6 +416,90 @@ jobs:
           }
           NODE
 
+      - name: Read-only aggregate audit of staging Better Auth identities (no PII)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          query='SELECT
+            COUNT(*) AS total_users,
+            COALESCE(SUM(CASE WHEN emailVerified = 0 THEN 1 ELSE 0 END), 0) AS unverified_users,
+            COALESCE(SUM(CASE WHEN emailVerified = 1 THEN 1 ELSE 0 END), 0) AS verified_users,
+            COALESCE(SUM(CASE WHEN lower(email) LIKE "%@example.test"
+                               OR lower(email) LIKE "%@example.invalid"
+                               OR lower(email) LIKE "%@localhost" THEN 1 ELSE 0 END), 0) AS obvious_test_domain_users,
+            COALESCE(SUM(CASE WHEN lower(email) LIKE "demo%@%"
+                               OR lower(email) LIKE "test%@%"
+                               OR lower(email) LIKE "%+demo@%"
+                               OR lower(email) LIKE "%+test@%" THEN 1 ELSE 0 END), 0) AS obvious_demo_prefix_users,
+            (SELECT COUNT(*) FROM "session") AS session_rows,
+            (SELECT COUNT(*) FROM "session" WHERE julianday("expiresAt") > julianday("now")) AS unexpired_session_rows,
+            (SELECT COUNT(*) FROM "session" WHERE julianday("expiresAt") <= julianday("now")) AS expired_session_rows,
+            (SELECT COUNT(*) FROM "account") AS account_rows,
+            (SELECT COUNT(*) FROM "verification") AS verification_rows
+          FROM "user";'
+          set +e
+          npx --yes wrangler@4.156.2 d1 execute sykabelajar-auth-poc --remote --json \
+            --command "$query" --config services/auth-worker/wrangler.toml \
+            > "$RUNNER_TEMP/auth-staging-d1-identity-audit.json" \
+            2> "$RUNNER_TEMP/auth-staging-d1-identity-audit.stderr"
+          query_status=$?
+          set -e
+          if [ "$query_status" -ne 0 ]; then
+            echo '{"stagingD1IdentityAudit":"unavailable","reason":"READ_ONLY_QUERY_FAILED","noRowsOrSecretsPrinted":true}'
+            exit 0
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const path = process.env.RUNNER_TEMP + "/auth-staging-d1-identity-audit.json";
+          let parsed;
+          try {
+            parsed = JSON.parse(readFileSync(path, "utf8"));
+          } catch {
+            console.log(JSON.stringify({
+              stagingD1IdentityAudit: "unavailable",
+              reason: "QUERY_RESPONSE_NOT_JSON",
+              noRowsOrSecretsPrinted: true,
+            }));
+            process.exit(0);
+          }
+          const batches = Array.isArray(parsed) ? parsed : [parsed];
+          const rows = batches.flatMap((batch) => Array.isArray(batch?.results) ? batch.results : []);
+          const row = rows.find((item) => item && Object.hasOwn(item, "total_users"));
+          const keys = [
+            "total_users", "unverified_users", "verified_users",
+            "obvious_test_domain_users", "obvious_demo_prefix_users",
+            "session_rows", "unexpired_session_rows", "expired_session_rows",
+            "account_rows", "verification_rows",
+          ];
+          if (!row || keys.some((key) => !Number.isSafeInteger(Number(row[key])))) {
+            console.log(JSON.stringify({
+              stagingD1IdentityAudit: "unavailable",
+              reason: "AGGREGATE_RESULT_SHAPE_INVALID",
+              noRowsOrSecretsPrinted: true,
+            }));
+            process.exit(0);
+          }
+          const counts = Object.fromEntries(keys.map((key) => [key, Number(row[key])]));
+          const summary = {
+            stagingD1IdentityAudit: "available",
+            database: "sykabelajar-auth-poc",
+            counts,
+            classification: "heuristic counts only; no account is automatically classified or reset",
+            readOnly: true,
+            noEmailAddressesOrUserIdsOrTokensOrSecretsReadOrPrinted: true,
+          };
+          console.log(JSON.stringify(summary, null, 2));
+          writeFileSync(
+            process.env.RUNNER_TEMP + "/auth-staging-d1-identity-audit-summary.json",
+            JSON.stringify(summary, null, 2),
+            { mode: 0o600 },
+          );
+          NODE
+
       - name: Read only staging Worker secret names and types (never values)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
