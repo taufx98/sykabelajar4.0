@@ -1,3 +1,15 @@
+## Latest function ACL triage for remaining Stage 5 Advisor findings — 12 November 2026
+
+Read-only Production catalog and repository-call-site review of the two `anon`-executable `SECURITY DEFINER` functions with write effects established:
+
+- `public.sync_competition_registration_status(uuid)` is intentionally callable by `anon` and `authenticated`. The public competition detail service uses it so a visitor can see the scheduled registration phase without waiting for an organizer action. It changes only `PUBLISHED → REGISTRATION_OPEN` when the stored start timestamp has arrived, or `REGISTRATION_OPEN → REGISTRATION_CLOSED` after the stored end timestamp. It locks/re-reads the row only when a transition is due, sets the transaction-local transition guard, and is idempotent once the phase changes. It cannot advance a future timestamp or change unrelated competition fields. The function uses an empty search path. Do not revoke its guest execute grant without replacing the public detail flow.
+- `public.record_shop_promo_banner_event(uuid,text,text)` is intentionally callable by `anon` and `authenticated` for guest-visible VIEW/CLICK tracking; the shop service invokes it from the browser. It accepts only the two event types, requires a bounded 16–80 character alphanumeric/underscore/hyphen visitor key, records only active banners, and deduplicates by `(banner_id,event_type,visitor_key)`. It has an empty search path. **Residual metric-abuse risk:** the visitor key is client-supplied, so a caller can generate fresh keys to inflate view/click counts. Those counts must not be used as billing, payout or fraud-proof evidence. Future hardening should put a trusted rate/visitor-signing boundary in front of this RPC; do not simply revoke guest execution because it would disable normal guest analytics.
+- This is a targeted review of the two write-effect functions, not a full audit sign-off for every function returned by the Advisor.
+- Metadata triage of the 46 `anon`-executable `SECURITY DEFINER` findings grouped 14 with caller identity/admin checks, 17 with explicit portal/access credential checks, 13 public read APIs, and these two public write-effect functions. The 202 `authenticated`-executable findings grouped 161 with caller identity/admin checks, 23 with portal/access credential checks, 16 read-only functions without a direct UID/credential pattern, and these two write-effect functions. These are classification aids based on catalog definitions and guard patterns; each privileged function still requires business-level review before any ACL change.
+- No Production grants, functions, triggers, RLS, data, secrets or Edge Functions were changed. No blanket revoke or RLS rewrite was performed.
+
+---
+
 ## Latest Stage 5 two-user Edge integration acceptance — 12 November 2026
 
 This checkpoint supersedes the earlier note that per-handler two-user IDOR verification remained entirely untested. The actual migrated Edge handlers have now been exercised against a full-schema, schema-only disposable restore and an isolated local Supabase Edge Runtime.
