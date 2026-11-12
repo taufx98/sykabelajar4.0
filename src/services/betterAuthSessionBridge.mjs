@@ -1,6 +1,19 @@
 const CHANNEL_NAME = "sykabelajar-better-auth-session";
 const STORAGE_KEY = "sykabelajar_better_auth_session_event_v1";
 const SOURCE = "sykabelajar-better-auth-session";
+// Distinguish tabs without sending any user identity or credential data.
+// BroadcastChannel delivers to other channel objects in this tab too, so the
+// receiver must ignore messages that originated from this same page instance.
+const TAB_SOURCE_ID = (() => {
+  try {
+    if (typeof globalThis.crypto?.randomUUID === "function") {
+      return globalThis.crypto.randomUUID();
+    }
+  } catch {
+    // Fall back to a non-sensitive per-page identifier.
+  }
+  return `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+})();
 const MAX_TIMEOUT_DELAY_MS = 2_147_483_647;
 const EXPIRY_RECHECK_GRACE_MS = 1_000;
 const VALID_EVENTS = new Set([
@@ -17,7 +30,11 @@ function isValidEvent(value) {
 function parseMessage(value) {
   if (!value || typeof value !== "object") return null;
   if (value.source !== SOURCE || !isValidEvent(value.type)) return null;
-  return { source: SOURCE, type: value.type };
+  return {
+    source: SOURCE,
+    type: value.type,
+    senderId: typeof value.senderId === "string" ? value.senderId : null,
+  };
 }
 
 /**
@@ -33,7 +50,7 @@ export function broadcastBetterAuthSessionEvent(type, options = {}) {
     (typeof window === "undefined" ? null : window);
   if (!windowObject) return false;
 
-  const message = Object.freeze({ source: SOURCE, type });
+  const message = Object.freeze({ source: SOURCE, type, senderId: TAB_SOURCE_ID });
   let delivered = false;
   try {
     if (typeof windowObject.BroadcastChannel === "function") {
@@ -181,7 +198,11 @@ export function createBetterAuthSessionBridge(input) {
 
   const receive = (raw) => {
     const message = parseMessage(raw);
-    if (message) void refresh(message.type);
+    // A page must not react to its own sign-in/out broadcast. Otherwise its
+    // own transition can invalidate a resource-token exchange that is already
+    // in progress for this same login.
+    if (!message || message.senderId === TAB_SOURCE_ID) return;
+    void refresh(message.type);
   };
 
   const onStorage = (event) => {
