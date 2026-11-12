@@ -1,3 +1,19 @@
+## Latest Stage 3 disposable full-schema acceptance — 12 November 2026
+
+This checkpoint supersedes earlier statements that the revised no-account-backfill Stage 3 draft still awaits a fresh full-schema disposable rehearsal.
+
+- **Schema source:** Auth Production Schema Baseline CI [#169](https://github.com/taufx98/sykabelajar4.0/actions/runs/43209786948) completed successfully. It performed a schema-only Production export, restored that schema to an isolated local Supabase stack, verified the restored shape and zero imported Auth/profile rows, and cleaned up the temporary project/export. No Production row or schema was written.
+- **Baseline parity:** the restored snapshot matched all **69 application FKs across 62 tables**, the **109 `auth.uid()` RLS policies across 61 tables**, the reviewed Auth/profile trigger inventory, **36 profile columns**, and the **10 Auth-dependent application functions**.
+- **Forward rehearsal:** the Better Auth identity-root draft applied successfully to the disposable restore. The revised UUID-only legacy-reference tombstone generator and all 69 FK phases completed; the final catalog assertion required **69 validated replacement FKs and zero remaining application FKs to `auth.users`**.
+- **Lifecycle regression:** synthetic Better Auth provisioning, role mapping, referral/email lifecycle, Telegram phone verification and organizer checks passed; fixtures were rolled back. Production-shaped referral expiry, scheduled verification, organizer FREE-phone claim, competition registration, audit and notification behavior passed in rollback-only fixtures.
+- **Issuer/RLS regression:** trusted issuer behavior passed and an untrusted issuer was rejected. No broad RLS policy replacement or blanket function-grant revocation was introduced.
+- **Rollback rehearsal:** reverse-FK preflight correctly failed closed while a Better Auth-only identity existed; the controlled reverse simulation restored all 69 relationships. The full Stage 3 rollback draft restored legacy functions/triggers/issuer policies and removed `private.app_users` from the disposable database.
+- **Current-head CI:** Auth Worker CI [#1326](https://github.com/taufx98/sykabelajar4.0/actions/runs/43209795554), Supabase Local Auth Claims CI [#957](https://github.com/taufx98/sykabelajar4.0/actions/runs/43209795535), and the Auth Production Schema Baseline [#169](https://github.com/taufx98/sykabelajar4.0/actions/runs/43209786948) all passed on source head `33dd61e0c8086f16869c589bed4834f24dcb3a84). The duplicate Local Auth Claims run [#956](https://github.com/taufx98/sykabelajar4.0/actions/runs/43209787051) also passed.
+- **Stage 3 status:** the identity-root design, provisioning contract, production-shaped regression, 69-FK forward/rollback rehearsal and issuer/RLS disposable acceptance are now validated. Stage 3 can be treated as **implementation-ready/accepted in staging and disposable rehearsal**. This does not mean Production has been migrated: Production still has no `private.app_users`; its 69 application FKs, Auth triggers, RPCs, RLS and accounts are unchanged. The actual Production identity cutover remains gated for Stage 7 after Stage 6 and the final approval.
+- **Safety boundary:** this workflow used read-only Production schema export and a disposable local restore only. No account was reset; no Production DDL/DML, secret, DNS, Pages, Edge Function, auth routing or live data was modified.
+
+---
+
 ## Latest owner acceptance — 12 November 2026 (Stage 2 real-session test 4/4 passed)
 
 This checkpoint supersedes earlier Stage 2 notes below that say the positive browser test is pending.
