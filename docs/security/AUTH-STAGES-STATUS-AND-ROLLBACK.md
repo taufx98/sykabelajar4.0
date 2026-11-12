@@ -1,3 +1,15 @@
+## Latest checkpoint — 12 November 2026 (staging login accepted and session-race fix)
+
+- The owner confirms that email/password login on `https://staging.sykabelajar.my.id` now succeeds on the first attempt and reaches the app; the logout button also works. This is real hosted staging acceptance for the basic Better Auth credential/session path, not merely a login-page render test.
+- The staging app successfully hydrates the signed-in user's profile and active role from the isolated Supabase project. Read-only staging checks confirm `private.app_users` exists with one row whose `identity_origin='better_auth'`, `public.profiles` has one row, `public.user_roles` has one row, and `auth.users` remains empty. No user UUID or personal account data is recorded here.
+- Fixed a same-tab BroadcastChannel echo race in `src/services/betterAuthSessionBridge.mjs`: each page includes a non-sensitive sender ID in its session notification and ignores notifications from itself. Notifications from other tabs still trigger an authoritative Better Auth session read. Regression tests cover both paths.
+- Cloudflare Pages deployed the source commit `370add4197fcdee642ea29d52a7ba29b998c03d4` successfully. The latest [Auth Worker CI #43143000486](https://github.com/taufx98/sykabelajar4.0/actions/runs/43143000486) and [Supabase Local Auth Claims CI #43143000467](https://github.com/taufx98/sykabelajar4.0/actions/runs/43143000467) passed, including frontend lint/typecheck/build, Worker tests and isolated JWT/RLS contracts.
+- **Important staging-only limitation:** the owner-approved temporary email-verification bypass remains active only in Better Auth staging (`email_verification_required=0`). Therefore this login acceptance does not prove real outbound email delivery, verified-email signup, verification callbacks, or password-reset email delivery. Never carry the bypass into Production; Production email verification remains mandatory.
+- Stage 4 still needs complete hosted acceptance for page reload/session restoration, separate-tab account changes, expiry/re-authentication and Realtime session renewal. Stage 2 still needs positive-token Storage, Realtime and Edge acceptance. Stage 3's 69-FK cutover remains a disposable/local simulation only; Production identity tables/FKs and business data were not migrated. Stage 5 handlers remain source/CI-verified, not deployed to the incomplete staging business schema.
+- PR #177 remains open, Draft and unmerged. Production Supabase DB2, Production Pages, DNS, secrets, auth routing, users, schema, RLS/RPC/FKs/triggers and Edge Functions remain unchanged. No demo reset, Production merge or Production cutover occurred.
+
+---
+
 ## Latest checkpoint — 11 November 2026 (temporary staging bypass and login recovery)
 
 - Owner-approved email-verification bypass is active **only on Better Auth staging** while the seven-stage migration is being completed. The staging D1 runtime policy auth_runtime_settings.email_verification_required is 0. This was confirmed by the hosted provider endpoint; production verification requirements were not changed.
