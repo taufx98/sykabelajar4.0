@@ -91,6 +91,7 @@ export function BetterAuthAcceptancePanel() {
         const ownedPath = userId + '/' + crypto.randomUUID() + '.txt';
         const foreignPath = crypto.randomUUID() + '/' + crypto.randomUUID() + '.txt';
         let ownedUploaded = false;
+        let foreignUploaded = false;
         let storageFailure: unknown = null;
         try {
           const upload = await storage.upload(ownedPath, new Blob([marker], { type: 'text/plain' }), {
@@ -109,16 +110,20 @@ export function BetterAuthAcceptancePanel() {
             upsert: false,
           });
           if (!denied.error) {
-            await storage.remove([foreignPath]);
+            foreignUploaded = true;
             throw new Error('STORAGE_CROSS_USER_UPLOAD_WAS_ALLOWED');
           }
         } catch (error) {
           storageFailure = error;
         }
 
-        if (ownedUploaded) {
+        const cleanupPaths = [
+          ...(ownedUploaded ? [ownedPath] : []),
+          ...(foreignUploaded ? [foreignPath] : []),
+        ];
+        if (cleanupPaths.length > 0) {
           try {
-            const cleanup = await storage.remove([ownedPath]);
+            const cleanup = await storage.remove(cleanupPaths);
             if (cleanup.error && !storageFailure) storageFailure = cleanup.error;
           } catch (cleanupError) {
             if (!storageFailure) storageFailure = cleanupError;
