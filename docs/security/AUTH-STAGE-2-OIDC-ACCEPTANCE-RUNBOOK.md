@@ -1,3 +1,18 @@
+## Latest owner result — 12 November 2026 (real Better Auth session 4/4 passed)
+
+The owner has now rerun the Admin acceptance panel after the staging OPTIONS/CORS correction. **All four checks passed** with the signed-in Better Auth session:
+
+1. Session/Data API/profile/active role and foreign-row isolation.
+2. Private Storage upload, download and cleanup for the owner's UUID; another UUID folder is denied.
+3. Private Realtime Broadcast send/echo; another UUID topic is denied.
+4. Read-only Edge Function acceptance using the real ES256 token, exact issuer/audience/subject/Postgres role and RLS.
+
+The panel did not expose or copy the token. The Storage probe object is deleted after the test. Treat Stage 2 hosted acceptance as complete for these tested surfaces; do not repeat the owner action unless the implementation or staging configuration changes. This does **not** close Stage 5's separate Cloudinary/payment handler IDOR and business-regression gates.
+
+Production Supabase, auth configuration, schema, data, Edge Functions, DNS and Pages were not changed. The result applies only to the isolated staging project.
+
+---
+
 # Stage 2 — OIDC/JWT hosted acceptance runbook
 
 ## Latest hosted Edge probe correction — 12 November 2026

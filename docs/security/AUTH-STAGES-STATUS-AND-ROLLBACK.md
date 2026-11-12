@@ -1,3 +1,20 @@
+## Latest owner acceptance — 12 November 2026 (Stage 2 real-session test 4/4 passed)
+
+This checkpoint supersedes earlier Stage 2 notes below that say the positive browser test is pending.
+
+- **Owner-run acceptance:** the Admin panel reports **4/4 passed** using the currently signed-in Better Auth staging session. No token was displayed or copied.
+- **Data API / identity:** session subject matches; profile and active business role are readable; a fixture belonging to another UUID is hidden.
+- **Private Storage:** own-file upload, download and deletion succeed; a foreign UUID folder is denied. The temporary probe file is cleaned up.
+- **Private Realtime:** private Broadcast connects and sends successfully; a foreign UUID topic is denied.
+- **Edge Function:** the isolated read-only probe accepts the real Better Auth ES256 JWT with the expected issuer, audience, subject, PostgreSQL role and RLS context. This is the positive real-session POST after the earlier staging CORS preflight fix.
+- **Stage 2 status:** hosted real-session acceptance is complete for the four tested surfaces on the isolated staging project. Do not ask the owner to repeat these four checks unless code or staging configuration changes.
+- **Stage 3:** the staging identity root/provisioning projection exists and one Better Auth identity is present. The revised no-legacy-account design and 69-FK plan still require a fresh full-schema disposable restore/forward-cutover/rollback run before Stage 3 can close. Production still has no `private.app_users`; all 69 application FKs and the legacy Auth lifecycle remain untouched there.
+- **Stage 4:** login/logout, session restore after refresh, account switching and cross-tab logout are owner-accepted. Session-expiry reauthentication, resource-token renewal/Realtime reauthentication and quota-recovery behavior remain separate checks.
+- **Stage 5:** the shared verifier and nine Cloudinary/payment handler migrations are present in source and CI. The 4/4 panel's Edge probe is not proof that those nine business handlers passed two-user IDOR/payment regression; those remain gated behind a full-schema disposable acceptance path. Do not deploy application handlers to the auth-only staging project.
+- **Safety:** no Production schema, RLS, RPC, FK, trigger, secret, Edge Function, DNS, Pages, auth-routing or account data was changed. No account was reset, no PR was merged, and Stage 6–7 remain not started.
+
+---
+
 ## Latest checkpoint — 12 November 2026 (Stage 2 hosted Edge CORS preflight correction)
 
 This update supersedes earlier Stage 2 owner-panel and Edge-probe notes below where they conflict. It records the owner's first hosted four-surface test and the staging-only remediation.
