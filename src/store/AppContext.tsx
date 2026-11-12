@@ -18,12 +18,14 @@ import { getUnreadNotificationCount } from '@/services/notification.service';
 import { toast as globalToast } from '@/lib/toast';
 import { publishAuthSessionEvent } from '@/services/authSessionEvents.mjs';
 import { createAuthHydrationGate } from '@/services/authHydrationGate.mjs';
+import { getAuthRetryAtUtc, isD1FreeQuotaError } from '@/services/authSessionConfirmation.mjs';
 
 interface AppState {
   user: User | null;
   isAuthenticated: boolean;
   authLoading: boolean;
   authUnavailable: boolean;
+  authUnavailableRetryAtUtc: string | null;
   retryAuthSession: () => Promise<void>;
   isGuest: boolean;
   notifications: AppNotification[];
@@ -66,6 +68,7 @@ function authErrorCode(error: unknown): string {
 }
 
 function isTransientAuthReadError(error: unknown): boolean {
+  if (isD1FreeQuotaError(error)) return false;
   const value = error && typeof error === 'object'
     ? error as { status?: unknown; statusCode?: unknown }
     : {};
@@ -174,6 +177,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authUnavailable, setAuthUnavailable] = useState(false);
+  const [authUnavailableRetryAtUtc, setAuthUnavailableRetryAtUtc] = useState<string | null>(null);
   const [isGuest, setIsGuest] = useState(() => localStorage.getItem(GUEST_KEY) === '1');
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
@@ -203,6 +207,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     authHydrationGateRef.current?.invalidate();
     setCurrentAuthUser(null);
     setAuthUnavailable(false);
+    setAuthUnavailableRetryAtUtc(null);
     setUser(null);
     setNotifications([]);
     setAwards([]);
@@ -261,6 +266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser({ ...mapProfileToUser(profile, email), role: preferredRole(resolvedRoles) });
     setCurrentAuthUser({ id: userId, email: email || undefined });
     setAuthUnavailable(false);
+    setAuthUnavailableRetryAtUtc(null);
   }, [setCurrentAuthUser]);
 
   useEffect(() => {
@@ -302,6 +308,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (isDefinitiveAuthRejection(error) || isDefinitiveIdentityFailure(error)) {
             clearUserState();
           } else {
+            setAuthUnavailableRetryAtUtc(getAuthRetryAtUtc(error));
             setAuthUnavailable(true);
           }
         }
@@ -335,6 +342,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCurrentAuthUser({ id: uid, email: email || undefined });
       setIsGuest(false);
       setAuthUnavailable(false);
+      setAuthUnavailableRetryAtUtc(null);
       localStorage.removeItem(GUEST_KEY);
 
       const hydrateFromCurrentEvent = () => {
@@ -357,6 +365,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (isDefinitiveAuthRejection(error) || isDefinitiveIdentityFailure(error)) {
               clearUserState();
             } else {
+              setAuthUnavailableRetryAtUtc(getAuthRetryAtUtc(error));
               setAuthUnavailable(true);
             }
           }
@@ -518,6 +527,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCurrentAuthUser({ id: result.user.id, email: userEmail || undefined });
       setIsGuest(false);
       setAuthUnavailable(false);
+      setAuthUnavailableRetryAtUtc(null);
       localStorage.removeItem(GUEST_KEY);
       localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
       await retryTransientAuthRead(() => hydrateCurrentUser(result.user.id, userEmail, roles));
@@ -544,6 +554,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
           setCurrentAuthUser(authenticatedIdentity);
           setIsGuest(false);
+          setAuthUnavailableRetryAtUtc(getAuthRetryAtUtc(error));
           setAuthUnavailable(true);
           localStorage.removeItem(GUEST_KEY);
           localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
@@ -603,6 +614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const requestGeneration = ++authBootstrapGenerationRef.current;
     authHydrationGateRef.current?.invalidate();
     setAuthUnavailable(false);
+    setAuthUnavailableRetryAtUtc(null);
     setAuthLoading(true);
     try {
       const session = await retryTransientAuthRead(() => getAuthSession());
@@ -620,6 +632,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await retryTransientAuthRead(() => hydrateCurrentUser(session.user.id, email));
       if (authBootstrapGenerationRef.current !== requestGeneration) return;
       setAuthUnavailable(false);
+      setAuthUnavailableRetryAtUtc(null);
       void refreshUnreadCount(session.user.id);
     } catch (error) {
       if (authBootstrapGenerationRef.current !== requestGeneration) return;
@@ -627,6 +640,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clearUserState();
         setAuthLoading(false);
       } else {
+        setAuthUnavailableRetryAtUtc(getAuthRetryAtUtc(error));
         setAuthUnavailable(true);
       }
     } finally {
@@ -773,6 +787,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!authUser,
     authLoading,
     authUnavailable,
+    authUnavailableRetryAtUtc,
     retryAuthSession,
     isGuest,
     notifications,
@@ -797,7 +812,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addComment,
     toast,
     refreshUser,
-  }), [user, authUser, authLoading, authUnavailable, retryAuthSession, isGuest, notifications, unreadNotificationCount, refreshUnreadCount, awards, certificates, orders, feed, login, register, loginAsGuest, logout, updateProfile, markNotificationRead, markAllNotificationsRead, addPoints, addNotification, addOrder, togglePostLike, toggleCommentLike, addComment, toast, refreshUser]);
+  }), [user, authUser, authLoading, authUnavailable, authUnavailableRetryAtUtc, retryAuthSession, isGuest, notifications, unreadNotificationCount, refreshUnreadCount, awards, certificates, orders, feed, login, register, loginAsGuest, logout, updateProfile, markNotificationRead, markAllNotificationsRead, addPoints, addNotification, addOrder, togglePostLike, toggleCommentLike, addComment, toast, refreshUser]);
 
   return (
     <AppContext.Provider value={value}>

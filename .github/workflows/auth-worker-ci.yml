@@ -42,6 +42,9 @@ on:
       - "src/services/auth.service.ts"
       - "src/services/betterAuthSessionBridge.mjs"
       - "src/services/betterAuthSessionBridge.d.mts"
+      - "src/services/authSessionConfirmation.mjs"
+      - "src/services/authSessionConfirmation.d.mts"
+      - "scripts/auth-migration/auth-session-confirmation.test.mjs"
       - "src/pages/AdminErrorIntelligencePage.tsx"
       - "src/pages/AdminPage.tsx"
       - "src/components/admin/BetterAuthAcceptancePanel.tsx"
@@ -177,6 +180,9 @@ jobs:
 
       - name: Verify Better Auth cross-tab session synchronization
         run: node ../../scripts/auth-migration/better-auth-session-bridge.test.mjs
+
+      - name: Verify Better Auth session confirmation respects D1 quota Retry-After
+        run: node ../../scripts/auth-migration/auth-session-confirmation.test.mjs
 
       - name: Verify login transitions do not hard-reload before navigation
         run: node ../../scripts/auth-migration/auth-session-isolation.test.mjs

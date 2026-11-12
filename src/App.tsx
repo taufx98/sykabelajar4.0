@@ -84,7 +84,7 @@ const CollectiveCertificatePage = lazy(() => import('@/pages/CollectiveCertifica
 const CollectiveParticipantLoginPage = lazy(() => import('@/pages/CollectiveParticipantLoginPage').then((module) => ({ default: module.CollectiveParticipantLoginPage })));
 
 function AuthGuard({ children }: { children: ReactNode }) {
-  const { isAuthenticated, authLoading, isGuest, authUnavailable, retryAuthSession } = useApp();
+  const { isAuthenticated, authLoading, isGuest, authUnavailable, authUnavailableRetryAtUtc, retryAuthSession } = useApp();
   const location = useLocation();
   const collectiveChatSession = location.pathname === '/pesan' && typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token'));
   if (authLoading) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-fg-muted">Memuat sesi...</p></div>;
@@ -92,7 +92,11 @@ function AuthGuard({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex items-center justify-center surface-bg px-4">
       <div className="w-full max-w-md rounded-2xl surface-card-bg border surface-border p-6 text-center">
         <h1 className="font-display text-lg font-semibold text-fg">Koneksi autentikasi terganggu</h1>
-        <p className="mt-2 text-sm text-fg-secondary">Sesi belum dinyatakan berakhir. Periksa koneksi lalu coba muat sesi kembali.</p>
+        <p className="mt-2 text-sm text-fg-secondary">
+          {authUnavailableRetryAtUtc
+            ? `Batas penggunaan harian layanan login telah tercapai. Sesi tidak dihapus. Coba muat sesi kembali setelah ${new Date(authUnavailableRetryAtUtc).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}.`
+            : 'Sesi belum dinyatakan berakhir. Periksa koneksi lalu coba muat sesi kembali.'}
+        </p>
         <button
           type="button"
           onClick={() => void retryAuthSession()}

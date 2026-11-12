@@ -108,7 +108,8 @@ This is a separate identity architecture, not a small quota-handling switch. It 
 - [x] Document the D1/Supabase responsibility split and prohibit unsafe transparent auth failover.
 - [x] Add safe Worker handling for the exact documented D1 daily read/write quota errors.
 - [ ] Validate the new quota handler and all existing Worker auth/OIDC flows in current-head CI.
-- [ ] Stage 4: preserve app state and show a recovery message for quota 503 / Cloudflare 1027; retry only after the advertised time or availability recovery.
+- [x] Stage 4: preserve the current auth identity snapshot on a known D1 daily-quota response, avoid rapid retry loops, and show the server-provided UTC retry point in the recovery UI.
+- [ ] Stage 4: test Cloudflare Error 1027 / Worker request-cap handling on the eventual custom-domain route; the Worker cannot intercept a request rejected before execution.
 - [ ] After staging D1 exists: configure dashboard monitoring/notifications and baseline normal rows-read, rows-written, request and storage use.
 - [ ] Add proactive warning automation only after proving its freshness, free-tier limits, low overhead and no paid dependency.
 - [ ] Before production: perform controlled D1 quota simulation in local/test code; never intentionally exhaust the production account's quota.
