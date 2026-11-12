@@ -81,7 +81,11 @@ Latest acceptance details and exact blockers are maintained in AUTH-STAGES-STATU
 - [x] Register Supabase Custom OIDC exactly once in isolated Free project `sykabelajar-auth-staging` (`ydamszdfsxqisanazdkb`). Never register the test issuer in production.
 - [x] Prove hosted Supabase accepts the valid ES256 token and rejects a modified signature. Local negative tests cover wrong issuer, wrong audience, expiry, replay, and signature. The hosted provider-registration and token acceptance blocker is cleared.
 - [x] Verify `auth.uid()` resolves the Better Auth UUID and a two-user RLS fixture prevents cross-user reads/writes.
-- [x] Verify Data API with a live Better Auth access token. Storage has no staging buckets; Realtime has no authorization fixture/policies; there are no staging Edge Functions, so those surfaces were not testable in this staging project. Keep any later Edge Function token integration within the auth-specific Stage 5 scope.
+- [x] Verify Data API/profile/role reads with a live Better Auth session on isolated staging.
+- [x] Deploy the isolated staging-only Storage and Realtime acceptance fixtures: one private `auth-oidc-acceptance` bucket with owner-folder RLS and two private Broadcast topic policies. Local Supabase CI replays this migration with Storage enabled.
+- [x] Deploy the read-only `better-auth-oidc-acceptance` Edge Function; it self-verifies Better Auth ES256/JWKS issuer/audience/sub/role claims and uses a caller-scoped client.
+- [x] Add an Admin → Pengaturan acceptance panel, hard-limited to `staging.sykabelajar.my.id`, that tests Data API identity, Storage owner isolation/cleanup, private Realtime send/receive/foreign-topic denial, and the deployed Edge probe without exposing tokens.
+- [ ] **Owner action still pending:** sign in to staging as Admin, open `/admin/core?tab=settings`, and click **Jalankan tes**. This is the positive real-session acceptance for Storage, Realtime and Edge; CI verifies the harness/contracts but cannot use the owner's browser session.
 - [x] Run two-user RLS/IDOR acceptance using two synthetic Better Auth UUID subjects; verify cross-user insert is rejected.
 
 ## Stage 3 — Supabase identity foundation
@@ -116,7 +120,7 @@ Latest acceptance details and exact blockers are maintained in AUTH-STAGES-STATU
 
 ## Stage 4 — Frontend
 
-**Source implementation on branch.** Hosted browser/provider acceptance remains open; production continues to use Supabase Auth by default.
+**Basic staging session lifecycle accepted by owner; production continues to use Supabase Auth by default.**
 
 - [x] Implement the typed Better Auth HTTP client and first-party OAuth Authorization Code + PKCE flow. This branch intentionally keeps one typed transport instead of adding a second auth SDK/session owner.
 - [x] Implement the single-flight, in-memory Supabase resource-token broker with session/UUID/email-verification/expiry revalidation and post-PKCE account-switch race protection.
@@ -124,8 +128,8 @@ Latest acceptance details and exact blockers are maintained in AUTH-STAGES-STATU
 - [x] Route Better Auth preview operations through the provider-neutral auth service and classify remaining direct `supabase.auth` uses as legacy-provider fallbacks, the organizer's legacy OTP branch, shared access-token fallback, or the separately planned private-chat removal. Do not migrate private chat in this auth workstream.
 - [x] Preserve AppContext as the single visible auth-state owner; bootstrap, hydration, account-switch, stale callback and React cleanup guards are covered by source contract tests.
 - [x] Preserve existing login/register page design and wire provider discovery for Google/Facebook/X, registration roles, password change, recovery route and the server-validated email-verification callback.
-- [ ] Complete hosted browser acceptance for navigation/reload, real cookie behavior, cross-tab account changes and session expiry/logout on the staging custom domain.
-- [ ] Verify hosted Realtime re-authentication and session renewal using a real Better Auth session.
+- [x] Owner-tested on staging: refresh/session restoration, account switching and cross-tab logout work without issues. Do not repeat these checks.
+- [ ] Verify hosted session expiry/re-authentication behavior and Realtime token re-authentication/session renewal using a real Better Auth session.
 - [ ] Verify quota/availability recovery UX in the browser for D1 503 and Cloudflare Worker Error 1027. The Worker's safe fail-closed responses and client session guards are implemented; user-facing recovery/retry acceptance remains open.
 - [ ] Real email verification and password-reset email delivery are deferred to the final email phase by owner instruction. Do not configure ZeptoMail/Brevo or weaken the verified-email gate in Stage 4.
 
