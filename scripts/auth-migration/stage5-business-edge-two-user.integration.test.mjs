@@ -15,6 +15,8 @@ assert.equal((fixtureSql.match(/'00000000-0000-0000-0000-000000000000'/g) ?? [])
   "both synthetic accounts must use the local Supabase Auth instance id");
 assert.doesNotMatch(fixtureSql, /\n\s+NULL,\s*\n\s*'[ab]{8}-/,
   "the disposable Auth instance id must not be NULL");
+assert.match(fixtureSql, /confirmation_token = ''[\s\S]*?recovery_token = ''[\s\S]*?email_change_token_new = ''[\s\S]*?email_change = ''/);
+assert.match(fixtureSql, /email_change_token_current = ''[\s\S]*?reauthentication_token = ''[\s\S]*?phone_change = ''[\s\S]*?phone_change_token = ''/);
 
 const users = {
   a: {

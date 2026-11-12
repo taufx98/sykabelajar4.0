@@ -55,6 +55,23 @@ VALUES
     'email', now(), now(), now()
   );
 
+-- GoTrue scans these nullable token columns into string fields. Direct
+-- SQL fixture inserts must store empty strings rather than NULL or password
+-- sign-in returns "Database error querying schema".
+UPDATE auth.users
+SET confirmation_token = '',
+    recovery_token = '',
+    email_change_token_new = '',
+    email_change = '',
+    email_change_token_current = '',
+    reauthentication_token = '',
+    phone_change = '',
+    phone_change_token = ''
+WHERE id IN (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+);
+
 -- The Auth insert trigger normally creates profiles. Reconcile these exact
 -- disposable users so their namespaces are deterministic.
 INSERT INTO public.profiles (id, username, full_name, account_type, status)
