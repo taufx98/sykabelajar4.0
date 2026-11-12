@@ -125,6 +125,38 @@ VALUES
     'SNAP', 'MIDTRANS', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   );
 
+-- Provider credentials are synthetic and scoped to this disposable test only.
+-- The webhook handler can verify a Midtrans signature without any external call.
+INSERT INTO public.payment_gateway_configs (
+  provider, is_enabled, environment, public_config, secret_config
+)
+VALUES (
+  'MIDTRANS',
+  true,
+  'sandbox',
+  '{}'::jsonb,
+  '{"sandbox":{"server_key":"stage5-midtrans-local-only-server-key"}}'::jsonb
+)
+ON CONFLICT (provider) DO UPDATE
+SET is_enabled = EXCLUDED.is_enabled,
+    environment = EXCLUDED.environment,
+    secret_config = EXCLUDED.secret_config,
+    updated_at = now();
+
+INSERT INTO public.order_items (
+  order_id, product_type, product_ref, name, quantity, unit_price, line_total, metadata
+)
+VALUES (
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'DIGITAL_ITEM',
+  'stage5-local-webhook',
+  'Stage 5 Local Webhook Fixture',
+  1,
+  1000,
+  1000,
+  '{}'::jsonb
+);
+
 INSERT INTO public.payment_intents (
   id, order_id, provider, provider_reference, amount, status, raw_meta
 )

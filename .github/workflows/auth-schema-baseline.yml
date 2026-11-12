@@ -46,6 +46,7 @@ on:
       - "supabase/functions/payment-gateway-admin/**"
       - "supabase/functions/payment-gateway-create/**"
       - "supabase/functions/payment-gateway-reconcile/**"
+      - "supabase/functions/payment-gateway-webhook/**"
       - ".github/workflows/auth-schema-baseline.yml"
   workflow_dispatch:
 
@@ -797,7 +798,7 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage5-edge-two-user-fixtures.sql
 
-      - name: Prepare isolated local workspace for the nine migrated Edge Functions
+      - name: Prepare isolated local workspace for migrated Cloudinary/payment Edge Functions
         if: steps.credentials.outputs.available == 'true'
         run: |
           set -euo pipefail
@@ -806,7 +807,7 @@ jobs:
           for file in auth-claims.mjs better-auth-user.ts cloudinary-ownership.mjs resolve-application-identity-mode.mjs require-application-user.ts; do
             cp "supabase/functions/_shared/$file" "$FUNCTION_ROOT/_shared/$file"
           done
-          for name in get-cloudinary-signature cloudinary-delete-asset cloudinary-profile-upload cloudinary-delete-profile cloudinary-profile-upload-v2 cloudinary-delete-asset-v2 payment-gateway-admin payment-gateway-create payment-gateway-reconcile; do
+          for name in get-cloudinary-signature cloudinary-delete-asset cloudinary-profile-upload cloudinary-delete-profile cloudinary-profile-upload-v2 cloudinary-delete-asset-v2 payment-gateway-admin payment-gateway-create payment-gateway-reconcile payment-gateway-webhook; do
             cp -a "supabase/functions/$name" "$FUNCTION_ROOT/$name"
           done
           cat >> "$SUPABASE_CLI_WORKDIR/supabase/config.toml" <<'TOML'
@@ -828,6 +829,9 @@ jobs:
           [functions.payment-gateway-create]
           verify_jwt = false
           [functions.payment-gateway-reconcile]
+          verify_jwt = false
+
+          [functions.payment-gateway-webhook]
           verify_jwt = false
           TOML
 

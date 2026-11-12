@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 
 const apiUrl = (process.env.STAGE5_API_URL ?? "").replace(/\/+$/, "");
 const anonKey = process.env.STAGE5_ANON_KEY ?? "";
@@ -49,6 +50,27 @@ async function signIn(user) {
   assert.equal(body.user?.id, user.id, "Auth must return the seeded test UUID");
   assert.equal(typeof body.access_token, "string");
   return body.access_token;
+}
+
+const webhookUrl = functionsUrl + "/payment-gateway-webhook";
+const midtransServerKey = "stage5-midtrans-local-only-server-key";
+
+function midtransSignature(orderId, statusCode, grossAmount) {
+  return createHash("sha512")
+    .update(orderId + statusCode + grossAmount + midtransServerKey)
+    .digest("hex");
+}
+
+async function invokeMidtransWebhook(payload) {
+  const response = await fetch(webhookUrl, {
+    method: "POST",
+    headers: {
+      apikey: anonKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  return { status: response.status, body: await response.json().catch(() => ({})) };
 }
 
 async function invoke(functionName, token, body) {
@@ -150,4 +172,76 @@ const ownReconcile = await invoke("payment-gateway-reconcile", tokenA, { order_i
 assert.equal(ownReconcile.status, 200);
 assert.equal(ownReconcile.body.reason, "PROVIDER_RECONCILIATION_UNSUPPORTED");
 
-console.log("Stage 5 local Edge integration passed: two distinct Auth UUIDs, Cloudinary owner isolation, admin authorization, and payment-order IDOR checks across nine business handlers.");
+// Midtrans webhook checks run against a synthetic sandbox key and a disposable
+// DIGITAL_ITEM order. No provider API, credential or live transaction is used.
+const baseWebhook = {
+  order_id: orderA,
+  status_code: "200",
+  gross_amount: "1000.00",
+  transaction_id: "stage5-local-synthetic-transaction",
+  transaction_status: "settlement",
+  payment_type: "bank_transfer",
+};
+
+const badSignature = await invokeMidtransWebhook({
+  ...baseWebhook,
+  signature_key: "0".repeat(128),
+});
+assert.equal(badSignature.status, 401);
+assert.equal(badSignature.body.error, "INVALID_SIGNATURE");
+
+const mismatchedAmount = {
+  ...baseWebhook,
+  gross_amount: "1000.01",
+};
+const amountMismatch = await invokeMidtransWebhook({
+  ...mismatchedAmount,
+  signature_key: midtransSignature(
+    mismatchedAmount.order_id,
+    mismatchedAmount.status_code,
+    mismatchedAmount.gross_amount,
+  ),
+});
+assert.equal(amountMismatch.status, 422);
+assert.equal(amountMismatch.body.error, "AMOUNT_MISMATCH");
+
+const validWebhookPayload = {
+  ...baseWebhook,
+  signature_key: midtransSignature(
+    baseWebhook.order_id,
+    baseWebhook.status_code,
+    baseWebhook.gross_amount,
+  ),
+};
+const settledWebhook = await invokeMidtransWebhook(validWebhookPayload);
+assert.equal(settledWebhook.status, 200,
+  "signed, exact-amount settlement should fulfill: " + JSON.stringify(settledWebhook.body));
+assert.equal(settledWebhook.body.ok, true);
+assert.equal(settledWebhook.body.duplicate, false);
+assert.equal(settledWebhook.body.status, "PAID");
+
+const replayedWebhook = await invokeMidtransWebhook(validWebhookPayload);
+assert.equal(replayedWebhook.status, 200);
+assert.equal(replayedWebhook.body.ok, true);
+assert.equal(replayedWebhook.body.duplicate, true,
+  "provider_event_id uniqueness must make a webhook replay idempotent");
+
+const terminalCancel = {
+  ...baseWebhook,
+  transaction_status: "expire",
+};
+const terminalCancelResult = await invokeMidtransWebhook({
+  ...terminalCancel,
+  signature_key: midtransSignature(
+    terminalCancel.order_id,
+    terminalCancel.status_code,
+    terminalCancel.gross_amount,
+  ),
+});
+assert.equal(terminalCancelResult.status, 200);
+assert.equal(terminalCancelResult.body.ignored, true);
+assert.equal(terminalCancelResult.body.reason, "PAID_IS_TERMINAL");
+assert.equal(terminalCancelResult.body.status, "PAID");
+
+
+console.log("Stage 5 local Edge integration passed: two distinct Auth UUIDs, Cloudinary owner isolation, admin authorization, payment-order IDOR, and signed Midtrans webhook settlement/replay checks.");
