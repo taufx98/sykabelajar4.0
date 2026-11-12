@@ -5,6 +5,11 @@ import { resolveBetterAuthVerifierConfig } from "./resolve-application-identity-
 const EXPECTED_BETTER_AUTH_ISSUER = "https://auth.sykabelajar.my.id/api/auth";
 const EXPECTED_RESOURCE_AUDIENCE = "https://sykabelajar.my.id";
 
+// JWTs in compact JWS form must contain exactly three non-empty base64url
+// segments. Reject obvious malformed credentials before invoking the SDK;
+// network/JWKS failures remain distinguishable as service errors.
+const COMPACT_JWT_PATTERN = /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/;
+
 /**
  * Authenticate a Better Auth access token through Supabase's supported
  * third-party JWT verifier. The verifier must use Better Auth's own public
@@ -34,6 +39,12 @@ export async function requireBetterAuthUser(request: Request) {
   // Better Auth's JWT plugin publishes its ES256 signing keys at
   // {issuer}/jwks. Pin the exact host/path above before constructing the URL;
   // never accept a caller-supplied JWKS address or an arbitrary env endpoint.
+  const authorization = request.headers.get("authorization") ?? "";
+  const bearer = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim() ?? "";
+  if (!COMPACT_JWT_PATTERN.test(bearer)) {
+    return { ok: false, status: 401, error: "AUTH_REQUIRED" };
+  }
+
   const betterAuthJwks = new URL("jwks", issuer + "/");
 
   let result;
