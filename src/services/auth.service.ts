@@ -10,6 +10,7 @@ import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
 import { confirmSessionAfterSignIn } from '@/services/authSessionConfirmation.mjs';
 
 export const LOGIN_REJECTION_SIGNOUT_KEY = 'syka_login_rejection_signout_v1';
+export const LOGIN_IN_PROGRESS_KEY = 'syka_auth_login_in_progress_v1';
 
 /** True only for the exact non-production Better Auth preview + staging project. */
 export function isBetterAuthEnabled(): boolean {
