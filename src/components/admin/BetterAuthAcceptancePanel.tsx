@@ -41,7 +41,9 @@ export function BetterAuthAcceptancePanel() {
   const [running, setRunning] = useState(false);
   const [hasRun, setHasRun] = useState(false);
 
-  if (!isBetterAuthEnabled()) return null;
+  // This is an owner-run acceptance probe for the isolated Free staging project.
+  // Keep it invisible even if the Better Auth frontend flag is later enabled elsewhere.
+  if (typeof window === 'undefined' || window.location.hostname !== 'staging.sykabelajar.my.id' || !isBetterAuthEnabled()) return null;
 
   const setResult = (key: CheckKey, state: ResultState, detail: string) => {
     setResults((current) => current.map((item) => item.key === key ? { ...item, state, detail } : item));
@@ -197,7 +199,8 @@ export function BetterAuthAcceptancePanel() {
           data.issuer !== 'https://auth.sykabelajar.my.id/api/auth' ||
           data.audience !== 'https://sykabelajar.my.id' ||
           data.cross_user_rows !== 0 ||
-          data.read_only !== true
+          data.read_only !== true ||
+          data.production_touched !== false
         ) throw new Error('BETTER_AUTH_EDGE_ACCEPTANCE_RESPONSE_INVALID');
         return 'Edge Function menerima JWT ES256 dengan issuer, audience, subject, role, dan RLS yang valid';
       });
