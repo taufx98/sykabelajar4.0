@@ -5,3 +5,4 @@ verify-active-email-bypass-current-checkpoint-20261111
 verify-login-fields-accessibility-and-active-bypass-20261111verify-supabase-rest-cors-preflight-for-external-bearer-20261111
 verify-auth-request-timeout-on-staging-20261111
 verify-login-transition-does-not-hard-reload-20261112
+verify-better-auth-storage-realtime-edge-acceptance-panel-20261112
