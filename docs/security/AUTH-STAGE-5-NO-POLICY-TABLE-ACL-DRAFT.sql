@@ -8,6 +8,9 @@
 --   notification_deliveries
 --   supabase_system_logs
 --
+-- The Auth Production Schema Baseline workflow runs the contract test and applies
+-- this draft only after restoring a disposable schema-only copy of Production.
+-- No credentials, table rows or user data are restored into that disposable project.
 -- Current application access uses trusted database functions/triggers and
 -- server-side service_role paths. This draft preserves service_role and
 -- postgres access, leaves RLS enabled, and creates no new row policies.
