@@ -507,7 +507,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // login route before LoginPage can finish its post-auth redirect.
       try { window.sessionStorage.setItem(LOGIN_IN_PROGRESS_KEY, String(Date.now())); } catch { /* Best-effort same-tab reload guard. */ }
       const result = await signIn(email.trim(), password);
-      if (typeof result.authUnavailableRetryAtUtc === 'string') {
+      if ('authUnavailableRetryAtUtc' in result &&
+          typeof result.authUnavailableRetryAtUtc === 'string') {
         quotaRetryAtUtcFromCredential = result.authUnavailableRetryAtUtc;
       }
       if (!result.user) return { ok: false, error: 'Login gagal: sesi pengguna tidak tersedia.' };
