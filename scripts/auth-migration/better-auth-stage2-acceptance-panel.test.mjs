@@ -64,20 +64,22 @@ test("Realtime acceptance uses an authenticated private topic and verifies forei
 });
 
 test("staging Edge probe uses the exact shared verifier path used by migrated business handlers", () => {
-  assert.match(edge, /import \\{ requireApplicationUser \\} from "\.\\/_shared\\/require-application-user\\.ts"/);
-  assert.match(edge, /await requireApplicationUser\\(request\\)/);
-  assert.match(edge, /identity\\.mode !== "better-auth"/);
-  assert.doesNotMatch(edge, /createSupabaseContext|jwt-decode|atob\\(/);
-  assert.match(edge, /crossUserRows\\.length\\s*>\\s*0/);
-  assert.match(edge, /read_only:\\s*true/);
-  assert.match(edge, /production_touched:\\s*false/);
-  assert.match(edge, /identity_mode:\\s*identity\\.mode/);
-  assert.match(panel, /data\\.identity_mode !== 'better-auth'/);
-  assert.match(panel, /data\\.postgres_role !== 'authenticated'/);
-  assert.match(panel, /data\\.issuer !== 'https:\\/\\/auth\\.sykabelajar\\.my\\.id\\/api\\/auth'/);
-  assert.match(panel, /data\\.audience !== 'https:\\/\\/sykabelajar\\.my\\.id'/);
-  assert.match(panel, /data\\.production_touched !== false/);
-  assert.match(panel, /data\\.read_only !== true/);
+  assert.ok(edge.includes('import { requireApplicationUser } from "./_shared/require-application-user.ts";'));
+  assert.ok(edge.includes("identity = await requireApplicationUser(request);"));
+  assert.ok(edge.includes('if (identity.mode !== "better-auth")'));
+  assert.ok(!edge.includes("createSupabaseContext"));
+  assert.ok(!edge.includes("jwt-decode"));
+  assert.ok(!edge.includes("atob("));
+  assert.ok(edge.includes("if (crossUserRows.length > 0)"));
+  assert.ok(edge.includes("read_only: true"));
+  assert.ok(edge.includes("production_touched: false"));
+  assert.ok(edge.includes("identity_mode: identity.mode"));
+  assert.ok(panel.includes("data.identity_mode !== 'better-auth'"));
+  assert.ok(panel.includes("data.postgres_role !== 'authenticated'"));
+  assert.ok(panel.includes("data.issuer !== 'https://auth.sykabelajar.my.id/api/auth'"));
+  assert.ok(panel.includes("data.audience !== 'https://sykabelajar.my.id'"));
+  assert.ok(panel.includes("data.production_touched !== false"));
+  assert.ok(panel.includes("data.read_only !== true"));
 });
 
 test("staging deployment bundles byte-identical shared auth verifier modules", () => {
