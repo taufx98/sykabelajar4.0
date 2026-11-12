@@ -45,6 +45,7 @@ on:
       - "src/pages/AdminErrorIntelligencePage.tsx"
       - "src/pages/AdminPage.tsx"
       - "src/components/admin/BetterAuthAcceptancePanel.tsx"
+      - "scripts/auth-migration/better-auth-stage2-acceptance-panel.test.mjs"
       - "src/pages/RegisterPage.tsx"
       - "src/pages/LoginPage.tsx"
       - "src/pages/ResetPasswordPage.tsx"
@@ -143,6 +144,9 @@ jobs:
             supabase/functions/payment-gateway-create/index.ts \
             supabase/functions/payment-gateway-reconcile/index.ts \
             supabase/functions/midtrans-create-payment/index.ts
+
+      - name: Verify Better Auth staging Storage, Realtime, and Edge acceptance panel
+        run: node ../../scripts/auth-migration/better-auth-stage2-acceptance-panel.test.mjs
 
       - name: Verify Supabase Custom OIDC and Edge Function auth contract
         run: node ../../scripts/auth-migration/edge-auth-claims.test.mjs
