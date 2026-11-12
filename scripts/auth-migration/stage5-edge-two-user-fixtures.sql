@@ -1,14 +1,66 @@
--- Synthetic business fixtures for local Edge Function authorization tests only.
--- Auth users are created by the local Auth signup API first; their UUIDs are
--- passed in as psql variables. This avoids hand-writing GoTrue identity rows.
--- Run only against the full-schema disposable database.
+-- Synthetic two-user fixtures for local Edge Function authorization tests only.
+-- This SQL is executed only after a schema-only Production export is restored
+-- into local Supabase. It never runs against Production and uses no live rows.
 
 BEGIN;
 
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  is_super_admin, created_at, updated_at, phone, phone_confirmed_at,
+  is_sso_user, is_anonymous
+)
+VALUES
+  (
+    NULL,
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'authenticated',
+    'authenticated',
+    'stage5-edge-user-a@example.test',
+    extensions.crypt('Stage5-Edge-Local-Only-2026!', extensions.gen_salt('bf')),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"full_name":"Stage 5 User A","username":"stage5_user_a"}'::jsonb,
+    false, now(), now(), NULL, NULL, false, false
+  ),
+  (
+    NULL,
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'authenticated',
+    'authenticated',
+    'stage5-edge-user-b@example.test',
+    extensions.crypt('Stage5-Edge-Local-Only-2026!', extensions.gen_salt('bf')),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"full_name":"Stage 5 User B","username":"stage5_user_b"}'::jsonb,
+    false, now(), now(), NULL, NULL, false, false
+  );
+
+-- GoTrue expects a matching email identity for password sign-in. The email
+-- column in auth.identities is generated and deliberately not inserted.
+INSERT INTO auth.identities (
+  provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at
+)
+VALUES
+  (
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","email":"stage5-edge-user-a@example.test","email_verified":true,"phone_verified":false}'::jsonb,
+    'email', now(), now(), now()
+  ),
+  (
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","email":"stage5-edge-user-b@example.test","email_verified":true,"phone_verified":false}'::jsonb,
+    'email', now(), now(), now()
+  );
+
+-- The Auth insert trigger normally creates profiles. Reconcile these exact
+-- disposable users so their namespaces are deterministic.
 INSERT INTO public.profiles (id, username, full_name, account_type, status)
 VALUES
-  (:'user_a'::uuid, 'stage5_user_a', 'Stage 5 User A', 'student', 'ACTIVE'),
-  (:'user_b'::uuid, 'stage5_user_b', 'Stage 5 User B', 'student', 'ACTIVE')
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage5_user_a', 'Stage 5 User A', 'student', 'ACTIVE'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'stage5_user_b', 'Stage 5 User B', 'student', 'ACTIVE')
 ON CONFLICT (id) DO UPDATE
 SET username = EXCLUDED.username,
     full_name = EXCLUDED.full_name,
@@ -16,7 +68,7 @@ SET username = EXCLUDED.username,
     status = EXCLUDED.status;
 
 INSERT INTO public.user_roles (user_id, role, is_active)
-VALUES (:'user_b'::uuid, 'admin'::public.app_role, true)
+VALUES ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'admin'::public.app_role, true)
 ON CONFLICT (user_id, role) DO UPDATE
 SET is_active = true;
 
@@ -43,14 +95,14 @@ INSERT INTO public.orders (
 VALUES
   (
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-    :'user_a'::uuid,
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'PENDING_PAYMENT',
     1000, 0, 0, 1000, 'IDR',
     'SNAP', 'MIDTRANS', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
   (
     'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-    :'user_b'::uuid,
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     'PENDING_PAYMENT',
     1000, 0, 0, 1000, 'IDR',
     'SNAP', 'MIDTRANS', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
