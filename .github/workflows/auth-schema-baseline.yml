@@ -25,6 +25,8 @@ on:
       - "scripts/auth-migration/stage3-issuer-guard.contract.test.mjs"
       - "scripts/auth-migration/stage3-issuer-guard-regression.sql"
       - "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
+      - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
+      - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
       - "scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs"
       - "scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs"
       - "scripts/auth-migration/live-auth-users-fk-catalog.json"
