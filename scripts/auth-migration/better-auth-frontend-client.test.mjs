@@ -237,7 +237,8 @@ assert.match(appContext, /retryTransientAuthRead\(\(\) => getAuthSession\(\)\)/)
 assert.match(appContext, /isDefinitiveAuthRejection\(error\) \|\| isDefinitiveIdentityFailure\(error\)/);
 assert.match(appContext, /setAuthUnavailable\(true\)/);
 assert.match(appContext, /retryAuthSession/);
-assert.match(app, /authUnavailable, retryAuthSession/);
+assert.match(app, /authUnavailable, authUnavailableRetryAtUtc, retryAuthSession/);
+assert.match(app, /Batas penggunaan harian layanan login telah tercapai/);
 assert.match(app, /Sesi belum dinyatakan berakhir/);
 
 
