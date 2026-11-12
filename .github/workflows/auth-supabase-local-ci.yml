@@ -164,7 +164,7 @@ jobs:
           fi
           grep -qi '^access-control-allow-origin: https://staging.sykabelajar.my.id' "$preflight_headers"
           grep -qi '^access-control-allow-methods: .*POST' "$preflight_headers"
-          grep -qi '^access-control-allow-headers: .*authorization.*apikey.*content-type.*x-client-info' "$preflight_headers" || {
+          grep -qi '^access-control-allow-headers: .*authorization.*x-client-info.*apikey.*content-type' "$preflight_headers" || {
             echo "Staging OIDC Edge probe did not allow the required Supabase client headers." >&2
             cat "$preflight_headers"
             exit 1
