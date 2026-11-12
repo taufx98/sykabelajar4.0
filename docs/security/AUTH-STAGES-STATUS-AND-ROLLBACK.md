@@ -1,3 +1,14 @@
+## Latest Stage 6 four-role regression acceptance — 12 November 2026
+
+- Added `services/auth-worker/supabase-test/supabase/tests/user_roles_business_role_matrix.test.sql` with 16 pgTAP assertions covering `student`, `teacher`, `organizer_member`, and `admin` in the isolated local Supabase fixture.
+- Each role sees exactly its own active `user_roles` row and cannot read the other three role rows. The JWT claim remains `role=authenticated`; the business role is kept in `public.user_roles`. No business role is placed in the Postgres JWT role claim.
+- Supabase Local Auth Claims CI [#43256267828](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256267828) passed: the full local suite reported **9 SQL files, 192 tests, PASS**. The temporary local Supabase stack stopped after the tests. Auth Worker CI [#43256267857](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256267857) and Cloudflare staging read-only preflight [#43256248427](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256248427) also passed.
+- This closes the synthetic four-role regression part of Stage 6 only. It does not approve or perform demo-account cleanup. Existing staging identity/role rows and all Production accounts/data remain untouched.
+- Remaining Stage 6 work is limited to a reviewed inventory of genuinely disposable demo/test identities and dependent test rows before any cleanup approval. Stage 5 real Better Auth token-to-migrated-handler acceptance and Stage 4 owner/browser lifecycle acceptance remain separate gates.
+- PR #177 remains open, Draft, and unmerged. No Production schema/data, Supabase Auth, RLS, RPC, Edge Function, secret, Pages, DNS or login-routing change was made by this test.
+
+---
+
 ## Live migration recheck — 12 November 2026
 
 This checkpoint supersedes earlier summaries below wherever they describe Stage 2 as pending, the first Admin as absent, or the latest CI as still running.
