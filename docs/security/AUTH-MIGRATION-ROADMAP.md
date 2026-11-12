@@ -19,8 +19,8 @@ Detailed current blockers, the latest read-only Cloudflare/Supabase verification
 
 ## Approved seven-stage roadmap and current status
 
-| Stage | Scope | Current status |
-|---|---|---|
+| Stage | Scope | Current status | Remaining acceptance |
+|---|---|---|---|
 | 1 | Cloudflare foundation | **Basic staging email/password login/logout are owner-accepted; isolated Worker/D1, issuer, discovery, ES256/JWKS and auth endpoints are deployed/verified.** The current branch Worker CI, local D1 migrations and dry-run pass. Real verified-email delivery/signup callback and password-reset email remain deferred; the staging-only verification bypass is not evidence of a verified mailbox. Google OAuth remains optional. |
 | 2 | OIDC and JWT | **Hosted real-session Admin panel previously passed 4/4** for Data API/profile/role, private Storage, private Realtime and the read-only Edge probe. The read-only Edge probe was subsequently updated to **version 7 ACTIVE** to align its shared resolver with `@supabase/supabase-js@2.95.0`; hosted negative checks now pass for staging CORS, hostile origin, anonymous and malformed bearer. | Re-run the Admin acceptance panel with the existing signed-in staging Admin against probe v7 to reconfirm the positive real-session Edge POST. Do not expose or copy the token. |
 | 3 | Supabase identity foundation | **Full schema-only Production export/restore and disposable acceptance passed at head `834c890`.** Verified 69 FK/62 tables, 109 `auth.uid()` policies, auth-dependent functions/triggers, zero imported Auth/profile rows; identity-root, issuer/RLS/provisioning, 69-FK expansion/cutover and full rollback rehearsal passed. Production identity cutover remains unperformed and gated to Stage 7. |

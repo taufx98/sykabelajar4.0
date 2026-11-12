@@ -1,4 +1,4 @@
-## Latest verified checkpoint — 12 November 2026, head 834c89095a20a44a97fabcfbb09bfa04fd2680d7
+## Latest runtime validation checkpoint — 12 November 2026, code head 834c89095a20a44a97fabcfbb09bfa04fd2680d7 (documentation head 301dc1c408e6015f4e1297b590062cd42c715896)
 
 ### Repository and CI
 - PR [#177](https://github.com/taufx98/sykabelajar4.0/pull/177) remains open, Draft, unmerged and mergeable. Branch: `security/auth-poc-stage-1`.
