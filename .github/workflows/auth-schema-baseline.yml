@@ -34,6 +34,18 @@ on:
       - "supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql"
       - "scripts/auth-migration/generate-stage3-function-acl-restore.mjs"
       - "scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs"
+      - "scripts/auth-migration/stage5-business-edge-two-user.integration.test.mjs"
+      - "scripts/auth-migration/stage5-edge-two-user-fixtures.sql"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/cloudinary-delete-asset/**"
+      - "supabase/functions/cloudinary-profile-upload/**"
+      - "supabase/functions/cloudinary-delete-profile/**"
+      - "supabase/functions/cloudinary-profile-upload-v2/**"
+      - "supabase/functions/cloudinary-delete-asset-v2/**"
+      - "supabase/functions/payment-gateway-admin/**"
+      - "supabase/functions/payment-gateway-create/**"
+      - "supabase/functions/payment-gateway-reconcile/**"
       - ".github/workflows/auth-schema-baseline.yml"
   workflow_dispatch:
 
@@ -772,6 +784,94 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/auth-stage3-rollback-draft.sql
           echo "- Full Stage 3 rollback draft restored legacy Auth functions/triggers/issuer policies and removed private.app_users on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Seed synthetic two-user Cloudinary/payment fixtures on the disposable database
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage5-edge-two-user-fixtures.sql:/baseline/stage5-edge-two-user-fixtures.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage5-edge-two-user-fixtures.sql
+
+      - name: Prepare isolated local workspace for the nine migrated Edge Functions
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          FUNCTION_ROOT="$SUPABASE_CLI_WORKDIR/supabase/functions"
+          mkdir -p "$FUNCTION_ROOT/_shared"
+          for file in auth-claims.mjs better-auth-user.ts cloudinary-ownership.mjs resolve-application-identity-mode.mjs require-application-user.ts; do
+            cp "supabase/functions/_shared/$file" "$FUNCTION_ROOT/_shared/$file"
+          done
+          for name in get-cloudinary-signature cloudinary-delete-asset cloudinary-profile-upload cloudinary-delete-profile cloudinary-profile-upload-v2 cloudinary-delete-asset-v2 payment-gateway-admin payment-gateway-create payment-gateway-reconcile; do
+            cp -a "supabase/functions/$name" "$FUNCTION_ROOT/$name"
+          done
+          cat >> "$SUPABASE_CLI_WORKDIR/supabase/config.toml" <<'TOML'
+
+          [functions.get-cloudinary-signature]
+          verify_jwt = false
+          [functions.cloudinary-delete-asset]
+          verify_jwt = false
+          [functions.cloudinary-profile-upload]
+          verify_jwt = false
+          [functions.cloudinary-delete-profile]
+          verify_jwt = false
+          [functions.cloudinary-profile-upload-v2]
+          verify_jwt = false
+          [functions.cloudinary-delete-asset-v2]
+          verify_jwt = false
+          [functions.payment-gateway-admin]
+          verify_jwt = false
+          [functions.payment-gateway-create]
+          verify_jwt = false
+          [functions.payment-gateway-reconcile]
+          verify_jwt = false
+          TOML
+
+      - name: Start local Edge Runtime with disposable-only Cloudinary credentials
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          echo "STAGE5_API_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "STAGE5_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          cat > "$RUNNER_TEMP/stage5-edge-functions.env" <<'ENV'
+          AUTH_IDENTITY_MODE=supabase
+          CLOUDINARY_API_KEY=123456789
+          CLOUDINARY_API_SECRET=stage5-disposable-only-not-a-provider-secret
+          CLOUDINARY_CLOUD_NAME=invalid-stage5-disposable-cloud
+          ENV
+          (
+            cd "$SUPABASE_CLI_WORKDIR"
+            supabase functions serve --env-file "$RUNNER_TEMP/stage5-edge-functions.env"
+          ) > "$RUNNER_TEMP/stage5-edge-functions.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/stage5-edge-functions.pid"
+
+          probe_status="000"
+          for attempt in $(seq 1 90); do
+            probe_status="$(curl --silent --show-error --max-time 3 \
+              --output "$RUNNER_TEMP/stage5-edge-probe.json" \
+              --write-out '%{http_code}' \
+              --request POST "$API_URL/functions/v1/get-cloudinary-signature" \
+              --header "apikey: $ANON_KEY" \
+              --header 'Content-Type: application/json' \
+              --data '{}')" || probe_status="000"
+            if [ "$probe_status" = "401" ]; then break; fi
+            sleep 2
+          done
+          if [ "$probe_status" != "401" ]; then
+            echo "Local Edge Runtime did not return the handler's expected anonymous 401 (received $probe_status)." >&2
+            cat "$RUNNER_TEMP/stage5-edge-functions.log"
+            cat "$RUNNER_TEMP/stage5-edge-probe.json" || true
+            exit 1
+          fi
+
+      - name: Run Stage 5 two-user Cloudinary/payment Edge integration on the disposable database
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage5-business-edge-two-user.integration.test.mjs
 
       - name: Stop disposable local Supabase
         if: always() && steps.local_supabase.outcome == 'success'
