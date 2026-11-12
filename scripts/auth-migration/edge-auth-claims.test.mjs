@@ -183,6 +183,10 @@ function functionConfig(name) {
   return match[1];
 }
 
+test("Supabase server's peer SDK version exports the required CORS subpath", () => {
+  assert.match(applicationIdentityResolver, /npm:@supabase\\/supabase-js@2\\.95\\.0/);
+});
+
 test("Edge adapter delegates cryptographic JWT verification to pinned @supabase/server", () => {
   assert.match(edgeAdapter, /npm:@supabase\/server@1\.9\.2/);
   assert.match(edgeAdapter, /createSupabaseContext\(request,[\s\S]*?auth: "user"[\s\S]*?issuer: EXPECTED_BETTER_AUTH_ISSUER[\s\S]*?audience: EXPECTED_RESOURCE_AUDIENCE[\s\S]*?env: \{[\s\S]*?jwks: betterAuthJwks/);

@@ -1,7 +1,7 @@
 import {
   createClient,
   type SupabaseClient,
-} from "npm:@supabase/supabase-js@2.57.4";
+} from "npm:@supabase/supabase-js@2.95.0";
 import { resolveApplicationIdentityMode } from "./resolve-application-identity-mode.mjs";
 
 type CallerSupabaseClient = SupabaseClient;
