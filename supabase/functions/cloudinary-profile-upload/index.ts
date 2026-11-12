@@ -27,7 +27,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-Deno.serve(async (req: Request) => {
+export async function handleCloudinaryProfileUpload(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
@@ -106,4 +106,8 @@ Deno.serve(async (req: Request) => {
         : "CLOUDINARY_UPLOAD_FAILED",
     }, 400);
   }
-});
+}
+
+if (import.meta.main) {
+  Deno.serve(handleCloudinaryProfileUpload);
+}

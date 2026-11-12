@@ -139,6 +139,9 @@ jobs:
 
       - name: Verify Better Auth ES256/JWKS verifier with ephemeral keys
         run: deno test --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" --allow-env --allow-net ../../../supabase/functions/_shared/better-auth-user.integration.test.ts
+      - name: Verify Better Auth JWT at an actual migrated Edge handler boundary
+        run: deno test --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" --allow-env --allow-net ../../../supabase/functions/cloudinary-profile-upload/better-auth-auth-boundary.test.ts
+
       - name: Verify deployed staging OIDC Edge probe rejects anonymous and malformed tokens
         env:
           STAGING_SUPABASE_URL: https://ydamszdfsxqisanazdkb.supabase.co
