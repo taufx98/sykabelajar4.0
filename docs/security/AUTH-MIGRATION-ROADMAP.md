@@ -538,3 +538,12 @@ The branch already has passing local contracts for role assignment and privilege
 - public registration cannot select `admin`; a one-time first-admin bootstrap is database-owner-only, keeps the base profile account type `student`, creates no shadow `auth.users` row, and prevents authenticated self-assignment.
 
 The local two-user Cloudinary/payment Edge integration also proves representative admin allow/deny behavior, but its bearer tokens come from local Supabase Auth, not Better Auth. Thus these results close the **role mapping and admin self-escalation** subchecks, not the full Better Auth runtime authorization matrix. Remaining: exercise actual route/RPC/Edge authorization per role with Better Auth JWTs in a disposable/schema-compatible environment, and classify demo/test identities read-only before considering any cleanup. No account reset is authorized or has been performed.
+
+
+### Documentation-head CI confirmation — 12 November 2026
+
+The current documentation/role-audit head `b1490752c9680c35a8b6866fac67ae8f88b1372a` also completed both workflows successfully:
+- [Auth Worker CI #43255367808](https://github.com/taufx98/sykabelajar4.0/actions/runs/43255367808) — success.
+- [Supabase Local Auth Claims CI #43255367451](https://github.com/taufx98/sykabelajar4.0/actions/runs/43255367451) — success.
+
+These checks validate the current branch snapshot; the docs-only commit did not change the previously tested runtime source. PR #177 remains open, Draft and unmerged.

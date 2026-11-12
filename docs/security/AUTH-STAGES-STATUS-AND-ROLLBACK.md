@@ -1652,3 +1652,12 @@ The existing SQL/Worker tests already cover the **identity provisioning and priv
 - Two-user Stage 5 local business Edge integration verifies a non-admin is denied the Admin settings handler and an active admin is allowed; however, that integration obtains its two tokens from the disposable Supabase Auth password endpoint. It is **not** evidence of a positive Better Auth JWT at the real business-handler boundary.
 
 Therefore the remaining Stage 6 gate is narrower and explicit: finish per-role **runtime authorization** for student, teacher, `organizer_member`, and admin using Better Auth resource JWTs on disposable/schema-compatible endpoints, and identify which demo/test identities are genuinely disposable before any separately approved cleanup. Keep the existing mapping/least-privilege tests as passed. No staging or Production account was reset in this audit.
+
+
+### Documentation-head CI confirmation — 12 November 2026
+
+The current documentation/role-audit head `b1490752c9680c35a8b6866fac67ae8f88b1372a` also completed both workflows successfully:
+- [Auth Worker CI #43255367808](https://github.com/taufx98/sykabelajar4.0/actions/runs/43255367808) — success.
+- [Supabase Local Auth Claims CI #43255367451](https://github.com/taufx98/sykabelajar4.0/actions/runs/43255367451) — success.
+
+These checks validate the current branch snapshot; the docs-only commit did not change the previously tested runtime source. PR #177 remains open, Draft and unmerged.
