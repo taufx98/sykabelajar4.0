@@ -1,10 +1,7 @@
-import { createSupabaseContext } from "npm:@supabase/server@1.9.2";
+import { requireApplicationUser } from "./_shared/require-application-user.ts";
 
 const EXPECTED_ISSUER = "https://auth.sykabelajar.my.id/api/auth";
 const EXPECTED_AUDIENCE = "https://sykabelajar.my.id";
-const BETTER_AUTH_JWKS = new URL("jwks", EXPECTED_ISSUER + "/");
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 const STAGING_APP_ORIGIN = "https://staging.sykabelajar.my.id";
 const CORS_ALLOWED_HEADERS = [
   "authorization",
@@ -37,10 +34,10 @@ function json(body: unknown, status = 200, responseHeaders?: HeadersInit): Respo
 }
 
 /**
- * Staging-only, read-only acceptance probe for the Better Auth Custom OIDC
- * issuer. Platform verify_jwt is disabled because the handler uses the pinned
- * @supabase/server verifier with the exact Better Auth JWKS/issuer/audience.
- * No service-role client is used.
+ * Staging-only, read-only acceptance probe for the exact shared
+ * requireApplicationUser() path used by the migrated Cloudinary/payment
+ * handlers. It deploys no business handler and queries only the isolated
+ * auth_oidc_acceptance_rows fixture using the caller-scoped Supabase client.
  */
 Deno.serve(async (request: Request) => {
   const origin = request.headers.get("Origin");
@@ -77,65 +74,38 @@ Deno.serve(async (request: Request) => {
     return json({ error: "METHOD_NOT_ALLOWED" }, 405, responseHeaders);
   }
 
-  let result;
+  // This is the identical identity adapter imported by migrated business
+  // handlers. Missing, malformed, expired, wrong-issuer and wrong-audience
+  // credentials fail closed before the caller-scoped database query.
+  let identity: Awaited<ReturnType<typeof requireApplicationUser>>;
   try {
-    result = await createSupabaseContext(request, {
-      auth: "user",
-      issuer: EXPECTED_ISSUER,
-      audience: EXPECTED_AUDIENCE,
-      env: { jwks: BETTER_AUTH_JWKS },
-    });
+    identity = await requireApplicationUser(request);
   } catch {
     return json({ error: "AUTH_VERIFICATION_UNAVAILABLE" }, 503, responseHeaders);
   }
-
-  const context = result?.data;
-  if (result?.error || !context) {
-    const status = Number(result?.error?.status ?? 0);
-    return status >= 500
-      ? json({ error: "AUTH_VERIFICATION_UNAVAILABLE" }, 503, responseHeaders)
-      : json({ error: "AUTH_REQUIRED" }, 401, responseHeaders);
+  if (!identity.ok) {
+    return json({ error: identity.error }, identity.status, responseHeaders);
+  }
+  if (identity.mode !== "better-auth") {
+    return json({ error: "BETTER_AUTH_MODE_REQUIRED" }, 503, responseHeaders);
   }
 
-  const claims = context.jwtClaims as Record<string, unknown> | undefined;
-  const userId = typeof claims?.sub === "string" ? claims.sub : "";
-  const now = Math.floor(Date.now() / 1000);
-  const audiences = typeof claims?.aud === "string"
-    ? [claims.aud]
-    : Array.isArray(claims?.aud) && claims.aud.every((item) => typeof item === "string")
-      ? claims.aud as string[]
-      : [];
-
-  if (
-    claims?.iss !== EXPECTED_ISSUER ||
-    !UUID_PATTERN.test(userId) ||
-    claims?.role !== "authenticated" ||
-    !audiences.includes(EXPECTED_AUDIENCE) ||
-    !Number.isSafeInteger(claims?.iat) ||
-    !Number.isSafeInteger(claims?.exp) ||
-    Number(claims?.iat) > now + 30 ||
-    Number(claims?.exp) <= now ||
-    Number(claims?.exp) - Number(claims?.iat) > 300 ||
-    context.userClaims?.id !== userId ||
-    context.userClaims?.role !== "authenticated"
-  ) {
-    return json({ error: "BETTER_AUTH_CLAIMS_REJECTED" }, 401, responseHeaders);
-  }
-
-  // This staging-only query must return rows owned by the verified UUID only.
-  const { data, error } = await context.supabase
+  const { data, error } = await identity.supabase
     .from("auth_oidc_acceptance_rows")
     .select("id, owner_id, note");
 
   if (error) return json({ error: "OIDC_RLS_FIXTURE_QUERY_FAILED" }, 503, responseHeaders);
 
   const rows = Array.isArray(data) ? data : [];
-  const crossUserRows = rows.filter((row: { owner_id?: string }) => row.owner_id !== userId);
-  if (crossUserRows.length > 0) return json({ error: "OIDC_RLS_ISOLATION_FAILED" }, 403, responseHeaders);
+  const crossUserRows = rows.filter((row: { owner_id?: string }) => row.owner_id !== identity.userId);
+  if (crossUserRows.length > 0) {
+    return json({ error: "OIDC_RLS_ISOLATION_FAILED" }, 403, responseHeaders);
+  }
 
   return json({
     ok: true,
-    user_id: userId,
+    user_id: identity.userId,
+    identity_mode: identity.mode,
     issuer: EXPECTED_ISSUER,
     audience: EXPECTED_AUDIENCE,
     postgres_role: "authenticated",

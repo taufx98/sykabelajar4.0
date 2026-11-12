@@ -17,7 +17,7 @@ const INITIAL_RESULTS: CheckResult[] = [
   { key: 'identity', label: 'Sesi, Data API, profil, dan role', state: 'pending', detail: 'Belum dijalankan' },
   { key: 'storage', label: 'Storage privat dan isolasi pemilik file', state: 'pending', detail: 'Belum dijalankan' },
   { key: 'realtime', label: 'Realtime private channel dan isolasi topic', state: 'pending', detail: 'Belum dijalankan' },
-  { key: 'edge', label: 'Edge Function memverifikasi JWT Better Auth', state: 'pending', detail: 'Belum dijalankan' },
+  { key: 'edge', label: 'JWT Better Auth melalui verifier handler bersama', state: 'pending', detail: 'Belum dijalankan' },
 ];
 
 function messageOf(error: unknown): string {
@@ -196,13 +196,15 @@ export function BetterAuthAcceptancePanel() {
           !data ||
           data.ok !== true ||
           data.user_id !== userId ||
+          data.identity_mode !== 'better-auth' ||
+          data.postgres_role !== 'authenticated' ||
           data.issuer !== 'https://auth.sykabelajar.my.id/api/auth' ||
           data.audience !== 'https://sykabelajar.my.id' ||
           data.cross_user_rows !== 0 ||
           data.read_only !== true ||
           data.production_touched !== false
         ) throw new Error('BETTER_AUTH_EDGE_ACCEPTANCE_RESPONSE_INVALID');
-        return 'Edge Function menerima JWT ES256 dengan issuer, audience, subject, role, dan RLS yang valid';
+        return 'Adapter yang sama dengan handler bisnis menerima JWT ES256; issuer, audience, subject, role, dan RLS valid';
       });
     } finally {
       setRunning(false);

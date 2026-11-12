@@ -197,6 +197,21 @@ jobs:
           jq -e '.error == "AUTH_REQUIRED"' "$response_body" >/dev/null
           echo "Hosted staging Edge probe rejects anonymous requests with AUTH_REQUIRED."
 
+          invalid_token_body="$RUNNER_TEMP/staging-oidc-probe-invalid-token.json"
+          invalid_token_status="$(curl --silent --show-error --max-time 15 --output "$invalid_token_body" --write-out '%{http_code}' \
+            --request POST "$STAGING_SUPABASE_URL/functions/v1/better-auth-oidc-acceptance" \
+            --header "apikey: $STAGING_SUPABASE_PUBLISHABLE_KEY" \
+            --header "Authorization: Bearer not-a-real-jwt" \
+            --header "Content-Type: application/json" \
+            --data '{}')"
+          if [ "$invalid_token_status" != "401" ]; then
+            echo "Staging OIDC Edge probe must reject a malformed bearer token (expected HTTP 401, received $invalid_token_status)." >&2
+            cat "$invalid_token_body"
+            exit 1
+          fi
+          jq -e '.error == "AUTH_REQUIRED"' "$invalid_token_body" >/dev/null
+          echo "Hosted staging Edge probe rejects malformed bearer credentials."
+
       - name: Validate live identity FK snapshot and dry-run plan generator
         run: |
           node ../../../scripts/auth-migration/generate-app-users-fk-plan.test.mjs

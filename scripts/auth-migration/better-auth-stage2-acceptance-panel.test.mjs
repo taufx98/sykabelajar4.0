@@ -8,8 +8,22 @@ const fixture = readFileSync(
   new URL("services/auth-worker/supabase-test/supabase/migrations/20261112083847_better_auth_stage2_storage_realtime_acceptance.sql", root),
   "utf8",
 );
-const edge = readFileSync(
-  new URL("services/auth-worker/supabase-test/supabase/functions/better-auth-oidc-acceptance/index.ts", root),
+const edgeRoot = "services/auth-worker/supabase-test/supabase/functions/better-auth-oidc-acceptance/";
+const edge = readFileSync(new URL(edgeRoot + "index.ts", root), "utf8");
+const sharedApplicationResolver = readFileSync(
+  new URL("supabase/functions/_shared/require-application-user.ts", root),
+  "utf8",
+);
+const sharedBetterAuthVerifier = readFileSync(
+  new URL("supabase/functions/_shared/better-auth-user.ts", root),
+  "utf8",
+);
+const sharedIdentityMode = readFileSync(
+  new URL("supabase/functions/_shared/resolve-application-identity-mode.mjs", root),
+  "utf8",
+);
+const sharedClaimsValidator = readFileSync(
+  new URL("supabase/functions/_shared/auth-claims.mjs", root),
   "utf8",
 );
 
@@ -49,17 +63,34 @@ test("Realtime acceptance uses an authenticated private topic and verifies forei
   assert.match(panel, /supabase\.removeChannel\(foreignChannel\)/);
 });
 
-test("Edge acceptance handler pins issuer, audience and caller claims and runs read-only under RLS", () => {
-  assert.match(edge, /createSupabaseContext\(request,[\s\S]*?auth:\s*"user"/);
-  assert.match(edge, /issuer:\s*EXPECTED_ISSUER/);
-  assert.match(edge, /audience:\s*EXPECTED_AUDIENCE/);
-  assert.match(edge, /crossUserRows\.length\s*>\s*0/);
-  assert.match(edge, /read_only:\s*true/);
-  assert.match(edge, /production_touched:\s*false/);
-  assert.match(panel, /data\.issuer !== 'https:\/\/auth\.sykabelajar\.my\.id\/api\/auth'/);
-  assert.match(panel, /data\.audience !== 'https:\/\/sykabelajar\.my\.id'/);
-  assert.match(panel, /data\.production_touched !== false/);
-  assert.match(panel, /data\.read_only !== true/);
+test("staging Edge probe uses the exact shared verifier path used by migrated business handlers", () => {
+  assert.match(edge, /import \\{ requireApplicationUser \\} from "\.\\/_shared\\/require-application-user\\.ts"/);
+  assert.match(edge, /await requireApplicationUser\\(request\\)/);
+  assert.match(edge, /identity\\.mode !== "better-auth"/);
+  assert.doesNotMatch(edge, /createSupabaseContext|jwt-decode|atob\\(/);
+  assert.match(edge, /crossUserRows\\.length\\s*>\\s*0/);
+  assert.match(edge, /read_only:\\s*true/);
+  assert.match(edge, /production_touched:\\s*false/);
+  assert.match(edge, /identity_mode:\\s*identity\\.mode/);
+  assert.match(panel, /data\\.identity_mode !== 'better-auth'/);
+  assert.match(panel, /data\\.postgres_role !== 'authenticated'/);
+  assert.match(panel, /data\\.issuer !== 'https:\\/\\/auth\\.sykabelajar\\.my\\.id\\/api\\/auth'/);
+  assert.match(panel, /data\\.audience !== 'https:\\/\\/sykabelajar\\.my\\.id'/);
+  assert.match(panel, /data\\.production_touched !== false/);
+  assert.match(panel, /data\\.read_only !== true/);
+});
+
+test("staging deployment bundles byte-identical shared auth verifier modules", () => {
+  const bundled = [
+    ["_shared/require-application-user.ts", sharedApplicationResolver],
+    ["_shared/better-auth-user.ts", sharedBetterAuthVerifier],
+    ["_shared/resolve-application-identity-mode.mjs", sharedIdentityMode],
+    ["_shared/auth-claims.mjs", sharedClaimsValidator],
+  ];
+  for (const [path, expected] of bundled) {
+    const actual = readFileSync(new URL(edgeRoot + path, root), "utf8");
+    assert.equal(actual, expected, path + " must match the actual migrated-handler helper");
+  }
 });
 
 test("staging Edge acceptance probe handles browser CORS preflight without widening its origin", () => {
