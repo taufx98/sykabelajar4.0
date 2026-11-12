@@ -1609,3 +1609,34 @@ This checkpoint supersedes earlier provider-prerequisite wording above. It recor
 - The staging Security Advisor reports 17 RLS-enabled tables without policies (including private identity/internal fixtures and public tables with deny-by-default behavior) and one warning for `public.create_organizer(text,text)` being SECURITY DEFINER and executable by authenticated users. Read-only inspection confirmed the function checks a non-null `auth.uid()`, an active `organizer_member` role, a matching `private.app_users` identity, verified email, verified phone and the single-use free-organizer identity claim before writes. Its ACL is `postgres`, `authenticated`, and `service_role`. Do not mass-revoke or modify it without a full role/business-flow regression; keep it in the Stage 5 function-by-function review.
 - No staging data, staging schema, function deployment, provisioning secret, production setting, production database, DNS, login route, or user account was changed in this checkpoint.
 
+
+
+## Latest seven-stage execution checkpoint — 12 November 2026
+
+This checkpoint supersedes older CI/head/deployment status in this file. Work remains limited to the Better Auth migration.
+
+- Repository: `taufx98/sykabelajar4.0`; branch: `security/auth-poc-stage-1`; PR #177 head: `f4433c9b81f01fff011c28c00ad9ab010a71ba37`. PR remains **open, Draft, and unmerged**.
+- **Stage 1:** Better Auth Worker/D1 and the email/password path remain on isolated staging. The owner has reported a successful login/logout flow. External email delivery and social OAuth credentials remain deferred/optional.
+- **Stage 2:** the earlier owner-operated Admin panel result remains 4/4 for Data API/profile/role, private Storage, private Realtime and the read-only Edge probe. Do not repeat those broad tests without a regression. The Stage 5-specific probe has since been updated to call the same shared application identity resolver used by migrated handlers.
+- **Stage 3:** `private.app_users`, identity compatibility and the schema-only disposable 69-FK rehearsal/rollback remain the validated baseline. No Production identity cutover has occurred.
+- **Stage 4:** the deployed staging browser smoke passed **10 tests, 1 skipped**. It exercised login/register/recovery UI, registration fields, provider discovery, Supabase REST CORS, bounded login timeout and no-hard-reload behavior. Google OAuth was skipped because its optional credentials are not configured. This is browser UI acceptance, not a real user-session expiry/reauthentication test. Previously owner-accepted login/logout, session restoration/account switching and cross-tab logout are retained; actual expiry + re-authentication, Realtime through a live resource-token renewal, visible D1 quota 503 recovery and Worker Error 1027 recovery remain open.
+- **Stage 5:** the staging-only read-only Edge probe `better-auth-oidc-acceptance` is **version 6 ACTIVE** in isolated project `ydamszdfsxqisanazdkb`. It invokes the same `requireApplicationUser()` resolver used by the migrated Cloudinary/payment handler boundaries, requires `mode=better-auth`, reads only `auth_oidc_acceptance_rows` through the caller-scoped client, rejects cross-user fixture rows, and performs no writes. Its four bundled `_shared` files are checked against the repository source. A malformed compact-JWT envelope is rejected as 401 before the lazy verifier import; signature/JWKS/issuer/audience/UUID/Postgres-role/time validation is still performed by the shared `@supabase/server@1.9.2` verifier for well-formed tokens. Hosted checks confirm trusted staging preflight 204, untrusted origin 403, anonymous request 401, and malformed bearer 401. **Positive handler invocation using the owner's real Better Auth session is still pending.** No business Edge Function was deployed to auth-only staging.
+- **Stage 6:** the existing staging identity/profile/admin role fixture remains; no demo account reset was done. The participant, teacher, `organizer_member`, and admin regression plus demo/test identity classification are still required. Do not reset real accounts.
+- **Stage 7:** production cutover is not started and remains blocked by prior stage acceptance plus explicit owner approval.
+
+### Latest validation on this checkpoint
+
+- [Auth Worker CI #43253432155](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253432155) — passed (Worker/security tests and frontend lint/typecheck/build without deploy).
+- [Supabase Local Auth Claims CI #43253432578](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253432578) — passed (Deno Edge type-check, shared-adapter contracts, hosted staging CORS/anonymous/malformed-token checks, disposable local Supabase RLS).
+- [Staging browser smoke #43253413341](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253413341) — passed, 10 passed and 1 skipped.
+- [Auth Cloudflare Staging Preflight #43252529825](https://github.com/taufx98/sykabelajar4.0/actions/runs/43252529825) — passed on the preceding source head; the subsequent commit changed the browser-smoke workflow, not the Worker.
+- [Auth Production Schema Baseline #43252529918](https://github.com/taufx98/sykabelajar4.0/actions/runs/43252529918) — passed as a read-only export and isolated restore; no Production DDL/data mutation.
+- Cloudflare Pages reports successful deployment for this exact PR head. This is the staging branch preview only.
+
+### Remaining owner-operated acceptance
+
+1. Sign in to `https://staging.sykabelajar.my.id` with the existing staging admin account.
+2. Open **Admin → Pengaturan → Uji Penerimaan Better Auth — Staging → Jalankan tes**. The Edge check now reaches the shared handler identity resolver. Share only the four pass/fail results and safe error code; do not copy or send a token, cookie, password, or secret.
+3. Complete the remaining real-session expiry/reauthentication and transient recovery checks without forcing quota exhaustion or changing Production.
+
+No Production auth settings, schema, data, users, RLS/RPC/FK/triggers, Edge Functions, Worker/D1 deployment, Production Pages configuration, DNS, or secrets were changed. PR #177 was not merged.

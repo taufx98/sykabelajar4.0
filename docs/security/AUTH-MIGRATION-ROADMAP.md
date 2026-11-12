@@ -509,3 +509,22 @@ The remaining signup-email callback route is now implemented: Better Auth signup
 The schema-only baseline captured all four live profile trigger definitions, including the full bodies of normalize_profile_fields() and set_updated_at(). New rollback-only production-shaped SQL assertions exercise both functions, in addition to the existing account-type and wallet/currency trigger tests. The same export enumerated 109 auth.uid() policies across 61 tables and produced a command/role inventory: 55 SELECT, 19 INSERT, 12 UPDATE, 12 DELETE, 11 ALL; target-role references include 100 authenticated, 9 PUBLIC, and one anon (overlapping role counts). The nine PUBLIC policy entries and the anon-inclusive public profile read are documented for targeted review, not bulk removal.
 
 The snapshot run [#42555805128](https://github.com/taufx98/sykabelajar4.0/actions/runs/42555805128) passed schema-only export/restore and the existing Stage 3 production-shaped acceptance suite before the newly added profile-trigger assertions. A later run on the current head must pass to validate those new assertions. No production DDL, policy, trigger, grant, data or credential was changed.
+
+
+## 12 November 2026 — Stage 4 browser smoke and Stage 5 shared-verifier acceptance
+
+Current PR head: `f4433c9b81f01fff011c28c00ad9ab010a71ba37` (PR #177 remains open/Draft/unmerged).
+
+The staging browser-smoke workflow now also triggers on changes to the Admin Better Auth acceptance panel and supports manual dispatch. On this head, the exact staging Pages deployment succeeded and Playwright completed **10/11 tests** (10 passed; Google OAuth was the single skipped optional test). Tested UI includes login/register/recovery, registration wizard accessibility, provider metadata, external Supabase REST CORS, bounded timeout handling and no hard reload after rejected sign-in. It does not create a real account, send email, or prove session expiry/reauthentication.
+
+The isolated staging read-only Edge probe `better-auth-oidc-acceptance` is now **version 6 ACTIVE**. It calls the shared `requireApplicationUser()` resolver used by migrated handlers and reads only the synthetic owner/RLS fixture with the caller-scoped client. The source-bundled resolver/verifier/claims modules are asserted byte-identical to the application source. A compact-JWT envelope guard runs before lazy Better Auth verifier import; valid-shape tokens still go through the pinned ES256/JWKS verifier and claim validation. The endpoint is not a business handler and writes nothing.
+
+Hosted acceptance on isolated Supabase staging:
+- exact staging Origin preflight: 204;
+- hostile Origin preflight: 403 without CORS permission;
+- missing bearer: 401 `AUTH_REQUIRED`;
+- malformed bearer: 401 `AUTH_REQUIRED`.
+
+CI evidence: [Auth Worker CI #43253432155](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253432155), [Supabase Local Auth Claims CI #43253432578](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253432578), and [staging browser smoke #43253413341](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253413341) all passed. The browser job reports 10 passed and 1 skipped. The read-only Production schema baseline export/isolated restore also passed in [#43252529918](https://github.com/taufx98/sykabelajar4.0/actions/runs/43252529918).
+
+**Stage 5 positive hosted acceptance is not yet complete:** an owner must run the Admin staging acceptance panel with the existing real Better Auth admin session so the updated Edge probe receives a genuine signed token. Do not seed fake sessions, forge email verification, or weaken JWT/JWKS checks. Stage 4 still needs real session expiry/reauthentication and transient-error acceptance; Stage 6 still needs role regression and demo identity classification. Stage 7 remains unstarted. Production Supabase and production auth remain untouched.

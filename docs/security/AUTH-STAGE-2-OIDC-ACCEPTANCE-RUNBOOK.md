@@ -293,3 +293,28 @@ The staging PostgreSQL fixture rows are retained as synthetic test fixtures; the
 ### Probe v2 hosted anonymous rejection — 9 November 2026
 
 Supabase unified Edge logs for isolated project `ydamszdfsxqisanazdkb` contain multiple `POST` requests to `better-auth-oidc-acceptance` **version 2** at 13:28–13:30 UTC on 9 November 2026. Each returned HTTP **401**. This confirms the deployed probe denies unauthenticated calls after the v2 deployment. It is only negative/anonymous acceptance; there is no positive Better Auth token call in this evidence, and the browser/Storage/Realtime/Edge two-user matrix remains open.
+
+
+## Stage 5 shared handler-verifier probe v6 — 12 November 2026
+
+The isolated staging function `better-auth-oidc-acceptance` was updated to **version 6 ACTIVE** on Free staging project `ydamszdfsxqisanazdkb`. This is a read-only auth acceptance probe, not a migrated business function.
+
+### What changed
+
+- The probe now calls the exact shared `requireApplicationUser(request)` resolver used by the migrated Cloudinary/payment handler boundaries rather than implementing a separate JWT verification path.
+- The `_shared/require-application-user.ts`, `better-auth-user.ts`, `resolve-application-identity-mode.mjs`, and `auth-claims.mjs` copies bundled with the staging function are tested byte-for-byte against the repository source.
+- The shared resolver rejects a malformed compact-JWT envelope with HTTP 401 before dynamically importing the Better Auth verifier. This avoids mapping an obviously malformed bearer to a verifier/module-availability 503.
+- Well-formed JWTs still go through the pinned `@supabase/server@1.9.2` third-party JWT verifier with exact Better Auth issuer, resource audience, JWKS, UUID subject, PostgreSQL role `authenticated`, and access-token lifetime checks. Infrastructure/JWKS unavailability remains fail-closed as 503.
+- The probe queries only `auth_oidc_acceptance_rows` via the caller-scoped Supabase client, rejects any cross-user fixture row, and performs no insert/update/delete. No business Edge Functions or business schema were deployed to staging.
+
+### Hosted and CI result
+
+[Supabase Local Auth Claims CI #43253432578](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253432578) passed, including Deno type-check, disposable local Supabase JWT/RLS checks and live requests to the deployed v6 probe:
+- staging Origin CORS preflight: HTTP 204;
+- untrusted Origin preflight: HTTP 403 and no CORS grant;
+- anonymous POST: HTTP 401 `AUTH_REQUIRED`;
+- malformed bearer POST: HTTP 401 `AUTH_REQUIRED`.
+
+The actual owner-operated Stage 2 browser panel previously returned 4/4. **The new shared-handler path still needs one positive invocation with the owner's existing real Better Auth staging session.** Run Admin → Pengaturan → Uji Penerimaan Better Auth — Staging → Jalankan tes. Report only its four states and safe error code, never the token or cookie.
+
+The browser UI tests on [#43253413341](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253413341) passed 10 tests and skipped the optional Google OAuth test. This is not evidence of session expiry/reauthentication. Production Supabase, Production Edge Functions, Production Pages, DNS, secrets, users and data remain unchanged; PR #177 remains Draft and unmerged.
