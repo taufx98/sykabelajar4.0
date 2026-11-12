@@ -528,3 +528,13 @@ Hosted acceptance on isolated Supabase staging:
 CI evidence: [Auth Worker CI #43253432155](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253432155), [Supabase Local Auth Claims CI #43253432578](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253432578), and [staging browser smoke #43253413341](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253413341) all passed. The browser job reports 10 passed and 1 skipped. The read-only Production schema baseline export/isolated restore also passed in [#43252529918](https://github.com/taufx98/sykabelajar4.0/actions/runs/43252529918).
 
 **Stage 5 positive hosted acceptance is not yet complete:** an owner must run the Admin staging acceptance panel with the existing real Better Auth admin session so the updated Edge probe receives a genuine signed token. Do not seed fake sessions, forge email verification, or weaken JWT/JWKS checks. Stage 4 still needs real session expiry/reauthentication and transient-error acceptance; Stage 6 still needs role regression and demo identity classification. Stage 7 remains unstarted. Production Supabase and production auth remain untouched.
+
+### Stage 6 role matrix refinement — 12 November 2026
+
+The branch already has passing local contracts for role assignment and privilege creation:
+- student registration/default maps to business role `student`;
+- teacher registration maps to `teacher`;
+- organizer registration maps to `organizer_member`, with separate Better Auth issuer, active-role, verified email/phone, and one-free-workspace checks;
+- public registration cannot select `admin`; a one-time first-admin bootstrap is database-owner-only, keeps the base profile account type `student`, creates no shadow `auth.users` row, and prevents authenticated self-assignment.
+
+The local two-user Cloudinary/payment Edge integration also proves representative admin allow/deny behavior, but its bearer tokens come from local Supabase Auth, not Better Auth. Thus these results close the **role mapping and admin self-escalation** subchecks, not the full Better Auth runtime authorization matrix. Remaining: exercise actual route/RPC/Edge authorization per role with Better Auth JWTs in a disposable/schema-compatible environment, and classify demo/test identities read-only before considering any cleanup. No account reset is authorized or has been performed.

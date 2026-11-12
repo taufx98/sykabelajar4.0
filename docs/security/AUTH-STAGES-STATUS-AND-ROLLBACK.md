@@ -1640,3 +1640,15 @@ This checkpoint supersedes older CI/head/deployment status in this file. Work re
 3. Complete the remaining real-session expiry/reauthentication and transient recovery checks without forcing quota exhaustion or changing Production.
 
 No Production auth settings, schema, data, users, RLS/RPC/FK/triggers, Edge Functions, Worker/D1 deployment, Production Pages configuration, DNS, or secrets were changed. PR #177 was not merged.
+
+### Stage 6 role-mapping evidence audit — 12 November 2026
+
+The existing SQL/Worker tests already cover the **identity provisioning and privilege-assignment** portion of the role matrix; do not repeat or rebuild these tests without a regression:
+
+- Student: public Better Auth registration defaults to `student`; the SQL provisioning contract verifies a student identity gets the `student` business role.
+- Teacher: the SQL provisioning contract verifies `teacher` account type maps to the `teacher` business role.
+- Organizer: organizer registration maps to `organizer_member`; the organizer fixture separately verifies active-role, verified-email, verified-phone and exact Better Auth issuer gates on `create_organizer`.
+- Admin: the public Worker normalizer and database wrapper reject `admin` as a self-selected account type. The one-time first-admin SQL bootstrap runs only as `postgres`, retains the base `student` account type, does not create an `auth.users` shadow row, and authenticated users cannot INSERT their own `user_roles` row.
+- Two-user Stage 5 local business Edge integration verifies a non-admin is denied the Admin settings handler and an active admin is allowed; however, that integration obtains its two tokens from the disposable Supabase Auth password endpoint. It is **not** evidence of a positive Better Auth JWT at the real business-handler boundary.
+
+Therefore the remaining Stage 6 gate is narrower and explicit: finish per-role **runtime authorization** for student, teacher, `organizer_member`, and admin using Better Auth resource JWTs on disposable/schema-compatible endpoints, and identify which demo/test identities are genuinely disposable before any separately approved cleanup. Keep the existing mapping/least-privilege tests as passed. No staging or Production account was reset in this audit.
