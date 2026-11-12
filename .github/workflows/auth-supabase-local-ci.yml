@@ -137,7 +137,7 @@ jobs:
           deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
             supabase/functions/better-auth-oidc-acceptance/index.ts
 
-      - name: Verify deployed staging OIDC Edge probe rejects anonymous requests
+      - name: Verify deployed staging OIDC Edge probe rejects anonymous and malformed tokens
         env:
           STAGING_SUPABASE_URL: https://ydamszdfsxqisanazdkb.supabase.co
           STAGING_SUPABASE_PUBLISHABLE_KEY: sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v
