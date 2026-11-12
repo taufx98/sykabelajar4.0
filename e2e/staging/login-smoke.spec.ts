@@ -30,7 +30,7 @@ test('staging /login mounts React and renders the email/password form', async ({
   await expect(page.locator('input[type="password"]'), 'password input must render').toBeVisible();
   await expect(page.locator('input[type="password"]')).toHaveAttribute('id', 'login-password');
   await expect(page.locator('input[type="password"]')).toHaveAttribute('name', 'password');
-  await expect(page.getByLabel('Password')).toHaveAttribute('id', 'login-password');
+  await expect(page.locator('label[for="login-password"]')).toHaveText('Password');
   await expect(
     page.getByRole('heading', { name: /^(Masuk|Sign in)$/ }),
     'the login heading must render',
@@ -229,4 +229,32 @@ test('a stalled staging sign-in request exits the loading state after the bounde
     .toBeEnabled({ timeout: 16_000 });
   await expect(page.getByText('AUTH_REQUEST_TIMEOUT')).toBeVisible();
   expect(signInRequests, 'credential POST must not be automatically replayed').toBe(1);
+});
+
+test('a rejected staging sign-in does not hard-reload the login route', async ({ page }) => {
+  let signInRequests = 0;
+  let postInitialDocumentNavigations = 0;
+  await page.route('https://auth.sykabelajar.my.id/api/auth/sign-in/email', async (route) => {
+    signInRequests += 1;
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'INVALID_EMAIL_OR_PASSWORD' }),
+    });
+  });
+
+  await page.goto('/login?redirect=%2Fhome', { waitUntil: 'domcontentloaded' });
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) postInitialDocumentNavigations += 1;
+  });
+  await page.locator('#login-email').fill('invalid-login@example.test');
+  await page.locator('#login-password').fill('not-a-real-password');
+  const signInButton = page.getByRole('button', { name: /^Masuk$/ });
+  await signInButton.click();
+
+  await expect(signInButton).toBeEnabled();
+  await expect(page).toHaveURL(/\/login\?redirect=%2Fhome$/);
+  await expect(page.getByText('INVALID_EMAIL_OR_PASSWORD')).toBeVisible();
+  expect(signInRequests).toBe(1);
+  expect(postInitialDocumentNavigations, 'a rejected sign-in must not reload the document').toBe(0);
 });
