@@ -34,16 +34,16 @@ assert.equal(
 // Fresh-account-only guard: private.app_users is an identity root, not a copy
 // of Supabase Auth account data. Legacy UUID tombstones are generated separately
 // from application FK values and must never be created by reading auth.users.
-const identityRootDdl = draft.match(/CREATE TABLE private\\.app_users\\s*\\(([\\s\\S]*?)\\n\\);/i)?.[1] ?? "";
+const identityRootDdl = draft.match(/CREATE TABLE private\.app_users\s*\(([\s\S]*?)\n\);/i)?.[1] ?? "";
 assert.ok(identityRootDdl, "private.app_users identity-root table definition must exist");
 assert.doesNotMatch(
   identityRootDdl,
-  /\\b(?:email|password|encrypted_password|provider|refresh_token|access_token|raw_user_meta_data|role|last_sign_in_at)\\b/i,
+  /^\s*(?:email|password|encrypted_password|provider|refresh_token|access_token|raw_user_meta_data|role|last_sign_in_at)\s+/im,
   "the identity root must not store credentials, provider records, metadata or business roles",
 );
 assert.doesNotMatch(
   draft,
-  /^\\s*(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM|TRUNCATE(?:\\s+TABLE)?)\\s+auth\\.users\\b/im,
+  /^\s*(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+auth\.users\b/im,
   "the Stage 3 draft must never copy, mutate or delete legacy Auth accounts",
 );
 
