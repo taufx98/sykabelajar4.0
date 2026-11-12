@@ -8,6 +8,14 @@ const password = "Stage5-Edge-Local-Only-2026!";
 assert.ok(apiUrl, "STAGE5_API_URL is required");
 assert.ok(anonKey, "STAGE5_ANON_KEY is required");
 
+const fixtureSql = await (await import("node:fs/promises")).readFile(
+  new URL("./stage5-edge-two-user-fixtures.sql", import.meta.url), "utf8",
+);
+assert.equal((fixtureSql.match(/'00000000-0000-0000-0000-000000000000'/g) ?? []).length, 2,
+  "both synthetic accounts must use the local Supabase Auth instance id");
+assert.doesNotMatch(fixtureSql, /\n\s+NULL,\s*\n\s*'[ab]{8}-/,
+  "the disposable Auth instance id must not be NULL");
+
 const users = {
   a: {
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",

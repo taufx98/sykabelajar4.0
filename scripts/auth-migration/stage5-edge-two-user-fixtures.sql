@@ -12,7 +12,7 @@ INSERT INTO auth.users (
 )
 VALUES
   (
-    NULL,
+    '00000000-0000-0000-0000-000000000000',
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'authenticated',
     'authenticated',
@@ -24,7 +24,7 @@ VALUES
     false, now(), now(), NULL, NULL, false, false
   ),
   (
-    NULL,
+    '00000000-0000-0000-0000-000000000000',
     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     'authenticated',
     'authenticated',
