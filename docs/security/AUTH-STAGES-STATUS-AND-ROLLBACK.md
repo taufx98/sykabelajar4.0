@@ -1,3 +1,36 @@
+## Latest Stage 5 payment fulfillment role/ACL and webhook acceptance — 12 November 2026
+
+The earlier `SERVICE_ROLE_REQUIRED` failure was traced to two separate issues in the local rehearsal: (1) the payment fulfillment RPC checked the legacy `request.jwt.claim.role` setting instead of the current JSON `request.jwt.claims` role; and (2) the schema-only restore did not reconstruct this one function's Production EXECUTE ACL. Both are now handled explicitly in disposable acceptance, without changing Production.
+
+### Production metadata and disposable ACL parity
+
+- A read-only Production catalog snapshot confirmed `public.process_payment_gateway_success(uuid,text,uuid)` is `SECURITY DEFINER`, uses `search_path=public, private, pg_catalog`, and its explicit EXECUTE ACL contains only `postgres` (owner) and `service_role`. Effective `anon` and `authenticated` EXECUTE are false; `service_role` and `postgres` are true.
+- Extended the schema-only Production metadata snapshot with this one payment RPC's identity, security/search-path fields, structured ACL entries, and effective grants. Stage 3 metadata parity still checks the original ten Auth-dependent functions, seven triggers, 109 UID policies/61 tables, and 36 profile columns; the new payment RPC object is compared in the same exact Production-vs-restored snapshot.
+- Added a dedicated fail-closed generator that will only restore the exact observed `postgres` owner + `service_role` EXECUTE ACL. It rejects a Production snapshot that contains PUBLIC, anon, authenticated or any unrecognized grantee. The restore SQL runs only after the Production metadata has been read and only against the disposable database.
+- The payment role-claim draft now captures `proacl` before `CREATE OR REPLACE FUNCTION` and asserts the ACL is byte-for-byte unchanged afterward, in addition to preserving `SECURITY DEFINER` and search_path.
+
+### Payment fulfillment role claim draft
+
+- The local-only draft reads `role` from JSON `request.jwt.claims` first, falling back to the legacy `request.jwt.claim.role` only when the JSON role is absent. The JSON role takes precedence if both settings disagree.
+- Its SQL acceptance checks reject `authenticated` even if the legacy setting says `service_role`, reject `anon`, accept `service_role` from JSON even if the legacy setting says `authenticated`, and retain the older legacy fallback.
+- This draft is stored under `docs/security`, not in `supabase/migrations`. It has **not** been applied to Production.
+
+### Full-schema and Edge integration evidence
+
+- Auth Production Schema Baseline CI [#184](https://github.com/taufx98/sykabelajar4.0/actions/runs/43238914463) passed end-to-end at source head `23c5be5f020417b745c41b1ea640265c60ac3903`: schema-only Production export, restore with zero imported user rows, Stage 3 69-FK forward/rollback + issuer/RLS/provisioning tests, Stage 5 three-table internal ACL draft, payment RPC ACL restore and role-claim draft, synthetic two-user fixtures, local Edge Runtime, endpoint IDOR and webhook tests, and disposable cleanup.
+- Supabase Local Auth Claims CI [#1008](https://github.com/taufx98/sykabelajar4.0/actions/runs/43238914099) passed on the same head. Auth Worker CI had already passed on the prior code head; the commits since then only touched baseline metadata, disposable ACL generators and tests/workflow.
+- Actual local Edge integration passed: two distinct Auth UUIDs; Cloudinary owner signature/delete isolation; active-admin-only payment settings; payment create/reconcile order ownership; Midtrans invalid signature rejected; signed amount mismatch rejected; valid synthetic settlement completed fulfillment; replay returned duplicate/idempotent; a terminal expire callback did not downgrade a PAID order.
+- The webhook test used only a disposable synthetic server key and transaction fixture. It made **no** HTTP request to Midtrans/XenithPay and used no live provider credentials or transactions.
+- The full-schema job stopped local Supabase and removed the schema export/temp work directory at completion.
+
+### Remaining Stage 5 / Production boundary
+
+- Real Midtrans/XenithPay sandbox API calls, provider callbacks, amount/signature/idempotency against the actual provider sandbox, and wider product-specific fulfillment (coin, voucher, badge/certificate, organizer/collective flows) remain open.
+- Full per-function review of the 46 anon / 202 authenticated `SECURITY DEFINER` Advisor findings and public banner visitor-key metric-abuse mitigation remain open. Do not revoke the intentionally public scheduled-registration sync or guest banner tracking RPC without replacing their public product flows.
+- Production schema, ACLs, RPCs, RLS, triggers, Edge Functions, provider settings/secrets, accounts, Pages and DNS were not modified. PR #177 remains Draft and unmerged.
+
+---
+
 ## Latest function ACL triage for remaining Stage 5 Advisor findings — 12 November 2026
 
 Read-only Production catalog and repository-call-site review of the two `anon`-executable `SECURITY DEFINER` functions with write effects established:
