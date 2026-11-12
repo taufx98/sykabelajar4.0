@@ -37,6 +37,32 @@ test("Better Auth supplies one short-lived resource token source to every Supaba
   assert.equal(await options.accessToken(), "short-lived-better-auth-jwt");
 });
 
+test("Better Auth token callback stays live across repeated Supabase requests and logout", async () => {
+  const issued = [
+    "better-auth-user-a-token-v1",
+    "better-auth-user-a-token-v2",
+    null,
+  ];
+  let reads = 0;
+  const getExternalAccessToken = async () => issued[reads++] ?? null;
+  const options = createSupabaseClientOptions({
+    useExternalAuth: true,
+    getExternalAccessToken,
+    fetchImpl,
+  });
+
+  // Supabase may ask the shared callback again when a Realtime connection
+  // starts or renews. The callback must obtain the latest token, not capture
+  // a stale token string when the client was constructed.
+  assert.equal(await options.accessToken(), "better-auth-user-a-token-v1");
+  assert.equal(await options.accessToken(), "better-auth-user-a-token-v2");
+
+  // After sign-out, the same callback must no longer return the previous
+  // user's access token to Data API, Storage, or Realtime requests.
+  assert.equal(await options.accessToken(), null);
+  assert.equal(reads, 3);
+});
+
 test("external token mode fails closed when its provider is not configured", () => {
   assert.throws(
     () => createSupabaseClientOptions({ useExternalAuth: true, fetchImpl }),
