@@ -6,6 +6,8 @@ import { resolveApplicationIdentityMode } from "./resolve-application-identity-m
 
 type CallerSupabaseClient = SupabaseClient;
 
+const COMPACT_JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
 type ApplicationIdentitySuccess = {
   ok: true;
   userId: string;
@@ -52,6 +54,13 @@ export async function requireApplicationUser(
   const authorization = request.headers.get("authorization") ?? "";
   const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   if (!bearer) {
+    return { ok: false, status: 401, error: "AUTH_REQUIRED" };
+  }
+
+  // Reject malformed compact-JWT envelopes before dynamically importing the
+  // staging-only Better Auth verifier. Invalid credentials remain 401, while
+  // module/JWKS availability failures remain distinguishable as 503.
+  if (mode === "better-auth" && !COMPACT_JWT_PATTERN.test(bearer)) {
     return { ok: false, status: 401, error: "AUTH_REQUIRED" };
   }
 

@@ -195,11 +195,11 @@ test("Edge adapter delegates cryptographic JWT verification to pinned @supabase/
   assert.doesNotMatch(edgeAdapter, /auth\.getUser\(/);
 });
 
-test("Better Auth adapter rejects malformed compact-JWT envelopes before JWKS verification", () => {
-  assert.match(edgeAdapter, /COMPACT_JWT_PATTERN/);
-  assert.match(edgeAdapter, /if \(!COMPACT_JWT_PATTERN\.test\(bearer\)\)/);
-  assert.match(edgeAdapter, /status: 401, error: "AUTH_REQUIRED"/);
-  assert.match(edgeAdapter, /const betterAuthJwks = new URL\("jwks", issuer \+ "\/"\)/);
+test("shared identity resolver rejects malformed compact-JWT envelopes before dynamically importing the Better Auth verifier", () => {
+  assert.match(applicationIdentityResolver, /COMPACT_JWT_PATTERN/);
+  assert.match(applicationIdentityResolver, /mode === "better-auth" && !COMPACT_JWT_PATTERN\.test\(bearer\)/);
+  assert.match(applicationIdentityResolver, /status: 401, error: "AUTH_REQUIRED"/);
+  assert.match(applicationIdentityResolver, /await import\("\.\/better-auth-user\.ts"\)/);
 });
 
 test("verified user adapter uses the staging-pinned configuration resolver and fails closed elsewhere", () => {
