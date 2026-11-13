@@ -16,7 +16,7 @@ This checkpoint supersedes previous statements that Stage 7 merely needed generi
 - Review found the Stage 3 identity-root draft committed before retiring the three legacy Supabase Auth triggers. This could leave the identity foundation and trigger lifecycle in split states after a later failure.
 - Moved the single SQL `COMMIT` to the end of `docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql`, so identity-root/provisioning changes and retirement/revocation of all three legacy triggers share one transaction.
 - Added a contract that enforces exactly one final `COMMIT`, after the final legacy trigger drop and function revoke.
-- The corrected contract test passed in Supabase Local Auth Claims CI #43462381383. The full Auth Production Schema Baseline disposable restore/forward/rollback workflow #43462380374 was still running at the last check; do not mark the corrected draft fully accepted until that job succeeds.
+- The corrected single-COMMIT contract passed in Supabase Local Auth Claims CI [#43462381383](https://github.com/taufx98/sykabelajar4.0/actions/runs/43462381383). The full Auth Production Schema Baseline workflow [#43462380374](https://github.com/taufx98/sykabelajar4.0/actions/runs/43462380374) then completed successfully on disposable resources: schema-only export, PostgreSQL 17.6 restore, identity-root and issuer draft, all 69 FK expansion/validation/cutover assertions, provisioning/referral/email/phone/organizer/RLS checks, and full rollback. The correction is accepted in the disposable rehearsal; no Production DDL/DML occurred.
 
 ## Stage 7 required sequencing and hard NO-GO gates
 

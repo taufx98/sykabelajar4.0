@@ -191,7 +191,7 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 - [x] Local D1 expired-session rejection and reauthentication test passed; registration browser tests passed (15 passed, one optional Google OAuth skipped).
 - [x] Runtime CI and PR-head CI before the final Stage 3 atomicity correction passed: Auth Worker, Supabase Local Auth Claims, browser smoke and Cloudflare staging preflight.
 - [x] Stage 3 identity-root draft was amended so legacy Auth trigger retirement is inside the same transaction; a new contract test enforces a single final COMMIT.
-- [ ] Updated Stage 3 contract and full disposable schema-baseline workflow pass after the atomicity correction.
+- [x] Updated Stage 3 atomic-transaction contract and full disposable schema-baseline workflow passed after the correction in [#43462380374](https://github.com/taufx98/sykabelajar4.0/actions/runs/43462380374).
 - [ ] Owner review/acceptance of this runbook, especially fresh-account behavior and no inheritance of existing business rows.
 - [ ] Staging Worker moved to auth-staging.sykabelajar.my.id; staging app and isolated Custom OIDC provider accepted on the new issuer.
 - [ ] Dedicated Production Worker and separate empty Production D1 created; Production secret set and endpoint tested.
