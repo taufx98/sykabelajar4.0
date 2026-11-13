@@ -30,6 +30,7 @@ SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
 # Provision fresh Better Auth users only into the isolated Free Stage 3 project.
 # The Worker helper rejects every other Supabase origin; production remains on the legacy path.
 SUPABASE_PROVISIONING_ENABLED = "true"
+SUPABASE_PROVISIONING_ENV = "staging"
 SUPABASE_PROVISIONING_URL = "https://ydamszdfsxqisanazdkb.supabase.co"
 SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"
 OAUTH_CALLBACK_URL = "https://staging.sykabelajar.my.id/auth/oidc/callback"
