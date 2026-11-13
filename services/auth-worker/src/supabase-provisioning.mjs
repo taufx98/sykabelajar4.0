@@ -54,12 +54,14 @@ function requireProvisioningConfig(env) {
     throw new Error("SUPABASE_PROVISIONING_URL_INVALID");
   }
 
-  const provisioningEnvironment = typeof env.SUPABASE_PROVISIONING_ENV === "string"
+  const provisioningEnvironmentValue = typeof env.SUPABASE_PROVISIONING_ENV === "string"
     ? env.SUPABASE_PROVISIONING_ENV.trim().toLowerCase()
     : "staging";
-  if (!Object.hasOwn(PROVISIONING_ORIGINS, provisioningEnvironment)) {
+  if (!Object.hasOwn(PROVISIONING_ORIGINS, provisioningEnvironmentValue)) {
     throw new Error("SUPABASE_PROVISIONING_ENV_INVALID");
   }
+  /** @type {"staging" | "production"} */
+  const provisioningEnvironment = /** @type {"staging" | "production"} */ (provisioningEnvironmentValue);
   const expectedOrigin = PROVISIONING_ORIGINS[provisioningEnvironment];
 
   // The Worker only talks to the single exact Supabase project selected by the
