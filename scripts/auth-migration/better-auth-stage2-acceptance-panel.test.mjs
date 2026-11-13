@@ -34,6 +34,18 @@ test("owner-run token acceptance UI is hard-limited to the exact staging hostnam
   assert.doesNotMatch(panel, /window\.location\.hostname\s*!==\s*'sykabelajar\.my\.id'/);
 });
 
+test("staging acceptance reissues a real resource token through PKCE for the same active session", () => {
+  assert.match(panel, /await runCheck\('resource'/);
+  assert.match(panel, /const firstToken = await authClient\.getSupabaseAccessToken\(\)/);
+  assert.match(panel, /authClient\.invalidateResourceTokenCache\(\)/);
+  assert.match(panel, /const renewedToken = await authClient\.getSupabaseAccessToken\(\)/);
+  assert.match(panel, /renewedToken === firstToken/);
+  assert.match(panel, /BETTER_AUTH_RESOURCE_TOKEN_REISSUE_NOT_CONFIRMED/);
+  assert.match(panel, /BETTER_AUTH_SESSION_CHANGED_DURING_RESOURCE_REISSUE/);
+  assert.match(panel, /passed\}\/5 pengujian lulus/);
+  assert.doesNotMatch(panel, /console\.(log|warn|error)\([^)]*(firstToken|renewedToken)/i);
+});
+
 test("acceptance panel checks Data API identity and denies visible foreign fixture rows", () => {
   assert.match(panel, /from\('profiles'\)[\s\S]*?eq\('id', userId\)/);
   assert.match(panel, /from\('user_roles'\)[\s\S]*?eq\('user_id', userId\)/);
