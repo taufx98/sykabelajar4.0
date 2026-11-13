@@ -507,13 +507,54 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     });
     assert.equal(oldPasswordSignIn.ok, false, "the previous password must stop authenticating after a successful change");
 
+    // Expire the current session in the disposable local D1 database. The
+    // following normal password sign-in is the reauthentication step, so this
+    // adds no extra credential attempt and does not weaken the real rate limit.
+    const expiredAt = new Date(Date.now() - 5_000).toISOString();
+    const expireLocalSessionsSql =
+      `UPDATE "session" SET "expiresAt" = '${expiredAt}' WHERE "userId" = '${signupData.user.id}'`;
+    const expireLocalSessions = spawnSync(
+      "npx",
+      ["wrangler", "d1", "execute", "sykabelajar-auth-poc", "--local", "--command", expireLocalSessionsSql],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+      },
+    );
+    if (expireLocalSessions.error) throw expireLocalSessions.error;
+    assert.equal(
+      expireLocalSessions.status,
+      0,
+      "the disposable local D1 session expiry update must succeed; " +
+        String(expireLocalSessions.stderr ?? "").slice(0, 600),
+    );
+    const expiredSessionResponse = await authRequest("/get-session", { cookie });
+    assert.equal(
+      await parseJson(expiredSessionResponse),
+      null,
+      "Better Auth must reject a cookie whose persisted D1 session expiresAt is in the past",
+    );
+
     const newPasswordSignIn = await authRequest("/sign-in/email", {
       method: "POST",
       body: { email, password: changedPassword },
     });
-    assert.ok(newPasswordSignIn.ok, "the new password must authenticate successfully");
+    assert.ok(newPasswordSignIn.ok, "the new password must reauthenticate after server-side session expiry");
     const newPasswordCookie = sessionCookie(newPasswordSignIn);
-    assert.ok(newPasswordCookie, "the new password sign-in must create a session");
+    assert.ok(newPasswordCookie, "reauthentication after expiry must set a fresh session cookie");
+    assert.notEqual(newPasswordCookie, cookie, "reauthentication must not reuse the expired session cookie");
+    const reauthenticatedSessionResponse = await authRequest("/get-session", { cookie: newPasswordCookie });
+    const reauthenticatedSession = await parseJson(reauthenticatedSessionResponse);
+    assert.equal(
+      reauthenticatedSession?.user?.id,
+      signupData.user.id,
+      "reauthentication must retain the same fresh Better Auth UUID",
+    );
+    assert.ok(
+      Date.parse(reauthenticatedSession?.session?.expiresAt ?? "") > Date.now(),
+      "reauthentication must persist a new future session expiry",
+    );
     const newPasswordSignOut = await authRequest("/sign-out", {
       method: "POST",
       body: {},
@@ -801,61 +842,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
         additionalResetStatuses.join(", "),
     );
 
-    // Expire the actual Better Auth D1 session row in this disposable local
-    // Worker database. This tests server-side expiry, not a mocked 401 response,
-    // and never touches a hosted staging or Production session.
-    const expiredAt = new Date(Date.now() - 5_000).toISOString();
-    const expireLocalSessionsSql =
-      `UPDATE "session" SET "expiresAt" = '${expiredAt}' WHERE "userId" = '${signupData.user.id}'`;
-    const expireLocalSessions = spawnSync(
-      "npx",
-      ["wrangler", "d1", "execute", "sykabelajar-auth-poc", "--local", "--command", expireLocalSessionsSql],
-      {
-        cwd: process.cwd(),
-        encoding: "utf8",
-        maxBuffer: 1024 * 1024,
-      },
-    );
-    if (expireLocalSessions.error) throw expireLocalSessions.error;
-    assert.equal(
-      expireLocalSessions.status,
-      0,
-      "the disposable local D1 session expiry update must succeed; " +
-        String(expireLocalSessions.stderr ?? "").slice(0, 600),
-    );
-
-    const expiredSessionResponse = await authRequest("/get-session", { cookie });
-    assert.equal(
-      await parseJson(expiredSessionResponse),
-      null,
-      "Better Auth must reject a cookie whose persisted D1 session expiresAt is in the past",
-    );
-
-    const reauthentication = await authRequest("/sign-in/email", {
-      method: "POST",
-      body: { email, password: changedPassword },
-    });
-    assert.ok(reauthentication.ok, "a valid password must create a fresh session after server-side expiry");
-    const reauthenticatedCookie = sessionCookie(reauthentication);
-    assert.ok(reauthenticatedCookie, "reauthentication after expiry must set a new session cookie");
-    assert.notEqual(
-      reauthenticatedCookie,
-      cookie,
-      "reauthentication must not reuse the expired session cookie",
-    );
-    const reauthenticatedSessionResponse = await authRequest("/get-session", { cookie: reauthenticatedCookie });
-    const reauthenticatedSession = await parseJson(reauthenticatedSessionResponse);
-    assert.equal(
-      reauthenticatedSession?.user?.id,
-      signupData.user.id,
-      "reauthentication must retain the same fresh Better Auth UUID",
-    );
-    assert.ok(
-      Date.parse(reauthenticatedSession?.session?.expiresAt ?? "") > Date.now(),
-      "reauthentication must persist a new future session expiry",
-    );
-
-    const signOut = await authRequest("/sign-out", { method: "POST", body: {}, cookie: reauthenticatedCookie });
+    const signOut = await authRequest("/sign-out", { method: "POST", body: {}, cookie: newPasswordCookie });
     const signOutBody = await signOut.clone().text();
     assert.ok(
       signOut.ok,
@@ -863,7 +850,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
         "; location=" + String(signOut.headers.get("location")) +
         "; body=" + signOutBody.slice(0, 1500),
     );
-    const sessionAfterLogout = await authRequest("/get-session", { cookie });
+    const sessionAfterLogout = await authRequest("/get-session", { cookie: newPasswordCookie });
     assert.equal(await parseJson(sessionAfterLogout), null, "revoked cookie must no longer resolve to a session");
 
     const userInfoAfterLogout = await fetch(new URL("/api/auth/oauth2/userinfo", baseUrl), {
