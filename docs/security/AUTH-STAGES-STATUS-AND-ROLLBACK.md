@@ -1,3 +1,12 @@
+## Owner scope clarification — 13 November 2026
+
+- Better Auth authentication starts with fresh accounts. Do not migrate/import prior Supabase Auth users, passwords, sessions, or demo identities.
+- Account switching is not a product feature and is removed from migration acceptance. Keep cross-tab logout and authoritative session revalidation as session-security behavior only.
+- Do not reset or delete previous demo/test accounts or application rows. They are not required for the new login system and remain untouched.
+- Work only on Better Auth registration, email/password login, verification/recovery lifecycle, sessions, JWT/OIDC and the minimum identity verifier compatibility needed by Supabase. Do not expand into unrelated business features.
+
+---
+
 ## Stage 5 — local D1-issued token accepted by one migrated handler — 13 November 2026
 
 Auth Worker CI **#43369210539** and Supabase Local Auth Claims CI **#43369210451** both passed on the current branch head.
@@ -50,9 +59,9 @@ This is the latest owner-provided Admin panel result and supersedes any earlier 
 - Stage 1: first-attempt staging email/password login and logout are owner-accepted. Real mailbox verification/password-reset delivery remains deferred; no email verification state was forged.
 - Stage 2: owner has now reconfirmed **4/4 real-session checks against probe v7**, including the positive Edge POST through the shared handler verifier. Stage 2 is accepted; no repeat is required absent a relevant regression.
 - Stage 3: full schema-only disposable identity/FK/issuer/RLS/provisioning and rollback rehearsal passed; no Production identity migration.
-- Stage 4: core bridge/token broker and expiry/transient-error code are implemented and CI-verified; owner/browser checks listed above remain.
+- Stage 4: core bridge/token broker and expiry/transient-error code are implemented and CI-verified; owner/browser checks listed above remain. Account switching is explicitly excluded; cross-tab logout remains a security check.
 - Stage 5: source/runtime contracts, one ephemeral-key boundary test, and **one locally D1-issued Better Auth token through the actual Cloudinary profile-upload handler** pass. Full-schema local two-user Edge checks still use synthetic **Supabase Auth** local users. Hosted-staging and remaining business-handler/payment acceptance remain open.
-- Stage 6: four-role local RLS matrix passed; per-role runtime route/RPC/Edge checks with Better Auth-issued tokens and exact demo/test identity classification remain open. No account reset/deletion occurred.
+- Stage 6: four-role local RLS matrix passed; per-role runtime identity/role checks with fresh Better Auth-issued identities remain open. Prior demo/test identity classification and cleanup are excluded; no previous account or application row should be reset/deleted.
 - Stage 7: no Production cutover is authorized. The production rollback model remains identity-aware: Better Auth and Supabase Auth accounts are not interchangeable; do not remove either side or silently fail over issuers.
 
 ### Production safety
@@ -66,7 +75,7 @@ No Production DB2 schema/data, Supabase Auth, RLS, RPC, FK, trigger, account, se
 - Each role sees exactly its own active `user_roles` row and cannot read the other three role rows. The JWT claim remains `role=authenticated`; the business role is kept in `public.user_roles`. No business role is placed in the Postgres JWT role claim.
 - Supabase Local Auth Claims CI [#43256267828](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256267828) passed: the full local suite reported **9 SQL files, 192 tests, PASS**. The temporary local Supabase stack stopped after the tests. Auth Worker CI [#43256267857](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256267857) and Cloudflare staging read-only preflight [#43256248427](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256248427) also passed.
 - This closes the synthetic four-role regression part of Stage 6 only. It does not approve or perform demo-account cleanup. Existing staging identity/role rows and all Production accounts/data remain untouched.
-- Remaining Stage 6 work is limited to a reviewed inventory of genuinely disposable demo/test identities and dependent test rows before any cleanup approval. Stage 5 real Better Auth token-to-migrated-handler acceptance and Stage 4 owner/browser lifecycle acceptance remain separate gates.
+- Remaining Stage 6 work is limited to fresh Better Auth identity/role runtime checks. No legacy demo/test identity inventory, reset, or cleanup is required. Stage 5 scoped Better Auth token-to-verifier acceptance and Stage 4 owner/browser lifecycle acceptance remain separate gates.
 - PR #177 remains open, Draft, and unmerged. No Production schema/data, Supabase Auth, RLS, RPC, Edge Function, secret, Pages, DNS or login-routing change was made by this test.
 
 ---
@@ -80,9 +89,9 @@ This checkpoint supersedes earlier summaries below wherever they describe Stage 
 - **Stage 1:** the owner confirms hosted staging email/password login reaches the app on first attempt and logout works. The temporary email-verification bypass is staging-only and is not proof of mailbox verification. Real verification-email and password-reset delivery remain deferred; do not fabricate `emailVerified`.
 - **Stage 2:** the owner-run Admin acceptance panel reports **4/4 passed** with a real staging Better Auth session: Data API/profile/role isolation, private Storage ownership, private Realtime topic isolation, and the read-only Edge probe. Do not ask the owner to repeat this matrix without a relevant regression.
 - **Stage 3:** the full schema-only Production export/restore, 69-FK forward/cutover/rollback rehearsal, identity lifecycle, issuer and RLS regression passed on disposable local Supabase. The live Production identity cutover has not occurred.
-- **Stage 4:** refresh/session restore, account switching, cross-tab logout, and normal logout are owner-accepted. The definitive-expiry versus transient-Worker-error bridge fix is included at current head and CI-green. Still pending only owner/browser acceptance for a real expiry/reauthentication, a live Realtime heartbeat through resource-token renewal, and visible recovery for D1 quota 503 / custom-domain Error 1027.
+- **Stage 4:** refresh/session restore, cross-tab logout, and normal logout are owner-accepted. Account switching is not a feature or acceptance gate. The definitive-expiry versus transient-Worker-error bridge fix is included at current head and CI-green. Still pending only owner/browser acceptance for a real expiry/reauthentication, a live Realtime heartbeat through resource-token renewal, and visible recovery for D1 quota 503 / custom-domain Error 1027.
 - **Stage 5:** shared Better Auth verifier and nine auth-adapted handler implementations are in source. Two-user handler ownership/IDOR and synthetic webhook/service-role checks passed in the full-schema disposable Edge Runtime rehearsal [Auth Production Schema Baseline #43241370848](https://github.com/taufx98/sykabelajar4.0/actions/runs/43241370848). This local fixture acceptance is not a claim that those nine handlers have been called with the real hosted Better Auth token. Keep the remaining token-to-handler acceptance isolated to a schema-compatible disposable environment; do not deploy business handlers or copy business schema/data into the auth-only Supabase staging project.
-- **Stage 6:** a read-only staging recheck found one `better_auth` identity, one linked profile, one linked role row with `role=admin`, and zero `auth.users` rows. Do not repeat first-admin bootstrap. No demo account was reset. Any cleanup still requires exact identification of disposable accounts and their dependent test rows before approval.
+- **Stage 6:** a read-only staging recheck found one `better_auth` identity, one linked profile, one linked role row with `role=admin`, and zero `auth.users` rows. Do not repeat first-admin bootstrap. Previous demo/test accounts are out of scope; no reset, deletion, or cleanup is required.
 - **Stage 7:** Production cutover remains blocked and unauthorized.
 
 **Scope guard:** live Midtrans/XenithPay or Cloudinary provider transactions, broad unrelated Security Advisor remediation, and guest banner analytics hardening are not standalone Better Auth migration gates. Preserve their business behavior; change an existing handler only at the authentication/identity boundary when a direct dependency requires it.
