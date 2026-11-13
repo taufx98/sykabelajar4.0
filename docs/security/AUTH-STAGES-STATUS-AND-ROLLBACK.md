@@ -7,6 +7,17 @@
 
 ---
 
+## Latest Stage 6 staging RPC acceptance — 13 November 2026
+
+- A read-only inventory of the isolated staging project found exactly one existing `better_auth` identity, one linked profile, one settings row, and one `admin` business-role row; `auth.users` remains empty. No user identifiers or personal data were selected.
+- The actual hosted `public.better_auth_provision_user` RPC was exercised inside a transaction using three generated temporary UUID subjects. The mapping passed for all three public registration types: `student → student`, `teacher → teacher`, and `organizer → organizer_member`.
+- Each temporary identity received `identity_origin='better_auth'`, one matching profile, its single expected business role, and a settings row. Repeated provisioning did not overwrite the original profile. A deliberately disabled teacher role stayed disabled after retry.
+- Public `admin` self-registration was rejected with SQLSTATE `22023`. The wrapper's grants were also checked: only `service_role` can execute it; `anon` and `authenticated` cannot.
+- The test transaction was rolled back. A follow-up read-only count remained exactly one existing Better Auth identity/profile/settings/admin role and zero `auth.users`; no test identity was left behind.
+- **Boundary:** this verifies the live staging SQL provisioning RPC, not a complete D1 Better Auth signup → Worker hook → Supabase projection. That end-to-end fresh-account path remains the Stage 6 gate. No Production resource, staging D1 account, or secret was changed.
+
+---
+
 ## Stage 5 — local D1-issued token accepted by one migrated handler — 13 November 2026
 
 Auth Worker CI **#43369210539** and Supabase Local Auth Claims CI **#43369210451** both passed on the current branch head.
