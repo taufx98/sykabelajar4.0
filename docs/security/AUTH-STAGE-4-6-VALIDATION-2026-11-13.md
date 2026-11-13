@@ -21,13 +21,13 @@ No Production resource was changed. PR #177 remains open, Draft and unmerged. Th
 - Worker D1 quota classification/response tests cover the documented daily read/write limit messages, a safe 503, `Retry-After`, `X-Auth-Availability: degraded`, and next-midnight-UTC retry metadata.
 - AuthGuard has a recoverable availability screen. A temporary Worker/network/quota failure is not treated as proof of logout; an authoritative 401/expired session remains a definitive sign-out.
 
-### Browser acceptance added; hosted result not yet confirmed
+### Browser acceptance and CORS fix — 13 November 2026
 
-- Two new Playwright browser cases were added to `e2e/staging/login-smoke.spec.ts`: simulated D1 quota 503 with visible retry time, and a synthetic Cloudflare Error 1027 HTML response with the generic recoverable availability UI. Both assert the app does not redirect to login or issue sign-out solely because of the transient error.
-- These are controlled simulations only. They do not exhaust the Cloudflare Workers 100,000-request daily Free limit, exhaust D1 quota, alter the real Worker route, or prove an actual outage response.
-- The first hosted Playwright run #43436326042 completed 11/13 successfully (1 optional Google OAuth test skipped). The synthetic Error 1027 recovery test passed. The synthetic D1 503 scenario exposed a real CORS contract defect: the browser received the header/body but JavaScript could not read the custom `X-Auth-Availability` response header, so the retry time was omitted.
-- Fixed Worker CORS to expose `X-Auth-Availability` and `Retry-After` only to already-allowlisted origins, and added a regression test to `services/auth-worker/tests/security.test.mjs`. The browser fixture now simulates the exposed-header contract. CI/browser rerun is pending on the latest PR head; do not mark D1 503 browser acceptance passed until it reports success.
-- The real hosted session-expiry → reauthentication flow and resource-token renewal against an active real Better Auth browser session have not been independently observed in this audit. Unit/session-bridge and cache tests are not a substitute for that hosted acceptance.
+- Two Playwright browser cases in `e2e/staging/login-smoke.spec.ts` simulate D1 quota 503 with a visible retry time and Cloudflare Error 1027 with the recoverable availability UI. Both assert the app does not redirect to login or issue sign-out solely because of the transient error.
+- The first hosted run #43436326042 surfaced a genuine defect: the browser received the 503 body and the `X-Auth-Availability` header, but the CORS response did not expose that header to JavaScript. The UI therefore showed the generic recovery message without its retry time.
+- Fixed `services/auth-worker/src/security.mjs` to expose `X-Auth-Availability` and `Retry-After` to exact allowlisted origins and preserve the expose header in `applyResponseHeaders`. Added a regression test; Auth Worker CI confirms it passes.
+- The rerun against the staging Pages preview passed **12 browser tests, with 1 optional Google OAuth test skipped** in [Better Auth staging browser smoke #43438269059](https://github.com/taufx98/sykabelajar4.0/actions/runs/43438269059). Both synthetic D1 503 and Error 1027 recovery tests passed. These are controlled simulations: no D1 quota was exhausted and no live Worker route was interrupted.
+- Real hosted session-expiry → reauthentication and resource-token renewal using an active real Better Auth browser session have not been independently observed in this audit. Unit/session-bridge and token-cache tests pass, but they do not substitute for those two hosted acceptance items.
 - External email verification and password-reset delivery remain deferred by owner instruction. Staging email-verification bypass is not acceptable in Production; do not forge `emailVerified`.
 
 ### Current Stage 4 status
@@ -41,8 +41,8 @@ No Production resource was changed. PR #177 remains open, Draft and unmerged. Th
 | Resource-token refresh margin/single-flight cache | Automated tests pass |
 | Hosted real-session expiry and reauthentication | **Open** |
 | Hosted real-session resource-token renewal | **Open** |
-| Browser D1 503 recovery simulation | Added; Playwright result pending/unconfirmed |
-| Browser Cloudflare Error 1027 simulation | Added; Playwright result pending/unconfirmed |
+| Browser D1 503 recovery simulation | Passed on staging Pages preview #43438269059 |
+| Browser Cloudflare Error 1027 simulation | Passed on staging Pages preview #43438269059 |
 | Real email delivery | Deferred; not a Production bypass |
 
 ## Stage 6 — fresh identity and preserved business roles
@@ -70,7 +70,7 @@ This confirms that staging currently has the expected profile and active-role pr
 - A transaction-only hosted staging RPC probe previously verified `student → student`, `teacher → teacher`, `organizer → organizer_member`, rejected public admin registration, preserved existing profile edits on retry, and did not reactivate a deliberately disabled role. The whole test transaction was rolled back.
 - A real fresh student registration was previously matched by exact UUID between staging D1 and Supabase; it created the profile, settings and student role. The account remains untouched.
 
-### Latest D1-to-Supabase identity correlation — read-only preflight #43438058351
+### Latest D1-to-Supabase identity correlation — read-only preflight #43438269067
 
 The pull-request-triggered Cloudflare preflight completed successfully on 13 November 2026. It read only safe D1 fields (`id`, `accountType`, `emailVerified`, `createdAt`) and did not select email, password, session token, credential, or secret values. All four recent D1 UUIDs match exactly to the four current Supabase `private.app_users.id` rows previously read from the isolated staging project:
 
@@ -98,10 +98,10 @@ The local 16-assertion role/RLS matrix and live RPC privilege checks remain the 
 
 ## CI evidence
 
-- Auth Worker CI #43436326238 — success (typecheck, security contracts, Worker/local D1 auth flow, frontend lint/typecheck/build, Worker dry-run).
-- Supabase Local Auth Claims CI #43436326171 — success (shared Better Auth verifier/handler contracts and disposable local Supabase JWT/RLS tests).
-- Browser-smoke PR run #43436326042 — failed only at the retry-time assertion for synthetic D1 503; Error 1027 scenario passed (11 passed, 1 failed, 1 optional Google skip). The follow-up run after the CORS fix is pending on the newer head; do not mark D1 503 browser acceptance passed until it reports success.
-- Cloudflare read-only preflight #43438058351 — success; the output confirms exact D1 UUID match for student, teacher, organizer and the existing staging admin identity.
+- [Auth Worker CI #43438269022](https://github.com/taufx98/sykabelajar4.0/actions/runs/43438269022) — success, including the new CORS header-exposure regression (assertion 79), Worker/local D1 auth tests, frontend lint/typecheck/build and Worker dry-run.
+- [Supabase Local Auth Claims CI #43438269168](https://github.com/taufx98/sykabelajar4.0/actions/runs/43438269168) — success, including shared Better Auth verifier/handler contracts and disposable local Supabase JWT/RLS tests.
+- [Better Auth staging browser smoke #43438269059](https://github.com/taufx98/sykabelajar4.0/actions/runs/43438269059) — success: **12 passed, 1 optional Google OAuth test skipped**. D1 503 and Error 1027 recovery simulations both passed.
+- [Auth Cloudflare Staging Preflight #43438269067](https://github.com/taufx98/sykabelajar4.0/actions/runs/43438269067) — success; read-only output matches all four latest D1 UUIDs (student, teacher, organizer and the existing admin identity) to Supabase staging. No email addresses or credential/secret values were read or printed.
 
 ## Production readiness and safety boundary
 
