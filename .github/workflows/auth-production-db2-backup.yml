@@ -266,10 +266,12 @@ jobs:
 
       - name: Stop isolated Supabase stack and remove plaintext material
         if: always()
-        working-directory: ${{ runner.temp }}/sykabelajar-db2-backup-restore
+        working-directory: ${{ github.workspace }}
         run: |
           set +e
-          supabase stop --no-backup >/dev/null 2>&1 || true
+          if [ -d "$SUPABASE_CLI_WORKDIR" ]; then
+            cd "$SUPABASE_CLI_WORKDIR" && supabase stop --no-backup >/dev/null 2>&1 || true
+          fi
           rm -f "$RUNNER_TEMP/production-db2.pgpass"
           rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt"
           exit 0
