@@ -15,7 +15,7 @@ This addendum supersedes earlier Stage 4 status wording below where it predates 
 - The original four checks are retained: own profile/role and RLS fixture isolation, private Storage owner upload/download/cleanup plus foreign-folder denial, private Realtime Broadcast echo plus foreign-topic denial, and the read-only Edge acceptance probe using the shared Better Auth identity verifier.
 - Added [AUTH-STAGE-4-SESSION-LIFECYCLE-ACCEPTANCE.md](AUTH-STAGE-4-SESSION-LIFECYCLE-ACCEPTANCE.md) with the exact owner run instructions and evidence boundaries.
 - The new panel source contract passed in [Auth Worker CI #43445030354](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445030354). [Supabase Local Auth Claims CI #43445045283](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045283) and [Cloudflare staging preflight #43445045579](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045579) also passed. The Cloudflare Pages check for this exact head completed successfully.
-- Browser smoke for the same head is [#43445045154](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045154); its Playwright job was still running when this addendum was written.
+- Browser smoke for the same head [#43445045154](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045154) passed **15 tests, 1 optional Google OAuth test skipped**. The three fresh-registration submit-path cases for student, teacher, and organizer passed.
 
 ## Remaining hosted acceptance — do not overstate
 
