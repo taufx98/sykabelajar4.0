@@ -274,7 +274,7 @@ export function BetterAuthAcceptancePanel() {
           {hasRun && (
             <div className="rounded-lg border surface-border p-3">
               <p className="text-sm font-medium text-fg">
-                {passed}/4 pengujian lulus{failed ? ' · ' + failed + ' gagal' : running ? ' · proses berjalan' : ''}
+                {passed}/5 pengujian lulus{failed ? ' · ' + failed + ' gagal' : running ? ' · proses berjalan' : ''}
               </p>
               <p className="mt-1 text-xs text-fg-muted">File probe Storage akan dihapus kembali setelah pengujian.</p>
             </div>
