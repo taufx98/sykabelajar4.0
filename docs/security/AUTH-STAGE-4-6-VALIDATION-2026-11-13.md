@@ -16,7 +16,7 @@ This checkpoint supersedes earlier Stage 4 expiry-test wording below where it pr
 - The five-check staging Admin acceptance panel continues to force a second resource-token issue through PKCE on the same real session and UUID; neither JWT is exposed or persisted. Owner-run panel acceptance is still needed to prove this live staging path.
 - [Supabase Local Auth Claims CI #43447358670](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447358670) passed; its disposable local PostgreSQL/JWT/RLS stack was stopped after the suite.
 - [Cloudflare read-only staging preflight #43447346236](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447346236) passed. A duplicate preflight attempt [#43447358682](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447358682) failed because the hosted JWKS endpoint briefly returned HTTP 503; a repeat on the same head succeeded. No permission or configuration was changed.
-- Browser smoke on the latest exact head: [#43447358867](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447358867) was still running when this checkpoint was written.
+- Browser smoke on runtime head `17becdd398bf24e9ffa72dcb56a0b7932cad36b2` [#43447358867](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447358867) passed **15 tests, 1 optional Google OAuth test skipped**, including the student/teacher/organizer registration submit-path cases.
 
 ## Still open
 
