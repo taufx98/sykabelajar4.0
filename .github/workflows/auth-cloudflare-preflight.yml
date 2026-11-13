@@ -1,4 +1,5 @@
 name: Auth Cloudflare Staging Preflight
+# This workflow is read-only; a branch update can refresh the D1 identity snapshot without deploying or changing staging resources.
 # Re-run this read-only check after rotating CLOUDFLARE_API_TOKEN.
 
 on:
