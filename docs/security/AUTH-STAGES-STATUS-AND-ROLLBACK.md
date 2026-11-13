@@ -1,3 +1,18 @@
+## Latest Stage 4 / Stage 6 follow-up — 13 November 2026
+
+- Repository: PR [#177](https://github.com/taufx98/sykabelajar4.0/pull/177), branch `security/auth-poc-stage-1`; PR remains open, Draft and unmerged. Current documentation head: `c60e01901d728f1be01f7be1560c7ca503a2736e`.
+- Public registration acceptance: [Browser smoke #43441985687](https://github.com/taufx98/sykabelajar4.0/actions/runs/43441985687) passed **15 tests, 1 optional Google OAuth test skipped**. The three new submit-path cases verify the frontend sends `student`, `teacher`, and `organizer` Better Auth registration types. Better Auth HTTP requests were stubbed in these cases, so they created no persistent D1/Supabase users and sent no email.
+- The staging Admin acceptance panel now has **five** checks. In addition to the previously owner-accepted Data API/profile/role, Storage, Realtime and read-only Edge checks, it now obtains a resource JWT, invalidates only its in-memory cache, waits 1.1 seconds, then proves a different token is issued through the real PKCE flow while the same Better Auth UUID/session remains valid. Neither token is displayed, copied, logged or persisted.
+- The exact panel is mounted at **Admin → Pengaturan** (`/admin/core?tab=settings`) and is hidden outside the exact staging hostname. Owner instructions and the evidence boundary are in [AUTH-STAGE-4-SESSION-LIFECYCLE-ACCEPTANCE.md](AUTH-STAGE-4-SESSION-LIFECYCLE-ACCEPTANCE.md).
+- [Auth Worker CI #43445030354](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445030354) passed on runtime head `7faa1296dac16292b473c7ed0ea80b4f8b00ea04`, including the panel reissue contract, local Worker/D1 registration-verification-password-reset-session-revocation-PKCE/ES256 flow, frontend typecheck/build, and Worker dry-run without deployment.
+- [Supabase Local Auth Claims CI #43445045283](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045283) passed on the same runtime head; its local Supabase JWT/RLS database was stopped after tests. [Cloudflare staging preflight #43445045579](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045579) passed as a read-only inspection, and the Cloudflare Pages check for that head was successful.
+- [Better Auth browser smoke #43445045154](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045154) was still running when this checkpoint was written. [Browser smoke #43444713885](https://github.com/taufx98/sykabelajar4.0/actions/runs/43444713885) passed on the immediately preceding runtime head `3d843e166b4d2d478f892fb079d96f68fdb90ef6`.
+- **Owner action still required:** run the five-check panel on a live Better Auth staging admin session and report only its pass/fail states plus safe error codes. Do not send a password, cookie, authorization header, or token.
+- **Still open:** hosted natural session expiry → reauthentication; live JWT sessions for fresh teacher/organizer accounts. A forced resource-token reissue is not the same as waiting for the automatic 45-second refresh margin. Synthetic expiry tests are not real hosted expiry evidence.
+- No prior/demo account was imported, switched into, reset, deleted or cleaned up. No Production DB2/Auth/schema/data/RLS/RPC/FK/trigger, Worker deployment, DNS, Pages Production configuration, secrets, or login routing changed. No merge or Production cutover occurred.
+
+---
+
 ## Owner scope clarification — 13 November 2026
 
 - Better Auth authentication starts with fresh accounts. Do not migrate/import prior Supabase Auth users, passwords, sessions, or demo identities.
