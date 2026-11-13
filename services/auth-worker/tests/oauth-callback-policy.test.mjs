@@ -33,3 +33,20 @@ test("callback policy rejects malformed, non-HTTPS, path-bearing or duplicate or
     assert.throws(() => getApprovedOAuthCallbackUrls(appOrigin, devOrigin));
   }
 });
+
+test("local staging may use only an HTTP localhost callback origin", () => {
+  assert.deepEqual(
+    getApprovedOAuthCallbackUrls(
+      "https://sykabelajar.my.id",
+      "http://localhost:5173",
+    ),
+    [
+      "https://sykabelajar.my.id/auth/oidc/callback",
+      "http://localhost:5173/auth/oidc/callback",
+    ],
+  );
+  assert.throws(() => getApprovedOAuthCallbackUrls(
+    "https://sykabelajar.my.id",
+    "http://staging.sykabelajar.my.id",
+  ));
+});
