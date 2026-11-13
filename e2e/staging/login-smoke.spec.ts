@@ -326,6 +326,7 @@ test('synthetic D1 quota 503 shows its retry time without redirecting to login',
         'cache-control': 'no-store',
         'retry-after': '3600',
         'x-auth-availability': 'degraded',
+        'access-control-expose-headers': 'X-Auth-Availability, Retry-After',
       },
       body: JSON.stringify({
         error: 'AUTH_TEMPORARILY_UNAVAILABLE',
