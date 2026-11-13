@@ -41,6 +41,21 @@ jobs:
         with:
           ref: security/auth-poc-stage-1
 
+      - name: Detect whether the latest commit changes frontend browser-smoke inputs
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed_files="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+          if printf '%s\n' "$changed_files" | grep -Eq '^(src/|e2e/staging/login-smoke\.spec\.ts$|playwright\.staging\.config\.ts$)'; then
+            echo "run_browser=true" >> "$GITHUB_OUTPUT"
+            echo "Frontend files changed; browser smoke will run."
+          else
+            echo "run_browser=false" >> "$GITHUB_OUTPUT"
+            echo "No frontend browser-smoke inputs changed in this commit; deployment wait and browser smoke are skipped."
+          fi
+
+      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Wait for the matching Cloudflare Pages deployment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -73,22 +88,26 @@ jobs:
           throw new Error("Timed out waiting for the matching Cloudflare Pages deployment check.");
           NODE
 
+      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
 
+      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Install browser-test dependencies without changing the lockfile
         run: |
           npm ci --no-audit --no-fund
           npm install --no-save --no-package-lock --ignore-scripts @playwright/test@1.63.0
           npx playwright install --with-deps chromium
 
+      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Verify staging login route in a real browser
         env:
           AUTH_STAGING_BASE_URL: https://staging.sykabelajar.my.id
         run: npx playwright test --config=playwright.staging.config.ts
 
+      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Upload browser diagnostics only on failure
         if: failure()
         uses: actions/upload-artifact@v4
