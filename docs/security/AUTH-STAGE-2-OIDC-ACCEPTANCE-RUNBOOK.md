@@ -4,15 +4,15 @@ The isolated read-only `better-auth-oidc-acceptance` Edge Function was redeploye
 
 Hosted negative checks against the deployed v7 endpoint passed in [Supabase Local Auth Claims CI #43263432252](https://github.com/taufx98/sykabelajar4.0/actions/runs/43263432252): staging preflight HTTP 204, untrusted origin HTTP 403 without a CORS grant, anonymous POST HTTP 401 `AUTH_REQUIRED`, and malformed bearer HTTP 401 `AUTH_REQUIRED`.
 
-The previous owner-run **4/4** real Better Auth session result remains recorded above for the earlier probe version. Because v7 changes the shared verifier's SDK dependency, rerun the Admin acceptance panel while signed in on `https://staging.sykabelajar.my.id` to reconfirm the positive authenticated Edge request on v7. Do not copy or expose the token. The current CI negative checks and ephemeral-key Deno tests are not a substitute for this owner-run hosted positive session check.
+The owner has now reconfirmed the **4/4** real Better Auth session matrix against probe **v7 ACTIVE**, including the positive authenticated Edge request through the shared verifier. This supersedes the earlier request to rerun the panel after the v7 SDK dependency alignment. Do not repeat the panel unless the probe, shared verifier, JWT contract or staging configuration changes. Do not copy or expose the token.
 
 No business handler was deployed to the auth-only staging project, and no Production resource was changed.
 
 ---
 
-## Latest owner result — 12 November 2026 (real Better Auth session 4/4 passed)
+## Latest owner result — 13 November 2026 (probe v7; real Better Auth session 4/4 passed)
 
-The owner has now rerun the Admin acceptance panel after the staging OPTIONS/CORS correction. **All four checks passed** with the signed-in Better Auth session:
+The owner has now rerun the Admin acceptance panel after probe **version 7 ACTIVE** was deployed. **All four checks passed** with the signed-in Better Auth session:
 
 1. Session/Data API/profile/active role and foreign-row isolation.
 2. Private Storage upload, download and cleanup for the owner's UUID; another UUID folder is denied.
@@ -42,7 +42,7 @@ The correction is deployed to isolated Free project `ydamszdfsxqisanazdkb` as `b
 
 **Hosted verification passed:** trusted staging preflight returned 204; untrusted-origin preflight returned 403 without a CORS grant; anonymous POST returned 401 `AUTH_REQUIRED`. The requests were served by deployed version 3. Auth Worker CI [#43204434638](https://github.com/taufx98/sykabelajar4.0/actions/runs/43204434638) and Supabase Local Auth Claims CI [#43204434746](https://github.com/taufx98/sykabelajar4.0/actions/runs/43204434746) passed, including Deno type-check, the acceptance-panel source contract, and the actual hosted CORS allow/deny smoke test.
 
-**Remaining Stage 2 owner action:** repeat **Admin → Pengaturan → Uji Penerimaan Better Auth — Staging → Jalankan tes** while signed in to `https://staging.sykabelajar.my.id`. The function preflight is now verified, but the positive authenticated POST with the owner's active resource token is still pending. The panel does not display or copy the token. If the Edge check fails after preflight, use the safe response code and hosted function invocation log to investigate JWT/JWKS/claims; do not weaken verification or platform security.
+**Stage 2 owner action: complete.** On 13 November 2026, the signed-in Admin panel reported 4/4 against probe v7, including the positive authenticated POST through the shared verifier. The prior pending instruction in this historical checkpoint is superseded. Do not weaken verification or platform security.
 
 Only this staging function was deployed. Production Supabase, Production auth settings, data, schema, functions, DNS and Pages were not touched. The Stage 2 harness must not be run on Production.
 
@@ -327,6 +327,6 @@ The isolated staging function `better-auth-oidc-acceptance` was updated to **ver
 - anonymous POST: HTTP 401 `AUTH_REQUIRED`;
 - malformed bearer POST: HTTP 401 `AUTH_REQUIRED`.
 
-The actual owner-operated Stage 2 browser panel previously returned 4/4. **The new shared-handler path still needs one positive invocation with the owner's existing real Better Auth staging session.** Run Admin → Pengaturan → Uji Penerimaan Better Auth — Staging → Jalankan tes. Report only its four states and safe error code, never the token or cookie.
+Historical note: the earlier owner-operated panel returned 4/4 on the previous probe. The owner has since confirmed **4/4 again against probe v7 ACTIVE**, including the shared-handler positive JWT check. This Stage 2 positive browser acceptance is complete; no additional panel invocation is required unless a relevant implementation/configuration changes. Never copy or expose the token or cookie.
 
 The browser UI tests on [#43253413341](https://github.com/taufx98/sykabelajar4.0/actions/runs/43253413341) passed 10 tests and skipped the optional Google OAuth test. This is not evidence of session expiry/reauthentication. Production Supabase, Production Edge Functions, Production Pages, DNS, secrets, users and data remain unchanged; PR #177 remains Draft and unmerged.
