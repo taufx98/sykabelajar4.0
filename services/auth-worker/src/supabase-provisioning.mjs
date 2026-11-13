@@ -6,9 +6,12 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;
 const ACCOUNT_TYPES = new Set(["student", "teacher", "organizer"]);
 const EDUCATION_LEVELS = new Set(["sd", "smp", "sma", "alumni"]);
-// This branch may provision only into the isolated Free Stage 3 Supabase project.
-// The legacy SUPABASE_URL remains bound to production for the pre-cutover admin bridge.
-const STAGING_PROVISIONING_ORIGIN = "https://ydamszdfsxqisanazdkb.supabase.co";
+// Provisioning has two exact, allowlisted project destinations. Missing environment
+// defaults to staging so existing test deployments cannot silently target Production.
+const PROVISIONING_ORIGINS = Object.freeze({
+  staging: "https://ydamszdfsxqisanazdkb.supabase.co",
+  production: "https://mvdczyitbkxkldjughor.supabase.co",
+});
 
 /** @param {AuthWorkerEnv} env */
 export function isSupabaseProvisioningEnabled(env) {
@@ -51,8 +54,16 @@ function requireProvisioningConfig(env) {
     throw new Error("SUPABASE_PROVISIONING_URL_INVALID");
   }
 
-  // The Worker only talks to the configured Supabase project host. This is
-  // deliberately not an arbitrary URL/fetch proxy.
+  const provisioningEnvironment = typeof env.SUPABASE_PROVISIONING_ENV === "string"
+    ? env.SUPABASE_PROVISIONING_ENV.trim().toLowerCase()
+    : "staging";
+  if (!Object.hasOwn(PROVISIONING_ORIGINS, provisioningEnvironment)) {
+    throw new Error("SUPABASE_PROVISIONING_ENV_INVALID");
+  }
+  const expectedOrigin = PROVISIONING_ORIGINS[provisioningEnvironment];
+
+  // The Worker only talks to the single exact Supabase project selected by the
+  // explicit environment. This is deliberately not an arbitrary URL/fetch proxy.
   if (
     url.protocol !== "https:" ||
     !/^[a-z0-9-]+\.supabase\.co$/i.test(url.hostname) ||
@@ -61,7 +72,7 @@ function requireProvisioningConfig(env) {
     url.pathname !== "/" ||
     url.search ||
     url.hash ||
-    url.origin !== STAGING_PROVISIONING_ORIGIN
+    url.origin !== expectedOrigin
   ) {
     throw new Error("SUPABASE_PROVISIONING_URL_NOT_ALLOWED");
   }
