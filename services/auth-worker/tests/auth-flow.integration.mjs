@@ -92,7 +92,7 @@ async function authRequest(path, { method = "GET", body, cookie, headers = {}, r
 }
 
 function mailUrl(message) {
-  const match = message.text.match(/https?:\\/\\/[^\\s]+/);
+  const match = message.text.match(/https?:\/\/[^\s]+/);
   assert.ok(match, "captured email must contain an action URL");
   const url = new URL(match[0]);
   // The test Worker may advertise the real Better Auth issuer while still
