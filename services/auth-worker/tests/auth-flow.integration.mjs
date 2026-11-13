@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { randomUUID, createHash, randomBytes } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
@@ -90,9 +92,19 @@ async function authRequest(path, { method = "GET", body, cookie, headers = {}, r
 }
 
 function mailUrl(message) {
-  const match = message.text.match(/https?:\/\/[^\s]+/);
+  const match = message.text.match(/https?:\\/\\/[^\\s]+/);
   assert.ok(match, "captured email must contain an action URL");
-  return new URL(match[0]);
+  const url = new URL(match[0]);
+  // The test Worker may advertise the real Better Auth issuer while still
+  // running entirely on localhost. Route captured email actions back to that
+  // local process; never send a CI request to the hosted staging Worker.
+  const testIssuerOrigin = process.env.STAGE5_D1_ISSUER_ORIGIN;
+  if (testIssuerOrigin && url.origin === testIssuerOrigin) {
+    const localWorker = new URL(baseUrl);
+    url.protocol = localWorker.protocol;
+    url.host = localWorker.host;
+  }
+  return url;
 }
 
 function cookieUuid() {
@@ -526,8 +538,13 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(discoveryResponse.status, 200, "OIDC discovery must respond 200");
     const discovery = await parseJson(discoveryResponse);
     const issuer = new URL(discovery.issuer);
-    assert.equal(issuer.hostname, "localhost");
-    assert.equal(issuer.pathname, "/api/auth");
+    const expectedIssuer = process.env.STAGE5_EXPECTED_ISSUER;
+    if (expectedIssuer) {
+      assert.equal(discovery.issuer, expectedIssuer);
+    } else {
+      assert.equal(issuer.hostname, "localhost");
+      assert.equal(issuer.pathname, "/api/auth");
+    }
     assert.ok(discovery.code_challenge_methods_supported?.includes("S256"), "OIDC discovery must advertise S256");
     assert.ok(discovery.jwks_uri, "OIDC discovery must advertise JWKS");
 
@@ -650,7 +667,10 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     const replayBody = await parseJson(replayResponse);
     assert.equal(replayBody?.error, "invalid_grant", "replayed authorization code must fail with invalid_grant");
 
-    const jwksUrl = new URL(discovery.jwks_uri);
+    const jwksProxy = process.env.STAGE5_LOCAL_WORKER_JWKS_PROXY;
+    const jwksUrl = jwksProxy
+      ? new URL("/api/auth/jwks", jwksProxy)
+      : new URL(discovery.jwks_uri);
     if (jwksUrl.hostname === "localhost") jwksUrl.hostname = "127.0.0.1";
     const remoteJwks = createRemoteJWKSet(jwksUrl);
     const verifiedJwt = await jwtVerify(tokens.access_token, remoteJwks, {
@@ -729,6 +749,40 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     assert.equal(userInfoData.sub, signupData.user.id);
     assert.equal(userInfoData.email, email);
     assert.equal(userInfoData.email_verified, true);
+
+    // Exercise the actual migrated Cloudinary handler with the access token
+    // just issued by this local D1-backed Better Auth Worker. The child test
+    // proxies only the fixed JWKS URL to this local Worker and mocks Cloudinary;
+    // it never contacts or mutates the hosted staging Supabase project.
+    if (process.env.STAGE5_D1_HANDLER_ACCEPTANCE === "true") {
+      const handlerTestPath = fileURLToPath(new URL(
+        "../../supabase/functions/cloudinary-profile-upload/better-auth-d1-issued-token.integration.test.ts",
+        import.meta.url,
+      ));
+      const handlerTest = spawnSync("deno", [
+        "test",
+        "--node-modules-dir=auto",
+        "--allow-env",
+        "--allow-net",
+        handlerTestPath,
+      ], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          STAGE5_BETTER_AUTH_ACCESS_TOKEN: tokens.access_token,
+          STAGE5_BETTER_AUTH_USER_ID: signupData.user.id,
+        },
+        maxBuffer: 8 * 1024 * 1024,
+      });
+      if (handlerTest.error) throw handlerTest.error;
+      if (handlerTest.status !== 0) {
+        throw new Error(
+          "D1-issued Better Auth token was rejected by the migrated Cloudinary handler. " +
+          (handlerTest.stdout ?? "") + (handlerTest.stderr ?? ""),
+        );
+      }
+      console.log("Verified a D1-issued Better Auth access token through the actual migrated Cloudinary profile-upload handler with a mocked provider.");
+    }
 
     // One reset request was already made earlier in this test. The custom
     // limit is three requests/hour, so the third additional attempt must be
