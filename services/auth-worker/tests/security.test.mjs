@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyResponseHeaders,
   createCorsHeaders,
   isAllowedOrigin,
   timingSafeEqualString,
@@ -72,4 +73,34 @@ test("bootstrap secret comparison accepts exact value and rejects wrong/empty va
   assert.equal(timingSafeEqualString("a".repeat(32), "a".repeat(31) + "b"), false);
   assert.equal(timingSafeEqualString("secret", ""), false);
   assert.equal(timingSafeEqualString("secret", null), false);
+});
+
+
+test("CORS exposes only the auth availability headers needed by browser recovery", () => {
+  const request = new Request("https://auth.example.test/api/auth/get-session", {
+    headers: { Origin: "https://sykabelajar.my.id" },
+  });
+  const corsHeaders = createCorsHeaders(request, ["https://sykabelajar.my.id"]);
+  assert.equal(
+    corsHeaders?.get("Access-Control-Expose-Headers"),
+    "X-Auth-Availability, Retry-After",
+  );
+
+  const response = applyResponseHeaders(new Response(JSON.stringify({
+    code: "D1_FREE_TIER_ROWS_READ_LIMIT_REACHED",
+    retry_at_utc: "2026-11-14T00:00:00.000Z",
+  }), {
+    status: 503,
+    headers: {
+      "X-Auth-Availability": "degraded",
+      "Retry-After": "3600",
+    },
+  }), corsHeaders);
+
+  assert.equal(response.headers.get("X-Auth-Availability"), "degraded");
+  assert.equal(response.headers.get("Retry-After"), "3600");
+  assert.equal(
+    response.headers.get("Access-Control-Expose-Headers"),
+    "X-Auth-Availability, Retry-After",
+  );
 });
