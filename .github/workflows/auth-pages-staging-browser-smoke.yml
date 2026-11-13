@@ -55,8 +55,8 @@ jobs:
             echo "No frontend browser-smoke inputs changed in this commit; deployment wait and browser smoke are skipped."
           fi
 
-      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Wait for the matching Cloudflare Pages deployment
+        if: ${{ steps.scope.outputs.run_browser == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -88,28 +88,27 @@ jobs:
           throw new Error("Timed out waiting for the matching Cloudflare Pages deployment check.");
           NODE
 
-      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Set up Node.js
+        if: ${{ steps.scope.outputs.run_browser == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: "24"
 
-      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Install browser-test dependencies without changing the lockfile
+        if: ${{ steps.scope.outputs.run_browser == 'true' }}
         run: |
           npm ci --no-audit --no-fund
           npm install --no-save --no-package-lock --ignore-scripts @playwright/test@1.63.0
           npx playwright install --with-deps chromium
 
-      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Verify staging login route in a real browser
+        if: ${{ steps.scope.outputs.run_browser == 'true' }}
         env:
           AUTH_STAGING_BASE_URL: https://staging.sykabelajar.my.id
         run: npx playwright test --config=playwright.staging.config.ts
 
-      if: ${{ steps.scope.outputs.run_browser == 'true' }}
       - name: Upload browser diagnostics only on failure
-        if: failure()
+        if: ${{ steps.scope.outputs.run_browser == 'true' && failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: auth-staging-browser-diagnostics
