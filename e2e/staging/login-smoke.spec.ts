@@ -458,7 +458,7 @@ for (const roleCase of publicRegistrationRoles) {
     await categories.getByRole('button').first().click();
     await page.getByRole('button', { name: /^(Buat Akun|Create Account)$/ }).click();
 
-    await expect(page).toHaveURL(/\\/login(?:$|\\?)/);
+    await expect(page).toHaveURL(/\/login(?:$|\?)/);
     expect(signupRequests).toHaveLength(1);
     expect(signupRequests[0]).toMatchObject({
       email: roleCase.email,
