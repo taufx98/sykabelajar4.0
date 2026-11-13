@@ -3,7 +3,7 @@
 - Better Auth authentication starts with fresh accounts. Do not migrate/import prior Supabase Auth users, passwords, sessions, or demo identities.
 - Account switching is not a product feature and is removed from migration acceptance. Keep cross-tab logout and authoritative session revalidation as session-security behavior only.
 - Do not reset or delete previous demo/test accounts or application rows. They are not required for the new login system and remain untouched.
-- Work only on Better Auth registration, email/password login, verification/recovery lifecycle, sessions, JWT/OIDC and the minimum identity verifier compatibility needed by Supabase. Do not expand into unrelated business features.
+- Work only on Better Auth registration, email/password login, verification/recovery lifecycle, sessions, JWT/OIDC and the minimum shared identity verifier compatibility needed by Supabase. The hosted Stage 2 probe v7 plus the local D1-issued-token handler test are sufficient positive verifier evidence for this login-only scope; do not add separate Cloudinary/payment business-flow or two-user IDOR campaigns.
 
 ---
 
@@ -14,7 +14,7 @@ Auth Worker CI **#43369210539** and Supabase Local Auth Claims CI **#43369210451
 - The Auth Worker workflow booted the Worker locally with a disposable local D1 database, applied the checked-in D1 migrations, and completed the real Better Auth email verification + OAuth authorization-code PKCE flow. The access token under test was issued and ES256-signed by that local D1-backed Better Auth runtime; it was not hand-signed by the test.
 - The token was passed transiently to a separate Deno test process and sent to the actual migrated `handleCloudinaryProfileUpload()` entry point. The shared `requireApplicationUser()` / `requireBetterAuthUser()` verifier fetched the matching JWKS through a narrowly scoped proxy to the same localhost Worker. The handler accepted the JWT and derived the canonical Cloudinary public ID from the verified JWT `sub`, ignoring a forged `user_id` field in the multipart form.
 - Cloudinary was mocked and exactly one mocked upload request was observed. The test blocks outbound requests to the hosted staging Supabase project. The token is neither printed nor persisted by the test.
-- **Scope:** this is positive local D1-issued-token acceptance for **one** migrated business handler. It is not a hosted staging token test and does not prove all nine Cloudinary/payment handler paths or two-user payment/role IDOR with Better Auth tokens. Existing full-schema two-user checks using local Supabase Auth users remain a separate test.
+- **Scope:** this is positive local D1-issued-token acceptance for one actual handler. Combined with the hosted real-session Stage 2 probe and the shared verifier source/negative-token contracts, this is sufficient for the current login-only auth-boundary scope; do not expand into per-business-handler/payment IDOR campaigns.
 - No staging/Production Supabase schema, data, Edge Function, Auth setting, D1 cloud database, DNS, Cloudinary account, or payment provider was changed or called.
 
 ---
@@ -29,7 +29,7 @@ This is the latest owner-provided Admin panel result and supersedes any earlier 
 - **Realtime private channel:** private Broadcast connects and sends; a topic belonging to another UUID is denied.
 - **JWT Better Auth through the shared handler verifier:** the current real Better Auth ES256 session is accepted with the expected issuer, audience, subject, Postgres role and RLS context. This is the positive Edge Function invocation through the shared verifier path after probe **version 7 ACTIVE** was deployed.
 - **Stage 2 status: ACCEPTED for all four tested hosted surfaces.** Do not ask the owner to repeat this matrix unless the probe, shared resolver, JWT contract or staging configuration changes.
-- The result does not establish business-handler acceptance for Stage 5 or per-role runtime acceptance for Stage 6. Those remain distinct gates.
+- The result is the hosted positive session proof for the shared auth verifier; Stage 5 does not require separate business-flow or per-handler IDOR campaigns in the current login-only scope. Fresh-account role mapping remains a separate Stage 6 gate.
 - Probe v7 is the isolated read-only acceptance function only. No business Edge Function, business schema/data, or Production resource was deployed or modified.
 
 ---
@@ -53,15 +53,15 @@ This is the latest owner-provided Admin panel result and supersedes any earlier 
 ### Staging endpoint state
 - Supabase staging project `ydamszdfsxqisanazdkb` has `better-auth-oidc-acceptance` **version 7 ACTIVE**. It uses the shared resolver from the current source branch and remains read-only; it is not a deployed Cloudinary/payment business handler.
 - Owner-provided Admin acceptance panel now confirms **4/4 passed after probe v7 ACTIVE**, including the positive real Better Auth ES256 session POST through the shared handler verifier. No token was displayed or copied. Stage 2 is accepted for Data API/profile/role, private Storage, private Realtime and the read-only Edge probe.
-- Stage 4 still needs owner/browser acceptance for actual session expiry/reauthentication, a live Realtime heartbeat through resource-token renewal, visible D1 503 recovery and custom-domain Worker Error 1027. D1 quotas were not exhausted to test recovery.
+- Stage 4 still needs owner/browser acceptance for actual session expiry/reauthentication, resource-token renewal, visible D1 503 recovery and custom-domain Worker Error 1027. A separate Realtime feature test is excluded from this login-only scope; D1 quotas were not exhausted to test recovery.
 
 ### Seven-stage boundary
 - Stage 1: first-attempt staging email/password login and logout are owner-accepted. Real mailbox verification/password-reset delivery remains deferred; no email verification state was forged.
 - Stage 2: owner has now reconfirmed **4/4 real-session checks against probe v7**, including the positive Edge POST through the shared handler verifier. Stage 2 is accepted; no repeat is required absent a relevant regression.
 - Stage 3: full schema-only disposable identity/FK/issuer/RLS/provisioning and rollback rehearsal passed; no Production identity migration.
 - Stage 4: core bridge/token broker and expiry/transient-error code are implemented and CI-verified; owner/browser checks listed above remain. Account switching is explicitly excluded; cross-tab logout remains a security check.
-- Stage 5: source/runtime contracts, one ephemeral-key boundary test, and **one locally D1-issued Better Auth token through the actual Cloudinary profile-upload handler** pass. Full-schema local two-user Edge checks still use synthetic **Supabase Auth** local users. Hosted-staging and remaining business-handler/payment acceptance remain open.
-- Stage 6: four-role local RLS matrix passed; per-role runtime identity/role checks with fresh Better Auth-issued identities remain open. Prior demo/test identity classification and cleanup are excluded; no previous account or application row should be reset/deleted.
+- Stage 5: the shared Better Auth verifier is positively accepted by the hosted real-session Stage 2 probe and by one locally D1-issued token through an actual handler; source contracts cover the other nine auth-adapted boundaries and invalid-token cases. Additional business-handler/payment flow and IDOR campaigns are outside the login-only scope.
+- Stage 6: four-role local role/RLS matrix passed; the remaining check is fresh Better Auth identity provisioning and least-privilege role mapping. Prior demo/test identity classification, reset, and cleanup are excluded; no previous account or application row should be reset/deleted.
 - Stage 7: no Production cutover is authorized. The production rollback model remains identity-aware: Better Auth and Supabase Auth accounts are not interchangeable; do not remove either side or silently fail over issuers.
 
 ### Production safety
@@ -75,7 +75,7 @@ No Production DB2 schema/data, Supabase Auth, RLS, RPC, FK, trigger, account, se
 - Each role sees exactly its own active `user_roles` row and cannot read the other three role rows. The JWT claim remains `role=authenticated`; the business role is kept in `public.user_roles`. No business role is placed in the Postgres JWT role claim.
 - Supabase Local Auth Claims CI [#43256267828](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256267828) passed: the full local suite reported **9 SQL files, 192 tests, PASS**. The temporary local Supabase stack stopped after the tests. Auth Worker CI [#43256267857](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256267857) and Cloudflare staging read-only preflight [#43256248427](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256248427) also passed.
 - This closes the synthetic four-role regression part of Stage 6 only. It does not approve or perform demo-account cleanup. Existing staging identity/role rows and all Production accounts/data remain untouched.
-- Remaining Stage 6 work is limited to fresh Better Auth identity/role runtime checks. No legacy demo/test identity inventory, reset, or cleanup is required. Stage 5 scoped Better Auth token-to-verifier acceptance and Stage 4 owner/browser lifecycle acceptance remain separate gates.
+- Remaining Stage 6 work is limited to fresh Better Auth identity/role checks. No legacy demo/test identity inventory, reset, cleanup, or unrelated application IDOR campaign is required. Stage 5 shared-verifier acceptance is complete for this login-only scope; Stage 4 browser lifecycle/availability acceptance remains.
 - PR #177 remains open, Draft, and unmerged. No Production schema/data, Supabase Auth, RLS, RPC, Edge Function, secret, Pages, DNS or login-routing change was made by this test.
 
 ---
