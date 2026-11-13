@@ -1,3 +1,15 @@
+## Stage 5 — local D1-issued token accepted by one migrated handler — 13 November 2026
+
+Auth Worker CI **#43369210539** and Supabase Local Auth Claims CI **#43369210451** both passed on the current branch head.
+
+- The Auth Worker workflow booted the Worker locally with a disposable local D1 database, applied the checked-in D1 migrations, and completed the real Better Auth email verification + OAuth authorization-code PKCE flow. The access token under test was issued and ES256-signed by that local D1-backed Better Auth runtime; it was not hand-signed by the test.
+- The token was passed transiently to a separate Deno test process and sent to the actual migrated `handleCloudinaryProfileUpload()` entry point. The shared `requireApplicationUser()` / `requireBetterAuthUser()` verifier fetched the matching JWKS through a narrowly scoped proxy to the same localhost Worker. The handler accepted the JWT and derived the canonical Cloudinary public ID from the verified JWT `sub`, ignoring a forged `user_id` field in the multipart form.
+- Cloudinary was mocked and exactly one mocked upload request was observed. The test blocks outbound requests to the hosted staging Supabase project. The token is neither printed nor persisted by the test.
+- **Scope:** this is positive local D1-issued-token acceptance for **one** migrated business handler. It is not a hosted staging token test and does not prove all nine Cloudinary/payment handler paths or two-user payment/role IDOR with Better Auth tokens. Existing full-schema two-user checks using local Supabase Auth users remain a separate test.
+- No staging/Production Supabase schema, data, Edge Function, Auth setting, D1 cloud database, DNS, Cloudinary account, or payment provider was changed or called.
+
+---
+
 ## Owner-confirmed Stage 2 positive acceptance against probe v7 — 13 November 2026
 
 This is the latest owner-provided Admin panel result and supersedes any earlier note that the positive real-session request still needed to be rerun after the v7 SDK alignment.
@@ -26,6 +38,7 @@ This is the latest owner-provided Admin panel result and supersedes any earlier 
 - Aligned `supabase/functions/_shared/require-application-user.ts` and the isolated staging mirror to `@supabase/supabase-js@2.95.0`, because `@supabase/server@1.9.2` requires the SDK's `./cors` export. No business schema or data changed.
 - Added `supabase/functions/cloudinary-profile-upload/better-auth-auth-boundary.test.ts`; the handler's request entry is now exported as `handleCloudinaryProfileUpload`, with the deployed entry still served by `Deno.serve` when it is the main module.
 - The Deno test creates an ephemeral ES256 key/JWKS in memory. The actual migrated handler accepts one valid signed identity through the shared verifier, then stops at its ordinary `INVALID_IMAGE_KIND` validation branch before Cloudinary is called. Six invalid tokens (malformed, wrong issuer, wrong audience, expired, wrong Postgres role, non-UUID subject and wrong signing key) are rejected at HTTP 401. The test is synthetic; it does not use the Better Auth D1 private key or a real hosted session.
+- Separately, Auth Worker CI #43369210539 now proves the actual migrated handler accepts a **locally D1-issued Better Auth OAuth token** from the Worker’s real PKCE flow. Its JWKS comes from that same local Worker via a test-only proxy; Cloudinary is mocked. The handler uses the verified UUID `sub` for asset ownership and ignores a forged multipart `user_id`. This proves one real-token local handler path, but not all nine handlers or hosted-staging runtime acceptance.
 - The same CI run also verifies the isolated read-only staging Edge probe's negative behavior: exact staging CORS preflight 204, hostile origin 403, anonymous 401 and malformed bearer 401.
 
 ### Staging endpoint state
@@ -38,7 +51,7 @@ This is the latest owner-provided Admin panel result and supersedes any earlier 
 - Stage 2: owner has now reconfirmed **4/4 real-session checks against probe v7**, including the positive Edge POST through the shared handler verifier. Stage 2 is accepted; no repeat is required absent a relevant regression.
 - Stage 3: full schema-only disposable identity/FK/issuer/RLS/provisioning and rollback rehearsal passed; no Production identity migration.
 - Stage 4: core bridge/token broker and expiry/transient-error code are implemented and CI-verified; owner/browser checks listed above remain.
-- Stage 5: current source/runtime contract and actual one-handler ES256 boundary test pass. Full-schema local two-user Edge tests passed using synthetic **Supabase Auth** local users; they are not a real Better Auth session. Real staging-token acceptance through migrated business handlers remains open.
+- Stage 5: source/runtime contracts, one ephemeral-key boundary test, and **one locally D1-issued Better Auth token through the actual Cloudinary profile-upload handler** pass. Full-schema local two-user Edge checks still use synthetic **Supabase Auth** local users. Hosted-staging and remaining business-handler/payment acceptance remain open.
 - Stage 6: four-role local RLS matrix passed; per-role runtime route/RPC/Edge checks with Better Auth-issued tokens and exact demo/test identity classification remain open. No account reset/deletion occurred.
 - Stage 7: no Production cutover is authorized. The production rollback model remains identity-aware: Better Auth and Supabase Auth accounts are not interchangeable; do not remove either side or silently fail over issuers.
 
