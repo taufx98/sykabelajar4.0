@@ -1,3 +1,42 @@
+# Stage 7 execution checkpoint — 13 November 2026
+
+This checkpoint supersedes previous statements that Stage 7 merely needed generic checklist/monitoring documentation. The detailed controlled-release procedure is now in [AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md](AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md), and the top-level seven-stage roadmap has been reconciled in [AUTH-MIGRATION-ROADMAP.md](AUTH-MIGRATION-ROADMAP.md). It is a preparation record, not permission to mutate Production.
+
+## New verified Production/staging facts (read-only)
+
+- Supabase organization plan: Free. Production DB2 `mvdczyitbkxkldjughor` is ACTIVE_HEALTHY on PostgreSQL 17.6.1.166. Read-only Production catalog check: `private.app_users` absent; 69 application FKs still reference `auth.users`; 0 application FKs reference `private.app_users`; 3 non-internal `auth.users` triggers remain.
+- Isolated auth staging `ydamszdfsxqisanazdkb` is ACTIVE_HEALTHY on PostgreSQL 17.11.0.018; `private.app_users` exists and `auth.users` count is zero.
+- Supabase Free does not supply automatic daily backups or PITR. The schema-only baseline workflow is not a full data backup. A manually captured encrypted DB2 backup plus successful restore to disposable PostgreSQL 17 is a mandatory Production GO gate. No paid Supabase branch/PITR/upgrade is approved.
+- Existing `services/auth-worker/wrangler.toml` is a staging Worker/D1 configuration: Worker `sykabelajar-auth-poc`, D1 `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`), provisioning target staging DB `ydamszdfsxqisanazdkb`, and current custom domain `auth.sykabelajar.my.id`. It must not be promoted to Production.
+
+## Stage 3 transactional hardening
+
+- Review found the Stage 3 identity-root draft committed before retiring the three legacy Supabase Auth triggers. This could leave the identity foundation and trigger lifecycle in split states after a later failure.
+- Moved the single SQL `COMMIT` to the end of `docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql`, so identity-root/provisioning changes and retirement/revocation of all three legacy triggers share one transaction.
+- Added a contract that enforces exactly one final `COMMIT`, after the final legacy trigger drop and function revoke.
+- The corrected contract test passed in Supabase Local Auth Claims CI #43462381383. The full Auth Production Schema Baseline disposable restore/forward/rollback workflow #43462380374 was still running at the last check; do not mark the corrected draft fully accepted until that job succeeds.
+
+## Stage 7 required sequencing and hard NO-GO gates
+
+- Move staging first to `auth-staging.sykabelajar.my.id`, update the staging Worker/app issuer and callbacks, register the new staging Custom OIDC issuer and revalidate it. Keep old staging issuer keys/provider until old tokens have expired plus the 30-minute propagation interval.
+- Create a separate empty Production D1 and a distinct Production Worker with independent keys/secrets. Only then can `auth.sykabelajar.my.id` be detached from staging and attached to Production.
+- Keep Production provisioning disabled until the identity-root/FK migration, Production Custom OIDC, server-only DB2 credential and end-to-end projection are tested.
+- Production public signup, verification and recovery remain closed until a real email sender and real delivery/callback/reset tests are accepted. The staging verification bypass must not ship.
+- Before Production DDL, complete the encrypted full-data backup and a successful disposable restore. Re-run the live 69-FK/109-policy/3-trigger catalog preflight immediately before cutover.
+- Explicitly acknowledge fresh-account semantics: new Better Auth UUIDs do not inherit legacy users' business rows merely because the email matches. Existing account/data rows remain untouched; no legacy account import/reset/cleanup is in scope.
+- The Stage 3 rollback draft is only safe before a Better Auth-only Production identity exists and its preflight conditions hold. After the first such identity (PONR), rollback must retain Better Auth D1, `private.app_users`, FK links, Custom OIDC and issuer guards; use only a Better Auth-compatible app/Worker rollback, not Supabase Auth fallback.
+- Production changes, DNS, Worker/D1, Pages, secrets, Supabase Auth settings, schema, accounts and PR merge remain NO-GO until all release gates are evidenced and the owner explicitly approves the Production maintenance/cutover window.
+
+## Current action status
+
+- Owner's staging panel 5/5 is accepted; do not repeat it.
+- Stages 1, 2, 4, 5 and 6 remain accepted for the agreed staging/fresh-account auth-only scope; do not reopen absent a concrete regression.
+- Stage 3 pre-Production foundation and disposable rehearsal remain accepted; the corrected atomic draft awaits its latest full schema-baseline CI result.
+- Stage 7 runbook is now committed. The remaining NO-GO gates are environment separation, real Production email readiness, encrypted full backup/restore, final catalog revalidation, Production OIDC/secret/admin/monitoring validation, and explicit owner cutover approval.
+- Browser-smoke CI now detects whether the latest commit changed frontend/test inputs; docs-only/SQL-only commits skip the Pages deployment wait instead of failing when there is no new Pages preview.
+
+PR #177 remains open, Draft and unmerged. No Production DB2/Auth/schema/data/RLS/RPC/FK/trigger, Worker/D1 deployment, DNS, Pages config, secret, legacy account or login routing was changed.
+
 # Authoritative owner acceptance — 13 November 2026, 22:54 WIB
 
 This checkpoint supersedes earlier owner-action/remaining-test statements above where they conflict with the acceptance below. It does not authorize Production changes.
