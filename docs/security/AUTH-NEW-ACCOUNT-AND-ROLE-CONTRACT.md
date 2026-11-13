@@ -12,7 +12,7 @@ After cutover, all newly registered users will authenticate through Better Auth 
 - Supabase `private.app_users.id`;
 - Supabase JWT `sub`, with Postgres `role=authenticated`.
 
-The old demo/testing accounts are not migrated as login accounts. Their cleanup and dependent test-data treatment remain part of Stage 6, with an explicit inventory and cleanup scope. Do not delete old Supabase Auth users or their related application data during Stages 1–5.
+The old demo/testing accounts are not migrated as login accounts. They are outside the Better Auth login migration and will remain untouched. Do not import, reset, delete, or clean up old Supabase Auth users or their related application data as part of this work.
 
 ## Preserve business roles — do not simplify or remove them
 
@@ -52,7 +52,7 @@ The `private.app_users` table remains a minimal identity projection and FK paren
 
 For new Better Auth registrations, the Worker creates the D1 account and requests one server-only, transactional, idempotent Supabase provisioning operation. That operation inserts the same fresh UUID into `private.app_users`, creates the initial profile, assigns exactly one allowed basic role, and creates settings. It must not create a shadow row in `auth.users`.
 
-No old Supabase Auth account is migrated. To keep existing application rows valid while the 69 FKs are rehomed, the reviewed FK planner may insert only distinct UUIDs that are still referenced by a child FK row, marked `identity_origin='legacy_reference'`. These tombstones contain no email, password, provider identity, verification state, session, or copied business role and cannot authenticate. Old Auth UUIDs without a live application FK reference are not imported. New Better Auth registrations get fresh UUIDs and `identity_origin='better_auth'`. Any cleanup of old accounts and linked application data remains a separate Stage 6 decision.
+No old Supabase Auth account is migrated. To keep existing application rows valid while the 69 FKs are rehomed, the reviewed FK planner may insert only distinct UUIDs that are still referenced by a child FK row, marked `identity_origin='legacy_reference'`. These tombstones contain no email, password, provider identity, verification state, session, or copied business role and cannot authenticate. Old Auth UUIDs without a live application FK reference are not imported. New Better Auth registrations get fresh UUIDs and `identity_origin='better_auth'`. Old accounts and linked application data are not used by the new login system and remain untouched; no cleanup operation is required.
 
 ## Email, referral, phone and organizer invariants
 
@@ -75,4 +75,4 @@ Before this direction is considered implemented, local synthetic tests must prov
 8. Email/referral lifecycle and organizer phone-verification requirements remain intact.
 9. No old credential or Supabase token is copied into D1 or exposed to the browser.
 
-No production cleanup or migration is authorized by this decision document. Stage 6 still owns demo-account cleanup and initial admin bootstrap; Stage 7 still owns the cutover.
+No production cleanup or legacy-account migration is authorized by this decision document. Stage 6 validates fresh-account provisioning and protected role assignment only; do not repeat the existing staging admin bootstrap. Stage 7 still owns the separately approved cutover.
