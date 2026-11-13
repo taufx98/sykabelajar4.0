@@ -10,6 +10,7 @@ import { createD1QuotaResponse } from "./d1-quota.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
 import { isAuthEmailVerificationConfigured } from "./email";
 import { handleAuthRuntimeSettings, readEmailVerificationPolicy } from "./auth-runtime-settings";
+import { getApprovedOAuthCallbackUrls } from "./oauth-callback-policy.mjs";
 import {
   getPublicSocialLoginProviders,
   handleLoginProviderAdminRequest,
@@ -180,9 +181,12 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
     return json({ error: "OAUTH_CLIENT_BOOTSTRAP_URL_INVALID" }, 503);
   }
 
-  const productionCallbackUrl = new URL("/auth/oidc/callback", env.APP_ORIGIN).toString();
-  const stagingCallbackUrl = "https://staging.sykabelajar.my.id/auth/oidc/callback";
-  const approvedCallbackUrls = [productionCallbackUrl, stagingCallbackUrl];
+  let approvedCallbackUrls: string[];
+  try {
+    approvedCallbackUrls = getApprovedOAuthCallbackUrls(env.APP_ORIGIN, env.DEV_APP_ORIGIN);
+  } catch {
+    return json({ error: "OAUTH_CLIENT_BOOTSTRAP_URL_NOT_ALLOWED" }, 503);
+  }
 
   if (
     !approvedCallbackUrls.includes(callbackUrl) ||
