@@ -1,3 +1,4 @@
+/** @param {string} value @param {string} label @returns {string} */
 function requireHttpsCallback(value, label) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(label + "_REQUIRED");
@@ -22,6 +23,7 @@ function requireHttpsCallback(value, label) {
   return parsed.toString();
 }
 
+/** @param {string} value @param {string} label @returns {string} */
 function requireHttpsOrigin(value, label) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(label + "_REQUIRED");
