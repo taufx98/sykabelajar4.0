@@ -183,7 +183,7 @@ async function bootstrapFirstPartyClient(request: Request, env: AuthWorkerEnv): 
 
   let approvedCallbackUrls: string[];
   try {
-    approvedCallbackUrls = getApprovedOAuthCallbackUrls(env.APP_ORIGIN, env.DEV_APP_ORIGIN);
+    approvedCallbackUrls = getApprovedOAuthCallbackUrls(env.APP_ORIGIN, env.OAUTH_STAGING_CALLBACK_URL);
   } catch {
     return json({ error: "OAUTH_CLIENT_BOOTSTRAP_URL_NOT_ALLOWED" }, 503);
   }
