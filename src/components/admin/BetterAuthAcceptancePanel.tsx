@@ -105,6 +105,8 @@ export function BetterAuthAcceptancePanel() {
         // Force a fresh PKCE authorization-code exchange while keeping the
         // same active Better Auth browser session. Tokens never leave memory.
         authClient.invalidateResourceTokenCache();
+        // Ensure the next JWT has a later iat/exp second even on a very fast network.
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 1100));
         const renewedToken = await authClient.getSupabaseAccessToken();
         if (!renewedToken || renewedToken === firstToken) {
           throw new Error('BETTER_AUTH_RESOURCE_TOKEN_REISSUE_NOT_CONFIRMED');
