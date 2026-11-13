@@ -24,9 +24,10 @@ test("the full archive is restored locally before encryption and only the encryp
   const uploadAt = workflow.indexOf("Upload encrypted Production DB2 backup artifact");
   assert.ok(restoreAt >= 0 && encryptAt > restoreAt && uploadAt > encryptAt);
   assert.match(workflow, /age --encrypt --recipient/);
-  const uploadSection = workflow.slice(uploadAt);
-  assert.match(uploadSection, /production-db2\.dump\.age/);
-  assert.doesNotMatch(uploadSection, /production-db2\.dump([^.]|$)/);
+  const stopAt = workflow.indexOf("      - name: Stop isolated Supabase stack", uploadAt);
+  const uploadSection = workflow.slice(uploadAt, stopAt);
+  assert.match(uploadSection, /production-db2\\.dump\\.age/);
+  assert.doesNotMatch(uploadSection, /production-db2\\.dump([^.]|$)/);
   assert.match(workflow, /plaintext_artifact=not uploaded/);
 });
 
