@@ -855,7 +855,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       "reauthentication must persist a new future session expiry",
     );
 
-    const signOut = await authRequest("/sign-out", { method: "POST", body: {}, reauthenticatedCookie });
+    const signOut = await authRequest("/sign-out", { method: "POST", body: {}, cookie: reauthenticatedCookie });
     const signOutBody = await signOut.clone().text();
     assert.ok(
       signOut.ok,
