@@ -1106,8 +1106,6 @@ GRANT EXECUTE ON FUNCTION public.better_auth_complete_phone_verification(
 ) TO service_role;
 
 
-COMMIT;
-
 -- End the legacy Supabase Auth account lifecycle. Existing auth.users rows,
 -- passwords, identities and sessions are not copied or deleted. The three
 -- signup/referral triggers are retired; new profiles/roles/settings/referrals
@@ -1130,3 +1128,8 @@ REVOKE ALL ON FUNCTION private.process_referral_email_confirmation()
 -- 4. Run the full production-shaped regression and Better Auth provisioning/email/phone tests.
 -- 5. Verify issuer restriction, hosted OIDC, frontend/backend gates and rollback.
 -- 6. Keep production Supabase, production Worker/DNS and all live accounts unchanged.
+
+-- Commit the identity root, trusted provisioning surface, and retirement of the
+-- three legacy Auth triggers as one atomic transaction. Any failure above must
+-- roll back the entire Stage 3 draft rather than leave trigger state half-switched.
+COMMIT;
