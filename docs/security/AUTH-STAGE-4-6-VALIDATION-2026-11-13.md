@@ -1,3 +1,32 @@
+# Latest Stage 4/6 follow-up — 13 November 2026, runtime head 17becdd398bf24e9ffa72dcb56a0b7932cad36b2
+
+This checkpoint supersedes earlier Stage 4 expiry-test wording below where it predates the disposable D1 expiry/reauthentication rehearsal. It records implementation and CI evidence only; natural hosted expiry on an owner session remains separate.
+
+## Local server-side session expiry and reauthentication
+
+- Extended `services/auth-worker/tests/auth-flow.integration.mjs` to expire the actual Better Auth session row in the disposable local Cloudflare D1 used by the Auth Worker CI workflow. It changes only the test user's local D1 `session.expiresAt` to a past timestamp.
+- Better Auth then rejects the old browser session cookie (`GET /get-session` resolves to null). The same user signs in again with the correct password, receives a different session cookie, and the new session resolves to the same Better Auth UUID with a future `expiresAt`.
+- The newly authenticated cookie is retained for the subsequent local OAuth authorization-code + PKCE and ES256 tests; sign-out remains at the final cleanup boundary. The normal sign-in rate limit remains enabled; the test reuses an existing sign-in attempt rather than adding an extra credential request.
+- [Auth Worker CI #43447346239](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447346239) and [#43447358775](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447358775) both passed on this head. The local integration subtest `email verification, session lifecycle, public OAuth PKCE, and ES256 access-token checks` passed, with the D1-issued JWT also accepted by the actual migrated local Edge handler using a mocked provider.
+- This is **server-side expiry acceptance in a disposable local Worker+D1**, not a claim that a real hosted seven-day staging session expired. Do not force expiry or alter a real staging user's D1 session row or the shared TTL.
+
+## Fresh registration, token reissue and checks on this head
+
+- The browser registration submit-path test remains passed for `student`, `teacher`, and `organizer`; [browser smoke #43445045154](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045154) previously reported **15 passed, 1 optional Google OAuth skipped**. These browser endpoints were stubbed and created no persistent account.
+- The five-check staging Admin acceptance panel continues to force a second resource-token issue through PKCE on the same real session and UUID; neither JWT is exposed or persisted. Owner-run panel acceptance is still needed to prove this live staging path.
+- [Supabase Local Auth Claims CI #43447358670](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447358670) passed; its disposable local PostgreSQL/JWT/RLS stack was stopped after the suite.
+- [Cloudflare read-only staging preflight #43447346236](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447346236) passed. A duplicate preflight attempt [#43447358682](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447358682) failed because the hosted JWKS endpoint briefly returned HTTP 503; a repeat on the same head succeeded. No permission or configuration was changed.
+- Browser smoke on the latest exact head: [#43447358867](https://github.com/taufx98/sykabelajar4.0/actions/runs/43447358867) was still running when this checkpoint was written.
+
+## Still open
+
+- Owner to run the **five-check** Admin → Pengaturan Better Auth staging acceptance panel on a live staging admin session and share only five pass/fail states and safe error codes.
+- Hosted natural session expiry → reauthentication remains open. Disposable local D1 expiry is supporting implementation evidence, not a replacement for observing an actual hosted session expiry.
+- Independent live Better Auth JWT sessions for fresh teacher and organizer accounts remain unobserved; their D1/Supabase UUID and business-role mappings are confirmed, but do not infer sessions from mapping tests.
+- No old/demo/legacy account was imported, switched into, reset, deleted, or cleaned up. No Production DB2/Auth/schema/data/RLS/RPC/FK/trigger, Worker deployment, DNS, Pages Production configuration, or login routing changed. PR #177 remains Draft, open and unmerged.
+
+---
+
 # Follow-up checkpoint — 13 November 2026, head 7faa1296dac16292b473c7ed0ea80b4f8b00ea04
 
 This addendum supersedes earlier Stage 4 status wording below where it predates the registration-role browser tests and the five-check staging acceptance panel. It records implementation and CI evidence only; it does not claim the owner has run the new panel or completed real-session expiry acceptance.
