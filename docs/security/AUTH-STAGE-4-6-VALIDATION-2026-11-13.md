@@ -25,7 +25,8 @@ No Production resource was changed. PR #177 remains open, Draft and unmerged. Th
 
 - Two new Playwright browser cases were added to `e2e/staging/login-smoke.spec.ts`: simulated D1 quota 503 with visible retry time, and a synthetic Cloudflare Error 1027 HTML response with the generic recoverable availability UI. Both assert the app does not redirect to login or issue sign-out solely because of the transient error.
 - These are controlled simulations only. They do not exhaust the Cloudflare Workers 100,000-request daily Free limit, exhaust D1 quota, alter the real Worker route, or prove an actual outage response.
-- The browser-smoke workflow was updated to run on the staging PR path as well as branch pushes. Its latest PR workflow run is still pending/no job result in the accessible GitHub status at this checkpoint; do not mark these two browser tests passed until the Playwright job reports success.
+- The first hosted Playwright run #43436326042 completed 11/13 successfully (1 optional Google OAuth test skipped). The synthetic Error 1027 recovery test passed. The synthetic D1 503 scenario exposed a real CORS contract defect: the browser received the header/body but JavaScript could not read the custom `X-Auth-Availability` response header, so the retry time was omitted.
+- Fixed Worker CORS to expose `X-Auth-Availability` and `Retry-After` only to already-allowlisted origins, and added a regression test to `services/auth-worker/tests/security.test.mjs`. The browser fixture now simulates the exposed-header contract. CI/browser rerun is pending on the latest PR head; do not mark D1 503 browser acceptance passed until it reports success.
 - The real hosted session-expiry → reauthentication flow and resource-token renewal against an active real Better Auth browser session have not been independently observed in this audit. Unit/session-bridge and cache tests are not a substitute for that hosted acceptance.
 - External email verification and password-reset delivery remain deferred by owner instruction. Staging email-verification bypass is not acceptable in Production; do not forge `emailVerified`.
 
@@ -69,19 +70,26 @@ This confirms that staging currently has the expected profile and active-role pr
 - A transaction-only hosted staging RPC probe previously verified `student → student`, `teacher → teacher`, `organizer → organizer_member`, rejected public admin registration, preserved existing profile edits on retry, and did not reactivate a deliberately disabled role. The whole test transaction was rolled back.
 - A real fresh student registration was previously matched by exact UUID between staging D1 and Supabase; it created the profile, settings and student role. The account remains untouched.
 
-### Remaining Stage 6 limitation
+### Latest D1-to-Supabase identity correlation — read-only preflight #43438058351
 
-The currently available Cloudflare D1 identity snapshot (#370) predates the newer teacher and organizer profile rows now visible in Supabase staging. A fresh read-only D1 preflight was triggered from the branch, but its result is not available in the evidence read-back for this checkpoint. Therefore the presence of teacher/organizer Better Auth identity projections in Supabase is confirmed, but their latest exact D1 UUID correlation is **not yet confirmed here**. Do not claim full fresh Worker signup acceptance for those two roles from Supabase row counts alone.
+The pull-request-triggered Cloudflare preflight completed successfully on 13 November 2026. It read only safe D1 fields (`id`, `accountType`, `emailVerified`, `createdAt`) and did not select email, password, session token, credential, or secret values. All four recent D1 UUIDs match exactly to the four current Supabase `private.app_users.id` rows previously read from the isolated staging project:
 
-Actual signed Better Auth token authorization by both newly created teacher and organizer accounts has also not been observed in a live browser session; the local RLS matrix is a database-contract test, not those users' hosted token sessions.
+- Existing staging admin identity — D1 `student` row matches the Supabase identity carrying the separate active `admin` business role.
+- Fresh student — D1 `student` row matches the active `student` business role.
+- Fresh teacher — D1 `teacher` row matches the active `teacher` business role.
+- Fresh organizer — D1 `organizer` row matches the active `organizer_member` business role.
+
+This confirms fresh D1 Better Auth identity → Worker provisioning hook → Supabase identity/profile/role/settings projection for all three public self-registration types. Supabase currently has four Better Auth roots, four linked profiles, four linked settings rows, and four active role rows; `auth.users` remains zero. All four D1 rows still have `emailVerified=false` due to the isolated staging verification bypass. Do not transfer that bypass to Production.
+
+The local 16-assertion role/RLS matrix and live RPC privilege checks remain the role-isolation evidence. Active browser JWT sessions for the new teacher and organizer accounts have not been independently observed in this audit; preserve this distinction from the confirmed provisioning mapping.
 
 ### Current Stage 6 status
 
 | Check | Status |
 |---|---|
 | Fresh student D1 → Worker → Supabase UUID match | Confirmed on prior read-only preflight #370 |
-| Supabase staging teacher identity/profile/role/settings | Present; D1 UUID re-match pending |
-| Supabase staging organizer identity/profile/role/settings | Present; D1 UUID re-match pending |
+| Supabase staging teacher identity/profile/role/settings | Confirmed and exact D1 UUID match via preflight #43438058351 |
+| Supabase staging organizer identity/profile/role/settings | Confirmed and exact D1 UUID match via preflight #43438058351 |
 | Admin self-registration denied | Hosted transaction probe passed; protected role grant remains service-only |
 | Role/RLS isolation matrix | 16 local assertions passed |
 | Role provisioning RPC access control | Read-only privilege audit passed |
@@ -92,7 +100,8 @@ Actual signed Better Auth token authorization by both newly created teacher and 
 
 - Auth Worker CI #43436326238 — success (typecheck, security contracts, Worker/local D1 auth flow, frontend lint/typecheck/build, Worker dry-run).
 - Supabase Local Auth Claims CI #43436326171 — success (shared Better Auth verifier/handler contracts and disposable local Supabase JWT/RLS tests).
-- Browser-smoke PR run #43436326042 — pending with no completed job visible at this checkpoint. The Playwright result must be checked before its two new simulation tests can be marked accepted.
+- Browser-smoke PR run #43436326042 — failed only at the retry-time assertion for synthetic D1 503; Error 1027 scenario passed (11 passed, 1 failed, 1 optional Google skip). The follow-up run after the CORS fix is pending on the newer head; do not mark D1 503 browser acceptance passed until it reports success.
+- Cloudflare read-only preflight #43438058351 — success; the output confirms exact D1 UUID match for student, teacher, organizer and the existing staging admin identity.
 
 ## Production readiness and safety boundary
 
