@@ -557,12 +557,6 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     );
     // Subsequent OIDC authorization checks must use the fresh session cookie.
     cookie = newPasswordCookie;
-    const newPasswordSignOut = await authRequest("/sign-out", {
-      method: "POST",
-      body: {},
-      cookie: newPasswordCookie,
-    });
-    assert.ok(newPasswordSignOut.ok, "the temporary new-password verification session must be revoked");
 
     const bootstrap = await fetch(new URL("/_internal/bootstrap-first-party-client", baseUrl), {
       method: "POST",
