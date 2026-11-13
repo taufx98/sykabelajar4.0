@@ -1,0 +1,248 @@
+name: Auth Cloudflare D1 Production Schema
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/workflows/auth-cloudflare-production-d1-migrate.yml"
+      - ".github/auth-ops/APPLY-PRODUCTION-D1-0001"
+      - "services/auth-worker/wrangler.production.toml"
+      - "services/auth-worker/migrations-production/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-production-d1-schema
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Apply Production Better Auth schema to the exact empty D1 only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    steps:
+      - name: Checkout reviewed Production migration set
+        uses: actions/checkout@v7
+
+      - name: Verify one-time Production target, migration hashes and no-staging callback policy
+        run: |
+          set -euo pipefail
+          marker="../../.github/auth-ops/APPLY-PRODUCTION-D1-0001"
+          test -f "$marker" || { echo "Blocked: Production D1 migration marker is missing." >&2; exit 1; }
+          test "$(cat "$marker")" = "APPLY-TO-sykabelajar-auth-prod:6d4dc7b5-8e71-4fdc-9cda-3230e49951c7" || {
+            echo "Blocked: Production D1 marker does not match the exact database name and UUID." >&2
+            exit 1
+          }
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1" || {
+            echo "Blocked: wrong branch for Production D1 migration." >&2
+            exit 1
+          }
+
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          import { readFileSync, readdirSync } from "node:fs";
+
+          const expected = [
+            ["0000_auth_worker_internal_config.sql", "8e94663ae257ccb39e363333018bf4346b3d4270"],
+            ["0001_better_auth.sql", "27d723f4269ba55965de9aea5fbe49b48d7b925a"],
+            ["0002_seed_first_party_oauth_client.sql", "eda30f6160e36f8672595529b788db274dab4642"],
+            ["0003_zeptomail_agent_settings.sql", "aaca71b6af00c199d96177c16d3eccd51805ad37"],
+            ["0004_better_auth_registration_attributes.sql", "657dc3e8eaf8365507b60c0e8c8914d829d2e25c"],
+            ["0005_telegram_phone_verification.sql", "e5daa9170e4a5ece0f34baa7ec5886e4677eb6b9"],
+            ["0006_transactional_email_provider.sql", "a67d15eaf94e2b4692b0ae0b152dd897f96192ac"],
+            ["0007_managed_social_login_providers.sql", "f9c02fec5de73e5faa598809cc18c88d1d1bb52b"],
+          ];
+          const actual = readdirSync("migrations-production").filter((name) => name.endsWith(".sql")).sort();
+          if (JSON.stringify(actual) !== JSON.stringify(expected.map(([name]) => name).sort())) {
+            throw new Error("Production must contain exactly migrations 0000–0007; staging callback migration 0008 is not allowed.");
+          }
+          for (const [name, expectedSha] of expected) {
+            const prodSha = execFileSync("git", ["hash-object", "migrations-production/" + name], { encoding: "utf8" }).trim();
+            const sourceSha = execFileSync("git", ["hash-object", "migrations/" + name], { encoding: "utf8" }).trim();
+            if (prodSha !== expectedSha || sourceSha !== expectedSha) {
+              throw new Error("Reviewed immutable migration hash mismatch: " + name);
+            }
+          }
+          const config = readFileSync("wrangler.production.toml", "utf8");
+          const stagingConfig = readFileSync("wrangler.toml", "utf8");
+          const required = [
+            /^name = "sykabelajar-auth-poc"$/m,
+            /^database_name = "sykabelajar-auth-prod"$/m,
+            /^database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"$/m,
+            /^migrations_dir = "migrations-production"$/m,
+            /^BETTER_AUTH_URL = "https:\/\/auth\.sykabelajar\.my\.id"$/m,
+            /^APP_ORIGIN = "https:\/\/sykabelajar\.my\.id"$/m,
+            /^SUPABASE_PROVISIONING_ENABLED = "false"$/m,
+            /^SUPABASE_PROVISIONING_ENV = "production"$/m,
+            /^SUPABASE_PROVISIONING_URL = "https:\/\/mvdczyitbkxkldjughor\.supabase\.co"$/m,
+            /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
+            /^pattern = "auth\.sykabelajar\.my\.id"$/m,
+          ];
+          if (!required.every((pattern) => pattern.test(config))) throw new Error("Production Wrangler configuration mismatch.");
+          if (!/^name = "sykabelajar-auth-poc"$/m.test(stagingConfig)) throw new Error("Existing Worker resource name changed unexpectedly.");
+          if (/DEV_APP_ORIGIN|auth-staging\.sykabelajar\.my\.id|staging\.sykabelajar\.my\.id|auth-poc"/.test(config)) {
+            throw new Error("Production Wrangler config must not contain staging app origins or staging issuer values.");
+          }
+          const seed = readFileSync("migrations-production/0002_seed_first_party_oauth_client.sql", "utf8");
+          if (!seed.includes('["https://sykabelajar.my.id/auth/oidc/callback"]') ||
+              seed.includes("staging.sykabelajar.my.id")) {
+            throw new Error("Production first-party OAuth seed must contain only the canonical Production callback.");
+          }
+          if (config.includes("wrangler.toml")) throw new Error("Unexpected staging config reference.");
+          console.log("Verified exact Production D1 UUID, existing Worker name, immutable migration hashes 0000–0007, Production-only callback, provisioning disabled, and no staging host.");
+          NODE
+
+      - name: Install pinned Wrangler toolchain
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run Worker type and unit checks before remote D1 mutation
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Verify Cloudflare D1 name and UUID before migration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN secret." >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID secret." >&2; exit 1; }
+          node --input-type=module <<'NODE'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const databaseName = "sykabelajar-auth-prod";
+          const databaseId = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7";
+          const endpoint = "https://api.cloudflare.com/client/v4/accounts/" +
+            encodeURIComponent(accountId) + "/d1/database/" + encodeURIComponent(databaseId);
+          const response = await fetch(endpoint, {
+            headers: { Authorization: "Bearer " + token, Accept: "application/json" },
+          });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok || body.success !== true ||
+              body.result?.name !== databaseName || body.result?.uuid !== databaseId) {
+            const errors = (body.errors ?? []).map((item) => ({
+              code: item.code, message: String(item.message ?? "").slice(0, 160),
+            }));
+            console.error(JSON.stringify({ status: response.status, errors }));
+            throw new Error("Cloudflare did not confirm the exact empty Production D1 target. No migration was attempted.");
+          }
+          console.log(JSON.stringify({ verified: true, name: databaseName, uuid: databaseId }));
+          NODE
+
+      - name: Show pending Production migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
+
+      - name: Apply only reviewed Production migrations 0000–0007
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler --config wrangler.production.toml d1 migrations apply sykabelajar-auth-prod --remote
+
+      - name: Verify schema, Production-only callback and fresh empty identity store
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/production-d1-tables.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/production-d1-tables.json", "utf8"));
+          const rows = [];
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") rows.push(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const expected = [
+            "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
+            "auth_worker_internal_config","jwks","oauthAccessToken","oauthClient","oauthClientAssertion",
+            "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
+            "session","user","verification","auth_phone_verification_challenges",
+            "auth_social_provider_meta","auth_social_provider_settings",
+          ];
+          const missing = expected.filter((name) => !rows.includes(name));
+          if (missing.length) throw new Error("Missing Production D1 tables: " + missing.join(", "));
+          console.log("Verified " + expected.length + " Better Auth/identity tables.");
+          NODE
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name;" > "$RUNNER_TEMP/production-d1-columns.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/production-d1-columns.json", "utf8"));
+          const names = [];
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") names.push(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const expected = ["accountType","username","referralCode","birthDate","institution","grade","subjects"];
+          const missing = expected.filter((name) => !names.includes(name));
+          if (missing.length) throw new Error("Missing user profile mapping columns: " + missing.join(", "));
+          console.log("Verified seven account/profile mapping columns.");
+          NODE
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT redirectUris AS redirect_uris FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y';" > "$RUNNER_TEMP/production-d1-redirect.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/production-d1-redirect.json", "utf8"));
+          const values = [];
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.redirect_uris === "string") values.push(value.redirect_uris);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (values.length !== 1) throw new Error("Expected exactly one first-party OAuth client callback row.");
+          const redirects = JSON.parse(values[0]);
+          if (JSON.stringify(redirects) !== JSON.stringify(["https://sykabelajar.my.id/auth/oidc/callback"])) {
+            throw new Error("Production OAuth callback must contain only the website's canonical callback.");
+          }
+          console.log("Verified the Production-only first-party OAuth callback.");
+          NODE
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\") AS users, (SELECT COUNT(*) FROM \"session\") AS sessions, (SELECT COUNT(*) FROM \"account\") AS accounts, (SELECT COUNT(*) FROM \"verification\") AS verifications, (SELECT COUNT(*) FROM \"oauthAccessToken\") AS access_tokens, (SELECT COUNT(*) FROM \"oauthRefreshToken\") AS refresh_tokens, (SELECT COUNT(*) FROM auth_email_accounts) AS email_accounts;" > "$RUNNER_TEMP/production-d1-empty-check.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/production-d1-empty-check.json", "utf8"));
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "users") && Object.hasOwn(value, "sessions")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (!row) throw new Error("Could not locate the Production empty-store count row.");
+          for (const key of ["users","sessions","accounts","verifications","access_tokens","refresh_tokens","email_accounts"]) {
+            if (Number(row[key]) !== 0) throw new Error("Production D1 is not a fresh empty auth store: " + key + " is nonzero.");
+          }
+          console.log("Verified zero users, sessions, accounts, verifications, resource tokens and email credentials.");
+          NODE
+
+          echo "Production D1 schema migration completed. This workflow did not deploy a Worker, set secrets, change DNS, enable provisioning, or switch the website."
