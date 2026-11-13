@@ -5,6 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
+      - ".github/workflows/auth-cloudflare-production-d1-bootstrap.yml"
       - ".github/auth-ops/CREATE-PRODUCTION-D1-0001"
 
 permissions:
@@ -21,6 +22,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Checkout exact guarded marker
+        uses: actions/checkout@v7
+
       - name: Verify exact one-time Production database request
         run: |
           set -euo pipefail
