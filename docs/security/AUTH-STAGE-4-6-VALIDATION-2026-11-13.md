@@ -1,3 +1,35 @@
+# Follow-up checkpoint — 13 November 2026, head 7faa1296dac16292b473c7ed0ea80b4f8b00ea04
+
+This addendum supersedes earlier Stage 4 status wording below where it predates the registration-role browser tests and the five-check staging acceptance panel. It records implementation and CI evidence only; it does not claim the owner has run the new panel or completed real-session expiry acceptance.
+
+## Fresh registration path and role coverage
+
+- The registration submit-path browser tests added in [#43441985687](https://github.com/taufx98/sykabelajar4.0/actions/runs/43441985687) passed **15 tests, 1 optional Google OAuth test skipped**. The three new cases submit the correct Better Auth payload for Pelajar `student`, Guru `teacher`, and Penyelenggara `organizer`. Better Auth endpoints were stubbed in Playwright; those tests did not create persistent accounts or send email.
+- Existing Worker/D1 integration and Supabase provisioning contracts continue to validate fresh UUID issuance, server-side role mapping, profile projection and rejection of public admin signup. The read-only D1/Supabase preflight previously matched the fresh student, teacher and organizer identities; no identity was imported or reset.
+- Public mapping stays: `student → student`, `teacher → teacher`, and `organizer → organizer_member`. The PostgreSQL JWT role remains `authenticated`; it is not a business role.
+
+## Stage 4 live resource-token acceptance enhancement
+
+- Extended `BetterAuthAcceptancePanel` in Admin Core → Pengaturan to **five** checks. The new check obtains a resource token for the current Better Auth session, invalidates only the in-memory resource-token cache, waits 1.1 seconds to avoid same-second JWT timestamps, and obtains a second token through the actual hidden authorization-code + PKCE S256 flow.
+- The panel requires the second token to be different and the same active Better Auth UUID/session to remain valid. Neither token is displayed, copied, logged, or persisted. The panel remains limited to the exact staging hostname and staging Better Auth frontend.
+- The original four checks are retained: own profile/role and RLS fixture isolation, private Storage owner upload/download/cleanup plus foreign-folder denial, private Realtime Broadcast echo plus foreign-topic denial, and the read-only Edge acceptance probe using the shared Better Auth identity verifier.
+- Added [AUTH-STAGE-4-SESSION-LIFECYCLE-ACCEPTANCE.md](AUTH-STAGE-4-SESSION-LIFECYCLE-ACCEPTANCE.md) with the exact owner run instructions and evidence boundaries.
+- The new panel source contract passed in [Auth Worker CI #43445030354](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445030354). [Supabase Local Auth Claims CI #43445045283](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045283) and [Cloudflare staging preflight #43445045579](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045579) also passed. The Cloudflare Pages check for this exact head completed successfully.
+- Browser smoke for the same head is [#43445045154](https://github.com/taufx98/sykabelajar4.0/actions/runs/43445045154); its Playwright job was still running when this addendum was written.
+
+## Remaining hosted acceptance — do not overstate
+
+- **Resource-token reissue:** implementation and contract CI pass; the five-check owner panel has not yet been run after this addition. This verifies a second PKCE token issuance on the same live session, not the automatic 45-second refresh-margin boundary.
+- **Real session expiry → reauthentication:** still open. Unit/session-bridge tests and synthetic 401 browser responses are supporting evidence only. Do not forge expiry, change a real user's D1 session row, or shorten shared staging session TTL to make this look complete. A separate disposable Worker + disposable D1 with a short TTL may be used for a full server-side expiry rehearsal, but it must not share staging D1 or a real user session.
+- **Teacher/organizer real JWT sessions:** the D1-to-Supabase identity/role projections and role/RLS contracts are confirmed, but live browser JWT sessions for those accounts have not been independently observed. Do not infer these from mapping tests.
+- The earlier owner-provided Stage 2 result remains **4/4 accepted** against probe v7. Do not rerun it except through the new five-check panel when validating the new resource reissue path.
+
+## Scope and Production boundary
+
+No demo/legacy account was imported, reset, deleted or cleaned up. No account-switching feature was added. No Production Supabase DB2/Auth/schema/data/RLS/RPC/FK/trigger, Cloudflare Worker/D1 deployment, DNS, Pages Production configuration, secrets, or login routing was changed. PR #177 remains open, Draft and unmerged.
+
+---
+
 # Stage 4 & Stage 6 validation checkpoint — 13 November 2026
 
 Evidence snapshot: branch `security/auth-poc-stage-1`, code head `99b61cb85d973d97c67e6726047bab8090fa8e02`, PR #177. This checkpoint records only current staging/read-only evidence and branch-local test results. It does not authorize a merge, deployment or Production cutover.
