@@ -34,6 +34,7 @@ SUPABASE_PROVISIONING_ENV = "staging"
 SUPABASE_PROVISIONING_URL = "https://ydamszdfsxqisanazdkb.supabase.co"
 SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"
 OAUTH_CALLBACK_URL = "https://staging.sykabelajar.my.id/auth/oidc/callback"
+OAUTH_STAGING_CALLBACK_URL = "https://staging.sykabelajar.my.id/auth/oidc/callback"
 
 [observability]
 enabled = true
