@@ -1,3 +1,44 @@
+# Authoritative owner acceptance — 13 November 2026, 22:54 WIB
+
+This checkpoint supersedes earlier owner-action/remaining-test statements above where they conflict with the acceptance below. It does not authorize Production changes.
+
+## Owner-run hosted acceptance is now complete
+
+The owner ran **Uji Penerimaan Better Auth — Staging** from a live staging admin session and reported **5/5 passed**:
+1. Better Auth session, Data API, profile, active role and foreign-fixture isolation.
+2. PKCE resource-token re-issuance while retaining the same active session and UUID.
+3. Private Storage owner upload/download/delete and denial of another UUID's folder.
+4. Private Realtime Broadcast and denial of another UUID's topic.
+5. ES256 JWT acceptance through the shared verifier handler, including issuer, audience, subject, role and RLS.
+
+The panel removed its temporary Storage probe file. No token was exposed. **Do not ask the owner to repeat this panel or the previous 4/4 checks unless a relevant code/configuration regression occurs.**
+
+## Seven-stage status — current agreed login-only scope
+
+- **Stage 1 — COMPLETE on staging.** Cloudflare Worker, D1, Better Auth email/password registration/login/session/logout and the staging custom auth domain are operating. Fresh-account provisioning has been observed. Optional Google OAuth and external email delivery remain deferred; staging verification bypass must never be carried into Production.
+- **Stage 2 — ACCEPTED.** OIDC/JWKS/ES256 and Supabase token integration have passed the hosted session acceptance; the owner's new 5/5 result also proves PKCE resource-token re-issuance on the same UUID/session.
+- **Stage 3 — PRE-PRODUCTION FOUNDATION ACCEPTED; Production application deferred to Stage 7.** The staging identity root/provisioning projection and the schema-only full-Production disposable restore, 69-FK compatibility/forward-and-rollback rehearsal, issuer and RLS checks have been validated. Production DB2 remains unchanged by design. Applying the identity-root/FK/auth-lifecycle migrations to Production is a Stage 7 cutover action and requires explicit owner approval.
+- **Stage 4 — COMPLETE on staging.** Frontend login/registration/session bridge, protected routes, resource-token integration and the owner-run hosted acceptance are accepted. Disposable local D1 expiry proved that an expired server-side session is rejected and the same user can reauthenticate into a new session. Do not hold this stage open waiting seven days for a natural expiry on a shared staging account; observe natural TTL behavior as post-deployment monitoring, without editing live D1 sessions or changing shared TTL.
+- **Stage 5 — COMPLETE for the agreed authentication-compatibility scope.** The shared Better Auth verifier is accepted by the live 5/5 hosted verifier probe and by a locally D1-issued JWT through an actual migrated handler; invalid-token and role/RLS contracts pass CI. Do not expand this login-only migration into unrelated payment, Cloudinary or business-flow audits.
+- **Stage 6 — COMPLETE for the agreed fresh-account authentication scope.** Fresh student provisioning has been observed end-to-end; staging provisioning contracts cover student, teacher and organizer mappings, public admin self-registration is denied, the four-role JWT/RLS matrix passes, and the owner-run live staging session passed 5/5. Per the owner's explicit decision, legacy/demo accounts are not imported, switched into, reset, deleted or cleaned up. Do not ask for legacy account cleanup or repeat role-mapping tests.
+- **Stage 7 — PREPARATION ONLY; Production cutover not authorized.** Existing rollback/readiness documentation and disposable rehearsal are retained. The remaining work is to finalize the cutover checklist/monitoring gates, then obtain explicit approval before any Production schema/auth/DNS/Pages/secret/Worker change, final merge or cutover. No production action is implied by this checkpoint.
+
+## Latest CI on the current PR head
+
+PR #177 head `9adcc11e89f5cc670037b4fb1bf50259af2a2fcd` is open, Draft, unmerged and mergeable. All four latest checks on that exact head passed:
+- [Auth Worker CI #43448113165](https://github.com/taufx98/sykabelajar4.0/actions/runs/43448113165)
+- [Supabase Local Auth Claims CI #43448113134](https://github.com/taufx98/sykabelajar4.0/actions/runs/43448113134)
+- [Better Auth staging browser smoke #43448113204](https://github.com/taufx98/sykabelajar4.0/actions/runs/43448113204)
+- [Cloudflare staging preflight #43448113102](https://github.com/taufx98/sykabelajar4.0/actions/runs/43448113102)
+
+The runtime expiry/reauthentication and browser registration evidence remains from the tested runtime head documented below; the PR-head workflows above reran successfully after documentation-only updates.
+
+## Safety and no-repeat rule
+
+No Production DB2/Auth/schema/data/RLS/RPC/FK/trigger, Production Worker/D1 deployment, DNS, Pages configuration, secret, user/account or login routing was changed. No legacy/demo account was modified. No PR merge or Production cutover occurred.
+
+**Next work is Stage 7 preparation only.** Do not reopen Stages 1, 2, 4 or 6 without a concrete failing test or regression.
+
 # Latest Stage 4/6 follow-up — 13 November 2026, runtime head 17becdd398bf24e9ffa72dcb56a0b7932cad36b2
 
 This checkpoint supersedes earlier Stage 4 expiry-test wording below where it predates the disposable D1 expiry/reauthentication rehearsal. It records implementation and CI evidence only; natural hosted expiry on an owner session remains separate.
