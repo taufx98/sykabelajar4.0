@@ -345,6 +345,9 @@ jobs:
       - name: Bundle Worker without deploying
         run: npm run build
 
+      - name: Bundle Production Worker configuration without deploying
+        run: npx wrangler --config wrangler.production.toml deploy --dry-run --outdir=dist-production
+
 
       - name: Persist generated D1 schema and dependency lock
         if: ${{ github.event_name == 'push' }}
