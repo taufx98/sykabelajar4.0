@@ -9,11 +9,11 @@ test("Production callback allowlist contains only the canonical website callback
   );
 });
 
-test("staging callback allowlist includes the production and staging app origins", () => {
+test("staging callback is added only through the explicit exact staging callback setting", () => {
   assert.deepEqual(
     getApprovedOAuthCallbackUrls(
       "https://sykabelajar.my.id",
-      "https://staging.sykabelajar.my.id",
+      "https://staging.sykabelajar.my.id/auth/oidc/callback",
     ),
     [
       "https://sykabelajar.my.id/auth/oidc/callback",
@@ -22,31 +22,16 @@ test("staging callback allowlist includes the production and staging app origins
   );
 });
 
-test("callback policy rejects malformed, non-HTTPS, path-bearing or duplicate origins", () => {
-  for (const [appOrigin, devOrigin] of [
+test("callback policy rejects malformed, non-HTTPS, path-bearing and duplicate URLs", () => {
+  for (const [appOrigin, stagingCallback] of [
     ["http://sykabelajar.my.id", undefined],
     ["https://sykabelajar.my.id/path", undefined],
     ["https://user:pass@sykabelajar.my.id", undefined],
-    ["https://sykabelajar.my.id", "http://staging.sykabelajar.my.id"],
-    ["https://sykabelajar.my.id", "https://sykabelajar.my.id"],
+    ["https://sykabelajar.my.id", "http://staging.sykabelajar.my.id/auth/oidc/callback"],
+    ["https://sykabelajar.my.id", "https://staging.sykabelajar.my.id/other"],
+    ["https://sykabelajar.my.id", "https://staging.sykabelajar.my.id/auth/oidc/callback?next=evil"],
+    ["https://sykabelajar.my.id", "https://sykabelajar.my.id/auth/oidc/callback"],
   ]) {
-    assert.throws(() => getApprovedOAuthCallbackUrls(appOrigin, devOrigin));
+    assert.throws(() => getApprovedOAuthCallbackUrls(appOrigin, stagingCallback));
   }
-});
-
-test("local staging may use only an HTTP localhost callback origin", () => {
-  assert.deepEqual(
-    getApprovedOAuthCallbackUrls(
-      "https://sykabelajar.my.id",
-      "http://localhost:5173",
-    ),
-    [
-      "https://sykabelajar.my.id/auth/oidc/callback",
-      "http://localhost:5173/auth/oidc/callback",
-    ],
-  );
-  assert.throws(() => getApprovedOAuthCallbackUrls(
-    "https://sykabelajar.my.id",
-    "http://staging.sykabelajar.my.id",
-  ));
 });
