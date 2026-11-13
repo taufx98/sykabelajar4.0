@@ -8,13 +8,14 @@ import { isBetterAuthEnabled } from '@/services/auth.service';
 import { getStagingBetterAuthClient } from '@/services/betterAuthApi.client';
 
 type ResultState = 'pending' | 'running' | 'passed' | 'failed';
-type CheckKey = 'identity' | 'storage' | 'realtime' | 'edge';
+type CheckKey = 'identity' | 'resource' | 'storage' | 'realtime' | 'edge';
 type CheckResult = { key: CheckKey; label: string; state: ResultState; detail: string };
 
 const BUCKET = 'auth-oidc-acceptance';
 const REALTIME_PREFIX = 'auth-oidc-acceptance:';
 const INITIAL_RESULTS: CheckResult[] = [
   { key: 'identity', label: 'Sesi, Data API, profil, dan role', state: 'pending', detail: 'Belum dijalankan' },
+  { key: 'resource', label: 'Penerbitan ulang resource-token (PKCE)', state: 'pending', detail: 'Belum dijalankan' },
   { key: 'storage', label: 'Storage privat dan isolasi pemilik file', state: 'pending', detail: 'Belum dijalankan' },
   { key: 'realtime', label: 'Realtime private channel dan isolasi topic', state: 'pending', detail: 'Belum dijalankan' },
   { key: 'edge', label: 'JWT Better Auth melalui verifier handler bersama', state: 'pending', detail: 'Belum dijalankan' },
@@ -85,6 +86,39 @@ export function BetterAuthAcceptancePanel() {
           throw new Error('OIDC_RLS_EXPOSED_SYNTHETIC_FOREIGN_ROWS');
         }
         return 'Sesi cocok; profil dan role aktif terbaca; fixture milik UUID lain tersembunyi';
+      });
+
+      await runCheck('resource', async () => {
+        const authClient = getStagingBetterAuthClient();
+        const before = await authClient.getSession();
+        if (!before?.user || before.user.id !== userId) {
+          throw new Error('BETTER_AUTH_SESSION_SUBJECT_MISMATCH');
+        }
+        const beforeExpiry = Date.parse(before.session.expiresAt);
+        if (!Number.isFinite(beforeExpiry) || beforeExpiry <= Date.now()) {
+          throw new Error('BETTER_AUTH_SESSION_NOT_ACTIVE');
+        }
+
+        const firstToken = await authClient.getSupabaseAccessToken();
+        if (!firstToken) throw new Error('BETTER_AUTH_RESOURCE_TOKEN_MISSING');
+
+        // Force a fresh PKCE authorization-code exchange while keeping the
+        // same active Better Auth browser session. Tokens never leave memory.
+        authClient.invalidateResourceTokenCache();
+        const renewedToken = await authClient.getSupabaseAccessToken();
+        if (!renewedToken || renewedToken === firstToken) {
+          throw new Error('BETTER_AUTH_RESOURCE_TOKEN_REISSUE_NOT_CONFIRMED');
+        }
+
+        const after = await authClient.getSession();
+        if (
+          !after?.user ||
+          after.user.id !== userId ||
+          Date.parse(after.session.expiresAt) <= Date.now()
+        ) {
+          throw new Error('BETTER_AUTH_SESSION_CHANGED_DURING_RESOURCE_REISSUE');
+        }
+        return 'Sesi aktif tetap pada UUID yang sama; resource-token baru diterbitkan melalui PKCE; token tidak ditampilkan';
       });
 
       await runCheck('storage', async () => {
