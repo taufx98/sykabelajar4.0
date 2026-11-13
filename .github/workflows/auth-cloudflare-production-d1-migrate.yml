@@ -81,6 +81,7 @@ jobs:
             /^SUPABASE_PROVISIONING_ENABLED = "false"$/m,
             /^SUPABASE_PROVISIONING_ENV = "production"$/m,
             /^SUPABASE_PROVISIONING_URL = "https:\/\/mvdczyitbkxkldjughor\.supabase\.co"$/m,
+            /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_M0wRkz7pdVB-0s5JtT3Zhg_J9fXU31m"$/m,
             /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
             /^pattern = "auth\.sykabelajar\.my\.id"$/m,
           ];
