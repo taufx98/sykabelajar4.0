@@ -21,6 +21,7 @@ test("Production runtime config reuses the existing Worker hostname with its own
   assert.match(productionConfig, /^SUPABASE_PROVISIONING_ENV = "production"$/m);
   assert.match(productionConfig, /^SUPABASE_PROVISIONING_ENABLED = "false"$/m);
   assert.match(productionConfig, /^SUPABASE_PROVISIONING_URL = "https:\/\/mvdczyitbkxkldjughor\.supabase\.co"$/m);
+  assert.match(productionConfig, /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_M0wRkz7pdVB-0s5JtT3Zhg_J9fXU31m"$/m);
   assert.match(productionConfig, /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m);
   assert.doesNotMatch(productionConfig, /DEV_APP_ORIGIN|auth-staging\.sykabelajar\.my\.id|staging\.sykabelajar\.my\.id/);
 });
