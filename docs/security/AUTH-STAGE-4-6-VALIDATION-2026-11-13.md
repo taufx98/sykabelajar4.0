@@ -1,3 +1,20 @@
+# Owner result received — 13 November 2026, 22:54 WIB
+
+The owner completed the hosted **Uji Penerimaan Better Auth — Staging** panel with **5/5 passed** on the active staging session.
+
+Accepted checks:
+- Session identity, Data API profile/active role and foreign-fixture isolation.
+- PKCE re-issuance of a new resource token while the original session and UUID remain unchanged.
+- Private Storage owner upload/download/delete and foreign-folder denial; temporary probe file removed.
+- Private Realtime private Broadcast and foreign-topic denial.
+- Shared verifier acceptance of the Better Auth ES256 JWT with issuer, audience, subject, role and RLS validation.
+
+This closes the owner-operated hosted acceptance that was previously listed as pending. Do not repeat it unless a real regression is reported. Together with the disposable local D1 session-expiry/reauthentication integration test and current PR-head CI, Stage 4 is accepted for staging. Seven-day natural expiry of a shared staging session is not a release gate; monitor natural TTL behavior after deployment instead, without editing a real D1 session row or altering the shared TTL.
+
+Stage 6 is accepted for the agreed fresh-account authentication scope: the live fresh-student provisioning path, staging SQL role mappings for student/teacher/organizer, admin self-registration denial, four-role local JWT/RLS matrix, and this live staging session acceptance are all covered. Previous/demo accounts remain untouched by explicit owner decision; no reset, cleanup, import or account-switch feature is required.
+
+Stage 3 Production identity/FK migration and Stage 7 final cutover remain deferred to the separately approved Production cutover. No Production DB2/Auth/schema/data/RLS/RPC/FK/trigger, Worker/D1 deployment, DNS, Pages config, secrets, user/account data, or login routing was changed. PR #177 remains Draft and unmerged.
+
 # Latest Stage 4/6 follow-up — 13 November 2026, runtime head 17becdd398bf24e9ffa72dcb56a0b7932cad36b2
 
 This checkpoint supersedes earlier Stage 4 expiry-test wording below where it predates the disposable D1 expiry/reauthentication rehearsal. It records implementation and CI evidence only; natural hosted expiry on an owner session remains separate.
