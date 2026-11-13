@@ -467,7 +467,7 @@ for (const roleCase of publicRegistrationRoles) {
       username: `auth-${roleCase.accountType}-ui`,
       accountType: roleCase.accountType,
       birthDate: '2000-01-01',
-      institution: 'Staging UI Contract Test',
+      institution: 'STAGING UI CONTRACT TEST',
     });
     expect(typeof signupRequests[0].subjects).toBe('string');
     expect(String(signupRequests[0].subjects).length).toBeGreaterThan(0);
