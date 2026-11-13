@@ -1,5 +1,4 @@
-/** @param {string} value @param {string} label */
-function requireHttpsOrigin(value, label, allowLocalhost = false) {
+function requireHttpsCallback(value, label) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(label + "_REQUIRED");
   }
@@ -9,9 +8,32 @@ function requireHttpsOrigin(value, label, allowLocalhost = false) {
   } catch {
     throw new Error(label + "_INVALID");
   }
-  const localhost = allowLocalhost && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
   if (
-    (parsed.protocol !== "https:" && !(localhost && parsed.protocol === "http:")) ||
+    parsed.protocol !== "https:" ||
+    parsed.pathname !== "/auth/oidc/callback" ||
+    parsed.username ||
+    parsed.password ||
+    parsed.hash ||
+    parsed.search ||
+    parsed.origin + parsed.pathname !== value
+  ) {
+    throw new Error(label + "_MUST_BE_EXACT_HTTPS_CALLBACK");
+  }
+  return parsed.toString();
+}
+
+function requireHttpsOrigin(value, label) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(label + "_REQUIRED");
+  }
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(label + "_INVALID");
+  }
+  if (
+    parsed.protocol !== "https:" ||
     parsed.origin !== value.replace(/\/$/, "") ||
     parsed.username ||
     parsed.password ||
@@ -25,20 +47,23 @@ function requireHttpsOrigin(value, label, allowLocalhost = false) {
 }
 
 /**
- * Staging includes its own callback plus the production callback for its
- * existing first-party PKCE test client. Production omits DEV_APP_ORIGIN, so
- * its allowlist contains only the canonical production callback.
+ * Production always accepts its canonical website callback.
+ * Staging may explicitly add its exact callback URL; the browser dev origin
+ * (including localhost) is intentionally not used to derive OAuth redirects.
+ * @param {string} appOrigin
+ * @param {string | undefined} stagingCallbackUrl
+ * @returns {string[]}
  */
-/** @param {string} appOrigin @param {string | undefined} devAppOrigin @returns {string[]} */
-export function getApprovedOAuthCallbackUrls(appOrigin, devAppOrigin) {
+export function getApprovedOAuthCallbackUrls(appOrigin, stagingCallbackUrl) {
   const productionOrigin = requireHttpsOrigin(appOrigin, "APP_ORIGIN");
-  const callbacks = [new URL("/auth/oidc/callback", productionOrigin).toString()];
-  if (devAppOrigin !== undefined && devAppOrigin !== null && devAppOrigin !== "") {
-    const stagingOrigin = requireHttpsOrigin(devAppOrigin, "DEV_APP_ORIGIN", true);
-    if (stagingOrigin === productionOrigin) {
-      throw new Error("DEV_APP_ORIGIN_MUST_DIFFER_FROM_APP_ORIGIN");
+  const productionCallback = new URL("/auth/oidc/callback", productionOrigin).toString();
+  const callbacks = [productionCallback];
+  if (stagingCallbackUrl !== undefined && stagingCallbackUrl !== null && stagingCallbackUrl !== "") {
+    const stagingCallback = requireHttpsCallback(stagingCallbackUrl, "OAUTH_STAGING_CALLBACK_URL");
+    if (stagingCallback === productionCallback) {
+      throw new Error("OAUTH_STAGING_CALLBACK_URL_MUST_DIFFER_FROM_PRODUCTION");
     }
-    callbacks.push(new URL("/auth/oidc/callback", stagingOrigin).toString());
+    callbacks.push(stagingCallback);
   }
   return callbacks;
 }
