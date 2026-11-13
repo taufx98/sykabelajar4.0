@@ -2,7 +2,7 @@
 
 This is the approved implementation order. Keep all work within these seven stages. A security finding may be handled as a prerequisite when it directly affects identity, privacy, RLS, or authorization; it must not become a reason to redesign unrelated application features.
 
-Latest authoritative status, Production boundary and rollback record: [AUTH-STAGES-STATUS-AND-ROLLBACK.md](AUTH-STAGES-STATUS-AND-ROLLBACK.md). Stage 7 release sequence: [AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md](AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md).
+Latest authoritative status and approved one-time promotion: [AUTH-PRODUCTION-PROMOTION-DECISION-2026-11-14.md](AUTH-PRODUCTION-PROMOTION-DECISION-2026-11-14.md). Production boundary and rollback record: [AUTH-STAGES-STATUS-AND-ROLLBACK.md](AUTH-STAGES-STATUS-AND-ROLLBACK.md). Stage 7 release sequence: [AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md](AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md).
 
 ## Architecture decisions
 
