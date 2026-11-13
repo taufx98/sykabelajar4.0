@@ -569,6 +569,56 @@ jobs:
           );
           NODE
 
+      - name: Read-only inspect recent D1 Better Auth identities without PII
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --yes wrangler@4.156.2 d1 execute sykabelajar-auth-poc --remote --json \
+            --command 'SELECT id, accountType, emailVerified, createdAt FROM "user" ORDER BY createdAt DESC LIMIT 5;' \
+            --config services/auth-worker/wrangler.toml \
+            > "$RUNNER_TEMP/auth-staging-d1-recent-identities.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const path = process.env.RUNNER_TEMP + "/auth-staging-d1-recent-identities.json";
+          const parsed = JSON.parse(readFileSync(path, "utf8"));
+          const batches = Array.isArray(parsed) ? parsed : [parsed];
+          const rows = batches.flatMap((batch) => Array.isArray(batch?.results) ? batch.results : []);
+          const identities = rows.map((row) => {
+            if (
+              !row || typeof row.id !== "string" ||
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.id) ||
+              !["student", "teacher", "organizer"].includes(row.accountType) ||
+              ![0, 1, true, false].includes(row.emailVerified) ||
+              typeof row.createdAt !== "string"
+            ) {
+              throw new Error("Recent D1 identity projection has an unexpected safe-field shape.");
+            }
+            return {
+              id: row.id,
+              accountType: row.accountType,
+              emailVerified: row.emailVerified === 1 || row.emailVerified === true,
+              createdAt: row.createdAt,
+            };
+          });
+          const summary = {
+            database: "sykabelajar-auth-poc",
+            readOnly: true,
+            recentIdentities: identities,
+            piiFieldsSelected: false,
+            credentialsTokensAndSecretsSelected: false,
+          };
+          console.log("STAGING_D1_RECENT_IDENTITIES=" + JSON.stringify(summary));
+          writeFileSync(
+            process.env.RUNNER_TEMP + "/auth-staging-d1-recent-identities-summary.json",
+            JSON.stringify(summary, null, 2),
+            { mode: 0o600 },
+          );
+          NODE
+
       - name: Upload sanitized Cloudflare resource snapshot
         if: always()
         uses: actions/upload-artifact@v4
@@ -577,5 +627,6 @@ jobs:
           path: |
             ${{ runner.temp }}/auth-cloudflare-preflight-summary.json
             ${{ runner.temp }}/auth-worker-secret-readiness.json
+            ${{ runner.temp }}/auth-staging-d1-recent-identities-summary.json
           if-no-files-found: ignore
           retention-days: 3
