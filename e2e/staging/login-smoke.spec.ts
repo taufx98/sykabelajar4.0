@@ -379,3 +379,99 @@ test('synthetic Cloudflare Error 1027 page shows recoverable auth availability U
   expect(sessionReads).toBeGreaterThan(0);
   expect(signOutRequests, 'an edge quota page must not trigger sign-out').toBe(0);
 });
+
+
+const publicRegistrationRoles = [
+  { accountType: 'student', uiLabel: 'Pelajar', email: 'auth-student-ui@example.test' },
+  { accountType: 'teacher', uiLabel: 'Guru', email: 'auth-teacher-ui@example.test' },
+  { accountType: 'organizer', uiLabel: 'Penyelenggara', email: 'auth-organizer-ui@example.test' },
+] as const;
+
+for (const roleCase of publicRegistrationRoles) {
+  test(`registration submits a fresh Better Auth ${roleCase.accountType} account payload`, async ({ page }) => {
+    const signupRequests: Record<string, unknown>[] = [];
+    const fakeUserId = roleCase.accountType === 'student'
+      ? '00000000-0000-4000-8000-000000000101'
+      : roleCase.accountType === 'teacher'
+        ? '00000000-0000-4000-8000-000000000102'
+        : '00000000-0000-4000-8000-000000000103';
+
+    // Stub the Better Auth transport so the browser contract is tested without
+    // creating persistent D1/Supabase identities or sending real email.
+    await page.route('https://auth.sykabelajar.my.id/api/auth/providers', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          issuer: 'https://auth.sykabelajar.my.id/api/auth',
+          providers: [],
+          emailVerificationConfigured: false,
+          emailVerificationRequired: false,
+        }),
+      });
+    });
+    await page.route('https://auth.sykabelajar.my.id/api/auth/sign-up/email', async (route) => {
+      signupRequests.push(route.request().postDataJSON() as Record<string, unknown>);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          token: null,
+          user: {
+            id: fakeUserId,
+            email: roleCase.email,
+            emailVerified: false,
+            name: 'Auth Registration UI Test',
+          },
+        }),
+      });
+    });
+    await page.route('https://auth.sykabelajar.my.id/api/auth/get-session', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: 'null',
+      });
+    });
+
+    const response = await page.goto('/register', { waitUntil: 'domcontentloaded' });
+    expect(response?.status()).toBe(200);
+
+    await page.locator('#register-email').fill(roleCase.email);
+    await page.locator('#register-password').fill('Testing123!');
+    await page.locator('#register-password-confirm').fill('Testing123!');
+    await page.getByRole('button', { name: /^(Lanjut|Continue)$/ }).click();
+
+    await page.getByRole('group', { name: /^(Jenis akun|Account type)$/ })
+      .getByRole('button', { name: roleCase.uiLabel }).click();
+    await page.locator('#register-full-name').fill('Auth Registration UI Test');
+    await page.locator('#register-username').fill(`auth-${roleCase.accountType}-ui`);
+    await page.locator('#register-birth-date').fill('2000-01-01');
+    await page.locator('#register-school').fill('Staging UI Contract Test');
+    if (roleCase.accountType === 'student') {
+      await page.locator('#register-education-level').selectOption('sma');
+    }
+    await page.getByRole('button', { name: /^(Lanjut|Continue)$/ }).click();
+
+    const categories = page.getByRole('group', { name: /^(Kategori lomba favorit|Favorite competition categories)$/ });
+    await categories.getByRole('button').first().click();
+    await page.getByRole('button', { name: /^(Buat Akun|Create Account)$/ }).click();
+
+    await expect(page).toHaveURL(/\\/login(?:$|\\?)/);
+    expect(signupRequests).toHaveLength(1);
+    expect(signupRequests[0]).toMatchObject({
+      email: roleCase.email,
+      password: 'Testing123!',
+      name: 'Auth Registration UI Test',
+      username: `auth-${roleCase.accountType}-ui`,
+      accountType: roleCase.accountType,
+      birthDate: '2000-01-01',
+      institution: 'Staging UI Contract Test',
+    });
+    expect(typeof signupRequests[0].subjects).toBe('string');
+    expect(String(signupRequests[0].subjects).length).toBeGreaterThan(0);
+    expect(signupRequests[0]).not.toHaveProperty('role');
+    expect(signupRequests[0].accountType).not.toBe('admin');
+  });
+}
