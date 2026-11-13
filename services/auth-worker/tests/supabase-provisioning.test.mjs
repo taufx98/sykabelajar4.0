@@ -47,7 +47,8 @@ function createD1Mock({ fail = false, changes = 1 } = {}) {
 
 const env = {
   SUPABASE_PROVISIONING_ENABLED: "true",
-  // Keep the production URL for the existing Admin bridge; it must never be used for provisioning.
+  SUPABASE_PROVISIONING_ENV: "staging",
+  // Keep the production URL for the existing Admin bridge; it must never be used for staging provisioning.
   SUPABASE_URL: "https://mvdczyitbkxkldjughor.supabase.co",
   SUPABASE_PROVISIONING_URL: "https://ydamszdfsxqisanazdkb.supabase.co",
   SUPABASE_PROVISIONING_API_KEY: SERVICE_KEY,
@@ -591,6 +592,42 @@ test("missing server secret and unsafe provisioning target fail closed", async (
       SUPABASE_PROVISIONING_URL: "https://mvdczyitbkxkldjughor.supabase.co",
     }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
     /SUPABASE_PROVISIONING_URL_NOT_ALLOWED/,
+  );
+});
+
+test("Production provisioning requires an explicit environment and the exact Production DB2 host", async () => {
+  const productionEnv = {
+    ...env,
+    SUPABASE_PROVISIONING_ENV: "production",
+    SUPABASE_PROVISIONING_URL: "https://mvdczyitbkxkldjughor.supabase.co",
+  };
+  let capturedUrl;
+  const result = await reconcileSupabaseApplicationIdentity(productionEnv, {
+    id: USER_ID,
+    name: "Production Fresh User",
+    accountType: "student",
+    emailVerified: false,
+  }, async (url) => {
+    capturedUrl = String(url);
+    return response({ user_id: USER_ID, account_type: "student" });
+  });
+  assert.deepEqual(result, { enabled: true, userId: USER_ID });
+  assert.equal(capturedUrl, "https://mvdczyitbkxkldjughor.supabase.co/rest/v1/rpc/better_auth_provision_user");
+
+  await assert.rejects(
+    reconcileSupabaseApplicationIdentity({
+      ...productionEnv,
+      SUPABASE_PROVISIONING_URL: "https://ydamszdfsxqisanazdkb.supabase.co",
+    }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
+    /SUPABASE_PROVISIONING_URL_NOT_ALLOWED/,
+  );
+
+  await assert.rejects(
+    reconcileSupabaseApplicationIdentity({
+      ...env,
+      SUPABASE_PROVISIONING_ENV: "unexpected",
+    }, { id: USER_ID }, async () => response({ user_id: USER_ID })),
+    /SUPABASE_PROVISIONING_ENV_INVALID/,
   );
 });
 
