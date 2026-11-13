@@ -1,3 +1,4 @@
+/** @param {string} value @param {string} label */
 function requireHttpsOrigin(value, label) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(label + "_REQUIRED");
@@ -27,6 +28,7 @@ function requireHttpsOrigin(value, label) {
  * existing first-party PKCE test client. Production omits DEV_APP_ORIGIN, so
  * its allowlist contains only the canonical production callback.
  */
+/** @param {string} appOrigin @param {string | undefined} devAppOrigin @returns {string[]} */
 export function getApprovedOAuthCallbackUrls(appOrigin, devAppOrigin) {
   const productionOrigin = requireHttpsOrigin(appOrigin, "APP_ORIGIN");
   const callbacks = [new URL("/auth/oidc/callback", productionOrigin).toString()];
