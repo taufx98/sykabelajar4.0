@@ -39,6 +39,8 @@ export interface AuthWorkerEnv {
   DEV_APP_ORIGIN?: string;
   OAUTH_CLIENT_BOOTSTRAP_TOKEN?: string;
   OAUTH_CALLBACK_URL?: string;
+  /** Optional exact staging OAuth callback; omitted in Production. */
+  OAUTH_STAGING_CALLBACK_URL?: string;
   D1_SCHEMA_BOOTSTRAP_TOKEN?: string;
   ALLOW_SCHEMA_BOOTSTRAP?: string;
 }
