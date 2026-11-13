@@ -29,6 +29,8 @@ The checked-in Worker configuration currently points to:
 
 This is staging infrastructure, not a Production Worker or D1. It must not be promoted or reused as Production. In particular, its provisioning flag is enabled against the isolated staging Supabase project.
 
+The latest read-only Cloudflare preflight #43462832389 confirmed exactly one D1 database in the account (`sykabelajar-auth-poc`) and two Worker scripts (`sykabelajar-auth-poc` plus the existing app Worker `sykabelajar4-0`). It found no separate Production authentication D1 or Worker. The enabled custom domain `auth.sykabelajar.my.id` belongs to `sykabelajar-auth-poc`. The aggregate staging D1 audit saw 4 accounts, 0 verified emails and 12 unexpired sessions; it did not select emails, UUIDs, credentials, tokens or secret values.
+
 ### Owner-operated staging acceptance
 
 The owner has run the hosted Uji Penerimaan Better Auth — Staging panel and reported 5/5 passed: session/Data API/profile/role isolation; PKCE resource-token re-issuance on the same session and UUID; private Storage ownership; private Realtime topic isolation; and shared ES256 verifier checks for issuer, audience, subject, role and RLS. The temporary Storage probe file was deleted. Do not repeat this panel unless a concrete regression occurs.
