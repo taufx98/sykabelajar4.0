@@ -197,7 +197,7 @@ jobs:
           SCHEMA_TOKEN="$(openssl rand -hex 32)"
           OAUTH_CLIENT_TOKEN="$(openssl rand -hex 32)"
           MAIL_TOKEN="$(openssl rand -hex 32)"
-          printf 'BETTER_AUTH_URL=https://auth.sykabelajar.my.id\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\nOAUTH_CLIENT_BOOTSTRAP_TOKEN=%s\nOAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback\nAUTH_EMAIL_PROVIDER=webhook\nSUPABASE_PROVISIONING_ENABLED=false\nAUTH_EMAIL_WEBHOOK_URL=http://localhost:8788/send\nAUTH_EMAIL_WEBHOOK_TOKEN=%s\nAUTH_EMAIL_FROM=noreply@example.test\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" "$OAUTH_CLIENT_TOKEN" "$MAIL_TOKEN" > .dev.vars
+          printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\nOAUTH_CLIENT_BOOTSTRAP_TOKEN=%s\nOAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback\nAUTH_EMAIL_PROVIDER=webhook\nSUPABASE_PROVISIONING_ENABLED=false\nAUTH_EMAIL_WEBHOOK_URL=http://localhost:8788/send\nAUTH_EMAIL_WEBHOOK_TOKEN=%s\nAUTH_EMAIL_FROM=noreply@example.test\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" "$OAUTH_CLIENT_TOKEN" "$MAIL_TOKEN" > .dev.vars
           setsid npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
           WORKER_PID=$!
           trap 'kill -- -"$WORKER_PID" 2>/dev/null || true' EXIT
@@ -228,7 +228,7 @@ jobs:
           const discoveryResponse = await fetch("http://127.0.0.1:8787/api/auth/.well-known/openid-configuration");
           assert.equal(discoveryResponse.status, 200, "OIDC discovery must respond 200");
           const discovery = await discoveryResponse.json();
-          assert.equal(discovery.issuer, "https://auth.sykabelajar.my.id/api/auth", "local D1 test must mint tokens with the fixed Better Auth issuer");
+          assert.equal(new URL(discovery.issuer).hostname, "localhost", "schema bootstrap issuer must use the local Worker host");
           assert.ok(discovery.authorization_endpoint, "authorization endpoint must be advertised");
           assert.ok(discovery.token_endpoint, "token endpoint must be advertised");
           assert.ok(discovery.jwks_uri, "JWKS URI must be advertised");
@@ -303,7 +303,11 @@ jobs:
           console.log("Verified the fixed first-party OAuth client seed, PKCE, resource and exact callback in the migrated D1 database.");
           NODE
 
-          setsid npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker-migrated.log" 2>&1 &
+          # Keep the schema-bootstrap phase bound to localhost. Once the
+          # checked-in D1 migrations are applied, restart the same local Worker
+          # with the canonical issuer so its D1-signed test JWT matches staging.
+          sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=https://auth.sykabelajar.my.id|' .dev.vars
+                    setsid npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker-migrated.log" 2>&1 &
           WORKER_PID=$!
           WORKER_READY=false
           for attempt in $(seq 1 30); do
