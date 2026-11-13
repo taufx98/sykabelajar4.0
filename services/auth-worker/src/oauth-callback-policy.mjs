@@ -1,5 +1,5 @@
 /** @param {string} value @param {string} label */
-function requireHttpsOrigin(value, label) {
+function requireHttpsOrigin(value, label, allowLocalhost = false) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(label + "_REQUIRED");
   }
@@ -9,8 +9,9 @@ function requireHttpsOrigin(value, label) {
   } catch {
     throw new Error(label + "_INVALID");
   }
+  const localhost = allowLocalhost && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
   if (
-    parsed.protocol !== "https:" ||
+    (parsed.protocol !== "https:" && !(localhost && parsed.protocol === "http:")) ||
     parsed.origin !== value.replace(/\/$/, "") ||
     parsed.username ||
     parsed.password ||
@@ -33,7 +34,7 @@ export function getApprovedOAuthCallbackUrls(appOrigin, devAppOrigin) {
   const productionOrigin = requireHttpsOrigin(appOrigin, "APP_ORIGIN");
   const callbacks = [new URL("/auth/oidc/callback", productionOrigin).toString()];
   if (devAppOrigin !== undefined && devAppOrigin !== null && devAppOrigin !== "") {
-    const stagingOrigin = requireHttpsOrigin(devAppOrigin, "DEV_APP_ORIGIN");
+    const stagingOrigin = requireHttpsOrigin(devAppOrigin, "DEV_APP_ORIGIN", true);
     if (stagingOrigin === productionOrigin) {
       throw new Error("DEV_APP_ORIGIN_MUST_DIFFER_FROM_APP_ORIGIN");
     }
