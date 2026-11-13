@@ -310,3 +310,71 @@ test('a rejected staging sign-in does not hard-reload the login route', async ({
   expect(signInRequests).toBe(1);
   expect(postInitialDocumentNavigations, 'a rejected sign-in must not reload the document').toBe(0);
 });
+
+
+test('synthetic D1 quota 503 shows its retry time without redirecting to login', async ({ page }) => {
+  const retryAtUtc = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  let sessionReads = 0;
+  let signOutRequests = 0;
+
+  await page.route('https://auth.sykabelajar.my.id/api/auth/get-session', async (route) => {
+    sessionReads += 1;
+    await route.fulfill({
+      status: 503,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store',
+        'retry-after': '3600',
+        'x-auth-availability': 'degraded',
+      },
+      body: JSON.stringify({
+        error: 'AUTH_TEMPORARILY_UNAVAILABLE',
+        code: 'D1_FREE_TIER_ROWS_READ_LIMIT_REACHED',
+        message: 'Authentication service is temporarily unavailable.',
+        retry_at_utc: retryAtUtc,
+      }),
+    });
+  });
+  await page.route('https://auth.sykabelajar.my.id/api/auth/sign-out', async (route) => {
+    signOutRequests += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+
+  const response = await page.goto('/home', { waitUntil: 'domcontentloaded' });
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'Koneksi autentikasi terganggu' })).toBeVisible();
+  await expect(page.getByText(/Batas penggunaan harian layanan login telah tercapai\. Sesi tidak dihapus\./)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Coba lagi' })).toBeVisible();
+  await expect(page).toHaveURL(/\/home$/);
+  expect(sessionReads).toBeGreaterThan(0);
+  expect(signOutRequests, 'a D1 availability error must not trigger sign-out').toBe(0);
+});
+
+test('synthetic Cloudflare Error 1027 page shows recoverable auth availability UI', async ({ page }) => {
+  let sessionReads = 0;
+  let signOutRequests = 0;
+
+  // This is a controlled edge-response simulation. It does not exhaust the
+  // account's 100,000-request Free limit or change the real Cloudflare route.
+  await page.route('https://auth.sykabelajar.my.id/api/auth/get-session', async (route) => {
+    sessionReads += 1;
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/html; charset=utf-8',
+      body: '<!doctype html><html><body><h1>Cloudflare Error 1027</h1></body></html>',
+    });
+  });
+  await page.route('https://auth.sykabelajar.my.id/api/auth/sign-out', async (route) => {
+    signOutRequests += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+
+  const response = await page.goto('/home', { waitUntil: 'domcontentloaded' });
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'Koneksi autentikasi terganggu' })).toBeVisible();
+  await expect(page.getByText('Sesi belum dinyatakan berakhir. Periksa koneksi lalu coba muat sesi kembali.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Coba lagi' })).toBeVisible();
+  await expect(page).toHaveURL(/\/home$/);
+  expect(sessionReads).toBeGreaterThan(0);
+  expect(signOutRequests, 'an edge quota page must not trigger sign-out').toBe(0);
+});
