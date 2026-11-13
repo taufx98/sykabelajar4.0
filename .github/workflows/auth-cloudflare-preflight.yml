@@ -9,6 +9,11 @@ on:
     paths:
       - ".github/workflows/auth-cloudflare-preflight.yml"
       - "services/auth-worker/**"
+  pull_request:
+    branches:
+      - security/auth-migration-phase-0
+    paths:
+      - ".github/workflows/auth-cloudflare-preflight.yml"
   workflow_dispatch:
 
 permissions:
@@ -20,7 +25,7 @@ concurrency:
 
 jobs:
   inspect:
-    if: ${{ github.ref_name == 'security/auth-poc-stage-1' }}
+    if: ${{ github.ref_name == 'security/auth-poc-stage-1' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'security/auth-poc-stage-1' && github.event.pull_request.head.repo.full_name == github.repository) }}
     name: Read-only Cloudflare account and staging resource inspection
     runs-on: ubuntu-latest
     steps:
