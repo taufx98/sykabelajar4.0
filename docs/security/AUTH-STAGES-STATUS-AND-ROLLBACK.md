@@ -7,6 +7,17 @@
 
 ---
 
+## Latest fresh Better Auth account provisioning acceptance — 13 November 2026
+
+- The owner created a fresh account on staging. A read-only D1 inspection of the dedicated Cloudflare database `sykabelajar-auth-poc` found its Better Auth UUID and registration metadata (`accountType=student`, `emailVerified=false`). No email, password, credential, session token or secret was selected.
+- The exact UUID matched the newest `private.app_users.id` in isolated Supabase staging. Its projection was created about 1.5 seconds after the D1 user row, with `identity_origin='better_auth'`, `profiles.account_type='student'`, one active `student` role, and a `user_settings` row. `auth.users` remains empty.
+- This is positive end-to-end evidence for a real fresh **student** registration through Better Auth D1 and the Worker provisioning hook into Supabase staging. The account was not altered or deleted.
+- D1 reports `emailVerified=false`; this is not a verified mailbox. Keep the existing staging-only email-verification bypass clearly separate from Production, where email verification remains required.
+- Read-only Cloudflare preflight #370 passed on commit `ae934f5`, including D1 identity matching and secret-name/type inspection. The actual secret values were never read or printed.
+- No Production resource, legacy account, D1 row, Supabase row, Worker secret or auth routing was modified by this audit.
+
+---
+
 ## Latest Stage 6 staging RPC acceptance — 13 November 2026
 
 - A read-only inventory of the isolated staging project found exactly one existing `better_auth` identity, one linked profile, one settings row, and one `admin` business-role row; `auth.users` remains empty. No user identifiers or personal data were selected.
