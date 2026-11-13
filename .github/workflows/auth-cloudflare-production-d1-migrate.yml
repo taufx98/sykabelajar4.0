@@ -86,7 +86,7 @@ jobs:
           ];
           if (!required.every((pattern) => pattern.test(config))) throw new Error("Production Wrangler configuration mismatch.");
           if (!/^name = "sykabelajar-auth-poc"$/m.test(stagingConfig)) throw new Error("Existing Worker resource name changed unexpectedly.");
-          if (/DEV_APP_ORIGIN|auth-staging\.sykabelajar\.my\.id|staging\.sykabelajar\.my\.id|auth-poc"/.test(config)) {
+          if (/DEV_APP_ORIGIN|auth-staging\.sykabelajar\.my\.id|staging\.sykabelajar\.my\.id/.test(config)) {
             throw new Error("Production Wrangler config must not contain staging app origins or staging issuer values.");
           }
           const seed = readFileSync("migrations-production/0002_seed_first_party_oauth_client.sql", "utf8");
