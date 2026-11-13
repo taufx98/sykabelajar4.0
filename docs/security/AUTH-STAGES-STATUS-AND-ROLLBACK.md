@@ -1,3 +1,18 @@
+## Owner-confirmed Stage 2 positive acceptance against probe v7 — 13 November 2026
+
+This is the latest owner-provided Admin panel result and supersedes any earlier note that the positive real-session request still needed to be rerun after the v7 SDK alignment.
+
+- The owner-provided **Uji Penerimaan Better Auth — Staging** panel reports **4/4 pengujian lulus**.
+- **Sesi, Data API, profil, dan role:** the signed-in session matches; the active profile and business role are readable; another UUID's fixture is hidden.
+- **Storage privat:** upload, download and deletion of the owner's probe file succeed; another UUID's folder is denied. The probe file is removed after the test.
+- **Realtime private channel:** private Broadcast connects and sends; a topic belonging to another UUID is denied.
+- **JWT Better Auth through the shared handler verifier:** the current real Better Auth ES256 session is accepted with the expected issuer, audience, subject, Postgres role and RLS context. This is the positive Edge Function invocation through the shared verifier path after probe **version 7 ACTIVE** was deployed.
+- **Stage 2 status: ACCEPTED for all four tested hosted surfaces.** Do not ask the owner to repeat this matrix unless the probe, shared resolver, JWT contract or staging configuration changes.
+- The result does not establish business-handler acceptance for Stage 5 or per-role runtime acceptance for Stage 6. Those remain distinct gates.
+- Probe v7 is the isolated read-only acceptance function only. No business Edge Function, business schema/data, or Production resource was deployed or modified.
+
+---
+
 ## Latest runtime validation checkpoint — 12 November 2026, code head 834c89095a20a44a97fabcfbb09bfa04fd2680d7 (documentation head 301dc1c408e6015f4e1297b590062cd42c715896)
 
 ### Repository and CI
@@ -15,12 +30,12 @@
 
 ### Staging endpoint state
 - Supabase staging project `ydamszdfsxqisanazdkb` has `better-auth-oidc-acceptance` **version 7 ACTIVE**. It uses the shared resolver from the current source branch and remains read-only; it is not a deployed Cloudinary/payment business handler.
-- Owner-run Admin acceptance panel previously passed 4/4 on a real Better Auth session before the v7 SDK alignment. **The positive real-session POST has not yet been reconfirmed after v7**; a signed-in Admin should rerun Admin → Pengaturan → Uji Penerimaan Better Auth — Staging. The panel does not display or copy the token.
+- Owner-provided Admin acceptance panel now confirms **4/4 passed after probe v7 ACTIVE**, including the positive real Better Auth ES256 session POST through the shared handler verifier. No token was displayed or copied. Stage 2 is accepted for Data API/profile/role, private Storage, private Realtime and the read-only Edge probe.
 - Stage 4 still needs owner/browser acceptance for actual session expiry/reauthentication, a live Realtime heartbeat through resource-token renewal, visible D1 503 recovery and custom-domain Worker Error 1027. D1 quotas were not exhausted to test recovery.
 
 ### Seven-stage boundary
 - Stage 1: first-attempt staging email/password login and logout are owner-accepted. Real mailbox verification/password-reset delivery remains deferred; no email verification state was forged.
-- Stage 2: prior 4/4 real-session acceptance remains valid for the tested surfaces, but repeat the positive Edge panel check against v7.
+- Stage 2: owner has now reconfirmed **4/4 real-session checks against probe v7**, including the positive Edge POST through the shared handler verifier. Stage 2 is accepted; no repeat is required absent a relevant regression.
 - Stage 3: full schema-only disposable identity/FK/issuer/RLS/provisioning and rollback rehearsal passed; no Production identity migration.
 - Stage 4: core bridge/token broker and expiry/transient-error code are implemented and CI-verified; owner/browser checks listed above remain.
 - Stage 5: current source/runtime contract and actual one-handler ES256 boundary test pass. Full-schema local two-user Edge tests passed using synthetic **Supabase Auth** local users; they are not a real Better Auth session. Real staging-token acceptance through migrated business handlers remains open.
