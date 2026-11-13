@@ -46,6 +46,7 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m);
   assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"$/m);
   assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_ENABLED = "(?:true|false)"$/m);
+  assert.match(wranglerConfig, /^SUPABASE_PROVISIONING_ENV = "staging"$/m);
   assert.match(workflow, /const provisioningEnabled = \/\^SUPABASE_PROVISIONING_ENABLED/);
   assert.match(workflow, /if \(provisioningEnabled && !provisioningSecretReady\)/);
   const keyGuardIndex = workflow.indexOf("Ensure dedicated OAuth-provider encryption key exists without rotating");
