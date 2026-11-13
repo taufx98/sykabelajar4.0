@@ -555,6 +555,8 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       Date.parse(reauthenticatedSession?.session?.expiresAt ?? "") > Date.now(),
       "reauthentication must persist a new future session expiry",
     );
+    // Subsequent OIDC authorization checks must use the fresh session cookie.
+    cookie = newPasswordCookie;
     const newPasswordSignOut = await authRequest("/sign-out", {
       method: "POST",
       body: {},
