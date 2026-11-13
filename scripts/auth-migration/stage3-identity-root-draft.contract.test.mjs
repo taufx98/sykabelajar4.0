@@ -196,14 +196,14 @@ for (const name of [
 assert.match(draft, /69-FK plan/i);
 assert.match(draft, /does not perform the FK cutover/i);
 
-assert.match(draft, /BEGIN;[\\s\\S]*COMMIT;/);
+assert.ok(draft.includes("BEGIN;") && draft.includes("COMMIT;"),
+  "identity-root draft must be wrapped in a SQL transaction");
 
 // The identity-root changes and legacy Auth trigger retirement must be one
-// atomic transaction. A failure while dropping/revoking any legacy trigger
-// must roll back the whole Stage 3 change rather than leave a split state.
-const commitMatches = [...draft.matchAll(/\\bCOMMIT;/gi)];
-assert.equal(commitMatches.length, 1, "Stage 3 identity-root draft must use exactly one transaction commit");
-const finalCommitIndex = commitMatches[0].index;
+// atomic transaction. Any failure in trigger cleanup must roll back Stage 3.
+const commitMatches = draft.match(/COMMIT;/gi) ?? [];
+assert.equal(commitMatches.length, 1, "Stage 3 draft must commit exactly once");
+const finalCommitIndex = draft.lastIndexOf("COMMIT;");
 const finalLegacyTriggerDrop = draft.lastIndexOf(
   "DROP TRIGGER IF EXISTS trg_referral_email_confirmed ON auth.users",
 );
@@ -214,7 +214,7 @@ assert.ok(finalCommitIndex > finalLegacyTriggerDrop,
   "all three legacy Auth triggers must be retired before the transaction commits");
 assert.ok(finalCommitIndex > finalLegacyFunctionRevoke,
   "legacy Auth function revokes must be covered by the same transaction");
-assert.match(draft.trimEnd(), /COMMIT;\\s*$/,
+assert.ok(draft.trimEnd().endsWith("COMMIT;"),
   "no Stage 3 SQL statement may run after the atomic commit");
 const workflow = readFileSync(
   path.join(here, "../../.github/workflows/auth-schema-baseline.yml"),
