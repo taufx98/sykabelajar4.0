@@ -73,15 +73,25 @@ Before Production GO, the owner must explicitly acknowledge that this fresh-star
 
 ## 5. Mandatory backup and restore gate
 
-Production DB2 is on Supabase Free. Its automatic daily backup and PITR protections are unavailable. A schema-only export is not a substitute for a data backup.
+Production DB2 is on Supabase Free. Its automatic daily backup and PITR protections are unavailable. The successful schema-only CI export is **not** a full data backup.
+
+A guarded workflow is now prepared at `.github/workflows/auth-production-db2-backup.yml`. It performs a read-only `pg_dump` of Production DB2, verifies that the archive contains table-data entries, restores it into a separate database inside an isolated Supabase local/PostgreSQL 17.6 stack, checks catalog invariants without selecting or printing application rows, encrypts the archive with age, and uploads only the encrypted file/checksum/manifest. It does not run Production DDL/DML. The first guarded run confirmed that `SUPABASE_DB_URL` is present, but stopped before connecting because the owner-managed age recipient secret is not configured.
 
 Before any Production identity DDL:
 
-1. From an owner-controlled trusted environment, take a full logical backup of Production DB2 including application data, schema, policies, functions, triggers and constraints. Use a protected credential file or environment supported by PostgreSQL tooling; never place the connection URI or password in shell command text, terminal history, GitHub logs, workflow artifacts, source code or chat.
-2. Encrypt the backup at rest and store it outside the repository and outside an ephemeral GitHub Actions runner. Record checksum (SHA-256), file size, creation time, source project ref and PostgreSQL major version in a separate non-secret release record.
-3. Restore that exact backup into a disposable PostgreSQL 17-compatible environment with no application traffic. Verify that the database opens and that schema/catalog invariants and representative row counts match. Do not publish personal data or user rows.
-4. Record the restore result, duration and exact backup checksum. A backup that has not been restored is not accepted as a rollback safeguard.
-5. Retain the encrypted backup through the full cutover and rollback observation window. Do not commit it, upload it as a public CI artifact or attach it to this PR.
+1. Generate an age keypair in an owner-controlled trusted environment:
+   ```sh
+   brew install age
+   age-keygen -o sykabelajar-production-db2.agekey
+   age-keygen -y sykabelajar-production-db2.agekey
+   ```
+   Keep the private `*.agekey` file offline in a secure location. Never commit it, paste it into chat, or store it in GitHub.
+2. Copy only the public `age1...` recipient printed by `age-keygen -y` into GitHub repository Settings → Secrets and variables → Actions as `SUPABASE_BACKUP_AGE_RECIPIENT`. The existing `SUPABASE_DB_URL` secret is already present and is validated by the workflow; its value must never be printed or pasted into chat.
+3. Run **Auth Production DB2 Full Backup and Restore Rehearsal** from GitHub Actions using confirmation `BACKUP-AND-RESTORE-PRODUCTION-DB2`. The workflow verifies the exact Production project ref, dumps the full database read-only, restores the dump into an isolated disposable PostgreSQL 17.6 database, then age-encrypts the backup. Only the encrypted dump, checksum and non-sensitive manifest are uploaded as a 90-day artifact.
+4. Download the encrypted artifact, verify its SHA-256 checksum, and copy it to owner-controlled storage outside GitHub before the artifact expires. Keep the private age identity separate from the artifact. Record the restore result, run URL, source project ref, PostgreSQL version and checksum in the release record.
+5. A backup that has not been restored successfully and copied to durable owner-controlled storage is not an accepted rollback safeguard. Retain it through the full cutover and rollback observation window.
+
+The encrypted artifact is a transfer mechanism, not the final backup vault. It contains the Production database dump, including legacy Auth rows, only for disaster recovery. It is not a user migration: no legacy account or role is imported into Better Auth. Cloudinary media remains outside this PostgreSQL database backup.
 
 Do not create paid Supabase branches, enable paid PITR, upgrade the organization or purchase a backup add-on without explicit cost approval. References: [Supabase backups](https://supabase.com/docs/guides/platform/backups) and [Supabase pricing](https://supabase.com/pricing).
 
