@@ -32,6 +32,9 @@ export function createCorsHeaders(request, allowedOrigins) {
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With",
+    // Browser auth clients need these availability hints to preserve the
+    // session and show a correct retry time when a D1 quota response occurs.
+    "Access-Control-Expose-Headers": "X-Auth-Availability, Retry-After",
     "Access-Control-Max-Age": "600",
     "Vary": "Origin",
   });
@@ -65,6 +68,7 @@ export function applyResponseHeaders(response, corsHeaders = null) {
       "Access-Control-Allow-Credentials",
       "Access-Control-Allow-Methods",
       "Access-Control-Allow-Headers",
+      "Access-Control-Expose-Headers",
       "Access-Control-Max-Age",
       "Vary",
     ];
