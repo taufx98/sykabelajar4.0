@@ -29,11 +29,15 @@ jobs:
     timeout-minutes: 60
     env:
       SUPABASE_PROJECT_REF: mvdczyitbkxkldjughor
-      SUPABASE_CLI_WORKDIR: ${{ runner.temp }}/sykabelajar-db2-backup-restore
-      BACKUP_DIR: ${{ runner.temp }}/sykabelajar-db2-backup
     steps:
       - name: Checkout guarded backup request
         uses: actions/checkout@v7
+
+      - name: Define isolated runner temporary paths
+        run: |
+          set -euo pipefail
+          echo "SUPABASE_CLI_WORKDIR=$RUNNER_TEMP/sykabelajar-db2-backup-restore" >> "$GITHUB_ENV"
+          echo "BACKUP_DIR=$RUNNER_TEMP/sykabelajar-db2-backup" >> "$GITHUB_ENV"
 
       - name: Verify exact one-time backup request and credentials
         env:
