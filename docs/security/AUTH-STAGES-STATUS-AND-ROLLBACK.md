@@ -7,6 +7,8 @@ This checkpoint supersedes previous statements that Stage 7 merely needed generi
 - Supabase organization plan: Free. Production DB2 `mvdczyitbkxkldjughor` is ACTIVE_HEALTHY on PostgreSQL 17.6.1.166. Read-only Production catalog check: `private.app_users` absent; 69 application FKs still reference `auth.users`; 0 application FKs reference `private.app_users`; 3 non-internal `auth.users` triggers remain.
 - Isolated auth staging `ydamszdfsxqisanazdkb` is ACTIVE_HEALTHY on PostgreSQL 17.11.0.018; `private.app_users` exists and `auth.users` count is zero.
 - Supabase Free does not supply automatic daily backups or PITR. The schema-only baseline workflow is not a full data backup. A manually captured encrypted DB2 backup plus successful restore to disposable PostgreSQL 17 is a mandatory Production GO gate. No paid Supabase branch/PITR/upgrade is approved.
+- Latest read-only Cloudflare preflight #43462832389 found exactly one D1 database (`sykabelajar-auth-poc`) and two Worker scripts (`sykabelajar-auth-poc` and the existing application Worker `sykabelajar4-0`); it found no separate Production auth D1/Worker. `auth.sykabelajar.my.id` is an enabled custom domain assigned to `sykabelajar-auth-poc`. The staging D1 audit returned only aggregate counts: 4 users, 0 verified, 12 unexpired sessions; no emails, UUIDs, credentials, tokens or secret values were read/printed.
+
 - Existing `services/auth-worker/wrangler.toml` is a staging Worker/D1 configuration: Worker `sykabelajar-auth-poc`, D1 `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`), provisioning target staging DB `ydamszdfsxqisanazdkb`, and current custom domain `auth.sykabelajar.my.id`. It must not be promoted to Production.
 
 ## Stage 3 transactional hardening
