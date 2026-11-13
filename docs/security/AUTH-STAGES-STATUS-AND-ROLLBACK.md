@@ -1,15 +1,49 @@
-# Stage 7 execution checkpoint — 13 November 2026
+# Production promotion execution checkpoint — 14 November 2026
 
-This checkpoint supersedes previous statements that Stage 7 merely needed generic checklist/monitoring documentation. The detailed controlled-release procedure is now in [AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md](AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md), and the top-level seven-stage roadmap has been reconciled in [AUTH-MIGRATION-ROADMAP.md](AUTH-MIGRATION-ROADMAP.md). It is a preparation record, not permission to mutate Production.
+This is the latest authoritative Stage 7 checkpoint and supersedes older statements below where they differ. The detailed release sequence is in [AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md](AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md), the seven-stage status is in [AUTH-MIGRATION-ROADMAP.md](AUTH-MIGRATION-ROADMAP.md), and the owner-approved architecture is recorded in [AUTH-PRODUCTION-PROMOTION-DECISION-2026-11-14.md](AUTH-PRODUCTION-PROMOTION-DECISION-2026-11-14.md).
+
+## Completed in this continuation
+
+- **Production D1 created:** `sykabelajar-auth-prod`, UUID `6d4dc7b5-8e71-4fdc-9cda-3230e49951c7`, primary location hint APAC, read replication disabled.
+- **Production Better Auth schema applied:** migrations `0000–0007` completed successfully in workflow [#43486836760](https://github.com/taufx98/sykabelajar4.0/actions/runs/43486836760). The Production-specific migration set deliberately excludes staging callback migration `0008`.
+- **Production D1 schema verification passed:** expected Better Auth tables, profile-mapping columns and the canonical Production OAuth callback were verified. User, session, account, verification, access/refresh token and email credential counts were all zero. No staging D1 records were copied.
+- **Production runtime config prepared:** `services/auth-worker/wrangler.production.toml` binds the new D1 to the existing Worker name and keeps `auth.sykabelajar.my.id` as issuer. It has not been deployed.
+- **Provisioning and callback guards prepared:** Production Supabase provisioning requires explicit `SUPABASE_PROVISIONING_ENV=production`; invalid or cross-environment destinations fail closed. Production omits the staging OAuth callback.
+- **One-time promotion path documented:** retain the existing hostname and Worker resource; no `auth-staging` hostname and no second Worker.
+
+## Current Production boundary — read-only DB2 snapshot
+
+Project `mvdczyitbkxkldjughor` remains healthy on PostgreSQL 17.6. `private.app_users` is absent; 69 application foreign keys across 62 source tables still point to `auth.users`; zero point to `private.app_users`; three non-internal `auth.users` triggers remain. Stage 3 identity/FK/trigger DDL has **not** been applied to Production DB2.
+
+## Backup gate status
+
+The guarded workflow [Auth Production DB2 Full Backup and Restore Rehearsal #43495105906](https://github.com/taufx98/sykabelajar4.0/actions/runs/43495105906) safely stopped before connecting to DB2 because the GitHub Actions secret `SUPABASE_BACKUP_AGE_RECIPIENT` is not yet configured. `SUPABASE_DB_URL` was present. No dump or restore was attempted and no Production data was changed.
+
+Owner action required: generate an age keypair, store the private identity offline, and add only the public `age1...` recipient to GitHub repository Actions secrets as `SUPABASE_BACKUP_AGE_RECIPIENT`. Then run the backup workflow using its exact confirmation. Download the encrypted dump artifact, verify its checksum and copy it to durable owner-controlled storage. Full instructions are in Section 5 of the Stage 7 runbook.
+
+## What remains gated
+
+1. Complete the encrypted full-data DB2 backup and successful disposable PostgreSQL 17.6 restore rehearsal.
+2. Run an immediate read-only Production catalog preflight and revalidate the exact 69-FK plan.
+3. Apply Stage 3 identity foundation, trusted provisioning, issuer restrictions, and 69-FK cutover to Production DB2 during the maintenance window.
+4. Register and validate the unchanged issuer in Production Custom OIDC.
+5. Set Production-only Worker secrets/configuration, promote the existing Worker to the new D1, enable provisioning and bootstrap the first admin.
+6. Configure real transactional email and verify delivery before public signup or password recovery is enabled.
+7. Switch the main frontend, run login/session/API/Storage/Realtime/Edge smoke tests, and verify monitoring and rollback.
+
+**No Production DB2 DDL/DML, Worker deployment, secret update, DNS/Pages change, frontend routing change, legacy account mutation, or PR merge has been performed.** PR #177 remains Draft and unmerged. Do not repeat accepted staging tests unless a concrete regression occurs.
+
+---
+
 
 ## New verified Production/staging facts (read-only)
 
 - Supabase organization plan: Free. Production DB2 `mvdczyitbkxkldjughor` is ACTIVE_HEALTHY on PostgreSQL 17.6.1.166. Read-only Production catalog check: `private.app_users` absent; 69 application FKs still reference `auth.users`; 0 application FKs reference `private.app_users`; 3 non-internal `auth.users` triggers remain.
 - Isolated auth staging `ydamszdfsxqisanazdkb` is ACTIVE_HEALTHY on PostgreSQL 17.11.0.018; `private.app_users` exists and `auth.users` count is zero.
 - Supabase Free does not supply automatic daily backups or PITR. The schema-only baseline workflow is not a full data backup. A manually captured encrypted DB2 backup plus successful restore to disposable PostgreSQL 17 is a mandatory Production GO gate. No paid Supabase branch/PITR/upgrade is approved.
-- Latest read-only Cloudflare preflight #43462832389 found exactly one D1 database (`sykabelajar-auth-poc`) and two Worker scripts (`sykabelajar-auth-poc` and the existing application Worker `sykabelajar4-0`); it found no separate Production auth D1/Worker. `auth.sykabelajar.my.id` is an enabled custom domain assigned to `sykabelajar-auth-poc`. The staging D1 audit returned only aggregate counts: 4 users, 0 verified, 12 unexpired sessions; no emails, UUIDs, credentials, tokens or secret values were read/printed.
+- Historical read-only Cloudflare preflight #43462832389 found the staging D1 `sykabelajar-auth-poc` and confirmed `auth.sykabelajar.my.id` was assigned to the existing Worker. A new empty Production D1 was subsequently created and migrated as recorded in the 14 November checkpoint above. The existing Worker resource remains attached to the final issuer; there is still no separate Production Worker, by design.
 
-- Existing `services/auth-worker/wrangler.toml` is a staging Worker/D1 configuration: Worker `sykabelajar-auth-poc`, D1 `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`), provisioning target staging DB `ydamszdfsxqisanazdkb`, and current custom domain `auth.sykabelajar.my.id`. It must not be promoted to Production.
+- Existing `services/auth-worker/wrangler.toml` remains the staging-only configuration. The separate `services/auth-worker/wrangler.production.toml` binds the same Worker name to the new Production D1 and keeps the same custom domain. It has not been deployed; do not use the staging config for the one-time promotion.
 
 ## Stage 3 transactional hardening
 
