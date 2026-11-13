@@ -756,7 +756,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     // it never contacts or mutates the hosted staging Supabase project.
     if (process.env.STAGE5_D1_HANDLER_ACCEPTANCE === "true") {
       const handlerTestPath = fileURLToPath(new URL(
-        "../../supabase/functions/cloudinary-profile-upload/better-auth-d1-issued-token.integration.test.ts",
+        "../../../supabase/functions/cloudinary-profile-upload/better-auth-d1-issued-token.integration.test.ts",
         import.meta.url,
       ));
       const handlerTest = spawnSync("deno", [
