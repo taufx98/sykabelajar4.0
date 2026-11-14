@@ -76,17 +76,7 @@ The age recipient and database URL secrets are already configured, and the full 
 
 **Owner action before Production identity DDL:**
 
-1. Download the verified encrypted artifact from [Run #7 artifact](https://github.com/taufx98/sykabelajar4.0/actions/runs/43549547338/artifacts/14095658580).
-2. Extract the ZIP and verify `production-db2.dump.age` against `production-db2.dump.age.sha256` with:
-
-   ```sh
-   expected=$(awk '{print $1}' production-db2.dump.age.sha256)
-   actual=$(sha256sum production-db2.dump.age | awk '{print $1}')
-   test "$expected" = "$actual"
-   ```
-3. Copy the encrypted dump, checksum and manifest to durable owner-controlled storage outside GitHub, then repeat the checksum verification at that destination.
-4. Keep the private age identity offline and separate from the backup. Never commit it, paste it into chat, or upload it to GitHub.
-5. Retain the durable copy through the cutover and rollback observation window. Record its storage location in the private owner-controlled release record; do not disclose the location or private key in this repository.
+The owner has confirmed that the backup has been copied to durable storage outside GitHub. No further copy is requested. Keep the private age identity offline and separate. Record the destination checksum verification and retain the backup through the cutover and rollback observation window; do not disclose the storage location or private key in this repository.
 
 
 ### Verified backup evidence — 14 November 2026
@@ -95,7 +85,7 @@ The guarded workflow [Run #7](https://github.com/taufx98/sykabelajar4.0/actions/
 
 The uploaded artifact is `sykabelajar-production-db2-encrypted-backup` (ID `14095658580`; available until 12 February 2027 03:02 UTC). It contains the encrypted custom-format dump, checksum and manifest only. The encrypted dump is 2,364,714 bytes with SHA-256 `78e395cf81ffdd03ce8c2c317d4b95b9bb592ce4690740d46c3d9fd6f4e0330f`. Its uploaded ZIP SHA-256 is `78e52102270ca31eaa7334b45827da32b6848945573975a33787b38a9a9b664a`. The artifact was downloaded and both hashes independently verified. No private age identity was included. The original encrypted dump retains `pg_cron` and its scheduler data; only the disposable restore list excluded those objects to prevent scheduled jobs from running in the test database.
 
-**The restore rehearsal is passed, but durable backup custody is still pending.** Before Production identity DDL, copy the encrypted dump, checksum and manifest to owner-controlled storage outside GitHub and verify the hash again at that destination. Keep the private age identity offline and separate. A GitHub Actions artifact with 90-day retention is not the final rollback vault.
+**The owner confirmed on 14 November 2026 that the backup has been copied to durable storage outside GitHub.** The backup/restore rehearsal is passed. This session cannot inspect the owner's external storage, so retain the destination checksum-verification result in the private release record. Keep the private age identity offline and separate. The GitHub artifact remains only a temporary transfer copy.
 
 The encrypted artifact is a transfer mechanism, not the final backup vault. It contains the Production database dump, including legacy Auth rows, only for disaster recovery. It is not a user migration: no legacy account or role is imported into Better Auth. Cloudinary media remains outside this PostgreSQL database backup.
 
@@ -211,7 +201,8 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 - [x] Stage 3 trigger retirement is atomic with identity-root creation; the corrected full disposable schema-baseline workflow passed.
 - [x] Owner approved the simplified one-time promotion: preserve `auth.sykabelajar.my.id`, reuse the existing Worker resource, create a clean Production D1, and leave staging D1 untouched.
 - [x] Full encrypted Production DB2 dump created; original archive catalog verified; isolated Supabase/PostgreSQL 17.6 application restore and catalog assertions passed; encrypted dump and ZIP hashes independently verified (Run #7).
-- [ ] Copy encrypted dump + checksum + manifest to durable owner-controlled storage outside GitHub; verify the checksum at the destination and keep the private age identity offline.
+- [x] Owner confirmed the encrypted DB2 backup was copied to durable storage outside GitHub.
+- [ ] Record/confirm the destination checksum verification in the private release record; keep the private age identity offline.
 - [x] Read-only Production catalog preflight on 14 November 2026 matched all 69/69 FK definitions exactly across 62 application tables; 109 `auth.uid()` policies, 3 expected auth.users triggers, 8 direct auth.users function references, and no private.app_users or replacement FKs. Repeat immediately before approved DDL.
 - [ ] Apply Stage 3 identity-root, trusted provisioning and 69-FK migration to Production DB2 under the approved maintenance window.
 - [x] Production D1 created and verified; migrations 0000–0007 applied; no user/session/account/credential records present.
