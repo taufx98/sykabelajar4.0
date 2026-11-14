@@ -35,6 +35,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
     env.SUPABASE_RESOURCE_AUDIENCE,
     "SUPABASE_RESOURCE_AUDIENCE",
   );
+  const signupDisabled = env.AUTH_SIGNUP_DISABLED === "true";
   const trustedOrigins = [appOrigin];
 
   if (env.DEV_APP_ORIGIN) {
@@ -73,6 +74,8 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
           google: {
             clientId: googleClientId,
             clientSecret: googleClientSecret,
+            disableSignUp: signupDisabled,
+            disableImplicitSignUp: signupDisabled,
             requireEmailVerification: emailVerificationRequired,
           },
         }
@@ -82,6 +85,8 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
           facebook: {
             clientId: facebookClientId,
             clientSecret: facebookClientSecret,
+            disableSignUp: signupDisabled,
+            disableImplicitSignUp: signupDisabled,
             scope: ["email", "public_profile"],
             // Facebook's profile can omit email; do not accept an unusable or
             // placeholder address. Local SYKABELAJAR email verification follows.
@@ -101,6 +106,8 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
           twitter: {
             clientId: twitterClientId,
             clientSecret: twitterClientSecret,
+            disableSignUp: signupDisabled,
+            disableImplicitSignUp: signupDisabled,
             // Better Auth 1.7.16 requests users.email by default and maps only
             // X's confirmed_email response to emailVerified=true. Never let the
             // built-in .invalid placeholder bypass the account email challenge.
@@ -128,6 +135,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
     trustedOrigins,
     emailAndPassword: {
       enabled: true,
+      disableSignUp: signupDisabled,
       requireEmailVerification: emailVerificationRequired,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
