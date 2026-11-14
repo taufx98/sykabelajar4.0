@@ -35,7 +35,10 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
     env.SUPABASE_RESOURCE_AUDIENCE,
     "SUPABASE_RESOURCE_AUDIENCE",
   );
-  const signupDisabled = env.AUTH_SIGNUP_DISABLED === "true";
+  // Production defaults to closed unless the owner explicitly opens public signup.
+  // Staging remains open unless its dedicated config opts out.
+  const signupDisabled = env.AUTH_SIGNUP_DISABLED === "true" ||
+    (env.SUPABASE_PROVISIONING_ENV === "production" && env.AUTH_SIGNUP_DISABLED !== "false");
   const trustedOrigins = [appOrigin];
 
   if (env.DEV_APP_ORIGIN) {
