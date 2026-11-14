@@ -157,7 +157,16 @@ jobs:
       - name: Create full custom-format Production DB2 backup (read only)
         run: |
           set -euo pipefail
+
+          # Keep the dump owned by the GitHub runner. A root-owned file created
+          # by Docker cannot be chmod'ed or removed by the runner afterwards.
+          umask 077
+          rm -f "$BACKUP_DIR/production-db2.dump"
+          : > "$BACKUP_DIR/production-db2.dump"
+          chmod 600 "$BACKUP_DIR/production-db2.dump"
+
           docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
             -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGSSLMODE \
             -e PGPASSFILE=/run/secrets/pgpass \
             -v "$RUNNER_TEMP/production-db2.pgpass:/run/secrets/pgpass:ro" \
@@ -165,6 +174,7 @@ jobs:
             postgres:17.6-alpine \
             pg_dump --format=custom --no-owner --no-acl --compress=6 \
               --file=/backup/production-db2.dump
+
           test -s "$BACKUP_DIR/production-db2.dump"
           chmod 600 "$BACKUP_DIR/production-db2.dump"
           echo "Full custom-format DB2 dump created in the ephemeral runner; its contents and rows were not printed."
