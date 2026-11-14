@@ -21,6 +21,7 @@ custom_domain = true
 
 [vars]
 AUTH_EMAIL_PROVIDER = "managed"
+AUTH_SIGNUP_DISABLED = "false"
 BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
 APP_ORIGIN = "https://sykabelajar.my.id"
 # Same-site custom domain pinned to the migration branch with a proxied CNAME.
