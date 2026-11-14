@@ -26,11 +26,11 @@ The uploaded GitHub Actions artifact is `sykabelajar-production-db2-encrypted-ba
 
 I downloaded the artifact and independently checked both the ZIP digest (`78e52102270ca31eaa7334b45827da32b6848945573975a33787b38a9a9b664a`) and the inner encrypted-dump checksum; both matched the uploaded metadata. The private age identity was not uploaded or included in the artifact.
 
-**Backup/restore test: PASS. Durable backup custody: PENDING.** The GitHub Actions artifact is only a temporary 90-day transfer copy, not the final backup vault. The owner must copy the encrypted dump, checksum and manifest to durable owner-controlled storage outside GitHub, then verify the checksum again at that destination. Keep the private `*.agekey` identity offline and separate. Do not proceed with Production identity DDL until this custody step is confirmed.
+**Backup/restore test: PASS. Durable backup copy: OWNER-CONFIRMED on 14 November 2026.** The owner reports that the encrypted backup has been copied to durable storage outside GitHub. This session cannot inspect that external location; the destination checksum-verification result should be retained in the private owner release record. Keep the private `*.agekey` identity offline and separate. Production identity DDL remains gated by the other Stage 7 GO items and explicit cutover approval.
 
 ## What remains gated
 
-1. Copy the verified encrypted DB2 backup, checksum and manifest from the GitHub artifact to durable owner-controlled storage; confirm its checksum at the destination and keep the age private identity offline.
+1. Owner confirms the encrypted DB2 backup is copied to durable owner-controlled storage outside GitHub; retain destination checksum-verification evidence and keep the age private identity offline.
 2. Re-run the same read-only Production catalog preflight immediately before any approved DDL; stop if the 69-FK snapshot, 109-policy count, 3-trigger count, or dependency inventory has drifted.
 3. Only after durable backup custody, the immediate preflight, every other Stage 7 GO gate, and explicit owner approval: apply the reviewed Stage 3 identity foundation, trusted provisioning, issuer restrictions, and 69-FK cutover to Production DB2 during the maintenance window.
 4. Register and validate the unchanged issuer in Production Custom OIDC.
