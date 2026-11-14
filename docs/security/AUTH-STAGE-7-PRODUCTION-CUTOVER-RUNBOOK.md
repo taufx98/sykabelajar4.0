@@ -213,7 +213,7 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 - [ ] Deploy the Production frontend auth configuration and pass the complete login/session/API/Storage/Realtime/Edge smoke suite.
 - [ ] Verify monitoring/alerts and the Better Auth-compatible rollback path; close the migration only after the observation window is green.
 
-**Current decision: NO-GO for live cutover.** The encrypted full-data backup and disposable restore rehearsal have passed, and the Production D1 schema is ready. Durable backup custody is still pending; the fresh immediate preflight, Production Custom OIDC, Production-only Worker secrets/promotion, real transactional email, first-admin bootstrap, frontend switch, smoke tests, monitoring and explicit owner cutover approval also remain outstanding. Do not perform Production DB2 DDL or deploy the Worker/frontend until the backup is stored durably, all GO gates pass and the owner approves the cutover window. This does not require a second Worker or hostname move.
+**Current decision: NO-GO for live cutover.** The full encrypted backup/restore passed, and the owner confirmed the backup is stored durably outside GitHub. The fresh read-only catalog preflight also matches 69/69; repeat it in the actual maintenance window. Production Custom OIDC, Production-only Worker secrets/promotion, real transactional email, first-admin bootstrap, frontend switch, smoke tests, monitoring and explicit owner cutover approval remain outstanding. Do not perform Production DB2 DDL or deploy the Worker/frontend until every GO gate passes and the owner approves the cutover window. This does not require a second Worker or hostname move.
 
 ## 10. Safety record
 
