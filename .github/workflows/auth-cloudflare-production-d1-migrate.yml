@@ -79,6 +79,7 @@ jobs:
             /^BETTER_AUTH_URL = "https:\/\/auth\.sykabelajar\.my\.id"$/m,
             /^APP_ORIGIN = "https:\/\/sykabelajar\.my\.id"$/m,
             /^SUPABASE_PROVISIONING_ENABLED = "false"$/m,
+            /^AUTH_SIGNUP_DISABLED = "true"$/m,
             /^SUPABASE_PROVISIONING_ENV = "production"$/m,
             /^SUPABASE_PROVISIONING_URL = "https:\/\/mvdczyitbkxkldjughor\.supabase\.co"$/m,
             /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_M0wRkz7pdVB-0s5JtT3Zhg_J9fXU31m"$/m,
