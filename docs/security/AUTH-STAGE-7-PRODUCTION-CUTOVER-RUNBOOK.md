@@ -108,7 +108,7 @@ Do not create paid Supabase branches, enable paid PITR, upgrade the organization
 - Keep the existing Worker resource and tested `services/auth-worker/src` code. Prepare a Production-only Wrangler configuration that retains the existing custom hostname but binds `DB` to the new Production D1.
 - Set Production-only secrets: `BETTER_AUTH_SECRET`, `AUTH_PROVIDER_ENCRYPTION_KEY`, `AUTH_EMAIL_ENCRYPTION_KEY`, and the Production DB2 provisioning API key. Never print values or reuse staging keys.
 - Configure `BETTER_AUTH_URL=https://auth.sykabelajar.my.id`, `APP_ORIGIN=https://sykabelajar.my.id`, `SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id`, and the Production DB2 project URL. Omit the staging app origin.
-- Keep public signup disabled and Supabase provisioning disabled until Sections C and D are complete. Production email verification must remain required.
+- Set `AUTH_SIGNUP_DISABLED=true` in the Production Worker. The runtime also fails closed when `SUPABASE_PROVISIONING_ENV=production` and this variable is missing; only the explicit value `false` opens signup. Keep signup disabled and Supabase provisioning disabled until the identity, OIDC and real-email gates are accepted. Production email verification must remain required.
 - Deploy the existing Worker resource once with the Production binding/configuration during the approved maintenance window. Do not change the hostname or create a duplicate Worker.
 - Verify `/healthz`, OIDC discovery, JWKS, issuer, signing algorithm, cookie attributes, strict CORS, Origin/CSRF rejection, rate limits and D1 availability before enabling application routing.
 
