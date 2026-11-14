@@ -4,6 +4,8 @@ export interface AuthWorkerEnv {
   BETTER_AUTH_URL: string;
   APP_ORIGIN: string;
   SUPABASE_RESOURCE_AUDIENCE: string;
+  /** Explicitly blocks all new accounts when set to true; staging remains false. */
+  AUTH_SIGNUP_DISABLED?: string;
   /** Optional social login credentials; unset keeps that provider disabled. */
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
