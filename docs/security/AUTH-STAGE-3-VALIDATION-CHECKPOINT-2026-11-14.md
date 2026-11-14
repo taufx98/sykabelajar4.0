@@ -47,10 +47,13 @@ Current head `1e0ec68dc2bdd94d7cc3c7f56e8fdf43849d9e5f` passed:
 
 The Production D1 schema apply/verify also passed in [run #43496965722](https://github.com/taufx98/sykabelajar4.0/actions/runs/43496965722): `sykabelajar-auth-prod` has migrations `0000–0007` applied and zero account/session/credential rows. The existing Worker has not been promoted.
 
+## Backup custody confirmation
+
+The owner confirmed on 14 November 2026 that the encrypted backup has been copied to durable storage outside GitHub. The restore rehearsal remains passed. This session cannot inspect the external storage; retain the destination checksum verification in the private release record. Keep the age private identity offline and separate.
+
 ## Remaining gates
 
-1. Copy the encrypted DB2 backup, checksum and manifest from [artifact #14095658580](https://github.com/taufx98/sykabelajar4.0/actions/runs/43549547338/artifacts/14095658580) to durable owner-controlled storage outside GitHub and verify its checksum there. Keep the age private identity offline and separate.
-2. Repeat the read-only catalog preflight immediately before any approved Production DDL.
+1. Repeat the read-only catalog preflight inside the approved maintenance window, immediately before any Production DDL.
 3. Complete Production Custom OIDC, Production-only Worker secret/configuration and one-time Worker promotion, real transactional email verification/reset, protected first-admin bootstrap, frontend smoke, monitoring and rollback gates.
 4. Obtain explicit owner approval for the Production maintenance window.
 
