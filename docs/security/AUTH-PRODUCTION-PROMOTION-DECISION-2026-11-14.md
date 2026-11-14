@@ -19,6 +19,7 @@ The accepted staging verification is frozen. SYKABELAJAR will use a one-time pro
    Any unknown environment or cross-target URL fails closed. Staging tests continue to use the staging target.
 2. First-party OAuth callback URLs are now derived from the configured app origins. A Production Worker with no `DEV_APP_ORIGIN` accepts only `https://sykabelajar.my.id/auth/oidc/callback`; staging retains both its staging callback and the canonical Production callback for the accepted PKCE setup.
 3. Unit coverage was added for exact Production/staging provisioning target selection and environment-specific callback allowlists.
+4. Production public registration now has an explicit `AUTH_SIGNUP_DISABLED=true` guard across email/password and configured social providers. Production fails closed if the variable is absent and requires an explicit `false` to open signup; staging keeps the explicit `false` setting. Worker unit contracts and the guarded Production D1 config check enforce the split. This is a signup safety gate, not an account reset or migration.
 
 These changes prepare the existing implementation for the agreed promotion. They do not deploy or configure Production.
 
@@ -40,7 +41,7 @@ Project `mvdczyitbkxkldjughor` is healthy on PostgreSQL 17.6. The current live c
 - Apply the Stage 3 identity/provisioning foundation and FK cutover to Production DB2 only during an approved maintenance window.
 - Set Production-only Worker secrets/configuration and promote the existing Worker resource to the new D1.
 - Register the unchanged issuer in Production DB2 Custom OIDC and verify discovery/JWKS/ES256/issuer/audience/subject/role.
-- Configure real transactional email and prove verification and password reset before opening public signup.
+- Keep Production signup locked (`AUTH_SIGNUP_DISABLED=true`) while configuring real transactional email; prove verification and password reset before explicitly opening registration for the protected first-admin bootstrap and eventual public launch.
 - Enable Production provisioning, bootstrap the first admin through the protected owner flow, then switch the main website frontend.
 - Pass Production login/session/API/Storage/Realtime/Edge smoke tests, verify monitoring and Better Auth-compatible rollback, then close the migration.
 - Obtain explicit owner approval for the Production maintenance window before executing any Production DDL or deployment.
