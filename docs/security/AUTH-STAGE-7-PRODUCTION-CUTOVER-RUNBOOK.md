@@ -111,6 +111,7 @@ Do not create paid Supabase branches, enable paid PITR, upgrade the organization
 - Set `AUTH_SIGNUP_DISABLED=true` in the Production Worker. The runtime also fails closed when `SUPABASE_PROVISIONING_ENV=production` and this variable is missing; only the explicit value `false` opens signup. Keep signup disabled and Supabase provisioning disabled until the identity, OIDC and real-email gates are accepted. Production email verification must remain required.
 - Deploy the existing Worker resource once with the Production binding/configuration during the approved maintenance window. Do not change the hostname or create a duplicate Worker.
 - Verify `/healthz`, OIDC discovery, JWKS, issuer, signing algorithm, cookie attributes, strict CORS, Origin/CSRF rejection, rate limits and D1 availability before enabling application routing.
+- After confirming the promoted Worker is bound to Production D1, run `.github/workflows/auth-supabase-production-oidc.yml` manually from this branch using its exact confirmation input. It verifies the live issuer, PKCE S256, public ES256 JWKS and the exact DB2 project, then registers exactly one Production Custom OIDC integration. Do not run this workflow while the issuer still serves staging D1.
 
 ### C. Apply Stage 3 identity foundation to Production DB2
 
