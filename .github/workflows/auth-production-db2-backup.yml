@@ -179,19 +179,57 @@ jobs:
           chmod 600 "$BACKUP_DIR/production-db2.dump"
           echo "Full custom-format DB2 dump created in the ephemeral runner; its contents and rows were not printed."
 
-      - name: Verify archive catalog before restore
+      - name: Verify archive catalog and prepare isolated restore list
         run: |
           set -euo pipefail
           docker run --rm --network host \
             -v "$BACKUP_DIR:/backup:ro" \
             postgres:17.6-alpine \
             pg_restore --list /backup/production-db2.dump > "$BACKUP_DIR/restore-catalog.txt"
+
           DATA_ENTRIES="$(grep -c 'TABLE DATA' "$BACKUP_DIR/restore-catalog.txt" || true)"
           test "$DATA_ENTRIES" -gt 0 || {
             echo "The Production dump contains no table-data entries; refusing to accept a schema-only artifact." >&2
             exit 1
           }
-          echo "Archive is a full custom-format dump containing table-data entries. Catalog details are not printed."
+
+          # Supabase pins pg_cron to cron.database_name=postgres. Do not try
+          # to install it in the separate restore database and do not restore
+          # Production scheduler rows into a runner that could execute them.
+          PG_CRON_EXTENSION_ENTRIES="$(grep -Ec ' EXTENSION - pg_cron([[:space:]]|$)' "$BACKUP_DIR/restore-catalog.txt" || true)"
+          test "$PG_CRON_EXTENSION_ENTRIES" -eq 1 || {
+            echo "Expected exactly one pg_cron extension entry in the full Production archive." >&2
+            exit 1
+          }
+
+          awk '
+            /^;/ { print; next }
+            /^[[:space:]]*[0-9]+;/ && $0 ~ /(^|[[:space:]])(pg_cron|cron)([[:space:]]|$)/ {
+              excluded++
+              next
+            }
+            { print }
+            END {
+              if (excluded == 0) exit 3
+            }
+          ' "$BACKUP_DIR/restore-catalog.txt" > "$BACKUP_DIR/restore-application.list"
+
+          RESTORE_ENTRIES="$(grep -Ec '^[[:space:]]*[0-9]+;' "$BACKUP_DIR/restore-application.list" || true)"
+          test "$RESTORE_ENTRIES" -gt 0 || {
+            echo "The application restore list is empty after excluding cluster-bound pg_cron objects." >&2
+            exit 1
+          }
+
+          CRON_RUNTIME="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -qAt --set=ON_ERROR_STOP=1 \
+              --command "SELECT current_setting('cron.database_name', true) || '|' || EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron')")"
+          test "$CRON_RUNTIME" = "postgres|t" || {
+            echo "Disposable Supabase pg_cron is not installed in its configured database postgres; refusing the restore rehearsal." >&2
+            exit 1
+          }
+
+          echo "Full encrypted source archive contains Production data. The isolated application restore list excludes only pg_cron-owned objects and scheduler metadata; the local pg_cron runtime is verified in its configured postgres database."
 
       - name: Create empty restore target in isolated local PostgreSQL
         run: |
@@ -201,7 +239,7 @@ jobs:
             postgres:17.6-alpine \
             createdb --host=127.0.0.1 --port=54322 --username=postgres sykabelajar_db2_restore
 
-      - name: Restore full DB2 backup to the disposable local database
+      - name: Restore Production DB2 application database to disposable local PostgreSQL
         run: |
           set -euo pipefail
           docker run --rm --network host \
@@ -209,6 +247,7 @@ jobs:
             -v "$BACKUP_DIR:/backup:ro" \
             postgres:17.6-alpine \
             pg_restore --exit-on-error --no-owner --no-acl \
+              --use-list=/backup/restore-application.list \
               --dbname=postgresql://postgres:postgres@127.0.0.1:54322/sykabelajar_db2_restore \
               /backup/production-db2.dump
 
@@ -236,7 +275,7 @@ jobs:
             echo "Disposable restore catalog verification failed; no encrypted backup artifact will be published." >&2
             exit 1
           }
-          echo "Full restore completed and the disposable catalog contains the expected Production identity baseline. No application rows were selected or printed."
+          echo "Production application database restore completed and the disposable catalog contains the expected identity baseline. pg_cron extension and scheduler-owned cron objects remain in the encrypted source archive but were excluded from the separate restore target; no scheduler jobs were executed. No application rows were selected or printed."
 
       - name: Encrypt the verified full backup with the owner-managed age recipient
         env:
@@ -254,13 +293,14 @@ jobs:
           project_ref=mvdczyitbkxkldjughor
           database_version=PostgreSQL 17.6
           backup_format=pg_dump custom archive
-          restore_rehearsal=passed in disposable local Supabase PostgreSQL 17.6
+          restore_rehearsal=passed in disposable local Supabase PostgreSQL 17.6 (application objects)
+          restore_exclusion=pg_cron extension and cron scheduler objects excluded only from isolated target; retained in encrypted source dump
           encryption=age public-key encryption
           plaintext_artifact=not uploaded
           production_ddl_or_dml=not performed
           generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           EOF
-          rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt" "$RUNNER_TEMP/production-db2.pgpass"
+          rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt" "$BACKUP_DIR/restore-application.list" "$BACKUP_DIR/restore-application.list" "$RUNNER_TEMP/production-db2.pgpass"
           echo "Verified full backup encrypted. Only the encrypted dump, checksum and non-sensitive manifest will be uploaded."
 
       - name: Upload encrypted Production DB2 backup artifact
