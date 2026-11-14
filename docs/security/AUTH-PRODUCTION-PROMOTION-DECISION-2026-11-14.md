@@ -20,6 +20,7 @@ The accepted staging verification is frozen. SYKABELAJAR will use a one-time pro
 2. First-party OAuth callback URLs are now derived from the configured app origins. A Production Worker with no `DEV_APP_ORIGIN` accepts only `https://sykabelajar.my.id/auth/oidc/callback`; staging retains both its staging callback and the canonical Production callback for the accepted PKCE setup.
 3. Unit coverage was added for exact Production/staging provisioning target selection and environment-specific callback allowlists.
 4. Production public registration now has an explicit `AUTH_SIGNUP_DISABLED=true` guard across email/password and configured social providers. Production fails closed if the variable is absent and requires an explicit `false` to open signup; staging keeps the explicit `false` setting. Worker unit contracts and the guarded Production D1 config check enforce the split. This is a signup safety gate, not an account reset or migration.
+5. A manual-only Production Custom OIDC workflow is prepared at `.github/workflows/auth-supabase-production-oidc.yml`. It is pinned to `mvdczyitbkxkldjughor` / `sykabelajar_db2`, requires an exact confirmation phrase, and checks the live issuer, PKCE S256, public ES256 JWKS and duplicate state. It has not been run; execute it only after the existing Worker is promoted to Production D1 so the Production project does not trust the staging D1 identity population.
 
 These changes prepare the existing implementation for the agreed promotion. They do not deploy or configure Production.
 
@@ -40,7 +41,7 @@ Project `mvdczyitbkxkldjughor` is healthy on PostgreSQL 17.6. The current live c
 - Fresh read-only Production catalog recheck on 14 November matched the committed 69-FK snapshot exactly (69/69); rerun immediately before any approved DDL.
 - Apply the Stage 3 identity/provisioning foundation and FK cutover to Production DB2 only during an approved maintenance window.
 - Set Production-only Worker secrets/configuration and promote the existing Worker resource to the new D1.
-- Register the unchanged issuer in Production DB2 Custom OIDC and verify discovery/JWKS/ES256/issuer/audience/subject/role.
+- After Worker promotion, run the guarded manual workflow to register the unchanged issuer in Production DB2 Custom OIDC; then verify discovery/JWKS/ES256/issuer/audience/subject/role. This workflow is prepared but not yet executed.
 - Keep Production signup locked (`AUTH_SIGNUP_DISABLED=true`) while configuring real transactional email; prove verification and password reset before explicitly opening registration for the protected first-admin bootstrap and eventual public launch.
 - Enable Production provisioning, bootstrap the first admin through the protected owner flow, then switch the main website frontend.
 - Pass Production login/session/API/Storage/Realtime/Edge smoke tests, verify monitoring and Better Auth-compatible rollback, then close the migration.
