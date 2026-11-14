@@ -88,8 +88,22 @@ Before any Production identity DDL:
    Keep the private `*.agekey` file offline in a secure location. Never commit it, paste it into chat, or store it in GitHub.
 2. Copy only the public `age1...` recipient printed by `age-keygen -y` into GitHub repository Settings → Secrets and variables → Actions as `SUPABASE_BACKUP_AGE_RECIPIENT`. The existing `SUPABASE_DB_URL` secret is already present and is validated by the workflow; its value must never be printed or pasted into chat.
 3. Run **Auth Production DB2 Full Backup and Restore Rehearsal** from GitHub Actions using confirmation `BACKUP-AND-RESTORE-PRODUCTION-DB2`. The workflow verifies the exact Production project ref, dumps the full database read-only, restores the application database into an isolated disposable PostgreSQL 17.6 database (excluding only cluster-bound `pg_cron`/scheduler objects from that separate target), verifies the target catalog, then age-encrypts the original full dump. The encrypted dump still contains the excluded scheduler objects for disaster recovery. Only the encrypted dump, checksum and non-sensitive manifest are uploaded as a 90-day artifact.
-4. Download the encrypted artifact, verify its SHA-256 checksum, and copy it to owner-controlled storage outside GitHub before the artifact expires. Keep the private age identity separate from the artifact. Record the restore result, run URL, source project ref, PostgreSQL version and checksum in the release record.
+4. Download the encrypted artifact, extract it, and verify the encrypted dump using the portable check below. Then copy the encrypted dump, checksum and manifest to owner-controlled storage outside GitHub before the artifact expires; verify the hash again at the destination. Keep the private age identity separate from the artifact. Record the restore result, run URL, source project ref, PostgreSQL version and checksum in the release record.
+
+   ```sh
+   expected=$(awk '{print $1}' production-db2.dump.age.sha256)
+   actual=$(sha256sum production-db2.dump.age | awk '{print $1}')
+   test "$expected" = "$actual"
+   ```
 5. A backup that has not been restored successfully and copied to durable owner-controlled storage is not an accepted rollback safeguard. Retain it through the full cutover and rollback observation window.
+
+### Verified backup evidence — 14 November 2026
+
+The guarded workflow [Run #7](https://github.com/taufx98/sykabelajar4.0/actions/runs/43549547338) completed successfully. The full Production dump was created read-only; its archive catalog contained table-data entries; the isolated restore used the verified local Supabase `supabase_admin` superuser; the PostgreSQL 17.6 application restore and catalog assertions passed; the original full dump was age-encrypted; and the cleanup step removed plaintext temporary files.
+
+The uploaded artifact is `sykabelajar-production-db2-encrypted-backup` (ID `14095658580`; available until 12 February 2027 03:02 UTC). It contains the encrypted custom-format dump, checksum and manifest only. The encrypted dump is 2,364,714 bytes with SHA-256 `78e395cf81ffdd03ce8c2c317d4b95b9bb592ce4690740d46c3d9fd6f4e0330f`. Its uploaded ZIP SHA-256 is `78e52102270ca31eaa7334b45827da32b6848945573975a33787b38a9a9b664a`. The artifact was downloaded and both hashes independently verified. No private age identity was included. The original encrypted dump retains `pg_cron` and its scheduler data; only the disposable restore list excluded those objects to prevent scheduled jobs from running in the test database.
+
+**The restore rehearsal is passed, but durable backup custody is still pending.** Before Production identity DDL, copy the encrypted dump, checksum and manifest to owner-controlled storage outside GitHub and verify the hash again at that destination. Keep the private age identity offline and separate. A GitHub Actions artifact with 90-day retention is not the final rollback vault.
 
 The encrypted artifact is a transfer mechanism, not the final backup vault. It contains the Production database dump, including legacy Auth rows, only for disaster recovery. It is not a user migration: no legacy account or role is imported into Better Auth. Cloudinary media remains outside this PostgreSQL database backup.
 
@@ -205,8 +219,9 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 - [x] Local D1 expiry/reauthentication and browser smoke tests passed.
 - [x] Stage 3 trigger retirement is atomic with identity-root creation; the corrected full disposable schema-baseline workflow passed.
 - [x] Owner approved the simplified one-time promotion: preserve `auth.sykabelajar.my.id`, reuse the existing Worker resource, create a clean Production D1, and leave staging D1 untouched.
-- [ ] Full encrypted Production DB2 backup restored successfully in a disposable PostgreSQL 17-compatible environment.
-- [ ] Fresh read-only Production catalog baseline matches the reviewed 69-FK / 62-source-table / 3-trigger expectations; stop on any drift.
+- [x] Full encrypted Production DB2 dump created; original archive catalog verified; isolated Supabase/PostgreSQL 17.6 application restore and catalog assertions passed; encrypted dump and ZIP hashes independently verified (Run #7).
+- [ ] Copy encrypted dump + checksum + manifest to durable owner-controlled storage outside GitHub; verify the checksum at the destination and keep the private age identity offline.
+- [x] Read-only Production catalog preflight on 14 November 2026 matched all 69/69 FK definitions exactly across 62 application tables; 109 `auth.uid()` policies, 3 expected auth.users triggers, 8 direct auth.users function references, and no private.app_users or replacement FKs. Repeat immediately before approved DDL.
 - [ ] Apply Stage 3 identity-root, trusted provisioning and 69-FK migration to Production DB2 under the approved maintenance window.
 - [ ] Create and verify the empty Production D1; apply the Better Auth schema migrations.
 - [ ] Install Production-only Worker secrets/configuration and promote the existing Worker resource without changing the hostname.
