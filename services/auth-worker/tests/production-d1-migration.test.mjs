@@ -4,6 +4,7 @@ import test from "node:test";
 
 const productionConfig = readFileSync(new URL("../wrangler.production.toml", import.meta.url), "utf8");
 const stagingConfig = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+const authSource = readFileSync(new URL("../src/auth.ts", import.meta.url), "utf8");
 const workflow = readFileSync(
   new URL("../../../.github/workflows/auth-cloudflare-production-d1-migrate.yml", import.meta.url),
   "utf8",
@@ -24,6 +25,28 @@ test("Production runtime config reuses the existing Worker hostname with its own
   assert.match(productionConfig, /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_M0wRkz7pdVB-0s5JtT3Zhg_J9fXU31m"$/m);
   assert.match(productionConfig, /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m);
   assert.doesNotMatch(productionConfig, /DEV_APP_ORIGIN|auth-staging\.sykabelajar\.my\.id|staging\.sykabelajar\.my\.id/);
+});
+
+test("Production keeps public signup closed while staging remains open", () => {
+  assert.match(productionConfig, /^AUTH_SIGNUP_DISABLED = "true"$/m);
+  assert.match(stagingConfig, /^AUTH_SIGNUP_DISABLED = "false"$/m);
+  assert.match(authSource, /const signupDisabled = env\.AUTH_SIGNUP_DISABLED === "true"/);
+
+  const emailAndPassword = authSource.slice(
+    authSource.indexOf("emailAndPassword: {"),
+    authSource.indexOf("emailVerification: {"),
+  );
+  assert.match(emailAndPassword, /disableSignUp: signupDisabled/);
+
+  for (const provider of ["google", "facebook", "twitter"]) {
+    const start = authSource.indexOf(provider + ": {");
+    assert.ok(start >= 0, "expected a " + provider + " provider configuration");
+    const end = authSource.indexOf("\n          },", start);
+    assert.ok(end > start, "could not locate the " + provider + " provider block");
+    const block = authSource.slice(start, end);
+    assert.match(block, /disableSignUp: signupDisabled/);
+    assert.match(block, /disableImplicitSignUp: signupDisabled/);
+  }
 });
 
 test("Production D1 migrations deliberately omit the staging-only callback migration", () => {
