@@ -35,14 +35,15 @@ Project `mvdczyitbkxkldjughor` is healthy on PostgreSQL 17.6. The current live c
 
 ## Remaining release gates
 
-- Full encrypted Production DB2 backup plus a successful restore rehearsal in a disposable PostgreSQL 17.6 environment. The backup workflow exists; first attempt stopped before connecting because `SUPABASE_BACKUP_AGE_RECIPIENT` is not yet configured. `SUPABASE_DB_URL` is present. Owner must add the public age recipient and retain the private key offline.
-- Immediate preflight of the Production catalog and review of the exact 69-FK generated plan.
-- Apply the Stage 3 identity/provisioning foundation and FK cutover to Production DB2 in the maintenance window.
+- Full encrypted Production DB2 backup and PostgreSQL 17.6 disposable restore passed in Run #7. Owner confirmed on 14 November that the encrypted backup is stored outside GitHub; retain destination checksum evidence privately. The temporary GitHub artifact is not the permanent vault.
+- Fresh read-only Production catalog recheck on 14 November matched the committed 69-FK snapshot exactly (69/69); rerun immediately before any approved DDL.
+- Apply the Stage 3 identity/provisioning foundation and FK cutover to Production DB2 only during an approved maintenance window.
 - Set Production-only Worker secrets/configuration and promote the existing Worker resource to the new D1.
 - Register the unchanged issuer in Production DB2 Custom OIDC and verify discovery/JWKS/ES256/issuer/audience/subject/role.
 - Configure real transactional email and prove verification and password reset before opening public signup.
 - Enable Production provisioning, bootstrap the first admin through the protected owner flow, then switch the main website frontend.
 - Pass Production login/session/API/Storage/Realtime/Edge smoke tests, verify monitoring and Better Auth-compatible rollback, then close the migration.
+- Obtain explicit owner approval for the Production maintenance window before executing any Production DDL or deployment.
 
 ## Scope and safety
 
