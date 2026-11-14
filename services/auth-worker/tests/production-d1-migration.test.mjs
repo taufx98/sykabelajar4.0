@@ -30,8 +30,8 @@ test("Production runtime config reuses the existing Worker hostname with its own
 test("Production keeps public signup closed while staging remains open", () => {
   assert.match(productionConfig, /^AUTH_SIGNUP_DISABLED = "true"$/m);
   assert.match(stagingConfig, /^AUTH_SIGNUP_DISABLED = "false"$/m);
-  assert.match(authSource, /env\\.AUTH_SIGNUP_DISABLED === "true"/);
-  assert.match(authSource, /env\\.SUPABASE_PROVISIONING_ENV === "production" && env\\.AUTH_SIGNUP_DISABLED !== "false"/);
+  assert.match(authSource, /env\.AUTH_SIGNUP_DISABLED === "true"/);
+  assert.match(authSource, /env\.SUPABASE_PROVISIONING_ENV === "production" && env\.AUTH_SIGNUP_DISABLED !== "false"/);
 
   const emailAndPassword = authSource.slice(
     authSource.indexOf("emailAndPassword: {"),
