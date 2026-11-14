@@ -13,19 +13,26 @@ This is the latest authoritative Stage 7 checkpoint and supersedes older stateme
 
 ## Current Production boundary — read-only DB2 snapshot
 
-Project `mvdczyitbkxkldjughor` remains healthy on PostgreSQL 17.6. `private.app_users` is absent; 69 application foreign keys across 62 source tables still point to `auth.users`; zero point to `private.app_users`; three non-internal `auth.users` triggers remain. Stage 3 identity/FK/trigger DDL has **not** been applied to Production DB2.
+Project `mvdczyitbkxkldjughor` remains ACTIVE_HEALTHY on PostgreSQL 17.6. A fresh read-only catalog comparison on 14 November 2026 matched the committed FK plan **69/69 exactly**: no missing, extra, or changed constraints across 62 application source tables. Delete actions remain 42 CASCADE, 18 SET NULL, 8 NO ACTION and 1 RESTRICT; all are validated. `private.app_users` is absent and zero application FKs point to it. The same live query found 109 policies referencing `auth.uid()`, the three expected non-internal `auth.users` triggers (`on_auth_user_created`, `trg_referral_email_confirmed`, `trg_referral_signup_attribution`), and eight public/private functions whose source directly references `auth.users`. Stage 3 identity/FK/trigger DDL has **not** been applied to Production DB2.
 
 ## Backup gate status
 
-The guarded workflow [Auth Production DB2 Full Backup and Restore Rehearsal #43495105906](https://github.com/taufx98/sykabelajar4.0/actions/runs/43495105906) safely stopped before connecting to DB2 because the GitHub Actions secret `SUPABASE_BACKUP_AGE_RECIPIENT` is not yet configured. `SUPABASE_DB_URL` was present. No dump or restore was attempted and no Production data was changed.
+Run [#7](https://github.com/taufx98/sykabelajar4.0/actions/runs/43549547338) completed successfully on 14 November 2026. Every operational step passed: read-only full Production DB2 custom-format dump, archive/table-data catalog check, verification of the local Supabase `supabase_admin` superuser, restore into a separate disposable PostgreSQL 17.6 database, restored catalog assertions, age encryption of the **original full dump**, and artifact upload. The Production `pg_cron` extension and scheduler-owned `cron` objects were omitted only from the isolated restore target so no scheduled Production job can run there; they remain in the encrypted original full dump. The temporary plaintext dump, catalog, restore list and passfile were removed by the cleanup step.
 
-Owner action required: generate an age keypair, store the private identity offline, and add only the public `age1...` recipient to GitHub repository Actions secrets as `SUPABASE_BACKUP_AGE_RECIPIENT`. Then run the backup workflow using its exact confirmation. Download the encrypted dump artifact, verify its checksum and copy it to durable owner-controlled storage. Full instructions are in Section 5 of the Stage 7 runbook.
+The uploaded GitHub Actions artifact is `sykabelajar-production-db2-encrypted-backup` (artifact ID `14095658580`), retained until **12 February 2027 03:02 UTC**. It contains only:
+- `production-db2.dump.age` — 2,364,714 bytes; SHA-256 `78e395cf81ffdd03ce8c2c317d4b95b9bb592ce4690740d46c3d9fd6f4e0330f`.
+- `production-db2.dump.age.sha256`.
+- `manifest.txt`.
+
+I downloaded the artifact and independently checked both the ZIP digest (`78e52102270ca31eaa7334b45827da32b6848945573975a33787b38a9a9b664a`) and the inner encrypted-dump checksum; both matched the uploaded metadata. The private age identity was not uploaded or included in the artifact.
+
+**Backup/restore test: PASS. Durable backup custody: PENDING.** The GitHub Actions artifact is only a temporary 90-day transfer copy, not the final backup vault. The owner must copy the encrypted dump, checksum and manifest to durable owner-controlled storage outside GitHub, then verify the checksum again at that destination. Keep the private `*.agekey` identity offline and separate. Do not proceed with Production identity DDL until this custody step is confirmed.
 
 ## What remains gated
 
-1. Complete the encrypted full-data DB2 backup and successful disposable PostgreSQL 17.6 restore rehearsal.
-2. Run an immediate read-only Production catalog preflight and revalidate the exact 69-FK plan.
-3. Apply Stage 3 identity foundation, trusted provisioning, issuer restrictions, and 69-FK cutover to Production DB2 during the maintenance window.
+1. Copy the verified encrypted DB2 backup, checksum and manifest from the GitHub artifact to durable owner-controlled storage; confirm its checksum at the destination and keep the age private identity offline.
+2. Re-run the same read-only Production catalog preflight immediately before any approved DDL; stop if the 69-FK snapshot, 109-policy count, 3-trigger count, or dependency inventory has drifted.
+3. Only after durable backup custody, the immediate preflight, every other Stage 7 GO gate, and explicit owner approval: apply the reviewed Stage 3 identity foundation, trusted provisioning, issuer restrictions, and 69-FK cutover to Production DB2 during the maintenance window.
 4. Register and validate the unchanged issuer in Production Custom OIDC.
 5. Set Production-only Worker secrets/configuration, promote the existing Worker to the new D1, enable provisioning and bootstrap the first admin.
 6. Configure real transactional email and verify delivery before public signup or password recovery is enabled.
