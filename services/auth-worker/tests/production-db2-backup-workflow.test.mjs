@@ -19,10 +19,13 @@ test("the full archive is restored locally before encryption and only the encryp
   assert.match(workflow, /pg_dump --format=custom/);
   assert.match(workflow, /pg_restore --exit-on-error/);
   assert.match(workflow, /sykabelajar_db2_restore/);
-  const restoreAt = workflow.indexOf("Restore full DB2 backup to the disposable local database");
+  const targetAt = workflow.indexOf("Verify local Supabase bootstrap superuser and create empty restore target");
+  const restoreAt = workflow.indexOf("Restore Production DB2 application database to disposable local PostgreSQL");
   const encryptAt = workflow.indexOf("Encrypt the verified full backup");
   const uploadAt = workflow.indexOf("Upload encrypted Production DB2 backup artifact");
-  assert.ok(restoreAt >= 0 && encryptAt > restoreAt && uploadAt > encryptAt);
+  assert.ok(targetAt >= 0 && restoreAt > targetAt && encryptAt > restoreAt && uploadAt > encryptAt);
+  assert.match(workflow, /SELECT rolsuper FROM pg_roles/);
+  assert.match(workflow, /postgresql:\/\/supabase_admin:postgres@127\.0\.0\.1:54322\/sykabelajar_db2_restore/);
   assert.match(workflow, /age --encrypt --recipient/);
   const stopAt = workflow.indexOf("      - name: Stop isolated Supabase stack", uploadAt);
   const uploadSection = workflow.slice(uploadAt, stopAt);
