@@ -220,16 +220,12 @@ jobs:
             exit 1
           }
 
-          CRON_RUNTIME="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-              -X -qAt --set=ON_ERROR_STOP=1 \
-              --command "SELECT current_setting('cron.database_name', true) || '|' || EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron')")"
-          test "$CRON_RUNTIME" = "postgres|t" || {
-            echo "Disposable Supabase pg_cron is not installed in its configured database postgres; refusing the restore rehearsal." >&2
+          if grep -Eq '(^|[[:space:]])(pg_cron|cron)([[:space:]]|$)' "$BACKUP_DIR/restore-application.list"; then
+            echo "The isolated restore list still contains pg_cron or cron scheduler objects; refusing to start restore." >&2
             exit 1
-          }
+          fi
 
-          echo "Full encrypted source archive contains Production data. The isolated application restore list excludes only pg_cron-owned objects and scheduler metadata; the local pg_cron runtime is verified in its configured postgres database."
+          echo "Full Production archive contains table data. Only the disposable application-restore list excludes pg_cron and cron scheduler objects; the original full dump remains unchanged for encryption and recovery."
 
       - name: Create empty restore target in isolated local PostgreSQL
         run: |
@@ -300,7 +296,7 @@ jobs:
           production_ddl_or_dml=not performed
           generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           EOF
-          rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt" "$BACKUP_DIR/restore-application.list" "$BACKUP_DIR/restore-application.list" "$RUNNER_TEMP/production-db2.pgpass"
+          rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt" "$BACKUP_DIR/restore-application.list" "$RUNNER_TEMP/production-db2.pgpass"
           echo "Verified full backup encrypted. Only the encrypted dump, checksum and non-sensitive manifest will be uploaded."
 
       - name: Upload encrypted Production DB2 backup artifact
@@ -323,5 +319,5 @@ jobs:
             cd "$SUPABASE_CLI_WORKDIR" && supabase stop --no-backup >/dev/null 2>&1 || true
           fi
           rm -f "$RUNNER_TEMP/production-db2.pgpass"
-          rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt"
+          rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt" "$BACKUP_DIR/restore-application.list"
           exit 0
