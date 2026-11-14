@@ -227,13 +227,29 @@ jobs:
 
           echo "Full Production archive contains table data. Only the disposable application-restore list excludes pg_cron and cron scheduler objects; the original full dump remains unchanged for encryption and recovery."
 
-      - name: Create empty restore target in isolated local PostgreSQL
+      - name: Verify local Supabase bootstrap superuser and create empty restore target
         run: |
           set -euo pipefail
+
+          # Supabase's local postgres role is not the cluster bootstrap
+          # superuser. Managed Realtime routines in a full dump set SUSET
+          # parameters such as log_min_messages, so restore as supabase_admin.
+          ADMIN_CHECK="$(docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            postgres:17.6-alpine \
+            psql "postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres" \
+              -X -qAt --set=ON_ERROR_STOP=1 \
+              --command "SELECT rolsuper FROM pg_roles WHERE rolname = current_user AND current_user = 'supabase_admin';")"
+
+          test "$ADMIN_CHECK" = "t" || {
+            echo "The disposable Supabase bootstrap role is not a verified superuser; refusing the restore rehearsal." >&2
+            exit 1
+          }
+
           docker run --rm --network host \
             -e PGPASSWORD=postgres \
             postgres:17.6-alpine \
-            createdb --host=127.0.0.1 --port=54322 --username=postgres sykabelajar_db2_restore
+            createdb --host=127.0.0.1 --port=54322 --username=supabase_admin sykabelajar_db2_restore
 
       - name: Restore Production DB2 application database to disposable local PostgreSQL
         run: |
@@ -244,7 +260,7 @@ jobs:
             postgres:17.6-alpine \
             pg_restore --exit-on-error --no-owner --no-acl \
               --use-list=/backup/restore-application.list \
-              --dbname=postgresql://postgres:postgres@127.0.0.1:54322/sykabelajar_db2_restore \
+              --dbname=postgresql://supabase_admin:postgres@127.0.0.1:54322/sykabelajar_db2_restore \
               /backup/production-db2.dump
 
       - name: Verify restored database catalog without selecting application data
@@ -264,7 +280,7 @@ jobs:
           SQL
           )
           RESULT="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/sykabelajar_db2_restore" \
+            psql "postgresql://supabase_admin:postgres@127.0.0.1:54322/sykabelajar_db2_restore" \
               -X -qAt --field-separator='|' --set=ON_ERROR_STOP=1 --command "$SQL")"
           EXPECTED="t|t|t|t|t"
           test "$RESULT" = "$EXPECTED" || {
