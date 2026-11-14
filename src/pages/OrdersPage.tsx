@@ -11,6 +11,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { uploadImage } from '@/services/cloudinary.service';
 import { createCheckoutPayment, getPublicPaymentGatewayStatus, reconcileGatewayPaymentReturn } from '@/services/payment.service';
 import { supabase } from '@/lib/supabase';
+import { getCurrentApplicationUserId } from '@/services/applicationIdentity';
 import { listCurrentUserOrganizers, type CurrentOrganizer } from '@/services/organizerAuth.service';
 import { getCollectiveCertificatePrice, listTeacherCollectiveParticipants, prepareCollectiveCertificate, type CollectiveParticipant } from '@/services/collectiveParticipant.service';
 import type { ProductReviewSummary } from '@/services/shopEngagement.service';
@@ -139,8 +140,8 @@ export function OrdersPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [{ data: session }, catalog, gateway, configuredMethods] = await Promise.all([
-        supabase.auth.getSession(),
+      const [userId, catalog, gateway, configuredMethods] = await Promise.all([
+        getCurrentApplicationUserId(),
         listActiveProducts(),
         getPublicPaymentGatewayStatus().catch(() => null),
         listOrganizerPaymentMethods().catch(() => [] as OrganizerPaymentMethod[]),
@@ -159,8 +160,7 @@ export function OrdersPage() {
       const visible = catalog.filter((product) => role === 'admin' || (Array.isArray(product.audiences) && product.audiences.includes(audience)));
       setProducts(visible);
 
-      if (session.session?.user) {
-        const userId = session.session.user.id;
+      if (userId) {
         const [{ data: orderData, error: orderError }, { data: ownedBadges, error: badgeError }, { data: wallet, error: walletError }] = await Promise.all([
           supabase.from('orders').select('*,order_items(*)').eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
           supabase.from('user_badges').select('badge_id').eq('user_id', userId),

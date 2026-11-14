@@ -1,0 +1,560 @@
+name: Auth Worker Staging Deploy
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0013"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type DEPLOY-STAGING-WORKER-sykabelajar-auth-poc to deploy only the isolated staging Worker"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-worker-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Deploy isolated Better Auth Worker and verify hosted OIDC
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+
+      - name: Install locked Worker dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run Worker typecheck, security tests, and deployment dry run
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Verify fixed staging configuration and existing prerequisites
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "DEPLOY-STAGING-WORKER-sykabelajar-auth-poc" || {
+              echo "Blocked: the exact staging Worker deployment confirmation was not supplied." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0013"
+            test -f "$marker" || {
+              echo "Blocked: the one-time staging Worker deployment marker is missing." >&2
+              exit 1
+            }
+            test "$(cat "$marker")" = "DEPLOY-STAGING-WORKER-sykabelajar-auth-poc" || {
+              echo "Blocked: the one-time staging Worker deployment marker is not exact." >&2
+              exit 1
+            }
+          else
+            echo "Blocked: this workflow accepts only guarded push or manual dispatch." >&2
+            exit 1
+          fi
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN." >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID." >&2; exit 1; }
+          test "$VITE_SUPABASE_URL" = "https://mvdczyitbkxkldjughor.supabase.co" || {
+            echo "Blocked: VITE_SUPABASE_URL does not match the audited Supabase project." >&2
+            exit 1
+          }
+          test -n "$VITE_SUPABASE_PUBLISHABLE_KEY" || {
+            echo "Missing existing VITE_SUPABASE_PUBLISHABLE_KEY Actions secret." >&2
+            exit 1
+          }
+
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+
+          const config = readFileSync("wrangler.toml", "utf8");
+          const checks = [
+            /^name = "sykabelajar-auth-poc"$/m,
+            /^database_name = "sykabelajar-auth-poc"$/m,
+            /^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m,
+            /^migrations_dir = "migrations"$/m,
+            /^workers_dev = false$/m,
+            /^BETTER_AUTH_URL = "https:\/\/auth\.sykabelajar\.my\.id"$/m,
+            /^APP_ORIGIN = "https:\/\/sykabelajar\.my\.id"$/m,
+            /^DEV_APP_ORIGIN = "https:\/\/staging\.sykabelajar\.my\.id"$/m,
+            /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
+            /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
+            /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"$/m,
+            /^SUPABASE_PROVISIONING_ENABLED = "(true|false)"$/m,
+            /^AUTH_EMAIL_PROVIDER = "managed"$/m,
+            /^OAUTH_CALLBACK_URL = "https:\/\/staging\.sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
+            /^pattern = "auth\.sykabelajar\.my\.id"$/m,
+            /^custom_domain = true$/m,
+          ];
+          if (!checks.every((pattern) => pattern.test(config))) {
+            throw new Error("wrangler.toml does not match the approved isolated staging Worker/D1/hostname configuration.");
+          }
+          if (/D1_SCHEMA_BOOTSTRAP_TOKEN|ALLOW_SCHEMA_BOOTSTRAP/.test(config)) {
+            throw new Error("Local-only schema bootstrap settings must never be deployed.");
+          }
+          writeFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-config-ok", "ok");
+          console.log("Verified the exact isolated Worker, D1, issuer, resource audience, same-site staging callback/domain and Stage 3 Supabase provisioning target.");
+          console.log("The legacy SUPABASE_URL remains production-only for the temporary Admin bridge; Better Auth identity provisioning is explicitly controlled and can target only the fixed Free staging Supabase project.");
+          console.log("Existing Worker secrets will be preserved: this deployment does not enumerate, recreate, rotate, or delete secrets.");
+          NODE
+
+      - name: Verify all 21 remote D1 tables and safe existing staging identity state
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings','auth_runtime_settings') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const raw = readFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-tables.json", "utf8");
+          const payload = JSON.parse(raw);
+          const found = new Set();
+          function visit(value) {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") found.add(value.name);
+            Object.values(value).forEach(visit);
+          }
+          visit(payload);
+          const expected = [
+            "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
+            "auth_worker_internal_config","jwks","oauthAccessToken","oauthClient","oauthClientAssertion",
+            "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
+            "session","user","verification","auth_phone_verification_challenges","auth_social_provider_meta","auth_social_provider_settings","auth_runtime_settings"
+          ];
+          const missing = expected.filter((name) => !found.has(name));
+          if (missing.length) throw new Error("Remote staging D1 is missing tables: " + missing.join(", "));
+          if (expected.length !== 21) throw new Error("The reviewed staging schema contract must contain exactly 21 tables.");
+          console.log("Verified all " + expected.length + " remote staging D1 tables, including Telegram verification, managed social-login settings, and Admin auth runtime settings.");
+          NODE
+
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-user-columns.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-user-columns.json", "utf8"));
+          const columns = new Set();
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") columns.add(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const expected = ["accountType", "username", "referralCode", "birthDate", "institution", "grade", "subjects"];
+          const missing = expected.filter((name) => !columns.has(name));
+          if (missing.length) throw new Error("Remote staging D1 lacks Better Auth registration columns: " + missing.join(", ") + ". Run the guarded D1 migration workflow first.");
+          console.log("Verified all seven Better Auth registration/profile bootstrap columns before Worker deployment.");
+          NODE
+
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('auth_email_accounts') WHERE name = 'provider';" > "$RUNNER_TEMP/auth-worker-staging-email-provider.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-email-provider.json", "utf8"));
+          const columns = new Set();
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") columns.add(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (!columns.has("provider")) throw new Error("Transactional email provider migration 0006 is missing; refusing deployment.");
+          console.log("Verified provider-aware transactional email schema.");
+          NODE
+
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT
+            (SELECT COUNT(*) FROM user) AS users,
+            (SELECT COUNT(*) FROM user WHERE emailVerified = 0) AS unverified_users,
+            (SELECT COUNT(*) FROM session) AS sessions,
+            (SELECT COUNT(*) FROM account) AS accounts,
+            (SELECT COUNT(*) FROM verification) AS verifications,
+            (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges,
+            (SELECT COUNT(*) FROM auth_social_provider_settings) AS social_provider_settings,
+            (SELECT COUNT(*) FROM session s JOIN user u ON u.id = s.userId WHERE u.emailVerified = 0 AND julianday(s.expiresAt) > julianday('now')) AS active_sessions_for_unverified_users,
+            (SELECT email_verification_required FROM auth_runtime_settings WHERE id = 1) AS email_verification_required,
+            (SELECT COUNT(*) FROM auth_social_provider_meta WHERE id = 1) AS social_provider_meta,
+            (SELECT COUNT(*) FROM auth_runtime_settings WHERE id = 1) AS auth_runtime_settings_rows,
+            (SELECT COUNT(*) FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients;" > "$RUNNER_TEMP/auth-worker-staging-counts.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-counts.json", "utf8"));
+          let row;
+          function visit(value) {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "users") && Object.hasOwn(value, "sessions")) row = value;
+            Object.values(value).forEach(visit);
+          }
+          visit(payload);
+          if (!row) throw new Error("Could not parse remote staging identity-state check.");
+          for (const field of ["users","unverified_users","sessions","accounts","verifications","phone_challenges","social_provider_settings","active_sessions_for_unverified_users","auth_runtime_settings_rows"]) {
+            if (!Number.isSafeInteger(Number(row[field])) || Number(row[field]) < 0) {
+              throw new Error("Staging D1 returned an invalid aggregate for " + field + "; refusing deployment.");
+            }
+          }
+          // A routine code deploy must preserve previously created staging accounts.
+          // Active unverified sessions are expected only while the staging-only
+          // email-verification bypass is explicitly disabled in the D1 policy.
+          // When verification is required again, block deployment if any remain.
+          const verificationPolicy = String(row.email_verification_required);
+          if (verificationPolicy !== "0" && verificationPolicy !== "1") {
+            throw new Error("Staging email-verification policy is missing or invalid; refusing Worker deployment.");
+          }
+          if (verificationPolicy === "1" && Number(row.active_sessions_for_unverified_users) !== 0) {
+            throw new Error("An unverified staging account has an active session while email verification is required; refusing Worker deployment.");
+          }
+          if (Number(row.social_provider_meta) !== 1) throw new Error("Expected exactly one managed social provider metadata row.");
+          if (Number(row.auth_runtime_settings_rows) !== 1) throw new Error("Expected exactly one Admin auth runtime settings row; apply guarded staging migration 0009 before deployment.");
+          if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one fixed first-party public OAuth client.");
+          console.log("Verified existing staging identity state without exposing user data: " + JSON.stringify({
+            users: Number(row.users),
+            unverifiedUsers: Number(row.unverified_users),
+            sessions: Number(row.sessions),
+            accounts: Number(row.accounts),
+            verificationRecords: Number(row.verifications),
+            pendingPhoneChallenges: Number(row.phone_challenges),
+            activeSessionsForUnverifiedUsers: Number(row.active_sessions_for_unverified_users),
+          }));
+          console.log("PASS: existing D1 identities are preserved and no unverified user has an active session.");
+          NODE
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT redirectUris AS redirect_uris FROM oauthClient WHERE clientId = 'sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y';" > "$RUNNER_TEMP/auth-worker-staging-redirects.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/auth-worker-staging-redirects.json", "utf8"));
+          let raw;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.redirect_uris === "string") raw = value.redirect_uris;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const expected = ["https://sykabelajar.my.id/auth/oidc/callback", "https://staging.sykabelajar.my.id/auth/oidc/callback"];
+          let actual;
+          try { actual = JSON.parse(raw ?? ""); } catch { throw new Error("Could not parse the first-party OAuth redirect allowlist."); }
+          if (!Array.isArray(actual) || actual.length !== expected.length || expected.some((uri) => !actual.includes(uri)) || actual.some((uri) => !expected.includes(uri))) {
+            throw new Error("The first-party OAuth callback list does not match the exact production + staging allowlist.");
+          }
+          console.log("Verified the exact two-entry production and same-site staging OAuth callback allowlist.");
+          NODE
+
+      # BETTER_AUTH_SECRET, AUTH_EMAIL_ENCRYPTION_KEY, and OAUTH_CLIENT_BOOTSTRAP_TOKEN
+      # were provisioned during the first successful staging deployment. Never rotate them
+      # from a routine code deploy; Wrangler preserves existing Worker secrets when no
+      # --secrets-file is supplied.
+      - name: Ensure dedicated OAuth-provider encryption key exists without rotating
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { randomBytes } from "node:crypto";
+
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const scriptName = "sykabelajar-auth-poc";
+          const secretName = "AUTH_PROVIDER_ENCRYPTION_KEY";
+          const endpoint = "https://api.cloudflare.com/client/v4/accounts/" +
+            encodeURIComponent(accountId) + "/workers/scripts/" +
+            encodeURIComponent(scriptName) + "/secrets";
+          const headers = {
+            Authorization: "Bearer " + token,
+            Accept: "application/json",
+          };
+
+          // Cloudflare's list endpoint returns secret names/types only. Never
+          // read, print, rotate, or remove an existing encrypted-data key.
+          const listed = await fetch(endpoint, { headers });
+          const listedBody = await listed.json().catch(() => ({}));
+          if (!listed.ok || listedBody.success !== true || !Array.isArray(listedBody.result)) {
+            throw new Error("Cannot safely inspect Worker secret bindings; refusing to rotate or create OAuth key.");
+          }
+          const provisioningEnabled = /^SUPABASE_PROVISIONING_ENABLED = "true"$/m.test(
+            (await import("node:fs")).readFileSync("wrangler.toml", "utf8"),
+          );
+          const provisioningBindings = listedBody.result.filter((item) =>
+            item?.name === "SUPABASE_PROVISIONING_API_KEY" || item?.name === "SUPABASE_SERVICE_ROLE_KEY",
+          );
+          const provisioningSecretReady =
+            provisioningBindings.length === 1 && provisioningBindings[0].type === "secret_text";
+          if (provisioningEnabled && !provisioningSecretReady) {
+            throw new Error("Identity provisioning is enabled but exactly one server-only Supabase staging API key binding is required. Worker was not deployed.");
+          }
+          if (!provisioningEnabled) {
+            console.log("Staging identity projection remains disabled; no provisioning API key is required for this deployment.");
+          } else {
+            console.log("Verified server-only Supabase staging API key binding by name/type only; its value was not read.");
+          }
+          const matches = listedBody.result.filter((item) => item?.name === secretName);
+          if (matches.length > 1) {
+            throw new Error("Duplicate OAuth encryption key bindings detected; refusing changes.");
+          }
+          if (matches.length === 1) {
+            if (matches[0].type !== "secret_text") {
+              throw new Error("OAuth encryption binding has an unexpected type; refusing changes.");
+            }
+            console.log("Preserved existing dedicated OAuth-provider encryption secret; no rotation performed.");
+          } else {
+            const generatedKey = randomBytes(32).toString("base64url");
+            if (generatedKey.length < 32) throw new Error("Generated OAuth encryption key did not meet minimum length.");
+            const created = await fetch(endpoint, {
+              method: "PUT",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: secretName,
+                text: generatedKey,
+                type: "secret_text",
+              }),
+            });
+            const createdBody = await created.json().catch(() => ({}));
+            if (!created.ok || createdBody.success !== true || createdBody.result?.name !== secretName) {
+              throw new Error("Cloudflare did not confirm the dedicated OAuth-provider encryption secret.");
+            }
+            console.log("Created a new random 256-bit OAuth-provider encryption secret. Key material was not logged or stored in the repository.");
+          }
+          NODE
+
+      - name: Deploy only the isolated Better Auth staging Worker
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          set +e
+          npx wrangler deploy \
+            --var "SUPABASE_URL:$VITE_SUPABASE_URL" \
+            --var "SUPABASE_PUBLISHABLE_KEY:$VITE_SUPABASE_PUBLISHABLE_KEY" \
+            --message "Isolated Better Auth staging deployment $GITHUB_SHA" \
+            > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1
+          deploy_status=$?
+          set -e
+          sed -E \
+            -e 's/(Bearer )[A-Za-z0-9._-]+/\1[REDACTED]/g' \
+            -e 's/(Zoho-enczapikey )[A-Za-z0-9._-]+/\1[REDACTED]/g' \
+            -e 's/(SUPABASE_PUBLISHABLE_KEY:)[^ ]+/\1[REDACTED]/g' \
+            "$RUNNER_TEMP/wrangler-deploy.log" | tee "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
+          exit "$deploy_status"
+
+      - name: Verify hosted health, issuer metadata, and public ES256 JWKS
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+
+          const origin = "https://auth.sykabelajar.my.id";
+          const expectedIssuer = origin + "/api/auth";
+          const REQUEST_TIMEOUT_MS = 8_000;
+          function fetchWithTimeout(input, init = {}) {
+            return fetch(input, {
+              ...init,
+              signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+            });
+          }
+          async function getJson(path) {
+            const response = await fetchWithTimeout(origin + path, { redirect: "error" });
+            const raw = await response.text();
+            let data;
+            try { data = JSON.parse(raw); } catch { throw new Error(path + " returned non-JSON HTTP " + response.status); }
+            assert.equal(response.status, 200, path + " must return HTTP 200");
+            return data;
+          }
+
+          let ready = false;
+          let lastError;
+          for (let attempt = 0; attempt < 60; attempt += 1) {
+            try {
+              const health = await getJson("/healthz");
+              assert.equal(health.ok, true, "Worker must have a live D1 binding");
+
+              const previewOrigin = "https://staging.sykabelajar.my.id";
+              const allowedPreview = await fetchWithTimeout(origin + "/healthz", {
+                headers: { Origin: previewOrigin },
+                redirect: "error",
+              });
+              assert.equal(allowedPreview.status, 200, "the exact same-site migration branch domain must reach the staging Worker");
+              assert.equal(
+                allowedPreview.headers.get("Access-Control-Allow-Origin"),
+                previewOrigin,
+                "the staging Worker must allow credentials only for the exact same-site staging origin",
+              );
+              const rejectedPreview = await fetchWithTimeout(origin + "/healthz", {
+                headers: { Origin: "https://attacker.example" },
+                redirect: "error",
+              });
+              assert.equal(
+                rejectedPreview.headers.get("Access-Control-Allow-Origin"),
+                null,
+                "untrusted preview origins must receive no CORS permission",
+              );
+
+              const discovery = await getJson("/api/auth/.well-known/openid-configuration");
+              assert.equal(discovery.issuer, expectedIssuer, "hosted issuer must exactly match the stable auth URL");
+              assert.ok(discovery.authorization_endpoint?.startsWith(origin + "/"), "authorization endpoint must use auth hostname");
+              assert.ok(discovery.token_endpoint?.startsWith(origin + "/"), "token endpoint must use auth hostname");
+              assert.ok(discovery.userinfo_endpoint?.startsWith(origin + "/"), "UserInfo endpoint must use auth hostname");
+              assert.ok(discovery.code_challenge_methods_supported?.includes("S256"), "discovery must advertise PKCE S256");
+              assert.ok(discovery.jwks_uri?.startsWith(origin + "/"), "JWKS endpoint must use auth hostname");
+              const jwks = await getJson(new URL(discovery.jwks_uri).pathname + new URL(discovery.jwks_uri).search);
+              assert.ok(Array.isArray(jwks.keys) && jwks.keys.length > 0, "JWKS must include a signing key");
+              assert.ok(jwks.keys.some((key) =>
+                key.kty === "EC" && key.crv === "P-256" && key.alg === "ES256" &&
+                typeof key.kid === "string" && key.kid.length > 0 && !Object.hasOwn(key, "d")
+              ), "JWKS must publish only a public P-256 ES256 key with kid");
+              const publicProvidersResponse = await fetchWithTimeout(origin + "/api/auth/providers", {
+                headers: { Origin: previewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(publicProvidersResponse.status, 200, "public provider list must be available to the login page");
+              assert.equal(
+                publicProvidersResponse.headers.get("Access-Control-Allow-Origin"),
+                previewOrigin,
+                "public provider list must allow only the exact same-site staging origin",
+              );
+              const publicProviders = await publicProvidersResponse.json();
+              assert.equal(publicProviders.ok, true);
+              assert.equal(publicProviders.issuer, expectedIssuer);
+              assert.ok(Array.isArray(publicProviders.providers), "public provider list must be an array");
+              assert.ok(
+                publicProviders.providers.every((provider) => ["google", "facebook", "twitter"].includes(provider)),
+                "public provider list must not expose unsupported or arbitrary providers",
+              );
+              assert.equal(
+                typeof publicProviders.emailVerificationConfigured,
+                "boolean",
+                "public provider discovery must expose only the boolean email verification readiness state",
+              );
+              assert.equal(
+                typeof publicProviders.emailVerificationRequired,
+                "boolean",
+                "public provider discovery must expose the runtime verification policy as a boolean",
+              );
+              assert.equal(publicProviders.emailVerificationRequired, false, "owner-approved temporary staging bypass must remain enabled until the auth migration is complete");
+              assert.deepEqual(
+                Object.keys(publicProviders).sort(),
+                ["emailVerificationConfigured", "emailVerificationRequired", "issuer", "ok", "providers"],
+                "public provider response must not expose client IDs, secrets, or private settings",
+              );
+
+              const unauthenticatedAdminResponse = await fetchWithTimeout(origin + "/api/admin/login-providers", {
+                headers: { Origin: previewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(unauthenticatedAdminResponse.status, 401, "Admin provider settings must reject requests without a Better Auth resource token");
+              const unauthenticatedAdminBody = await unauthenticatedAdminResponse.json();
+              assert.equal(unauthenticatedAdminBody.error, "AUTH_REQUIRED");
+
+              const hostileAdminResponse = await fetchWithTimeout(origin + "/api/admin/login-providers", {
+                headers: { Origin: "https://attacker.example", Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(hostileAdminResponse.status, 403, "Admin provider settings must reject untrusted browser origins");
+              assert.equal(
+                hostileAdminResponse.headers.get("Access-Control-Allow-Origin"),
+                null,
+                "untrusted origins must not receive Admin CORS permission",
+              );
+
+              const unauthenticatedEmailAdminResponse = await fetchWithTimeout(origin + "/api/admin/email-settings", {
+                headers: { Origin: previewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(unauthenticatedEmailAdminResponse.status, 401, "Admin email settings must reject requests without a Better Auth resource token");
+              const unauthenticatedEmailAdminBody = await unauthenticatedEmailAdminResponse.json();
+              assert.equal(unauthenticatedEmailAdminBody.error, "AUTH_REQUIRED");
+
+              const hostileEmailAdminResponse = await fetchWithTimeout(origin + "/api/admin/email-settings", {
+                headers: { Origin: "https://attacker.example", Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(hostileEmailAdminResponse.status, 403, "Admin email settings must reject untrusted browser origins");
+              assert.equal(
+                hostileEmailAdminResponse.headers.get("Access-Control-Allow-Origin"),
+                null,
+                "untrusted origins must not receive Admin email CORS permission",
+              );
+
+              const unauthenticatedRuntimeSettingsResponse = await fetchWithTimeout(origin + "/api/admin/auth-runtime-settings", {
+                headers: { Origin: previewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(unauthenticatedRuntimeSettingsResponse.status, 401, "runtime verification settings must reject unauthenticated requests");
+              const unauthenticatedRuntimeSettingsBody = await unauthenticatedRuntimeSettingsResponse.json();
+              assert.equal(unauthenticatedRuntimeSettingsBody.error, "AUTH_REQUIRED");
+
+              const hostileRuntimeSettingsResponse = await fetchWithTimeout(origin + "/api/admin/auth-runtime-settings", {
+                headers: { Origin: "https://attacker.example", Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(hostileRuntimeSettingsResponse.status, 403, "runtime verification settings must reject untrusted browser origins");
+              assert.equal(
+                hostileRuntimeSettingsResponse.headers.get("Access-Control-Allow-Origin"),
+                null,
+                "untrusted origins must not receive runtime settings CORS permission",
+              );
+
+              console.log(JSON.stringify({
+                health: "ok",
+                issuer: discovery.issuer,
+                jwks: "public ES256 P-256 key verified",
+                pkce: "S256 advertised",
+                emailAgentConfigured: false,
+                googleOAuthCredentialsConfigured: false,
+                noUserOrSessionSeeded: true
+              }));
+              ready = true;
+              break;
+            } catch (error) {
+              lastError = error;
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+          }
+          if (!ready) throw lastError ?? new Error("Hosted Worker did not become ready.");
+          NODE
+
+      - name: Upload sanitized deployment diagnostic when deployment fails
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-worker-staging-deploy-diagnostic
+          path: ${{ runner.temp }}/wrangler-deploy-sanitized.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Remove temporary secret material from runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-user-columns.json" "$RUNNER_TEMP/auth-worker-staging-email-provider.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok" "$RUNNER_TEMP/wrangler-deploy.log" "$RUNNER_TEMP/wrangler-deploy-sanitized.log"

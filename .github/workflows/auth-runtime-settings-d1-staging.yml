@@ -1,0 +1,177 @@
+name: Auth Runtime Settings D1 Staging Policy
+on:
+  push:
+    branches: [security/auth-poc-stage-1]
+    paths:
+      - .github/auth-ops/APPLY-STAGING-D1-0009
+      - .github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001
+      - .github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Choose a staging-only policy operation"
+        required: true
+        type: choice
+        options:
+          - apply_0009
+          - temporary_bypass
+          - require_verification
+      confirmation:
+        description: "Type the exact confirmation for the selected operation"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: auth-runtime-settings-d1-staging
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      REQUESTED_OPERATION: ${{ inputs.operation }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Verify fixed staging-only target and explicit operation marker
+        id: target
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          grep -q '^database_name = "sykabelajar-auth-poc"$' wrangler.toml
+          grep -q '^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$' wrangler.toml
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            operation="$REQUESTED_OPERATION"
+          elif [ -f ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001 ]; then
+            operation="require_verification"
+            test "$(cat ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-REQUIRED-0001)" = "REQUIRE-EMAIL-VERIFICATION-ON-STAGING-ONLY"
+          elif [ -f ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001 ]; then
+            operation="temporary_bypass"
+            test "$(cat ../../.github/auth-ops/SET-STAGING-EMAIL-VERIFICATION-BYPASS-0001)" = "SET-TEMPORARY-EMAIL-BYPASS-ON-STAGING-ONLY"
+          else
+            operation="apply_0009"
+            test "$(cat ../../.github/auth-ops/APPLY-STAGING-D1-0009)" = "APPLY-TO-sykabelajar-auth-poc-runtime-settings"
+          fi
+
+          case "$operation" in
+            apply_0009) expected="APPLY-TO-sykabelajar-auth-poc-runtime-settings" ;;
+            temporary_bypass) expected="SET-TEMPORARY-EMAIL-BYPASS-ON-STAGING-ONLY" ;;
+            require_verification) expected="REQUIRE-EMAIL-VERIFICATION-ON-STAGING-ONLY" ;;
+            *) echo "Unsupported operation." >&2; exit 1 ;;
+          esac
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "$expected"
+          fi
+          echo "operation=$operation" >> "$GITHUB_OUTPUT"
+          echo "Validated exact staging D1 target and operation: $operation"
+      - name: Apply additive migration 0009 when requested
+        if: ${{ steps.target.outputs.operation == 'apply_0009' }}
+        run: |
+          set -euo pipefail
+          grep -q 'email_verification_required INTEGER NOT NULL DEFAULT 1' migrations/0009_auth_runtime_settings.sql
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --command "SELECT name FROM sqlite_master WHERE type='table' AND name='auth_runtime_settings';" > "$RUNNER_TEMP/runtime-settings-before.txt"
+          if grep -q "auth_runtime_settings" "$RUNNER_TEMP/runtime-settings-before.txt"; then
+            echo "Runtime settings table already exists; migration is idempotent. No change needed."
+          else
+            npx wrangler d1 execute sykabelajar-auth-poc --remote --file migrations/0009_auth_runtime_settings.sql
+          fi
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --command "SELECT email_verification_required,updated_by FROM auth_runtime_settings WHERE id=1;" > "$RUNNER_TEMP/runtime-settings-after.txt"
+          grep -q "1" "$RUNNER_TEMP/runtime-settings-after.txt"
+          echo "Runtime setting exists; safe default remains REQUIRED."
+      - name: Temporarily disable email verification only on staging D1
+        if: ${{ steps.target.outputs.operation == 'temporary_bypass' }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --command "SELECT name FROM sqlite_master WHERE type='table' AND name='auth_runtime_settings';" > "$RUNNER_TEMP/runtime-settings-table.txt"
+          grep -q "auth_runtime_settings" "$RUNNER_TEMP/runtime-settings-table.txt"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --command "UPDATE auth_runtime_settings SET email_verification_required=0, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_by='temporary-staging-bypass-bootstrap' WHERE id=1;"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT email_verification_required FROM auth_runtime_settings WHERE id=1;" > "$RUNNER_TEMP/runtime-settings-after.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/runtime-settings-after.json", "utf8"));
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "email_verification_required")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (!row || Number(row.email_verification_required) !== 0) {
+            throw new Error("Staging email-verification bypass did not persist as disabled.");
+          }
+          console.log("Confirmed staging-only runtime policy: email verification temporarily disabled.");
+          NODE
+      - name: Verify hosted Worker reflects the temporary bypass
+        if: ${{ steps.target.outputs.operation == 'temporary_bypass' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const origin = "https://auth.sykabelajar.my.id";
+          const response = await fetch(origin + "/api/auth/providers", {
+            headers: { Origin: "https://staging.sykabelajar.my.id", Accept: "application/json" },
+          });
+          assert.equal(response.status, 200, "public provider discovery must remain available");
+          const payload = await response.json();
+          assert.equal(payload.emailVerificationRequired, false, "Worker must read the disabled staging policy from D1 without redeploy");
+          assert.equal(payload.issuer, origin + "/api/auth");
+          const adminResponse = await fetch(origin + "/api/admin/auth-runtime-settings", {
+            headers: { Origin: "https://staging.sykabelajar.my.id", Accept: "application/json" },
+          });
+          assert.equal(adminResponse.status, 401, "runtime policy endpoint must still require an authenticated Admin");
+          const hostile = await fetch(origin + "/api/admin/auth-runtime-settings", {
+            headers: { Origin: "https://attacker.example", Accept: "application/json" },
+          });
+          assert.equal(hostile.status, 403, "runtime policy endpoint must reject untrusted browser origins");
+          console.log("Hosted staging Worker confirms verification bypass is active and the Admin policy API remains protected.");
+          NODE
+      - name: Verify hosted Worker reflects required email verification
+        if: ${{ steps.target.outputs.operation == 'require_verification' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const origin = "https://auth.sykabelajar.my.id";
+          const response = await fetch(origin + "/api/auth/providers", {
+            headers: { Origin: "https://staging.sykabelajar.my.id", Accept: "application/json" },
+          });
+          assert.equal(response.status, 200);
+          const payload = await response.json();
+          assert.equal(payload.emailVerificationRequired, true, "Worker must reflect verification re-enabled in D1");
+          console.log("Hosted staging Worker confirms email verification is required again.");
+          NODE
+      - name: Require email verification again on staging D1
+        if: ${{ steps.target.outputs.operation == 'require_verification' }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --command "UPDATE auth_runtime_settings SET email_verification_required=1, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_by='staging-verification-reenabled' WHERE id=1;"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT email_verification_required FROM auth_runtime_settings WHERE id=1;" > "$RUNNER_TEMP/runtime-settings-after.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/runtime-settings-after.json", "utf8"));
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "email_verification_required")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (!row || Number(row.email_verification_required) !== 1) {
+            throw new Error("Staging email-verification policy did not return to REQUIRED.");
+          }
+          console.log("Confirmed staging runtime policy: email verification required.");
+          NODE

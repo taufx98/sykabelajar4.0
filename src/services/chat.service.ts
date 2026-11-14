@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getCurrentApplicationUserId } from '@/services/applicationIdentity';
 import { emitSykaEvent } from '@/lib/realtimeBus';
 import { clearPersistentCache, getPersistentCache, removePersistentCache, setPersistentCache } from '@/lib/persistentCache';
 export type ChatThreadType='dm'|'ticket'|string;
@@ -42,7 +43,7 @@ export function applyChatRealtimeThread(thread:ChatThread){patchCachedThread(thr
 export function removeChatRealtimeThread(threadId:string){if(!threadsCache)return;const next=threadsCache.filter(t=>t.id!==threadId);if(next.length===threadsCache.length)return;threadsCache=next;threadsCacheAt=Date.now();threadsRealtimePatchedAt=threadsCacheAt;}
 export function applyChatRealtimeMessage(message:ChatMessage,viewerId?:string){if(!threadsCache||!message?.thread_id)return;const index=threadsCache.findIndex(t=>t.id===message.thread_id);if(index<0)return;const thread={...threadsCache[index],last_message:message.body,last_message_at:message.created_at};if(viewerId&&message.sender_id!==viewerId)thread.unread_count=Math.min(99,(thread.unread_count??0)+1);threadsCache=[...threadsCache.slice(0,index),thread,...threadsCache.slice(index+1)];threadsCacheAt=Date.now();threadsRealtimePatchedAt=threadsCacheAt;}
 export function applyChatRealtimeRead(threadId:string){if(!threadsCache)return;const index=threadsCache.findIndex(t=>t.id===threadId);if(index<0)return;const thread={...threadsCache[index],unread_count:0};threadsCache=[...threadsCache.slice(0,index),thread,...threadsCache.slice(index+1)];threadsCacheAt=Date.now();threadsRealtimePatchedAt=threadsCacheAt;}
-async function currentSessionUserId(){const{data}=await supabase.auth.getSession();return data.session?.user?.id??null}
+async function currentSessionUserId(){return getCurrentApplicationUserId()}
 export async function getOrCreateDmThread(otherUserId:string){
   const target=String(otherUserId??'').trim();
   const me=await currentSessionUserId();
@@ -156,7 +157,7 @@ export function getAdminChatHistory(opts:{search?:string;rating?:number|null;han
 export async function submitRating(threadId:string,rating:number){return closeThread(threadId,rating)}
 export async function createTicketThread(subject:string,description:string){const s=subject.trim(),d=description.trim();if(!s)throw new Error('Subjek wajib diisi.');if(!d)throw new Error('Deskripsi wajib diisi.');const{data,error}=await supabase.rpc('create_ticket_thread',{p_subject:s,p_description:d});if(error)throw err(error);if(data===null){await throwPersistedSpamCooldown();throw new Error('Pesan sementara dibatasi karena terdeteksi spam.');}const thread=data as ChatThread;invalidateChatCaches();return thread}
 export const loadMyThread=async()=>{const t=await loadMyThreadsInternal(true,false);return t.find(x=>x.thread_type==='ticket'&&x.status==='open')??null;}
-export async function searchUsersForChat(query:string,limit=10){const q=query.trim();if(!q)return[];const{data:auth}=await supabase.auth.getSession();if(!auth.session?.user)return[];const safe=q.replace(/[%_,]/g,' ');const{data,error}=await supabase.from('profiles').select('id,username,full_name,avatar_url').or(`full_name.ilike.%${safe}%,username.ilike.%${safe}%`).neq('id',auth.session.user.id).limit(limit);if(error)throw error;return(data??[]).map((r:any)=>({id:r.id,username:r.username??'',full_name:r.full_name??'',avatar_url:r.avatar_url??null}))}
+export async function searchUsersForChat(query:string,limit=10){const q=query.trim();if(!q)return[];const userId=await getCurrentApplicationUserId();if(!userId)return[];const safe=q.replace(/[%_,]/g,' ');const{data,error}=await supabase.from('profiles').select('id,username,full_name,avatar_url').or(`full_name.ilike.%${safe}%,username.ilike.%${safe}%`).neq('id',userId).limit(limit);if(error)throw error;return(data??[]).map((r:any)=>({id:r.id,username:r.username??'',full_name:r.full_name??'',avatar_url:r.avatar_url??null}))}
 export const createDmFromProfile=getOrCreateDmThread;
 export async function getFollowStatus(followerId:string,followingId:string){const{data,error}=await supabase.rpc('get_follow_status',{p_follower_id:followerId,p_following_id:followingId});if(error)throw error;return((data as FollowStatus)||'none')}
 export async function requestFollow(targetUserId:string){const{data,error}=await supabase.rpc('create_follow_request',{p_target_user_id:targetUserId});if(error)throw err(error);emitSykaEvent({type:'follow-updated',userId:targetUserId,status:String((data as any)?.status??'pending')});return data as any}
@@ -166,7 +167,7 @@ export async function isFollowApproved(followerId:string,followingId:string){con
 export async function getUserPrivacy(userId:string){const{data,error}=await supabase.from('profiles').select('accept_messages').eq('id',userId).maybeSingle();if(error)throw error;return data?.accept_messages??'public'}
 export async function blockChatUser(targetUserId:string){const{error}=await supabase.rpc('block_chat_user',{p_target_user_id:targetUserId});if(error)throw err(error);invalidateChatCaches();emitSykaEvent({type:'chat-blocked',userId:targetUserId})}
 export async function unblockChatUser(targetUserId:string){const{error}=await supabase.rpc('unblock_chat_user',{p_target_user_id:targetUserId});if(error)throw err(error);invalidateChatCaches();emitSykaEvent({type:'chat-unblocked',userId:targetUserId})}
-export async function isChatBlocked(targetUserId:string){const{data:auth}=await supabase.auth.getSession();if(!auth.session?.user)return false;const{data,error}=await supabase.rpc('is_chat_blocked',{p_a:auth.session.user.id,p_b:targetUserId});if(error)throw err(error);return Boolean(data)}
+export async function isChatBlocked(targetUserId:string){const userId=await getCurrentApplicationUserId();if(!userId)return false;const{data,error}=await supabase.rpc('is_chat_blocked',{p_a:userId,p_b:targetUserId});if(error)throw err(error);return Boolean(data)}
 export async function hideChatThread(threadId:string){const{error}=await supabase.rpc('hide_chat_thread',{p_thread_id:threadId});if(error)throw err(error);removeChatRealtimeThread(threadId);emitSykaEvent({type:'chat-hidden',threadId})}
 export async function canDmUser(currentUserId:string,targetUserId:string){return(await isFollowApproved(currentUserId,targetUserId))&&!(await isChatBlocked(targetUserId))}
 export async function acceptFollow(followerId:string,_followingId:string){return respondFollowRequest(followerId,true)}

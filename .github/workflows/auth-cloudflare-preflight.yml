@@ -1,0 +1,638 @@
+name: Auth Cloudflare Staging Preflight
+# This workflow is read-only; a branch update can refresh the D1 identity snapshot without deploying or changing staging resources.
+# Re-run this read-only check after rotating CLOUDFLARE_API_TOKEN.
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/workflows/auth-cloudflare-preflight.yml"
+      - "services/auth-worker/**"
+  pull_request:
+    branches:
+      - security/auth-migration-phase-0
+    paths:
+      - ".github/workflows/auth-cloudflare-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-cloudflare-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    if: ${{ github.ref_name == 'security/auth-poc-stage-1' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'security/auth-poc-stage-1' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    name: Read-only Cloudflare account and staging resource inspection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the exact isolated auth branch (read only)
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Verify Cloudflare credentials and inspect staging prerequisites
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN secret." >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID secret." >&2; exit 1; }
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+          import { createHash } from "node:crypto";
+          import { execFileSync } from "node:child_process";
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const base = "https://api.cloudflare.com/client/v4";
+          const headers = { Authorization: "Bearer " + token, Accept: "application/json" };
+
+          async function read(path) {
+            try {
+              const response = await fetch(base + path, { headers });
+              const body = await response.json().catch(() => ({}));
+              return {
+                status: response.status,
+                success: response.ok && body.success === true,
+                result: body.result,
+                errorCodes: Array.isArray(body.errors) ? body.errors.map((item) => item.code) : [],
+                errors: Array.isArray(body.errors) ? body.errors.map((item) => String(item.message ?? "").slice(0, 180)) : [],
+              };
+            } catch {
+              return { status: 0, success: false, result: null, errorCodes: ["NETWORK_ERROR"] };
+            }
+          }
+
+          const [accountZones, databases, scripts, workerDomains, pagesProjects] = await Promise.all([
+            read("/zones?name=sykabelajar.my.id&per_page=50"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/d1/database?name=sykabelajar-auth-poc&per_page=100"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/workers/scripts"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/workers/domains?hostname=auth.sykabelajar.my.id"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/pages/projects"),
+          ]);
+
+          const zone = Array.isArray(accountZones.result)
+            ? accountZones.result.find((item) => item.name === "sykabelajar.my.id")
+            : null;
+          const zoneRecords = zone
+            ? await read("/zones/" + encodeURIComponent(zone.id) + "/dns_records?per_page=100&page=1")
+            : { status: null, success: false, result: null, errorCodes: ["ZONE_NOT_FOUND_OR_UNREADABLE"] };
+          const authDns = zone
+            ? await read("/zones/" + encodeURIComponent(zone.id) + "/dns_records?name=auth.sykabelajar.my.id&per_page=100")
+            : { status: null, success: false, result: null, errorCodes: ["ZONE_NOT_FOUND_OR_UNREADABLE"] };
+          const stagingDns = zone
+            ? await read("/zones/" + encodeURIComponent(zone.id) + "/dns_records?name=staging.sykabelajar.my.id&per_page=100")
+            : { status: null, success: false, result: null, errorCodes: ["ZONE_NOT_FOUND_OR_UNREADABLE"] };
+          const pagesProjectMatches = Array.isArray(pagesProjects.result)
+            ? pagesProjects.result.filter((item) => item?.subdomain === "sykabelajar4.pages.dev")
+            : [];
+          const pagesProjectName = pagesProjectMatches.length === 1 ? pagesProjectMatches[0].name : null;
+          const pagesDomains = pagesProjectName
+            ? await read("/accounts/" + encodeURIComponent(accountId) + "/pages/projects/" +
+                encodeURIComponent(pagesProjectName) + "/domains")
+            : { status: null, success: false, result: null, errorCodes: ["PAGES_PROJECT_NOT_FOUND_OR_AMBIGUOUS"] };
+          const pagesDomain = Array.isArray(pagesDomains.result)
+            ? pagesDomains.result.find((item) => item?.name === "staging.sykabelajar.my.id")
+            : null;
+          const routes = zone
+            ? await read("/zones/" + encodeURIComponent(zone.id) + "/workers/routes")
+            : { status: null, success: false, result: null, errorCodes: ["ZONE_NOT_FOUND_OR_UNREADABLE"] };
+
+          async function resolveDns(name, type) {
+            try {
+              const url = "https://cloudflare-dns.com/dns-query?name=" +
+                encodeURIComponent(name) + "&type=" + encodeURIComponent(type);
+              const response = await fetch(url, { headers: { Accept: "application/dns-json" } });
+              const body = await response.json().catch(() => ({}));
+              return {
+                ok: response.ok && body.Status === 0,
+                status: response.status,
+                dnsStatus: body.Status ?? null,
+                answers: Array.isArray(body.Answer)
+                  ? body.Answer.map((item) => ({ type: item.type, data: item.data, ttl: item.TTL }))
+                  : [],
+              };
+            } catch (error) {
+              return {
+                ok: false,
+                status: 0,
+                dnsStatus: null,
+                answers: [],
+                error: String(error?.message ?? "DNS-over-HTTPS request failed").slice(0, 140),
+              };
+            }
+          }
+
+          const [authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME,
+            zoneNS, zoneDS, parentNS,
+            rootA, rootAAAA, rootCNAME, rootMX, rootTXT,
+            wwwA, wwwAAAA, wwwCNAME, emailCNAME,
+            dkim151028, dkimCf2024, openaiTXT] = await Promise.all([
+            resolveDns("auth.sykabelajar.my.id", "A"),
+            resolveDns("auth.sykabelajar.my.id", "AAAA"),
+            resolveDns("auth.sykabelajar.my.id", "CNAME"),
+            resolveDns("staging.sykabelajar.my.id", "A"),
+            resolveDns("staging.sykabelajar.my.id", "AAAA"),
+            resolveDns("staging.sykabelajar.my.id", "CNAME"),
+            resolveDns("sykabelajar.my.id", "NS"),
+            resolveDns("sykabelajar.my.id", "DS"),
+            resolveDns("my.id", "NS"),
+            resolveDns("sykabelajar.my.id", "A"),
+            resolveDns("sykabelajar.my.id", "AAAA"),
+            resolveDns("sykabelajar.my.id", "CNAME"),
+            resolveDns("sykabelajar.my.id", "MX"),
+            resolveDns("sykabelajar.my.id", "TXT"),
+            resolveDns("www.sykabelajar.my.id", "A"),
+            resolveDns("www.sykabelajar.my.id", "AAAA"),
+            resolveDns("www.sykabelajar.my.id", "CNAME"),
+            resolveDns("email.sykabelajar.my.id", "CNAME"),
+            resolveDns("151028._domainkey.sykabelajar.my.id", "TXT"),
+            resolveDns("cf2024-1._domainkey.sykabelajar.my.id", "TXT"),
+            resolveDns("openai.sykabelajar.my.id", "TXT"),
+          ]);
+
+          const normalizeTxt = (value) => String(value ?? "")
+            .replace(/^"|"$/g, "")
+            .replace(/"\s*"/g, "");
+          const fingerprint = (value) => createHash("sha256").update(normalizeTxt(value)).digest("hex");
+          const cloudflareTxt = (Array.isArray(zoneRecords.result) ? zoneRecords.result : [])
+            .filter((row) => row.type === "TXT")
+            .map((row) => ({ name: row.name, fingerprint: fingerprint(row.content) }))
+            .sort((a, b) => a.name.localeCompare(b.name) || a.fingerprint.localeCompare(b.fingerprint));
+          const publicTxtAnswers = [
+            ["sykabelajar.my.id", rootTXT],
+            ["151028._domainkey.sykabelajar.my.id", dkim151028],
+            ["cf2024-1._domainkey.sykabelajar.my.id", dkimCf2024],
+            ["openai.sykabelajar.my.id", openaiTXT],
+          ].flatMap(([name, result]) => (Array.isArray(result?.answers) ? result.answers : [])
+            .filter((answer) => answer.type === 16)
+            .map((answer) => ({ name, fingerprint: fingerprint(answer.data) })))
+            .sort((a, b) => a.name.localeCompare(b.name) || a.fingerprint.localeCompare(b.fingerprint));
+          const txtFingerprintParity = JSON.stringify(cloudflareTxt) === JSON.stringify(publicTxtAnswers);
+          const cloudflareMx = (Array.isArray(zoneRecords.result) ? zoneRecords.result : [])
+            .filter((row) => row.type === "MX" && row.name === "sykabelajar.my.id")
+            .map((row) => ({ priority: Number(row.priority), destination: String(row.content ?? "").replace(/\.$/, "").toLowerCase() }))
+            .sort((a, b) => a.priority - b.priority || a.destination.localeCompare(b.destination));
+          const publicMx = (Array.isArray(rootMX?.answers) ? rootMX.answers : [])
+            .filter((answer) => answer.type === 15)
+            .map((answer) => {
+              const match = String(answer.data).trim().match(/^(\d+)\s+(.+)$/);
+              return match ? { priority: Number(match[1]), destination: match[2].replace(/\.$/, "").toLowerCase() } : null;
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.priority - b.priority || a.destination.localeCompare(b.destination));
+          const mxParity = JSON.stringify(cloudflareMx) === JSON.stringify(publicMx);
+
+          const dbRows = Array.isArray(databases.result) ? databases.result : [];
+          const workerRows = Array.isArray(scripts.result) ? scripts.result : [];
+          const domainRows = Array.isArray(workerDomains.result) ? workerDomains.result : [];
+          const routeRows = Array.isArray(routes.result) ? routes.result : [];
+
+          // Query the authoritative nameservers for the parent zone (my.id)
+          // directly. A recursive "NS my.id" response is NOT the delegation
+          // for sykabelajar.my.id and must never be labeled as such.
+          function runDig(args) {
+            return execFileSync("dig", args, {
+              encoding: "utf8",
+              timeout: 10000,
+              stdio: ["ignore", "pipe", "ignore"],
+            });
+          }
+          function parseDigRecords(output, recordType) {
+            const records = [];
+            for (const line of output.split(/\r?\n/)) {
+              const match = line.trim().match(/^([^\s]+)\s+\d+\s+IN\s+(NS|DS)\s+(.+)$/i);
+              if (!match || match[2].toUpperCase() !== recordType) continue;
+              records.push({
+                name: match[1].replace(/\.$/, "").toLowerCase(),
+                value: match[3].trim().replace(/\.$/, "").toLowerCase(),
+              });
+            }
+            return records;
+          }
+          const parentAuthorityHosts = (Array.isArray(parentNS.answers) ? parentNS.answers : [])
+            .filter((answer) => answer.type === 2 && typeof answer.data === "string")
+            .map((answer) => answer.data.replace(/\.$/, "").toLowerCase());
+          const parentDelegationSnapshots = parentAuthorityHosts.map((parentServer) => {
+            try {
+              const nsOutput = runDig([
+                "@" + parentServer, "+norecurse", "+noall", "+authority",
+                "sykabelajar.my.id", "NS",
+              ]);
+              const dsOutput = runDig([
+                "@" + parentServer, "+norecurse", "+noall", "+answer", "+authority",
+                "sykabelajar.my.id", "DS",
+              ]);
+              return {
+                server: parentServer,
+                nameservers: parseDigRecords(nsOutput, "NS")
+                  .filter((record) => record.name === "sykabelajar.my.id")
+                  .map((record) => record.value)
+                  .sort(),
+                dsRecordCount: parseDigRecords(dsOutput, "DS")
+                  .filter((record) => record.name === "sykabelajar.my.id").length,
+                queried: true,
+              };
+            } catch {
+              return { server: parentServer, nameservers: [], dsRecordCount: 0, queried: false };
+            }
+          });
+          const parentPublishedDelegationNameservers = [...new Set(
+            parentDelegationSnapshots.flatMap((snapshot) => snapshot.nameservers),
+          )].sort();
+          const assignedNameservers = (Array.isArray(zone?.name_servers) ? zone.name_servers : [])
+            .map((server) => String(server).replace(/\.$/, "").toLowerCase())
+            .sort();
+          const sameNameservers = (left, right) =>
+            left.length === right.length && left.every((value, index) => value === right[index]);
+          const successfulParentQueries = parentDelegationSnapshots.filter((snapshot) => snapshot.queried);
+          const parentDelegationMatchesCloudflare = successfulParentQueries.length > 0 &&
+            successfulParentQueries.length === parentDelegationSnapshots.length &&
+            successfulParentQueries.every((snapshot) => sameNameservers(snapshot.nameservers, assignedNameservers));
+          const parentDelegationDsRecordCount = Math.max(
+            0,
+            ...parentDelegationSnapshots.map((snapshot) => snapshot.dsRecordCount),
+          );
+
+          const summary = {
+            accountScopedReadProof: {
+              zoneRead: accountZones.success,
+              workerScriptsRead: scripts.success,
+            },
+            accountIdPresent: Boolean(accountId),
+            zone: {
+              readable: accountZones.success,
+              found: Boolean(zone),
+              status: zone?.status ?? null,
+              idPresent: Boolean(zone?.id),
+              errorCodes: accountZones.errorCodes,
+            },
+            d1: {
+              readable: databases.success,
+              matchingDatabaseFound: dbRows.some((row) => row.name === "sykabelajar-auth-poc"),
+              databaseNames: dbRows.map((row) => row.name),
+              errorCodes: databases.errorCodes,
+              errors: databases.errors,
+            },
+            workers: {
+              scriptsReadable: scripts.success,
+              scriptsStatus: scripts.status,
+              authWorkerFound: workerRows.some((row) => row.id === "sykabelajar-auth-poc"),
+              scriptNames: workerRows.map((row) => row.id),
+              customDomainReadable: workerDomains.success,
+              customDomainStatus: workerDomains.status,
+              authDomainFound: domainRows.some((row) => row.hostname === "auth.sykabelajar.my.id" && row.service === "sykabelajar-auth-poc"),
+              customDomains: domainRows.map((row) => ({ hostname: row.hostname, service: row.service, enabled: row.enabled })),
+              errorCodes: [...scripts.errorCodes, ...workerDomains.errorCodes],
+              errors: [...scripts.errors, ...workerDomains.errors],
+            },
+            routes: {
+              readable: routes.success,
+              status: routes.status,
+              authHostRouteFound: routeRows.some((row) => row.pattern === "auth.sykabelajar.my.id/*" && row.script === "sykabelajar-auth-poc"),
+              matchingRoutes: routeRows.filter((row) => String(row.pattern ?? "").includes("auth.sykabelajar.my.id")),
+              errorCodes: routes.errorCodes,
+              errors: routes.errors,
+            },
+            dns: {
+              nameservers: Array.isArray(zone?.name_servers) ? zone.name_servers : [],
+              cloudflareZoneRecordsReadable: zoneRecords.success,
+              cloudflareZoneRecordCount: Array.isArray(zoneRecords.result) ? zoneRecords.result.length : 0,
+              cloudflareZoneRecordInventory: (Array.isArray(zoneRecords.result) ? zoneRecords.result : []).map((row) => ({
+                type: row.type,
+                name: row.name,
+                proxied: row.proxied,
+                ttl: row.ttl,
+                content: ["A", "AAAA", "CNAME"].includes(row.type) ? row.content : undefined,
+                priority: row.type === "MX" ? row.priority : undefined,
+              })),
+              cloudflareZoneRecordTypeCounts: (Array.isArray(zoneRecords.result) ? zoneRecords.result : []).reduce((counts, row) => {
+                counts[row.type] = (counts[row.type] ?? 0) + 1;
+                return counts;
+              }, {}),
+              liveWebRecords: {
+                rootA, rootAAAA, rootCNAME, wwwA, wwwAAAA, wwwCNAME,
+              },
+              liveEmailRecords: {
+                rootMX: { answers: publicMx, matchesCloudflareZone: mxParity },
+                emailCNAME,
+              },
+              txtRecordParity: {
+                cloudflareCount: cloudflareTxt.length,
+                publicCount: publicTxtAnswers.length,
+                matches: txtFingerprintParity,
+                cloudflareNames: [...new Set(cloudflareTxt.map((row) => row.name))],
+                publicNames: [...new Set(publicTxtAnswers.map((row) => row.name))],
+                valuesExposed: false,
+              },
+              authRecordsReadable: authDns.success,
+              authRecords: (Array.isArray(authDns.result) ? authDns.result : []).map((row) => ({
+                type: row.type, name: row.name, content: row.content, proxied: row.proxied, ttl: row.ttl,
+              })),
+              stagingRecordsReadable: stagingDns.success,
+              stagingRecords: (Array.isArray(stagingDns.result) ? stagingDns.result : []).map((row) => ({
+                type: row.type, name: row.name, content: row.content, proxied: row.proxied, ttl: row.ttl,
+              })),
+              pagesProjectName: pagesProjectName,
+              pagesProjectFoundExactlyOnce: pagesProjectMatches.length === 1,
+              pagesDomainStatus: pagesDomain?.status ?? null,
+              pagesCertificateStatus: pagesDomain?.verification_data?.status ?? null,
+              apiErrors: [...zoneRecords.errorCodes, ...authDns.errorCodes, ...stagingDns.errorCodes, ...pagesProjects.errorCodes, ...pagesDomains.errorCodes],
+              publicDelegation: {
+                cloudflareAssignedNameservers: assignedNameservers,
+                recursiveZoneNameservers: zoneNS,
+                recursiveZoneDs: zoneDS,
+                parentZone: "my.id",
+                parentAuthoritativeNameservers: parentAuthorityHosts,
+                parentDelegationQueries: parentDelegationSnapshots.map((snapshot) => ({
+                  server: snapshot.server,
+                  queried: snapshot.queried,
+                  delegationNameservers: snapshot.nameservers,
+                  dsRecordCount: snapshot.dsRecordCount,
+                })),
+                parentPublishedDelegationNameservers,
+                parentDelegationMatchesCloudflare,
+                parentDelegationDsRecordCount,
+              },
+              doh: {
+                authA, authAAAA, authCNAME, stagingA, stagingAAAA, stagingCNAME,
+                zoneNS, zoneDS, parentNS,
+                rootA, rootAAAA, rootCNAME, rootMX, rootTXT,
+                wwwA, wwwAAAA, wwwCNAME, emailCNAME,
+                dkim151028, dkimCf2024, openaiTXT,
+              },
+            },
+          };
+
+          const origin = "https://auth.sykabelajar.my.id";
+          const expectedIssuer = origin + "/api/auth";
+          async function getJson(path) {
+            const response = await fetch(origin + path, { redirect: "error" });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data || typeof data !== "object") {
+              throw new Error(path + " returned HTTP " + response.status);
+            }
+            return data;
+          }
+
+          let hosted = { healthy: false, issuer: null, pkceS256: false, publicEs256Jwks: false, error: null };
+          try {
+            const health = await getJson("/healthz");
+            const discovery = await getJson("/api/auth/.well-known/openid-configuration");
+            const jwksUrl = new URL(discovery.jwks_uri);
+            const jwks = await getJson(jwksUrl.pathname + jwksUrl.search);
+            hosted = {
+              healthy: health.ok === true,
+              issuer: discovery.issuer ?? null,
+              pkceS256: Array.isArray(discovery.code_challenge_methods_supported) &&
+                discovery.code_challenge_methods_supported.includes("S256"),
+              publicEs256Jwks: Array.isArray(jwks.keys) && jwks.keys.some((key) =>
+                key.kty === "EC" && key.crv === "P-256" && key.alg === "ES256" &&
+                typeof key.kid === "string" && key.kid.length > 0 && !Object.hasOwn(key, "d")
+              ),
+              error: null,
+            };
+            hosted.healthy = hosted.healthy && hosted.issuer === expectedIssuer &&
+              hosted.pkceS256 && hosted.publicEs256Jwks;
+          } catch (error) {
+            hosted.error = String(error?.message ?? "hosted auth preflight failed").slice(0, 180);
+          }
+
+          summary.hostedIssuer = hosted;
+          summary.minimumReadPermissions = {
+            zoneRead: summary.accountScopedReadProof.zoneRead,
+            d1Read: summary.d1.readable,
+          };
+          console.log(JSON.stringify(summary, null, 2));
+          writeFileSync(process.env.RUNNER_TEMP + "/auth-cloudflare-preflight-summary.json", JSON.stringify(summary, null, 2), { mode: 0o600 });
+
+          if (!summary.minimumReadPermissions.zoneRead || !summary.minimumReadPermissions.d1Read || !hosted.healthy) {
+            console.error("Cloudflare zone/D1 read or hosted Worker health/issuer checks failed.");
+            process.exitCode = 1;
+          } else if (!summary.accountScopedReadProof.workerScriptsRead ||
+                     !summary.workers.customDomainReadable || !summary.routes.readable) {
+            console.warn("Worker Scripts/Custom Domain/Routes list APIs are not readable by this token. Hosted health, issuer, JWKS and D1 are verified; do not grant broad account Admin solely to read inventory.");
+          }
+          if (!parentDelegationMatchesCloudflare) {
+            console.warn("Could not confirm that the parent zone delegates sykabelajar.my.id to the exact Cloudflare-assigned nameservers. This is diagnostic only; do not change registrar nameservers until the complete authoritative DNS/mail record inventory and rollback plan are reviewed.");
+          }
+          NODE
+
+      - name: Read-only aggregate audit of staging Better Auth identities (no PII)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          query='SELECT
+            COUNT(*) AS total_users,
+            COALESCE(SUM(CASE WHEN emailVerified = 0 THEN 1 ELSE 0 END), 0) AS unverified_users,
+            COALESCE(SUM(CASE WHEN emailVerified = 1 THEN 1 ELSE 0 END), 0) AS verified_users,
+            COALESCE(SUM(CASE WHEN lower(email) LIKE "%@example.test"
+                               OR lower(email) LIKE "%@example.invalid"
+                               OR lower(email) LIKE "%@localhost" THEN 1 ELSE 0 END), 0) AS obvious_test_domain_users,
+            COALESCE(SUM(CASE WHEN lower(email) LIKE "demo%@%"
+                               OR lower(email) LIKE "test%@%"
+                               OR lower(email) LIKE "%+demo@%"
+                               OR lower(email) LIKE "%+test@%" THEN 1 ELSE 0 END), 0) AS obvious_demo_prefix_users,
+            (SELECT COUNT(*) FROM "session") AS session_rows,
+            (SELECT COUNT(*) FROM "session" WHERE julianday("expiresAt") > julianday("now")) AS unexpired_session_rows,
+            (SELECT COUNT(*) FROM "session" WHERE julianday("expiresAt") <= julianday("now")) AS expired_session_rows,
+            (SELECT COUNT(*) FROM "account") AS account_rows,
+            (SELECT COUNT(*) FROM "verification") AS verification_rows
+          FROM "user";'
+          set +e
+          npx --yes wrangler@4.156.2 d1 execute sykabelajar-auth-poc --remote --json \
+            --command "$query" --config services/auth-worker/wrangler.toml \
+            > "$RUNNER_TEMP/auth-staging-d1-identity-audit.json" \
+            2> "$RUNNER_TEMP/auth-staging-d1-identity-audit.stderr"
+          query_status=$?
+          set -e
+          if [ "$query_status" -ne 0 ]; then
+            echo '{"stagingD1IdentityAudit":"unavailable","reason":"READ_ONLY_QUERY_FAILED","noRowsOrSecretsPrinted":true}'
+            exit 0
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const path = process.env.RUNNER_TEMP + "/auth-staging-d1-identity-audit.json";
+          let parsed;
+          try {
+            parsed = JSON.parse(readFileSync(path, "utf8"));
+          } catch {
+            console.log(JSON.stringify({
+              stagingD1IdentityAudit: "unavailable",
+              reason: "QUERY_RESPONSE_NOT_JSON",
+              noRowsOrSecretsPrinted: true,
+            }));
+            process.exit(0);
+          }
+          const batches = Array.isArray(parsed) ? parsed : [parsed];
+          const rows = batches.flatMap((batch) => Array.isArray(batch?.results) ? batch.results : []);
+          const row = rows.find((item) => item && Object.hasOwn(item, "total_users"));
+          const keys = [
+            "total_users", "unverified_users", "verified_users",
+            "obvious_test_domain_users", "obvious_demo_prefix_users",
+            "session_rows", "unexpired_session_rows", "expired_session_rows",
+            "account_rows", "verification_rows",
+          ];
+          if (!row || keys.some((key) => !Number.isSafeInteger(Number(row[key])))) {
+            console.log(JSON.stringify({
+              stagingD1IdentityAudit: "unavailable",
+              reason: "AGGREGATE_RESULT_SHAPE_INVALID",
+              noRowsOrSecretsPrinted: true,
+            }));
+            process.exit(0);
+          }
+          const counts = Object.fromEntries(keys.map((key) => [key, Number(row[key])]));
+          const summary = {
+            stagingD1IdentityAudit: "available",
+            database: "sykabelajar-auth-poc",
+            counts,
+            classification: "heuristic counts only; no account is automatically classified or reset",
+            readOnly: true,
+            noEmailAddressesOrUserIdsOrTokensOrSecretsReadOrPrinted: true,
+          };
+          console.log(JSON.stringify(summary, null, 2));
+          writeFileSync(
+            process.env.RUNNER_TEMP + "/auth-staging-d1-identity-audit-summary.json",
+            JSON.stringify(summary, null, 2),
+            { mode: 0o600 },
+          );
+          NODE
+
+      - name: Read only staging Worker secret names and types (never values)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          set +e
+          npx --yes wrangler@4.156.2 secret list --name sykabelajar-auth-poc --format json --config services/auth-worker/wrangler.toml \
+            > "$RUNNER_TEMP/auth-worker-secret-bindings.json" \
+            2> "$RUNNER_TEMP/auth-worker-secret-list.stderr"
+          list_status=$?
+          set -e
+          if [ "$list_status" -ne 0 ]; then
+            echo '{"secretMetadataReadable":false,"error":"WORKER_SECRET_METADATA_READ_FAILED","noSecretValuesReadOrPrinted":true}'
+            exit 0
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const path = process.env.RUNNER_TEMP + "/auth-worker-secret-bindings.json";
+          let rows;
+          try {
+            rows = JSON.parse(readFileSync(path, "utf8"));
+          } catch {
+            console.log(JSON.stringify({
+              secretMetadataReadable: false,
+              error: "WORKER_SECRET_METADATA_RESPONSE_INVALID",
+              noSecretValuesReadOrPrinted: true,
+            }));
+            process.exit(0);
+          }
+          if (!Array.isArray(rows) || rows.some((row) =>
+            !row || typeof row.name !== "string" || typeof row.type !== "string"
+          )) {
+            console.log(JSON.stringify({
+              secretMetadataReadable: false,
+              error: "WORKER_SECRET_METADATA_RESPONSE_INVALID",
+              noSecretValuesReadOrPrinted: true,
+            }));
+            process.exit(0);
+          }
+          const hasSecret = (name) => rows.filter((row) =>
+            row.name === name && row.type === "secret_text"
+          ).length === 1;
+          const checks = {
+            betterAuthSecretPresent: hasSecret("BETTER_AUTH_SECRET"),
+            oauthProviderEncryptionKeyPresent: hasSecret("AUTH_PROVIDER_ENCRYPTION_KEY"),
+            googleClientIdSecretPresent: hasSecret("GOOGLE_CLIENT_ID"),
+            googleClientSecretSecretPresent: hasSecret("GOOGLE_CLIENT_SECRET"),
+            googleOAuthPairComplete:
+              hasSecret("GOOGLE_CLIENT_ID") && hasSecret("GOOGLE_CLIENT_SECRET"),
+            stagingSupabaseProvisioningApiKeyPresent: hasSecret("SUPABASE_PROVISIONING_API_KEY") || hasSecret("SUPABASE_SERVICE_ROLE_KEY"),
+            stagingSupabaseServiceRoleSecretPresent: hasSecret("SUPABASE_SERVICE_ROLE_KEY"),
+          };
+          const summary = {
+            worker: "sykabelajar-auth-poc",
+            secretMetadataReadable: true,
+            checks,
+            noSecretValuesReadOrPrinted: true,
+          };
+          console.log(JSON.stringify(summary));
+          writeFileSync(
+            process.env.RUNNER_TEMP + "/auth-worker-secret-readiness.json",
+            JSON.stringify(summary, null, 2),
+            { mode: 0o600 },
+          );
+          NODE
+
+      - name: Read-only inspect recent D1 Better Auth identities without PII
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --yes wrangler@4.156.2 d1 execute sykabelajar-auth-poc --remote --json \
+            --command 'SELECT id, accountType, emailVerified, createdAt FROM "user" ORDER BY createdAt DESC LIMIT 5;' \
+            --config services/auth-worker/wrangler.toml \
+            > "$RUNNER_TEMP/auth-staging-d1-recent-identities.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const path = process.env.RUNNER_TEMP + "/auth-staging-d1-recent-identities.json";
+          const parsed = JSON.parse(readFileSync(path, "utf8"));
+          const batches = Array.isArray(parsed) ? parsed : [parsed];
+          const rows = batches.flatMap((batch) => Array.isArray(batch?.results) ? batch.results : []);
+          const identities = rows.map((row) => {
+            if (
+              !row || typeof row.id !== "string" ||
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.id) ||
+              !["student", "teacher", "organizer"].includes(row.accountType) ||
+              ![0, 1, true, false].includes(row.emailVerified) ||
+              typeof row.createdAt !== "string"
+            ) {
+              throw new Error("Recent D1 identity projection has an unexpected safe-field shape.");
+            }
+            return {
+              id: row.id,
+              accountType: row.accountType,
+              emailVerified: row.emailVerified === 1 || row.emailVerified === true,
+              createdAt: row.createdAt,
+            };
+          });
+          const summary = {
+            database: "sykabelajar-auth-poc",
+            readOnly: true,
+            recentIdentities: identities,
+            piiFieldsSelected: false,
+            credentialsTokensAndSecretsSelected: false,
+          };
+          console.log("STAGING_D1_RECENT_IDENTITIES=" + JSON.stringify(summary));
+          writeFileSync(
+            process.env.RUNNER_TEMP + "/auth-staging-d1-recent-identities-summary.json",
+            JSON.stringify(summary, null, 2),
+            { mode: 0o600 },
+          );
+          NODE
+
+      - name: Upload sanitized Cloudflare resource snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-cloudflare-preflight-snapshot
+          path: |
+            ${{ runner.temp }}/auth-cloudflare-preflight-summary.json
+            ${{ runner.temp }}/auth-worker-secret-readiness.json
+            ${{ runner.temp }}/auth-staging-d1-recent-identities-summary.json
+          if-no-files-found: ignore
+          retention-days: 3

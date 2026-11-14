@@ -1,0 +1,301 @@
+name: Supabase Local Auth Claims CI
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - "services/auth-worker/supabase-test/**"
+      - "scripts/auth-migration/**"
+      - "src/App.tsx"
+      - "src/lib/safeInternalRedirect.mjs"
+      - "src/lib/safeInternalRedirect.d.mts"
+      - "src/store/AppContext.tsx"
+      - "src/services/auth.service.ts"
+      - "src/lib/safeInternalRedirect.mjs"
+      - "src/lib/safeInternalRedirect.d.mts"
+      - "src/services/betterAuthSessionBridge.mjs"
+      - "src/services/betterAuthSessionBridge.d.mts"
+      - "src/pages/AdminErrorIntelligencePage.tsx"
+      - "src/pages/RegisterPage.tsx"
+      - "src/lib/cacheAuthLifecycle.ts"
+      - "src/services/organizerAuth.service.ts"
+      - "src/services/authSessionEvents.mjs"
+      - "src/services/authSessionEvents.d.mts"
+      - "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/cloudinary-delete-asset/**"
+      - "supabase/functions/cloudinary-profile-upload/**"
+      - "supabase/functions/cloudinary-delete-profile/**"
+      - "supabase/functions/payment-gateway-admin/**"
+      - "supabase/functions/payment-gateway-create/**"
+      - "supabase/functions/payment-gateway-reconcile/**"
+      - "supabase/functions/midtrans-create-payment/**"
+      - "supabase/functions/payment-gateway-webhook/**"
+      - "supabase/functions/_shared/cloudinary-ownership.mjs"
+      - "supabase/config.toml"
+      - ".github/workflows/auth-supabase-local-ci.yml"
+  pull_request:
+    paths:
+      - "services/auth-worker/supabase-test/**"
+      - "scripts/auth-migration/**"
+      - "src/App.tsx"
+      - "src/store/AppContext.tsx"
+      - "src/lib/cacheAuthLifecycle.ts"
+      - "src/services/organizerAuth.service.ts"
+      - "src/services/authSessionEvents.mjs"
+      - "src/services/authSessionEvents.d.mts"
+      - "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/payment-gateway-admin/**"
+      - "supabase/functions/payment-gateway-create/**"
+      - "supabase/functions/payment-gateway-reconcile/**"
+      - "supabase/functions/midtrans-create-payment/**"
+      - "supabase/functions/payment-gateway-webhook/**"
+      - "supabase/config.toml"
+      - ".github/workflows/auth-supabase-local-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-local-auth-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-auth-claims:
+    name: Local Supabase JWT claims and RLS contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/auth-worker/supabase-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate schema-only baseline exporter
+        run: |
+          bash -n ../../../scripts/auth-migration/export-schema-baseline.sh
+          node ../../../scripts/auth-migration/export-schema-baseline.contract.test.mjs
+          node ../../../scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs
+          node ../../../scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs
+          node ../../../scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
+          node ../../../scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs
+          node ../../../scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs
+          node ../../../scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs
+          node ../../../scripts/auth-migration/stage3-issuer-guard.contract.test.mjs
+          bash -n ../../../scripts/auth-migration/export-live-auth-users-fk-plan.sh
+          node ../../../scripts/auth-migration/export-live-auth-users-fk-plan.contract.test.mjs
+          node ../../../scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
+
+      - name: Verify Better Auth Edge JWT adapter and webhook boundaries
+        run: node ../../../scripts/auth-migration/edge-auth-claims.test.mjs
+
+      - name: Verify Cloudinary asset ownership boundaries
+        run: node ../../../scripts/auth-migration/cloudinary-ownership.test.mjs
+
+      - name: Verify frontend auth inventory and shared session event source
+        run: |
+          node ../../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+          node ../../../scripts/auth-migration/safe-internal-redirect.test.mjs
+          node ../../../scripts/auth-migration/auth-session-events.test.mjs
+          node ../../../scripts/auth-migration/better-auth-session-bridge.test.mjs
+
+      - name: Verify disabled Better Auth frontend transport boundary
+        run: node ../../../scripts/auth-migration/better-auth-frontend-client.test.mjs
+
+      - name: Verify provider-aware Supabase client token source
+        run: node ../../../scripts/auth-migration/supabase-client-options.test.mjs
+
+      - name: Set up pinned Deno for Edge Function type-check
+        uses: denoland/setup-deno@v2.0.5
+        with:
+          deno-version: "2.9.8"
+          cache: false
+
+      - name: Type-check Supabase Edge JWT and Cloudinary endpoints
+        run: |
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/_shared/better-auth-user.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/get-cloudinary-signature/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/cloudinary-delete-asset/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/cloudinary-profile-upload/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/cloudinary-delete-profile/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/payment-gateway-admin/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/payment-gateway-create/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            ../../../supabase/functions/payment-gateway-reconcile/index.ts
+          deno check --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" \
+            supabase/functions/better-auth-oidc-acceptance/index.ts
+
+      - name: Verify Better Auth ES256/JWKS verifier with ephemeral keys
+        run: deno test --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" --allow-env --allow-net ../../../supabase/functions/_shared/better-auth-user.integration.test.ts
+      - name: Verify Better Auth JWT at an actual migrated Edge handler boundary
+        run: deno test --node-modules-dir=auto --lock "$RUNNER_TEMP/auth-edge-deno.lock" --allow-env --allow-net ../../../supabase/functions/cloudinary-profile-upload/better-auth-auth-boundary.test.ts
+
+      - name: Verify deployed staging OIDC Edge probe rejects anonymous and malformed tokens
+        env:
+          STAGING_SUPABASE_URL: https://ydamszdfsxqisanazdkb.supabase.co
+          STAGING_SUPABASE_PUBLISHABLE_KEY: sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v
+        run: |
+          set -euo pipefail
+          test "$STAGING_SUPABASE_URL" = "https://ydamszdfsxqisanazdkb.supabase.co" || {
+            echo "Blocked: this check may only call the isolated Free staging project." >&2
+            exit 1
+          }
+          test "$STAGING_SUPABASE_PUBLISHABLE_KEY" = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v" || {
+            echo "Blocked: unexpected staging publishable key." >&2
+            exit 1
+          }
+          preflight_headers="$RUNNER_TEMP/staging-oidc-probe-preflight-headers.txt"
+          preflight_status="$(curl --silent --show-error --max-time 15 --output /dev/null --dump-header "$preflight_headers" --write-out '%{http_code}' \
+            --request OPTIONS "$STAGING_SUPABASE_URL/functions/v1/better-auth-oidc-acceptance" \
+            --header "Origin: https://staging.sykabelajar.my.id" \
+            --header "Access-Control-Request-Method: POST" \
+            --header "Access-Control-Request-Headers: authorization, apikey, content-type, x-client-info")"
+          if [ "$preflight_status" != "204" ]; then
+            echo "Staging OIDC Edge probe must accept the exact staging CORS preflight (expected HTTP 204, received $preflight_status)." >&2
+            cat "$preflight_headers"
+            exit 1
+          fi
+          grep -qi '^access-control-allow-origin: https://staging.sykabelajar.my.id' "$preflight_headers"
+          grep -qi '^access-control-allow-methods: .*POST' "$preflight_headers"
+          grep -qi '^access-control-allow-headers: .*authorization.*x-client-info.*apikey.*content-type' "$preflight_headers" || {
+            echo "Staging OIDC Edge probe did not allow the required Supabase client headers." >&2
+            cat "$preflight_headers"
+            exit 1
+          }
+
+          denied_headers="$RUNNER_TEMP/staging-oidc-probe-denied-origin-headers.txt"
+          denied_status="$(curl --silent --show-error --max-time 15 --output /dev/null --dump-header "$denied_headers" --write-out '%{http_code}' \
+            --request OPTIONS "$STAGING_SUPABASE_URL/functions/v1/better-auth-oidc-acceptance" \
+            --header "Origin: https://attacker.example" \
+            --header "Access-Control-Request-Method: POST" \
+            --header "Access-Control-Request-Headers: authorization, apikey, content-type, x-client-info")"
+          if [ "$denied_status" != "403" ] || grep -qi '^access-control-allow-origin:' "$denied_headers"; then
+            echo "Staging OIDC Edge probe must reject an untrusted origin without CORS permission." >&2
+            cat "$denied_headers"
+            exit 1
+          fi
+          echo "Hosted staging Edge probe accepts only the exact staging origin for browser preflight."
+
+          response_body="$RUNNER_TEMP/staging-oidc-probe-anonymous.json"
+          status="$(curl --silent --show-error --max-time 15 --output "$response_body" --write-out '%{http_code}' \
+            --request POST "$STAGING_SUPABASE_URL/functions/v1/better-auth-oidc-acceptance" \
+            --header "apikey: $STAGING_SUPABASE_PUBLISHABLE_KEY" \
+            --header "Content-Type: application/json" \
+            --data '{}')"
+          if [ "$status" != "401" ]; then
+            echo "Staging OIDC Edge probe must reject missing user credentials (expected HTTP 401, received $status)." >&2
+            cat "$response_body"
+            exit 1
+          fi
+          jq -e '.error == "AUTH_REQUIRED"' "$response_body" >/dev/null
+          echo "Hosted staging Edge probe rejects anonymous requests with AUTH_REQUIRED."
+
+          invalid_token_body="$RUNNER_TEMP/staging-oidc-probe-invalid-token.json"
+          invalid_token_status="$(curl --silent --show-error --max-time 15 --output "$invalid_token_body" --write-out '%{http_code}' \
+            --request POST "$STAGING_SUPABASE_URL/functions/v1/better-auth-oidc-acceptance" \
+            --header "apikey: $STAGING_SUPABASE_PUBLISHABLE_KEY" \
+            --header "Authorization: Bearer not-a-real-jwt" \
+            --header "Content-Type: application/json" \
+            --data '{}')"
+          if [ "$invalid_token_status" != "401" ]; then
+            echo "Staging OIDC Edge probe must reject a malformed bearer token (expected HTTP 401, received $invalid_token_status)." >&2
+            cat "$invalid_token_body"
+            exit 1
+          fi
+          jq -e '.error == "AUTH_REQUIRED"' "$invalid_token_body" >/dev/null
+          echo "Hosted staging Edge probe rejects malformed bearer credentials."
+
+      - name: Validate live identity FK snapshot and dry-run plan generator
+        run: |
+          node ../../../scripts/auth-migration/generate-app-users-fk-plan.test.mjs
+          PLAN_DIR="$(mktemp -d)"
+          trap 'rm -rf "$PLAN_DIR"' EXIT
+          node ../../../scripts/auth-migration/generate-app-users-fk-plan.mjs \
+            --catalog ../../../scripts/auth-migration/live-auth-users-fk-catalog.json \
+            --out-dir "$PLAN_DIR"
+          test -s "$PLAN_DIR/01-preflight-expand.sql"
+          test -s "$PLAN_DIR/02-validate.sql"
+          test -s "$PLAN_DIR/03-cutover.sql"
+          node ../../../scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs \
+            --catalog ../../../scripts/auth-migration/live-auth-users-fk-catalog.json \
+            --out-dir "$PLAN_DIR/reverse"
+          test -s "$PLAN_DIR/reverse/01-preflight-expand-auth-rollback.sql"
+          test -s "$PLAN_DIR/reverse/02-validate-auth-rollback.sql"
+          test -s "$PLAN_DIR/reverse/03-cutover-auth-rollback.sql"
+
+      - name: Setup Supabase CLI
+        id: setup_supabase_cli
+        uses: supabase/setup-cli@v3
+        with:
+          version: 3.0.0
+
+      - name: Allocate collision-resistant local Supabase ports
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+
+          const runId = Number(process.env.GITHUB_RUN_ID);
+          if (!Number.isSafeInteger(runId) || runId <= 0) {
+            throw new Error("A valid GitHub run ID is required for isolated local Supabase ports.");
+          }
+          // Give each CI run a three-port block in the high user-port range.
+          // This avoids Supabase's historical 543xx ports and Linux's common
+          // ephemeral range (32768-60999), while keeping concurrent runs apart.
+          const databasePort = 62002 + (runId % 1000) * 3;
+          const apiPort = databasePort - 1;
+          const shadowPort = databasePort - 2;
+          if (databasePort > 64999 || shadowPort < 62000) {
+            throw new Error("Generated local Supabase ports are outside the reserved CI range.");
+          }
+
+          const path = "supabase/config.toml";
+          const lines = readFileSync(path, "utf8").split("\n");
+          let section = "";
+          const changed = { api: 0, db: 0, shadow: 0 };
+          const output = lines.map((line) => {
+            const sectionMatch = line.match(/^\s*\[([^\]]+)\]\s*$/);
+            if (sectionMatch) section = sectionMatch[1];
+            if (section === "api" && /^port\s*=/.test(line)) {
+              changed.api += 1;
+              return `port = ${apiPort}`;
+            }
+            if (section === "db" && /^port\s*=/.test(line)) {
+              changed.db += 1;
+              return `port = ${databasePort}`;
+            }
+            if (section === "db" && /^shadow_port\s*=/.test(line)) {
+              changed.shadow += 1;
+              return `shadow_port = ${shadowPort}`;
+            }
+            return line;
+          });
+          if (changed.api !== 1 || changed.db !== 1 || changed.shadow !== 1) {
+            throw new Error("Expected exactly one API, database and shadow port entry in the local Supabase config.");
+          }
+          writeFileSync(path, output.join("\n"));
+          console.log(JSON.stringify({ apiPort, databasePort, shadowPort, runId, configOnly: true }));
+          NODE
+
+      - name: Start isolated local Supabase
+        run: supabase start
+
+      - name: Verify JWT sub and ownership RLS
+        run: supabase test db --local
+
+      - name: Stop local Supabase
+        if: always() && steps.setup_supabase_cli.outcome == 'success'
+        run: supabase stop

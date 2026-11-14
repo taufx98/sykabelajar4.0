@@ -1,8 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { lazy, Suspense, type ReactNode, useEffect } from 'react';
 import { AppProvider, useApp } from '@/store/AppContext';
-import { supabase } from '@/lib/supabase';
-import { LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
+import { subscribeAuthSessionEvents } from '@/services/authSessionEvents.mjs';
+import { LOGIN_IN_PROGRESS_KEY, LOGIN_REJECTION_SIGNOUT_KEY } from '@/services/auth.service';
+import { shouldReloadForAuthSessionEvent } from '@/services/authSessionIsolation.mjs';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ChatUXBridge } from '@/components/chat/ChatUXBridge';
 import { OrganizerShell } from '@/components/layout/OrganizerShell';
@@ -14,6 +15,9 @@ import { VerifyPage } from '@/pages/VerifyPage';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { RouteMetadata } from '@/components/seo/RouteMetadata';
 
+const AuthOidcCallbackPage = lazy(() => import('@/pages/AuthOidcCallbackPage').then((module) => ({ default: module.AuthOidcCallbackPage })));
+const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })));
+const AuthEmailVerifiedPage = lazy(() => import('@/pages/AuthEmailVerifiedPage').then((module) => ({ default: module.AuthEmailVerifiedPage })));
 const HomePage = lazy(() => import('@/pages/HomePage').then((module) => ({ default: module.HomePage })));
 const MyCompetitionsPage = lazy(() => import('@/pages/MyCompetitionsPage').then((module) => ({ default: module.MyCompetitionsPage })));
 const CompetitionDetailPage = lazy(() => import('@/pages/CompetitionDetailPage').then((module) => ({ default: module.CompetitionDetailPage })));
@@ -80,10 +84,29 @@ const CollectiveCertificatePage = lazy(() => import('@/pages/CollectiveCertifica
 const CollectiveParticipantLoginPage = lazy(() => import('@/pages/CollectiveParticipantLoginPage').then((module) => ({ default: module.CollectiveParticipantLoginPage })));
 
 function AuthGuard({ children }: { children: ReactNode }) {
-  const { isAuthenticated, authLoading, isGuest } = useApp();
+  const { isAuthenticated, authLoading, isGuest, authUnavailable, authUnavailableRetryAtUtc, retryAuthSession } = useApp();
   const location = useLocation();
   const collectiveChatSession = location.pathname === '/pesan' && typeof window !== 'undefined' && Boolean(sessionStorage.getItem('syka_collective_access_token'));
   if (authLoading) return <div className="min-h-screen flex items-center justify-center surface-bg"><p className="text-xs text-fg-muted">Memuat sesi...</p></div>;
+  if (authUnavailable) return (
+    <div className="min-h-screen flex items-center justify-center surface-bg px-4">
+      <div className="w-full max-w-md rounded-2xl surface-card-bg border surface-border p-6 text-center">
+        <h1 className="font-display text-lg font-semibold text-fg">Koneksi autentikasi terganggu</h1>
+        <p className="mt-2 text-sm text-fg-secondary">
+          {authUnavailableRetryAtUtc
+            ? `Batas penggunaan harian layanan login telah tercapai. Sesi tidak dihapus. Coba muat sesi kembali setelah ${new Date(authUnavailableRetryAtUtc).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}.`
+            : 'Sesi belum dinyatakan berakhir. Periksa koneksi lalu coba muat sesi kembali.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => void retryAuthSession()}
+          className="mt-5 rounded-xl gradient-moss px-5 py-2.5 text-sm font-semibold text-white"
+        >
+          Coba lagi
+        </button>
+      </div>
+    </div>
+  );
   if (isAuthenticated || isGuest || collectiveChatSession) return <>{children}</>;
   return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
 }
@@ -103,30 +126,23 @@ function OrganizerShellRoute({ children }: { children: ReactNode }) {
 
 function ChatSessionIsolation() {
   useEffect(() => {
-    let previousUserId: string | null = null;
     let reloading = false;
-    const loadInitial = async () => {
-      const { data } = await supabase.auth.getSession();
-      previousUserId = data.session?.user?.id ?? null;
-    };
-    void loadInitial();
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      const nextUserId = session?.user?.id ?? null;
-      if (event === 'SIGNED_OUT' && sessionStorage.getItem(LOGIN_REJECTION_SIGNOUT_KEY) === '1') {
+    const unsubscribe = subscribeAuthSessionEvents((event) => {
+      if (event.type === 'SIGNED_OUT' && sessionStorage.getItem(LOGIN_REJECTION_SIGNOUT_KEY) === '1') {
         sessionStorage.removeItem(LOGIN_REJECTION_SIGNOUT_KEY);
-        previousUserId = null;
         return;
       }
-      if (event === 'SIGNED_OUT' || (event === 'SIGNED_IN' && previousUserId !== null && nextUserId !== previousUserId)) {
-        if (!reloading) {
-          reloading = true;
-          window.location.reload();
-        }
-        return;
+
+      const loginStartedAt = Number(sessionStorage.getItem(LOGIN_IN_PROGRESS_KEY));
+      if (!shouldReloadForAuthSessionEvent(event, loginStartedAt)) return;
+
+      if (!reloading) {
+        reloading = true;
+        window.location.reload();
       }
-      previousUserId = nextUserId;
     });
-    return () => listener.subscription.unsubscribe();
+
+    return unsubscribe;
   }, []);
   return null;
 }
@@ -164,7 +180,10 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/auth/verified" element={<AuthEmailVerifiedPage />} />
         <Route path="/verify/:code" element={<VerifyPage />} />
+        <Route path="/auth/oidc/callback" element={<AuthOidcCallbackPage />} />
         <Route path="/sertifikat-kolektif/:code" element={<CollectiveCertificatePage />} />
         <Route path="/peserta-kolektif/login" element={<CollectiveParticipantLoginPage />} />
         <Route path="/peserta-kolektif" element={<CollectiveParticipantPortalPage />} />

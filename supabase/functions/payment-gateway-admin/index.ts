@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireApplicationUser } from "../_shared/require-application-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,23 +112,20 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ ok: false, error: "METHOD_NOT_ALLOWED" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const authorization = req.headers.get("Authorization");
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) return json({ ok: false, error: "SERVER_NOT_CONFIGURED" }, 503);
-  if (!authorization?.startsWith("Bearer ")) return json({ ok: false, error: "AUTH_REQUIRED" }, 401);
+  if (!supabaseUrl || !serviceRoleKey) return json({ ok: false, error: "SERVER_NOT_CONFIGURED" }, 503);
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") return json({ ok: false, error: "INVALID_JSON" }, 400);
   const action = nonEmpty(body.action) || "get";
 
-  const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
-  const { data: userData, error: userError } = await authClient.auth.getUser();
-  if (userError || !userData.user) return json({ ok: false, error: "AUTH_REQUIRED" }, 401);
+  const identity = await requireApplicationUser(req);
+  if (!identity.ok) return json({ ok: false, error: identity.error }, identity.status);
+  const { userId, supabase: authClient } = identity;
 
   // Preserve the user's JWT context: is_active_admin() checks auth.uid() and
   // intentionally rejects calls made without a signed-in user's request context.
-  const { data: isAdmin, error: adminError } = await authClient.rpc("is_active_admin", { p_uid: userData.user.id });
+  const { data: isAdmin, error: adminError } = await authClient.rpc("is_active_admin", { p_uid: userId });
   if (adminError) return json({ ok: false, error: "ADMIN_CHECK_FAILED" }, 500);
   if (isAdmin !== true) return json({ ok: false, error: "ADMIN_REQUIRED" }, 403);
 
@@ -175,7 +173,7 @@ Deno.serve(async (req: Request) => {
       const submittedEnv = record(record(submitted.environments)[environment]);
       const nextSecrets = mergeSecrets(record(current?.secret_config), submittedEnv, provider, environment);
       const nextPublic = mergePublicConfig(record(current?.public_config), submittedEnv, provider, environment);
-      candidates.push({ provider, is_enabled: enabled, environment, secret_config: nextSecrets, public_config: nextPublic, updated_by: userData.user.id, updated_at: new Date().toISOString() });
+      candidates.push({ provider, is_enabled: enabled, environment, secret_config: nextSecrets, public_config: nextPublic, updated_by: userId, updated_at: new Date().toISOString() });
     }
 
     const chosen = requestedActive === "MANUAL" ? null : candidates.find((row) => row.provider === requestedActive);
@@ -192,7 +190,7 @@ Deno.serve(async (req: Request) => {
       id: true,
       active_provider: requestedActive,
       automatic_payments_enabled: requestedAutomatic,
-      updated_by: userData.user.id,
+      updated_by: userId,
       updated_at: new Date().toISOString(),
     }, { onConflict: "id" });
     if (stateError) return json({ ok: false, error: "PAYMENT_SETTINGS_STATE_SAVE_FAILED" }, 500);

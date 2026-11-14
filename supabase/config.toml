@@ -1,42 +1,48 @@
 project_id = "mvdczyitbkxkldjughor"
 
-# Preserve the current JWT policy for existing deployed functions.
+# Migrated handlers verify Supabase/Better Auth tokens inside requireApplicationUser().
+# The V2 compatibility aliases also verify through requireApplicationUser() in-handler.
+# Disable only the Supabase gateway verifier so a third-party issuer can reach that fail-closed handler.
 [functions.get-cloudinary-signature]
-verify_jwt = true
+verify_jwt = false
 
 [functions.payment-webhook]
 verify_jwt = false
 
 [functions.cloudinary-profile-upload]
-verify_jwt = true
+verify_jwt = false
 
 [functions.cloudinary-profile-upload-v2]
-verify_jwt = true
+verify_jwt = false
 
 [functions.cloudinary-delete-asset]
-verify_jwt = true
+verify_jwt = false
 
 [functions.cloudinary-delete-asset-v2]
-verify_jwt = true
+verify_jwt = false
 
 [functions.cloudinary-delete-profile]
-verify_jwt = true
+verify_jwt = false
 
 [functions.cleanup-expired-chat-media]
 verify_jwt = false
 
 [functions.midtrans-create-payment]
-verify_jwt = true
+verify_jwt = false
 
 [functions.generate-collective-certificate-pdf]
 verify_jwt = false
 
-# Admin management and checkout endpoints require the user's JWT.
+# Admin, checkout and reconcile use the shared in-handler verifier; admin remains caller-context checked.
 [functions.payment-gateway-admin]
-verify_jwt = true
+verify_jwt = false
 
 [functions.payment-gateway-create]
-verify_jwt = true
+verify_jwt = false
+
+# Reconciliation verifies the caller UUID in-handler before service-role order lookup.
+[functions.payment-gateway-reconcile]
+verify_jwt = false
 
 # Payment providers must be able to send their callbacks without a Supabase JWT.
 [functions.payment-gateway-public]

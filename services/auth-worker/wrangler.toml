@@ -1,0 +1,41 @@
+name = "sykabelajar-auth-poc"
+main = "src/worker.ts"
+compatibility_date = "2026-10-31"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+# Dedicated NON-PRODUCTION D1 database created for the Better Auth staging PoC. Do not point this binding at production.
+[[d1_databases]]
+binding = "DB"
+database_name = "sykabelajar-auth-poc"
+database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"
+migrations_dir = "migrations"
+
+# Stable auth issuer hostname. Cloudflare creates the DNS record and TLS certificate.
+[[routes]]
+pattern = "auth.sykabelajar.my.id"
+custom_domain = true
+
+# Manual deployments are gated by .github/workflows/auth-worker-staging-deploy.yml.
+
+[vars]
+AUTH_EMAIL_PROVIDER = "managed"
+AUTH_SIGNUP_DISABLED = "false"
+BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
+APP_ORIGIN = "https://sykabelajar.my.id"
+# Same-site custom domain pinned to the migration branch with a proxied CNAME.
+DEV_APP_ORIGIN = "https://staging.sykabelajar.my.id"
+SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
+# Server-only identity RPCs may target only the isolated Free Stage 3 fixture project.
+# Provision fresh Better Auth users only into the isolated Free Stage 3 project.
+# The Worker helper rejects every other Supabase origin; production remains on the legacy path.
+SUPABASE_PROVISIONING_ENABLED = "true"
+SUPABASE_PROVISIONING_ENV = "staging"
+SUPABASE_PROVISIONING_URL = "https://ydamszdfsxqisanazdkb.supabase.co"
+SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"
+OAUTH_CALLBACK_URL = "https://staging.sykabelajar.my.id/auth/oidc/callback"
+OAUTH_STAGING_CALLBACK_URL = "https://staging.sykabelajar.my.id/auth/oidc/callback"
+
+[observability]
+enabled = true

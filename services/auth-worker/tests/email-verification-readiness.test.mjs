@@ -1,0 +1,47 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const client = readFileSync(new URL("../../../src/services/betterAuthApi.client.ts", import.meta.url), "utf8");
+const login = readFileSync(new URL("../../../src/pages/LoginPage.tsx", import.meta.url), "utf8");
+const register = readFileSync(new URL("../../../src/pages/RegisterPage.tsx", import.meta.url), "utf8");
+const worker = readFileSync(new URL("../src/worker.ts", import.meta.url), "utf8");
+
+test("Better Auth staging signup checks delivery readiness before creating an account", () => {
+  const method = client.slice(client.indexOf("async signUp(input)"), client.indexOf("async requestPasswordReset", client.indexOf("async signUp(input)")));
+  assert.ok(method.indexOf("getEmailVerificationConfigured()") >= 0);
+  assert.ok(method.indexOf("EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED") < method.indexOf("'/sign-up/email'"));
+  assert.ok(method.indexOf("getEmailVerificationConfigured()") < method.indexOf("'/sign-up/email'"));
+});
+
+test("verification resend is never attempted when the staging email sender is unavailable", () => {
+  const method = client.slice(client.indexOf("async sendVerificationEmail"), client.indexOf("async requestPasswordReset"));
+  assert.ok(method.indexOf("getEmailVerificationConfigured()") >= 0);
+  assert.ok(method.indexOf("EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED") < method.indexOf("'/send-verification-email'"));
+});
+
+test("login UI discloses inactive staging email delivery and disables resend", () => {
+  assert.match(login, /emailVerificationConfigured === false/);
+  assert.match(login, /emailVerificationConfigured !== true/);
+  assert.match(login, /belum aktif di staging/);
+});
+
+test("registration UI blocks staging signup until email verification delivery is ready", () => {
+  assert.match(register, /getEmailVerificationConfigured\(\)/);
+  assert.match(register, /emailVerificationConfigured !== true/);
+  assert.match(register, /Pendaftaran staging sedang ditahan/);
+});
+
+
+test("Worker rejects direct email/password signup before Better Auth can create an unverified D1 identity", () => {
+  assert.match(worker, /import \{ isAuthEmailVerificationConfigured \} from "\.\/email"/);
+  const routeGuard = worker.indexOf('if (request.method === "POST" && url.pathname === "/api/auth/sign-up/email")');
+  const handler = worker.indexOf("const auth = await getAuth(env);", routeGuard);
+  const signupGate = worker.slice(routeGuard, handler);
+  assert.ok(routeGuard >= 0, "the direct Better Auth email/password signup route must be guarded");
+  assert.ok(handler > routeGuard, "the guard must run before constructing Better Auth");
+  assert.match(signupGate, /await isAuthEmailVerificationConfigured\(env\)/);
+  assert.match(signupGate, /EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED/);
+  assert.match(signupGate, /status|503/);
+  assert.doesNotMatch(signupGate, /auth\.handler\(request\)/);
+});

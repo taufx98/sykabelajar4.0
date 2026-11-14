@@ -9,6 +9,7 @@ import { listCurrentUserOrganizers, resolveCurrentUserOrganizerFrom, setSelected
 import { getActiveOrganizerEntitlements } from '@/services/organizerEntitlement.service';
 import { uploadProfileImageSigned, optimizedCloudinaryUrl } from '@/services/cloudinary.service';
 import { supabase } from '@/lib/supabase';
+import { requireCurrentApplicationUserId } from '@/services/applicationIdentity';
 import { emitSykaEvent } from '@/lib/realtimeBus';
 import { OrganizerWorkspaceOnboarding } from '@/components/organizer/OrganizerWorkspaceOnboarding';
 
@@ -136,7 +137,7 @@ export function OrganizerControlCenterPage() {
         .from('organizers')
         .update({ logo_asset_url: uploaded.secure_url })
         .eq('id', org.id)
-        .eq('owner_user_id', (await supabase.auth.getUser()).data.user?.id ?? '');
+        .eq('owner_user_id', await requireCurrentApplicationUserId('Sesi login tidak ditemukan.'));
       if (error) throw error;
 
       setOrg(current => current ? { ...current, logo_asset_url: uploaded.secure_url } : current);
@@ -158,11 +159,10 @@ export function OrganizerControlCenterPage() {
     }
     setBusy(true);
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) throw new Error('Sesi login tidak ditemukan.');
+      const userId = await requireCurrentApplicationUserId('Sesi login tidak ditemukan.');
       const { data, error } = await supabase.from('question_banks').insert({
         organizer_id: org.id,
-        owner_user_id: auth.user.id,
+        owner_user_id: userId,
         name: bankName.trim(),
         description: bankDescription.trim() || null,
         grade_code: bankGrade || null,

@@ -1,0 +1,232 @@
+# Better Auth — Supabase Edge Function migration matrix
+
+Status (11 November 2026): **the shared Better Auth identity verifier and the required source-level auth compatibility changes are implemented; isolated staging provisioning is enabled.** Application business handlers remain on their existing deployment targets until an approved cutover.
+
+## Scope boundary — read before using this matrix
+
+This matrix inventories existing backend entry points that relied on Supabase Auth and records how their authentication checks accept a verified Better Auth identity. It is not a request to rebuild those handlers or their business logic.
+
+- The only in-scope Stage 5 work is authentication verification, canonical user identity resolution, and preserving existing authorization checks where they depend on the identity provider.
+- The Cloudinary, payment, Shop, competition, and other business operations remain existing application functionality. Their schemas, provider credentials, secrets, and deployments are **not** prerequisites for Better Auth login, session, OIDC, or staging identity acceptance.
+- Do not copy the Production business schema or data to the isolated auth staging project. Do not deploy these application handlers to auth staging just to test login.
+- The auth staging project needs only the auth/identity fixture schema and its isolated provisioning/OIDC acceptance functions. Backend auth compatibility can be validated through type checks, contract/security tests, JWT/RLS tests, and a disposable local schema-only baseline where needed.
+- During the separately approved Production cutover, deploy any required auth-verifier-compatible handler versions while retaining their existing business schema, secrets, authorization rules, and request/response behavior. This matrix does not authorize deployment or Production changes.
+
+The staging Worker deploy [#42949849642](https://github.com/taufx98/sykabelajar4.0/actions/runs/42949849642) passed and activated the reviewed server-only identity projection for the fixed Free project `ydamszdfsxqisanazdkb`. The Worker secret was verified by name/type only; its value was never read or logged. The four staging provisioning/email/phone RPC wrappers are restricted to `service_role`. Public registration cannot request admin. No user or admin was created; all hosted identity table counts remain zero.
+
+## Verified implementation contract
+
+The supported Supabase server package is pinned to `@supabase/server@1.9.2`. The adapter in `supabase/functions/_shared/better-auth-user.ts` delegates cryptographic request-token verification to `createSupabaseContext()` in `auth: "user"` mode. It explicitly overrides the SDK's default first-party Supabase JWKS with the pinned Better Auth JWKS URL `https://auth.sykabelajar.my.id/api/auth/jwks`, and passes the exact Better Auth issuer and resource audience to the SDK. This is important: the SDK's default JWKS source is the Supabase project's own Auth JWKS, which is not the Better Auth signing key set. The code never decodes a bearer token or implements JWT signature verification itself.
+
+After cryptographic verification, `auth-claims.mjs` enforces the SYKABELAJAR resource contract:
+- exact `BETTER_AUTH_ISSUER=https://auth.sykabelajar.my.id/api/auth`;
+- exact `BETTER_AUTH_RESOURCE_AUDIENCE=https://sykabelajar.my.id`;
+- UUID `sub`, matching Supabase `userClaims.id`;
+- PostgreSQL `role=authenticated` only (never `admin`, `teacher`, `organizer_member`, or `student`);
+- valid integer `iat`/`exp`, no future issue time beyond the 30-second clock tolerance, and maximum 300-second token lifetime.
+
+The adapter fails closed with 503 if the expected issuer/audience configuration is missing or the pinned JWKS verifier is unavailable, and 401 for an invalid caller token/claim. The JWKS host/path cannot be supplied by the request or arbitrary environment URL. It returns both `ctx.supabase` (caller JWT + RLS) and `ctx.supabaseAdmin` (service-role bypass); the latter must not be used until the relevant owner/business-role check succeeds.
+
+The shared adapter now backs nine source-branch application handlers: six Cloudinary signer/upload/delete endpoints (including both V2 compatibility aliases) and the three payment admin/create/reconcile endpoints. `midtrans-create-payment` remains a compatibility delegate to the independently authenticated create handler. Production and all non-staging projects default to `AUTH_IDENTITY_MODE=supabase`; the exact isolated Free staging Supabase project (`ydamszdfsxqisanazdkb`) selects Better Auth automatically when no explicit mode is set, using the hard-pinned issuer and audience. Explicit server-side `AUTH_IDENTITY_MODE` always overrides that default. Cloudinary ownership checks use the canonical UUID returned by the resolver; payment handlers bind order reads to that verified UUID. Application handlers remain source-only until staging's full app schema and per-function secrets are installed.
+
+## Function-by-function migration
+
+| Function | Source-branch identity path | Preserved authorization contract |
+|---|---|---|
+| `get-cloudinary-signature` | `requireApplicationUser()` → verified UUID + caller-scoped Supabase client | Profile username and organizer ownership are queried through the caller-scoped client; only caller-owned profile/cover/organizer IDs can be signed. |
+| `cloudinary-profile-upload` | `requireApplicationUser()` → verified UUID | Keeps the existing UUID-based public IDs, image-only upload, profile/cover kind allowlist and 5 MB limit. |
+| `cloudinary-profile-upload-v2` | `requireApplicationUser()` → verified UUID | Keeps the V2 route and response shape while using the shared identity resolver; the response does not expose a new user-ID field. |
+| `cloudinary-delete-asset` | `requireApplicationUser()` → verified UUID | Accepts only exact caller-owned UUID avatar/cover IDs, `image` resource type and `upload` delivery type before reading secrets or calling Cloudinary. |
+| `cloudinary-delete-asset-v2` | `requireApplicationUser()` → verified UUID | Keeps the V2 route but closes the old resource/delivery-type gap; same exact owner, `image`, and `upload` constraints. |
+| `cloudinary-delete-profile` | `requireApplicationUser()` → verified UUID + caller-scoped profile row | Resolves the exact profile username from the caller's own row; only canonical username-based or UUID-based profile/cover IDs are deletable. |
+| `payment-gateway-create` | `requireApplicationUser()` → verified UUID | Order lookup is filtered by both order ID and verified user UUID; retain pending/payable, method, amount, provider and idempotency checks. Never trust a body-supplied user ID. |
+| `payment-gateway-reconcile` | `requireApplicationUser()` → verified UUID | Resolves caller-owned order first; only after ownership is confirmed does it read the payment intent. Provider-verified status, amount and currency remain required for fulfillment. |
+| `payment-gateway-admin` | `requireApplicationUser()` → caller-scoped `is_active_admin()` | `is_active_admin()` must pass using the original caller context before service-role settings access. Responses never include provider secrets. |
+| `midtrans-create-payment` | Compatibility delegate | Forwards the caller's bearer to `payment-gateway-create`, which independently verifies identity and ownership. The delegate does not add a second identity authority. |
+| `payment-gateway-public` | Intentionally public | Return only deliberately public provider status; do not expose secret config, order data or admin actions. |
+| `payment-webhook`, `payment-gateway-webhook` | Provider signature authentication | Keep provider signature, timestamp/replay, amount/currency and idempotency checks; do not replace provider authentication with user JWTs. |
+
+## Current platform JWT configuration
+
+`supabase/config.toml` uses `verify_jwt=false` for all nine application handlers that verify inside `requireApplicationUser()`, plus the Midtrans delegate that forwards to the independently verified create handler. This lets a third-party Better Auth issuer reach the handler; it does not make the route unauthenticated. Every application request must pass the pinned SDK's cryptographic signature check and the exact issuer/audience/UUID/PostgreSQL-role/lifetime checks before data access. The two V2 Cloudinary aliases now use the same fail-closed in-handler verifier as the original routes. Provider webhook endpoints remain `verify_jwt=false` because they authenticate using provider signatures; public endpoints retain only their documented public response. CI checks the handler allowlist, config values, resolver usage and provider-signature boundaries.
+
+## Two-user acceptance matrix required before deployment
+
+Use only two synthetic Better Auth accounts in an isolated Supabase Free project. Let A and B be distinct UUID subjects.
+
+| Test | Expected result |
+|---|---|
+| A calls Cloudinary signature for A's allowed profile path | Allowed |
+| A requests B's profile namespace | Denied; no signature returned |
+| A creates/reuses a payment for A's pending order | Allowed under existing business rules |
+| A changes `order_id` to B's order | 404/denied; no provider request or payment-intent mutation |
+| A reconciles A's order | Only status verified from provider can fulfill |
+| A reconciles B's order/intent | 404/denied; no read of B's private payment data |
+| Non-admin A calls payment-gateway-admin | 403; no privileged settings read/write |
+| Admin A calls payment-gateway-admin | Allowed after user-scoped `is_active_admin()` passes; response contains no provider secret |
+| Missing, malformed, expired, wrong-issuer, wrong-audience or wrong-signature JWT | Rejected before business logic |
+| Valid Better Auth subject without a provisioned `private.app_users` identity | Rejected by the Stage 3 provisioning/identity gate; must not create shadow `auth.users` rows |
+| Unsigned provider callback | Rejected by provider signature logic |
+| Valid signed duplicate callback | Idempotent; no duplicate order fulfillment/ledger entries |
+
+## Deployment sequence / stop conditions
+
+1. **Completed and passed** in [Auth Production Schema Baseline #42847997448](https://github.com/taufx98/sykabelajar4.0/actions/runs/42847997448): schema-only Production export, disposable local restore with zero imported user/profile rows, exact 69-FK and metadata parity, identity-root/cutover simulation, Better Auth provisioning/referral/email/phone/organizer regression, anonymous and trusted-issuer RLS, FK rollback and full Stage 3 rollback. The temporary local stack/export were cleaned up. This is a test-only simulation; no Production or hosted staging migration was executed.
+2. Supabase Custom OIDC is registered against the isolated staging issuer; the dedicated `better-auth-oidc-acceptance` function is deployed there. No production issuer registration is implied.
+3. The staging `private.app_users` identity root, provisioning RPCs, profile hydration, phone-status wrapper and organizer issuer/identity-origin guards are applied additively. The staging-only `SUPABASE_PROVISIONING_API_KEY` secret was verified by name/type, its RPC scope was reviewed, and provisioning is now enabled in the deployed staging Worker. The identity tables remain empty; no real user/session/admin was created.
+4. Nine resolver-backed application handlers and their shared adapter are implemented in source. Production/non-staging defaults remain Supabase Auth; the exact isolated staging project selects Better Auth automatically unless an explicit `AUTH_IDENTITY_MODE` overrides it. The Worker, D1 and frontend preview are already installed in staging.
+5. Before deploying application handlers, populate the isolated target with the application schema they depend on and configure their staging-only issuer/audience/environment/secrets. Do not deploy endpoints that would fail due to missing business tables or Cloudinary/payment secrets. Then deploy the nine handlers plus compatibility delegate as a separate staging-only operation.
+6. End-of-build acceptance will run the two-user IDOR matrix and full payment/webhook/Cloudinary/Storage/Realtime regressions. Keep provider webhooks authenticated by signatures and keep public endpoints limited to their documented public response. No production deploy is authorized by this document.
+
+Any missing issuer/audience setting, unverified JWT, missing application identity projection, owner mismatch, failed admin check, or unverified payment-provider response must fail closed.
+
+## Official Supabase references
+
+- Custom OIDC issuer, asymmetric JWKS, `role=authenticated`, UUID subject and RLS: https://supabase.com/docs/guides/auth/third-party/custom-oidc
+- `@supabase/server` user-mode context and RLS-scoped/admin clients: https://supabase.com/docs/guides/functions/auth
+- Pinned server package release: https://github.com/supabase/server/releases/tag/server-v1.9.2
+
+
+## Deno type-check and verified-session admin bridge — 6 November 2026
+
+## Deno type-check and verified-session admin bridge — 6 November 2026
+
+The pinned Supabase Edge adapter was type-checked successfully with Deno 2.9.8 and `@supabase/server@1.9.2` in Supabase Local Auth Claims CI [#42214172513](https://github.com/taufx98/sykabelajar4.0/actions/runs/42214172513). The same run passed all 12 Edge JWT/webhook contract tests and 73/73 local pgTAP tests. The type-check caught and corrected the missing explicit `Request` parameter type before turning green.
+
+Stage 1 ZeptoMail Admin UI is a pre-cutover bridge: it currently reads the existing Supabase Auth session and the Worker verifies that access token via the current Supabase `/auth/v1/user` endpoint, then calls `is_active_admin()` under the same caller token. It stores only encrypted Agent Send Mail Tokens in the isolated D1 and the test operation sends only to the verified admin's email. This bridge has not been browser-tested with a live admin session and has not sent real mail. Stage 4/5 must replace this bridge with a verified Better Auth access token and the accepted Supabase Custom OIDC identity path before production cutover.
+
+
+## Full live Edge Function inventory — 6 November 2026
+
+## Full live Edge Function inventory — 6 November 2026
+
+A complete read-only download/source scan of all **15 currently active deployed Edge Functions** in production was performed on 6 November. The earlier four-function count described only direct `supabase.auth.getUser()` calls and was incomplete as a migration-surface count.
+
+### User identity / Cloudinary surface
+
+| Deployed function | Live version | Current live identity model | Authorization observation | Stage 5 action |
+|---|---:|---|---|---|
+| `get-cloudinary-signature` | 11 | `supabase.auth.getUser()` | The live production version accepts the caller's `public_id` after authentication but does not compare it with a caller-owned profile/organizer namespace. The branch now adds caller-scoped `profiles.username` and `organizers.owner_user_id` checks; not deployed. | Replace verifier with `requireBetterAuthUser` after OIDC/identity gates; keep owner-scoped signer and exact asset namespace. |
+| `cloudinary-profile-upload` | 9 | Manual `GET /auth/v1/user` | Derives `profile_pictures/user_{UUID}` or `profile_covers/user_{UUID}` from the verified Supabase Auth response; does not trust a body-supplied owner ID. | Migrate to verified Better Auth UUID; keep the UUID-based public-ID format during compatibility window. |
+| `cloudinary-profile-upload-v2` | 9 | Manual `GET /auth/v1/user` | Same caller-derived UUID path and image/size/kind checks. | Same as above; consolidate only after client callers are inventoried. |
+| `cloudinary-delete-asset` | 9 | Platform `verify_jwt=true`, but handler only checks that a Bearer header exists | **High-priority owner-check gap:** the live handler does not resolve the caller UUID or compare it to `public_id` before signing a Cloudinary destroy request. Any valid JWT could potentially request deletion of a guessed asset ID. | Branch now contains a replacement source that resolves caller identity from the legacy Auth endpoint and permits only the caller's exact UUID-based avatar/cover IDs; it validates resource/delivery types and uses no body-supplied owner ID. It is not deployed. |
+| `cloudinary-delete-asset-v2` | 9 | Manual `GET /auth/v1/user` | Restricts `public_id` to exactly `profile_pictures/user_{callerUUID}` or `profile_covers/user_{callerUUID}`. | Migrate auth verifier and retain exact owner check. |
+| `cloudinary-delete-profile` | 9 | Manual `GET /auth/v1/user` | Same exact UUID-owned profile/cover restriction; this is the endpoint currently invoked by `src/services/cloudinary.service.ts`. | Migrate auth verifier and retain its existing caller/asset contract. |
+| `payment-gateway-admin` | 5 | `supabase.auth.getUser()` then caller-context `is_active_admin()` | Business admin check exists; service-role is used only after admin check. | Use verified Better Auth user context, then re-run `is_active_admin()` under caller context before privileged access. |
+| `payment-gateway-create` | 5 | `supabase.auth.getUser()` | Checks order owner UUID against verified user; service-role order/payment work follows. | Use verified Better Auth UUID and preserve owner/status/idempotency checks. |
+| `payment-gateway-reconcile` | 1 | `supabase.auth.getUser()` | Constrains order/intent reads by verified user UUID; the branch explicitly pins `verify_jwt=true`. | Use verified Better Auth UUID, preserve owner and provider-verification/idempotency checks. |
+| `midtrans-create-payment` | 10 | Compatibility delegator | Forwards the authorization header to `payment-gateway-create`; it is not a second independent user verifier. | Keep `verify_jwt=true` and preserve the downstream Better Auth verifier until frontend callers migrate; remove only after callsite audit. |
+
+The remaining active functions are deliberately separate from user access-token migration:
+- `payment-webhook` v9 and `payment-gateway-webhook` v4 have `verify_jwt=false` and validate provider signatures; keep provider authentication, replay/idempotency, amount/currency and fulfillment checks. Do not replace signatures with user JWTs.
+- `payment-gateway-public` v2 is the intentionally public provider-status endpoint; keep its response free of secrets/order-private data.
+- `generate-collective-certificate-pdf` v8 exposes a public certificate output route; verify certificate code/visibility semantics separately, not by forcing user JWT onto public verification.
+- `cleanup-expired-chat-media` v9 is a service-role background cleanup endpoint with `verify_jwt=false`; its access/trigger should be retired with the already-approved private-chat removal, not treated as a general public API.
+
+### Current branch vs deployed production
+
+The branch contains:
+- a caller-owned profile/organizer guard in `get-cloudinary-signature` (the deployed v11 still predates the guard);
+- a replacement `cloudinary-delete-asset/index.ts` with caller UUID lookup and exact UUID asset ownership enforcement (the deployed v9 remains the weaker version);
+- unit/static ownership tests for new and legacy Cloudinary public-ID formats;
+- Deno type-check integration for `get-cloudinary-signature` and `cloudinary-delete-asset`.
+
+These are branch-only changes. Do not claim production protection until the exact sources are deployed and a hosted two-user test proves A cannot sign or delete B's assets.
+
+### Required two-user Cloudinary acceptance
+
+Use only isolated synthetic users A/B:
+1. A can upload/delete `profile_pictures/user_A` and `profile_covers/user_A`.
+2. A cannot sign or delete either of B's UUID-based asset IDs.
+3. A can sign only the username-derived avatar/cover matching A's profile row; a caller-supplied username does not grant access.
+4. A can sign an organizer logo only when the organizer row's `owner_user_id=A`.
+5. Malformed/traversal/encoded/unsupported public IDs, resource types and delivery types fail before any Cloudinary provider call.
+6. Missing, expired, wrong-issuer, wrong-audience or wrong-signature Better Auth tokens fail before the owner query.
+7. Browser response never returns Cloudinary API secret or signing key; only short-lived parameters/signature for an owned asset are returned.
+
+No deployed Edge Function, secret, Supabase setting, Cloudinary asset, or production data was changed during this inventory.
+
+
+
+## Latest CI status — 6 November 2026 (Cloudinary delete source hardening)
+
+The latest combined CI [Auth Worker #42247015051](https://github.com/taufx98/sykabelajar4.0/actions/runs/42247015051) and [Supabase Local #42247014985](https://github.com/taufx98/sykabelajar4.0/actions/runs/42247014985) both completed successfully on commit `4c00fa315d0e8329d054b4d2d12feeea225ab4b2`. The Worker run passed 56 Worker tests, 12 JWT contract tests, 15 Cloudinary ownership/source tests, two frontend inventory tests, local D1 migration 0000–0004, Better Auth signup/email/session/OAuth integration and frontend lint/typecheck/build. Supabase Local passed Deno checks on the shared JWT adapter, new Cloudinary signer and replacement delete endpoint, and 83/83 pgTAP assertions.
+
+The delete endpoint replacement is **not deployed**. The live production `cloudinary-delete-asset` v9 still only checks Bearer header presence without verifying the caller UUID against `public_id`. Keep this endpoint classified as a production hardening blocker until the branch replacement is reviewed, the synthetic A/B tests are complemented by hosted tests, and the controlled Edge Function deployment is complete. No current production function has been changed.
+
+
+## Latest delete endpoint regression — 6 November 2026
+
+The latest regression run [#42247915763](https://github.com/taufx98/sykabelajar4.0/actions/runs/42247915763) passed all 15 Cloudinary ownership/source tests, and [Supabase Local CI #42247915859](https://github.com/taufx98/sykabelajar4.0/actions/runs/42247915859) passed Deno type-check for the branch replacement endpoint. The replacement now rejects non-image resource types, preserves the existing browser CORS/OPTIONS contract, limits the auth lookup to five seconds and Cloudinary destroy request to eight seconds, resolves identity from Supabase's verified `/auth/v1/user` response, and permits only the exact UUID-based profile/cover paths for that caller. The generic deletion function is not yet deployed; live production version 9 remains unchanged.
+
+## Staging-only OIDC Edge acceptance probe — 7 November 2026
+
+A read-only function `better-auth-oidc-acceptance` is deployed on isolated Free project `ydamszdfsxqisanazdkb`, version 1, status ACTIVE. Its source is kept under `services/auth-worker/supabase-test/supabase/functions/better-auth-oidc-acceptance/index.ts` so it cannot be mistaken for a production application function.
+
+The probe uses `createSupabaseContext(request, { auth: 'user' })` from pinned `@supabase/server@1.9.2` to verify a third-party Better Auth token inside the handler. Its platform `verify_jwt=false` setting is intentional: the Supabase gateway must not reject a third-party issuer before the SDK can validate it. The handler then independently checks exact issuer, resource audience, UUID subject, PostgreSQL role `authenticated`, `iat` and a maximum 300-second token lifetime. It reads only `public.auth_oidc_acceptance_rows` through the caller-scoped `ctx.supabase`; it does not use `ctx.supabaseAdmin`, and it contains no write operation.
+
+The positive hosted function invocation still requires a real Better Auth access token from a synthetic staging account. It is not a migrated application endpoint, and must never be copied into the production functions deployment list. CI has a static contract test for the probe and a Deno type-check step.
+
+## Shared Edge identity migration checkpoint — 7 November 2026
+
+The implementation state below supersedes older statements in this document that all user-invoked endpoints still depend directly on Supabase Auth. A common `supabase/functions/_shared/require-application-user.ts` now provides a dual-mode boundary:
+
+- `AUTH_IDENTITY_MODE` is allowlisted to `supabase` or `better-auth`; unknown values return 503. When the setting is absent, only the exact isolated staging Supabase URL auto-selects Better Auth. All other project URLs resolve to Supabase Auth.
+- Supabase mode calls `auth.getUser()` using a caller-scoped publishable-key client and a five-second fetch timeout.
+- Better Auth mode calls `requireBetterAuthUser()`; that adapter delegates cryptographic verification to `createSupabaseContext` from pinned `@supabase/server@1.9.2`, then checks exact issuer, resource audience, UUID `sub`, PostgreSQL role `authenticated`, and maximum 300-second lifetime.
+- Both return the verified UUID and caller-scoped Supabase client. The resolver never creates a service-role client or accepts a body-supplied user ID.
+
+Branch handlers now use this helper:
+
+| Handler | Preserved authorization invariant |
+|---|---|
+| `get-cloudinary-signature` | profile username and organizer ownership are queried through the caller-scoped client; only caller-owned profile/cover/organizer IDs can be signed. |
+| `cloudinary-delete-asset` | caller UUID is obtained from the resolver; only exact UUID-based avatar/cover IDs, `image` resource, and upload delivery type are accepted before Cloudinary secrets/provider calls. |
+| `cloudinary-profile-upload` | UUID-derived profile/cover public IDs; 5 MB image limit and profile/cover kind allowlist are preserved. |
+| `cloudinary-delete-profile` | the frontend-called endpoint now accepts only exact caller-owned profile/cover IDs and image resource type; Cloudinary call is time-bounded. |
+| `payment-gateway-admin` | `is_active_admin()` is called through the caller-scoped client first; `service_role` access is created only after that check succeeds. |
+| `payment-gateway-create` | the order owner must equal the resolver's verified UUID before provider setup, intent reuse or payment creation. |
+| `payment-gateway-reconcile` | order lookup is constrained by both order ID and verified UUID; fulfillment still requires provider-verified status/amount/currency. |
+
+The frontend currently calls `get-cloudinary-signature` and `cloudinary-delete-profile`; the other branch Cloudinary handlers also close an audited exposed delete path and preserve older endpoint compatibility. The deployed `cloudinary-profile-upload-v2` and `cloudinary-delete-asset-v2` aliases remain on their existing implementation; current frontend source search found no direct callers, so do not add new Better Auth runtime flags or remove them until legacy caller deprecation is confirmed. `midtrans-create-payment` stays a thin JWT-protected delegate. Provider webhooks remain `verify_jwt=false` and continue authenticating by provider signatures; no webhook auth model was changed.
+
+CI evidence: [Auth Worker #42354115154](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354115154) and [Supabase Local #42354068011](https://github.com/taufx98/sykabelajar4.0/actions/runs/42354068011) passed on 7 November. The Supabase job type-checks the shared resolver plus the seven endpoint handlers and runs the staging anonymous probe and local two-user RLS fixture. The Worker job runs the new payment/Cloudinary source contracts and frontend lint/typecheck/build.
+
+**Deployment status:** no application Edge Function from this branch has been deployed; only the separate `better-auth-oidc-acceptance` probe exists in isolated staging. Production auth configuration, payment settings, Cloudinary assets, Production Edge Functions and database objects remain unchanged. Production continues to default to Supabase Auth. Positive hosted Better Auth token/IDOR acceptance for each application endpoint remains part of final end-of-build acceptance after the staging app schema and function secrets are installed.
+
+### Supabase gateway JWT boundary — 7 November 2026
+
+One deployment detail is security-critical: Supabase's platform `verify_jwt=true` gateway check validates Supabase-issued JWTs before the handler runs, so it cannot be relied on to admit a third-party Better Auth issuer. For functions whose source now calls `requireApplicationUser()`, branch `supabase/config.toml` therefore sets `verify_jwt=false`; the handler itself must reject every missing/invalid token through the shared verifier before it performs data access.
+
+This applies only to the resolver-backed handlers: `get-cloudinary-signature`, `cloudinary-profile-upload`, `cloudinary-delete-asset`, `cloudinary-delete-profile`, `payment-gateway-admin`, `payment-gateway-create`, `payment-gateway-reconcile`, and the `midtrans-create-payment` delegate. The delegate still forwards the bearer to `payment-gateway-create`, which performs the actual identity and order-owner checks.
+
+The two unmodified legacy aliases `cloudinary-profile-upload-v2` and `cloudinary-delete-asset-v2` intentionally retain `verify_jwt=true`. Provider webhooks and intentionally public provider-status/certificate routes retain their distinct existing policies. CI now tests that only resolver-backed handlers use `verify_jwt=false`, that legacy v2 aliases remain `true`, and that provider webhook signature checks remain present.
+
+Do not interpret gateway `verify_jwt=false` as making these user handlers public. Their access control now resides in `requireApplicationUser()`; any future handler using this setting must have an equivalent fail-closed in-handler verifier before deployment. No Supabase Edge Function/config was deployed from this branch.
+
+## Cloudinary profile-delete namespace compatibility — 9 November 2026
+
+The branch's `cloudinary-delete-profile` replacement now uses the verified user UUID to query that caller's `profiles.username` through `identity.supabase` (caller-scoped; RLS retained). It then calls the shared `isOwnedCloudinaryPublicId()` guard and accepts only the exact canonical username paths `sykabelajar/{verified username}/profile` and `/cover`, plus the exact UUID-based legacy avatar/cover paths for the same user. It does not accept a username, user ID, product path, organizer path, nested path, or owner claim from the request body. The Cloudinary secret is read and the provider destroy request is sent only after the owner guard succeeds. This preserves the actual `cloudinary.service.ts` upload/delete contract while keeping the separate generic delete endpoint limited to its existing UUID namespace.
+
+Validation: Cloudinary ownership source contracts and Supabase local two-user/RLS checks passed in [Supabase Local Auth Claims CI #42510373128](https://github.com/taufx98/sykabelajar4.0/actions/runs/42510373128). The source remains branch-only; no Edge Function or Cloudinary asset was changed in production.
+
+
+## Stage 5 source hardening — 9 November 2026
+
+- Both Cloudinary V2 compatibility aliases now have branch source files that use `requireApplicationUser()`; route names and existing profile-upload response fields are preserved. The V2 delete route additionally rejects any resource type other than `image` and any delivery type other than `upload`.
+- `supabase/config.toml` routes the V2 aliases through the in-handler resolver (`verify_jwt=false`); the shared verifier is mandatory before any provider call. This setting applies to the branch only until the exact function versions pass acceptance and are explicitly deployed.
+- Checkout now includes `user_id = verified UUID` in the initial orders query, retaining the subsequent owner guard. Reconciliation now queries the caller-owned order first and does not read `payment_intents` until that order has been confirmed. The provider verification and idempotent fulfillment logic are unchanged.
+- Auth Worker CI now includes a pinned Deno 2.9.8 type-check for the shared JWT adapter/resolver, the six Cloudinary handlers, the three payment handlers, and the Midtrans compatibility delegate, alongside the existing source-contract and frontend jobs.
+- No production Edge Function, secret, JWT configuration, payment setting, Cloudinary asset, SQL/RPC, RLS policy, or user record was changed. The current production Cloudinary V2 handlers remain version 9 and continue serving their existing runtime until a separately reviewed deployment.
+- CI for the current HEAD and hosted two-user Better Auth acceptance must still be inspected before this branch work is declared verified. No passing run is inferred from an empty status query.
+
+
+## Pinned external issuer JWKS correction — 9 November 2026
+
+The Stage 5 Edge verifier and the isolated Stage 2 probe now explicitly use the Better Auth issuer's own public key set. `@supabase/server@1.9.2` defaults to the Supabase project's configured JWKS; that default is wrong for Better Auth tokens. The branch adapter passes `env: { jwks: new URL("jwks", "https://auth.sykabelajar.my.id/api/auth/") }` to `createSupabaseContext()`, plus the fixed issuer and resource audience. Supabase's SDK still performs signature, key-ID, issuer and audience verification. The stricter local claim validator then checks UUID `sub`, `role=authenticated` and the maximum 300-second lifetime.
+
+Verifier/JWKS infrastructure failures map to 503 `AUTH_VERIFICATION_UNAVAILABLE`; absent/invalid caller credentials remain 401. No request-supplied JWKS URL or issuer is accepted.
+
+The isolated Free staging read-only `better-auth-oidc-acceptance` probe was refreshed to version 2. It uses the same JWKS override and queries only the synthetic `auth_oidc_acceptance_rows` fixture through caller-scoped RLS, selecting the actual `note` field. It remains `verify_jwt=false` only because the handler authenticates the request internally with the SDK. It performs no write and no service-role operation. This staging probe deployment is not a deployment of any application handler.
+
+A positive hosted call still requires a real verified staging session. Current CI for the latest branch head is not confirmed; source contracts and branch-local checks must not be described as a passing workflow until a run is inspected.

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { startRpcHealthRealtime, stopRpcHealthRealtime, supabase } from '@/lib/supabase';
 import { env } from '@/lib/env';
+import { getSupabaseResourceAccessToken } from '@/services/applicationAccessToken';
 import { buildAiDebuggingContext } from '@/lib/aiDebuggingContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -239,8 +240,7 @@ async function probeRealtime(item: UnifiedEvent): Promise<DiagnosticResult> {
 
 async function probeCloudinary(): Promise<DiagnosticResult> {
   const started = performance.now();
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
+  const token = await getSupabaseResourceAccessToken();
   if (!token) throw new Error('Sesi admin tidak tersedia untuk diagnostic Cloudinary.');
   const publicId = `sykabelajar-admin-diagnostic-${Date.now()}`;
   const response = await fetch(`${env.edgeFunctionUrl}/get-cloudinary-signature`, {
@@ -270,9 +270,12 @@ async function probeEdgeFunction(item: UnifiedEvent): Promise<DiagnosticResult> 
   const started = performance.now();
   const functionName = contextString(item.context, ['functionName', 'function_name', 'function']) || item.error_code || null;
   if (!functionName) throw new Error('Nama Edge Function tidak tersedia pada context incident.');
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
-  const response = await fetch(`${env.edgeFunctionUrl}/${encodeURIComponent(functionName)}`, { method: 'HEAD', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const token = await getSupabaseResourceAccessToken();
+  if (!token) throw new Error('Sesi admin tidak tersedia untuk diagnostic Edge Function.');
+  const response = await fetch(`${env.edgeFunctionUrl}/${encodeURIComponent(functionName)}`, {
+    method: 'HEAD',
+    headers: { Authorization: `Bearer ${token}` },
+  });
   const duration = Math.round(performance.now() - started);
   const fixed = isHttpHealthy(response.status) || response.status === 405;
   return {

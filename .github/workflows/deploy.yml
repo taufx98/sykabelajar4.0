@@ -17,6 +17,7 @@ jobs:
       TARGET_SUPABASE_URL: https://mvdczyitbkxkldjughor.supabase.co
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_AUTH_WORKER_URL: ${{ secrets.VITE_AUTH_WORKER_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7

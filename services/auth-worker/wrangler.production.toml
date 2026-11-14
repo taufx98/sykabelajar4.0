@@ -1,0 +1,34 @@
+# Production runtime configuration for the one-time promotion.
+# The Worker name and custom hostname deliberately match the already-attached
+# staging resource; deploying this file updates that same Worker in place.
+# This file is NOT used by the staging workflows.
+
+name = "sykabelajar-auth-poc"
+main = "src/worker.ts"
+compatibility_date = "2026-10-31"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sykabelajar-auth-prod"
+database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"
+migrations_dir = "migrations-production"
+
+[[routes]]
+pattern = "auth.sykabelajar.my.id"
+custom_domain = true
+
+[vars]
+AUTH_EMAIL_PROVIDER = "managed"
+AUTH_SIGNUP_DISABLED = "true"
+BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
+APP_ORIGIN = "https://sykabelajar.my.id"
+SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
+SUPABASE_URL = "https://mvdczyitbkxkldjughor.supabase.co"
+SUPABASE_PROVISIONING_ENABLED = "false"
+SUPABASE_PROVISIONING_ENV = "production"
+SUPABASE_PROVISIONING_URL = "https://mvdczyitbkxkldjughor.supabase.co"
+SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_M0wRkz7pdVB-0s5JtT3Zhg_J9fXU31m"
+OAUTH_CALLBACK_URL = "https://sykabelajar.my.id/auth/oidc/callback"

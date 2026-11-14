@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getAuthSessionSnapshot, subscribeAuthSessionEvents } from '@/services/authSessionEvents.mjs';
 
 export type CurrentOrganizer = {
   id: string;
@@ -15,28 +16,30 @@ let listCurrentUserOrganizersInFlight: Promise<CurrentOrganizer[]> | null = null
 
 // Do not let a pending workspace request from a previous account be reused
 // after a sign-out/sign-in transition.
-supabase.auth.onAuthStateChange(() => {
-  listCurrentUserOrganizersInFlight = null;
+subscribeAuthSessionEvents((event) => {
+  if (event.identityChanged || event.type === 'SIGNED_OUT') {
+    listCurrentUserOrganizersInFlight = null;
+  }
 });
 
 export async function listCurrentUserOrganizers(): Promise<CurrentOrganizer[]> {
   if (listCurrentUserOrganizersInFlight) return listCurrentUserOrganizersInFlight;
 
   const request = (async (): Promise<CurrentOrganizer[]> => {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return [];
+  const userId = getAuthSessionSnapshot()?.userId;
+  if (!userId) return [];
 
   const [ownedResult, membershipResult] = await Promise.all([
     supabase
       .from('organizers')
       .select('id,name,slug,status,logo_asset_url')
-      .eq('owner_user_id', auth.user.id)
+      .eq('owner_user_id', userId)
       .eq('status', 'ACTIVE')
       .order('created_at', { ascending: true }),
     supabase
       .from('organizer_members')
       .select('organizer_id,role,member_role,status, is_active,created_at')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', userId)
       .eq('status', 'ACTIVE')
       .eq('is_active', true)
       .order('created_at', { ascending: true }),

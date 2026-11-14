@@ -1,0 +1,24 @@
+# Copy to .dev.vars for local-only testing. Never commit real credentials.
+BETTER_AUTH_URL=http://localhost:8787
+SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id
+BETTER_AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters
+DEV_APP_ORIGIN=http://localhost:5173
+D1_SCHEMA_BOOTSTRAP_TOKEN=replace-with-another-random-secret-at-least-32-characters
+ALLOW_SCHEMA_BOOTSTRAP=true
+OAUTH_CLIENT_BOOTSTRAP_TOKEN=replace-with-a-third-random-secret-at-least-32-characters
+OAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+AUTH_EMAIL_WEBHOOK_URL=
+AUTH_EMAIL_WEBHOOK_TOKEN=
+# Local CI/dev uses the mock webhook. Staging Worker uses AUTH_EMAIL_PROVIDER=zeptomail.
+AUTH_EMAIL_PROVIDER=webhook
+AUTH_EMAIL_FROM=noreply@example.test
+# ZeptoMail Admin settings (only needed when using a real local Supabase admin session).
+# Use a random value with at least 32 characters; never commit a real key.
+AUTH_EMAIL_ENCRYPTION_KEY=replace-with-a-random-secret-at-least-32-characters
+# Production URL is only for the legacy Admin bridge; never used for Better Auth provisioning.
+SUPABASE_URL=
+# Local/test provisioning may point only at the isolated Stage 3 Free project.
+SUPABASE_PROVISIONING_URL=https://ydamszdfsxqisanazdkb.supabase.co
+SUPABASE_PUBLISHABLE_KEY=
