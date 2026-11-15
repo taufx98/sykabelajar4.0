@@ -8,7 +8,8 @@ const workflow = readFileSync(
 );
 
 test("Production Custom OIDC registration is manual and exact-target guarded", () => {
-  assert.match(workflow, /^on:\n  workflow_dispatch:/m);
+  assert.match(workflow, /^on:\n  push:/m);
+  assert.match(workflow, /^  workflow_dispatch:/m);
   assert.match(workflow, /github\.ref == 'refs\/heads\/security\/auth-poc-stage-1'/);
   assert.match(workflow, /REGISTER-PRODUCTION-OIDC-mvdczyitbkxkldjughor/);
   assert.match(workflow, /SUPABASE_ACCESS_TOKEN/);
