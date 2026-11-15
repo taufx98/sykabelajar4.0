@@ -74,6 +74,13 @@ function parseCredentials(value: string): Record<string, string> {
   return result;
 }
 
+function hasRequiredProviderCredentials(provider: EmailProvider, credentials: Record<string, string>): boolean {
+  const usable = (value: string | undefined) => typeof value === "string" && value.trim().length >= 16;
+  if (provider === "mailjet") return usable(credentials.apiKey) && usable(credentials.apiSecret);
+  if (provider === "mailtrap") return usable(credentials.apiToken);
+  return usable(credentials.apiKey);
+}
+
 /**
  * This function only returns true when at least one enabled provider has a
  * decryptable credential. It never sends mail or trusts stale Admin metadata.
@@ -86,15 +93,27 @@ export async function isAuthEmailVerificationConfigured(env: AuthWorkerEnv): Pro
 
   try {
     const accounts = await env.DB.prepare(
-      "SELECT provider, sender_address, sender_name, credentials_ciphertext " +
+      "SELECT provider, sender_address, sender_name, credentials_ciphertext, " +
+      "quota_hour_limit, quota_day_limit, quota_month_limit, " +
+      "CASE WHEN hour_bucket = strftime('%Y%m%d%H','now') THEN hour_used ELSE 0 END AS hour_used, " +
+      "CASE WHEN day_bucket = strftime('%Y%m%d','now') THEN day_used ELSE 0 END AS day_used, " +
+      "CASE WHEN month_bucket = strftime('%Y%m','now') THEN month_used ELSE 0 END AS month_used, " +
+      "cooldown_until " +
       "FROM auth_email_provider_accounts WHERE enabled = 1 ORDER BY priority ASC, created_at ASC",
-    ).all<Pick<ProviderAccount, "provider" | "sender_address" | "sender_name" | "credentials_ciphertext">>();
+    ).all<Pick<ProviderAccount,
+      "provider" | "sender_address" | "sender_name" | "credentials_ciphertext" |
+      "quota_hour_limit" | "quota_day_limit" | "quota_month_limit"
+    > & { hour_used: number; day_used: number; month_used: number; cooldown_until: string | null }>();
     for (const account of accounts.results ?? []) {
       if (!account.sender_address?.trim() || !account.sender_name?.trim()) continue;
+      if (account.cooldown_until && Date.parse(account.cooldown_until) > Date.now()) continue;
+      if (account.quota_hour_limit > 0 && account.hour_used >= account.quota_hour_limit) continue;
+      if (account.quota_day_limit > 0 && account.day_used >= account.quota_day_limit) continue;
+      if (account.quota_month_limit > 0 && account.month_used >= account.quota_month_limit) continue;
       try {
         const plaintext = await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, account.credentials_ciphertext);
         const credentials = parseCredentials(plaintext);
-        if (Object.values(credentials).some((value) => value.trim().length >= 16)) return true;
+        if (hasRequiredProviderCredentials(account.provider, credentials)) return true;
       } catch {
         // A broken profile is not a usable provider; check the next enabled one.
       }
