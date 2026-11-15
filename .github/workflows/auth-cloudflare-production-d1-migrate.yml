@@ -81,21 +81,25 @@ jobs:
             ["0006_transactional_email_provider.sql", "a67d15eaf94e2b4692b0ae0b152dd897f96192ac"],
             ["0007_managed_social_login_providers.sql", "f9c02fec5de73e5faa598809cc18c88d1d1bb52b"],
             ["0008_auth_runtime_settings.sql", "d4fd38de44ee2d8b58e6d7ef06ffc06a238d87e4"],
+            ["0009_multi_provider_email_routing.sql", "9753f06217a7a258edc689bdbaba1d0b8d026996"],
           ];
           const actual = readdirSync("migrations-production").filter((name) => name.endsWith(".sql")).sort();
           if (JSON.stringify(actual) !== JSON.stringify(expected.map(([name]) => name).sort())) {
-            throw new Error("Production must contain exactly migrations 0000–0008; staging-only migration 0008_add_staging_oauth_callback.sql is not allowed.");
+            throw new Error("Production must contain exactly migrations 0000–0009; staging-only callback migration is not allowed.");
           }
           for (const [name, expectedSha] of expected) {
             const prodSha = execFileSync("git", ["hash-object", "migrations-production/" + name], { encoding: "utf8" }).trim();
             if (prodSha !== expectedSha) {
               throw new Error("Reviewed immutable Production migration hash mismatch: " + name);
             }
-            // Migrations 0000–0007 are shared unchanged with staging.
-            // Production 0008 deliberately replaces staging's callback-only 0008
-            // with the secure-default runtime policy table.
+            // Production 0008 is the secure-default runtime policy; staging uses
+            // 0009 for that policy and 0008 for its callback allowlist. The new
+            // email-routing schema is shared as staging 0010 / Production 0009.
             if (name !== "0008_auth_runtime_settings.sql") {
-              const sourceSha = execFileSync("git", ["hash-object", "migrations/" + name], { encoding: "utf8" }).trim();
+              const sourceName = name === "0009_multi_provider_email_routing.sql"
+                ? "0010_multi_provider_email_routing.sql"
+                : name;
+              const sourceSha = execFileSync("git", ["hash-object", "migrations/" + sourceName], { encoding: "utf8" }).trim();
               if (sourceSha !== expectedSha) {
                 throw new Error("Staging/source migration hash mismatch: " + name);
               }
@@ -197,7 +201,7 @@ jobs:
           set -euo pipefail
           npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
 
-          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings','auth_runtime_settings') ORDER BY name;" > "$RUNNER_TEMP/production-d1-tables.json"
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings','auth_runtime_settings','auth_email_provider_accounts','auth_email_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/production-d1-tables.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -216,10 +220,12 @@ jobs:
             "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
             "session","user","verification","auth_phone_verification_challenges",
             "auth_social_provider_meta","auth_social_provider_settings","auth_runtime_settings",
+            "auth_email_provider_accounts","auth_email_provider_settings",
           ];
           const missing = expected.filter((name) => !rows.includes(name));
           if (missing.length) throw new Error("Missing Production D1 tables: " + missing.join(", "));
-          console.log("Verified " + expected.length + " Better Auth/identity tables, including the Admin email-verification policy table.");
+          if (expected.length !== 23) throw new Error("The reviewed Production D1 schema contract must contain exactly 23 tables.");
+          console.log("Verified " + expected.length + " Better Auth/identity/email-routing tables; email verification remains required.");
           NODE
 
           npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT email_verification_required FROM auth_runtime_settings WHERE id = 1;" > "$RUNNER_TEMP/production-d1-runtime-policy.json"
@@ -278,7 +284,7 @@ jobs:
           console.log("Verified the Production-only first-party OAuth callback.");
           NODE
 
-          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\") AS users, (SELECT COUNT(*) FROM \"session\") AS sessions, (SELECT COUNT(*) FROM \"account\") AS accounts, (SELECT COUNT(*) FROM \"verification\") AS verifications, (SELECT COUNT(*) FROM \"oauthAccessToken\") AS access_tokens, (SELECT COUNT(*) FROM \"oauthRefreshToken\") AS refresh_tokens, (SELECT COUNT(*) FROM auth_email_accounts) AS email_accounts;" > "$RUNNER_TEMP/production-d1-empty-check.json"
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\") AS users, (SELECT COUNT(*) FROM \"session\") AS sessions, (SELECT COUNT(*) FROM \"account\") AS accounts, (SELECT COUNT(*) FROM \"verification\") AS verifications, (SELECT COUNT(*) FROM \"oauthAccessToken\") AS access_tokens, (SELECT COUNT(*) FROM \"oauthRefreshToken\") AS refresh_tokens, (SELECT COUNT(*) FROM auth_email_accounts) AS email_accounts, (SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_provider_accounts, (SELECT COUNT(*) FROM auth_email_provider_settings) AS email_provider_settings;" > "$RUNNER_TEMP/production-d1-empty-check.json"
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
           const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/production-d1-empty-check.json", "utf8"));
@@ -291,10 +297,11 @@ jobs:
           };
           visit(payload);
           if (!row) throw new Error("Could not locate the Production empty-store count row.");
-          for (const key of ["users","sessions","accounts","verifications","access_tokens","refresh_tokens","email_accounts"]) {
+          for (const key of ["users","sessions","accounts","verifications","access_tokens","refresh_tokens","email_accounts","email_provider_accounts"]) {
             if (Number(row[key]) !== 0) throw new Error("Production D1 is not a fresh empty auth store: " + key + " is nonzero.");
           }
-          console.log("Verified zero users, sessions, accounts, verifications, resource tokens and email credentials.");
+          if (Number(row.email_provider_settings) !== 1) throw new Error("Production email routing settings must contain one default row.");
+          console.log("Verified zero identities and email provider accounts, with the default failover settings row present.");
           NODE
 
           echo "Production D1 schema migration completed after manual confirmation. This workflow did not deploy a Worker, set secrets, change DNS, enable provisioning, or switch the website."
