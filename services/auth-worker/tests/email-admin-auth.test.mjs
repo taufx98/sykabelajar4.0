@@ -18,6 +18,7 @@ const PRODUCTION_PUBLISHABLE_KEY = "sb_publishable_production_key_for_tests_only
 const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = 1_800_000_000;
 const emailAdminSource = readFileSync(new URL("../src/email-admin.ts", import.meta.url), "utf8");
+const runtimeSettingsSource = readFileSync(new URL("../src/auth-runtime-settings.ts", import.meta.url), "utf8");
 
 function fakeToken(claims = {}) {
   const header = Buffer.from(JSON.stringify({ alg: "ES256", kid: "staging-key-1", typ: "JWT" })).toString("base64url");
@@ -49,7 +50,7 @@ function makeFetch({ userInfo, roles, failUserInfo = false, failRoles = false, s
     if (String(url).startsWith(supabaseUrl + "/rest/v1/user_roles?")) {
       assert.equal(init.headers.apikey, publishableKey);
       assert.match(init.headers.Authorization, /^Bearer /);
-      assert.notEqual(init.headers.Authorization, "Bearer " + PUBLISHABLE_KEY);
+      assert.notEqual(init.headers.Authorization, "Bearer " + publishableKey);
       if (failRoles) return new Response("error", { status: 503 });
       return new Response(JSON.stringify(roles ?? [
         { user_id: USER_ID, role: "admin", is_active: true },
@@ -272,6 +273,7 @@ test("email admin route verifies Better Auth separately and keeps the Supabase A
   assert.match(emailAdminSource, /SUPABASE_PROVISIONING_URL/);
   assert.match(emailAdminSource, /SUPABASE_PROVISIONING_PUBLISHABLE_KEY/);
   assert.match(emailAdminSource, /supabaseEnvironment: env\.SUPABASE_PROVISIONING_ENV \?\? "staging"/);
+  assert.match(runtimeSettingsSource, /supabaseEnvironment:env\.SUPABASE_PROVISIONING_ENV\?\?"staging"/);
   assert.doesNotMatch(emailAdminSource, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(emailAdminSource, /BETTER_AUTH_ADMIN_REQUIRED/);
 });
