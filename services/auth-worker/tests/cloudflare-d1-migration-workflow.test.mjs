@@ -26,6 +26,8 @@ test("remote D1 schema migration has one exact guarded push marker and manual fa
   assert.match(workflow, /e29ecb4655bac013ded7db40051045d9c2507d3f7790b365cdbb8e2dfe1fd1b1/);
   assert.match(workflow, /b794cd2b217158ec2f5d540a646d0655c7504258b0bd49eda9131d5585233df7/);
   assert.match(workflow, /e2a7a59e026c59f190076765f294878856cc7b3413a3741cc58055b7d1ca4297/);
+  assert.match(workflow, /f0bf29fcaebf416ddcdb3758000dc1fbecce7b7ee6be5bbd2e6e10e17755a158/);
+  assert.match(workflow, /dcc1d9a18aff172a04305f932a8c4066393343fe8feb274421203cafb342bbe2/);
 });
 
 test("workflow is hard-bound to the known isolated D1 name and UUID", () => {
@@ -49,6 +51,8 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
     "0006_transactional_email_provider.sql",
     "0007_managed_social_login_providers.sql",
     "0008_add_staging_oauth_callback.sql",
+    "0009_auth_runtime_settings.sql",
+    "0010_multi_provider_email_routing.sql",
   ]) {
     assert.ok(workflow.includes(file), "missing migration guard for " + file);
   }
@@ -75,6 +79,21 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
   }
   assert.match(workflow, /pragma_table_info\('user'\)/);
   assert.match(workflow, /registration\/profile bootstrap columns/);
+});
+
+test("legacy broad staging migration is owner-only and cannot bypass email migrations 0009–0010", () => {
+  assert.match(workflow, /github\.actor == 'taufx98'/);
+  assert.match(workflow, /GITHUB_ACTOR.*taufx98/);
+  assert.match(workflow, /f0bf29fcaebf416ddcdb3758000dc1fbecce7b7ee6be5bbd2e6e10e17755a158/);
+  assert.match(workflow, /dcc1d9a18aff172a04305f932a8c4066393343fe8feb274421203cafb342bbe2/);
+  assert.match(workflow, /0009_auth_runtime_settings\.sql/);
+  assert.match(workflow, /0010_multi_provider_email_routing\.sql/);
+  assert.match(workflow, /Confirm migrations 0009–0010 were separately authorized and recorded/);
+  assert.match(workflow, /SELECT name FROM d1_migrations/);
+  assert.match(workflow, /both owner-authorized 0009\/0010/);
+  assert.match(workflow, /expected\.length !== 23/);
+  assert.match(workflow, /auth_email_provider_accounts/);
+  assert.match(workflow, /auth_email_provider_settings/);
 });
 
 test("workflow cannot deploy the Worker or modify DNS, domains, or secrets", () => {
