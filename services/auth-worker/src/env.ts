@@ -39,6 +39,8 @@ export interface AuthWorkerEnv {
   /** Selects the one exact Supabase identity destination; defaults to staging. */
   SUPABASE_PROVISIONING_ENV?: "staging" | "production";
   DEV_APP_ORIGIN?: string;
+  /** Exact Pages branch preview allowed only for the email Admin settings API. */
+  EMAIL_ADMIN_PREVIEW_ORIGIN?: string;
   OAUTH_CLIENT_BOOTSTRAP_TOKEN?: string;
   OAUTH_CALLBACK_URL?: string;
   /** Optional exact staging OAuth callback; omitted in Production. */

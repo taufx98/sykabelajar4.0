@@ -1,6 +1,7 @@
 import type { AuthWorkerEnv } from "./env";
 import { decryptEmailSecret, encryptEmailSecret } from "./email-secret.mjs";
 import { isAllowedOrigin } from "./security.mjs";
+import { getEmailAdminAllowedOrigins } from "./cors-origins.mjs";
 import { EmailProviderDeliveryError, sendEmailWithProvider } from "./email-providers.mjs";
 import {
   BetterAuthAdminAuthError,
@@ -86,8 +87,7 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
   { user: SupabaseAdminUser } | { response: Response }
 > {
   const origin = request.headers.get("Origin");
-  const allowedOrigins = [env.APP_ORIGIN, ...(env.DEV_APP_ORIGIN ? [env.DEV_APP_ORIGIN] : [])];
-  if (!isAllowedOrigin(origin, allowedOrigins)) {
+  if (!isAllowedOrigin(origin, getEmailAdminAllowedOrigins(env))) {
     return { response: json({ ok: false, error: "ORIGIN_NOT_ALLOWED" }, 403) };
   }
 

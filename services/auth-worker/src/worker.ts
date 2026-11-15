@@ -7,6 +7,7 @@ import {
   timingSafeEqualString,
 } from "./security.mjs";
 import { createD1QuotaResponse } from "./d1-quota.mjs";
+import { getAllowedOriginsForPath } from "./cors-origins.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
 import { isAuthEmailVerificationConfigured } from "./email";
 import { handleAuthRuntimeSettings, readEmailVerificationPolicy } from "./auth-runtime-settings";
@@ -445,8 +446,7 @@ async function completeTelegramPhoneCallback(request: Request, env: AuthWorkerEn
 export default {
   async fetch(request: Request, env: AuthWorkerEnv): Promise<Response> {
     const url = new URL(request.url);
-    const allowedOrigins = [env.APP_ORIGIN, ...(env.DEV_APP_ORIGIN ? [env.DEV_APP_ORIGIN] : [])];
-    const corsHeaders = createCorsHeaders(request, allowedOrigins);
+    const corsHeaders = createCorsHeaders(request, getAllowedOriginsForPath(url.pathname, env));
 
     if (url.pathname === "/bootz" && request.method === "GET") {
       return applyResponseHeaders(

@@ -106,6 +106,7 @@ jobs:
             /^BETTER_AUTH_URL = "https:\/\/auth\.sykabelajar\.my\.id"$/m,
             /^APP_ORIGIN = "https:\/\/sykabelajar\.my\.id"$/m,
             /^DEV_APP_ORIGIN = "https:\/\/staging\.sykabelajar\.my\.id"$/m,
+            /^EMAIL_ADMIN_PREVIEW_ORIGIN = "https:\/\/security-auth-poc-stage-1\.sykabelajar4\.pages\.dev"$/m,
             /^SUPABASE_RESOURCE_AUDIENCE = "https:\/\/sykabelajar\.my\.id"$/m,
             /^SUPABASE_PROVISIONING_URL = "https:\/\/ydamszdfsxqisanazdkb\.supabase\.co"$/m,
             /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_4GjRAXld9GnxYf2pJBPrTQ_Pqh_QI4v"$/m,
@@ -403,6 +404,45 @@ jobs:
               assert.equal(health.ok, true, "Worker must have a live D1 binding");
 
               const previewOrigin = "https://staging.sykabelajar.my.id";
+              const emailAdminPreviewOrigin = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev";
+              const emailAdminPreviewPreflight = await fetchWithTimeout(origin + "/api/admin/email-settings", {
+                method: "OPTIONS",
+                headers: {
+                  Origin: emailAdminPreviewOrigin,
+                  "Access-Control-Request-Method": "POST",
+                  "Access-Control-Request-Headers": "authorization,content-type",
+                },
+                redirect: "error",
+              });
+              assert.equal(emailAdminPreviewPreflight.status, 204, "the exact Pages preview must pass email Admin POST preflight");
+              assert.equal(
+                emailAdminPreviewPreflight.headers.get("Access-Control-Allow-Origin"),
+                emailAdminPreviewOrigin,
+                "email Admin preflight must echo only the exact branch preview origin",
+              );
+              assert.equal(emailAdminPreviewPreflight.headers.get("Access-Control-Allow-Credentials"), "true");
+              assert.match(emailAdminPreviewPreflight.headers.get("Access-Control-Allow-Headers") ?? "", /authorization/i);
+              assert.match(emailAdminPreviewPreflight.headers.get("Access-Control-Allow-Headers") ?? "", /content-type/i);
+
+              const previewOtherAdminResponse = await fetchWithTimeout(origin + "/api/admin/login-providers", {
+                headers: { Origin: emailAdminPreviewOrigin, Accept: "application/json" },
+                redirect: "error",
+              });
+              assert.equal(previewOtherAdminResponse.status, 403, "the Pages preview exception must not grant other Admin APIs");
+              assert.equal(previewOtherAdminResponse.headers.get("Access-Control-Allow-Origin"), null);
+
+              const rejectedEmailAdminPreflight = await fetchWithTimeout(origin + "/api/admin/email-settings", {
+                method: "OPTIONS",
+                headers: {
+                  Origin: "https://attacker.example",
+                  "Access-Control-Request-Method": "POST",
+                  "Access-Control-Request-Headers": "authorization,content-type",
+                },
+                redirect: "error",
+              });
+              assert.equal(rejectedEmailAdminPreflight.status, 403, "untrusted origins must fail email Admin preflight");
+              assert.equal(rejectedEmailAdminPreflight.headers.get("Access-Control-Allow-Origin"), null);
+
               const allowedPreview = await fetchWithTimeout(origin + "/healthz", {
                 headers: { Origin: previewOrigin },
                 redirect: "error",
@@ -491,12 +531,17 @@ jobs:
               );
 
               const unauthenticatedEmailAdminResponse = await fetchWithTimeout(origin + "/api/admin/email-settings", {
-                headers: { Origin: previewOrigin, Accept: "application/json" },
+                headers: { Origin: emailAdminPreviewOrigin, Accept: "application/json" },
                 redirect: "error",
               });
               assert.equal(unauthenticatedEmailAdminResponse.status, 401, "Admin email settings must reject requests without a Better Auth resource token");
               const unauthenticatedEmailAdminBody = await unauthenticatedEmailAdminResponse.json();
               assert.equal(unauthenticatedEmailAdminBody.error, "AUTH_REQUIRED");
+              assert.equal(
+                unauthenticatedEmailAdminResponse.headers.get("Access-Control-Allow-Origin"),
+                emailAdminPreviewOrigin,
+                "unauthenticated email Admin response must retain CORS for the exact Pages preview",
+              );
 
               const hostileEmailAdminResponse = await fetchWithTimeout(origin + "/api/admin/email-settings", {
                 headers: { Origin: "https://attacker.example", Accept: "application/json" },

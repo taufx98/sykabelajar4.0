@@ -26,6 +26,8 @@ BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
 APP_ORIGIN = "https://sykabelajar.my.id"
 # Same-site custom domain pinned to the migration branch with a proxied CNAME.
 DEV_APP_ORIGIN = "https://staging.sykabelajar.my.id"
+# Exact branch preview gets CORS access only to /api/admin/email-settings.
+EMAIL_ADMIN_PREVIEW_ORIGIN = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev"
 SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
 # Server-only identity RPCs may target only the isolated Free Stage 3 fixture project.
 # Provision fresh Better Auth users only into the isolated Free Stage 3 project.
