@@ -258,6 +258,7 @@ async function listSettings(env: AuthWorkerEnv): Promise<Response> {
       last_success_at: string | null; created_at: string; updated_at: string;
     }>(),
   ]);
+  const firstEnabledId = (accounts.results ?? []).find((row) => row.enabled === 1)?.id ?? null;
   const safeAccounts: PublicEmailAccount[] = (accounts.results ?? []).map((row) => ({
     id: row.id,
     label: row.label,
@@ -279,7 +280,7 @@ async function listSettings(env: AuthWorkerEnv): Promise<Response> {
     lastSuccessAt: row.last_success_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    active: row.enabled === 1 && row.priority === (accounts.results ?? []).filter((item) => item.enabled === 1).sort((a,b) => a.priority-b.priority)[0]?.priority,
+    active: row.id === firstEnabledId,
   }));
   return json({
     ok: true,
@@ -312,8 +313,12 @@ async function saveAccount(body: Record<string, unknown>, user: SupabaseAdminUse
   }>();
   if (body.id && !existing) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
 
+  const hasCredentialPayload = Object.hasOwn(body, "credentials");
   let credentials = normalizeCredentials(provider, body.credentials);
   let ciphertext = existing?.credentials_ciphertext ?? "";
+  if (hasCredentialPayload && !credentials) {
+    return json({ ok: false, error: "INVALID_EMAIL_PROVIDER_CREDENTIAL" }, 422);
+  }
   if (credentials) {
     try {
       ciphertext = await encryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, JSON.stringify(credentials));
