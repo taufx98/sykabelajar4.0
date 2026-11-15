@@ -299,12 +299,13 @@ jobs:
 
           const stagingOnly = [
             "SUPABASE_PROVISIONING_API_KEY","SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_PUBLISHABLE_KEY",
             "GOOGLE_CLIENT_ID","GOOGLE_CLIENT_SECRET",
             "FACEBOOK_CLIENT_ID","FACEBOOK_CLIENT_SECRET",
             "TWITTER_CLIENT_ID","TWITTER_CLIENT_SECRET",
             "AUTH_TELEGRAM_CLIENT_ID","AUTH_TELEGRAM_CLIENT_SECRET",
-            "AUTH_EMAIL_WEBHOOK_TOKEN","OAUTH_CLIENT_BOOTSTRAP_TOKEN",
-            "D1_SCHEMA_BOOTSTRAP_TOKEN",
+            "AUTH_EMAIL_WEBHOOK_URL","AUTH_EMAIL_WEBHOOK_TOKEN","AUTH_EMAIL_FROM",
+            "OAUTH_CLIENT_BOOTSTRAP_TOKEN","D1_SCHEMA_BOOTSTRAP_TOKEN",
           ];
           const before = await listSecrets();
           for (const name of stagingOnly) {
