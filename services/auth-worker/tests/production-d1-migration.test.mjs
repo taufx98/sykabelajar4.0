@@ -72,7 +72,7 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
   assert.doesNotMatch(runtimeMigration, /INSERT INTO "(user|session|account)"|UPDATE "(user|session|account)"/i);
 });
 
-test("Production D1 migration workflow is pinned to the exact new database and cannot deploy the Worker", () => {
+test("Production D1 migration workflow is pinned, owner-gated by manual dispatch or a one-time marker, and cannot deploy the Worker", () => {
   assert.match(workflow, /APPLY-PRODUCTION-D1-sykabelajar-auth-prod-6d4dc7b5/);
   assert.match(workflow, /sykabelajar-auth-prod/);
   assert.match(workflow, /6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
@@ -80,7 +80,10 @@ test("Production D1 migration workflow is pinned to the exact new database and c
   assert.match(workflow, /0000–0008/);
   assert.match(workflow, /APPLY-PRODUCTION-D1-sykabelajar-auth-prod-6d4dc7b5/);
   assert.match(workflow, /workflow_dispatch/);
-  assert.doesNotMatch(workflow, /^  push:/m);
+  assert.match(workflow, /^  push:/m);
+  assert.match(workflow, /APPLY-PRODUCTION-D1-0002/);
+  assert.match(workflow, /exact Production D1 0002 marker/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch' \|\| github\.event_name == 'push'/);
   assert.match(workflow, /email_verification_required=1/);
   assert.match(workflow, /workerDeploymentAttempted|did not deploy a Worker/);
   assert.doesNotMatch(workflow, /wrangler deploy/i);
