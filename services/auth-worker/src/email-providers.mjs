@@ -7,6 +7,10 @@ const ENDPOINTS = {
 };
 
 export class EmailProviderDeliveryError extends Error {
+  /**
+   * @param {string} code
+   * @param {{allowFailover?: boolean, cooldownSeconds?: number}} [options]
+   */
   constructor(code, { allowFailover = false, cooldownSeconds = 0 } = {}) {
     super(code);
     this.name = "EmailProviderDeliveryError";
@@ -16,18 +20,37 @@ export class EmailProviderDeliveryError extends Error {
   }
 }
 
+/** @param {unknown} value @returns {string} */
 function required(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * @param {string} text
+ * @returns {Record<string, unknown> | null}
+ */
 function parseJson(text) {
-  try { return JSON.parse(text); } catch { return null; }
+  try {
+    const result = JSON.parse(text);
+    return result && typeof result === "object" && !Array.isArray(result)
+      ? /** @type {Record<string, unknown>} */ (result)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
+/** @param {string} body @returns {boolean} */
 function quotaError(body) {
   return /quota|daily limit|monthly limit|sending limit|credits? exhausted|too many requests|rate.?limit|limit reached|plan limit/i.test(body);
 }
 
+/**
+ * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"} provider
+ * @param {typeof fetch} fetcher
+ * @param {RequestInit} init
+ * @returns {Promise<{result: Record<string, unknown> | null, bodyText: string}>}
+ */
 async function request(provider, fetcher, init) {
   let response;
   try {
@@ -64,6 +87,11 @@ async function request(provider, fetcher, init) {
   throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REJECTED_MESSAGE");
 }
 
+/**
+ * @param {{senderAddress:string,senderName:string}} account
+ * @param {{to:string,subject:string,text:string,action?:string}} message
+ * @returns {{senderAddress:string,senderName:string,to:string,subject:string,text:string}}
+ */
 function assertMessage(account, message) {
   const senderAddress = required(account?.senderAddress);
   const senderName = required(account?.senderName);
@@ -76,6 +104,11 @@ function assertMessage(account, message) {
   return { senderAddress, senderName, to, subject, text };
 }
 
+/**
+ * @param {Record<string,string>} headers
+ * @param {Record<string,unknown>} body
+ * @returns {RequestInit}
+ */
 function jsonInit(headers, body) {
   return {
     method: "POST",
