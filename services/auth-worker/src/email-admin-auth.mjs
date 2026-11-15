@@ -106,8 +106,8 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
 
 /**
  * Verify a Better Auth resource token, retrieve the verified email from OIDC
- * UserInfo, then check admin membership only in the isolated FREE Supabase
- * staging project using the service key held by this Worker.
+ * UserInfo, then check active admin membership only in the exact Supabase
+ * identity project pinned by this Worker environment using its publishable key.
  *
  * @param {{
  *   accessToken:string,
