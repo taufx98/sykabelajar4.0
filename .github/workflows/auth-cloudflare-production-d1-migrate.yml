@@ -1,14 +1,12 @@
 name: Auth Cloudflare D1 Production Schema
 
 on:
-  push:
-    branches:
-      - security/auth-poc-stage-1
-    paths:
-      - ".github/workflows/auth-cloudflare-production-d1-migrate.yml"
-      - ".github/auth-ops/APPLY-PRODUCTION-D1-0001"
-      - "services/auth-worker/wrangler.production.toml"
-      - "services/auth-worker/migrations-production/**"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type APPLY-PRODUCTION-D1-sykabelajar-auth-prod-6d4dc7b5 to apply only the reviewed Production D1 migrations"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,7 +17,7 @@ concurrency:
 
 jobs:
   migrate:
-    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.event_name == 'workflow_dispatch' }}
     name: Apply Production Better Auth schema to the exact empty D1 only
     runs-on: ubuntu-24.04
     timeout-minutes: 12
@@ -30,17 +28,21 @@ jobs:
       - name: Checkout reviewed Production migration set
         uses: actions/checkout@v7
 
-      - name: Verify one-time Production target, migration hashes and no-staging callback policy
+      - name: Verify manual owner confirmation, exact Production target, migration hashes and no-staging callback policy
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
-          marker="../../.github/auth-ops/APPLY-PRODUCTION-D1-0001"
-          test -f "$marker" || { echo "Blocked: Production D1 migration marker is missing." >&2; exit 1; }
-          test "$(cat "$marker")" = "APPLY-TO-sykabelajar-auth-prod:6d4dc7b5-8e71-4fdc-9cda-3230e49951c7" || {
-            echo "Blocked: Production D1 marker does not match the exact database name and UUID." >&2
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch" || {
+            echo "Blocked: Production D1 schema changes require a manual workflow dispatch." >&2
             exit 1
           }
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1" || {
             echo "Blocked: wrong branch for Production D1 migration." >&2
+            exit 1
+          }
+          test "$CONFIRMATION" = "APPLY-PRODUCTION-D1-sykabelajar-auth-prod-6d4dc7b5" || {
+            echo "Blocked: exact Production D1 confirmation is missing." >&2
             exit 1
           }
 
