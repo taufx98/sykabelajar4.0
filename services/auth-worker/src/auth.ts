@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { jwt } from "better-auth/plugins";
+import { emailOTP, jwt } from "better-auth/plugins";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import type { AuthWorkerEnv } from "./env";
 import { sendAuthEmail } from "./email";
@@ -350,6 +350,28 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
     },
     disabledPaths: ["/token"],
     plugins: [
+      emailOTP({
+        overrideDefaultEmailVerification: true,
+        otpLength: 6,
+        expiresIn: 300,
+        allowedAttempts: 3,
+        storeOTP: "encrypted",
+        rateLimit: { window: 60, max: 3 },
+        async sendVerificationOTP({ email, otp, type }) {
+          if (type !== "email-verification") {
+            throw new Error("AUTH_EMAIL_OTP_TYPE_NOT_SUPPORTED");
+          }
+          await sendAuthEmail(env, {
+            to: email,
+            subject: "Kode verifikasi email SYKABELAJAR",
+            text:
+              "Kode verifikasi email SYKABELAJAR Anda: " + otp +
+              "\n\nKode ini berlaku selama 5 menit dan maksimal 3 percobaan. " +
+              "Jangan bagikan kode ini kepada siapa pun. Jika Anda tidak membuat akun SYKABELAJAR, abaikan email ini.",
+            action: "verify-email-otp",
+          });
+        },
+      }),
       jwt({
         disableSettingJwtHeader: true,
         jwks: {
