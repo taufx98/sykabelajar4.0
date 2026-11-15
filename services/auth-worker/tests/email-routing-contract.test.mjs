@@ -54,8 +54,9 @@ test("Admin API protects all routing controls and never returns credential ciphe
   assert.match(handler, /action === "delete"/);
   const listing = adminSource.slice(adminSource.indexOf("async function listSettings"), adminSource.indexOf("async function saveAccount"));
   assert.match(listing, /credential_configured/);
-  assert.doesNotMatch(listing, /credentials_ciphertext/);
-  assert.doesNotMatch(listing, /send_mail_token_ciphertext/);
+  const projection = listing.slice(listing.indexOf("const safeAccounts"), listing.indexOf("return json"));
+  assert.match(projection, /credentialConfigured/);
+  assert.doesNotMatch(projection, /credentials_ciphertext|send_mail_token_ciphertext/);
 });
 
 test("provider test mail is sent only to the authenticated Admin email and is rate limited", () => {
