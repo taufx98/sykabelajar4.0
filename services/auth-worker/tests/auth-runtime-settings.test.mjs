@@ -110,10 +110,12 @@ test("D1 policy toggle workflow is hard-pinned to staging and supports explicit 
     "re-enable marker must take precedence over the retained bypass marker");
   assert.match(policyWorkflow, /email_verification_required=0/);
   assert.match(policyWorkflow, /email_verification_required=1/);
+  assert.match(policyWorkflow, /DELETE FROM session WHERE userId IN \(SELECT id FROM user WHERE emailVerified=0\)/);
+  assert.match(policyWorkflow, /active_unverified_sessions/);
   assert.ok(
-    policyWorkflow.indexOf("Require email verification again on staging D1") <
+    policyWorkflow.indexOf("Revoke active sessions for unverified staging accounts and require email verification") <
       policyWorkflow.indexOf("Verify hosted Worker reflects required email verification"),
-    "write the required policy before checking the hosted Worker response",
+    "revoke only unverified staging sessions before checking the required policy",
   );
 });
 
