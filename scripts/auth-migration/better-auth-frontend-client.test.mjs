@@ -227,7 +227,8 @@ assert.match(loginProvidersPanel, /draft\.clientSecret\.trim\(\) \? \{ clientSec
 assert.match(socialProviderSettings, /export const SOCIAL_LOGIN_PROVIDERS = \["google", "facebook", "twitter"\]/);
 assert.match(socialProviderSettings, /instagram:\s*\{ available: false/);
 assert.match(socialProviderSettings, /const authorization = await requireBetterAuthAdmin\(request, env\)/);
-assert.match(zeptoMailPanel, /sendMailToken: ''/);
+assert.match(zeptoMailPanel, /apiKey: ''/);
+assert.match(zeptoMailPanel, /apiSecret: ''/);
 assert.match(zeptoMailPanel, /getSupabaseResourceAccessToken\(\)/);
 assert.match(zeptoMailPanel, /AUTH_WORKER_URL_NOT_CONFIGURED/);
 
