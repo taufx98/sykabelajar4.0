@@ -25,7 +25,9 @@ test("Production Custom OIDC registration is manual and exact-target guarded", (
 });
 
 test("Production issuer registration cannot run automatically on branch pushes", () => {
-  assert.doesNotMatch(workflow, /^  push:/m);
+  assert.match(workflow, /^  push:/m);
+  assert.match(workflow, /REGISTER-PRODUCTION-OIDC-0001/);
+  assert.match(workflow, /exact Production OIDC marker/);
   assert.doesNotMatch(workflow, /^  pull_request:/m);
   assert.match(workflow, /type: string/);
 });
