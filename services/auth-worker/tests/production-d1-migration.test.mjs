@@ -5,6 +5,7 @@ import test from "node:test";
 const productionConfig = readFileSync(new URL("../wrangler.production.toml", import.meta.url), "utf8");
 const stagingConfig = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
 const authSource = readFileSync(new URL("../src/auth.ts", import.meta.url), "utf8");
+const runtimeMigration = readFileSync(new URL("../migrations-production/0008_auth_runtime_settings.sql", import.meta.url), "utf8");
 const workflow = readFileSync(
   new URL("../../../.github/workflows/auth-cloudflare-production-d1-migrate.yml", import.meta.url),
   "utf8",
@@ -60,10 +61,15 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
     "0005_telegram_phone_verification.sql",
     "0006_transactional_email_provider.sql",
     "0007_managed_social_login_providers.sql",
+    "0008_auth_runtime_settings.sql",
   ]);
   const seed = readFileSync(new URL("../migrations-production/0002_seed_first_party_oauth_client.sql", import.meta.url), "utf8");
   assert.ok(seed.includes('["https://sykabelajar.my.id/auth/oidc/callback"]'));
   assert.doesNotMatch(seed, /staging\.sykabelajar\.my\.id/);
+  assert.match(runtimeMigration, /email_verification_required INTEGER NOT NULL DEFAULT 1/);
+  assert.match(runtimeMigration, /CHECK \(email_verification_required IN \(0, 1\)\)/);
+  assert.match(runtimeMigration, /VALUES \(1, 1, 'system'\)/);
+  assert.doesNotMatch(runtimeMigration, /INSERT INTO "(user|session|account)"|UPDATE "(user|session|account)"/i);
 });
 
 test("Production D1 migration workflow is pinned to the exact new database and cannot deploy the Worker", () => {
@@ -71,7 +77,11 @@ test("Production D1 migration workflow is pinned to the exact new database and c
   assert.match(workflow, /sykabelajar-auth-prod/);
   assert.match(workflow, /6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
   assert.match(workflow, /migrations-production/);
-  assert.match(workflow, /0000–0007/);
+  assert.match(workflow, /0000–0008/);
+  assert.match(workflow, /APPLY-PRODUCTION-D1-sykabelajar-auth-prod-6d4dc7b5/);
+  assert.match(workflow, /workflow_dispatch/);
+  assert.doesNotMatch(workflow, /^  push:/m);
+  assert.match(workflow, /email_verification_required=1/);
   assert.match(workflow, /workerDeploymentAttempted|did not deploy a Worker/);
   assert.doesNotMatch(workflow, /wrangler deploy/i);
 });
