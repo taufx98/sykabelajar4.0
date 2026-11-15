@@ -182,12 +182,16 @@ assert.match(profileSettingsPage, /autoComplete="current-password"/);
 assert.doesNotMatch(profileSettingsPage, /supabase\.auth/);
 assert.match(adminPage, /import \{ ZeptoMailSettingsPanel \} from '@\/components\/admin\/ZeptoMailSettingsPanel'/);
 assert.match(adminPage, /tab === 'settings'[\s\S]*?<ZeptoMailSettingsPanel\s*\/>/);
-assert.match(zeptoMailPanel, /const EMPTY_DRAFT:[\s\S]*?provider: 'zeptomail'/);
-assert.match(zeptoMailPanel, /<option value="zeptomail">ZeptoMail · utama<\/option>/);
-assert.match(zeptoMailPanel, /<option value="brevo">Brevo Free · cadangan/);
-assert.match(zeptoMailPanel, /request\('activate'/);
+assert.match(zeptoMailPanel, /const EMPTY_DRAFT:[\s\S]*?provider: 'sendpulse'/);
+for (const provider of ['sendpulse', 'brevo', 'mailjet', 'mailtrap', 'resend']) {
+  assert.ok(zeptoMailPanel.includes(provider), 'multi-provider Admin panel must support ' + provider);
+}
+assert.match(zeptoMailPanel, /request\('save'/);
+assert.match(zeptoMailPanel, /request\('configure'/);
 assert.match(zeptoMailPanel, /request\('test'/);
 assert.match(zeptoMailPanel, /request\('delete'/);
+assert.match(zeptoMailPanel, /autoFailoverEnabled/);
+assert.doesNotMatch(zeptoMailPanel, /<option value="zeptomail"/);
 assert.match(sessionBridge, /sykabelajar-better-auth-session/);
 assert.doesNotMatch(sessionBridge, /access_token|refresh_token/);
 assert.match(supabaseClient, /createSupabaseClientOptions/);
