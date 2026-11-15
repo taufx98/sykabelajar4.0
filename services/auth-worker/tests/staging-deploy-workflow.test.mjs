@@ -85,7 +85,7 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.doesNotMatch(workflow, /Staging D1 unexpectedly contains .* rows; refusing deployment/);
   assert.match(workflow, /emailVerificationConfigured/);
   assert.match(workflow, /emailVerificationRequired/);
-  assert.ok(workflow.includes("publicProviders.emailVerificationRequired, false"));
+  assert.ok(workflow.includes("publicProviders.emailVerificationRequired, true"));
   assert.ok(workflow.includes("signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)"));
   assert.match(workflow, /const REQUEST_TIMEOUT_MS = 8_000/);
   assert.match(workflow, /unauthenticatedRuntimeSettingsResponse\.status, 401/);
