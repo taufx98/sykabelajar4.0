@@ -33,7 +33,7 @@ test("promotion verifies the existing staging Worker/D1 and preserves the sole a
 test("promotion requires a fully migrated, empty Production D1 with verification enabled", () => {
   assert.match(workflow, /0008_auth_runtime_settings\.sql/);
   assert.match(workflow, /productionD1Name = "sykabelajar-auth-prod"/);
-  assert.match(workflow, /email_verification_required\) AS email_verification_required/);
+  assert.match(workflow, /SELECT email_verification_required FROM auth_runtime_settings WHERE id=1\) AS email_verification_required/);
   assert.match(workflow, /Number\(row\.email_verification_required\) !== 1/);
   for (const field of ["users", "accounts", "sessions", "verifications", "access_tokens", "refresh_tokens", "consents", "email_accounts", "phone_challenges"]) {
     assert.ok(workflow.includes('"' + field + '"'), "Production empty-state guard must include " + field);
