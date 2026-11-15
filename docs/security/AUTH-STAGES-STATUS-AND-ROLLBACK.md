@@ -1,3 +1,20 @@
+# Production promotion execution checkpoint — 15 November 2026
+
+This is the latest authoritative Stage 7 checkpoint. It supplements the 14 November Production baseline and backup record below. The seven-stage plan remains the controlling scope; accepted staging stages are not reopened.
+
+## Work completed on 15 November — preparation only
+
+- **Production D1 migration 0008 prepared, not applied:** `services/auth-worker/migrations-production/0008_auth_runtime_settings.sql` creates only the Admin email-verification policy table and inserts exactly one secure-default row (`email_verification_required=1`). It creates no accounts, users, sessions, credentials or application identity. The guarded workflow requires either the exact one-time marker `.github/auth-ops/APPLY-PRODUCTION-D1-0002` or its exact manual confirmation. The marker is absent; no Production D1 migration was run.
+- **Production Worker promotion workflow prepared, not run:** `.github/workflows/auth-cloudflare-production-worker-promote.yml` accepts only marker `.github/auth-ops/PROMOTE-PRODUCTION-WORKER-0001` or the exact manual phrase. It verifies the existing Worker is still bound to the exact staging D1 and that the current hostname remains attached to the same Worker; it then validates the Production D1 schema/default policy/empty identity store, generates fresh Production-only keys, removes staging-only Worker secret bindings, keeps signup/provisioning disabled and promotes that same Worker. The marker is absent.
+- **Production Custom OIDC registrar prepared, not run:** `.github/workflows/auth-supabase-production-oidc.yml` accepts only marker `.github/auth-ops/REGISTER-PRODUCTION-OIDC-0001` or the exact manual phrase. It is pinned to DB2 `mvdczyitbkxkldjughor` and checks the live issuer, PKCE S256, public ES256 JWKS, exact project and duplicate state. Run only after the existing Worker is confirmed on Production D1. The marker is absent.
+- **Production public signup remains locked:** `AUTH_SIGNUP_DISABLED=true`; runtime defaults to closed in Production if that variable is missing. Only an explicit `false` opens public registration. Staging explicitly remains open.
+- **Environment-pinned Admin authorization fixed:** the Better Auth resource-token Admin verifier now checks roles only in the exact Supabase project selected by `SUPABASE_PROVISIONING_ENV`. Staging can only query the isolated staging project; Production can only query DB2. Mismatched URL/environment combinations fail before network calls. Email settings and runtime verification settings both pass the environment selector. Tests cover both projects and negative mismatch cases.
+- **Validation:** on source head `4caa3d7828d14c80b9f954cfbd475b888f43c3db`, Auth Worker CI passed (typecheck, security contracts, local Worker/OIDC integration and both non-deploy bundles), Cloudflare preflight passed, and staging browser smoke passed. The Supabase Local Auth Claims CI was still running at the last status read. The subsequent documentation-only updates do not modify runtime code.
+
+**No Production D1 0008 migration, Worker promotion, secret mutation, Custom OIDC registration, Production DB2 DDL/DML, DNS/Pages change, frontend auth-routing switch, account mutation or PR merge has been performed.** All three one-time marker files are absent. PR #177 remains open, Draft and unmerged.
+
+---
+
 # Production promotion execution checkpoint — 14 November 2026
 
 This is the latest authoritative Stage 7 checkpoint and supersedes older statements below where they differ. The detailed release sequence is in [AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md](AUTH-STAGE-7-PRODUCTION-CUTOVER-RUNBOOK.md), the seven-stage status is in [AUTH-MIGRATION-ROADMAP.md](AUTH-MIGRATION-ROADMAP.md), and the owner-approved architecture is recorded in [AUTH-PRODUCTION-PROMOTION-DECISION-2026-11-14.md](AUTH-PRODUCTION-PROMOTION-DECISION-2026-11-14.md).
