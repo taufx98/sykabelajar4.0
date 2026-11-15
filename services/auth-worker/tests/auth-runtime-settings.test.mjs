@@ -28,6 +28,7 @@ test("only an authenticated active Better Auth admin can read or change the sett
   assert.match(runtime, /isAllowedOrigin\(origin/);
   assert.match(runtime, /isBetterAuthTokenForIssuer\(token,\s*env\.BETTER_AUTH_URL\)/);
   assert.match(runtime, /resolveBetterAuthAdminIdentity\(/);
+  assert.match(runtime, /supabaseEnvironment:env\.SUPABASE_PROVISIONING_ENV\?\?"staging"/);
   assert.match(runtime, /BETTER_AUTH_ADMIN_REQUIRED/);
   assert.match(runtime, /request\.method\s*===\s*"GET"/);
   assert.match(runtime, /request\.method\s*!==\s*"PUT"/);
