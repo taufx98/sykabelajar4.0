@@ -279,63 +279,55 @@ test("email admin route verifies Better Auth separately and keeps the Supabase A
 });
 
 
-test("email settings GET requires an active admin and projects no provider credential", () => {
+test("email settings GET requires an active admin and returns only sanitized provider metadata", () => {
   const listStart = emailAdminSource.indexOf("async function listSettings");
   const saveStart = emailAdminSource.indexOf("async function saveAccount", listStart);
   assert.ok(listStart >= 0 && saveStart > listStart);
-  const projection = emailAdminSource.slice(listStart, saveStart);
-
-  assert.match(emailAdminSource, /export async function handleEmailAdminRequest/);
+  const listing = emailAdminSource.slice(listStart, saveStart);
   const handlerStart = emailAdminSource.indexOf("export async function handleEmailAdminRequest");
   const handler = emailAdminSource.slice(handlerStart);
   assert.match(handler, /const authorization = await requireActiveAdmin\(request, env\)/);
-  assert.ok(
-    handler.indexOf("requireActiveAdmin(request, env)") < handler.indexOf('if (request.method === "GET")'),
-    "GET must authenticate and authorize an active admin before reading settings",
-  );
-  assert.match(projection, /CASE WHEN length\(send_mail_token_ciphertext\) > 0 THEN 1 ELSE 0 END AS token_configured/);
-  for (const field of [
-    "id", "label", "provider", "sender_address", "sender_name",
-    "bounce_address", "token_configured", "created_at", "updated_at",
-  ]) assert.match(projection, new RegExp("\\b" + field + "\\b"));
-  assert.doesNotMatch(projection, /SELECT[^;]*send_mail_token_ciphertext\s*(?:,|FROM)/s,
-    "GET must not select provider ciphertext as a response field");
-  assert.match(projection, /tokenConfigured: row\.token_configured === 1/);
-  assert.doesNotMatch(projection, /sendMailToken|send_mail_token_ciphertext\s*:/);
+  assert.ok(handler.indexOf("requireActiveAdmin(request, env)") < handler.indexOf('if (request.method === "GET")'));
+  assert.match(listing, /credential_configured/);
+  assert.match(listing, /credentialConfigured: row\.credential_configured === 1/);
+  assert.match(listing, /autoFailoverEnabled: settings\?\.auto_failover_enabled !== 0/);
+  const projectionStart = listing.indexOf("const safeAccounts");
+  const responseProjection = listing.slice(projectionStart);
+  assert.ok(projectionStart >= 0);
+  assert.doesNotMatch(responseProjection, /credentials_ciphertext|send_mail_token_ciphertext|apiSecret|apiToken/);
 });
 
-test("saving email provider credentials encrypts new tokens before D1 and preserves only existing ciphertext", () => {
+test("saving provider credentials validates and encrypts the credential bundle before D1", () => {
   const start = emailAdminSource.indexOf("async function saveAccount");
-  const end = emailAdminSource.indexOf("async function activateAccount", start);
+  const end = emailAdminSource.indexOf("async function configureRouting", start);
   assert.ok(start >= 0 && end > start);
   const save = emailAdminSource.slice(start, end);
-  assert.match(save, /let tokenCiphertext = existing\?\.send_mail_token_ciphertext \?\? ""/);
-  assert.match(save, /!existing\.send_mail_token_ciphertext/);
-  assert.match(save, /if \(!submittedToken && existing\?\.send_mail_token_ciphertext\)[\s\S]*?decryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, existing\.send_mail_token_ciphertext\)/);
-  assert.match(save, /EMAIL_ACCOUNT_SECRET_UNAVAILABLE/);
-  assert.match(save, /tokenCiphertext = await encryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, submittedToken\)/);
-  const encryption = save.indexOf("encryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, submittedToken)");
-  const write = save.indexOf(".bind(id, label, provider, senderAddress, senderName, bounceAddress || null, tokenCiphertext");
-  assert.ok(encryption >= 0 && write > encryption, "new email provider tokens must be encrypted before the database write");
-  assert.doesNotMatch(save, /\.bind\([^;]*submittedToken/);
+  assert.match(save, /normalizeCredentials\(provider, body\.credentials\)/);
+  assert.match(save, /hasCredentialPayload && !credentials/);
+  assert.match(save, /encryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, JSON\.stringify\(credentials\)\)/);
+  assert.match(save, /credentials_ciphertext/);
+  const encryption = save.indexOf("encryptEmailSecret(");
+  const write = save.indexOf("INSERT INTO auth_email_provider_accounts");
+  assert.ok(encryption >= 0 && write > encryption, "provider credentials must be encrypted before the database write");
+  assert.doesNotMatch(save, /\.bind\([^;]*credentials\)/);
+  assert.match(save, /INVALID_EMAIL_PROVIDER_CREDENTIAL/);
 });
 
-test("activating email accounts validates the encrypted credential before switching the active account", () => {
-  const start = emailAdminSource.indexOf("async function activateAccount");
+test("routing configuration changes priority, enabled state, quotas and automatic failover", () => {
+  const start = emailAdminSource.indexOf("async function configureRouting");
   const end = emailAdminSource.indexOf("async function deleteAccount", start);
   assert.ok(start >= 0 && end > start);
-  const activate = emailAdminSource.slice(start, end);
-  assert.match(activate, /SELECT send_mail_token_ciphertext FROM auth_email_accounts/);
-  assert.match(activate, /decryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, candidate\.send_mail_token_ciphertext\)/);
-  const verify = activate.indexOf("decryptEmailSecret(");
-  const switchActive = activate.indexOf("UPDATE auth_email_settings SET active_account_id");
-  assert.ok(verify >= 0 && switchActive > verify, "active account must not change until its stored token decrypts");
-  assert.match(activate, /EXISTS \(SELECT 1 FROM auth_email_accounts WHERE id = \?1\)/);
-  assert.match(activate, /result\.meta\.changes !== 1/);
-  assert.match(activate, /EMAIL_ACCOUNT_SECRET_UNAVAILABLE/);
+  const configure = emailAdminSource.slice(start, end);
+  assert.match(configure, /autoFailoverEnabled/);
+  assert.match(configure, /auto_failover_enabled/);
+  assert.match(configure, /priority/);
+  assert.match(configure, /quota_hour_limit/);
+  assert.match(configure, /quota_day_limit/);
+  assert.match(configure, /quota_month_limit/);
+  assert.match(configure, /env\.DB\.batch\(statements\)/);
 });
 
-test("active email accounts cannot be deleted and admin test mail is rate-limited to the signed-in admin", () => {
+test("provider accounts can be removed and Admin test mail is rate-limited to the signed-in admin", () => {
   const deleteStart = emailAdminSource.indexOf("async function deleteAccount");
   const testStart = emailAdminSource.indexOf("async function testAccount", deleteStart);
   const routeStart = emailAdminSource.indexOf("export async function handleEmailAdminRequest");
@@ -343,19 +335,15 @@ test("active email accounts cannot be deleted and admin test mail is rate-limite
   const deleteAccount = emailAdminSource.slice(deleteStart, testStart);
   const testAccount = emailAdminSource.slice(testStart, routeStart);
 
-  assert.match(deleteAccount, /DELETE FROM auth_email_accounts WHERE id = \?1/);
-  assert.match(deleteAccount, /NOT EXISTS \(SELECT 1 FROM auth_email_settings WHERE id = 1 AND active_account_id = \?1\)/);
-  assert.match(deleteAccount, /result\.meta\.changes !== 1/);
-  assert.match(deleteAccount, /ACTIVE_EMAIL_ACCOUNT_CANNOT_BE_DELETED/);
-  assert.doesNotMatch(deleteAccount, /SELECT active_account_id FROM auth_email_settings[\s\S]*?DELETE FROM auth_email_accounts/,
-    "the active-account guard must be in the DELETE statement, not a racy separate pre-read");
+  assert.match(deleteAccount, /DELETE FROM auth_email_provider_accounts WHERE id=\?1/);
+  assert.match(deleteAccount, /EMAIL_ACCOUNT_NOT_FOUND/);
 
   assert.match(testAccount, /INSERT INTO auth_email_admin_test_limits/);
-  assert.match(testAccount, /last_sent_at <= \?3 RETURNING user_id/);
-  assert.match(testAccount, /\.bind\(user\.id, now, now - 60\)/);
-  assert.match(testAccount, /to: user\.email/);
+  assert.match(testAccount, /last_sent_at<=\?3 RETURNING user_id/);
+  assert.match(testAccount, /\.bind\(user\.id,now,now-60\)/);
+  assert.match(testAccount, /to:user\.email/);
   assert.match(testAccount, /EMAIL_TEST_RATE_LIMITED/);
-  assert.match(testAccount, /account\.send_mail_token_ciphertext/);
+  assert.match(testAccount, /credentials_ciphertext/);
   assert.doesNotMatch(testAccount, /to:\s*body\./,
     "admin test email recipient must come from the verified admin identity, never request input");
 });
