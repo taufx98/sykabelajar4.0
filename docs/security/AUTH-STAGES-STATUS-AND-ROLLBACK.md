@@ -1,3 +1,29 @@
+# Multi-provider email continuation checkpoint — 15 November 2026
+
+This is the newest email-system checkpoint and supersedes older provider choices below wherever they refer to ZeptoMail as the current sender. It does not change the seven-stage Better Auth scope or authorize Production actions.
+
+## Implemented in the auth migration branch — preparation only
+
+- The new transactional email dispatcher supports exactly the five selected providers: SendPulse, Brevo, Mailjet, Mailtrap Email Sending, and Resend. The old ZeptoMail Admin defaults have been removed from the new UI and routing path.
+- Each provider account stores a JSON credential bundle encrypted by the Worker with AES-256-GCM under the existing stable `AUTH_EMAIL_ENCRYPTION_KEY`. Admin GET exposes only `credentialConfigured`; no plaintext credential or ciphertext is returned.
+- Admin controls include provider ordering/priority, enable/disable, automatic failover, internal hour/day/month limits, usage counters, cooldown/error/success status, provider editing and an Admin-only test email. Mailjet's Public/Private API Key pair is validated together.
+- Initial internal free-tier guardrails: SendPulse 50/hour + 400/day; Brevo 300/day; Mailjet 200/day + 6,000/month; Mailtrap 150/day + 4,000/month; Resend 100/day + 3,000/month. These are configurable D1 counters, not live provider-account usage meters. Activity from other applications or credentials on the same provider account is not visible to the Worker; recheck official provider terms before changing defaults.
+- Quota reservations use atomic D1 conditional updates on UTC hour/day/month buckets. The router skips internally exhausted or cooling-down accounts. It advances to the next enabled priority only on deterministic quota rejection (e.g. HTTP 402/429 or explicit quota response) or credential rejection (401/403). It does not resend through a second provider after timeout, network interruption, or HTTP 5xx because the first provider may have accepted the email; that state is treated as ambiguous to avoid duplicate verification/reset mail.
+- Contract tests were added for all five provider request formats, credentials, explicit quota/credential failover, and ambiguous transport handling. Additional tests cover D1 quota and migration/Production guards.
+- Staging migration `0010_multi_provider_email_routing.sql` and Production counterpart `0009_multi_provider_email_routing.sql` create routing tables/settings only; they do not seed provider accounts, credentials, users, sessions or identities. The guarded staging D1 workflow is `.github/workflows/auth-email-routing-d1-staging.yml`. The Production D1 and Worker promotion guards now require the new routing tables and a default failover-enabled settings row.
+- Legacy migrations 0003/0006, the old ZeptoMail/Brevo tables and their modules remain as historical migration compatibility. The new dispatcher does not read their saved Agent records, migrate their tokens, or reuse them.
+
+## Not yet activated
+
+- The new staging D1 migration 0010 has not been applied and the new Worker code has not yet been deployed to staging.
+- No SendPulse/Brevo/Mailjet/Mailtrap/Resend API credentials or sender profiles have been entered. No real email has been sent. The provider API credentials must be entered directly through the authenticated Admin panel; never paste them into chat, repository files, or frontend variables.
+- Hosted email/password signup, verification callback and reset-password acceptance remain fail-closed until an enabled free provider is configured, sender-domain verification is complete, and real delivery/callback/reset tests pass.
+- Production D1 migration 0009, Worker promotion, Production OIDC registration, DB2 identity/FK migration and frontend switch remain unexecuted. All three Production markers remain absent; PR #177 remains Draft and unmerged.
+
+The architecture remains unchanged: Better Auth owns credentials/sessions/OIDC; Supabase DB2 remains the application database and business-role/RLS authority. Cloudinary remains the media store. No unrelated application feature or business schema is part of this email-provider work.
+
+---
+
 # Production promotion execution checkpoint — 15 November 2026
 
 This is the latest authoritative Stage 7 checkpoint. It supplements the 14 November Production baseline and backup record below. The seven-stage plan remains the controlling scope; accepted staging stages are not reopened.
