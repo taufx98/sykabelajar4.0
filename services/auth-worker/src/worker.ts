@@ -531,6 +531,27 @@ export default {
       return applyResponseHeaders(json({ error: "NOT_FOUND" }, 404), corsHeaders);
     }
 
+    // Scope the Email OTP plugin to email verification only. Passwordless
+    // sign-in and OTP password reset remain unavailable until separately reviewed.
+    const blockedEmailOtpPaths = new Set([
+      "/api/auth/sign-in/email-otp",
+      "/api/auth/email-otp/check-verification-otp",
+      "/api/auth/email-otp/request-password-reset",
+      "/api/auth/email-otp/reset-password",
+      "/api/auth/forget-password/email-otp",
+      "/api/auth/email-otp/request-email-change",
+      "/api/auth/email-otp/change-email",
+    ]);
+    if (request.method === "POST" && blockedEmailOtpPaths.has(url.pathname)) {
+      return applyResponseHeaders(json({ error: "EMAIL_OTP_ROUTE_NOT_AVAILABLE" }, 404), corsHeaders);
+    }
+    if (request.method === "POST" && url.pathname === "/api/auth/email-otp/send-verification-otp") {
+      const payload = await request.clone().json().catch(() => null) as { type?: unknown } | null;
+      if (payload?.type !== "email-verification") {
+        return applyResponseHeaders(json({ error: "EMAIL_OTP_TYPE_NOT_AVAILABLE" }, 404), corsHeaders);
+      }
+    }
+
     // The frontend readiness check is only UX. Enforce the same gate at
     // the Worker boundary so direct Better Auth API calls cannot create an
     // unverified account when the verification-email sender is unavailable.
