@@ -61,7 +61,7 @@ jobs:
           import { createHash } from "node:crypto";
           import { readFileSync } from "node:fs";
           const file = readFileSync("migrations/0010_multi_provider_email_routing.sql");
-          const expected = "PLACEHOLDER_SHA256";
+          const expected = "dcc1d9a18aff172a04305f932a8c4066393343fe8feb274421203cafb342bbe2";
           if (createHash("sha256").update(file).digest("hex") !== expected) {
             throw new Error("Reviewed staging email-routing migration hash mismatch.");
           }
@@ -80,7 +80,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: services/auth-worker/package-lock.json
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck && npm test
 
