@@ -6,6 +6,7 @@ import {
 } from "jose";
 
 const STAGING_SUPABASE_ORIGIN = "https://ydamszdfsxqisanazdkb.supabase.co";
+const PRODUCTION_SUPABASE_ORIGIN = "https://mvdczyitbkxkldjughor.supabase.co";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_ACCESS_TOKEN_AGE_SECONDS = 300;
 const CLOCK_SKEW_SECONDS = 30;
@@ -48,8 +49,24 @@ function authIssuer(authBaseUrl) {
   return url.origin + "/api/auth";
 }
 
-/** @param {string} value */
-function stagingSupabaseOrigin(value) {
+/**
+ * Selects exactly one approved identity/role database for the current Worker
+ * environment. The environment flag and URL must agree; there is no fallback
+ * between staging and Production.
+ *
+ * @param {string} value
+ * @param {"staging"|"production"} environment
+ */
+function pinnedSupabaseOrigin(value, environment = "staging") {
+  const expectedOrigin = environment === "staging"
+    ? STAGING_SUPABASE_ORIGIN
+    : environment === "production"
+      ? PRODUCTION_SUPABASE_ORIGIN
+      : null;
+  if (!expectedOrigin) {
+    throw new BetterAuthAdminAuthError("BETTER_AUTH_ADMIN_PROJECT_NOT_ALLOWED");
+  }
+
   let url;
   try {
     url = new URL(value);
@@ -58,7 +75,7 @@ function stagingSupabaseOrigin(value) {
   }
   if (
     url.protocol !== "https:" ||
-    url.origin !== STAGING_SUPABASE_ORIGIN ||
+    url.origin !== expectedOrigin ||
     url.username ||
     url.password ||
     url.pathname !== "/" ||
@@ -97,6 +114,7 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
  *   authBaseUrl:string,
  *   resourceAudience:string,
  *   supabaseUrl:string,
+ *   supabaseEnvironment?:"staging"|"production",
  *   publishableKey:string,
  *   allowUnverifiedEmail?:boolean,
  *   fetchImpl?:typeof fetch,
@@ -122,7 +140,7 @@ export async function resolveBetterAuthAdminIdentity(input) {
   }
 
   const issuer = authIssuer(authBaseUrl);
-  const supabaseOrigin = stagingSupabaseOrigin(input.supabaseUrl);
+  const supabaseOrigin = pinnedSupabaseOrigin(input.supabaseUrl, input.supabaseEnvironment ?? "staging");
   const jwksUrl = issuer + "/jwks";
   const fetchImpl = input.fetchImpl ?? fetch;
   const verifyJwtImpl = input.verifyJwtImpl ?? jwtVerify;
