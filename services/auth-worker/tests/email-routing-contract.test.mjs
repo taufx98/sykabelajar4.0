@@ -42,6 +42,13 @@ test("verification readiness requires an enabled provider with a decryptable cre
   );
   assert.match(readiness, /FROM auth_email_provider_accounts WHERE enabled = 1/);
   assert.match(readiness, /decryptEmailSecret/);
+  assert.match(readiness, /quota_hour_limit/);
+  assert.match(readiness, /quota_day_limit/);
+  assert.match(readiness, /quota_month_limit/);
+  assert.match(readiness, /cooldown_until/);
+  assert.match(emailSource, /hasRequiredProviderCredentials/);
+  assert.match(emailSource, /provider === "mailjet"[\s\S]*?credentials\.apiSecret/);
+  assert.match(emailSource, /provider === "mailtrap"[\s\S]*?credentials\.apiToken/);
   assert.match(readiness, /return false/);
 });
 
