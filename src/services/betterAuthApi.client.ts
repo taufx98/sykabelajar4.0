@@ -122,7 +122,8 @@ export interface BetterAuthApiClient {
   setLoginProviderEnabled(provider: BetterAuthSocialProvider, enabled: boolean): Promise<BetterAuthLoginProviderSettings>;
   validateLoginProvider(provider: BetterAuthSocialProvider): Promise<{ ok: true; provider: BetterAuthSocialProvider; enabled: boolean; status: string; hostedSignInRequired: true; message: string }>;
   signUp(input: BetterAuthRegistrationInput): Promise<BetterAuthSignInResult>;
-  sendVerificationEmail(email: string, callbackURL: string): Promise<void>;
+  sendVerificationOtp(email: string): Promise<void>;
+  verifyEmailOtp(email: string, otp: string): Promise<void>;
   requestPasswordReset(email: string, redirectTo: string): Promise<void>;
   resetPassword(token: string, newPassword: string): Promise<void>;
   changePassword(currentPassword: string, newPassword: string, revokeOtherSessions?: boolean): Promise<void>;
@@ -933,14 +934,33 @@ export function createBetterAuthApiClient(options: {
       return request<BetterAuthSignInResult>('/sign-up/email', normalizeRegistration(input));
     },
 
-    async sendVerificationEmail(email, callbackURL) {
+    async sendVerificationOtp(email) {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail)) {
+        throw new BetterAuthClientError(400, 'REGISTRATION_EMAIL_INVALID');
+      }
       if (!(await getEmailVerificationConfigured())) {
         throw new BetterAuthClientError(503, 'EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED');
       }
-      await request<unknown>('/send-verification-email', {
-        email: email.trim().toLowerCase(),
-        callbackURL,
+      await request<unknown>('/email-otp/send-verification-otp', {
+        email: normalizedEmail,
+        type: 'email-verification',
       });
+    },
+
+    async verifyEmailOtp(email, otp) {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail) || !/^\\d{6}$/.test(otp.trim())) {
+        throw new BetterAuthClientError(400, 'EMAIL_OTP_INPUT_INVALID');
+      }
+      const result = await request<{ status?: boolean }>('/email-otp/verify-email', {
+        email: normalizedEmail,
+        otp: otp.trim(),
+      });
+      if (result?.status !== true) {
+        throw new BetterAuthClientError(400, 'EMAIL_OTP_VERIFICATION_FAILED');
+      }
+      clearResourceTokenCache();
     },
 
     async requestPasswordReset(email, redirectTo) {
