@@ -62,7 +62,10 @@ const PROVIDER_LABELS: Record<EmailProvider, string> = {
 };
 const EMPTY_DRAFT: AccountDraft = {
   id: null, provider: 'sendpulse', label: '', senderAddress: '', senderName: 'SYKABELAJAR',
-  apiKey: '', apiSecret: '', ...QUOTAS.sendpulse,
+  apiKey: '', apiSecret: '',
+  quotaHourLimit: QUOTAS.sendpulse.hour,
+  quotaDayLimit: QUOTAS.sendpulse.day,
+  quotaMonthLimit: QUOTAS.sendpulse.month,
 };
 const ERROR_LABELS: Record<string, string> = {
   AUTH_REQUIRED: 'Sesi admin tidak ditemukan. Silakan login kembali.',
