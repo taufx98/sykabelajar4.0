@@ -38,7 +38,7 @@ test("promotion requires a fully migrated, empty Production D1 with verification
   for (const field of ["users", "accounts", "sessions", "verifications", "access_tokens", "refresh_tokens", "consents", "email_accounts", "phone_challenges"]) {
     assert.ok(workflow.includes('"' + field + '"'), "Production empty-state guard must include " + field);
   }
-  assert.match(workflow, /Number\\(row\\[field\\]\\) !== 0/);
+  assert.ok(workflow.includes("if (Number(row[field]) !== 0)"), "each Production identity counter must be zero before promotion");
   assert.match(workflow, /first_party_clients\) !== 1/);
   assert.match(workflow, /redirectUris\.length !== 1/);
   assert.match(workflow, /https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback/);
