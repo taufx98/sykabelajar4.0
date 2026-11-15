@@ -1,34 +1,82 @@
 import { decryptEmailSecret } from "./email-secret.mjs";
 import { deliverAuthEmail, isEmailDeliveryConfigured } from "./email-delivery.mjs";
-import { sendBrevoEmail } from "./brevo.mjs";
-import { sendZeptoMail } from "./zeptomail.mjs";
+import { EmailProviderDeliveryError, sendEmailWithProvider } from "./email-providers.mjs";
 import type { AuthWorkerEnv } from "./env";
 
 type AuthEmailMessage = {
   to: string;
   subject: string;
   text: string;
-  action: "verify-email" | "reset-password";
+  action: "verify-email" | "reset-password" | "admin-test";
 };
 
-type ActiveEmailAccount = {
+type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend";
+type ProviderAccount = {
   id: string;
-  provider: "zeptomail" | "brevo";
+  provider: EmailProvider;
   sender_address: string;
   sender_name: string;
-  bounce_address: string | null;
-  send_mail_token_ciphertext: string;
+  credentials_ciphertext: string;
+  quota_hour_limit: number;
+  quota_day_limit: number;
+  quota_month_limit: number;
 };
 
+/** A UTC bucket is calculated inside D1 so concurrent Worker isolates share the same limits. */
+async function reserveProviderQuota(env: AuthWorkerEnv, account: ProviderAccount): Promise<boolean> {
+  const row = await env.DB.prepare(
+    "UPDATE auth_email_provider_accounts SET " +
+    "hour_used = CASE WHEN hour_bucket <> strftime('%Y%m%d%H','now') THEN 1 ELSE hour_used + 1 END, " +
+    "hour_bucket = strftime('%Y%m%d%H','now'), " +
+    "day_used = CASE WHEN day_bucket <> strftime('%Y%m%d','now') THEN 1 ELSE day_used + 1 END, " +
+    "day_bucket = strftime('%Y%m%d','now'), " +
+    "month_used = CASE WHEN month_bucket <> strftime('%Y%m','now') THEN 1 ELSE month_used + 1 END, " +
+    "month_bucket = strftime('%Y%m','now'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') " +
+    "WHERE id = ?1 AND enabled = 1 " +
+    "AND (cooldown_until IS NULL OR cooldown_until <= strftime('%Y-%m-%dT%H:%M:%fZ','now')) " +
+    "AND (quota_hour_limit = 0 OR (CASE WHEN hour_bucket <> strftime('%Y%m%d%H','now') THEN 0 ELSE hour_used END) < quota_hour_limit) " +
+    "AND (quota_day_limit = 0 OR (CASE WHEN day_bucket <> strftime('%Y%m%d','now') THEN 0 ELSE day_used END) < quota_day_limit) " +
+    "AND (quota_month_limit = 0 OR (CASE WHEN month_bucket <> strftime('%Y%m','now') THEN 0 ELSE month_used END) < quota_month_limit) " +
+    "RETURNING id",
+  ).bind(account.id).first<{ id: string }>();
+  return Boolean(row?.id);
+}
+
+async function recordProviderError(
+  env: AuthWorkerEnv,
+  accountId: string,
+  code: string,
+  cooldownSeconds = 0,
+): Promise<void> {
+  const until = cooldownSeconds > 0
+    ? new Date(Date.now() + cooldownSeconds * 1000).toISOString()
+    : null;
+  await env.DB.prepare(
+    "UPDATE auth_email_provider_accounts SET last_error_code = ?1, last_error_at = ?2, " +
+    "cooldown_until = ?3, updated_at = ?2 WHERE id = ?4",
+  ).bind(code, new Date().toISOString(), until, accountId).run();
+}
+
+async function recordProviderSuccess(env: AuthWorkerEnv, accountId: string): Promise<void> {
+  await env.DB.prepare(
+    "UPDATE auth_email_provider_accounts SET last_error_code = NULL, last_error_at = NULL, " +
+    "cooldown_until = NULL, last_success_at = ?1, updated_at = ?1 WHERE id = ?2",
+  ).bind(new Date().toISOString(), accountId).run();
+}
+
+function parseCredentials(value: string): Record<string, string> {
+  const parsed = JSON.parse(value) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("EMAIL_CREDENTIALS_INVALID");
+  const result: Record<string, string> = {};
+  for (const [key, item] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof item === "string") result[key] = item;
+  }
+  return result;
+}
+
 /**
- * "managed" selects the active provider account stored encrypted in D1.
- * "webhook" is retained for isolated local development only.
- */
-/**
- * Return whether the configured email path can support the local verification
- * challenge. This is a configuration check only; it never sends a message.
- * Email remains optional for providers that return a trusted verified-email
- * claim (Google and X), but Facebook requires this local delivery path.
+ * This function only returns true when at least one enabled provider has a
+ * decryptable credential. It never sends mail or trusts stale Admin metadata.
  */
 export async function isAuthEmailVerificationConfigured(env: AuthWorkerEnv): Promise<boolean> {
   const providerMode = (env.AUTH_EMAIL_PROVIDER ?? "webhook").trim().toLowerCase();
@@ -37,27 +85,94 @@ export async function isAuthEmailVerificationConfigured(env: AuthWorkerEnv): Pro
   if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) return false;
 
   try {
-    const active = await env.DB.prepare(
-      "SELECT a.provider, a.sender_address, a.sender_name, a.send_mail_token_ciphertext " +
-      "FROM auth_email_settings s JOIN auth_email_accounts a ON a.id = s.active_account_id " +
-      "WHERE s.id = 1",
-    ).first<Pick<ActiveEmailAccount, "provider" | "sender_address" | "sender_name" | "send_mail_token_ciphertext">>();
-    if (
-      !active ||
-      (active.provider !== "zeptomail" && active.provider !== "brevo") ||
-      !active.sender_address.trim() ||
-      !active.sender_name.trim() ||
-      !active.send_mail_token_ciphertext
-    ) return false;
-
-    const credential = await decryptEmailSecret(
-      env.AUTH_EMAIL_ENCRYPTION_KEY,
-      active.send_mail_token_ciphertext,
-    );
-    return credential.trim().length > 0;
+    const accounts = await env.DB.prepare(
+      "SELECT provider, sender_address, sender_name, credentials_ciphertext " +
+      "FROM auth_email_provider_accounts WHERE enabled = 1 ORDER BY priority ASC, created_at ASC",
+    ).all<Pick<ProviderAccount, "provider" | "sender_address" | "sender_name" | "credentials_ciphertext">>();
+    for (const account of accounts.results ?? []) {
+      if (!account.sender_address?.trim() || !account.sender_name?.trim()) continue;
+      try {
+        const plaintext = await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, account.credentials_ciphertext);
+        const credentials = parseCredentials(plaintext);
+        if (Object.values(credentials).some((value) => value.trim().length >= 16)) return true;
+      } catch {
+        // A broken profile is not a usable provider; check the next enabled one.
+      }
+    }
   } catch {
     return false;
   }
+  return false;
+}
+
+async function sendManagedEmail(env: AuthWorkerEnv, message: AuthEmailMessage): Promise<void> {
+  if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) {
+    throw new Error("AUTH_EMAIL_ENCRYPTION_KEY_NOT_CONFIGURED");
+  }
+
+  const settings = await env.DB.prepare(
+    "SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id = 1",
+  ).first<{ auto_failover_enabled: number }>();
+  const autoFailover = settings?.auto_failover_enabled !== 0;
+  const result = await env.DB.prepare(
+    "SELECT id, provider, sender_address, sender_name, credentials_ciphertext, " +
+    "quota_hour_limit, quota_day_limit, quota_month_limit " +
+    "FROM auth_email_provider_accounts WHERE enabled = 1 " +
+    "ORDER BY priority ASC, created_at ASC",
+  ).all<ProviderAccount>();
+  const accounts = result.results ?? [];
+  if (accounts.length === 0) throw new Error("AUTH_EMAIL_ACTIVE_ACCOUNT_NOT_CONFIGURED");
+
+  const candidates = autoFailover ? accounts : accounts.slice(0, 1);
+  let lastSafeError = "AUTH_EMAIL_ALL_PROVIDERS_EXHAUSTED";
+  let attempted = 0;
+
+  for (const account of candidates) {
+    const reserved = await reserveProviderQuota(env, account);
+    if (!reserved) {
+      lastSafeError = "AUTH_EMAIL_PROVIDER_QUOTA_REACHED";
+      continue;
+    }
+    attempted += 1;
+
+    let credentials: Record<string, string>;
+    try {
+      const plaintext = await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, account.credentials_ciphertext);
+      credentials = parseCredentials(plaintext);
+    } catch {
+      await recordProviderError(env, account.id, "EMAIL_PROVIDER_CREDENTIAL_UNAVAILABLE", 3600);
+      lastSafeError = "AUTH_EMAIL_PROVIDER_CREDENTIAL_UNAVAILABLE";
+      if (autoFailover) continue;
+      throw new Error(lastSafeError);
+    }
+
+    try {
+      await sendEmailWithProvider(account.provider, credentials, {
+        senderAddress: account.sender_address,
+        senderName: account.sender_name,
+      }, message);
+      await recordProviderSuccess(env, account.id);
+      return;
+    } catch (error) {
+      if (error instanceof EmailProviderDeliveryError) {
+        await recordProviderError(
+          env,
+          account.id,
+          error.code,
+          error.allowFailover ? error.cooldownSeconds : 0,
+        );
+        lastSafeError = error.code;
+        if (autoFailover && error.allowFailover) continue;
+        // Timeout, network failure and provider 5xx are ambiguous. Stop here:
+        // another provider could send a duplicate if the first accepted it.
+        throw new Error(error.allowFailover ? error.code : "AUTH_EMAIL_DELIVERY_STATUS_UNKNOWN");
+      }
+      await recordProviderError(env, account.id, "EMAIL_PROVIDER_UNEXPECTED_ERROR");
+      throw new Error("AUTH_EMAIL_DELIVERY_FAILED");
+    }
+  }
+
+  throw new Error(attempted === 0 ? "AUTH_EMAIL_ALL_PROVIDERS_QUOTA_EXHAUSTED" : lastSafeError);
 }
 
 export async function sendAuthEmail(
@@ -65,49 +180,7 @@ export async function sendAuthEmail(
   message: AuthEmailMessage,
 ): Promise<void> {
   const providerMode = (env.AUTH_EMAIL_PROVIDER ?? "webhook").trim().toLowerCase();
-
-  if (providerMode === "managed") {
-    if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) {
-      throw new Error("AUTH_EMAIL_ENCRYPTION_KEY_NOT_CONFIGURED");
-    }
-
-    const active = await env.DB.prepare(
-      "SELECT a.id, a.provider, a.sender_address, a.sender_name, a.bounce_address, a.send_mail_token_ciphertext " +
-      "FROM auth_email_settings s JOIN auth_email_accounts a ON a.id = s.active_account_id " +
-      "WHERE s.id = 1",
-    ).first<ActiveEmailAccount>();
-
-    if (!active) throw new Error("AUTH_EMAIL_ACTIVE_ACCOUNT_NOT_CONFIGURED");
-
-    const credential = await decryptEmailSecret(
-      env.AUTH_EMAIL_ENCRYPTION_KEY,
-      active.send_mail_token_ciphertext,
-    );
-
-    if (active.provider === "brevo") {
-      await sendBrevoEmail({
-        apiKey: credential,
-        senderAddress: active.sender_address,
-        senderName: active.sender_name,
-      }, message);
-      return;
-    }
-
-    if (active.provider === "zeptomail") {
-      await sendZeptoMail({
-        sendMailToken: credential,
-        senderAddress: active.sender_address,
-        senderName: active.sender_name,
-        bounceAddress: active.bounce_address,
-      }, message);
-      return;
-    }
-
-    throw new Error("AUTH_EMAIL_PROVIDER_UNSUPPORTED");
-  }
-
-  if (providerMode !== "webhook") {
-    throw new Error("AUTH_EMAIL_PROVIDER_UNSUPPORTED");
-  }
+  if (providerMode === "managed") return sendManagedEmail(env, message);
+  if (providerMode !== "webhook") throw new Error("AUTH_EMAIL_PROVIDER_UNSUPPORTED");
   await deliverAuthEmail(env, message);
 }
