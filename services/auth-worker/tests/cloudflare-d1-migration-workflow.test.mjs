@@ -90,7 +90,7 @@ test("legacy broad staging migration is owner-only and cannot bypass email migra
   assert.match(workflow, /0010_multi_provider_email_routing\.sql/);
   assert.match(workflow, /Confirm migrations 0009–0010 were separately authorized and recorded/);
   assert.match(workflow, /SELECT name FROM d1_migrations/);
-  assert.match(workflow, /both owner-authorized 0009\/0010/);
+  assert.match(workflow, /separately owner-authorized 0009\/0010/);
   assert.match(workflow, /expected\.length !== 23/);
   assert.match(workflow, /auth_email_provider_accounts/);
   assert.match(workflow, /auth_email_provider_settings/);
