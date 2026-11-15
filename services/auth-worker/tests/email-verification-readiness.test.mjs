@@ -14,10 +14,10 @@ test("Better Auth staging signup checks delivery readiness before creating an ac
   assert.ok(method.indexOf("getEmailVerificationConfigured()") < method.indexOf("'/sign-up/email'"));
 });
 
-test("verification resend is never attempted when the staging email sender is unavailable", () => {
-  const method = client.slice(client.indexOf("async sendVerificationEmail"), client.indexOf("async requestPasswordReset"));
+test("verification OTP resend is never attempted when the staging email sender is unavailable", () => {
+  const method = client.slice(client.indexOf("async sendVerificationOtp"), client.indexOf("async verifyEmailOtp"));
   assert.ok(method.indexOf("getEmailVerificationConfigured()") >= 0);
-  assert.ok(method.indexOf("EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED") < method.indexOf("'/send-verification-email'"));
+  assert.ok(method.indexOf("EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED") < method.indexOf("'/email-otp/send-verification-otp'"));
 });
 
 test("login UI discloses inactive staging email delivery and disables resend", () => {
