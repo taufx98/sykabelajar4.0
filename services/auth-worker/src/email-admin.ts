@@ -90,8 +90,9 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
 
   // Better Auth resource tokens are third-party OIDC JWTs, not Supabase Auth
   // access tokens. Route them through the pinned issuer/JWKS + UserInfo verifier.
-  // Admin membership is checked only against isolated FREE staging; the legacy
-  // Supabase Auth path below continues to use the configured legacy Supabase URL.
+  // Admin membership is checked only against the exact environment-pinned
+  // Supabase identity project; the legacy Supabase Auth path below continues
+  // to use the separately configured legacy Supabase URL.
   if (env.BETTER_AUTH_URL && isBetterAuthTokenForIssuer(accessToken, env.BETTER_AUTH_URL)) {
     try {
       const user = await resolveBetterAuthAdminIdentity({
@@ -99,6 +100,7 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
         authBaseUrl: env.BETTER_AUTH_URL,
         resourceAudience: env.SUPABASE_RESOURCE_AUDIENCE,
         supabaseUrl: env.SUPABASE_PROVISIONING_URL ?? "",
+        supabaseEnvironment: env.SUPABASE_PROVISIONING_ENV ?? "staging",
         publishableKey: env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY ?? "",
         allowUnverifiedEmail: !(await readEmailVerificationPolicy(env)),
       });
