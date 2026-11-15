@@ -36,8 +36,9 @@ test("promotion requires a fully migrated, empty Production D1 with verification
   assert.match(workflow, /email_verification_required\) AS email_verification_required/);
   assert.match(workflow, /Number\(row\.email_verification_required\) !== 1/);
   for (const field of ["users", "accounts", "sessions", "verifications", "access_tokens", "refresh_tokens", "consents", "email_accounts", "phone_challenges"]) {
-    assert.match(workflow, new RegExp("Number\\(row\\." + field + "\\) !== 0"));
+    assert.ok(workflow.includes('"' + field + '"'), "Production empty-state guard must include " + field);
   }
+  assert.match(workflow, /Number\\(row\\[field\\]\\) !== 0/);
   assert.match(workflow, /first_party_clients\) !== 1/);
   assert.match(workflow, /redirectUris\.length !== 1/);
   assert.match(workflow, /https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback/);
