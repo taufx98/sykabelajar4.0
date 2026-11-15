@@ -341,6 +341,7 @@ async function listSettings(env: AuthWorkerEnv): Promise<Response> {
   }));
   return json({
     ok: true,
+    emailVerificationPolicyAvailable: isPinnedStagingEmailPolicyTarget(env),
     autoFailoverEnabled: settings?.auto_failover_enabled !== 0,
     accounts: safeAccounts,
   });

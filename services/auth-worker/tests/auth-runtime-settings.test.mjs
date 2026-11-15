@@ -77,6 +77,8 @@ test("staging Admin panel exposes the verification policy on the exact Pages pre
 
 test("email Admin API limits verification policy changes to active admins and the pinned staging D1", () => {
   assert.match(emailAdmin, /const authorization = await requireActiveAdmin\(request, env\)/);
+  assert.match(emailAdmin, /emailVerificationPolicyAvailable: isPinnedStagingEmailPolicyTarget\(env\)/);
+  assert.match(panel, /payload\.emailVerificationPolicyAvailable === true/);
   assert.match(emailAdmin, /action === "get-verification-policy"/);
   assert.match(emailAdmin, /action === "set-verification-policy"/);
   assert.match(emailAdmin, /SUPABASE_PROVISIONING_ENV !== "staging"/);

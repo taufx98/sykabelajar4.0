@@ -21,6 +21,23 @@ function isStagingAdminHost(): boolean {
   return hostname === STAGING_PREVIEW_HOST || hostname === STAGING_APP_HOST;
 }
 
+async function isVerificationPolicyApiAvailable(): Promise<boolean> {
+  const token = await getSupabaseResourceAccessToken();
+  if (!token) throw new Error('AUTH_REQUIRED');
+
+  const response = await fetch(STAGING_AUTH_WORKER_URL + '/api/admin/email-settings', {
+    method: 'GET',
+    headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
+  });
+  const payload = await response.json().catch(() => null) as
+    | { ok?: boolean; error?: string; emailVerificationPolicyAvailable?: boolean }
+    | null;
+  if (!response.ok || payload?.ok !== true) {
+    throw new Error(payload?.error || 'EMAIL_SETTINGS_REQUEST_FAILED');
+  }
+  return payload.emailVerificationPolicyAvailable === true;
+}
+
 async function requestPolicy(
   action: 'get-verification-policy' | 'set-verification-policy',
   required?: boolean,
@@ -56,6 +73,7 @@ async function requestPolicy(
 export function AuthVerificationSettingsPanel() {
   const visible = isStagingAdminHost();
   const [policy, setPolicy] = useState<Policy | null>(null);
+  const [available, setAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -66,6 +84,12 @@ export function AuthVerificationSettingsPanel() {
     setLoading(true);
     setError('');
     try {
+      const supported = await isVerificationPolicyApiAvailable();
+      setAvailable(supported);
+      if (!supported) {
+        setPolicy(null);
+        return;
+      }
       setPolicy(await requestPolicy('get-verification-policy'));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'AUTH_RUNTIME_SETTINGS_UNAVAILABLE');
@@ -98,7 +122,7 @@ export function AuthVerificationSettingsPanel() {
     }
   };
 
-  if (!visible) return null;
+  if (!visible || (!loading && !available && !error)) return null;
 
   return (
     <Card className="p-5 space-y-4">
