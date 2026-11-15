@@ -12,7 +12,9 @@ const ISSUER = "https://auth.sykabelajar.my.id/api/auth";
 const AUTH_BASE_URL = "https://auth.sykabelajar.my.id";
 const RESOURCE = "https://sykabelajar.my.id";
 const SUPABASE_URL = "https://ydamszdfsxqisanazdkb.supabase.co";
+const PRODUCTION_SUPABASE_URL = "https://mvdczyitbkxkldjughor.supabase.co";
 const PUBLISHABLE_KEY = "sb_publishable_staging_key_for_tests_only";
+const PRODUCTION_PUBLISHABLE_KEY = "sb_publishable_production_key_for_tests_only";
 const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = 1_800_000_000;
 const emailAdminSource = readFileSync(new URL("../src/email-admin.ts", import.meta.url), "utf8");
@@ -32,7 +34,7 @@ function fakeToken(claims = {}) {
   return header + "." + payload + ".signature";
 }
 
-function makeFetch({ userInfo, roles, failUserInfo = false, failRoles = false } = {}) {
+function makeFetch({ userInfo, roles, failUserInfo = false, failRoles = false, supabaseUrl = SUPABASE_URL, publishableKey = PUBLISHABLE_KEY } = {}) {
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url: String(url), init });
@@ -44,8 +46,8 @@ function makeFetch({ userInfo, roles, failUserInfo = false, failRoles = false } 
         email_verified: true,
       }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
-    if (String(url).startsWith(SUPABASE_URL + "/rest/v1/user_roles?")) {
-      assert.equal(init.headers.apikey, PUBLISHABLE_KEY);
+    if (String(url).startsWith(supabaseUrl + "/rest/v1/user_roles?")) {
+      assert.equal(init.headers.apikey, publishableKey);
       assert.match(init.headers.Authorization, /^Bearer /);
       assert.notEqual(init.headers.Authorization, "Bearer " + PUBLISHABLE_KEY);
       if (failRoles) return new Response("error", { status: 503 });
@@ -76,6 +78,7 @@ function input(overrides = {}) {
     authBaseUrl: AUTH_BASE_URL,
     resourceAudience: RESOURCE,
     supabaseUrl: SUPABASE_URL,
+    supabaseEnvironment: "staging",
     publishableKey: PUBLISHABLE_KEY,
     nowSeconds: NOW,
     verifyJwtImpl: verifyStub({
@@ -97,7 +100,7 @@ test("only the exact Better Auth issuer selects the external-token verifier", ()
   assert.equal(isBetterAuthTokenForIssuer("not-a-jwt", AUTH_BASE_URL), false);
 });
 
-test("Better Auth admin identity is signature-contract verified, UserInfo verified and role checked in staging", async () => {
+test("Better Auth admin identity is verified and role checked only in the pinned staging project", async () => {
   const network = makeFetch();
   const user = await resolveBetterAuthAdminIdentity(input({ fetchImpl: network.fetchImpl }));
   assert.deepEqual(user, { id: USER_ID, email: "admin@example.test" });
@@ -202,22 +205,41 @@ test("UserInfo must match the verified subject and report verified email", async
   }
 });
 
-test("service-side role resolution fails closed for non-admin and cannot target production Supabase", async () => {
-  const network = makeFetch({ roles: [{ user_id: USER_ID, role: "admin", is_active: false }] });
+test("admin role lookup allows only the exact Supabase project selected for its environment", async () => {
+  const nonAdminNetwork = makeFetch({ roles: [{ user_id: USER_ID, role: "admin", is_active: false }] });
   await assert.rejects(
-    resolveBetterAuthAdminIdentity(input({ fetchImpl: network.fetchImpl })),
+    resolveBetterAuthAdminIdentity(input({ fetchImpl: nonAdminNetwork.fetchImpl })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_REQUIRED",
   );
+  assert.equal(nonAdminNetwork.calls.length, 2, "non-admin identity is still checked only after signature and UserInfo validation");
 
-  const noNetwork = makeFetch();
-  await assert.rejects(
-    resolveBetterAuthAdminIdentity(input({
-      supabaseUrl: "https://mvdczyitbkxkldjughor.supabase.co",
-      fetchImpl: noNetwork.fetchImpl,
-    })),
-    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_PROJECT_NOT_ALLOWED",
-  );
-  assert.equal(noNetwork.calls.length, 0);
+  const productionNetwork = makeFetch({
+    supabaseUrl: PRODUCTION_SUPABASE_URL,
+    publishableKey: PRODUCTION_PUBLISHABLE_KEY,
+  });
+  const productionUser = await resolveBetterAuthAdminIdentity(input({
+    supabaseUrl: PRODUCTION_SUPABASE_URL,
+    supabaseEnvironment: "production",
+    publishableKey: PRODUCTION_PUBLISHABLE_KEY,
+    fetchImpl: productionNetwork.fetchImpl,
+  }));
+  assert.deepEqual(productionUser, { id: USER_ID, email: "admin@example.test" });
+  assert.equal(new URL(productionNetwork.calls[1].url).origin, PRODUCTION_SUPABASE_URL);
+  assert.equal(productionNetwork.calls[1].init.headers.apikey, PRODUCTION_PUBLISHABLE_KEY);
+
+  const mismatches = [
+    { supabaseUrl: PRODUCTION_SUPABASE_URL, supabaseEnvironment: "staging", publishableKey: PRODUCTION_PUBLISHABLE_KEY },
+    { supabaseUrl: SUPABASE_URL, supabaseEnvironment: "production", publishableKey: PUBLISHABLE_KEY },
+    { supabaseUrl: SUPABASE_URL, supabaseEnvironment: "development", publishableKey: PUBLISHABLE_KEY },
+  ];
+  for (const mismatch of mismatches) {
+    const noNetwork = makeFetch();
+    await assert.rejects(
+      resolveBetterAuthAdminIdentity(input({ ...mismatch, fetchImpl: noNetwork.fetchImpl })),
+      (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_PROJECT_NOT_ALLOWED",
+    );
+    assert.equal(noNetwork.calls.length, 0, "environment/project mismatch must fail before UserInfo or role lookup");
+  }
 });
 
 test("missing staging publishable key and unavailable UserInfo/role services fail closed", async () => {
@@ -249,6 +271,7 @@ test("email admin route verifies Better Auth separately and keeps the Supabase A
   assert.match(emailAdminSource, /\/rest\/v1\/rpc\/is_active_admin/);
   assert.match(emailAdminSource, /SUPABASE_PROVISIONING_URL/);
   assert.match(emailAdminSource, /SUPABASE_PROVISIONING_PUBLISHABLE_KEY/);
+  assert.match(emailAdminSource, /supabaseEnvironment: env\.SUPABASE_PROVISIONING_ENV \?\? "staging"/);
   assert.doesNotMatch(emailAdminSource, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(emailAdminSource, /BETTER_AUTH_ADMIN_REQUIRED/);
 });
