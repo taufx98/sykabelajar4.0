@@ -222,9 +222,9 @@ export function onAuthStateChange(
 }
 
 /**
- * Resend the account email-verification link through the currently selected
- * auth provider. A generic UI response must be used so the account's existence
- * is not disclosed to an unauthenticated caller.
+ * Resend the account email-verification challenge through the selected auth
+ * provider. Better Auth staging uses a numeric OTP; legacy Supabase keeps its
+ * existing link flow. The response must not disclose account existence.
  */
 export async function sendVerificationEmail(email: string, callbackURL?: string): Promise<void> {
   const normalizedEmail = email.trim().toLowerCase();
@@ -238,7 +238,7 @@ export async function sendVerificationEmail(email: string, callbackURL?: string)
   );
   const destination = new URL(destinationPath, window.location.origin).toString();
   if (isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
-    await getStagingBetterAuthClient().sendVerificationEmail(normalizedEmail, destination);
+    await getStagingBetterAuthClient().sendVerificationOtp(normalizedEmail);
     return;
   }
 
