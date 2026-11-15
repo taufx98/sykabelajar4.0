@@ -66,7 +66,8 @@ assert.ok(client.includes("const workerOrigin = baseUrl.replace(/\\/api\\/auth$/
 
 assert.match(client, /\/sign-in\/social/);
 assert.match(client, /\/sign-up\/email/);
-assert.match(client, /\/send-verification-email/);
+assert.match(client, /\/email-otp\/send-verification-otp/);
+assert.match(client, /\/email-otp\/verify-email/);
 assert.match(client, /\/request-password-reset/);
 assert.match(client, /\/reset-password/);
 assert.match(client, /\/change-password/);
@@ -154,14 +155,14 @@ assert.match(emailVerifiedPage, /window\.history\.replaceState/);
 assert.match(app, /path="\/auth\/verified"/);
 
 assert.match(authService, /export async function sendVerificationEmail\(email: string, callbackURL\?: string\)/);
-assert.match(authService, /getStagingBetterAuthClient\(\)\.sendVerificationEmail\(normalizedEmail, destination\)/);
+assert.match(authService, /getStagingBetterAuthClient\(\)\.sendVerificationOtp\(normalizedEmail\)/);
 assert.match(authService, /supabase\.auth\.resend\(\{[\s\S]*?type: 'signup'[\s\S]*?emailRedirectTo: destination/);
 assert.match(loginPage, /sendVerificationEmail/);
 assert.match(loginPage, /handleResendVerification/);
 assert.match(loginPage, /EMAIL_VERIFICATION_REQUIRED\|EMAIL_NOT_VERIFIED\|EMAIL_NOT_CONFIRMED/);
 assert.match(loginPage, /If that address has an unverified account, a verification link will be sent\./);
 assert.match(registerPage, /isBetterAuthEnabled\(\)/);
-assert.match(registerPage, /Akun berhasil dibuat\. Periksa email untuk menyelesaikan verifikasi sebelum masuk\./);
+assert.match(registerPage, /Masukkan kode 6 digit yang dikirim ke email untuk verifikasi/);
 
 assert.match(authService, /getStagingBetterAuthClient\(\)\.resetPassword\(token, newPassword\)/);
 assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
