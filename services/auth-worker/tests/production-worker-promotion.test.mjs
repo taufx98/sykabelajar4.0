@@ -68,7 +68,9 @@ test("promotion removes staging-only secret bindings and generates fresh Product
     "FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET",
     "TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET",
     "AUTH_TELEGRAM_CLIENT_ID", "AUTH_TELEGRAM_CLIENT_SECRET",
-  ]) assert.ok(rotation.includes(name), "staging social/Telegram secret must be removed: " + name);
+    "SUPABASE_PROVISIONING_API_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PUBLISHABLE_KEY",
+    "AUTH_EMAIL_WEBHOOK_URL", "AUTH_EMAIL_WEBHOOK_TOKEN", "AUTH_EMAIL_FROM",
+  ]) assert.ok(rotation.includes(name), "staging-only credential/config binding must be removed: " + name);
   assert.match(rotation, /DELETE/);
   assert.match(rotation, /randomBytes\(32\)/);
   for (const name of ["BETTER_AUTH_SECRET", "AUTH_PROVIDER_ENCRYPTION_KEY", "AUTH_EMAIL_ENCRYPTION_KEY"]) {
