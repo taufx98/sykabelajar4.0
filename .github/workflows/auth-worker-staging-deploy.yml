@@ -504,7 +504,7 @@ jobs:
                 "boolean",
                 "public provider discovery must expose the runtime verification policy as a boolean",
               );
-              assert.equal(publicProviders.emailVerificationRequired, false, "owner-approved temporary staging bypass must remain enabled until the auth migration is complete");
+              assert.equal(publicProviders.emailVerificationRequired, true, "staging must require email verification before accepting new sessions");
               assert.deepEqual(
                 Object.keys(publicProviders).sort(),
                 ["emailVerificationConfigured", "emailVerificationRequired", "issuer", "ok", "providers"],
