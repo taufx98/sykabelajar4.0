@@ -151,7 +151,8 @@ assert.match(client, /\? \{ callbackURL: input\.callbackURL \} : \{\}/);
 assert.match(emailVerifiedPage, /getSession\(\)/);
 assert.match(emailVerifiedPage, /session\?\.user\.emailVerified === true/);
 assert.doesNotMatch(emailVerifiedPage, /searchParams\.get\('status'\).*verified|params\.get\('status'\).*verified/);
-assert.match(emailVerifiedPage, /window\.history\.replaceState/);
+assert.match(emailVerifiedPage, /autoComplete="one-time-code"/);
+assert.match(emailVerifiedPage, /verifyEmailOtp\(normalizedEmail, otp\.trim\(\)\)/);
 assert.match(app, /path="\/auth\/verified"/);
 
 assert.match(authService, /export async function sendVerificationEmail\(email: string, callbackURL\?: string\)/);
