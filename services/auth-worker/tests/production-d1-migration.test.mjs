@@ -62,6 +62,7 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
     "0006_transactional_email_provider.sql",
     "0007_managed_social_login_providers.sql",
     "0008_auth_runtime_settings.sql",
+    "0009_multi_provider_email_routing.sql",
   ]);
   const seed = readFileSync(new URL("../migrations-production/0002_seed_first_party_oauth_client.sql", import.meta.url), "utf8");
   assert.ok(seed.includes('["https://sykabelajar.my.id/auth/oidc/callback"]'));
@@ -70,6 +71,12 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
   assert.match(runtimeMigration, /CHECK \(email_verification_required IN \(0, 1\)\)/);
   assert.match(runtimeMigration, /VALUES \(1, 1, 'system'\)/);
   assert.doesNotMatch(runtimeMigration, /INSERT INTO "(user|session|account)"|UPDATE "(user|session|account)"/i);
+  const emailMigration = readFileSync(new URL("../migrations-production/0009_multi_provider_email_routing.sql", import.meta.url), "utf8");
+  assert.match(emailMigration, /provider IN \('sendpulse','brevo','mailjet','mailtrap','resend'\)/);
+  assert.match(emailMigration, /auto_failover_enabled INTEGER NOT NULL DEFAULT 1/);
+  assert.match(emailMigration, /VALUES \(1, 1, CURRENT_TIMESTAMP, NULL\)/);
+  assert.match(emailMigration, /credentials_ciphertext TEXT NOT NULL/);
+  assert.doesNotMatch(emailMigration, /INSERT INTO auth_email_provider_accounts/i);
 });
 
 test("Production D1 migration workflow is pinned, owner-gated by manual dispatch or a one-time marker, and cannot deploy the Worker", () => {
@@ -77,7 +84,11 @@ test("Production D1 migration workflow is pinned, owner-gated by manual dispatch
   assert.match(workflow, /sykabelajar-auth-prod/);
   assert.match(workflow, /6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
   assert.match(workflow, /migrations-production/);
-  assert.match(workflow, /0000–0008/);
+  assert.match(workflow, /0000–0009/);
+  assert.match(workflow, /0009_multi_provider_email_routing\.sql/);
+  assert.match(workflow, /0010_multi_provider_email_routing\.sql/);
+  assert.match(workflow, /auth_email_provider_accounts/);
+  assert.match(workflow, /auth_email_provider_settings/);
   assert.match(workflow, /APPLY-PRODUCTION-D1-sykabelajar-auth-prod-6d4dc7b5/);
   assert.match(workflow, /workflow_dispatch/);
   assert.match(workflow, /^  push:/m);
