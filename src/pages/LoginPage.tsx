@@ -112,10 +112,14 @@ export function LoginPage() {
     setVerificationLoading(true);
     try {
       await sendVerificationEmail(email.trim());
-      toast(text(
-        'Jika email tersebut memiliki akun yang belum diverifikasi, tautan verifikasi akan dikirim.',
-        'If that address has an unverified account, a verification link will be sent.',
-      ), 'success');
+      if (betterAuthPreview) {
+        navigate('/auth/verified', { state: { email: email.trim().toLowerCase() } });
+      } else {
+        toast(text(
+          'Jika email tersebut memiliki akun yang belum diverifikasi, tautan verifikasi akan dikirim.',
+          'If that address has an unverified account, a verification link will be sent.',
+        ), 'success');
+      }
     } catch {
       // Keep the response indistinguishable for unknown, verified and rate-limited addresses.
       toast(text(
@@ -189,8 +193,10 @@ export function LoginPage() {
               <p className="text-sm font-medium text-fg">{text('Email belum terverifikasi','Email not verified')}</p>
               <p className="mt-1 text-xs text-slate-500">{emailVerificationConfigured === false
                 ? text('Layanan pengiriman email verifikasi belum aktif di staging. Login tetap ditolak sampai email berhasil diverifikasi.','The staging verification email service is not active. Sign-in remains blocked until the email is verified.')
-                : text('Periksa kotak masuk dan folder spam. Kamu dapat meminta tautan verifikasi dikirim kembali.','Check your inbox and spam folder. You can request another verification link.')}</p>
-              <Button fullWidth size="sm" variant="outline" className="mt-3" loading={verificationLoading} disabled={verificationLoading || !email.trim() || emailVerificationConfigured !== true} onClick={() => void handleResendVerification()}>{text('Kirim ulang tautan verifikasi','Resend verification link')}</Button>
+                : betterAuthPreview
+                  ? text('Periksa email untuk kode verifikasi 6 digit. Kode dapat dimasukkan di halaman verifikasi.','Check your inbox for a 6-digit verification code. Enter it on the verification page.')
+                  : text('Periksa kotak masuk dan folder spam. Kamu dapat meminta tautan verifikasi dikirim kembali.','Check your inbox and spam folder. You can request another verification link.')}</p>
+              <Button fullWidth size="sm" variant="outline" className="mt-3" loading={verificationLoading} disabled={verificationLoading || !email.trim() || emailVerificationConfigured !== true} onClick={() => void handleResendVerification()}>{betterAuthPreview ? text('Kirim ulang kode verifikasi','Resend verification code') : text('Kirim ulang tautan verifikasi','Resend verification link')}</Button>
             </div>}
             <div className="flex justify-end mt-3"><button onClick={() => { setForgotEmail(email); setShowForgot(true); }} className="text-xs text-accent hover:underline">{text('Lupa password?','Forgot password?')}</button></div>
             <Button fullWidth size="lg" className="mt-6" loading={loading} onClick={() => void handleLogin()} icon={<ArrowRight size={18} />}>Masuk</Button>
