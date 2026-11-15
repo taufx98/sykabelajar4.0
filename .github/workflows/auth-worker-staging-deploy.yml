@@ -130,7 +130,7 @@ jobs:
       - name: Verify all 21 remote D1 tables and safe existing staging identity state
         run: |
           set -euo pipefail
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings','auth_runtime_settings') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings','auth_runtime_settings','auth_email_provider_accounts','auth_email_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-tables.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -149,12 +149,13 @@ jobs:
             "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
             "auth_worker_internal_config","jwks","oauthAccessToken","oauthClient","oauthClientAssertion",
             "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
-            "session","user","verification","auth_phone_verification_challenges","auth_social_provider_meta","auth_social_provider_settings","auth_runtime_settings"
+            "session","user","verification","auth_phone_verification_challenges","auth_social_provider_meta","auth_social_provider_settings","auth_runtime_settings",
+            "auth_email_provider_accounts","auth_email_provider_settings"
           ];
           const missing = expected.filter((name) => !found.has(name));
           if (missing.length) throw new Error("Remote staging D1 is missing tables: " + missing.join(", "));
-          if (expected.length !== 21) throw new Error("The reviewed staging schema contract must contain exactly 21 tables.");
-          console.log("Verified all " + expected.length + " remote staging D1 tables, including Telegram verification, managed social-login settings, and Admin auth runtime settings.");
+          if (expected.length !== 23) throw new Error("The reviewed staging schema contract must contain exactly 23 tables.");
+          console.log("Verified all " + expected.length + " remote staging D1 tables, including Admin auth settings and multi-provider email routing.");
           NODE
 
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-user-columns.json"
