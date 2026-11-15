@@ -339,7 +339,7 @@ test("provider accounts can be removed and Admin test mail is rate-limited to th
   assert.match(deleteAccount, /EMAIL_ACCOUNT_NOT_FOUND/);
 
   assert.match(testAccount, /INSERT INTO auth_email_admin_test_limits/);
-  assert.match(testAccount, /last_sent_at<=\?3 RETURNING user_id/);
+  assert.match(testAccount, /last_sent_at\s*<=\s*\?3\s+RETURNING user_id/);
   assert.match(testAccount, /\.bind\(user\.id,now,now-60\)/);
   assert.match(testAccount, /to:user\.email/);
   assert.match(testAccount, /EMAIL_TEST_RATE_LIMITED/);
