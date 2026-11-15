@@ -7,7 +7,7 @@ type AuthEmailMessage = {
   to: string;
   subject: string;
   text: string;
-  action: "verify-email" | "reset-password" | "admin-test";
+  action: "verify-email" | "verify-email-otp" | "reset-password" | "admin-test";
 };
 
 type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend";
