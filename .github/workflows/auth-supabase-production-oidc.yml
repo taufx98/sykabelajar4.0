@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   register:
-    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
     name: Register the exact Better Auth issuer in Production DB2 only
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -37,6 +37,11 @@ jobs:
           CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
+          # Confirmation phrases are visible in source; restrict Production mutations to the repository owner.
+          test "$GITHUB_ACTOR" = "taufx98" || {
+            echo "Blocked: Production OIDC registration may only be triggered by repository owner taufx98." >&2
+            exit 1
+          }
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1" || {
             echo "Blocked: Production OIDC registration is permitted only from the auth migration branch." >&2
             exit 1
