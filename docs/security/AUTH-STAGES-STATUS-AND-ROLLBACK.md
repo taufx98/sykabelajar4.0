@@ -1467,10 +1467,13 @@ This checkpoint supersedes earlier pending statements above where later runs or 
 
 ### Stage 1 — Cloudflare staging
 
-- Dedicated D1 `sykabelajar-auth-poc` has migrations **0000–0006** applied and all **18 expected tables** verified by [D1 migration run #42339767786](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339767786).
-- The isolated Worker is deployed at `https://auth.sykabelajar.my.id` by [Worker staging deploy #42339805803](https://github.com/taufx98/sykabelajar4.0/actions/runs/42339805803). Hosted health, OIDC discovery, PKCE S256, ES256/P-256 JWKS and CORS checks passed.
-- The staging D1 has no Better Auth users, sessions, accounts, verification records, or phone challenges. Email dispatch is deployed in managed mode but has no active Brevo/ZeptoMail sender account; real signup/reset email delivery is untested and remains fail-closed. Google, Facebook and Twitter/X credentials remain absent, so those sign-in providers remain disabled.
-- Telegram phone verification is a separate opt-in phone-consent step for an already-authenticated Better Auth account, not a social-login provider. Migration 0005 and the Worker route are deployed, but the route remains disabled: BotFather OIDC app/callback registration, Worker Client ID/Secret, the isolated staging provisioning secret/enablement, and a real consent/callback test are still required.
+- The existing isolated staging Worker/D1 remains the accepted Better Auth test environment. The hosted issuer, OIDC discovery, PKCE S256, ES256/P-256 JWKS and CORS checks were previously accepted; do not repeat them without a concrete regression.
+- The latest pre-email-routing staging Worker acceptance verified the 21-table schema, registration fields and `auth_runtime_settings` row. The new multi-provider routing schema is a separate additive change: staging migration `0010_multi_provider_email_routing.sql` is **prepared but not applied**. Its dedicated owner-only workflow first confirms the existing 0000–0008 D1 ledger, then idempotently reconciles/records runtime settings migration 0009 and applies email-routing migration 0010 through Wrangler's `d1_migrations` ledger.
+- The older broad D1 staging migration workflow is guarded so it cannot apply 0009 or 0010 until the dedicated owner-authorized email-routing workflow has already recorded both migration names. The one-time staging marker `.github/auth-ops/APPLY-STAGING-D1-0010` is absent.
+- The active Worker has not yet been redeployed with the new multi-provider dispatcher. No SendPulse, Brevo, Mailjet, Mailtrap Email Sending or Resend credentials/sender profiles have been entered, and no live verification/reset email has been sent. The Admin UI code and Worker adapters are present in the branch, but the staging D1 migration and Worker deployment remain separate pending steps.
+- The legacy ZeptoMail/Brevo account tables and their migrations remain only as historical D1 compatibility. The new dispatcher reads only `auth_email_provider_accounts`; it does not reuse or activate existing legacy Agent credentials. Email verification remains required and signup must remain fail-closed until a free sender is configured, the domain is verified and real verification/reset delivery is accepted.
+- Google/Facebook/X credentials remain optional and are not required for the email-provider work. Telegram phone verification is a separate opt-in phone-consent step; its independent BotFather OIDC and hosted callback gates remain outstanding.
+
 
 ### Stage 2 — OIDC/JWT and Supabase surface acceptance
 
