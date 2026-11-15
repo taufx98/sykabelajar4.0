@@ -31,11 +31,18 @@ test("the migration supports exactly the five owner-selected free providers with
   assert.doesNotMatch(migration, /INSERT INTO "(user|session|account)"/i);
 });
 
-test("staging migration applies only the additive email routing SQL and verifies empty credentials", () => {
+test("staging migration reconciles runtime settings and email routing through the guarded D1 migration ledger", () => {
+  assert.match(workflow, /migrations\/0009_auth_runtime_settings\.sql/);
   assert.match(workflow, /migrations\/0010_multi_provider_email_routing\.sql/);
-  assert.match(workflow, /d1 execute sykabelajar-auth-poc --remote --file/);
-  assert.match(workflow, /auto_failover_enabled/);
+  assert.match(workflow, /f0bf29fcaebf416ddcdb3758000dc1fbecce7b7ee6be5bbd2e6e10e17755a158/);
+  assert.match(workflow, /dcc1d9a18aff172a04305f932a8c4066393343fe8feb274421203cafb342bbe2/);
+  assert.match(workflow, /SELECT name FROM d1_migrations/);
+  assert.match(workflow, /Required staging migration is not recorded as applied/);
+  assert.match(workflow, /d1 migrations apply sykabelajar-auth-poc --remote/);
+  assert.match(workflow, /0009_auth_runtime_settings\.sql/);
+  assert.match(workflow, /0010_multi_provider_email_routing\.sql/);
   assert.match(workflow, /Number\(policy\.auto_failover_enabled\)!==1/);
   assert.match(workflow, /Number\(inventory\.accounts\)!==0/);
+  assert.match(workflow, /settings_rows/);
   assert.match(workflow, /npm run typecheck && npm test/);
 });
