@@ -10,6 +10,7 @@ const auth = read("../src/auth.ts");
 const social = read("../src/social-provider-settings.ts");
 const client = read("../../../src/services/betterAuthApi.client.ts");
 const panel = read("../../../src/components/admin/AuthVerificationSettingsPanel.tsx");
+const emailAdmin = read("../src/email-admin.ts");
 const register = read("../../../src/pages/RegisterPage.tsx");
 const login = read("../../../src/pages/LoginPage.tsx");
 const policyWorkflow = read("../../../.github/workflows/auth-runtime-settings-d1-staging.yml");
@@ -62,13 +63,25 @@ test("frontend signup, session, resource token and Supabase token honor the poli
   assert.match(client, /'\/api\/admin\/auth-runtime-settings', 'PUT'/);
 });
 
-test("Admin panel can disable and re-enable the policy and is hidden outside Better Auth staging", () => {
-  assert.match(panel, /isBetterAuthEnabled\(\)/);
-  assert.match(panel, /setEmailVerificationRequired\(required\)/);
+test("staging Admin panel exposes the verification policy on the exact Pages preview and staging host", () => {
+  assert.match(panel, /security-auth-poc-stage-1\.sykabelajar4\.pages\.dev/);
+  assert.match(panel, /staging\.sykabelajar\.my\.id/);
+  assert.match(panel, /getSupabaseResourceAccessToken/);
+  assert.match(panel, /get-verification-policy/);
+  assert.match(panel, /set-verification-policy/);
+  assert.match(panel, /Aktifkan wajib verifikasi/);
   assert.match(panel, /Nonaktifkan sementara/);
-  assert.match(panel, /Aktifkan verifikasi/);
   assert.match(panel, /window\.confirm/);
-  assert.match(panel, /Bypass berarti alamat email belum terbukti milik pengguna/);
+  assert.match(panel, /hanya mengubah Auth Worker\/D1 staging/);
+});
+
+test("email Admin API limits verification policy changes to active admins and the pinned staging D1", () => {
+  assert.match(emailAdmin, /const authorization = await requireActiveAdmin\(request, env\)/);
+  assert.match(emailAdmin, /action === "get-verification-policy"/);
+  assert.match(emailAdmin, /action === "set-verification-policy"/);
+  assert.match(emailAdmin, /SUPABASE_PROVISIONING_ENV !== "staging"/);
+  assert.match(emailAdmin, /ydamszdfsxqisanazdkb\.supabase\.co/);
+  assert.match(emailAdmin, /updated_by=\?2/);
 });
 
 test("registration and login screens follow the same public runtime policy", () => {
@@ -95,6 +108,11 @@ test("D1 policy toggle workflow is hard-pinned to staging and supports explicit 
     "re-enable marker must take precedence over the retained bypass marker");
   assert.match(policyWorkflow, /email_verification_required=0/);
   assert.match(policyWorkflow, /email_verification_required=1/);
+  assert.ok(
+    policyWorkflow.indexOf("Require email verification again on staging D1") <
+      policyWorkflow.indexOf("Verify hosted Worker reflects required email verification"),
+    "write the required policy before checking the hosted Worker response",
+  );
 });
 
 test("policy toggle verifies the hosted Worker and keeps the Admin endpoint protected", () => {

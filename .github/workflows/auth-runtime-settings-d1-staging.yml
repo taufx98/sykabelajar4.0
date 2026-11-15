@@ -139,20 +139,6 @@ jobs:
           assert.equal(hostile.status, 403, "runtime policy endpoint must reject untrusted browser origins");
           console.log("Hosted staging Worker confirms verification bypass is active and the Admin policy API remains protected.");
           NODE
-      - name: Verify hosted Worker reflects required email verification
-        if: ${{ steps.target.outputs.operation == 'require_verification' }}
-        run: |
-          node --input-type=module <<'NODE'
-          import assert from "node:assert/strict";
-          const origin = "https://auth.sykabelajar.my.id";
-          const response = await fetch(origin + "/api/auth/providers", {
-            headers: { Origin: "https://staging.sykabelajar.my.id", Accept: "application/json" },
-          });
-          assert.equal(response.status, 200);
-          const payload = await response.json();
-          assert.equal(payload.emailVerificationRequired, true, "Worker must reflect verification re-enabled in D1");
-          console.log("Hosted staging Worker confirms email verification is required again.");
-          NODE
       - name: Require email verification again on staging D1
         if: ${{ steps.target.outputs.operation == 'require_verification' }}
         run: |
@@ -174,4 +160,18 @@ jobs:
             throw new Error("Staging email-verification policy did not return to REQUIRED.");
           }
           console.log("Confirmed staging runtime policy: email verification required.");
+          NODE
+      - name: Verify hosted Worker reflects required email verification
+        if: ${{ steps.target.outputs.operation == 'require_verification' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const origin = "https://auth.sykabelajar.my.id";
+          const response = await fetch(origin + "/api/auth/providers", {
+            headers: { Origin: "https://staging.sykabelajar.my.id", Accept: "application/json" },
+          });
+          assert.equal(response.status, 200);
+          const payload = await response.json();
+          assert.equal(payload.emailVerificationRequired, true, "Worker must reflect verification re-enabled in D1");
+          console.log("Hosted staging Worker confirms email verification is required again.");
           NODE

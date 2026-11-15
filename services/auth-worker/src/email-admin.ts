@@ -235,6 +235,63 @@ function quotaValue(value: unknown, fallback: number): number | null {
   return Number.isInteger(parsed) && parsed >= 0 && parsed <= 1_000_000 ? parsed : null;
 }
 
+
+function isPinnedStagingEmailPolicyTarget(env: AuthWorkerEnv): boolean {
+  if (env.SUPABASE_PROVISIONING_ENV !== "staging") return false;
+  try {
+    return new URL(env.SUPABASE_PROVISIONING_URL ?? "").origin ===
+      "https://ydamszdfsxqisanazdkb.supabase.co";
+  } catch {
+    return false;
+  }
+}
+
+async function getEmailVerificationPolicy(env: AuthWorkerEnv): Promise<Response> {
+  if (!isPinnedStagingEmailPolicyTarget(env)) {
+    return json({ ok: false, error: "STAGING_EMAIL_VERIFICATION_SETTINGS_ONLY" }, 403);
+  }
+  try {
+    const row = await env.DB.prepare(
+      "SELECT email_verification_required, updated_at, updated_by " +
+      "FROM auth_runtime_settings WHERE id = 1",
+    ).first<{ email_verification_required: number; updated_at: string; updated_by: string }>();
+    if (!row) return json({ ok: false, error: "AUTH_RUNTIME_SETTINGS_NOT_MIGRATED" }, 503);
+    return json({
+      ok: true,
+      emailVerificationRequired: row.email_verification_required === 1,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by,
+    });
+  } catch {
+    return json({ ok: false, error: "AUTH_RUNTIME_SETTINGS_UNAVAILABLE" }, 503);
+  }
+}
+
+async function setEmailVerificationPolicy(
+  body: Record<string, unknown>,
+  user: SupabaseAdminUser,
+  env: AuthWorkerEnv,
+): Promise<Response> {
+  if (typeof body.emailVerificationRequired !== "boolean") {
+    return json({ ok: false, error: "EMAIL_VERIFICATION_POLICY_INVALID" }, 422);
+  }
+  if (!isPinnedStagingEmailPolicyTarget(env)) {
+    return json({ ok: false, error: "STAGING_EMAIL_VERIFICATION_SETTINGS_ONLY" }, 403);
+  }
+  try {
+    const result = await env.DB.prepare(
+      "UPDATE auth_runtime_settings SET email_verification_required=?1, " +
+      "updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_by=?2 WHERE id=1",
+    ).bind(body.emailVerificationRequired ? 1 : 0, user.id).run();
+    if (!result.success || result.meta.changes !== 1) {
+      return json({ ok: false, error: "AUTH_RUNTIME_SETTINGS_SAVE_FAILED" }, 503);
+    }
+    return getEmailVerificationPolicy(env);
+  } catch {
+    return json({ ok: false, error: "AUTH_RUNTIME_SETTINGS_SAVE_FAILED" }, 503);
+  }
+}
+
 async function listSettings(env: AuthWorkerEnv): Promise<Response> {
   const [settings, accounts] = await Promise.all([
     env.DB.prepare(
@@ -478,6 +535,8 @@ export async function handleEmailAdminRequest(request: Request, env: AuthWorkerE
   }
   const record = body as Record<string, unknown>;
   const action = nonEmpty(record.action);
+  if (action === "get-verification-policy") return getEmailVerificationPolicy(env);
+  if (action === "set-verification-policy") return setEmailVerificationPolicy(record, authorization.user, env);
   if (action === "save") return saveAccount(record, authorization.user, env);
   if (action === "configure") return configureRouting(record, authorization.user, env);
   if (action === "delete") return deleteAccount(record, env);
