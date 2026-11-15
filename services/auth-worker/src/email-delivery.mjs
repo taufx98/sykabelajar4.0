@@ -33,7 +33,7 @@ export function isEmailDeliveryConfigured(env) {
  *   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
  *   AUTH_EMAIL_FROM?: string;
  * }} env
- * @param {{ to: string; subject: string; text: string; action: "verify-email" | "reset-password" }} message
+ * @param {{ to: string; subject: string; text: string; action?: string }} message
  * @param {typeof fetch} [fetcher]
  * @returns {Promise<void>}
  */
