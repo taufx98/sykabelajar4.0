@@ -181,7 +181,7 @@ jobs:
           npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
 
           npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM d1_migrations ORDER BY name;" > "$RUNNER_TEMP/production-promotion-migrations.json"
-          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_runtime_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/production-promotion-tables.json"
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_runtime_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings','auth_email_provider_accounts','auth_email_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/production-promotion-tables.json"
           npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT
             (SELECT COUNT(*) FROM user) AS users,
             (SELECT COUNT(*) FROM account) AS accounts,
@@ -191,6 +191,9 @@ jobs:
             (SELECT COUNT(*) FROM oauthRefreshToken) AS refresh_tokens,
             (SELECT COUNT(*) FROM oauthConsent) AS consents,
             (SELECT COUNT(*) FROM auth_email_accounts) AS email_accounts,
+            (SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_provider_accounts,
+            (SELECT COUNT(*) FROM auth_email_provider_settings) AS email_provider_settings,
+            (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id=1) AS auto_failover_enabled,
             (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges,
             (SELECT COUNT(*) FROM auth_runtime_settings) AS runtime_settings,
             (SELECT email_verification_required FROM auth_runtime_settings WHERE id=1) AS email_verification_required,
@@ -219,10 +222,11 @@ jobs:
             "0006_transactional_email_provider.sql",
             "0007_managed_social_login_providers.sql",
             "0008_auth_runtime_settings.sql",
+            "0009_multi_provider_email_routing.sql",
           ];
           const migrationNames = visitRows(read("production-promotion-migrations.json"), (row) => typeof row.name === "string").map((row) => row.name).sort();
           if (JSON.stringify(migrationNames) !== JSON.stringify([...expectedMigrations].sort())) {
-            throw new Error("Production D1 must have exactly reviewed migrations 0000–0008 before Worker promotion.");
+            throw new Error("Production D1 must have exactly reviewed migrations 0000–0009 before Worker promotion.");
           }
           const expectedTables = [
             "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
@@ -230,21 +234,24 @@ jobs:
             "oauthClient","oauthClientAssertion","oauthClientResource","oauthConsent",
             "oauthRefreshToken","oauthResource","rateLimit","session","user","verification",
             "auth_phone_verification_challenges","auth_social_provider_meta","auth_social_provider_settings",
+            "auth_email_provider_accounts","auth_email_provider_settings",
           ];
+          if (expectedTables.length !== 23) throw new Error("Production promotion requires exactly 23 reviewed D1 tables.");
           const tableNames = visitRows(read("production-promotion-tables.json"), (row) =>
             typeof row.name === "string" && expectedTables.includes(row.name)).map((row) => row.name).sort();
           if (JSON.stringify(tableNames) !== JSON.stringify([...expectedTables].sort())) {
-            throw new Error("Production D1 schema is incomplete; apply the guarded 0008 runtime-policy migration first.");
+            throw new Error("Production D1 schema is incomplete; apply the guarded runtime-policy and multi-provider email migrations first.");
           }
           const counts = visitRows(read("production-promotion-counts.json"), (row) => Object.hasOwn(row, "users") && Object.hasOwn(row, "runtime_settings"));
           if (counts.length !== 1) throw new Error("Could not read exactly one Production identity-state summary.");
           const row = counts[0];
-          for (const field of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens","consents","email_accounts","phone_challenges"]) {
+          for (const field of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens","consents","email_accounts","email_provider_accounts","phone_challenges"]) {
             if (Number(row[field]) !== 0) throw new Error("Production D1 must remain empty before Worker promotion: " + field + " is nonzero.");
           }
           if (Number(row.runtime_settings) !== 1 || Number(row.email_verification_required) !== 1) {
             throw new Error("Production email verification policy must have exactly one required-by-default row.");
           }
+          if (Number(row.email_provider_settings) !== 1 || Number(row.auto_failover_enabled) !== 1) throw new Error("Production email routing must have one failover-enabled default settings row.");
           if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one migration-seeded first-party OAuth client.");
           let redirectUris;
           try { redirectUris = JSON.parse(row.redirect_uris); } catch { throw new Error("Production OAuth callback allowlist is not valid JSON."); }
@@ -252,7 +259,7 @@ jobs:
           if (!Array.isArray(redirectUris) || redirectUris.length !== 1 || redirectUris[0] !== expectedCallback) {
             throw new Error("Production OAuth client must contain only the canonical Production callback.");
           }
-          console.log("PASS: Production D1 migrations 0000–0008 and 21 tables verified; email verification required; identity/credential/session counts all zero.");
+          console.log("PASS: Production D1 migrations 0000–0009 and 23 tables verified; email verification required; email failover defaults enabled; provider accounts and identities remain empty.");
           NODE
 
       - name: Replace staging-only secrets with fresh Production-only Worker keys
@@ -474,7 +481,9 @@ jobs:
             (SELECT COUNT(*) FROM account) AS accounts,
             (SELECT COUNT(*) FROM session) AS sessions,
             (SELECT COUNT(*) FROM verification) AS verifications,
-            (SELECT COUNT(*) FROM auth_email_accounts) AS email_accounts;" > "$RUNNER_TEMP/production-promotion-after.json"
+            (SELECT COUNT(*) FROM auth_email_accounts) AS email_accounts,
+            (SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_provider_accounts,
+            (SELECT COUNT(*) FROM auth_email_provider_settings) AS email_provider_settings;" > "$RUNNER_TEMP/production-promotion-after.json"
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
           const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/production-promotion-after.json", "utf8"));
@@ -486,7 +495,7 @@ jobs:
             Object.values(value).forEach(visit);
           };
           visit(payload);
-          if (rows.length !== 1 || ["users","accounts","sessions","verifications","email_accounts"].some((name) => Number(rows[0][name]) !== 0)) {
+          if (rows.length !== 1 || ["users","accounts","sessions","verifications","email_accounts","email_provider_accounts"].some((name) => Number(rows[0][name]) !== 0) || Number(rows[0].email_provider_settings) !== 1) {
             throw new Error("Production D1 must remain identity/credential-empty after the promotion smoke checks.");
           }
           console.log("PASS: Production D1 still contains zero Better Auth users, credentials, sessions, verifications or email sender accounts.");
