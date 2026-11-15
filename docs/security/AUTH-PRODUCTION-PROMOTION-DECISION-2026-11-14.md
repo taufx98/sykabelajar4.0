@@ -1,5 +1,11 @@
 # Better Auth Production Promotion Decision — 14 November 2026
 
+## Email provider decision update — 15 November 2026
+
+The prior ZeptoMail/Brevo-only choice is superseded. The branch now prepares SendPulse, Brevo, Mailjet, Mailtrap Email Sending, and Resend behind one encrypted D1-managed dispatcher. Admin can set priority, enable/disable accounts, edit internal hour/day/month limits, and enable quota/credential failover. Initial limits mirror published free-tier guardrails but are only SYKABELAJAR-local counters; the Worker cannot know how much quota other applications have consumed on the same provider account.
+
+The staging schema is additive migration `0010_multi_provider_email_routing.sql`; Production uses identical schema as `0009_multi_provider_email_routing.sql`. Both create account/settings tables only, seed no API keys, and default automatic failover to enabled. Neither remote migration has been applied; the new Worker code has not been deployed. Existing legacy ZeptoMail/Brevo migrations and D1 records remain untouched but are not read by the new dispatcher. Production signup, provisioning, Worker promotion, OIDC registration, DB2 identity DDL, DNS and frontend routing remain NO-GO.
+
 ## Owner-approved target
 
 The accepted staging verification is frozen. SYKABELAJAR will use a one-time promotion rather than maintain two active Better Auth environments:
