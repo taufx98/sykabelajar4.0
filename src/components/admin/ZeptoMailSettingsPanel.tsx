@@ -82,7 +82,7 @@ const STAGING_PREVIEW_HOST = 'security-auth-poc-stage-1.sykabelajar4.pages.dev';
 const STAGING_AUTH_WORKER_URL = 'https://auth.sykabelajar.my.id';
 
 function authWorkerUrl() {
-  const configured = String(import.meta.env.VITE_AUTH_WORKER_URL ?? '').trim().replace(/\\/+$/, '');
+  const configured = String(import.meta.env.VITE_AUTH_WORKER_URL ?? '').trim().replace(/\/+$/, '');
   if (configured) return configured;
   if (typeof window !== 'undefined' && window.location.hostname === STAGING_PREVIEW_HOST) return STAGING_AUTH_WORKER_URL;
   return '';
