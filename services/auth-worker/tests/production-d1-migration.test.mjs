@@ -73,7 +73,7 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
 });
 
 test("Production D1 migration workflow is pinned to the exact new database and cannot deploy the Worker", () => {
-  assert.match(workflow, /APPLY-TO-sykabelajar-auth-prod:6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
+  assert.match(workflow, /APPLY-PRODUCTION-D1-sykabelajar-auth-prod-6d4dc7b5/);
   assert.match(workflow, /sykabelajar-auth-prod/);
   assert.match(workflow, /6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
   assert.match(workflow, /migrations-production/);
