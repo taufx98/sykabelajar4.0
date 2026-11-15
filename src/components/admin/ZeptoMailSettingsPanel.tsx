@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowUp, CheckCircle2, CircleAlert, Mail, Pencil, Plus, RefreshCw, Send, ShieldCheck, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CircleAlert, Mail, Pencil, Plus, RefreshCw, Send, ShieldCheck, Trash2, X } from 'lucide-react';
 import { getSupabaseResourceAccessToken } from '@/services/applicationAccessToken';
 import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/Button';
@@ -183,6 +183,10 @@ export function ZeptoMailSettingsPanel() {
     const needsCredential = !existing || existing.provider !== draft.provider;
     if (needsCredential && (!draft.apiKey.trim() || (draft.provider === 'mailjet' && !draft.apiSecret.trim()))) {
       toast.warning('Kredensial penyedia wajib diisi.'); return;
+    }
+    if (draft.provider === 'mailjet' && !needsCredential &&
+        (Boolean(draft.apiKey.trim()) !== Boolean(draft.apiSecret.trim()))) {
+      toast.warning('Mailjet membutuhkan Public API Key dan Private API Key sekaligus.'); return;
     }
     const credentials: Record<string, string> = {};
     if (draft.provider === 'mailjet') {
