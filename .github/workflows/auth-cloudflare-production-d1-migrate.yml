@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   migrate:
-    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
     name: Apply Production Better Auth schema to the exact empty D1 only
     runs-on: ubuntu-24.04
     timeout-minutes: 12
@@ -38,6 +38,11 @@ jobs:
           CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
+          # Confirmation phrases are visible in source; restrict Production mutations to the repository owner.
+          test "$GITHUB_ACTOR" = "taufx98" || {
+            echo "Blocked: Production D1 migration may only be triggered by repository owner taufx98." >&2
+            exit 1
+          }
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1" || {
             echo "Blocked: wrong branch for Production D1 migration." >&2
             exit 1
