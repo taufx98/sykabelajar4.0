@@ -13,6 +13,7 @@ export interface ResolveBetterAuthAdminIdentityInput {
   authBaseUrl: string;
   resourceAudience: string;
   supabaseUrl: string;
+  supabaseEnvironment?: "staging" | "production";
   publishableKey: string;
   allowUnverifiedEmail?: boolean;
   fetchImpl?: typeof fetch;
