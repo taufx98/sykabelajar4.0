@@ -60,6 +60,11 @@ jobs:
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
           import { readFileSync } from "node:fs";
+          const runtimeSettings = readFileSync("migrations/0009_auth_runtime_settings.sql");
+          const runtimeSettingsSha256 = createHash("sha256").update(runtimeSettings).digest("hex");
+          if (runtimeSettingsSha256 !== "f0bf29fcaebf416ddcdb3758000dc1fbecce7b7ee6be5bbd2e6e10e17755a158") {
+            throw new Error("Reviewed staging runtime-settings migration hash mismatch.");
+          }
           const file = readFileSync("migrations/0010_multi_provider_email_routing.sql");
           const expected = "dcc1d9a18aff172a04305f932a8c4066393343fe8feb274421203cafb342bbe2";
           if (createHash("sha256").update(file).digest("hex") !== expected) {
@@ -105,21 +110,62 @@ jobs:
           console.log("Verified the fixed non-production D1 database.");
           NODE
 
-      - name: Apply the additive staging email-routing schema only
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --file migrations/0010_multi_provider_email_routing.sql
-
-      - name: Verify routing tables, secure defaults and empty provider inventory
+      - name: Verify only reviewed D1 migrations 0009–0010 are pending
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_email_provider_accounts','auth_email_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/email-routing-tables.json"
+          npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations ORDER BY name;" > "$RUNNER_TEMP/email-routing-migrations-before.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/email-routing-migrations-before.json", "utf8"));
+          const names = new Set();
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (typeof value.name === "string") names.add(value.name);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          const base = [
+            "0000_auth_worker_internal_config.sql",
+            "0001_better_auth.sql",
+            "0002_seed_first_party_oauth_client.sql",
+            "0003_zeptomail_agent_settings.sql",
+            "0004_better_auth_registration_attributes.sql",
+            "0005_telegram_phone_verification.sql",
+            "0006_transactional_email_provider.sql",
+            "0007_managed_social_login_providers.sql",
+            "0008_add_staging_oauth_callback.sql",
+          ];
+          for (const name of base) {
+            if (!names.has(name)) throw new Error("Required staging migration is not recorded as applied: " + name);
+          }
+          const allowed = new Set([...base, "0009_auth_runtime_settings.sql", "0010_multi_provider_email_routing.sql"]);
+          const unexpected = [...names].filter((name) => !allowed.has(name));
+          if (unexpected.length) throw new Error("Unreviewed staging migration history found; refusing remote change: " + unexpected.join(", "));
+          console.log("PASS: migrations 0000–0008 are recorded; only reviewed 0009/0010 may be pending.");
+          NODE
+
+      - name: Apply only reviewed staging migrations 0009–0010 through the D1 migration ledger
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler --config wrangler.toml d1 migrations apply sykabelajar-auth-poc --remote
+
+      - name: Verify runtime policy, routing tables, secure defaults and empty provider inventory
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler --config wrangler.toml d1 migrations list sykabelajar-auth-poc --remote
+          npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name IN ('0009_auth_runtime_settings.sql','0010_multi_provider_email_routing.sql') ORDER BY name;" > "$RUNNER_TEMP/email-routing-migrations-after.json"
+          npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_runtime_settings','auth_email_provider_accounts','auth_email_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/email-routing-tables.json"
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id=1;" > "$RUNNER_TEMP/email-routing-default.json"
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT COUNT(*) AS accounts FROM auth_email_provider_accounts;" > "$RUNNER_TEMP/email-routing-count.json"
+          npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT COUNT(*) AS settings_rows FROM auth_runtime_settings WHERE id=1;" > "$RUNNER_TEMP/email-routing-runtime-policy.json"
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
           const read = (name) => JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/" + name, "utf8"));
@@ -129,18 +175,24 @@ jobs:
             output.push(value);
             Object.values(value).forEach((item) => { if (item && typeof item === "object") visit(item, output); });
           };
+          const migrations=[]; visit(read("email-routing-migrations-after.json"),migrations);
+          const migrationNames=new Set(migrations.map((row)=>row.name).filter(Boolean));
+          if (!migrationNames.has("0009_auth_runtime_settings.sql") || !migrationNames.has("0010_multi_provider_email_routing.sql")) throw new Error("Both staging migrations must be recorded in d1_migrations.");
           const tables=[]; visit(read("email-routing-tables.json"),tables);
           const names=tables.map((row)=>row.name).filter(Boolean);
-          if (!names.includes("auth_email_provider_accounts") || !names.includes("auth_email_provider_settings")) throw new Error("Email routing tables were not created.");
+          if (!names.includes("auth_runtime_settings") || !names.includes("auth_email_provider_accounts") || !names.includes("auth_email_provider_settings")) throw new Error("Runtime policy and email routing tables were not created.");
+          const runtime=[]; visit(read("email-routing-runtime-policy.json"),runtime);
+          const runtimeRow=runtime.find((row)=>Object.hasOwn(row,"settings_rows"));
+          if (!runtimeRow || Number(runtimeRow.settings_rows)!==1) throw new Error("Expected exactly one existing staging runtime verification policy row.");
           const settings=[]; visit(read("email-routing-default.json"),settings);
           const policy=settings.find((row)=>Object.hasOwn(row,"auto_failover_enabled"));
           if (!policy || Number(policy.auto_failover_enabled)!==1) throw new Error("Auto failover must default to enabled.");
           const counts=[]; visit(read("email-routing-count.json"),counts);
           const inventory=counts.find((row)=>Object.hasOwn(row,"accounts"));
           if (!inventory || Number(inventory.accounts)!==0) throw new Error("Migration must not seed provider credentials or accounts.");
-          console.log("PASS: routing schema exists, failover defaults on, and provider account inventory remains empty.");
+          console.log("PASS: D1 ledger records migrations 0009–0010; runtime policy remains present; routing schema exists, failover defaults on, and provider account inventory remains empty.");
           NODE
 
       - name: Remove temporary verification output
         if: always()
-        run: rm -f "$RUNNER_TEMP/email-routing-tables.json" "$RUNNER_TEMP/email-routing-default.json" "$RUNNER_TEMP/email-routing-count.json"
+        run: rm -f "$RUNNER_TEMP/email-routing-migrations-before.json" "$RUNNER_TEMP/email-routing-migrations-after.json" "$RUNNER_TEMP/email-routing-tables.json" "$RUNNER_TEMP/email-routing-default.json" "$RUNNER_TEMP/email-routing-count.json" "$RUNNER_TEMP/email-routing-runtime-policy.json"
