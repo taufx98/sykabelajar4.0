@@ -1,6 +1,11 @@
 name: Register Better Auth issuer in Production Supabase DB2
 
 on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/REGISTER-PRODUCTION-OIDC-0001"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -17,7 +22,7 @@ concurrency:
 
 jobs:
   register:
-    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
     name: Register the exact Better Auth issuer in Production DB2 only
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -36,10 +41,25 @@ jobs:
             echo "Blocked: Production OIDC registration is permitted only from the auth migration branch." >&2
             exit 1
           }
-          test "$CONFIRMATION" = "REGISTER-PRODUCTION-OIDC-mvdczyitbkxkldjughor" || {
-            echo "Blocked: exact Production OIDC confirmation is missing." >&2
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "REGISTER-PRODUCTION-OIDC-mvdczyitbkxkldjughor" || {
+              echo "Blocked: exact Production OIDC confirmation is missing." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker=".github/auth-ops/REGISTER-PRODUCTION-OIDC-0001"
+            test -f "$marker" || {
+              echo "Blocked: the exact Production OIDC marker is missing." >&2
+              exit 1
+            }
+            test "$(cat "$marker")" = "REGISTER-PRODUCTION-OIDC-mvdczyitbkxkldjughor" || {
+              echo "Blocked: Production OIDC marker content does not match the exact project and confirmation phrase." >&2
+              exit 1
+            }
+          else
+            echo "Blocked: unsupported event for Production OIDC registration." >&2
             exit 1
-          }
+          fi
 
       - name: Verify the promoted issuer and register Custom OIDC in exact Production DB2
         env:
