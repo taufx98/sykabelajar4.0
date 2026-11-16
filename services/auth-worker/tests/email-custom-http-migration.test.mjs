@@ -38,6 +38,10 @@ test("workflow compares Better Auth user, account, session and email-provider co
   assert.match(workflow, /custom-email-after-providers\.json/);
   assert.match(workflow, /credentials_ciphertext/);
   assert.match(workflow, /providerFingerprintBefore/);
+  assert.match(workflow, /custom-email-before-identity\.json/);
+  assert.match(workflow, /custom-email-after-identity\.json/);
+  assert.match(workflow, /identityFingerprintBefore/);
+  assert.match(workflow, /identityFingerprintAfter/);
   assert.match(workflow, /fingerprintAfter/);
   for (const key of ["users", "accounts", "sessions", "email_accounts"]) {
     assert.ok(workflow.includes('"' + key + '"'), "missing preservation check for " + key);
