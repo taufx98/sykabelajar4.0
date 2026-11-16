@@ -28,7 +28,6 @@ BEGIN
   END IF;
 
   IF has_function_privilege('anon', v_signature, 'EXECUTE')
-     OR has_function_privilege('public', v_signature, 'EXECUTE')
      OR NOT has_function_privilege('authenticated', v_signature, 'EXECUTE') THEN
     RAISE EXCEPTION 'Onboarding RPC must be executable only by authenticated callers';
   END IF;
