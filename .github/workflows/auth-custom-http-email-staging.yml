@@ -1,6 +1,11 @@
 name: Auth Custom HTTP Email Provider — Staging D1 Schema
 
 on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/APPLY-CUSTOM-HTTP-EMAIL-0001"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -17,7 +22,7 @@ concurrency:
 
 jobs:
   migrate:
-    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' }}
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -31,11 +36,15 @@ jobs:
 
       - name: Verify exact owner confirmation, staging D1 and immutable migration
         env:
-          CONFIRMATION: ${{ inputs.confirmation }}
+          CONFIRMATION_INPUT: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
           test "$GITHUB_ACTOR" = "taufx98"
           test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          CONFIRMATION="$CONFIRMATION_INPUT"
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            CONFIRMATION="$(tr -d '\r\n' < ../../.github/auth-ops/APPLY-CUSTOM-HTTP-EMAIL-0001)"
+          fi
           test "$CONFIRMATION" = "APPLY-CUSTOM-HTTP-EMAIL-sykabelajar-auth-poc" || {
             echo "Blocked: exact custom-email staging confirmation is missing." >&2
             exit 1
