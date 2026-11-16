@@ -3,7 +3,7 @@ import { ShieldCheck, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { getSupabaseResourceAccessToken } from '@/services/applicationAccessToken';
+import { getStagingAdminAccessToken } from '@/services/adminBetterAuthAccessToken';
 
 type Policy = {
   emailVerificationRequired: boolean;
@@ -11,19 +11,17 @@ type Policy = {
   updatedBy: string | null;
 };
 
-const STAGING_PREVIEW_HOST = 'security-auth-poc-stage-1.sykabelajar4.pages.dev';
 const STAGING_APP_HOST = 'staging.sykabelajar.my.id';
 const STAGING_AUTH_WORKER_URL = 'https://auth.sykabelajar.my.id';
 
 function isStagingAdminHost(): boolean {
   if (typeof window === 'undefined') return false;
   const hostname = window.location.hostname.toLowerCase();
-  return hostname === STAGING_PREVIEW_HOST || hostname === STAGING_APP_HOST;
+  return hostname === STAGING_APP_HOST;
 }
 
 async function isVerificationPolicyApiAvailable(): Promise<boolean> {
-  const token = await getSupabaseResourceAccessToken();
-  if (!token) throw new Error('AUTH_REQUIRED');
+  const token = await getStagingAdminAccessToken();
 
   const response = await fetch(STAGING_AUTH_WORKER_URL + '/api/admin/email-settings', {
     method: 'GET',
