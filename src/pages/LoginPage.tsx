@@ -31,6 +31,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [socialProviders, setSocialProviders] = useState<BetterAuthSocialProvider[]>([]);
   const [socialLoading, setSocialLoading] = useState<BetterAuthSocialProvider | null>(null);
+  const [unlinkedSocialProvider, setUnlinkedSocialProvider] = useState<'google' | 'github' | null>(null);
   const betterAuthPreview = isBetterAuthEnabled();
 
   useEffect(() => {
@@ -57,28 +58,41 @@ export function LoginPage() {
     return () => { active = false; };
   }, [betterAuthPreview]);
 
-  // Better Auth sends OAuth callback failures to this page with a stable error
-  // code. Consume it once, show a user-friendly notification, and clean the URL.
+  // An unlinked OAuth identity is not created during login. Ask for explicit
+  // consent first; only the confirmation action retries OAuth with requestSignUp.
   useEffect(() => {
     if (searchParams.get('oauthError') !== '1') return;
     const category = getSocialAuthErrorCategory(searchParams.get('error'));
-    const message = category === 'account_not_linked'
-      ? language === 'en'
-        ? 'No SYKABELAJAR account is connected to this Google/GitHub account. Sign in with your original email/password method, or register first.'
-        : 'Belum ada akun SYKABELAJAR yang terhubung dengan akun Google/GitHub ini. Masuk menggunakan email dan password yang dipakai saat mendaftar, atau daftar terlebih dahulu.'
-      : category === 'cancelled'
+    const provider = searchParams.get('provider');
+    const intent = searchParams.get('intent');
+
+    if (
+      category === 'account_not_linked' &&
+      intent !== 'signup' &&
+      (provider === 'google' || provider === 'github')
+    ) {
+      setUnlinkedSocialProvider(provider);
+    } else {
+      const message = category === 'account_not_linked'
         ? language === 'en'
-          ? 'Social sign-in was cancelled. You can try again or use email and password.'
-          : 'Proses login sosial dibatalkan. Kamu bisa mencoba lagi atau masuk dengan email dan password.'
-        : language === 'en'
-          ? 'Google/GitHub sign-in could not be completed. Please try again or use email and password.'
-          : 'Login Google/GitHub belum berhasil. Silakan coba lagi atau gunakan email dan password.';
-    toast(message, 'error');
+          ? 'No SYKABELAJAR account is connected to this social account. Sign in with the method you used originally, or start registration from the sign-up page.'
+          : 'Belum ada akun SYKABELAJAR yang terhubung dengan akun sosial ini. Masuk dengan metode yang sebelumnya digunakan, atau mulai pendaftaran dari halaman Daftar.'
+        : category === 'cancelled'
+          ? language === 'en'
+            ? 'Social sign-in was cancelled. You can try again or use email and password.'
+            : 'Proses login sosial dibatalkan. Kamu bisa mencoba lagi atau masuk dengan email dan password.'
+          : language === 'en'
+            ? 'Google/GitHub sign-in could not be completed. Please try again or use email and password.'
+            : 'Login Google/GitHub belum berhasil. Silakan coba lagi atau gunakan email dan password.';
+      toast(message, 'error');
+    }
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('oauthError');
     nextParams.delete('error');
     nextParams.delete('error_description');
+    nextParams.delete('provider');
+    nextParams.delete('intent');
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams, toast, language]);
 
@@ -108,22 +122,45 @@ export function LoginPage() {
 
   const handleSocialLogin = async (provider: BetterAuthSocialProvider) => {
     setSocialLoading(provider);
-    const errorCallbackURL = `/login?oauthError=1&redirect=${encodeURIComponent(redirectTo)}`;
+    const errorCallbackURL = `/login?oauthError=1&provider=${provider}&redirect=${encodeURIComponent(redirectTo)}`;
     try {
+      // A login attempt deliberately does not request account creation.
       await signInWithSocial(provider, redirectTo, { errorCallbackURL });
     } catch (error: unknown) {
       const code = error instanceof Error ? error.message : '';
       if (/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(code)) {
         setNeedsEmailVerification(true);
         toast(text('Email akun belum terverifikasi. Selesaikan verifikasi terlebih dahulu.','Your account email is not verified. Complete verification first.'), 'error');
-      } else if (getSocialAuthErrorCategory(code) === 'account_not_linked') {
-        toast(text(
-          'Belum ada akun SYKABELAJAR yang terhubung dengan akun Google/GitHub ini. Masuk dengan email dan password atau daftar terlebih dahulu.',
-          'No SYKABELAJAR account is connected to this Google/GitHub account. Sign in with email and password or register first.',
-        ), 'error');
+      } else if (
+        getSocialAuthErrorCategory(code) === 'account_not_linked' &&
+        (provider === 'google' || provider === 'github')
+      ) {
+        setUnlinkedSocialProvider(provider);
       } else {
         toast(text('Login sosial belum berhasil. Coba lagi atau gunakan email dan password.','Social sign-in could not be completed. Try again or use email and password.'), 'error');
       }
+      setSocialLoading(null);
+    }
+  };
+
+  const handleContinueSocialSignup = async () => {
+    const provider = unlinkedSocialProvider;
+    if (!provider) return;
+
+    setSocialLoading(provider);
+    const callbackURL = `/auth/complete-profile?redirect=${encodeURIComponent(redirectTo)}`;
+    const errorCallbackURL = `/login?oauthError=1&provider=${provider}&intent=signup&redirect=${encodeURIComponent(redirectTo)}`;
+    try {
+      await signInWithSocial(provider, callbackURL, {
+        requestSignUp: true,
+        errorCallbackURL,
+      });
+    } catch (error: unknown) {
+      const code = error instanceof Error ? error.message : '';
+      const category = getSocialAuthErrorCategory(code);
+      toast(category === 'cancelled'
+        ? text('Pendaftaran sosial dibatalkan.','Social sign-up was cancelled.')
+        : text('Pendaftaran akun sosial belum berhasil. Silakan coba lagi.','Social account registration could not be completed. Please try again.'), 'error');
       setSocialLoading(null);
     }
   };
@@ -327,6 +364,51 @@ export function LoginPage() {
           </section>
         </div>
       </main>
+
+      {unlinkedSocialProvider && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 px-4 py-6">
+          <section
+            className="card w-full max-w-md p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unlinked-social-title"
+          >
+            <h2 id="unlinked-social-title" className="font-display text-xl font-bold text-fg">
+              {text('Akun belum terhubung','Account not connected')}
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-400">
+              {text(
+                `Belum ada akun SYKABELAJAR yang terhubung dengan akun ${providerLabel[unlinkedSocialProvider]} ini. Apakah kamu ingin daftar baru?`,
+                `No SYKABELAJAR account is connected to this ${providerLabel[unlinkedSocialProvider]} account. Would you like to create a new account?`,
+              )}
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              {text(
+                'Jika sudah punya akun, pilih Batal lalu masuk dengan email dan password yang digunakan saat mendaftar.',
+                'If you already have an account, choose Cancel and sign in with the email and password you used when registering.',
+              )}
+            </p>
+            <div className="mt-6 flex gap-2">
+              <Button
+                fullWidth
+                variant="outline"
+                disabled={socialLoading !== null}
+                onClick={() => setUnlinkedSocialProvider(null)}
+              >
+                {text('Batal','Cancel')}
+              </Button>
+              <Button
+                fullWidth
+                loading={socialLoading === unlinkedSocialProvider}
+                disabled={socialLoading !== null && socialLoading !== unlinkedSocialProvider}
+                onClick={() => void handleContinueSocialSignup()}
+              >
+                {text('Daftar baru','Create account')}
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
