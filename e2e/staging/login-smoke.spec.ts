@@ -1,6 +1,75 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+const AUTH_ORIGIN = 'https://auth.sykabelajar.my.id';
+const STAGING_ORIGIN = 'https://staging.sykabelajar.my.id';
+
+async function stubAuthWorkerReads(
+  page: Page,
+  overrides: {
+    providers?: string[];
+    emailVerificationConfigured?: boolean;
+    emailVerificationRequired?: boolean;
+  } = {},
+) {
+  const payload = {
+    ok: true,
+    issuer: AUTH_ORIGIN + '/api/auth',
+    providers: overrides.providers ?? ['google', 'github'],
+    emailVerificationConfigured: overrides.emailVerificationConfigured ?? true,
+    emailVerificationRequired: overrides.emailVerificationRequired ?? true,
+  };
+  await page.route(AUTH_ORIGIN + '/api/auth/providers', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(payload),
+    }),
+  );
+  await page.route(AUTH_ORIGIN + '/api/auth/get-session', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: 'null',
+    }),
+  );
+}
+
+async function mockAuthPost(
+  page: Page,
+  path: string,
+  onPost: (body: Record<string, unknown>) => void,
+  responseBody: Record<string, unknown> = {},
+) {
+  await page.route(AUTH_ORIGIN + path, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'access-control-allow-origin': STAGING_ORIGIN,
+          'access-control-allow-credentials': 'true',
+          'access-control-allow-methods': 'GET, POST, OPTIONS',
+          'access-control-allow-headers': 'Authorization, Content-Type, X-Requested-With',
+          vary: 'Origin',
+        },
+      });
+      return;
+    }
+    onPost(route.request().postDataJSON() as Record<string, unknown>);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'access-control-allow-origin': STAGING_ORIGIN,
+        'access-control-allow-credentials': 'true',
+        vary: 'Origin',
+      },
+      body: JSON.stringify(responseBody),
+    });
+  });
+}
 
 test('staging /login mounts React and renders the email/password form', async ({ page, baseURL }) => {
+  await stubAuthWorkerReads(page);
   const pageErrors: string[] = [];
   const failedAppAssets: string[] = [];
 
@@ -40,16 +109,16 @@ test('staging /login mounts React and renders the email/password form', async ({
   expect(pageErrors, 'the browser must not report uncaught JavaScript exceptions').toEqual([]);
 });
 
-test('staging login respects the disabled email-verification policy', async ({ page }) => {
+test('staging login submits credentials through Better Auth and keeps invalid credentials rejected', async ({ page }) => {
+  await stubAuthWorkerReads(page);
   let signInIntercepted = false;
-  await page.route('https://auth.sykabelajar.my.id/api/auth/sign-in/email', async (route) => {
+  await mockAuthPost(page, '/api/auth/sign-in/email', (body) => {
     signInIntercepted = true;
-    await route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: 'INVALID_EMAIL_OR_PASSWORD' }),
+    expect(body).toMatchObject({
+      email: 'staging-policy-smoke@example.test',
+      password: 'not-a-real-account-password',
     });
-  });
+  }, { code: 'INVALID_EMAIL_OR_PASSWORD' });
 
   const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
   expect(response?.status()).toBe(200);
@@ -57,12 +126,14 @@ test('staging login respects the disabled email-verification policy', async ({ p
   await page.locator('input[type="password"]').fill('not-a-real-account-password');
   await page.getByRole('button', { name: /^Masuk$/ }).click();
 
+  await expect(page.getByRole('button', { name: /^Masuk$/ })).toBeEnabled();
+  await expect(page.getByText('INVALID_EMAIL_OR_PASSWORD')).toBeVisible();
   await expect(page.getByText('Email belum terverifikasi')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Kirim ulang tautan verifikasi' })).toHaveCount(0);
-  expect(signInIntercepted, 'the staging login form must call the Better Auth Worker').toBe(true);
+  expect(signInIntercepted, 'the login form must send credentials to Better Auth').toBe(true);
 });
 
 test('staging /register renders the first email/password step without creating an account', async ({ page }) => {
+  await stubAuthWorkerReads(page);
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message.slice(0, 500)));
 
@@ -78,6 +149,7 @@ test('staging /register renders the first email/password step without creating a
 });
 
 test('staging registration wizard exposes labelled fields and keyboard-friendly role/category choices', async ({ page }) => {
+  await stubAuthWorkerReads(page);
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message.slice(0, 500)));
 
@@ -129,14 +201,31 @@ test('staging registration wizard exposes labelled fields and keyboard-friendly 
   expect(pageErrors, 'the registration wizard must not throw while changing steps').toEqual([]);
 });
 
-test('staging registration is not blocked by missing email delivery while bypass is active', async ({ page }) => {
-  const response = await page.goto('/register', { waitUntil: 'domcontentloaded' });
-  expect(response?.status()).toBe(200);
+test('staging registration gate follows live email-verification delivery readiness', async ({ page, request, baseURL }) => {
+  const response = await request.get(AUTH_ORIGIN + '/api/auth/providers', {
+    headers: { Origin: baseURL! },
+  });
+  expect(response.status()).toBe(200);
+  const readiness = await response.json() as {
+    providers: string[];
+    emailVerificationConfigured: boolean;
+    emailVerificationRequired: boolean;
+  };
+  await stubAuthWorkerReads(page, readiness);
+
+  const pageResponse = await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  expect(pageResponse?.status()).toBe(200);
   await expect(page.getByRole('heading', { name: /^(Buat Akun|Create an Account)$/ })).toBeVisible();
-  await expect(page.getByText(/Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi/)).toHaveCount(0);
+  const deliveryWarning = page.getByText(/Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi/);
+  if (readiness.emailVerificationRequired && !readiness.emailVerificationConfigured) {
+    await expect(deliveryWarning).toBeVisible();
+  } else {
+    await expect(deliveryWarning).toHaveCount(0);
+  }
 });
 
 test('staging login recovery control opens the email form without sending a reset email', async ({ page }) => {
+  await stubAuthWorkerReads(page);
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message.slice(0, 500)));
 
@@ -168,13 +257,60 @@ test('the staging Worker exposes its safe OAuth provider discovery contract', as
   expect(typeof (payload as { emailVerificationRequired?: unknown }).emailVerificationRequired)
     .toBe('boolean');
   expect((payload as { emailVerificationRequired: boolean }).emailVerificationRequired)
-    .toBe(false);
+    .toBe(true);
 
   const providers = (payload as { providers: unknown[] }).providers;
-  expect(providers.every((provider) => ['google', 'facebook', 'twitter'].includes(String(provider)))).toBe(true);
+  expect(providers.every((provider) => ['google', 'github', 'facebook', 'twitter'].includes(String(provider)))).toBe(true);
   console.log('STAGING_AUTH_SOCIAL_PROVIDERS=' + (providers.length ? providers.join(',') : '(none configured)'));
 });
 
+
+test('unlinked Google login shows a confirmation and Batal does not create an account', async ({ page }) => {
+  await stubAuthWorkerReads(page, { providers: ['google', 'github'] });
+  const socialPosts: Record<string, unknown>[] = [];
+  await mockAuthPost(page, '/api/auth/sign-in/social', (body) => socialPosts.push(body));
+
+  const response = await page.goto(
+    '/login?oauthError=1&provider=google&error=account_not_linked&redirect=%2Fhome',
+    { waitUntil: 'domcontentloaded' },
+  );
+  expect(response?.status()).toBe(200);
+
+  const dialog = page.getByRole('dialog', { name: 'Akun belum terhubung' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Google / Gmail');
+  await expect(dialog).toContainText('Apakah kamu ingin daftar baru?');
+  await dialog.getByRole('button', { name: 'Batal' }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(socialPosts, 'cancel must not request social signup').toHaveLength(0);
+});
+
+test('Daftar baru explicitly requests GitHub social signup and continues to profile completion', async ({ page }) => {
+  await stubAuthWorkerReads(page, { providers: ['google', 'github'] });
+  const socialPosts: Record<string, unknown>[] = [];
+  await mockAuthPost(page, '/api/auth/sign-in/social', (body) => socialPosts.push(body));
+
+  const response = await page.goto(
+    '/login?oauthError=1&provider=github&error=account_not_linked&redirect=%2Fhome',
+    { waitUntil: 'domcontentloaded' },
+  );
+  expect(response?.status()).toBe(200);
+
+  const dialog = page.getByRole('dialog', { name: 'Akun belum terhubung' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('GitHub');
+  await dialog.getByRole('button', { name: 'Daftar baru' }).click();
+
+  await expect.poll(() => socialPosts.length).toBe(1);
+  expect(socialPosts[0].provider).toBe('github');
+  expect(socialPosts[0].requestSignUp).toBe(true);
+  expect(new URL(String(socialPosts[0].callbackURL)).pathname).toBe('/auth/complete-profile');
+  const errorCallback = new URL(String(socialPosts[0].errorCallbackURL));
+  expect(errorCallback.pathname).toBe('/login');
+  expect(errorCallback.searchParams.get('intent')).toBe('signup');
+  expect(errorCallback.searchParams.get('provider')).toBe('github');
+  await expect(dialog.getByRole('button', { name: 'Daftar baru' })).toBeEnabled();
+});
 test('staging browser can complete Supabase REST CORS preflight for external Bearer tokens', async ({ page }) => {
   await page.goto('/login', { waitUntil: 'domcontentloaded' });
 
@@ -398,6 +534,9 @@ for (const roleCase of publicRegistrationRoles) {
 
     // Stub the Better Auth transport so the browser contract is tested without
     // creating persistent D1/Supabase identities or sending real email.
+    await page.route(AUTH_ORIGIN + '/api/auth/get-session', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
+    });
     await page.route('https://auth.sykabelajar.my.id/api/auth/providers', async (route) => {
       await route.fulfill({
         status: 200,
