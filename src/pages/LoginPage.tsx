@@ -125,7 +125,8 @@ export function LoginPage() {
     const errorCallbackURL = `/login?oauthError=1&provider=${provider}&redirect=${encodeURIComponent(redirectTo)}`;
     try {
       // A login attempt deliberately does not request account creation.
-      await signInWithSocial(provider, redirectTo, { errorCallbackURL });
+      const result = await signInWithSocial(provider, redirectTo, { errorCallbackURL });
+      if (!result.url) setSocialLoading(null);
     } catch (error: unknown) {
       const code = error instanceof Error ? error.message : '';
       if (/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(code)) {
@@ -151,10 +152,11 @@ export function LoginPage() {
     const callbackURL = `/auth/complete-profile?redirect=${encodeURIComponent(redirectTo)}`;
     const errorCallbackURL = `/login?oauthError=1&provider=${provider}&intent=signup&redirect=${encodeURIComponent(redirectTo)}`;
     try {
-      await signInWithSocial(provider, callbackURL, {
+      const result = await signInWithSocial(provider, callbackURL, {
         requestSignUp: true,
         errorCallbackURL,
       });
+      if (!result.url) setSocialLoading(null);
     } catch (error: unknown) {
       const code = error instanceof Error ? error.message : '';
       const category = getSocialAuthErrorCategory(code);
