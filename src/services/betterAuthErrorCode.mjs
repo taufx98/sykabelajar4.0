@@ -30,3 +30,27 @@ export function safeBetterAuthErrorCode(body) {
 
   return "AUTH_REQUEST_FAILED";
 }
+
+
+const SOCIAL_ACCOUNT_LINK_ERRORS = new Set([
+  "account_not_linked",
+  "account_already_linked_to_different_user",
+  "unable_to_link_account",
+  "oauth_link_error",
+  "signup_disabled",
+]);
+
+const SOCIAL_CANCELLED_ERRORS = new Set([
+  "access_denied",
+  "user_cancelled",
+  "user_canceled",
+]);
+
+/** Normalize OAuth callback errors without exposing provider/server descriptions. */
+export function getSocialAuthErrorCategory(value) {
+  if (typeof value !== "string") return "failed";
+  const code = value.trim().toLowerCase();
+  if (SOCIAL_ACCOUNT_LINK_ERRORS.has(code)) return "account_not_linked";
+  if (SOCIAL_CANCELLED_ERRORS.has(code)) return "cancelled";
+  return "failed";
+}
