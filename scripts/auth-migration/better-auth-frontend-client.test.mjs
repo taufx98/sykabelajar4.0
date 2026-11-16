@@ -163,7 +163,7 @@ assert.match(loginPage, /handleResendVerification/);
 assert.match(loginPage, /EMAIL_VERIFICATION_REQUIRED\|EMAIL_NOT_VERIFIED\|EMAIL_NOT_CONFIRMED/);
 assert.match(loginPage, /If that address has an unverified account, a verification link will be sent\./);
 assert.match(registerPage, /isBetterAuthEnabled\(\)/);
-assert.match(registerPage, /sendVerificationOtp\(form\.email\.trim\(\)\.toLowerCase\(\)\)/);
+assert.match(registerPage, /Akun berhasil dibuat\. Kode verifikasi 6 digit sudah dikirim ke email/);
 
 assert.match(authService, /getStagingBetterAuthClient\(\)\.resetPassword\(token, newPassword\)/);
 assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
