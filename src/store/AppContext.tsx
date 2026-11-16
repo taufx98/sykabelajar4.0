@@ -506,7 +506,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Prevent same-tab account-change isolation from hard-reloading the
       // login route before LoginPage can finish its post-auth redirect.
       try { window.sessionStorage.setItem(LOGIN_IN_PROGRESS_KEY, String(Date.now())); } catch { /* Best-effort same-tab reload guard. */ }
-      const result = await signIn(email.trim(), password);
+
+      // The Better Auth session cookie belongs to the auth hostname, not to a
+      // particular app email field. When the user switches accounts, clear the
+      // previous verified identity first. Otherwise a rejected unverified
+      // account sign-in can leave the old account's cookie active and make the
+      // browser appear to have signed in as the new account.
+      const requestedEmail = email.trim().toLowerCase();
+      const existingSession = await getAuthSession();
+      const existingEmail = existingSession?.user.email?.trim().toLowerCase();
+      if (existingEmail && existingEmail !== requestedEmail) {
+        await signOut();
+        clearUserState();
+      }
+
+      const result = await signIn(requestedEmail, password);
       if ('authUnavailableRetryAtUtc' in result &&
           typeof result.authUnavailableRetryAtUtc === 'string') {
         quotaRetryAtUtcFromCredential = result.authUnavailableRetryAtUtc;
