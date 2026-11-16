@@ -1,5 +1,5 @@
 import { toast } from '@/lib/toast';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AtSign, LayoutDashboard, Trophy, Users, ShoppingBag, FileText, Store, Settings, ShieldCheck, Search, Trash2, Plus, Edit3, Package, Eye, EyeOff, Sparkles, Image as ImageIcon, Copy, Gift, CreditCard } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -57,14 +57,20 @@ export function AdminPage() {
 
   useEffect(() => { if (requestedTab && tabs.some(t => t.key === requestedTab)) setTab(requestedTab); }, [requestedTab]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const data = await loadAdminCore();
       setCompetitions(data.competitions); setUsers(data.users); setPosts(data.posts); setOrders(data.orders); setProducts(data.products);
     } catch (error: any) { toast.error(error?.message ?? 'Gagal memuat data Admin.'); }
-  };
+  }, []);
 
   useEffect(() => {
+    // Settings and referral panels load their own data. Do not call the legacy
+    // Admin overview loader (and its get_platform_stats RPC) when opening them.
+    // This keeps auth configuration available even when that unrelated RPC is
+    // absent from an isolated staging Supabase schema.
+    if (tab === 'settings' || tab === 'referral') return;
+
     void load();
     const channel = supabase.channel('admin-core-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'competitions' }, () => void load())
@@ -74,7 +80,7 @@ export function AdminPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'commerce_products' }, () => void load())
       .subscribe(status => { if (status === 'CHANNEL_ERROR') toast.warning('Realtime Admin terputus; data dapat dimuat ulang.'); });
     return () => { void supabase.removeChannel(channel); };
-  }, []);
+  }, [load, tab]);
 
   const selectTab = (next: CoreAdminTab) => { setTab(next); setSearchParams(next === 'dashboard' ? {} : { tab: next }, { replace: true }); };
   const filteredUsers = useMemo(() => users.filter(u => `${u.full_name || ''} ${u.username || ''} ${u.institution || ''}`.toLowerCase().includes(search.toLowerCase())), [users, search]);
