@@ -16,14 +16,16 @@ type ProviderDraft = {
   enabled: boolean;
 };
 
-const PROVIDER_ORDER: BetterAuthSocialProvider[] = ['google', 'facebook', 'twitter'];
+const PROVIDER_ORDER: BetterAuthSocialProvider[] = ['google', 'github', 'facebook', 'twitter'];
 const PROVIDER_LABEL: Record<BetterAuthSocialProvider, string> = {
   google: 'Google / Gmail',
+  github: 'GitHub',
   facebook: 'Facebook',
   twitter: 'X / Twitter',
 };
 const PROVIDER_DESCRIPTION: Record<BetterAuthSocialProvider, string> = {
   google: 'Metode login utama. Gunakan Google OpenID Connect dengan scope openid, email, dan profile saja.',
+  github: 'Metode opsional. Aktifkan scope user:email agar GitHub dapat memberikan alamat email akun.',
   facebook: 'Metode opsional. Facebook tidak menyediakan klaim email terverifikasi yang konsisten, sehingga akun perlu melewati verifikasi email SYKABELAJAR.',
   twitter: 'Metode opsional. Aplikasi X harus mengizinkan akses email dan mengembalikan alamat email yang dikonfirmasi.',
 };
@@ -49,6 +51,7 @@ export function LoginProvidersSettingsPanel() {
   const [settings, setSettings] = useState<BetterAuthLoginProviderSettings | null>(null);
   const [drafts, setDrafts] = useState<Record<BetterAuthSocialProvider, ProviderDraft>>({
     google: { clientId: '', clientSecret: '', enabled: true },
+    github: { clientId: '', clientSecret: '', enabled: false },
     facebook: { clientId: '', clientSecret: '', enabled: false },
     twitter: { clientId: '', clientSecret: '', enabled: false },
   });
@@ -180,7 +183,7 @@ export function LoginProvidersSettingsPanel() {
   if (!previewEnabled) {
     return <Card className="p-5">
       <div className="flex items-center gap-2"><ShieldCheck size={17} className="text-accent"/><h3 className="font-semibold text-fg">Metode Login</h3><Badge>Staging only</Badge></div>
-      <p className="mt-2 text-sm text-fg-muted">Pengaturan Google, Facebook, dan X hanya dapat dibuka dari preview Better Auth yang terhubung ke Supabase staging. Login produksi tetap menggunakan Supabase Auth sampai cutover Tahap 7.</p>
+      <p className="mt-2 text-sm text-fg-muted">Pengaturan Google, GitHub, Facebook, dan X hanya dapat dibuka dari preview Better Auth yang terhubung ke Supabase staging. Login produksi tetap menggunakan Supabase Auth sampai cutover Tahap 7.</p>
     </Card>;
   }
 
@@ -257,7 +260,7 @@ export function LoginProvidersSettingsPanel() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t surface-border pt-3">
-            <div className="text-[11px] text-fg-muted">{provider === 'facebook' ? (settings.emailVerificationConfigured ? 'Email verifikasi SYKABELAJAR sudah siap; Facebook tetap memerlukan verifikasi email lokal sebelum sesi dibuat.' : 'Facebook disimpan sebagai opsi, tetapi tetap dinonaktifkan sampai tahap email verifikasi terakhir. Tidak ada email yang dikirim sekarang.') : provider === 'twitter' ? 'Login X hanya berhasil jika app mengembalikan email yang dikonfirmasi.' : 'Google menggunakan OpenID Connect; tidak meminta akses ke inbox Gmail.'}</div>
+            <div className="text-[11px] text-fg-muted">{provider === 'facebook' ? (settings.emailVerificationConfigured ? 'Email verifikasi SYKABELAJAR sudah siap; Facebook tetap memerlukan verifikasi email lokal sebelum sesi dibuat.' : 'Facebook disimpan sebagai opsi, tetapi tetap dinonaktifkan sampai tahap email verifikasi terakhir. Tidak ada email yang dikirim sekarang.') : provider === 'twitter' ? 'Login X hanya berhasil jika app mengembalikan email yang dikonfirmasi.' : provider === 'github' ? 'Daftarkan callback URL di GitHub OAuth App dan izinkan scope user:email. Email harus tersedia serta terverifikasi di GitHub.' : 'Google menggunakan OpenID Connect; tidak meminta akses ke inbox Gmail.'}</div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" disabled={busy || !settings.encryptionKeyConfigured || !draft.clientId.trim() || (!draft.clientSecret.trim() && !secretConfigured)} loading={busy} onClick={() => void save(provider)}>Simpan</Button>
               <Button size="sm" variant="ghost" disabled={busy || !secretConfigured || !settings.encryptionKeyConfigured} onClick={() => void validate(provider)}>Validasi tersimpan</Button>
@@ -269,7 +272,7 @@ export function LoginProvidersSettingsPanel() {
 
       <section className="rounded-xl border border-dashed surface-border p-3">
         <div className="flex items-center gap-2"><CircleAlert size={15} className="text-fg-muted"/><h4 className="text-sm font-semibold text-fg">Instagram</h4><Badge>Unavailable</Badge></div>
-        <p className="mt-1 text-xs text-fg-muted">{settings.instagram.reason} Tidak ada tombol aktivasi atau workaround.</p>
+        <p className="mt-1 text-xs text-fg-muted">Login Instagram umum untuk akun personal tidak tersedia melalui API resmi saat ini. Instagram Login ditujukan untuk akun profesional (Business/Creator), dan profil API-nya bukan sumber email pengguna untuk identitas SYKABELAJAR. Tidak ada tombol aktivasi atau workaround yang aman.</p>
       </section>
 
       {!settings.encryptionKeyConfigured && <p className="text-xs text-amber-300">Sebelum menyimpan credential, tambahkan Worker secret <code>AUTH_PROVIDER_ENCRYPTION_KEY</code> melalui Cloudflare. Gunakan kunci acak minimal 32 karakter dan jangan kirim melalui chat atau masukkan ke frontend.</p>}
