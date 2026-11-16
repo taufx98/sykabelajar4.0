@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { generateKeyPair, SignJWT } from "jose";
+import { customFetch, generateKeyPair, SignJWT } from "jose";
 import { readFileSync } from "node:fs";
 import {
   BetterAuthAdminAuthError,
@@ -154,6 +154,10 @@ test("JWT business role, subject and maximum lifetime are independently guarded"
 
 test("JOSE failures are reduced to stable, non-sensitive verifier diagnostics", async () => {
   const expected = new Map([
+    ["ERR_JOSE_ALG_NOT_ALLOWED", "BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID"],
+    ["ERR_JOSE_GENERIC", "BETTER_AUTH_JWKS_UNAVAILABLE"],
+    ["ERR_JOSE_NOT_SUPPORTED", "BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID"],
+    ["ERR_JWK_INVALID", "BETTER_AUTH_JWKS_INVALID"],
     ["ERR_JWKS_NO_MATCHING_KEY", "BETTER_AUTH_JWKS_KEY_NOT_FOUND"],
     ["ERR_JWKS_MULTIPLE_MATCHING_KEYS", "BETTER_AUTH_JWKS_KEY_AMBIGUOUS"],
     ["ERR_JWKS_TIMEOUT", "BETTER_AUTH_JWKS_UNAVAILABLE"],
@@ -180,7 +184,78 @@ test("JOSE failures are reduced to stable, non-sensitive verifier diagnostics", 
   }
 });
 
+test("remote JWKS transport failures are classified without exposing upstream details", async () => {
+  const validPayload = {
+    iss: ISSUER,
+    sub: USER_ID,
+    aud: RESOURCE,
+    role: "authenticated",
+    iat: NOW - 10,
+    exp: NOW + 290,
+  };
+  const scenarios = [
+    {
+      name: "404 endpoint",
+      fetchImpl: async () => new Response("private upstream body", { status: 404 }),
+      expected: "BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND",
+    },
+    {
+      name: "403 endpoint",
+      fetchImpl: async () => new Response("private upstream body", { status: 403 }),
+      expected: "BETTER_AUTH_JWKS_ACCESS_DENIED",
+    },
+    {
+      name: "5xx endpoint",
+      fetchImpl: async () => new Response("private upstream body", { status: 503 }),
+      expected: "BETTER_AUTH_JWKS_UNAVAILABLE",
+    },
+    {
+      name: "network failure",
+      fetchImpl: async () => { throw new TypeError("private network detail"); },
+      expected: "BETTER_AUTH_JWKS_UNAVAILABLE",
+    },
+    {
+      name: "malformed JSON",
+      fetchImpl: async () => new Response("not-json", { status: 200 }),
+      expected: "BETTER_AUTH_JWKS_INVALID",
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    let jwksOptions;
+    const createJwksImpl = (_url, options) => {
+      jwksOptions = options;
+      return { remoteJwks: true };
+    };
+    const verifyJwtImpl = async () => {
+      await jwksOptions[customFetch](ISSUER + "/jwks", {
+        method: "GET",
+        headers: new Headers({ Accept: "application/json" }),
+        redirect: "manual",
+        signal: AbortSignal.timeout(1000),
+      });
+      return { payload: validPayload };
+    };
+
+    await assert.rejects(
+      resolveBetterAuthAdminIdentity(input({
+        fetchImpl: scenario.fetchImpl,
+        createJwksImpl,
+        verifyJwtImpl,
+      })),
+      (error) => error instanceof BetterAuthAdminAuthError && error.code === scenario.expected,
+      scenario.name,
+    );
+  }
+});
+
 test("public Admin auth diagnostics are allowlisted and carry safe status codes", () => {
+  assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND"), {
+    error: "AUTH_JWKS_ENDPOINT_NOT_FOUND", status: 503,
+  });
+  assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_JWKS_ACCESS_DENIED"), {
+    error: "AUTH_JWKS_ACCESS_DENIED", status: 503,
+  });
   assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_JWKS_KEY_NOT_FOUND"), {
     error: "AUTH_JWKS_KEY_NOT_FOUND", status: 401,
   });
