@@ -7,10 +7,11 @@ import { isBetterAuthEnabled, resetPassword, sendVerificationEmail, signInWithSo
 import { getStagingBetterAuthClient, type BetterAuthSocialProvider } from '@/services/betterAuthApi.client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
+import { getSocialAuthErrorCategory } from '@/services/betterAuthErrorCode.mjs';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedRedirect = searchParams.get('redirect') || '/home';
   const redirectTo = resolveSafeInternalRedirect(requestedRedirect, window.location.origin);
   const registerTo = redirectTo === '/home' ? '/register' : `/register?redirect=${encodeURIComponent(redirectTo)}`;
@@ -56,6 +57,31 @@ export function LoginPage() {
     return () => { active = false; };
   }, [betterAuthPreview]);
 
+  // Better Auth sends OAuth callback failures to this page with a stable error
+  // code. Consume it once, show a user-friendly notification, and clean the URL.
+  useEffect(() => {
+    if (searchParams.get('oauthError') !== '1') return;
+    const category = getSocialAuthErrorCategory(searchParams.get('error'));
+    const message = category === 'account_not_linked'
+      ? language === 'en'
+        ? 'No SYKABELAJAR account is connected to this Google/GitHub account. Sign in with your original email/password method, or register first.'
+        : 'Belum ada akun SYKABELAJAR yang terhubung dengan akun Google/GitHub ini. Masuk menggunakan email dan password yang dipakai saat mendaftar, atau daftar terlebih dahulu.'
+      : category === 'cancelled'
+        ? language === 'en'
+          ? 'Social sign-in was cancelled. You can try again or use email and password.'
+          : 'Proses login sosial dibatalkan. Kamu bisa mencoba lagi atau masuk dengan email dan password.'
+        : language === 'en'
+          ? 'Google/GitHub sign-in could not be completed. Please try again or use email and password.'
+          : 'Login Google/GitHub belum berhasil. Silakan coba lagi atau gunakan email dan password.';
+    toast(message, 'error');
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('oauthError');
+    nextParams.delete('error');
+    nextParams.delete('error_description');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, toast, language]);
+
   const handleLogin = async () => {
     if (!email || !password) { toast(text('Isi email dan password','Enter your email and password'), 'error'); return; }
     setLoading(true);
@@ -82,13 +108,22 @@ export function LoginPage() {
 
   const handleSocialLogin = async (provider: BetterAuthSocialProvider) => {
     setSocialLoading(provider);
+    const errorCallbackURL = `/login?oauthError=1&redirect=${encodeURIComponent(redirectTo)}`;
     try {
-      await signInWithSocial(provider, redirectTo);
-    } catch (error: any) {
-      if (/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(error?.message ?? '')) {
+      await signInWithSocial(provider, redirectTo, { errorCallbackURL });
+    } catch (error: unknown) {
+      const code = error instanceof Error ? error.message : '';
+      if (/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(code)) {
         setNeedsEmailVerification(true);
+        toast(text('Email akun belum terverifikasi. Selesaikan verifikasi terlebih dahulu.','Your account email is not verified. Complete verification first.'), 'error');
+      } else if (getSocialAuthErrorCategory(code) === 'account_not_linked') {
+        toast(text(
+          'Belum ada akun SYKABELAJAR yang terhubung dengan akun Google/GitHub ini. Masuk dengan email dan password atau daftar terlebih dahulu.',
+          'No SYKABELAJAR account is connected to this Google/GitHub account. Sign in with email and password or register first.',
+        ), 'error');
+      } else {
+        toast(text('Login sosial belum berhasil. Coba lagi atau gunakan email dan password.','Social sign-in could not be completed. Try again or use email and password.'), 'error');
       }
-      toast(error?.message ?? text('Login sosial gagal. Coba lagi.','Social sign-in failed. Please try again.'), 'error');
       setSocialLoading(null);
     }
   };
