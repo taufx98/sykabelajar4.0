@@ -41,5 +41,5 @@ test("email and broad staging migration workflows cannot apply GitHub migration 
   assert.match(broadMigrationWorkflow, /0011_add_github_social_provider\.sql/);
   assert.match(broadMigrationWorkflow, /Confirm GitHub social-provider migration 0011 was separately authorized and recorded/);
   assert.match(broadMigrationWorkflow, /if \(!names\.has\("0011_add_github_social_provider\.sql"\)\)/);
-  assert.match(deployWorkflow, /GitHub social-provider D1 migration 0011 has not been separately authorized and applied/);
+  assert.match(deployWorkflow, /GitHub social-provider migration 0011 has not been separately authorized and applied/);
 });
