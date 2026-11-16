@@ -20,10 +20,9 @@ const adminPage = readFileSync(new URL("../../src/pages/AdminPage.tsx", import.m
 const transactionalEmailPanel = readFileSync(new URL("../../src/components/admin/TransactionalEmailSettingsPanel.tsx", import.meta.url), "utf8");
 const authVerificationPanel = readFileSync(new URL("../../src/components/admin/AuthVerificationSettingsPanel.tsx", import.meta.url), "utf8");
 const adminAccessTokenProvider = readFileSync(new URL("../../src/services/adminBetterAuthAccessToken.ts", import.meta.url), "utf8");
+const authEmailAdminVerifier = readFileSync(new URL("../../services/auth-worker/src/email-admin-auth.mjs", import.meta.url), "utf8");
 const loginProvidersPanel = readFileSync(new URL("../../src/components/admin/LoginProvidersSettingsPanel.tsx", import.meta.url), "utf8");
 const socialProviderSettings = readFileSync(new URL("../../services/auth-worker/src/social-provider-settings.ts", import.meta.url), "utf8");
-
-// Admin settings use the staging Better Auth resource token directly; never fall back to a legacy Supabase Auth session.
 
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
 const loginPage = readFileSync(new URL("../../src/pages/LoginPage.tsx", import.meta.url), "utf8");
@@ -266,6 +265,22 @@ assert.match(adminAccessTokenProvider, /hostname\.toLowerCase\(\) !== STAGING_AP
 assert.match(adminAccessTokenProvider, /getStagingBetterAuthClient\(\)\.getSupabaseAccessToken\(\)/);
 assert.match(adminAccessTokenProvider, /AUTH_STAGING_APP_ORIGIN_REQUIRED/);
 assert.match(adminAccessTokenProvider, /AUTH_SESSION_REQUIRED/);
+for (const code of [
+  'AUTH_JWKS_KEY_NOT_FOUND',
+  'AUTH_JWKS_KEY_AMBIGUOUS',
+  'AUTH_JWKS_UNAVAILABLE',
+  'AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID',
+  'AUTH_RESOURCE_TOKEN_CLAIMS_INVALID',
+  'AUTH_RESOURCE_TOKEN_EXPIRED',
+  'AUTH_USERINFO_INVALID',
+]) {
+  assert.ok(loginProvidersPanel.includes(code), 'OAuth settings must explain ' + code);
+  assert.ok(transactionalEmailPanel.includes(code), 'Email settings must explain ' + code);
+  assert.ok(authVerificationPanel.includes(code), 'Verification settings must explain ' + code);
+}
+assert.match(authEmailAdminVerifier, /ERR_JWS_SIGNATURE_VERIFICATION_FAILED: "BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID"/);
+assert.match(authEmailAdminVerifier, /ERR_JWKS_NO_MATCHING_KEY: "BETTER_AUTH_JWKS_KEY_NOT_FOUND"/);
+assert.match(authEmailAdminVerifier, /publicBetterAuthAdminAuthError/);
 assert.match(transactionalEmailPanel, /AUTH_WORKER_URL_NOT_CONFIGURED/);
 
 // Refresh/focus checks must reuse a still-valid resource token, and all
