@@ -547,7 +547,8 @@ jobs:
               });
               assert.equal(unauthenticatedAdminResponse.status, 401, "Admin provider settings must reject requests without a Better Auth resource token");
               const unauthenticatedAdminBody = await unauthenticatedAdminResponse.json();
-              assert.equal(unauthenticatedAdminBody.error, "AUTH_REQUIRED");
+              assert.equal(unauthenticatedAdminBody.error, "AUTH_BEARER_MISSING",
+                "login-provider Admin API must distinguish a missing Bearer token from a rejected resource-token");
 
               const hostileAdminResponse = await fetchWithTimeout(origin + "/api/admin/login-providers", {
                 headers: { Origin: "https://attacker.example", Accept: "application/json" },
