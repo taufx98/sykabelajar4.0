@@ -199,6 +199,31 @@ jobs:
           console.log("Verified provider-aware transactional email schema.");
           NODE
 
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0011_add_github_social_provider.sql';" > "$RUNNER_TEMP/auth-worker-staging-github-migration.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_social_provider_settings';" > "$RUNNER_TEMP/auth-worker-staging-github-schema.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const read = (name) => JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/" + name, "utf8"));
+          const collect = (value, key, rows = []) => {
+            if (Array.isArray(value)) value.forEach((item) => collect(item, key, rows));
+            else if (value && typeof value === "object") {
+              if (Object.hasOwn(value, key)) rows.push(value[key]);
+              Object.values(value).forEach((item) => { if (item && typeof item === "object") collect(item, key, rows); });
+            }
+            return rows;
+          };
+          const migrations = collect(read("auth-worker-staging-github-migration.json"), "name");
+          const schema = String(collect(read("auth-worker-staging-github-schema.json"), "sql")[0] ?? "").toLowerCase();
+          if (!migrations.includes("0011_add_github_social_provider.sql")) {
+            throw new Error("GitHub social-provider migration 0011 has not been separately authorized and applied; refusing Worker deployment.");
+          }
+          if (!schema.includes("'github'")) {
+            throw new Error("Managed social-provider D1 schema does not allow GitHub; refusing Worker deployment.");
+          }
+          console.log("Verified separately authorized GitHub social-provider D1 migration and schema.");
+          NODE
+
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT
             (SELECT COUNT(*) FROM user) AS users,
             (SELECT COUNT(*) FROM user WHERE emailVerified = 0) AS unverified_users,
