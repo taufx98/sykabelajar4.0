@@ -68,6 +68,8 @@ assert.match(client, /\/sign-in\/social/);
 assert.match(client, /\/sign-up\/email/);
 assert.match(client, /\/email-otp\/send-verification-otp/);
 assert.match(client, /\/email-otp\/verify-email/);
+assert.ok(client.includes(String.raw`if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {`));
+assert.ok(client.includes(String.raw`|| !/^\d{6}$/.test(otp.trim())) {`));
 assert.match(client, /\/request-password-reset/);
 assert.match(client, /\/reset-password/);
 assert.match(client, /\/change-password/);
