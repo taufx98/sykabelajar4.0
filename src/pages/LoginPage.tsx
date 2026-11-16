@@ -393,6 +393,7 @@ export function LoginPage() {
               <Button
                 fullWidth
                 variant="outline"
+                autoFocus
                 disabled={socialLoading !== null}
                 onClick={() => setUnlinkedSocialProvider(null)}
               >
