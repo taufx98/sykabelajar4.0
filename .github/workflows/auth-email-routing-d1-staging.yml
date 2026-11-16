@@ -138,6 +138,7 @@ jobs:
             "0006_transactional_email_provider.sql",
             "0007_managed_social_login_providers.sql",
             "0008_add_staging_oauth_callback.sql",
+            "0011_add_github_social_provider.sql",
           ];
           for (const name of base) {
             if (!names.has(name)) throw new Error("Required staging migration is not recorded as applied: " + name);
@@ -145,7 +146,7 @@ jobs:
           const allowed = new Set([...base, "0009_auth_runtime_settings.sql", "0010_multi_provider_email_routing.sql"]);
           const unexpected = [...names].filter((name) => !allowed.has(name));
           if (unexpected.length) throw new Error("Unreviewed staging migration history found; refusing remote change: " + unexpected.join(", "));
-          console.log("PASS: migrations 0000–0008 are recorded; only reviewed 0009/0010 may be pending.");
+          console.log("PASS: migrations 0000–0008 and separately authorized 0011 are recorded; only reviewed 0009/0010 may be pending.");
           NODE
 
       - name: Apply only reviewed staging migrations 0009–0010 through the D1 migration ledger
