@@ -581,7 +581,8 @@ jobs:
                 issuer: discovery.issuer,
                 jwks: "public ES256 P-256 key verified",
                 pkce: "S256 advertised",
-                emailAgentConfigured: false,
+                emailVerificationConfigured: publicProviders.emailVerificationConfigured,
+                emailVerificationRequired: publicProviders.emailVerificationRequired,
                 googleOAuthCredentialsConfigured: false,
                 noUserOrSessionSeeded: true
               }));
