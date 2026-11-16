@@ -64,7 +64,9 @@ export function LoginPage() {
       if (!result.ok) {
         if (/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(result.error ?? '')) {
           setNeedsEmailVerification(true);
-          toast(text('Verifikasi email terlebih dahulu. Kami dapat mengirim ulang tautan verifikasi.','Verify your email first. You can request another verification link.'), 'info');
+          toast(betterAuthPreview
+            ? text('Verifikasi email terlebih dahulu. Kami dapat mengirim ulang kode verifikasi.','Verify your email first. You can request another verification code.')
+            : text('Verifikasi email terlebih dahulu. Kami dapat mengirim ulang tautan verifikasi.','Verify your email first. You can request another verification link.'), 'info');
           return;
         }
         toast(result.error || 'Login gagal', 'error');
@@ -122,10 +124,9 @@ export function LoginPage() {
       }
     } catch {
       // Keep the response indistinguishable for unknown, verified and rate-limited addresses.
-      toast(text(
-        'Jika email tersebut memiliki akun yang belum diverifikasi, tautan verifikasi akan dikirim.',
-        'If that address has an unverified account, a verification link will be sent.',
-      ), 'success');
+      toast(betterAuthPreview
+        ? text('Jika email tersebut memiliki akun yang belum diverifikasi, kode verifikasi akan dikirim.', 'If that address has an unverified account, a verification code will be sent.')
+        : text('Jika email tersebut memiliki akun yang belum diverifikasi, tautan verifikasi akan dikirim.', 'If that address has an unverified account, a verification link will be sent.'), 'success');
     } finally {
       setVerificationLoading(false);
     }
