@@ -106,7 +106,7 @@ test("incomplete credentials or sender fail before outbound network requests", a
 
 test("Custom HTTP provider sends configurable JSON with supported substitutions and API-key auth", async () => {
   const credentials = normalizeCustomHttpConfig({
-    endpointUrl: "https://api.mail-vendor.example/v1/send",
+    endpointUrl: "https://api.mailvendor.com/v1/send",
     authMode: "api_key",
     authHeaderName: "X-API-Key",
     apiKey: "custom-provider-api-key-123456",
@@ -124,7 +124,7 @@ test("Custom HTTP provider sends configurable JSON with supported substitutions 
     captured = { url: String(url), init };
     return new Response(JSON.stringify({ success: true, messageId: "custom-id-1" }), { status: 202 });
   });
-  assert.equal(captured.url, "https://api.mail-vendor.example/v1/send");
+  assert.equal(captured.url, "https://api.mailvendor.com/v1/send");
   assert.equal(captured.init.method, "POST");
   assert.equal(captured.init.redirect, "error");
   assert.equal(captured.init.headers["X-API-Key"], "custom-provider-api-key-123456");
@@ -141,19 +141,19 @@ test("Custom HTTP provider sends configurable JSON with supported substitutions 
 
 test("Custom HTTP endpoint rejects local, IP-literal, HTTP and redirected destinations", async () => {
   for (const endpointUrl of [
-    "http://api.vendor.example/send",
+    "http://api.vendor.com/send",
     "https://127.0.0.1/send",
     "https://localhost/send",
     "https://mail.internal/send",
-    "https://api.vendor.example:8443/send",
-    "https://user:pass@api.vendor.example/send",
+    "https://api.vendor.com:8443/send",
+    "https://user:pass@api.vendor.com/send",
   ]) {
     assert.throws(() => normalizeCustomHttpConfig({
       endpointUrl, authMode: "none",
     }), { message: "EMAIL_CUSTOM_ENDPOINT_INVALID" });
   }
   const credentials = normalizeCustomHttpConfig({
-    endpointUrl: "https://api.vendor.example/send",
+    endpointUrl: "https://api.vendor.com/send",
     authMode: "none",
   });
   await assert.rejects(
@@ -165,18 +165,18 @@ test("Custom HTTP endpoint rejects local, IP-literal, HTTP and redirected destin
 
 test("Custom HTTP adapter rejects header injection and unsupported payload placeholders", () => {
   assert.throws(() => normalizeCustomHttpConfig({
-    endpointUrl: "https://api.vendor.example/send",
+    endpointUrl: "https://api.vendor.com/send",
     authMode: "api_key",
     authHeaderName: "Authorization",
     apiKey: "custom-provider-api-key-123456",
   }), { message: "EMAIL_CUSTOM_AUTH_INVALID" });
   assert.throws(() => normalizeCustomHttpConfig({
-    endpointUrl: "https://api.vendor.example/send",
+    endpointUrl: "https://api.vendor.com/send",
     authMode: "none",
     extraHeadersJson: "{\"Authorization\":\"Bearer secret\"}",
   }), { message: "EMAIL_CUSTOM_HEADERS_INVALID" });
   assert.throws(() => normalizeCustomHttpConfig({
-    endpointUrl: "https://api.vendor.example/send",
+    endpointUrl: "https://api.vendor.com/send",
     authMode: "none",
     payloadTemplateJson: "{\"to\":\"{{to}}\",\"subject\":\"{{subject}}\",\"text\":\"{{text}}\",\"apiKey\":\"{{secret}}\"}",
   }), { message: "EMAIL_CUSTOM_PAYLOAD_INVALID" });
@@ -185,11 +185,11 @@ test("Custom HTTP adapter rejects header injection and unsupported payload place
 test("Custom HTTP auth supports Bearer and Basic without placing credentials in the payload", async () => {
   const cases = [
     {
-      config: { endpointUrl: "https://api.vendor.example/send", authMode: "bearer", apiKey: "custom-bearer-token-123456" },
+      config: { endpointUrl: "https://api.vendor.com/send", authMode: "bearer", apiKey: "custom-bearer-token-123456" },
       header: "Bearer custom-bearer-token-123456",
     },
     {
-      config: { endpointUrl: "https://api.vendor.example/send", authMode: "basic", username: "api-user", password: "basic-password-123" },
+      config: { endpointUrl: "https://api.vendor.com/send", authMode: "basic", username: "api-user", password: "basic-password-123" },
       header: "Basic " + Buffer.from("api-user:basic-password-123").toString("base64"),
     },
   ];
