@@ -14,7 +14,19 @@ type Policy = {
 const STAGING_APP_HOST = 'staging.sykabelajar.my.id';
 const STAGING_AUTH_WORKER_URL = 'https://auth.sykabelajar.my.id';
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
-  AUTH_REQUIRED: 'Worker menolak token Admin. Login ulang melalui staging.',
+  AUTH_REQUIRED: 'Worker menolak token Admin.',
+  AUTH_RESOURCE_TOKEN_INVALID: 'Worker tidak dapat memverifikasi resource-token Better Auth.',
+  AUTH_RESOURCE_TOKEN_HEADER_INVALID: 'Header token bukan format ES256/JWT yang diharapkan Worker.',
+  AUTH_RESOURCE_TOKEN_FORMAT_INVALID: 'Format resource-token Better Auth tidak valid.',
+  AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID: 'Signature token tidak cocok dengan kunci publik JWKS Worker.',
+  AUTH_RESOURCE_TOKEN_EXPIRED: 'Resource-token sudah kedaluwarsa. Muat ulang sesi staging.',
+  AUTH_RESOURCE_TOKEN_CLAIMS_INVALID: 'Klaim issuer, audience, sub, role, atau masa berlaku token tidak sesuai.',
+  AUTH_JWKS_KEY_NOT_FOUND: 'Kunci penandatangan token tidak ditemukan pada JWKS Worker.',
+  AUTH_JWKS_KEY_AMBIGUOUS: 'JWKS Worker memiliki lebih dari satu kunci yang cocok untuk token.',
+  AUTH_JWKS_UNAVAILABLE: 'Worker tidak dapat mengambil JWKS dari issuer Better Auth.',
+  AUTH_JWKS_INVALID: 'Respons JWKS dari issuer Better Auth tidak valid.',
+  AUTH_USERINFO_UNAVAILABLE: 'Endpoint UserInfo Better Auth tidak dapat dihubungi.',
+  AUTH_USERINFO_INVALID: 'Identitas UserInfo tidak cocok atau email belum terverifikasi.',
   AUTH_SESSION_REQUIRED: 'Sesi Better Auth staging tidak ditemukan. Login ulang melalui staging.',
   AUTH_SESSION_EXPIRED: 'Sesi Better Auth staging sudah berakhir. Login ulang melalui staging.',
   AUTH_STAGING_APP_ORIGIN_REQUIRED: 'Buka Admin melalui staging.sykabelajar.my.id, bukan link preview Pages.',
