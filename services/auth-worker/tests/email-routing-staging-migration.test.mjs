@@ -41,6 +41,8 @@ test("staging migration reconciles runtime settings and email routing through th
   assert.match(workflow, /d1 migrations apply sykabelajar-auth-poc --remote/);
   assert.match(workflow, /0009_auth_runtime_settings\.sql/);
   assert.match(workflow, /0010_multi_provider_email_routing\.sql/);
+  assert.match(workflow, /0011_add_github_social_provider\.sql/);
+  assert.match(workflow, /only reviewed 0009\/0010 may be pending/);
   assert.match(workflow, /Number\(policy\.auto_failover_enabled\)!==1/);
   assert.match(workflow, /Number\(inventory\.accounts\)!==0/);
   assert.match(workflow, /settings_rows/);
