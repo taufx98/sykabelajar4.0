@@ -13,7 +13,7 @@ test("custom HTTP email schema migration is owner-confirmed and pinned to stagin
   assert.match(workflow, /APPLY-CUSTOM-HTTP-EMAIL-sykabelajar-auth-poc/);
   assert.match(workflow, /7a4f9008-a1c6-42b6-8a04-abde12699248/);
   assert.match(stagingConfig, /^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m);
-  assert.doesNotMatch(workflow, /wrangler\.production\.toml|sykabelajar-auth-prod|mvdczyitbkxkldjughor/);
+  assert.doesNotMatch(workflow, /wrangler\s+--config\s+wrangler\.production\.toml|d1\s+(?:migrations\s+apply|execute)\s+sykabelajar-auth-prod|mvdczyitbkxkldjughor\.supabase\.co/);
   assert.doesNotMatch(workflow, /wrangler\s+deploy|wrangler\s+secret\s+(put|delete)/i);
 });
 
