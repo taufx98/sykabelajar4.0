@@ -155,7 +155,13 @@ export function TransactionalEmailSettingsPanel() {
   }, []);
   const request = useCallback(async (action: string, payload?: Record<string, unknown>) => {
     if (!baseUrl) throw new Error('AUTH_WORKER_URL_NOT_CONFIGURED');
-    const token = await getAccessToken();
+    let token: string;
+    try {
+      token = await getAccessToken();
+    } catch (cause) {
+      const code = cause instanceof Error ? cause.message : 'AUTH_REQUIRED';
+      throw new Error(ERROR_LABELS[code] ?? 'Sesi Better Auth staging tidak tersedia (' + code + '). Login ulang melalui staging.');
+    }
     const response = await fetch(baseUrl + '/api/admin/email-settings', {
       method: payload ? 'POST' : 'GET',
       headers: { Authorization: 'Bearer ' + token, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
