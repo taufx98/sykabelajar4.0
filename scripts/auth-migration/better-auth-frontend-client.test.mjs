@@ -299,3 +299,12 @@ assert.doesNotMatch(loginHandler, /Email atau password tidak valid\./);
 assert.match(loginHandler, /LOGIN_REQUEST_FAILED/);
 
 console.log("Better Auth frontend transport contract passed; Supabase Auth remains the sole live app session source.");
+
+assert.match(loginPage, /google: 'Google \/ Gmail'/);
+assert.match(loginPage, /github: 'GitHub'/);
+assert.match(loginPage, /provider === 'github' \? 'GH'/);
+assert.match(registerPage, /handleSocialRegister/);
+assert.match(registerPage, /\{betterAuthPreview && <>/);
+assert.match(registerPage, /Daftar dengan /);
+assert.match(registerPage, /provider==='github'\?'GH'/);
+assert.match(client, /provider === 'google' \|\| provider === 'github'/);
