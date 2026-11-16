@@ -21,6 +21,7 @@ test("pinned Better Auth Email OTP plugin replaces only default verification-lin
   assert.match(auth, /otpLength: 6/);
   assert.match(auth, /expiresIn: 300/);
   assert.match(auth, /allowedAttempts: 3/);
+  assert.match(auth, /rateLimit: \{ window: 120, max: 1 \}/);
   assert.match(auth, /storeOTP: "encrypted"/);
   assert.match(auth, /type !== "email-verification"/);
   assert.match(auth, /action: "verify-email-otp"/);
@@ -57,5 +58,11 @@ test("frontend sends, resends and verifies six-digit OTP through Better Auth", (
   assert.match(verifyPage, /autoComplete="one-time-code"/);
   assert.match(verifyPage, /Verifikasi kode/);
   assert.match(verifyPage, /Kirim ulang kode/);
+  assert.match(verifyPage, /replace\(\/\[\^0-9\]\/g, ''\)/);
+  assert.match(verifyPage, /clipboardData\.getData\('text'\)\.replace\(\/\[\^0-9\]\/g, ''\)/);
+  assert.match(verifyPage, /5 \* 60_000/);
+  assert.match(verifyPage, /2 \* 60_000/);
+  assert.match(verifyPage, /expirySeconds <= 0/);
+  assert.match(verifyPage, /resendSeconds > 0/);
   assert.match(verifyPage, /window\.location\.replace\('\/home'\)/);
 });
