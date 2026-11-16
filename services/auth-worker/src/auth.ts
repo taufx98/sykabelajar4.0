@@ -82,7 +82,8 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
             clientId: googleClientId,
             clientSecret: googleClientSecret,
             disableSignUp: signupDisabled,
-            disableImplicitSignUp: signupDisabled,
+            // Login never creates a new identity implicitly. Register must explicitly requestSignUp.
+            disableImplicitSignUp: true,
             requireEmailVerification: emailVerificationRequired,
           },
         }
@@ -94,7 +95,8 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
             clientSecret: githubClientSecret,
             scope: ["read:user", "user:email"],
             disableSignUp: signupDisabled,
-            disableImplicitSignUp: signupDisabled,
+            // Login never creates a new identity implicitly. Register must explicitly requestSignUp.
+            disableImplicitSignUp: true,
             requireEmailVerification: emailVerificationRequired,
           },
         }
