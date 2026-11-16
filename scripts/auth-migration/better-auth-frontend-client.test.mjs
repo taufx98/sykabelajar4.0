@@ -18,6 +18,8 @@ const cloudinaryService = readFileSync(new URL("../../src/services/cloudinary.se
 const profileSettingsPage = readFileSync(new URL("../../src/pages/ProfileInterfaceSettingsPage.tsx", import.meta.url), "utf8");
 const adminPage = readFileSync(new URL("../../src/pages/AdminPage.tsx", import.meta.url), "utf8");
 const transactionalEmailPanel = readFileSync(new URL("../../src/components/admin/TransactionalEmailSettingsPanel.tsx", import.meta.url), "utf8");
+const authVerificationPanel = readFileSync(new URL("../../src/components/admin/AuthVerificationSettingsPanel.tsx", import.meta.url), "utf8");
+const adminAccessTokenProvider = readFileSync(new URL("../../src/services/adminBetterAuthAccessToken.ts", import.meta.url), "utf8");
 const loginProvidersPanel = readFileSync(new URL("../../src/components/admin/LoginProvidersSettingsPanel.tsx", import.meta.url), "utf8");
 const socialProviderSettings = readFileSync(new URL("../../services/auth-worker/src/social-provider-settings.ts", import.meta.url), "utf8");
 
@@ -254,7 +256,14 @@ assert.match(socialProviderSettings, /instagram:\s*\{ available: false/);
 assert.match(socialProviderSettings, /const authorization = await requireBetterAuthAdmin\(request, env\)/);
 assert.match(transactionalEmailPanel, /apiKey: ''/);
 assert.match(transactionalEmailPanel, /apiSecret: ''/);
-assert.match(transactionalEmailPanel, /getSupabaseResourceAccessToken\(\)/);
+assert.match(transactionalEmailPanel, /getStagingAdminAccessToken\(\)/);
+assert.doesNotMatch(transactionalEmailPanel, /getSupabaseResourceAccessToken/);
+assert.match(authVerificationPanel, /getStagingAdminAccessToken\(\)/);
+assert.doesNotMatch(authVerificationPanel, /getSupabaseResourceAccessToken/);
+assert.match(adminAccessTokenProvider, /hostname\.toLowerCase\(\) !== STAGING_APP_HOST/);
+assert.match(adminAccessTokenProvider, /getStagingBetterAuthClient\(\)\.getSupabaseAccessToken\(\)/);
+assert.match(adminAccessTokenProvider, /AUTH_STAGING_APP_ORIGIN_REQUIRED/);
+assert.match(adminAccessTokenProvider, /AUTH_SESSION_REQUIRED/);
 assert.match(transactionalEmailPanel, /AUTH_WORKER_URL_NOT_CONFIGURED/);
 
 // Refresh/focus checks must reuse a still-valid resource token, and all
