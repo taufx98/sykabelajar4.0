@@ -240,7 +240,7 @@ assert.match(loginProvidersPanel, /Facebook/);
 assert.match(loginProvidersPanel, /X \/ Twitter/);
 assert.match(loginProvidersPanel, /Instagram/);
 assert.match(loginProvidersPanel, /Badge>Unavailable<\/Badge/);
-assert.match(loginProvidersPanel, /settings\.instagram\.reason/);
+assert.match(loginProvidersPanel, /Instagram Login ditujukan untuk akun profesional/);
 assert.match(loginProvidersPanel, /Tidak ada tombol aktivasi atau workaround/);
 assert.match(loginProvidersPanel, /const previewEnabled = isBetterAuthEnabled\(\)/);
 assert.match(loginProvidersPanel, /clientSecret: ''/);
