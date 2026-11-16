@@ -303,7 +303,9 @@ test("saving provider credentials validates and encrypts the credential bundle b
   assert.ok(start >= 0 && end > start);
   const save = emailAdminSource.slice(start, end);
   assert.match(save, /normalizeCredentials\(provider, body\.credentials\)/);
-  assert.match(save, /hasCredentialPayload && !credentials/);
+  assert.match(save, /Object\.hasOwn\(body, "credentials"\) && !credentials/);
+  assert.match(save, /normalizeCustomHttpConfig\(merged\)/);
+  assert.match(save, /body\.customConfig/);
   assert.match(save, /encryptEmailSecret\(env\.AUTH_EMAIL_ENCRYPTION_KEY, JSON\.stringify\(credentials\)\)/);
   assert.match(save, /credentials_ciphertext/);
   const encryption = save.indexOf("encryptEmailSecret(");
