@@ -21,6 +21,8 @@ concurrency:
   group: auth-worker-staging-deploy
   cancel-in-progress: false
 
+# A workflow-file update re-runs the same guarded staging-only deploy, including tests.
+
 jobs:
   deploy:
     if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
