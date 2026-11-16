@@ -223,10 +223,11 @@ jobs:
             "0007_managed_social_login_providers.sql",
             "0008_auth_runtime_settings.sql",
             "0009_multi_provider_email_routing.sql",
+            "0010_custom_http_email_provider.sql",
           ];
           const migrationNames = visitRows(read("production-promotion-migrations.json"), (row) => typeof row.name === "string").map((row) => row.name).sort();
           if (JSON.stringify(migrationNames) !== JSON.stringify([...expectedMigrations].sort())) {
-            throw new Error("Production D1 must have exactly reviewed migrations 0000–0009 before Worker promotion.");
+            throw new Error("Production D1 must have exactly reviewed migrations 0000–0010 before Worker promotion.");
           }
           const expectedTables = [
             "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
@@ -259,7 +260,7 @@ jobs:
           if (!Array.isArray(redirectUris) || redirectUris.length !== 1 || redirectUris[0] !== expectedCallback) {
             throw new Error("Production OAuth client must contain only the canonical Production callback.");
           }
-          console.log("PASS: Production D1 migrations 0000–0009 and 23 tables verified; email verification required; email failover defaults enabled; provider accounts and identities remain empty.");
+          console.log("PASS: Production D1 migrations 0000–0010 and 23 tables verified; email verification required; email failover defaults enabled; provider accounts and identities remain empty.");
           NODE
 
       - name: Replace staging-only secrets with fresh Production-only Worker keys
