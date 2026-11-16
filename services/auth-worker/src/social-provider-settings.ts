@@ -191,11 +191,14 @@ async function requireBetterAuthAdmin(request: Request, env: AuthWorkerEnv): Pro
   }
   const authorization = request.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) {
-    return { response: json({ ok: false, error: "AUTH_REQUIRED" }, 401) };
+    return { response: json({ ok: false, error: "AUTH_BEARER_MISSING" }, 401) };
   }
   const accessToken = authorization.slice("Bearer ".length).trim();
-  if (!accessToken || accessToken.length > 8192 || !isBetterAuthTokenForIssuer(accessToken, env.BETTER_AUTH_URL)) {
-    return { response: json({ ok: false, error: "AUTH_REQUIRED" }, 401) };
+  if (!accessToken || accessToken.length > 8192) {
+    return { response: json({ ok: false, error: "AUTH_BEARER_INVALID" }, 401) };
+  }
+  if (!isBetterAuthTokenForIssuer(accessToken, env.BETTER_AUTH_URL)) {
+    return { response: json({ ok: false, error: "AUTH_TOKEN_ISSUER_MISMATCH" }, 401) };
   }
   try {
     const user = await resolveBetterAuthAdminIdentity({
@@ -211,6 +214,12 @@ async function requireBetterAuthAdmin(request: Request, env: AuthWorkerEnv): Pro
     const code = error instanceof BetterAuthAdminAuthError ? error.code : "";
     if (code === "BETTER_AUTH_ADMIN_REQUIRED") {
       return { response: json({ ok: false, error: "ADMIN_REQUIRED" }, 403) };
+    }
+    if (code === "BETTER_AUTH_RESOURCE_TOKEN_INVALID") {
+      return { response: json({ ok: false, error: "AUTH_RESOURCE_TOKEN_INVALID" }, 401) };
+    }
+    if (code === "BETTER_AUTH_USERINFO_INVALID") {
+      return { response: json({ ok: false, error: "AUTH_USERINFO_INVALID" }, 401) };
     }
     if (
       code === "BETTER_AUTH_ADMIN_NOT_CONFIGURED" ||
