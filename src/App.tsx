@@ -18,6 +18,7 @@ import { RouteMetadata } from '@/components/seo/RouteMetadata';
 const AuthOidcCallbackPage = lazy(() => import('@/pages/AuthOidcCallbackPage').then((module) => ({ default: module.AuthOidcCallbackPage })));
 const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })));
 const AuthEmailVerifiedPage = lazy(() => import('@/pages/AuthEmailVerifiedPage').then((module) => ({ default: module.AuthEmailVerifiedPage })));
+const AuthSocialOnboardingPage = lazy(() => import('@/pages/AuthSocialOnboardingPage').then((module) => ({ default: module.AuthSocialOnboardingPage })));
 const HomePage = lazy(() => import('@/pages/HomePage').then((module) => ({ default: module.HomePage })));
 const MyCompetitionsPage = lazy(() => import('@/pages/MyCompetitionsPage').then((module) => ({ default: module.MyCompetitionsPage })));
 const CompetitionDetailPage = lazy(() => import('@/pages/CompetitionDetailPage').then((module) => ({ default: module.CompetitionDetailPage })));
@@ -111,6 +112,16 @@ function AuthGuard({ children }: { children: ReactNode }) {
   return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
 }
 
+function InitialProfileCompletionGuard({ children }: { children: ReactNode }) {
+  const { user } = useApp();
+  const location = useLocation();
+  if (user && !user.username?.trim()) {
+    const returnPath = location.pathname + location.search;
+    return <Navigate to={`/auth/complete-profile?redirect=${encodeURIComponent(returnPath)}`} replace />;
+  }
+  return <>{children}</>;
+}
+
 function RoleRoute({ role, children }: { role: 'admin' | 'organizer_member' | 'teacher'; children: ReactNode }) {
   const { isAuthenticated, authLoading, user } = useApp();
   const allowed = !!user && (role === 'admin' ? user.role === 'admin' : role === 'teacher' ? user.role === 'guru' || user.role === 'admin' : user.role === 'penyelenggara' || user.role === 'admin');
@@ -182,6 +193,7 @@ function AppRoutes() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/verified" element={<AuthEmailVerifiedPage />} />
+        <Route path="/auth/complete-profile" element={<AuthSocialOnboardingPage />} />
         <Route path="/verify/:code" element={<VerifyPage />} />
         <Route path="/auth/oidc/callback" element={<AuthOidcCallbackPage />} />
         <Route path="/sertifikat-kolektif/:code" element={<CollectiveCertificatePage />} />
@@ -190,7 +202,7 @@ function AppRoutes() {
         <Route path="/peserta-kolektif/kerja" element={<CollectiveParticipantWorkPage />} />
         <Route path="/lomba/:slug/hasil" element={<CompetitionResultsPage />} />
         <Route path="/organizer/join" element={<AuthGuard><OrganizerInviteJoinPage /></AuthGuard>} />
-        <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
+        <Route element={<AuthGuard><InitialProfileCompletionGuard><AppLayout /></InitialProfileCompletionGuard></AuthGuard>}>
           <Route path="/home" element={<HomePage />} />
           <Route path="/lomba-saya" element={<MyCompetitionsPage />} />
           <Route path="/feed" element={<SocialFeedPage />} />
