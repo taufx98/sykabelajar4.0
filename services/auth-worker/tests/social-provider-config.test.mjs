@@ -104,6 +104,11 @@ test("the Admin settings GET is authenticated and returns credential metadata on
   assert.match(handler, /const authorization = await requireBetterAuthAdmin\(request, env\)/);
   assert.ok(handler.indexOf("requireBetterAuthAdmin(request, env)") < handler.indexOf("if (request.method === \"GET\")"),
     "GET must pass the Better Auth admin check before returning settings");
+  assert.match(settings, /AUTH_BEARER_MISSING/);
+  assert.match(settings, /AUTH_BEARER_INVALID/);
+  assert.match(settings, /AUTH_TOKEN_ISSUER_MISMATCH/);
+  assert.match(settings, /AUTH_RESOURCE_TOKEN_INVALID/);
+  assert.match(settings, /AUTH_USERINFO_INVALID/);
 
   for (const field of ["provider", "primary", "enabled", "clientId", "secretConfigured", "source", "callbackUrl", "status", "updatedAt"]) {
     assert.match(projection, new RegExp("\\b" + field + "\\b"));
