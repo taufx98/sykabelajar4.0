@@ -5,13 +5,16 @@ import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
-type EmailProvider = 'sendpulse' | 'brevo' | 'mailjet' | 'mailtrap' | 'resend';
+type EmailProvider = 'sendpulse' | 'brevo' | 'mailjet' | 'mailtrap' | 'resend' | 'custom_http';
+type CustomAuthMode = 'none' | 'bearer' | 'api_key' | 'basic';
 type EmailAccount = {
   id: string;
   label: string;
   provider: EmailProvider;
   senderAddress: string;
   senderName: string;
+  endpointUrl: string | null;
+  authMode: string | null;
   credentialConfigured: boolean;
   enabled: boolean;
   priority: number;
@@ -37,6 +40,14 @@ type AccountDraft = {
   senderName: string;
   apiKey: string;
   apiSecret: string;
+  endpointUrl: string;
+  authMode: CustomAuthMode;
+  authHeaderName: string;
+  authPrefix: string;
+  username: string;
+  password: string;
+  extraHeadersJson: string;
+  payloadTemplateJson: string;
   quotaHourLimit: number;
   quotaDayLimit: number;
   quotaMonthLimit: number;
@@ -52,6 +63,7 @@ const QUOTAS: Record<EmailProvider, { hour: number; day: number; month: number }
   mailjet: { hour: 0, day: 200, month: 6000 },
   mailtrap: { hour: 0, day: 150, month: 4000 },
   resend: { hour: 0, day: 100, month: 3000 },
+  custom_http: { hour: 0, day: 0, month: 0 },
 };
 const PROVIDER_LABELS: Record<EmailProvider, string> = {
   sendpulse: 'SendPulse',
@@ -59,10 +71,13 @@ const PROVIDER_LABELS: Record<EmailProvider, string> = {
   mailjet: 'Mailjet',
   mailtrap: 'Mailtrap Email Sending',
   resend: 'Resend',
+  custom_http: 'Custom HTTP API',
 };
 const EMPTY_DRAFT: AccountDraft = {
   id: null, provider: 'sendpulse', label: '', senderAddress: '', senderName: 'SYKABELAJAR',
-  apiKey: '', apiSecret: '',
+  apiKey: '', apiSecret: '', endpointUrl: '', authMode: 'bearer',
+  authHeaderName: 'X-API-Key', authPrefix: '', username: '', password: '',
+  extraHeadersJson: '', payloadTemplateJson: '',
   quotaHourLimit: QUOTAS.sendpulse.hour,
   quotaDayLimit: QUOTAS.sendpulse.day,
   quotaMonthLimit: QUOTAS.sendpulse.month,
@@ -79,6 +94,11 @@ const ERROR_LABELS: Record<string, string> = {
   EMAIL_TEST_RATE_LIMITED: 'Tes email dibatasi satu kali per menit untuk setiap admin.',
   INVALID_EMAIL_QUOTA: 'Kuota harus berupa bilangan bulat 0 atau lebih. Isi 0 untuk tanpa batas internal.',
   INVALID_SENDER_ADDRESS: 'Alamat pengirim tidak valid.',
+  EMAIL_CUSTOM_ENDPOINT_INVALID: 'Endpoint wajib HTTPS dan harus menggunakan hostname publik yang valid tanpa alamat IP, port khusus, atau URL lokal.',
+  EMAIL_CUSTOM_AUTH_INVALID: 'Konfigurasi metode autentikasi atau nama header tidak valid.',
+  EMAIL_CUSTOM_CREDENTIAL_REQUIRED: 'Kredensial untuk metode autentikasi yang dipilih wajib diisi.',
+  EMAIL_CUSTOM_HEADERS_INVALID: 'Header tambahan harus berupa JSON valid dengan nama dan nilai header yang aman.',
+  EMAIL_CUSTOM_PAYLOAD_INVALID: 'Template payload harus berupa JSON object dan menggunakan placeholder yang didukung.',
   EMAIL_ROUTING_CONFIGURATION_INVALID: 'Pengaturan urutan atau kuota tidak valid.',
 };
 const STAGING_PREVIEW_HOST = 'security-auth-poc-stage-1.sykabelajar4.pages.dev';
@@ -105,6 +125,7 @@ function providerQuotaHint(provider: EmailProvider) {
     case 'mailjet': return 'Batas awal Free: 200 email/hari dan 6.000 email/bulan. Butuh Public API Key dan Private API Key.';
     case 'mailtrap': return 'Batas awal Free: 150 email/hari dan 4.000 email/bulan. Gunakan token Email Sending, bukan Email Sandbox.';
     case 'resend': return 'Batas awal Free: 100 email/hari dan 3.000 email/bulan. Kredensial: Resend API Key.';
+    case 'custom_http': return 'Hubungkan layanan email apa pun yang menyediakan HTTPS JSON API. Siapkan endpoint, metode autentikasi, kredensial, header opsional, dan format payload JSON.';
   }
 }
 function quotaPercent(used: number, limit: number) {
@@ -163,7 +184,11 @@ export function ZeptoMailSettingsPanel() {
     setDraft({
       id: account.id, provider: account.provider, label: account.label,
       senderAddress: account.senderAddress, senderName: account.senderName,
-      apiKey: '', apiSecret: '', quotaHourLimit: account.quotaHourLimit,
+      apiKey: '', apiSecret: '', endpointUrl: account.endpointUrl ?? '',
+      authMode: (account.authMode as CustomAuthMode) || 'bearer',
+      authHeaderName: '', authPrefix: '', username: '', password: '',
+      extraHeadersJson: '', payloadTemplateJson: '',
+      quotaHourLimit: account.quotaHourLimit,
       quotaDayLimit: account.quotaDayLimit, quotaMonthLimit: account.quotaMonthLimit,
     });
     setEditing(true);
@@ -184,20 +209,45 @@ export function ZeptoMailSettingsPanel() {
     }
     const existing = draft.id ? accounts.find((item) => item.id === draft.id) : undefined;
     const needsCredential = !existing || existing.provider !== draft.provider;
-    if (needsCredential && (!draft.apiKey.trim() || (draft.provider === 'mailjet' && !draft.apiSecret.trim()))) {
-      toast.warning('Kredensial penyedia wajib diisi.'); return;
-    }
-    if (draft.provider === 'mailjet' && !needsCredential &&
-        (Boolean(draft.apiKey.trim()) !== Boolean(draft.apiSecret.trim()))) {
-      toast.warning('Mailjet membutuhkan Public API Key dan Private API Key sekaligus.'); return;
-    }
     const credentials: Record<string, string> = {};
-    if (draft.provider === 'mailjet') {
-      if (draft.apiKey.trim()) credentials.apiKey = draft.apiKey.trim();
-      if (draft.apiSecret.trim()) credentials.apiSecret = draft.apiSecret.trim();
-    } else if (draft.provider === 'mailtrap') {
-      if (draft.apiKey.trim()) credentials.apiToken = draft.apiKey.trim();
-    } else if (draft.apiKey.trim()) credentials.apiKey = draft.apiKey.trim();
+    let customConfig: Record<string, string> | null = null;
+
+    if (draft.provider === 'custom_http') {
+      if (!draft.endpointUrl.trim()) { toast.warning('Endpoint HTTPS wajib diisi.'); return; }
+      if ((draft.authMode === 'bearer' || draft.authMode === 'api_key') &&
+          needsCredential && !draft.apiKey.trim()) {
+        toast.warning('API key wajib diisi untuk metode autentikasi ini.'); return;
+      }
+      if (draft.authMode === 'basic' && needsCredential &&
+          (!draft.username.trim() || !draft.password)) {
+        toast.warning('Username dan password wajib diisi untuk Basic Auth.'); return;
+      }
+      customConfig = {
+        endpointUrl: draft.endpointUrl.trim(),
+        authMode: draft.authMode,
+        authHeaderName: draft.authHeaderName.trim(),
+        authPrefix: draft.authPrefix.trim(),
+        extraHeadersJson: draft.extraHeadersJson.trim(),
+        payloadTemplateJson: draft.payloadTemplateJson.trim(),
+      };
+      if (draft.apiKey.trim()) customConfig.apiKey = draft.apiKey.trim();
+      if (draft.username.trim()) customConfig.username = draft.username.trim();
+      if (draft.password) customConfig.password = draft.password;
+    } else {
+      if (needsCredential && (!draft.apiKey.trim() || (draft.provider === 'mailjet' && !draft.apiSecret.trim()))) {
+        toast.warning('Kredensial penyedia wajib diisi.'); return;
+      }
+      if (draft.provider === 'mailjet' && !needsCredential &&
+          (Boolean(draft.apiKey.trim()) !== Boolean(draft.apiSecret.trim()))) {
+        toast.warning('Mailjet membutuhkan Public API Key dan Private API Key sekaligus.'); return;
+      }
+      if (draft.provider === 'mailjet') {
+        if (draft.apiKey.trim()) credentials.apiKey = draft.apiKey.trim();
+        if (draft.apiSecret.trim()) credentials.apiSecret = draft.apiSecret.trim();
+      } else if (draft.provider === 'mailtrap') {
+        if (draft.apiKey.trim()) credentials.apiToken = draft.apiKey.trim();
+      } else if (draft.apiKey.trim()) credentials.apiKey = draft.apiKey.trim();
+    }
 
     setSaving(true);
     try {
@@ -207,7 +257,8 @@ export function ZeptoMailSettingsPanel() {
         priority: existing?.priority ?? (accounts.length + 1) * 10,
         quotaHourLimit: draft.quotaHourLimit, quotaDayLimit: draft.quotaDayLimit, quotaMonthLimit: draft.quotaMonthLimit,
       };
-      if (Object.keys(credentials).length) payload.credentials = credentials;
+      if (customConfig) payload.customConfig = customConfig;
+      else if (Object.keys(credentials).length) payload.credentials = credentials;
       applySettings(await request('save', payload));
       setDraft(EMPTY_DRAFT); setEditing(false);
       toast.success('Profil ' + PROVIDER_LABELS[draft.provider] + ' disimpan. Kredensial terenkripsi di D1.');
@@ -265,7 +316,7 @@ export function ZeptoMailSettingsPanel() {
             <h3 className="font-semibold text-fg">Email Transaksional</h3>
             <span className="text-[10px] rounded-full border border-accent/20 bg-accent-muted-strong text-accent px-2 py-0.5 font-semibold">Multi-provider · Server-side</span>
           </div>
-          <p className="text-xs text-fg-muted mt-1">Atur lima provider gratis, urutan prioritas, failover otomatis, serta kuota internal tanpa redeploy Worker.</p>
+          <p className="text-xs text-fg-muted mt-1">Atur lima provider bawaan atau hubungkan layanan lain melalui HTTPS JSON API kustom, lengkap dengan prioritas, failover, dan kuota.</p>
         </div>
         <Button size="sm" variant="outline" icon={<RefreshCw size={13}/>} onClick={() => void load()} disabled={loading}>Muat ulang</Button>
       </div>
@@ -371,13 +422,55 @@ export function ZeptoMailSettingsPanel() {
             <label className="block text-xs text-fg-muted">Email pengirim terverifikasi
               <input className="input mt-1 w-full" type="email" value={draft.senderAddress} onChange={(event) => setDraft((current) => ({...current,senderAddress:event.target.value}))} placeholder="noreply@sykabelajar.my.id" required/>
             </label>
-            <label className="block text-xs text-fg-muted sm:col-span-2">
-              {draft.provider === 'mailjet' ? 'Public API Key' : draft.provider === 'mailtrap' ? 'Mailtrap API Token (Email Sending)' : draft.provider === 'sendpulse' ? 'SendPulse Static API Key' : draft.provider === 'brevo' ? 'Brevo API Key v3' : 'Resend API Key'}
-              <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.apiKey} onChange={(event) => setDraft((current) => ({...current,apiKey:event.target.value}))} placeholder={draft.id ? 'Kosongkan untuk mempertahankan kredensial saat ini' : 'Tempel kredensial provider'} required={!draft.id}/>
-            </label>
-            {draft.provider === 'mailjet' && <label className="block text-xs text-fg-muted sm:col-span-2">Private API Key
-              <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.apiSecret} onChange={(event) => setDraft((current) => ({...current,apiSecret:event.target.value}))} placeholder={draft.id ? 'Kosongkan jika tidak mengganti' : 'Tempel Private API Key'} required={!draft.id}/>
-            </label>}
+            {draft.provider !== 'custom_http' ? (
+              <>
+                <label className="block text-xs text-fg-muted sm:col-span-2">
+                  {draft.provider === 'mailjet' ? 'Public API Key' : draft.provider === 'mailtrap' ? 'Mailtrap API Token (Email Sending)' : draft.provider === 'sendpulse' ? 'SendPulse Static API Key' : draft.provider === 'brevo' ? 'Brevo API Key v3' : 'Resend API Key'}
+                  <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.apiKey} onChange={(event) => setDraft((current) => ({...current,apiKey:event.target.value}))} placeholder={draft.id ? 'Kosongkan untuk mempertahankan kredensial saat ini' : 'Tempel kredensial provider'} required={!draft.id}/>
+                </label>
+                {draft.provider === 'mailjet' && <label className="block text-xs text-fg-muted sm:col-span-2">Private API Key
+                  <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.apiSecret} onChange={(event) => setDraft((current) => ({...current,apiSecret:event.target.value}))} placeholder={draft.id ? 'Kosongkan jika tidak mengganti' : 'Tempel Private API Key'} required={!draft.id}/>
+                </label>}
+              </>
+            ) : (
+              <>
+                <label className="block text-xs text-fg-muted sm:col-span-2">HTTPS API Endpoint
+                  <input className="input mt-1 w-full" type="url" value={draft.endpointUrl} onChange={(event) => setDraft((current) => ({...current,endpointUrl:event.target.value}))} placeholder="https://api.provider.com/v1/email/send" required/>
+                </label>
+                <label className="block text-xs text-fg-muted">Metode autentikasi
+                  <select className="input mt-1 w-full" value={draft.authMode} onChange={(event) => setDraft((current) => ({...current,authMode:event.target.value as CustomAuthMode}))}>
+                    <option value="bearer">Bearer token</option><option value="api_key">API key pada header khusus</option><option value="basic">HTTP Basic Auth</option><option value="none">Tanpa autentikasi</option>
+                  </select>
+                </label>
+                {(draft.authMode === 'bearer' || draft.authMode === 'api_key') && <label className="block text-xs text-fg-muted">API key / token
+                  <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.apiKey} onChange={(event) => setDraft((current) => ({...current,apiKey:event.target.value}))} placeholder={draft.id ? 'Kosongkan untuk mempertahankan token tersimpan' : 'Masukkan API key/token'} required={!draft.id}/>
+                </label>}
+                {draft.authMode === 'api_key' && <>
+                  <label className="block text-xs text-fg-muted">Nama header autentikasi
+                    <input className="input mt-1 w-full" value={draft.authHeaderName} onChange={(event) => setDraft((current) => ({...current,authHeaderName:event.target.value}))} placeholder="X-API-Key"/>
+                  </label>
+                  <label className="block text-xs text-fg-muted">Prefix opsional
+                    <input className="input mt-1 w-full" value={draft.authPrefix} onChange={(event) => setDraft((current) => ({...current,authPrefix:event.target.value}))} placeholder="Kosongkan atau isi Token"/>
+                  </label>
+                </>}
+                {draft.authMode === 'basic' && <>
+                  <label className="block text-xs text-fg-muted">Username
+                    <input className="input mt-1 w-full" autoComplete="off" value={draft.username} onChange={(event) => setDraft((current) => ({...current,username:event.target.value}))} placeholder={draft.id ? 'Kosongkan untuk mempertahankan' : 'Username API'}/>
+                  </label>
+                  <label className="block text-xs text-fg-muted">Password
+                    <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.password} onChange={(event) => setDraft((current) => ({...current,password:event.target.value}))} placeholder={draft.id ? 'Kosongkan untuk mempertahankan' : 'Password API'}/>
+                  </label>
+                </>}
+                <label className="block text-xs text-fg-muted sm:col-span-2">Header tambahan (JSON opsional)
+                  <textarea className="input mt-1 w-full min-h-20 font-mono text-[11px]" value={draft.extraHeadersJson} onChange={(event) => setDraft((current) => ({...current,extraHeadersJson:event.target.value}))} placeholder={draft.id ? 'Kosongkan untuk mempertahankan header tersimpan' : '{"X-Project":"sykabelajar"}'}/>
+                </label>
+                <label className="block text-xs text-fg-muted sm:col-span-2">Template payload JSON
+                  <textarea className="input mt-1 w-full min-h-40 font-mono text-[11px]" value={draft.payloadTemplateJson} onChange={(event) => setDraft((current) => ({...current,payloadTemplateJson:event.target.value}))} placeholder={draft.id ? 'Kosongkan untuk mempertahankan template tersimpan' : '{ "from": {"email":"{{from.email}}","name":"{{from.name}}"}, "to":[{"email":"{{to}}"}], "subject":"{{subject}}", "text":"{{text}}" }'}/>
+                  <span className="mt-1 block text-[10px] text-fg-muted">Placeholder: {'{{from.email}}'}, {'{{from.name}}'}, {'{{to}}'}, {'{{subject}}'}, {'{{text}}'}, {'{{action}}'}. Payload harus JSON object.</span>
+                </label>
+                <div className="sm:col-span-2 rounded-lg bg-surface-elevated/70 px-3 py-2 text-[11px] text-fg-muted">Sistem mengirim POST JSON melalui HTTPS. Respons HTTP 2xx dianggap diterima. 401/403 dan 402/429 dapat memicu failover; timeout dan 5xx tidak dicoba ulang agar tidak mengirim email ganda. URL lokal/IP dan redirect ditolak.</div>
+              </>
+            )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block text-xs text-fg-muted">Batas / jam (0 = bebas)
