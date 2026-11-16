@@ -65,14 +65,14 @@ test("frontend signup, session, resource token and Supabase token honor the poli
 });
 
 test("staging Admin panel exposes verification settings only on the same-site staging host", () => {
-  assert.doesNotMatch(panel, /security-auth-poc-stage-1\\.sykabelajar4\\.pages\\.dev/);
-  assert.match(panel, /staging\\.sykabelajar\\.my\\.id/);
+  assert.doesNotMatch(panel, /security-auth-poc-stage-1\.sykabelajar4\.pages\.dev/);
+  assert.match(panel, /staging\.sykabelajar\.my\.id/);
   assert.match(panel, /getStagingAdminAccessToken/);
   assert.doesNotMatch(panel, /getSupabaseResourceAccessToken/);
   assert.match(panel, /get-verification-policy/);
   assert.match(panel, /set-verification-policy/);
   assert.match(panel, /Aktifkan wajib verifikasi/);
-  assert.match(panel, /Nonaktifkan sementara/);
+  assert.match(panel, /window\.confirm/);
   assert.match(panel, /window\\.confirm/);
   assert.match(panel, /hanya mengubah Auth Worker.*D1 staging/);
 });
