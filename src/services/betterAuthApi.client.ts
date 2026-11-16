@@ -936,7 +936,7 @@ export function createBetterAuthApiClient(options: {
 
     async sendVerificationOtp(email) {
       const normalizedEmail = email.trim().toLowerCase();
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
         throw new BetterAuthClientError(400, 'REGISTRATION_EMAIL_INVALID');
       }
       if (!(await getEmailVerificationConfigured())) {
@@ -950,7 +950,7 @@ export function createBetterAuthApiClient(options: {
 
     async verifyEmailOtp(email, otp) {
       const normalizedEmail = email.trim().toLowerCase();
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail) || !/^\\d{6}$/.test(otp.trim())) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || !/^\d{6}$/.test(otp.trim())) {
         throw new BetterAuthClientError(400, 'EMAIL_OTP_INPUT_INVALID');
       }
       const result = await request<{ status?: boolean }>('/email-otp/verify-email', {
