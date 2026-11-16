@@ -203,7 +203,7 @@ jobs:
           if (JSON.stringify(columns.sort()) !== JSON.stringify(["auth_mode", "endpoint_url"])) {
             throw new Error("Custom HTTP provider schema columns are incomplete.");
           }
-          console.log("PASS: custom HTTP schema is present; Better Auth users/accounts/sessions and email-provider account counts are unchanged.");
+          console.log(JSON.stringify({ pass: true, betterAuthIdentitiesUnchanged: true, emailProviderConfigurationPreserved: true, providerAccountCount: providerRowsAfter.length, providerFingerprint: fingerprintAfter }));
           NODE
 
       - name: Remove temporary verification output
