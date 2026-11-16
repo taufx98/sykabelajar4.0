@@ -521,7 +521,7 @@ jobs:
               assert.equal(publicProviders.issuer, expectedIssuer);
               assert.ok(Array.isArray(publicProviders.providers), "public provider list must be an array");
               assert.ok(
-                publicProviders.providers.every((provider) => ["google", "facebook", "twitter"].includes(provider)),
+                publicProviders.providers.every((provider) => ["google", "github", "facebook", "twitter"].includes(provider)),
                 "public provider list must not expose unsupported or arbitrary providers",
               );
               assert.equal(
@@ -610,7 +610,9 @@ jobs:
                 pkce: "S256 advertised",
                 emailVerificationConfigured: publicProviders.emailVerificationConfigured,
                 emailVerificationRequired: publicProviders.emailVerificationRequired,
-                googleOAuthCredentialsConfigured: false,
+                socialProviders: publicProviders.providers,
+                googleOAuthCredentialsConfigured: publicProviders.providers.includes("google"),
+                githubOAuthCredentialsConfigured: publicProviders.providers.includes("github"),
                 noUserOrSessionSeeded: true
               }));
               ready = true;
