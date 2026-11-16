@@ -8,8 +8,8 @@ const auth = readFileSync(authPath, "utf8");
 const env = readFileSync(envPath, "utf8");
 const settings = readFileSync(new URL("../src/social-provider-settings.ts", import.meta.url), "utf8");
 
-test("Google, Facebook and X provider credentials are optional and validated as pairs", () => {
-  for (const provider of ["GOOGLE", "FACEBOOK", "TWITTER"]) {
+test("Google, GitHub, Facebook and X provider credentials are optional and validated as pairs", () => {
+  for (const provider of ["GOOGLE", "GITHUB", "FACEBOOK", "TWITTER"]) {
     assert.match(auth, new RegExp(provider + "_CLIENT_ID"));
     assert.match(auth, new RegExp(provider + "_CLIENT_SECRET"));
     assert.match(env, new RegExp(provider + "_CLIENT_ID\\?: string"));
@@ -27,6 +27,15 @@ test("managed OAuth configuration falls back only when migration 0007 is absent"
   assert.match(settings, /if \(!meta\) throw new Error\("SOCIAL_PROVIDER_CONFIGURATION_UNAVAILABLE"\)/);
   assert.match(settings, /managedMode: true, revision: meta\.revision, providers/);
   assert.match(settings, /AUTH_PROVIDER_ENCRYPTION_KEY/);
+});
+
+test("GitHub login requests the user email scope and uses verified-email enforcement", () => {
+  assert.match(auth, /github:\s*\{/);
+  const githubBlock = auth.slice(auth.indexOf("github:"), auth.indexOf("facebook:"));
+  assert.match(githubBlock, /scope:\s*\["read:user",\s*"user:email"\]/);
+  assert.match(githubBlock, /requireEmailVerification:\s*emailVerificationRequired/);
+  assert.match(settings, /github:\s*"\/api\/auth\/callback\/github"/);
+  assert.match(settings, /github:\s*\[env\.GITHUB_CLIENT_ID,\s*env\.GITHUB_CLIENT_SECRET\]/);
 });
 
 test("Facebook login requests email and rejects profiles without a usable email", () => {
