@@ -29,6 +29,10 @@ export interface ResolveBetterAuthAdminIdentityInput {
   nowSeconds?: number;
 }
 
+export function publicBetterAuthAdminAuthError(
+  code: string,
+): { error: string; status: 401 | 503 } | null;
+
 export function resolveBetterAuthAdminIdentity(
   input: ResolveBetterAuthAdminIdentityInput,
 ): Promise<{ id: string; email: string }>;

@@ -6,6 +6,7 @@ import { EmailProviderDeliveryError, normalizeCustomHttpConfig, sendEmailWithPro
 import {
   BetterAuthAdminAuthError,
   isBetterAuthTokenForIssuer,
+  publicBetterAuthAdminAuthError,
   resolveBetterAuthAdminIdentity,
 } from "./email-admin-auth.mjs";
 import { readEmailVerificationPolicy } from "./auth-runtime-settings";
@@ -123,6 +124,10 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
       return { user };
     } catch (error) {
       const code = error instanceof BetterAuthAdminAuthError ? error.code : "";
+      const publicAuthError = publicBetterAuthAdminAuthError(code);
+      if (publicAuthError) {
+        return { response: json({ ok: false, error: publicAuthError.error }, publicAuthError.status) };
+      }
       if (code === "BETTER_AUTH_ADMIN_REQUIRED") {
         return { response: json({ ok: false, error: "ADMIN_REQUIRED" }, 403) };
       }

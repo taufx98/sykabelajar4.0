@@ -37,8 +37,18 @@ function errorMessage(error: unknown): string {
     AUTH_BEARER_MISSING: 'Token akses Better Auth tidak terkirim ke Worker. Muat ulang lalu masuk kembali.',
     AUTH_BEARER_INVALID: 'Token akses Better Auth kosong atau tidak valid. Masuk kembali ke staging.',
     AUTH_TOKEN_ISSUER_MISMATCH: 'Token berasal dari issuer yang tidak cocok dengan Worker staging. Periksa sesi login staging.',
-    AUTH_RESOURCE_TOKEN_INVALID: 'Worker menolak resource-token Better Auth. Penerbitan token PKCE atau klaim token perlu diperiksa.',
-    AUTH_USERINFO_INVALID: 'Identitas pada token tidak cocok atau klaim email terverifikasi tidak diterima.',
+    AUTH_RESOURCE_TOKEN_INVALID: 'Worker tidak dapat memverifikasi resource-token Better Auth.',
+    AUTH_RESOURCE_TOKEN_HEADER_INVALID: 'Header token bukan format ES256/JWT yang diharapkan Worker.',
+    AUTH_RESOURCE_TOKEN_FORMAT_INVALID: 'Format resource-token Better Auth tidak valid.',
+    AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID: 'Signature token tidak cocok dengan kunci publik JWKS Worker.',
+    AUTH_RESOURCE_TOKEN_EXPIRED: 'Resource-token sudah kedaluwarsa. Muat ulang sesi staging.',
+    AUTH_RESOURCE_TOKEN_CLAIMS_INVALID: 'Klaim issuer, audience, sub, role, atau masa berlaku token tidak sesuai.',
+    AUTH_JWKS_KEY_NOT_FOUND: 'Kunci penandatangan token tidak ditemukan pada JWKS Worker.',
+    AUTH_JWKS_KEY_AMBIGUOUS: 'JWKS Worker memiliki lebih dari satu kunci yang cocok untuk token.',
+    AUTH_JWKS_UNAVAILABLE: 'Worker tidak dapat mengambil JWKS dari issuer Better Auth.',
+    AUTH_JWKS_INVALID: 'Respons JWKS dari issuer Better Auth tidak valid.',
+    AUTH_USERINFO_UNAVAILABLE: 'Endpoint UserInfo Better Auth tidak dapat dihubungi.',
+    AUTH_USERINFO_INVALID: 'Identitas UserInfo tidak cocok atau email belum terverifikasi.',
     ADMIN_REQUIRED: 'Akun Better Auth ini belum memiliki role admin aktif di Supabase staging.',
     ADMIN_AUTH_UNAVAILABLE: 'Pemeriksaan admin staging tidak tersedia. Periksa provisioning staging dan role admin.',
     SOCIAL_PROVIDER_ENCRYPTION_NOT_CONFIGURED: 'Kunci AUTH_PROVIDER_ENCRYPTION_KEY belum dipasang sebagai Worker secret.',
@@ -188,7 +198,7 @@ export function LoginProvidersSettingsPanel() {
   if (!previewEnabled) {
     return <Card className="p-5">
       <div className="flex items-center gap-2"><ShieldCheck size={17} className="text-accent"/><h3 className="font-semibold text-fg">Metode Login</h3><Badge>Staging only</Badge></div>
-      <p className="mt-2 text-sm text-fg-muted">Pengaturan Google, GitHub, Facebook, dan X hanya dapat dibuka dari preview Better Auth yang terhubung ke Supabase staging. Login produksi tetap menggunakan Supabase Auth sampai cutover Tahap 7.</p>
+      <p className="mt-2 text-sm text-fg-muted">Pengaturan Google, GitHub, Facebook, dan X hanya dapat dibuka dari domain staging Better Auth yang terhubung ke Supabase staging. Login produksi tetap menggunakan Supabase Auth sampai cutover Tahap 7.</p>
     </Card>;
   }
 
@@ -213,7 +223,7 @@ export function LoginProvidersSettingsPanel() {
     {message && <div role="status" className="mt-4 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-accent">{message}</div>}
 
     {!settings && loading && <p className="mt-5 text-sm text-fg-muted">Memuat pengaturan provider…</p>}
-    {!settings && !loading && error && <div className="mt-4 rounded-xl border surface-border p-3 text-xs text-fg-muted">Panel ini memerlukan sesi Better Auth dan role admin aktif pada project Supabase staging. Karena akun dimulai dari nol, admin pertama perlu dibuat melalui bootstrap aman Tahap 6.</div>}
+    {!settings && !loading && error && <div className="mt-4 rounded-xl border surface-border p-3 text-xs text-fg-muted">Role admin aktif baru diperiksa setelah resource-token tervalidasi. Bootstrap admin pertama tetap menjadi pekerjaan Tahap 6; pesan di atas menunjukkan hasil validasi token saat ini.</div>}
 
     {settings && <div className="mt-5 space-y-3">
       {PROVIDER_ORDER.map((provider) => {
