@@ -7,6 +7,8 @@ on:
     paths:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
       - "src/App.tsx"
       - "src/lib/safeInternalRedirect.mjs"
       - "src/lib/safeInternalRedirect.d.mts"
@@ -40,6 +42,8 @@ on:
     paths:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
       - "src/App.tsx"
       - "src/store/AppContext.tsx"
       - "src/lib/cacheAuthLifecycle.ts"
