@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Building2, Camera, Check, GraduationCap, School, User as UserIcon, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Camera, Check, GraduationCap, School, User as UserIcon, Eye, EyeOff, Github } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -104,8 +104,15 @@ export function RegisterPage(){
     {step===1&&<div className="card p-6 md:p-7"><h1 className="font-display font-bold text-2xl text-fg">{text('Buat Akun','Create an Account')}</h1><p className="text-sm text-slate-400 mt-1">{text('Pilih cara mendaftar, lalu lengkapi informasi akunmu.','Choose how to sign up, then complete your account information.')}</p>{betterAuthPreview && emailVerificationRequired && emailVerificationConfigured === false && <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">{text('Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi. Akun baru tidak akan dibuat sampai layanan ini siap.','Staging registration is paused because verification email delivery is not configured. No new account will be created until it is ready.')}</p>}{betterAuthPreview && socialProviders.length > 0 && <>
      <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
       {socialProviders.map(provider=><Button key={provider} type="button" variant="outline" fullWidth loading={socialLoading===provider} disabled={socialLoading!==null&&socialLoading!==provider} onClick={()=>void handleSocialRegister(provider)} className="justify-center">
-       <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">{provider==='google'?'G':'GH'}</span>
-       {text('Daftar dengan ','Sign up with ')}{provider==='google'?'Google / Gmail':'GitHub'}
+       <span className="mr-2 inline-flex h-5 w-5 items-center justify-center shrink-0" aria-hidden="true">
+        {provider === 'google' ? <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" focusable="false">
+         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.05 5.05 0 0 1-2.2 3.31v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.09Z" />
+         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.25 1.05-3.71 1.05-2.86 0-5.28-1.93-6.15-4.53H2.16v2.87A11 11 0 0 0 12 23Z" />
+         <path fill="#FBBC05" d="M5.85 14.09A6.6 6.6 0 0 1 5.5 12c0-.72.12-1.42.35-2.09V7.04H2.16A11 11 0 0 0 1 12c0 1.78.43 3.46 1.16 4.96l3.69-2.87Z" />
+         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.2 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.84 6.04l3.69 2.87C6.72 7.31 9.14 5.38 12 5.38Z" />
+        </svg> : <Github size={18} strokeWidth={2.2} aria-hidden="true" />}
+       </span>
+       {provider==='google'?'Google / Gmail':'GitHub'}
       </Button>)}
      </div>
      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{text('Setelah akun terhubung, kamu tetap akan melengkapi username, data pendidikan, dan minat sebelum masuk ke beranda. Akun sosial baru dibuat sebagai Pelajar.','After connecting your account, you will still complete your username, education details, and interests before entering the home page. New social accounts start as Student.')}</p>
