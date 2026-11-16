@@ -13,6 +13,18 @@ type Policy = {
 
 const STAGING_APP_HOST = 'staging.sykabelajar.my.id';
 const STAGING_AUTH_WORKER_URL = 'https://auth.sykabelajar.my.id';
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  AUTH_REQUIRED: 'Worker menolak token Admin. Login ulang melalui staging.',
+  AUTH_SESSION_REQUIRED: 'Sesi Better Auth staging tidak ditemukan. Login ulang melalui staging.',
+  AUTH_SESSION_EXPIRED: 'Sesi Better Auth staging sudah berakhir. Login ulang melalui staging.',
+  AUTH_STAGING_APP_ORIGIN_REQUIRED: 'Buka Admin melalui staging.sykabelajar.my.id, bukan link preview Pages.',
+  BETTER_AUTH_FRONTEND_DISABLED: 'Better Auth frontend staging belum aktif pada halaman ini.',
+};
+
+function friendlyAuthError(cause: unknown): string {
+  const code = cause instanceof Error ? cause.message : 'AUTH_RUNTIME_SETTINGS_UNAVAILABLE';
+  return AUTH_ERROR_MESSAGES[code] ?? code;
+}
 
 function isStagingAdminHost(): boolean {
   if (typeof window === 'undefined') return false;
@@ -89,7 +101,7 @@ export function AuthVerificationSettingsPanel() {
       }
       setPolicy(await requestPolicy('get-verification-policy'));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'AUTH_RUNTIME_SETTINGS_UNAVAILABLE');
+      setError(friendlyAuthError(cause));
     } finally {
       setLoading(false);
     }
@@ -113,7 +125,7 @@ export function AuthVerificationSettingsPanel() {
         ? 'Verifikasi email sekarang diwajibkan di staging.'
         : 'Bypass verifikasi email sementara aktif di staging.');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'AUTH_RUNTIME_SETTINGS_SAVE_FAILED');
+      setError(friendlyAuthError(cause));
     } finally {
       setSaving(false);
     }
