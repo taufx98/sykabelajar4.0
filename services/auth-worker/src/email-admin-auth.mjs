@@ -16,6 +16,7 @@ let cachedJwksUrl = "";
 /** @type {ReturnType<typeof createRemoteJWKSet> | null} */
 let cachedJwks = null;
 
+/** @type {Readonly<Record<string, string>>} */
 const JOSE_FAILURE_CODES = Object.freeze({
   ERR_JWKS_NO_MATCHING_KEY: "BETTER_AUTH_JWKS_KEY_NOT_FOUND",
   ERR_JWKS_MULTIPLE_MATCHING_KEYS: "BETTER_AUTH_JWKS_KEY_AMBIGUOUS",
@@ -28,7 +29,10 @@ const JOSE_FAILURE_CODES = Object.freeze({
   ERR_JWT_INVALID: "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID",
 });
 
-/** Return only a fixed, non-sensitive diagnostic code from the JOSE verifier. */
+/**
+ * Return only a fixed, non-sensitive diagnostic code from the JOSE verifier.
+ * @param {unknown} error
+ */
 function safeJoseFailureCode(error) {
   const code = error && typeof error === "object" && typeof error.code === "string"
     ? error.code
@@ -36,6 +40,7 @@ function safeJoseFailureCode(error) {
   return JOSE_FAILURE_CODES[code] ?? "BETTER_AUTH_RESOURCE_TOKEN_INVALID";
 }
 
+/** @type {Readonly<Record<string, {error:string, status:401|503}>>} */
 const PUBLIC_ADMIN_AUTH_ERRORS = Object.freeze({
   BETTER_AUTH_RESOURCE_TOKEN_INVALID: { error: "AUTH_RESOURCE_TOKEN_INVALID", status: 401 },
   BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID: { error: "AUTH_RESOURCE_TOKEN_HEADER_INVALID", status: 401 },
@@ -51,7 +56,10 @@ const PUBLIC_ADMIN_AUTH_ERRORS = Object.freeze({
   BETTER_AUTH_USERINFO_UNAVAILABLE: { error: "AUTH_USERINFO_UNAVAILABLE", status: 503 },
 });
 
-/** Convert internal verifier failures to a fixed public code and HTTP status. */
+/**
+ * Convert internal verifier failures to a fixed public code and HTTP status.
+ * @param {string} code
+ */
 export function publicBetterAuthAdminAuthError(code) {
   return PUBLIC_ADMIN_AUTH_ERRORS[code] ?? null;
 }
