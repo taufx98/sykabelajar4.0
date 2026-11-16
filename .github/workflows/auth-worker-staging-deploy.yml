@@ -25,6 +25,7 @@ concurrency:
 # Triggered for the explicit staging login-consent UI verification; Production promotion remains separate.
 # OTP resend cooldown is enforced by the Better Auth Worker plugin rate limiter.
 # GitHub social login schema 0011 is applied through its separately guarded staging workflow.
+# Custom HTTPS JSON email schema 0012 is verified before this Worker can be deployed.
 
 jobs:
   deploy:
