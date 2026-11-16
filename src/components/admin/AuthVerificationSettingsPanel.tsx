@@ -21,6 +21,8 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID: 'Signature token tidak cocok dengan kunci publik JWKS Worker.',
   AUTH_RESOURCE_TOKEN_EXPIRED: 'Resource-token sudah kedaluwarsa. Muat ulang sesi staging.',
   AUTH_RESOURCE_TOKEN_CLAIMS_INVALID: 'Klaim issuer, audience, sub, role, atau masa berlaku token tidak sesuai.',
+  AUTH_JWKS_ENDPOINT_NOT_FOUND: 'Endpoint JWKS Better Auth tidak ditemukan (HTTP 404).',
+  AUTH_JWKS_ACCESS_DENIED: 'Endpoint JWKS Better Auth menolak permintaan (HTTP 401/403).',
   AUTH_JWKS_KEY_NOT_FOUND: 'Kunci penandatangan token tidak ditemukan pada JWKS Worker.',
   AUTH_JWKS_KEY_AMBIGUOUS: 'JWKS Worker memiliki lebih dari satu kunci yang cocok untuk token.',
   AUTH_JWKS_UNAVAILABLE: 'Worker tidak dapat mengambil JWKS dari issuer Better Auth.',
