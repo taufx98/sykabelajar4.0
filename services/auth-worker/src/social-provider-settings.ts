@@ -11,7 +11,7 @@ import {
   resolveBetterAuthAdminIdentity,
 } from "./email-admin-auth.mjs";
 
-export const SOCIAL_LOGIN_PROVIDERS = ["google", "facebook", "twitter"] as const;
+export const SOCIAL_LOGIN_PROVIDERS = ["google", "github", "facebook", "twitter"] as const;
 export type SocialLoginProvider = typeof SOCIAL_LOGIN_PROVIDERS[number];
 export type SocialProviderCredentials = {
   clientId: string;
@@ -37,6 +37,7 @@ type SocialProviderMeta = {
 
 const CALLBACK_PATH: Record<SocialLoginProvider, string> = {
   google: "/api/auth/callback/google",
+  github: "/api/auth/callback/github",
   facebook: "/api/auth/callback/facebook",
   twitter: "/api/auth/callback/twitter",
 };
@@ -63,6 +64,7 @@ function isProvider(value: unknown): value is SocialLoginProvider {
 function environmentProviders(env: AuthWorkerEnv): Partial<Record<SocialLoginProvider, SocialProviderCredentials>> {
   const values = {
     google: [env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET],
+    github: [env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET],
     facebook: [env.FACEBOOK_CLIENT_ID, env.FACEBOOK_CLIENT_SECRET],
     twitter: [env.TWITTER_CLIENT_ID, env.TWITTER_CLIENT_SECRET],
   } as const;
@@ -281,6 +283,7 @@ async function seedEnvironmentProviders(
   if (!key || key.length < 32) throw new Error("AUTH_PROVIDER_ENCRYPTION_KEY_NOT_CONFIGURED");
   const values = [
     ["google", env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET],
+    ["github", env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET],
     ["facebook", env.FACEBOOK_CLIENT_ID, env.FACEBOOK_CLIENT_SECRET],
     ["twitter", env.TWITTER_CLIENT_ID, env.TWITTER_CLIENT_SECRET],
   ] as const;
