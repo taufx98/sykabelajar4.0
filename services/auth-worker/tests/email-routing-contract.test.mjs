@@ -37,7 +37,7 @@ test("only definitive quota or credential rejection may trigger cross-provider f
 
 test("new auth email delivery never falls back to legacy ZeptoMail/Brevo accounts", () => {
   assert.doesNotMatch(emailSource, /auth_email_settings|auth_email_accounts|sendZeptoMail|readLegacyEmailAccount|sendLegacyEmail/);
-  assert.match(emailSource, /if \\(accounts\\.length === 0\\) throw new Error/);
+  assert.match(emailSource, /if \(accounts\.length === 0\) throw new Error/);
   assert.match(emailSource, /AUTH_EMAIL_ALL_PROVIDERS_EXHAUSTED/);
   assert.match(emailSource, /AUTH_EMAIL_DELIVERY_STATUS_UNKNOWN/);
 });
