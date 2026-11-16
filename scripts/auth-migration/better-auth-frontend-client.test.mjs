@@ -310,3 +310,15 @@ assert.match(registerPage, /\{betterAuthPreview && socialProviders\.length > 0 &
 assert.match(registerPage, /Daftar dengan /);
 assert.match(registerPage, /provider==='google'\?'G':'GH'/);
 assert.match(client, /provider === 'google' \|\| provider === 'github'/);
+
+
+// Auth desktop layout: collective accounts stay in the left information panel,
+// while email/password and social sign-in remain together on the right.
+const collectiveLoginIndex = loginPage.indexOf('Masuk Peserta Kolektif');
+const loginEmailIndex = loginPage.indexOf('id="login-email"');
+const loginSocialIndex = loginPage.indexOf('atau masuk dengan');
+assert.ok(collectiveLoginIndex >= 0 && loginEmailIndex > collectiveLoginIndex);
+assert.ok(loginSocialIndex > loginEmailIndex);
+assert.match(loginPage, /lg:grid-cols-\[minmax\(0,0\.92fr\)_minmax\(0,1\.08fr\)\]/);
+assert.match(registerPage, /lg:grid-cols-\[minmax\(280px,0\.82fr\)_minmax\(0,1\.18fr\)\]/);
+assert.match(registerPage, /hidden lg:flex card p-8/);
