@@ -23,7 +23,7 @@ References:
 
 ## Admin panel requirement
 
-Add a "Metode Login" panel under the existing Admin Core **Pengaturan** tab (`/admin/core?tab=settings`), adjacent to the existing ZeptoMail settings panel. Do not add a separate unrelated Admin route unless the Admin navigation is redesigned later.
+Add a "Metode Login" panel under the existing Admin Core **Pengaturan** tab (`/admin/core?tab=settings`), adjacent to the existing Transactional Email settings panel. Do not add a separate unrelated Admin route unless the Admin navigation is redesigned later.
 
 The panel must display these rows, in this order:
 1. Google / Gmail — primary, first and visually emphasized using the existing design tokens.
@@ -45,7 +45,7 @@ Use the current SYKABELAJAR dark design system, Plus Jakarta Sans, existing `Car
 ## Credential and server configuration requirements
 
 - Provider client secrets are server-side secrets only. Never store them in frontend environment variables, browser state beyond the write-only form field, logs, source code, or plaintext D1 columns.
-- Store provider credentials encrypted in D1 with a dedicated `AUTH_PROVIDER_ENCRYPTION_KEY`; do not reuse the ZeptoMail encryption key or mix email secrets with OAuth secrets.
+- Store provider credentials encrypted in D1 with a dedicated `AUTH_PROVIDER_ENCRYPTION_KEY`; do not reuse the email encryption key or mix email secrets with OAuth secrets.
 - Return only safe metadata such as provider, enabled flag, client ID (masked where suitable), `secretConfigured`, callback URL, and status. The secret is never returned by GET.
 - Enforce active-admin authorization on every read/write/test operation. Admin role comes from the trusted application role projection, not Better Auth user metadata or client-submitted role claims.
 - Use the Better Auth session as the caller identity after Stage 4 session migration; do not keep the old Supabase Auth access-token dependency for this new panel.
@@ -63,6 +63,23 @@ Use the custom auth host and the Better Auth callback path:
 
 Verify the exact callback against the current Better Auth version and each provider console before activation. Never use wildcard callback URLs.
 
+
+## Transactional email provider configuration — 17 November 2026
+
+This section supersedes the historical ZeptoMail/Brevo-only settings notes below.
+
+- The five built-in senders remain available: SendPulse, Brevo, Mailjet, Mailtrap Email Sending and Resend.
+- Admin can also add any compatible HTTPS JSON API through the Custom HTTP provider. It supports a custom POST endpoint, no auth/Bearer/API-key header/Basic Auth, additional headers, JSON payload templates, and the supported substitutions {{from.email}}, {{from.name}}, {{to}}, {{subject}}, {{text}}, and {{action}}.
+- This generic adapter is intended for transactional-email services with an HTTPS JSON send API. It does not implement SMTP, SOAP or arbitrary multi-step provider SDKs.
+- Provider credentials, custom headers and payload templates are encrypted in Cloudflare D1. The Admin GET response returns only safe metadata; credentials are write-only and are never returned to the browser.
+- Admin can control sender, account order, enabled state, internal hourly/daily/monthly limits, provider cooldown and automatic failover. Limits are internal counters; they do not read the provider's external account quota.
+- Automatic failover is permitted only after a definite credential or quota rejection (401/403/402/429). Network timeouts and HTTP 5xx are ambiguous and stop delivery to avoid duplicate verification/reset messages.
+- Custom endpoints require HTTPS, a public hostname, the standard HTTPS port, no URL credentials/query/fragment, and no redirect. Sensitive or reserved auth headers are blocked.
+- Test messages are sent only to the authenticated active Admin's email and are rate limited. Verify the sender domain with the chosen provider.
+- Legacy ZeptoMail/Brevo D1 records and migrations are retained as historical data only. The new Better Auth runtime does not call ZeptoMail and does not fall back to legacy sender profiles. Email verification and password reset remain fail-closed until a supported provider has valid configuration.
+
+The panel is mounted in Admin Core → Pengaturan and is named TransactionalEmailSettingsPanel. This email-provider work does not change Better Auth user identities, roles, OIDC/JWT claims or the seven-stage Production cutover order.
+
 ## UI implementation note: shadcn/ui Skills
 
 The user provided https://ui.shadcn.com/docs/skills as the UI guidance source. Use it when building the provider panel and later admin UI. Its skill reads `components.json` to discover framework, Tailwind version, aliases, installed components, icon library and base component library; it helps the assistant use the project's actual APIs rather than inventing imports.
@@ -75,7 +92,7 @@ Current branch inspection (7 November 2026):
 Do not claim that shadcn/ui Skills or the shadcn components are installed. Before Stage 4 UI implementation, inspect the actual branch and decide whether to install/configure shadcn in a small, scoped way. Avoid a framework/base-library migration or broad UI redesign. If retaining the current local primitives, follow shadcn's documented composition principles (semantic labels/descriptions/errors, accessible switch, field grouping, keyboard support and responsive layout) while using the existing project components and styles. If true shadcn components are installed, first inspect `components.json` and use the matching base API (Radix, Base UI or React Aria) instead of mixing APIs.
 
 **Implementation checkpoint (8 November 2026):**
-- `ZeptoMailSettingsPanel` is already mounted in Admin Core `/admin/core?tab=settings`. It now defaults new email Agent drafts to ZeptoMail and keeps Brevo Free as the explicitly selectable fallback. No existing account or active sender is changed by this default.
+- `TransactionalEmailSettingsPanel` is already mounted in Admin Core `/admin/core?tab=settings`. It now defaults new email Agent drafts to ZeptoMail and keeps Brevo Free as the explicitly selectable fallback. No existing account or active sender is changed by this default.
 - Google, Facebook and X are currently configured only through Worker environment credential pairs (`GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET`, `TWITTER_CLIENT_ID/SECRET`). There is no dynamic D1-backed provider settings API or Admin “Metode Login” panel yet.
 - Building the provider panel requires a new additive D1 migration, a dedicated `AUTH_PROVIDER_ENCRYPTION_KEY` (separate from the email encryption key), a write-only encrypted client-secret store, active-admin read/write/test APIs, provider-config revision invalidation/rebuild of the cached Better Auth instance, and tests for disabled-by-default Facebook/X plus Google activation/last-usable-login guards. The new key and provider credentials must remain server-side; never add them to Pages env or committed files.
 - Instagram remains visibly unavailable for ordinary consumer login; it must not be represented as an activatable provider. Telegram remains separate phone verification.
