@@ -39,6 +39,7 @@ async function mockAuthPost(
   path: string,
   onPost: (body: Record<string, unknown>) => void,
   responseBody: Record<string, unknown> = {},
+  status = 200,
 ) {
   await page.route(AUTH_ORIGIN + path, async (route) => {
     if (route.request().method() === 'OPTIONS') {
@@ -56,7 +57,7 @@ async function mockAuthPost(
     }
     onPost(route.request().postDataJSON() as Record<string, unknown>);
     await route.fulfill({
-      status: 200,
+      status,
       contentType: 'application/json',
       headers: {
         'access-control-allow-origin': STAGING_ORIGIN,
@@ -118,7 +119,7 @@ test('staging login submits credentials through Better Auth and keeps invalid cr
       email: 'staging-policy-smoke@example.test',
       password: 'not-a-real-account-password',
     });
-  }, { code: 'INVALID_EMAIL_OR_PASSWORD' });
+  }, { code: 'INVALID_EMAIL_OR_PASSWORD' }, 401);
 
   const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
   expect(response?.status()).toBe(200);
