@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const panel = readFileSync(new URL("../../../src/components/admin/ZeptoMailSettingsPanel.tsx", import.meta.url), "utf8");
+const panel = readFileSync(new URL("../../../src/components/admin/TransactionalEmailSettingsPanel.tsx", import.meta.url), "utf8");
 const workerConfig = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
 const previewHost = "security-auth-poc-stage-1.sykabelajar4.pages.dev";
 
