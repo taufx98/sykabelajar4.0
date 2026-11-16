@@ -351,4 +351,4 @@ assert.match(loginPage, /providerLabel\[unlinkedSocialProvider\]/);
 const loginSocialStart = loginPage.indexOf("const handleSocialLogin");
 const loginSocialEnd = loginPage.indexOf("const handleContinueSocialSignup", loginSocialStart);
 assert.ok(loginSocialStart >= 0 && loginSocialEnd > loginSocialStart);
-assert.doesNotMatch(loginPage.slice(loginSocialStart, loginSocialEnd), /requestSignUp:\\s*true/);
+assert.doesNotMatch(loginPage.slice(loginSocialStart, loginSocialEnd), /requestSignUp:\s*true/);
