@@ -23,6 +23,7 @@ concurrency:
 
 # A workflow-file update re-runs the same guarded staging-only deploy, including tests.
 # OTP resend cooldown is enforced by the Better Auth Worker plugin rate limiter.
+# GitHub social login schema 0011 is applied through its separately guarded staging workflow.
 
 jobs:
   deploy:
