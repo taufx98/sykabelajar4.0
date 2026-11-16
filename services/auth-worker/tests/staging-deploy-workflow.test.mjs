@@ -115,6 +115,9 @@ test("Wrangler deploy command uses only supported arguments", () => {
 test("hosted staging deploy smoke test validates public providers and locks both Admin APIs", () => {
   assert.ok(workflow.includes("/api/auth/providers"));
   assert.match(workflow, /public provider response must not expose client IDs, secrets, or private settings/);
+  assert.match(workflow, /"google", "github", "facebook", "twitter"/);
+  assert.match(workflow, /githubOAuthCredentialsConfigured: publicProviders\.providers\.includes\("github"\)/);
+  assert.match(workflow, /googleOAuthCredentialsConfigured: publicProviders\.providers\.includes\("google"\)/);
   assert.ok(workflow.includes("/api/admin/login-providers"));
   assert.match(workflow, /Admin provider settings must reject requests without a Better Auth resource token/);
   assert.ok(workflow.includes('unauthenticatedAdminBody.error, "AUTH_REQUIRED"'));
