@@ -34,9 +34,12 @@ const JOSE_FAILURE_CODES = Object.freeze({
  * @param {unknown} error
  */
 function safeJoseFailureCode(error) {
-  const code = error && typeof error === "object" && typeof error.code === "string"
-    ? error.code
-    : "";
+  let code = "";
+  if (error && typeof error === "object") {
+    /** @type {{code?: unknown}} */
+    const errorWithCode = error;
+    if (typeof errorWithCode.code === "string") code = errorWithCode.code;
+  }
   return JOSE_FAILURE_CODES[code] ?? "BETTER_AUTH_RESOURCE_TOKEN_INVALID";
 }
 
