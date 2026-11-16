@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { EmailProviderDeliveryError, sendEmailWithProvider } from "../src/email-providers.mjs";
+import { EmailProviderDeliveryError, normalizeCustomHttpConfig, sendEmailWithProvider } from "../src/email-providers.mjs";
 
 const account = { senderAddress: "noreply@sykabelajar.my.id", senderName: "SYKABELAJAR" };
 const message = { to: "admin@example.test", subject: "Tes SYKABELAJAR", text: "Isi tes", action: "verify-email" };
@@ -101,4 +101,105 @@ test("incomplete credentials or sender fail before outbound network requests", a
     { message: "EMAIL_PROVIDER_CONFIGURATION_INCOMPLETE" },
   );
   assert.equal(called, false);
+});
+
+
+test("Custom HTTP provider sends configurable JSON with supported substitutions and API-key auth", async () => {
+  const credentials = normalizeCustomHttpConfig({
+    endpointUrl: "https://api.mail-vendor.example/v1/send",
+    authMode: "api_key",
+    authHeaderName: "X-API-Key",
+    apiKey: "custom-provider-api-key-123456",
+    extraHeadersJson: "{\"X-Workspace\":\"sykabelajar\"}",
+    payloadTemplateJson: JSON.stringify({
+      sender: { email: "{{from.email}}", name: "{{from.name}}" },
+      recipients: ["{{to}}"],
+      subject: "{{subject}}",
+      content: "{{text}}",
+      category: "{{action}}",
+    }),
+  });
+  let captured;
+  const result = await sendEmailWithProvider("custom_http", credentials, account, message, async (url, init) => {
+    captured = { url: String(url), init };
+    return new Response(JSON.stringify({ success: true, messageId: "custom-id-1" }), { status: 202 });
+  });
+  assert.equal(captured.url, "https://api.mail-vendor.example/v1/send");
+  assert.equal(captured.init.method, "POST");
+  assert.equal(captured.init.redirect, "error");
+  assert.equal(captured.init.headers["X-API-Key"], "custom-provider-api-key-123456");
+  assert.equal(captured.init.headers["X-Workspace"], "sykabelajar");
+  const body = JSON.parse(captured.init.body);
+  assert.equal(body.sender.email, account.senderAddress);
+  assert.equal(body.recipients[0], message.to);
+  assert.equal(body.subject, message.subject);
+  assert.equal(body.content, message.text);
+  assert.equal(body.category, message.action);
+  assert.equal(result.messageId, "custom-id-1");
+  assert.equal(captured.init.body.includes("custom-provider-api-key-123456"), false);
+});
+
+test("Custom HTTP endpoint rejects local, IP-literal, HTTP and redirected destinations", async () => {
+  for (const endpointUrl of [
+    "http://api.vendor.example/send",
+    "https://127.0.0.1/send",
+    "https://localhost/send",
+    "https://mail.internal/send",
+    "https://api.vendor.example:8443/send",
+    "https://user:pass@api.vendor.example/send",
+  ]) {
+    assert.throws(() => normalizeCustomHttpConfig({
+      endpointUrl, authMode: "none",
+    }), { message: "EMAIL_CUSTOM_ENDPOINT_INVALID" });
+  }
+  const credentials = normalizeCustomHttpConfig({
+    endpointUrl: "https://api.vendor.example/send",
+    authMode: "none",
+  });
+  await assert.rejects(
+    sendEmailWithProvider("custom_http", credentials, account, message, async () =>
+      new Response(null, { status: 302, headers: { location: "https://attacker.example/collect" } })),
+    (error) => error instanceof EmailProviderDeliveryError && error.code === "EMAIL_PROVIDER_REJECTED_MESSAGE",
+  );
+});
+
+test("Custom HTTP adapter rejects header injection and unsupported payload placeholders", () => {
+  assert.throws(() => normalizeCustomHttpConfig({
+    endpointUrl: "https://api.vendor.example/send",
+    authMode: "api_key",
+    authHeaderName: "Authorization",
+    apiKey: "custom-provider-api-key-123456",
+  }), { message: "EMAIL_CUSTOM_AUTH_INVALID" });
+  assert.throws(() => normalizeCustomHttpConfig({
+    endpointUrl: "https://api.vendor.example/send",
+    authMode: "none",
+    extraHeadersJson: "{\"Authorization\":\"Bearer secret\"}",
+  }), { message: "EMAIL_CUSTOM_HEADERS_INVALID" });
+  assert.throws(() => normalizeCustomHttpConfig({
+    endpointUrl: "https://api.vendor.example/send",
+    authMode: "none",
+    payloadTemplateJson: "{\"to\":\"{{to}}\",\"subject\":\"{{subject}}\",\"text\":\"{{text}}\",\"apiKey\":\"{{secret}}\"}",
+  }), { message: "EMAIL_CUSTOM_PAYLOAD_INVALID" });
+});
+
+test("Custom HTTP auth supports Bearer and Basic without placing credentials in the payload", async () => {
+  const cases = [
+    {
+      config: { endpointUrl: "https://api.vendor.example/send", authMode: "bearer", apiKey: "custom-bearer-token-123456" },
+      header: "Bearer custom-bearer-token-123456",
+    },
+    {
+      config: { endpointUrl: "https://api.vendor.example/send", authMode: "basic", username: "api-user", password: "basic-password-123" },
+      header: "Basic " + Buffer.from("api-user:basic-password-123").toString("base64"),
+    },
+  ];
+  for (const item of cases) {
+    let captured;
+    await sendEmailWithProvider("custom_http", normalizeCustomHttpConfig(item.config), account, message, async (_url, init) => {
+      captured = init;
+      return new Response("{}", { status: 200 });
+    });
+    assert.equal(captured.headers.authorization, item.header);
+    assert.equal(captured.body.includes(item.header), false);
+  }
 });
