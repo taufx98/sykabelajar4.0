@@ -111,13 +111,22 @@ export async function signIn(email: string, password: string) {
 export async function signInWithSocial(
   provider: 'google' | 'github' | 'facebook' | 'twitter',
   callbackURL: string,
+  options: { requestSignUp?: boolean; errorCallbackURL?: string } = {},
 ) {
   if (!isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
     throw new Error('BETTER_AUTH_SOCIAL_SIGNIN_DISABLED');
   }
   const safeCallbackPath = resolveSafeInternalRedirect(callbackURL, window.location.origin);
   const safeCallbackURL = new URL(safeCallbackPath, window.location.origin).toString();
-  const result = await getStagingBetterAuthClient().signInWithSocial(provider, safeCallbackURL);
+  const safeErrorCallbackPath = resolveSafeInternalRedirect(
+    options.errorCallbackURL ?? '/login?oauthError=1',
+    window.location.origin,
+  );
+  const safeErrorCallbackURL = new URL(safeErrorCallbackPath, window.location.origin).toString();
+  const result = await getStagingBetterAuthClient().signInWithSocial(provider, safeCallbackURL, {
+    ...(options.requestSignUp === true ? { requestSignUp: true } : {}),
+    errorCallbackURL: safeErrorCallbackURL,
+  });
   if (result.url) window.location.assign(result.url);
   return result;
 }
