@@ -40,14 +40,20 @@ test("Production keeps public signup closed while staging remains open", () => {
   );
   assert.match(emailAndPassword, /disableSignUp: signupDisabled/);
 
-  for (const provider of ["google", "facebook", "twitter"]) {
+  for (const provider of ["google", "github", "facebook", "twitter"]) {
     const start = authSource.indexOf(provider + ": {");
     assert.ok(start >= 0, "expected a " + provider + " provider configuration");
     const end = authSource.indexOf("\n          },", start);
     assert.ok(end > start, "could not locate the " + provider + " provider block");
     const block = authSource.slice(start, end);
     assert.match(block, /disableSignUp: signupDisabled/);
-    assert.match(block, /disableImplicitSignUp: signupDisabled/);
+    if (provider === "google" || provider === "github") {
+      // Social login must not create an account implicitly; Register opts in
+      // with Better Auth's requestSignUp flag. Production signup stays closed.
+      assert.match(block, /disableImplicitSignUp: true/);
+    } else {
+      assert.match(block, /disableImplicitSignUp: signupDisabled/);
+    }
   }
 });
 
