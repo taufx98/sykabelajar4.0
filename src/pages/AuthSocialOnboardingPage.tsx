@@ -175,7 +175,7 @@ export function AuthSocialOnboardingPage() {
         <div className="mb-5 grid grid-cols-2 gap-2" aria-label={t('Progres pengaturan profil','Profile setup progress')}>
           {[1, 2].map((item) => (
             <div key={item} className="h-1.5 rounded-full surface-elevated overflow-hidden">
-              <div className={\`h-full transition-all \${item <= step ? 'gradient-moss w-full' : 'w-0'}\`} />
+              <div className={`h-full transition-all ${item <= step ? 'gradient-moss w-full' : 'w-0'}`} />
             </div>
           ))}
         </div>
@@ -184,7 +184,7 @@ export function AuthSocialOnboardingPage() {
           <div className="border-b surface-border px-5 py-5 sm:px-7">
             <p className="text-xs font-semibold text-accent">{t('LANGKAH','STEP')} {step} / 2</p>
             <h1 className="mt-2 font-display text-2xl sm:text-3xl font-bold tracking-tight text-fg">
-              {step === 1 ? t(\`Selamat datang, \${selectedName}!\`, \`Welcome, \${selectedName}!\`) : t('Apa yang kamu minati?', 'What are you interested in?')}
+              {step === 1 ? t(`Selamat datang, ${selectedName}!`, `Welcome, ${selectedName}!`) : t('Apa yang kamu minati?', 'What are you interested in?')}
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-fg-muted">
               {step === 1
@@ -214,7 +214,7 @@ export function AuthSocialOnboardingPage() {
                     <label className="label" htmlFor="onboarding-username">Username</label>
                     <div className="flex items-center rounded-xl border surface-border bg-white/[0.03] focus-within:border-accent/60">
                       <span className="pl-3 text-sm text-fg-muted">@</span>
-                      <input id="onboarding-username" autoComplete="username" className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm text-fg outline-none" value={form.username} onChange={(event) => setField('username', event.target.value.replace(/\\s/g, '').toLowerCase())} maxLength={40} placeholder="namakamu" />
+                      <input id="onboarding-username" autoComplete="username" className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm text-fg outline-none" value={form.username} onChange={(event) => setField('username', event.target.value.replace(/\s/g, '').toLowerCase())} maxLength={40} placeholder="namakamu" />
                     </div>
                     <p className="mt-1 text-xs text-fg-muted">{t('Username unik, 3–40 karakter. Tidak bisa diubah setelah dibuat.','Unique username, 3–40 characters. It cannot be changed after creation.')}</p>
                   </div>
@@ -255,7 +255,7 @@ export function AuthSocialOnboardingPage() {
                         type="button"
                         aria-pressed={selected}
                         onClick={() => toggleSubject(key as CompetitionCategory)}
-                        className={\`flex min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-3 text-left text-xs font-medium transition-colors \${selected ? 'border-accent/50 bg-accent/10 text-accent' : 'surface-border bg-white/[0.02] text-fg-secondary hover:border-accent/25'}\`}
+                        className={`flex min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-3 text-left text-xs font-medium transition-colors ${selected ? 'border-accent/50 bg-accent/10 text-accent' : 'surface-border bg-white/[0.02] text-fg-secondary hover:border-accent/25'}`}
                       >
                         <span>{label}</span>
                         {selected && <Check size={15} className="shrink-0" />}
