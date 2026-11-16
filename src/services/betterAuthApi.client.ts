@@ -111,7 +111,7 @@ export interface BetterAuthApiClient {
   getSupabaseAccessToken(): Promise<string | null>;
   invalidateResourceTokenCache(): void;
   signInWithEmail(email: string, password: string): Promise<BetterAuthSignInResult>;
-  signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string): Promise<BetterAuthSocialSignInResult>;
+  signInWithSocial(provider: BetterAuthSocialProvider, callbackURL: string, options?: { requestSignUp?: boolean; errorCallbackURL?: string }): Promise<BetterAuthSocialSignInResult>;
   getAvailableSocialProviders(): Promise<BetterAuthSocialProvider[]>;
   getEmailVerificationConfigured(): Promise<boolean>;
   getEmailVerificationRequired(): Promise<boolean>;
@@ -855,11 +855,13 @@ export function createBetterAuthApiClient(options: {
       });
     },
 
-    signInWithSocial(provider, callbackURL) {
+    signInWithSocial(provider, callbackURL, options) {
       clearResourceTokenCache();
       return request<BetterAuthSocialSignInResult>('/sign-in/social', {
         provider,
         callbackURL,
+        ...(options?.requestSignUp === true ? { requestSignUp: true } : {}),
+        ...(options?.errorCallbackURL ? { errorCallbackURL: options.errorCallbackURL } : {}),
       });
     },
 
