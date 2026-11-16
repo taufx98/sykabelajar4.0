@@ -9,6 +9,7 @@ import {
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const app = read("../../../src/App.tsx");
 const register = read("../../../src/pages/RegisterPage.tsx");
+const login = read("../../../src/pages/LoginPage.tsx");
 const page = read("../../../src/pages/AuthSocialOnboardingPage.tsx");
 const service = read("../../../src/services/profileOnboarding.service.ts");
 const migration = read("../../../supabase/migrations/20261116095715_better_auth_profile_onboarding.sql");
@@ -54,4 +55,17 @@ test("profile completion writes only through the narrow Better Auth RPC", () => 
   assert.doesNotMatch(migration, /account_type\s*=/i);
   assert.doesNotMatch(migration, /INSERT\s+INTO\s+public\.user_roles/i);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.complete_better_auth_profile/);
+});
+
+
+test("Google/GitHub registration explicitly requests signup", () => {
+  assert.ok(register.includes("requestSignUp:true"));
+  assert.ok(register.includes("errorCallbackURL:'/register?oauthError=1'"));
+});
+
+test("social login returns unlinked account errors to the main login page", () => {
+  assert.ok(login.includes("oauthError=1"));
+  assert.ok(login.includes("searchParams.get('oauthError') !== '1'"));
+  assert.ok(login.includes("Belum ada akun SYKABELAJAR yang terhubung"));
+  assert.ok(login.includes("nextParams.delete('error_description')"));
 });
