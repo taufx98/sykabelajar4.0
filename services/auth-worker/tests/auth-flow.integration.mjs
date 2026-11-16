@@ -42,7 +42,7 @@ const mailServer = createServer(async (request, response) => {
     !message ||
     typeof message.to !== "string" ||
     typeof message.text !== "string" ||
-    !["verify-email", "reset-password"].includes(message.category)
+    !["verify-email-otp", "reset-password"].includes(message.category)
   ) {
     response.writeHead(422).end();
     return;
@@ -286,7 +286,7 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
     });
     assert.equal(invalidSignup.status, 400, "admin must be rejected before D1 user creation");
     assert.equal(
-      mailMessages.some((message) => message.category === "verify-email" && message.to === email),
+      mailMessages.some((message) => message.category === "verify-email-otp" && message.to === email),
       false,
       "invalid registration must not dispatch a verification email",
     );
@@ -337,25 +337,18 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       "unverified signup must leave no authenticated session before email verification",
     );
 
-    const verificationMessage = mailMessages.find((message) => message.category === "verify-email" && message.to === email);
-    assert.ok(verificationMessage, "sign-up must deliver a verification email through the configured webhook");
-    const verificationUrl = mailUrl(verificationMessage);
-    assert.equal(verificationUrl.searchParams.get("callbackURL"), appOrigin + "/auth/verified",
-      "verification email must carry the explicit public frontend callback route");
-    const verificationResponse = await fetch(verificationUrl, {
-      redirect: "manual",
-      headers: { Origin: appOrigin },
+    const verificationMessage = mailMessages.find((message) => message.category === "verify-email-otp" && message.to === email);
+    assert.ok(verificationMessage, "sign-up must deliver a numeric verification code through the configured webhook");
+    assert.doesNotMatch(verificationMessage.text, /https?:\\/\\//i, "verification email must not contain a clickable link");
+    const verificationCode = verificationMessage.text.match(/\\b(\\d{6})\\b/)?.[1];
+    assert.ok(verificationCode, "verification email must contain a six-digit OTP");
+    const verificationResponse = await authRequest("/email-otp/verify-email", {
+      method: "POST",
+      body: { email, otp: verificationCode },
     });
-    assert.ok(
-      verificationResponse.status >= 200 && verificationResponse.status < 400,
-      "verification link must be accepted; HTTP " + verificationResponse.status,
-    );
-    const verificationLocation = verificationResponse.headers.get("location");
-    assert.ok(verificationLocation, "successful verification must redirect to the frontend callback");
-    const verificationCallback = new URL(verificationLocation, verificationUrl);
-    assert.equal(verificationCallback.origin, appOrigin, "verification must return only to the app origin");
-    assert.equal(verificationCallback.pathname, "/auth/verified", "verification must reach the registered callback page");
-
+    assert.ok(verificationResponse.ok, "six-digit email OTP must be accepted; HTTP " + verificationResponse.status);
+    const verificationResult = await parseJson(verificationResponse);
+    assert.equal(verificationResult?.status, true, "OTP verification must report success");
 
     let cookie = sessionCookie(verificationResponse);
     if (!cookie) {
