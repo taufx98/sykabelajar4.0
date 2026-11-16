@@ -64,18 +64,18 @@ test("frontend signup, session, resource token and Supabase token honor the poli
   assert.match(client, /'\/api\/admin\/auth-runtime-settings', 'PUT'/);
 });
 
-test("staging Admin panel exposes the verification policy on the exact Pages preview and staging host", () => {
-  assert.match(panel, /security-auth-poc-stage-1\.sykabelajar4\.pages\.dev/);
-  assert.match(panel, /staging\.sykabelajar\.my\.id/);
-  assert.match(panel, /getSupabaseResourceAccessToken/);
+test("staging Admin panel exposes verification settings only on the same-site staging host", () => {
+  assert.doesNotMatch(panel, /security-auth-poc-stage-1\\.sykabelajar4\\.pages\\.dev/);
+  assert.match(panel, /staging\\.sykabelajar\\.my\\.id/);
+  assert.match(panel, /getStagingAdminAccessToken/);
+  assert.doesNotMatch(panel, /getSupabaseResourceAccessToken/);
   assert.match(panel, /get-verification-policy/);
   assert.match(panel, /set-verification-policy/);
   assert.match(panel, /Aktifkan wajib verifikasi/);
   assert.match(panel, /Nonaktifkan sementara/);
-  assert.match(panel, /window\.confirm/);
-  assert.match(panel, /hanya mengubah Auth Worker\/D1 staging/);
+  assert.match(panel, /window\\.confirm/);
+  assert.match(panel, /hanya mengubah Auth Worker.*D1 staging/);
 });
-
 test("email Admin API limits verification policy changes to active admins and the pinned staging D1", () => {
   assert.match(emailAdmin, /const authorization = await requireActiveAdmin\(request, env\)/);
   assert.match(emailAdmin, /emailVerificationPolicyAvailable: isPinnedStagingEmailPolicyTarget\(env\)/);
