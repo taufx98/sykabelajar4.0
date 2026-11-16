@@ -234,7 +234,7 @@ const settingsTab = adminPage.slice(settingsTabIndex, settingsTabIndex + 650);
 assert.match(settingsTab, /<LoginProvidersSettingsPanel\s*\/>/);
 assert.match(settingsTab, /<ZeptoMailSettingsPanel\s*\/>/);
 
-assert.match(loginProvidersPanel, /const PROVIDER_ORDER: BetterAuthSocialProvider\[\] = \['google', 'facebook', 'twitter'\]/);
+assert.match(loginProvidersPanel, /const PROVIDER_ORDER: BetterAuthSocialProvider\[\] = \['google', 'github', 'facebook', 'twitter'\]/);
 assert.match(loginProvidersPanel, /Google \/ Gmail/);
 assert.match(loginProvidersPanel, /Facebook/);
 assert.match(loginProvidersPanel, /X \/ Twitter/);
