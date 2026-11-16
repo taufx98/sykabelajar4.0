@@ -138,6 +138,17 @@ assert.match(appContext, /quotaRetryAtUtcFromCredential/);
 assert.match(authService, /await client\.signInWithEmail\(email\.trim\(\), password\);[\s\S]*confirmSessionAfterSignIn/);
 assert.match(authService, /credential POST is sent exactly once/);
 
+const appLoginStart = appContext.indexOf("const login = useCallback");
+const appLoginEnd = appContext.indexOf("const register = useCallback", appLoginStart);
+assert.ok(appLoginStart >= 0 && appLoginEnd > appLoginStart);
+const appLogin = appContext.slice(appLoginStart, appLoginEnd);
+assert.match(appLogin, /const existingSession = await getAuthSession\(\)/);
+assert.match(appLogin, /existingEmail !== requestedEmail/);
+assert.ok(
+  appLogin.indexOf("await signOut()") < appLogin.indexOf("await signIn(requestedEmail, password)"),
+  "switching to another account must clear the previous cookie session before attempting credentials",
+);
+
 assert.match(authService, /isBetterAuthFrontendEnabledForSupabase\(env\.supabaseUrl\)/);
 assert.match(authService, /createBetterAuthSessionBridge/);
 assert.match(authService, /export function isBetterAuthEnabled\(\)/);
