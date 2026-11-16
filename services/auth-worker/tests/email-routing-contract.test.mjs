@@ -10,7 +10,7 @@ test("managed auth email uses all enabled providers in configured priority order
   assert.match(emailSource, /FROM auth_email_provider_accounts WHERE enabled = 1 ORDER BY priority ASC, created_at ASC/);
   assert.match(emailSource, /auto_failover_enabled/);
   assert.match(emailSource, /accounts\.slice\(0, 1\)/);
-  for (const provider of ["sendpulse", "brevo", "mailjet", "mailtrap", "resend"]) {
+  for (const provider of ["sendpulse", "brevo", "mailjet", "mailtrap", "resend", "custom_http"]) {
     assert.ok(emailSource.includes(provider) || adminSource.includes('"' + provider + '"'));
   }
 });
@@ -35,14 +35,11 @@ test("only definitive quota or credential rejection may trigger cross-provider f
   assert.match(adminSource, /EMAIL_PROVIDER_CREDENTIAL_REJECTED/);
 });
 
-test("the active legacy ZeptoMail/Brevo Agent remains a recovery fallback", () => {
-  assert.match(emailSource, /FROM auth_email_settings s JOIN auth_email_accounts a ON a\.id = s\.active_account_id/);
-  assert.match(emailSource, /decryptEmailSecret\([\s\S]*?row\.send_mail_token_ciphertext/);
-  assert.match(emailSource, /sendZeptoMail\(/);
-  assert.match(emailSource, /sendEmailWithProvider\("brevo"/);
-  assert.match(emailSource, /return Boolean\(await readLegacyEmailAccount\(env\)\)/);
-  assert.match(emailSource, /if \(accounts\.length === 0\) return sendLegacyEmail\(env, message\)/);
-  assert.match(emailSource, /Never use it after an ambiguous timeout\/network\/5xx outcome/);
+test("new auth email delivery never falls back to legacy ZeptoMail/Brevo accounts", () => {
+  assert.doesNotMatch(emailSource, /auth_email_settings|auth_email_accounts|sendZeptoMail|readLegacyEmailAccount|sendLegacyEmail/);
+  assert.match(emailSource, /if \\(accounts\\.length === 0\\) throw new Error/);
+  assert.match(emailSource, /AUTH_EMAIL_ALL_PROVIDERS_EXHAUSTED/);
+  assert.match(emailSource, /AUTH_EMAIL_DELIVERY_STATUS_UNKNOWN/);
 });
 
 test("verification readiness requires an enabled provider with a decryptable credential", () => {
