@@ -49,7 +49,6 @@ function errorMessage(error: unknown): string {
     AUTH_JWKS_INVALID: 'Respons JWKS dari issuer Better Auth tidak valid.',
     AUTH_USERINFO_UNAVAILABLE: 'Endpoint UserInfo Better Auth tidak dapat dihubungi.',
     AUTH_USERINFO_INVALID: 'Identitas UserInfo tidak cocok atau email belum terverifikasi.',
-    AUTH_USERINFO_INVALID: 'Identitas pada token tidak cocok atau klaim email terverifikasi tidak diterima.',
     ADMIN_REQUIRED: 'Akun Better Auth ini belum memiliki role admin aktif di Supabase staging.',
     ADMIN_AUTH_UNAVAILABLE: 'Pemeriksaan admin staging tidak tersedia. Periksa provisioning staging dan role admin.',
     SOCIAL_PROVIDER_ENCRYPTION_NOT_CONFIGURED: 'Kunci AUTH_PROVIDER_ENCRYPTION_KEY belum dipasang sebagai Worker secret.',
