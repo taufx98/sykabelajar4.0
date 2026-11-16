@@ -11,7 +11,7 @@
  */
 import { safeBetterAuthErrorCode } from './betterAuthErrorCode.mjs';
 export type BetterAuthAccountType = 'student' | 'teacher' | 'organizer';
-export type BetterAuthSocialProvider = 'google' | 'facebook' | 'twitter';
+export type BetterAuthSocialProvider = 'google' | 'github' | 'facebook' | 'twitter';
 
 export interface BetterAuthUser {
   id: string;
@@ -870,7 +870,7 @@ export function createBetterAuthApiClient(options: {
       }
       return payload.providers.filter(
         (provider): provider is BetterAuthSocialProvider =>
-          provider === 'google' || provider === 'facebook' || provider === 'twitter',
+          provider === 'google' || provider === 'github' || provider === 'facebook' || provider === 'twitter',
       );
     },
 
