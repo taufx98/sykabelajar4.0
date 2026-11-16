@@ -11,7 +11,7 @@ const app = read("../../../src/App.tsx");
 const register = read("../../../src/pages/RegisterPage.tsx");
 const page = read("../../../src/pages/AuthSocialOnboardingPage.tsx");
 const service = read("../../../src/services/profileOnboarding.service.ts");
-const migration = read("../../../supabase/migrations/20261116120000_better_auth_profile_onboarding.sql");
+const migration = read("../../../supabase/migrations/20261116095715_better_auth_profile_onboarding.sql");
 
 test("only profiles without a username are marked for initial onboarding", () => {
   assert.equal(needsInitialProfileCompletion({ username: "" }), true);
