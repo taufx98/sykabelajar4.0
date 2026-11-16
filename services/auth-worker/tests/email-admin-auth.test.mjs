@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   BetterAuthAdminAuthError,
   isBetterAuthTokenForIssuer,
+  publicBetterAuthAdminAuthError,
   resolveBetterAuthAdminIdentity,
 } from "../src/email-admin-auth.mjs";
 
@@ -145,10 +146,51 @@ test("JWT business role, subject and maximum lifetime are independently guarded"
           ...payload,
         }),
       })),
-      (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_INVALID",
+      (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_CLAIMS_INVALID",
     );
     assert.equal(network.calls.length, 0, "invalid JWT claims must fail before network calls");
   }
+});
+
+test("JOSE failures are reduced to stable, non-sensitive verifier diagnostics", async () => {
+  const expected = new Map([
+    ["ERR_JWKS_NO_MATCHING_KEY", "BETTER_AUTH_JWKS_KEY_NOT_FOUND"],
+    ["ERR_JWKS_MULTIPLE_MATCHING_KEYS", "BETTER_AUTH_JWKS_KEY_AMBIGUOUS"],
+    ["ERR_JWKS_TIMEOUT", "BETTER_AUTH_JWKS_UNAVAILABLE"],
+    ["ERR_JWKS_INVALID", "BETTER_AUTH_JWKS_INVALID"],
+    ["ERR_JWS_SIGNATURE_VERIFICATION_FAILED", "BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID"],
+    ["ERR_JWT_EXPIRED", "BETTER_AUTH_RESOURCE_TOKEN_EXPIRED"],
+    ["ERR_JWT_CLAIM_VALIDATION_FAILED", "BETTER_AUTH_RESOURCE_TOKEN_CLAIMS_INVALID"],
+    ["ERR_JWS_INVALID", "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID"],
+    ["ERR_JWT_INVALID", "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID"],
+  ]);
+
+  for (const [joseCode, expectedCode] of expected) {
+    const network = makeFetch();
+    const verifyJwtImpl = async () => {
+      const error = new Error("must never be returned to the caller");
+      error.code = joseCode;
+      throw error;
+    };
+    await assert.rejects(
+      resolveBetterAuthAdminIdentity(input({ fetchImpl: network.fetchImpl, verifyJwtImpl })),
+      (error) => error instanceof BetterAuthAdminAuthError && error.code === expectedCode,
+    );
+    assert.equal(network.calls.length, 0, "a JWT rejected by jose must not reach UserInfo or Supabase");
+  }
+});
+
+test("public Admin auth diagnostics are allowlisted and carry safe status codes", () => {
+  assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_JWKS_KEY_NOT_FOUND"), {
+    error: "AUTH_JWKS_KEY_NOT_FOUND", status: 401,
+  });
+  assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_JWKS_UNAVAILABLE"), {
+    error: "AUTH_JWKS_UNAVAILABLE", status: 503,
+  });
+  assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID"), {
+    error: "AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID", status: 401,
+  });
+  assert.equal(publicBetterAuthAdminAuthError("UNEXPECTED_INTERNAL_ERROR"), null);
 });
 
 test("the production verifier validates an actual ES256 signature against the issuer JWKS key", async () => {
@@ -186,7 +228,7 @@ test("the production verifier validates an actual ES256 signature against the is
       verifyJwtImpl: undefined,
       createJwksImpl: () => publicKey,
     })),
-    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_INVALID",
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID",
   );
   assert.equal(tamperedNetwork.calls.length, 0, "bad signatures must be rejected before UserInfo or Supabase");
 });
@@ -252,7 +294,7 @@ test("missing staging publishable key and unavailable UserInfo/role services fai
   const userInfoDown = makeFetch({ failUserInfo: true });
   await assert.rejects(
     resolveBetterAuthAdminIdentity(input({ fetchImpl: userInfoDown.fetchImpl })),
-    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_INVALID",
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_USERINFO_UNAVAILABLE",
   );
   assert.equal(userInfoDown.calls.length, 1);
 
