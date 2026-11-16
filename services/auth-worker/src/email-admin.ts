@@ -2,7 +2,7 @@ import type { AuthWorkerEnv } from "./env";
 import { decryptEmailSecret, encryptEmailSecret } from "./email-secret.mjs";
 import { isAllowedOrigin } from "./security.mjs";
 import { getEmailAdminAllowedOrigins } from "./cors-origins.mjs";
-import { EmailProviderDeliveryError, sendEmailWithProvider } from "./email-providers.mjs";
+import { EmailProviderDeliveryError, normalizeCustomHttpConfig, sendEmailWithProvider } from "./email-providers.mjs";
 import {
   BetterAuthAdminAuthError,
   isBetterAuthTokenForIssuer,
@@ -11,13 +11,15 @@ import {
 import { readEmailVerificationPolicy } from "./auth-runtime-settings";
 
 type SupabaseAdminUser = { id: string; email: string };
-type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend";
+type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend" | "custom_http";
 type EmailAccountRow = {
   id: string;
   label: string;
   provider: EmailProvider;
   sender_address: string;
   sender_name: string;
+  endpoint_url: string | null;
+  auth_mode: string | null;
   credentials_ciphertext: string;
   quota_hour_limit: number;
   quota_day_limit: number;
@@ -33,6 +35,8 @@ type PublicEmailAccount = {
   provider: EmailProvider;
   senderAddress: string;
   senderName: string;
+  endpointUrl: string | null;
+  authMode: string | null;
   credentialConfigured: boolean;
   enabled: boolean;
   priority: number;
@@ -189,7 +193,7 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
 }
 
 
-const PROVIDERS = ["sendpulse", "brevo", "mailjet", "mailtrap", "resend"] as const;
+const PROVIDERS = ["sendpulse", "brevo", "mailjet", "mailtrap", "resend", "custom_http"] as const;
 const DEFAULT_QUOTAS: Record<EmailProvider, { hour: number; day: number; month: number }> = {
   sendpulse: { hour: 50, day: 400, month: 0 },
   brevo: { hour: 0, day: 300, month: 0 },
@@ -199,7 +203,7 @@ const DEFAULT_QUOTAS: Record<EmailProvider, { hour: number; day: number; month: 
 };
 
 function providerName(provider: EmailProvider): string {
-  return ({ sendpulse: "SendPulse", brevo: "Brevo", mailjet: "Mailjet", mailtrap: "Mailtrap", resend: "Resend" })[provider];
+  return ({ sendpulse: "SendPulse", brevo: "Brevo", mailjet: "Mailjet", mailtrap: "Mailtrap", resend: "Resend", custom_http: "Custom HTTP" })[provider];
 }
 
 function parseCredentials(value: string): Record<string, string> {
@@ -298,7 +302,7 @@ async function listSettings(env: AuthWorkerEnv): Promise<Response> {
       "SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id = 1",
     ).first<{ auto_failover_enabled: number }>(),
     env.DB.prepare(
-      "SELECT id, label, provider, sender_address, sender_name, " +
+      "SELECT id, label, provider, sender_address, sender_name, endpoint_url, auth_mode, " +
       "CASE WHEN length(credentials_ciphertext) > 0 THEN 1 ELSE 0 END AS credential_configured, " +
       "enabled, priority, quota_hour_limit, quota_day_limit, quota_month_limit, " +
       "CASE WHEN hour_bucket = strftime('%Y%m%d%H','now') THEN hour_used ELSE 0 END AS hour_used, " +
@@ -308,7 +312,7 @@ async function listSettings(env: AuthWorkerEnv): Promise<Response> {
       "FROM auth_email_provider_accounts ORDER BY priority ASC, created_at ASC",
     ).all<{
       id: string; label: string; provider: EmailProvider; sender_address: string; sender_name: string;
-      credential_configured: number; enabled: number; priority: number;
+      endpoint_url: string | null; auth_mode: string | null; credential_configured: number; enabled: number; priority: number;
       quota_hour_limit: number; quota_day_limit: number; quota_month_limit: number;
       hour_used: number; day_used: number; month_used: number;
       cooldown_until: string | null; last_error_code: string | null; last_error_at: string | null;
@@ -322,6 +326,8 @@ async function listSettings(env: AuthWorkerEnv): Promise<Response> {
     provider: row.provider,
     senderAddress: row.sender_address,
     senderName: row.sender_name,
+    endpointUrl: row.endpoint_url,
+    authMode: row.auth_mode,
     credentialConfigured: row.credential_configured === 1,
     enabled: row.enabled === 1,
     priority: row.priority,
@@ -363,35 +369,71 @@ async function saveAccount(body: Record<string, unknown>, user: SupabaseAdminUse
   }
 
   const existing = await env.DB.prepare(
-    "SELECT id, provider, credentials_ciphertext, priority, quota_hour_limit, quota_day_limit, quota_month_limit " +
+    "SELECT id, provider, credentials_ciphertext, endpoint_url, auth_mode, priority, quota_hour_limit, quota_day_limit, quota_month_limit " +
     "FROM auth_email_provider_accounts WHERE id = ?1",
   ).bind(id).first<{
-    id: string; provider: EmailProvider; credentials_ciphertext: string; priority: number;
-    quota_hour_limit: number; quota_day_limit: number; quota_month_limit: number;
+    id: string; provider: EmailProvider; credentials_ciphertext: string; endpoint_url: string | null;
+    auth_mode: string | null; priority: number; quota_hour_limit: number;
+    quota_day_limit: number; quota_month_limit: number;
   }>();
   if (body.id && !existing) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
 
-  const hasCredentialPayload = Object.hasOwn(body, "credentials");
-  let credentials = normalizeCredentials(provider, body.credentials);
+  let credentials: Record<string, string> | null = null;
   let ciphertext = existing?.credentials_ciphertext ?? "";
-  if (hasCredentialPayload && !credentials) {
-    return json({ ok: false, error: "INVALID_EMAIL_PROVIDER_CREDENTIAL" }, 422);
-  }
-  if (credentials) {
+  let endpointUrl: string | null = null;
+  let authMode: string | null = null;
+
+  if (provider === "custom_http") {
+    let previous: Record<string, string> = {};
+    if (existing?.provider === "custom_http" && existing.credentials_ciphertext) {
+      try {
+        previous = parseCredentials(await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, existing.credentials_ciphertext));
+      } catch {
+        return json({ ok: false, error: "EMAIL_ACCOUNT_SECRET_UNAVAILABLE" }, 503);
+      }
+    }
+    const rawConfig = body.customConfig && typeof body.customConfig === "object" &&
+      !Array.isArray(body.customConfig) ? body.customConfig as Record<string, unknown> : {};
+    const merged: Record<string, string> = { ...previous };
+    for (const key of [
+      "endpointUrl", "authMode", "authHeaderName", "authPrefix",
+      "apiKey", "username", "password", "extraHeadersJson", "payloadTemplateJson",
+    ]) {
+      if (typeof rawConfig[key] === "string" && (rawConfig[key] as string).trim()) {
+        merged[key] = (rawConfig[key] as string).trim();
+      }
+    }
     try {
+      credentials = normalizeCustomHttpConfig(merged);
+      endpointUrl = credentials.endpointUrl;
+      authMode = credentials.authMode;
       ciphertext = await encryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, JSON.stringify(credentials));
-    } catch {
-      return json({ ok: false, error: "EMAIL_SECRET_ENCRYPTION_FAILED" }, 503);
+    } catch (error) {
+      const code = error instanceof Error && /^EMAIL_CUSTOM_/.test(error.message)
+        ? error.message : "EMAIL_PROVIDER_CREDENTIAL_REQUIRED";
+      return json({ ok: false, error: code }, 422);
     }
   } else {
-    if (!existing || existing.provider !== provider || !existing.credentials_ciphertext) {
-      return json({ ok: false, error: "EMAIL_PROVIDER_CREDENTIAL_REQUIRED" }, 422);
+    credentials = normalizeCredentials(provider, body.credentials);
+    if (Object.hasOwn(body, "credentials") && !credentials) {
+      return json({ ok: false, error: "INVALID_EMAIL_PROVIDER_CREDENTIAL" }, 422);
     }
-    try {
-      const plaintext = await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, existing.credentials_ciphertext);
-      credentials = parseCredentials(plaintext);
-    } catch {
-      return json({ ok: false, error: "EMAIL_ACCOUNT_SECRET_UNAVAILABLE" }, 503);
+    if (credentials) {
+      try {
+        ciphertext = await encryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, JSON.stringify(credentials));
+      } catch {
+        return json({ ok: false, error: "EMAIL_SECRET_ENCRYPTION_FAILED" }, 503);
+      }
+    } else {
+      if (!existing || existing.provider !== provider || !existing.credentials_ciphertext) {
+        return json({ ok: false, error: "EMAIL_PROVIDER_CREDENTIAL_REQUIRED" }, 422);
+      }
+      try {
+        const plaintext = await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, existing.credentials_ciphertext);
+        credentials = parseCredentials(plaintext);
+      } catch {
+        return json({ ok: false, error: "EMAIL_ACCOUNT_SECRET_UNAVAILABLE" }, 503);
+      }
     }
   }
 
@@ -406,15 +448,16 @@ async function saveAccount(body: Record<string, unknown>, user: SupabaseAdminUse
   const now = new Date().toISOString();
   const result = await env.DB.prepare(
     "INSERT INTO auth_email_provider_accounts " +
-    "(id,label,provider,sender_address,sender_name,credentials_ciphertext,enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,created_at,updated_at,created_by,updated_by) " +
-    "VALUES (?1,?2,?3,?4,?5,?6,1,?7,?8,?9,?10,?11,?11,?12,?12) " +
+    "(id,label,provider,sender_address,sender_name,endpoint_url,auth_mode,credentials_ciphertext,enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,created_at,updated_at,created_by,updated_by) " +
+    "VALUES (?1,?2,?3,?4,?5,?6,?7,?8,1,?9,?10,?11,?12,?13,?13,?14,?14) " +
     "ON CONFLICT(id) DO UPDATE SET label=excluded.label,provider=excluded.provider,sender_address=excluded.sender_address," +
-    "sender_name=excluded.sender_name,credentials_ciphertext=excluded.credentials_ciphertext,priority=excluded.priority," +
+    "sender_name=excluded.sender_name,endpoint_url=excluded.endpoint_url,auth_mode=excluded.auth_mode," +
+    "credentials_ciphertext=excluded.credentials_ciphertext,priority=excluded.priority," +
     "quota_hour_limit=excluded.quota_hour_limit,quota_day_limit=excluded.quota_day_limit,quota_month_limit=excluded.quota_month_limit," +
     "last_error_code=CASE WHEN auth_email_provider_accounts.provider <> excluded.provider THEN NULL ELSE auth_email_provider_accounts.last_error_code END," +
     "cooldown_until=CASE WHEN auth_email_provider_accounts.provider <> excluded.provider THEN NULL ELSE auth_email_provider_accounts.cooldown_until END," +
     "updated_at=excluded.updated_at,updated_by=excluded.updated_by",
-  ).bind(id,label,provider,senderAddress,senderName,ciphertext,priority,hour,day,month,now,user.id).run();
+  ).bind(id,label,provider,senderAddress,senderName,endpointUrl,authMode,ciphertext,priority,hour,day,month,now,user.id).run();
   if (!result.success) return json({ ok: false, error: "EMAIL_ACCOUNT_SAVE_FAILED" }, 500);
   return listSettings(env);
 }
