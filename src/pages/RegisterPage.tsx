@@ -33,16 +33,16 @@ export function RegisterPage(){
  const { register, toast } = useApp(); const fileRef=useRef<HTMLInputElement>(null); const [step,setStep]=useState(1); const [loading,setLoading]=useState(false); const [socialLoading,setSocialLoading]=useState<RegisterSocialProvider|null>(null); const [photoFile,setPhotoFile]=useState<File|null>(null); const [photoPreview,setPhotoPreview]=useState<string>('');
  const betterAuthPreview = isBetterAuthEnabled();
  const [emailVerificationConfigured,setEmailVerificationConfigured]=useState<boolean|null>(null);
- const [emailVerificationRequired,setEmailVerificationRequired]=useState(true);
+ const [emailVerificationRequired,setEmailVerificationRequired]=useState(true); const [socialProviders,setSocialProviders]=useState<RegisterSocialProvider[]>([]);
  const [showPw,setShowPw]=useState(false);const [showConfirmPw,setShowConfirmPw]=useState(false);const [form,setForm]=useState({email:'',password:'',confirmPassword:'',role:'pelajar' as Exclude<Role,'admin'>,displayName:'',username:'',birthDate:'',school:'',educationLevel:'' as EducationLevel|'',favoriteCategories:[] as CompetitionCategory[]});
  useEffect(()=>{return()=>{if(photoPreview)URL.revokeObjectURL(photoPreview)}},[photoPreview]);
  useEffect(()=>{
   if(!betterAuthPreview) return;
   let active=true;
   const client=getStagingBetterAuthClient();
-  void Promise.all([client.getEmailVerificationConfigured(),client.getEmailVerificationRequired()])
-    .then(([ready,required])=>{if(active){setEmailVerificationConfigured(ready);setEmailVerificationRequired(required)}})
-    .catch(()=>{if(active){setEmailVerificationConfigured(false);setEmailVerificationRequired(true)}});
+  void Promise.all([client.getAvailableSocialProviders(),client.getEmailVerificationConfigured(),client.getEmailVerificationRequired()])
+    .then(([providers,ready,required])=>{if(active){setSocialProviders(providers.filter((provider):provider is RegisterSocialProvider=>provider==='google'||provider==='github'));setEmailVerificationConfigured(ready);setEmailVerificationRequired(required)}})
+    .catch(()=>{if(active){setSocialProviders([]);setEmailVerificationConfigured(false);setEmailVerificationRequired(true)}});
   return ()=>{active=false};
  },[betterAuthPreview]);
  const set=(k:keyof typeof form,v:any)=>setForm(f=>({...f,[k]:v}));
@@ -81,9 +81,9 @@ export function RegisterPage(){
    }
  }catch(error:any){toast(error?.message||'Pendaftaran gagal.','error')}finally{setLoading(false)}};
  return <div className="min-h-screen flex flex-col"><header className="px-4 h-16 flex items-center justify-between border-b surface-border"><Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white"/></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-accent">.id</span></span></Link><Link to={loginTo} className="text-sm text-slate-400">{text('Sudah punya akun?','Already have an account?')} <span className="text-accent">{text('Masuk','Sign in')}</span></Link></header><div className="flex-1 flex items-center justify-center px-4 py-10"><div className="w-full max-w-md"><div className="flex gap-2 mb-8">{[1,2,3].map(s=><div key={s} className="flex-1 h-1.5 rounded-full surface-elevated overflow-hidden"><div className={`h-full ${s<=step?'gradient-moss w-full':'w-0'}`}/></div>)}</div>
- {step===1&&<div className="card p-6"><h1 className="font-display font-bold text-2xl text-fg">{text('Buat Akun','Create an Account')}</h1><p className="text-sm text-slate-400 mt-1">{text('Akun dibuat terlebih dahulu sebelum media diupload.','Create the account first before uploading media.')}</p>{betterAuthPreview && emailVerificationRequired && emailVerificationConfigured === false && <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">{text('Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi. Akun baru tidak akan dibuat sampai layanan ini siap.','Staging registration is paused because verification email delivery is not configured. No new account will be created until it is ready.')}</p>}{betterAuthPreview && <>
+ {step===1&&<div className="card p-6"><h1 className="font-display font-bold text-2xl text-fg">{text('Buat Akun','Create an Account')}</h1><p className="text-sm text-slate-400 mt-1">{text('Akun dibuat terlebih dahulu sebelum media diupload.','Create the account first before uploading media.')}</p>{betterAuthPreview && emailVerificationRequired && emailVerificationConfigured === false && <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">{text('Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi. Akun baru tidak akan dibuat sampai layanan ini siap.','Staging registration is paused because verification email delivery is not configured. No new account will be created until it is ready.')}</p>}{betterAuthPreview && socialProviders.length > 0 && <>
  <div className="mt-5 grid grid-cols-1 gap-2">
- {(['google','github'] as const).map(provider=><Button key={provider} type="button" variant="outline" fullWidth loading={socialLoading===provider} disabled={socialLoading!==null&&socialLoading!==provider} onClick={()=>void handleSocialRegister(provider)} className="justify-center">
+ {socialProviders.map(provider=><Button key={provider} type="button" variant="outline" fullWidth loading={socialLoading===provider} disabled={socialLoading!==null&&socialLoading!==provider} onClick={()=>void handleSocialRegister(provider)} className="justify-center">
   <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">{provider==='google'?'G':'GH'}</span>
   {text('Daftar dengan ','Sign up with ')}{provider==='google'?'Google / Gmail':'GitHub'}
  </Button>)}
