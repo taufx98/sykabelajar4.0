@@ -6,6 +6,184 @@ const ENDPOINTS = {
   resend: "https://api.resend.com/emails",
 };
 
+
+
+const CUSTOM_PLACEHOLDERS = new Set(["from.email", "from.name", "to", "subject", "text", "action"]);
+const FORBIDDEN_CUSTOM_HEADERS = new Set([
+  "authorization", "connection", "content-length", "content-type", "cookie",
+  "host", "origin", "referer", "set-cookie", "transfer-encoding", "upgrade",
+]);
+const DEFAULT_CUSTOM_PAYLOAD = JSON.stringify({
+  from: { email: "{{from.email}}", name: "{{from.name}}" },
+  to: [{ email: "{{to}}" }],
+  subject: "{{subject}}",
+  text: "{{text}}",
+  action: "{{action}}",
+}, null, 2);
+
+function safeCustomEndpoint(value) {
+  let url;
+  try { url = new URL(required(value)); } catch { throw new Error("EMAIL_CUSTOM_ENDPOINT_INVALID"); }
+  const host = url.hostname.toLowerCase();
+  const ipv4 = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(host);
+  const blockedSuffixes = [".localhost", ".local", ".internal", ".lan", ".home", ".home.arpa", ".test", ".invalid", ".example"];
+  if (
+    url.protocol !== "https:" || !host.includes(".") || host.endsWith(".") ||
+    host.includes(":") || host.includes("[") || ipv4 ||
+    host === "localhost" || blockedSuffixes.some((suffix) => host.endsWith(suffix)) ||
+    url.username || url.password || url.search || url.hash ||
+    (url.port && url.port !== "443")
+  ) throw new Error("EMAIL_CUSTOM_ENDPOINT_INVALID");
+  return url.toString();
+}
+
+function safeCustomHeaderName(value) {
+  return /^[!#$%&'*+.^_|~0-9A-Za-z-]{1,80}$/.test(value) &&
+    !FORBIDDEN_CUSTOM_HEADERS.has(value.toLowerCase());
+}
+
+function parseCustomPayloadTemplate(value) {
+  if (value.length > 12000) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+  let parsed;
+  try { parsed = JSON.parse(value); } catch { throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID"); }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+  }
+  const used = new Set();
+  function visit(item, depth) {
+    if (depth > 8) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+    if (typeof item === "string") {
+      const tokens = item.match(/\{\{[^{}]+\}\}/g) ?? [];
+      for (const token of tokens) {
+        const name = token.slice(2, -2).trim();
+        if (!CUSTOM_PLACEHOLDERS.has(name)) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+        used.add(name);
+      }
+      if (item.includes("{{") && tokens.length === 0) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+      return;
+    }
+    if (Array.isArray(item)) {
+      if (item.length > 100) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+      item.forEach((entry) => visit(entry, depth + 1));
+      return;
+    }
+    if (item && typeof item === "object") {
+      for (const [key, entry] of Object.entries(item)) {
+        if (/authorization|api.?key|secret|password|credential|access.?token/i.test(key)) {
+          throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+        }
+        visit(entry, depth + 1);
+      }
+      return;
+    }
+    if (item !== null && !["number", "boolean"].includes(typeof item)) {
+      throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+    }
+  }
+  visit(parsed, 0);
+  for (const requiredToken of ["to", "subject", "text"]) {
+    if (!used.has(requiredToken)) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
+  }
+  return /** @type {Record<string, unknown>} */ (parsed);
+}
+
+/**
+ * Validate the custom JSON HTTP adapter. The returned object is encrypted
+ * as a single bundle by the caller; it is never exposed by the Admin GET API.
+ * @param {Record<string, string>} input
+ * @returns {Record<string, string>}
+ */
+export function normalizeCustomHttpConfig(input) {
+  const endpointUrl = safeCustomEndpoint(input.endpointUrl);
+  const authMode = required(input.authMode) || "bearer";
+  if (!["none", "bearer", "api_key", "basic"].includes(authMode)) {
+    throw new Error("EMAIL_CUSTOM_AUTH_INVALID");
+  }
+  const authHeaderName = required(input.authHeaderName) || "X-API-Key";
+  const authPrefix = required(input.authPrefix);
+  if ((authMode === "api_key" && !safeCustomHeaderName(authHeaderName)) ||
+      authPrefix.length > 32 || /[\r\n]/.test(authPrefix)) {
+    throw new Error("EMAIL_CUSTOM_AUTH_INVALID");
+  }
+
+  const apiKey = required(input.apiKey);
+  const username = required(input.username);
+  const password = required(input.password);
+  if ((authMode === "bearer" || authMode === "api_key") &&
+      (apiKey.length < 16 || apiKey.length > 4096)) {
+    throw new Error("EMAIL_CUSTOM_CREDENTIAL_REQUIRED");
+  }
+  if (authMode === "basic" &&
+      (!username || username.length > 512 || password.length < 8 || password.length > 4096)) {
+    throw new Error("EMAIL_CUSTOM_CREDENTIAL_REQUIRED");
+  }
+
+  const extraHeadersJson = required(input.extraHeadersJson) || "{}";
+  let extraHeaders;
+  try { extraHeaders = JSON.parse(extraHeadersJson); } catch {
+    throw new Error("EMAIL_CUSTOM_HEADERS_INVALID");
+  }
+  if (!extraHeaders || typeof extraHeaders !== "object" || Array.isArray(extraHeaders) ||
+      Object.keys(extraHeaders).length > 16) {
+    throw new Error("EMAIL_CUSTOM_HEADERS_INVALID");
+  }
+  for (const [name, value] of Object.entries(extraHeaders)) {
+    if (!safeCustomHeaderName(name) || typeof value !== "string" ||
+        value.length > 1024 || /[\r\n]/.test(value)) {
+      throw new Error("EMAIL_CUSTOM_HEADERS_INVALID");
+    }
+  }
+
+  const payloadTemplateJson = required(input.payloadTemplateJson) || DEFAULT_CUSTOM_PAYLOAD;
+  parseCustomPayloadTemplate(payloadTemplateJson);
+  return {
+    endpointUrl, authMode, authHeaderName, authPrefix, apiKey,
+    username, password, extraHeadersJson: JSON.stringify(extraHeaders), payloadTemplateJson,
+  };
+}
+
+function replaceCustomTokens(value, replacements) {
+  if (typeof value === "string") {
+    const exact = /^\{\{([^{}]+)\}\}$/.exec(value);
+    if (exact) return replacements[exact[1].trim()] ?? "";
+    return value.replace(/\{\{([^{}]+)\}\}/g, (_match, key) => replacements[String(key).trim()] ?? "");
+  }
+  if (Array.isArray(value)) return value.map((item) => replaceCustomTokens(item, replacements));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      key, replaceCustomTokens(item, replacements),
+    ]));
+  }
+  return value;
+}
+
+function buildCustomHttpRequest(credentials, values, message) {
+  const config = normalizeCustomHttpConfig(credentials);
+  const headers = JSON.parse(config.extraHeadersJson);
+  if (config.authMode === "bearer") headers.authorization = "Bearer " + config.apiKey;
+  if (config.authMode === "api_key") {
+    headers[config.authHeaderName] = config.authPrefix
+      ? config.authPrefix + " " + config.apiKey
+      : config.apiKey;
+  }
+  if (config.authMode === "basic") {
+    headers.authorization = "Basic " + btoa(config.username + ":" + config.password);
+  }
+  const template = parseCustomPayloadTemplate(config.payloadTemplateJson);
+  const body = replaceCustomTokens(template, {
+    "from.email": values.senderAddress,
+    "from.name": values.senderName,
+    to: values.to,
+    subject: values.subject,
+    text: values.text,
+    action: required(message?.action) || "transactional",
+  });
+  return {
+    endpoint: config.endpointUrl,
+    init: jsonInit(headers, /** @type {Record<string, unknown>} */ (body)),
+  };
+}
+
 export class EmailProviderDeliveryError extends Error {
   /**
    * @param {string} code
@@ -46,16 +224,17 @@ function quotaError(body) {
 }
 
 /**
- * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"} provider
+ * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"|"custom_http"} provider
  * @param {typeof fetch} fetcher
  * @param {RequestInit} init
  * @returns {Promise<{result: Record<string, unknown> | null, bodyText: string}>}
  */
-async function request(provider, fetcher, init) {
+async function request(provider, fetcher, endpoint, init) {
   let response;
   try {
-    response = await fetcher(ENDPOINTS[provider], {
+    response = await fetcher(endpoint, {
       ...init,
+      redirect: "error",
       signal: AbortSignal.timeout(8000),
     });
   } catch {
@@ -132,8 +311,17 @@ function jsonInit(headers, body) {
 export async function sendEmailWithProvider(provider, credentials, account, message, fetcher = fetch) {
   const values = assertMessage(account, message);
   let init;
+  let endpoint = ENDPOINTS[provider];
 
-  if (provider === "sendpulse") {
+  if (provider === "custom_http") {
+    try {
+      const custom = buildCustomHttpRequest(credentials, values, message);
+      endpoint = custom.endpoint;
+      init = custom.init;
+    } catch (error) {
+      throw new EmailProviderDeliveryError(error instanceof Error ? error.message : "EMAIL_PROVIDER_CONFIGURATION_INCOMPLETE");
+    }
+  } else if (provider === "sendpulse") {
     const apiKey = required(credentials?.apiKey);
     if (!apiKey) throw new EmailProviderDeliveryError("EMAIL_PROVIDER_CONFIGURATION_INCOMPLETE");
     init = jsonInit({ authorization: "Bearer " + apiKey }, {
@@ -190,7 +378,7 @@ export async function sendEmailWithProvider(provider, credentials, account, mess
     throw new EmailProviderDeliveryError("EMAIL_PROVIDER_UNSUPPORTED");
   }
 
-  const { result, bodyText } = await request(provider, fetcher, init);
+  const { result, bodyText } = await request(provider, fetcher, endpoint, init);
   if (result && (result.result === false || result.success === false)) {
     if (quotaError(bodyText)) {
       throw new EmailProviderDeliveryError("EMAIL_PROVIDER_QUOTA_REACHED", {
@@ -208,6 +396,10 @@ export async function sendEmailWithProvider(provider, credentials, account, mess
   if (provider === "mailtrap") {
     messageId = Array.isArray(result?.message_ids) && typeof result.message_ids[0] === "string"
       ? result.message_ids[0] : null;
+  }
+  if (provider === "custom_http") {
+    if (typeof result?.id === "string") messageId = result.id;
+    else if (typeof result?.messageId === "string") messageId = result.messageId;
   }
   if (provider === "mailjet") {
     const first = Array.isArray(result?.Messages) ? result.Messages[0] : null;
