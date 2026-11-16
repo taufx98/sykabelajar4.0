@@ -304,11 +304,14 @@ console.log("Better Auth frontend transport contract passed; Supabase Auth remai
 
 assert.match(loginPage, /google: 'Google \/ Gmail'/);
 assert.match(loginPage, /github: 'GitHub'/);
-assert.match(loginPage, /provider === 'github' \? 'GH'/);
+assert.match(loginPage, /<Github size=\{18\} strokeWidth=\{2\.2\} aria-hidden="true" \/>/);
+assert.match(loginPage, /fill="#4285F4"/);
+assert.doesNotMatch(loginPage, /Lanjutkan dengan /);
 assert.match(registerPage, /handleSocialRegister/);
 assert.match(registerPage, /\{betterAuthPreview && socialProviders\.length > 0 && <>/);
-assert.match(registerPage, /Daftar dengan /);
-assert.match(registerPage, /provider==='google'\?'G':'GH'/);
+assert.match(registerPage, /fill="#4285F4"/);
+assert.match(registerPage, /<Github size=\{18\} strokeWidth=\{2\.2\} aria-hidden="true" \/>/);
+assert.doesNotMatch(registerPage, /Daftar dengan /);
 assert.match(client, /provider === 'google' \|\| provider === 'github'/);
 
 
