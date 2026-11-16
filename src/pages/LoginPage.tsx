@@ -122,11 +122,16 @@ export function LoginPage() {
           'If that address has an unverified account, a verification link will be sent.',
         ), 'success');
       }
-    } catch {
-      // Keep the response indistinguishable for unknown, verified and rate-limited addresses.
-      toast(betterAuthPreview
-        ? text('Jika email tersebut memiliki akun yang belum diverifikasi, kode verifikasi akan dikirim.', 'If that address has an unverified account, a verification code will be sent.')
-        : text('Jika email tersebut memiliki akun yang belum diverifikasi, tautan verifikasi akan dikirim.', 'If that address has an unverified account, a verification link will be sent.'), 'success');
+    } catch (error: unknown) {
+      // Do not claim delivery when the Worker/provider rejected the request.
+      // BetterAuthClientError.message is a sanitized stable code; only expose
+      // uppercase identifiers, never raw provider responses or credentials.
+      const rawCode = error instanceof Error ? error.message : '';
+      const safeCode = /^[A-Z0-9_]{2,80}$/.test(rawCode) ? rawCode : 'AUTH_REQUEST_FAILED';
+      toast(text(
+        'Kode verifikasi gagal diminta. Kode error: ' + safeCode,
+        'Could not request a verification code. Error code: ' + safeCode,
+      ), 'error');
     } finally {
       setVerificationLoading(false);
     }
