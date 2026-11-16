@@ -28,6 +28,9 @@ test("remote D1 schema migration has one exact guarded push marker and manual fa
   assert.match(workflow, /e2a7a59e026c59f190076765f294878856cc7b3413a3741cc58055b7d1ca4297/);
   assert.match(workflow, /f0bf29fcaebf416ddcdb3758000dc1fbecce7b7ee6be5bbd2e6e10e17755a158/);
   assert.match(workflow, /dcc1d9a18aff172a04305f932a8c4066393343fe8feb274421203cafb342bbe2/);
+  assert.match(workflow, /fc51689b68c4750d1f2e0592c27e4a15e6c3acaab0e89e40e51e63e6890d2d71/);
+  assert.match(workflow, /0011_add_github_social_provider\.sql/);
+  assert.match(workflow, /separately authorized and recorded/);
 });
 
 test("workflow is hard-bound to the known isolated D1 name and UUID", () => {
@@ -53,6 +56,7 @@ test("workflow applies only the reviewed D1 migration directory remotely", () =>
     "0008_add_staging_oauth_callback.sql",
     "0009_auth_runtime_settings.sql",
     "0010_multi_provider_email_routing.sql",
+    "0011_add_github_social_provider.sql",
   ]) {
     assert.ok(workflow.includes(file), "missing migration guard for " + file);
   }
