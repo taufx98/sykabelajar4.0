@@ -162,6 +162,13 @@ assert.match(authService, /getStagingBetterAuthClient\(\)\.sendVerificationOtp\(
 assert.match(authService, /supabase\.auth\.resend\(\{[\s\S]*?type: 'signup'[\s\S]*?emailRedirectTo: destination/);
 assert.match(loginPage, /sendVerificationEmail/);
 assert.match(loginPage, /handleResendVerification/);
+const resendHandler = loginPage.slice(
+  loginPage.indexOf("const handleResendVerification"),
+  loginPage.indexOf("const handleReset", loginPage.indexOf("const handleResendVerification")),
+);
+assert.match(resendHandler, /safeCode/);
+assert.match(resendHandler, /Kode verifikasi gagal diminta/);
+assert.doesNotMatch(resendHandler, /If that address has an unverified account, a verification code will be sent\.[\s\S]*'success'/);
 assert.match(loginPage, /EMAIL_VERIFICATION_REQUIRED\|EMAIL_NOT_VERIFIED\|EMAIL_NOT_CONFIRMED/);
 assert.match(loginPage, /If that address has an unverified account, a verification link will be sent\./);
 assert.match(registerPage, /isBetterAuthEnabled\(\)/);
