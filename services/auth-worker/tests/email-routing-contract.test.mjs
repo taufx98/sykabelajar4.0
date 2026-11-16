@@ -35,6 +35,16 @@ test("only definitive quota or credential rejection may trigger cross-provider f
   assert.match(adminSource, /EMAIL_PROVIDER_CREDENTIAL_REJECTED/);
 });
 
+test("the active legacy ZeptoMail/Brevo Agent remains a recovery fallback", () => {
+  assert.match(emailSource, /FROM auth_email_settings s JOIN auth_email_accounts a ON a\.id = s\.active_account_id/);
+  assert.match(emailSource, /decryptEmailSecret\([\s\S]*?row\.send_mail_token_ciphertext/);
+  assert.match(emailSource, /sendZeptoMail\(/);
+  assert.match(emailSource, /sendEmailWithProvider\("brevo"/);
+  assert.match(emailSource, /return Boolean\(await readLegacyEmailAccount\(env\)\)/);
+  assert.match(emailSource, /if \(accounts\.length === 0\) return sendLegacyEmail\(env, message\)/);
+  assert.match(emailSource, /Never use it after an ambiguous timeout\/network\/5xx outcome/);
+});
+
 test("verification readiness requires an enabled provider with a decryptable credential", () => {
   const readiness = emailSource.slice(
     emailSource.indexOf("export async function isAuthEmailVerificationConfigured"),
