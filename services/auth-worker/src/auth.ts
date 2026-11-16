@@ -50,10 +50,13 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
   // remain the only supported fallback.
   const managed = managedSocialConfig?.managedMode === true;
   const google = managed ? managedSocialConfig?.providers.google : undefined;
+  const github = managed ? managedSocialConfig?.providers.github : undefined;
   const facebook = managed ? managedSocialConfig?.providers.facebook : undefined;
   const twitter = managed ? managedSocialConfig?.providers.twitter : undefined;
   const googleClientId = managed ? google?.clientId : env.GOOGLE_CLIENT_ID?.trim();
   const googleClientSecret = managed ? google?.clientSecret : env.GOOGLE_CLIENT_SECRET?.trim();
+  const githubClientId = managed ? github?.clientId : env.GITHUB_CLIENT_ID?.trim();
+  const githubClientSecret = managed ? github?.clientSecret : env.GITHUB_CLIENT_SECRET?.trim();
   const facebookClientId = managed ? facebook?.clientId : env.FACEBOOK_CLIENT_ID?.trim();
   const facebookClientSecret = managed ? facebook?.clientSecret : env.FACEBOOK_CLIENT_SECRET?.trim();
   const twitterClientId = managed ? twitter?.clientId : env.TWITTER_CLIENT_ID?.trim();
@@ -61,6 +64,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
 
   for (const [provider, clientId, clientSecret] of [
     ["GOOGLE", googleClientId, googleClientSecret],
+    ["GITHUB", githubClientId, githubClientSecret],
     ["FACEBOOK", facebookClientId, facebookClientSecret],
     ["TWITTER", twitterClientId, twitterClientSecret],
   ] as const) {
@@ -77,6 +81,18 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
           google: {
             clientId: googleClientId,
             clientSecret: googleClientSecret,
+            disableSignUp: signupDisabled,
+            disableImplicitSignUp: signupDisabled,
+            requireEmailVerification: emailVerificationRequired,
+          },
+        }
+      : {}),
+    ...(githubClientId && githubClientSecret
+      ? {
+          github: {
+            clientId: githubClientId,
+            clientSecret: githubClientSecret,
+            scope: ["read:user", "user:email"],
             disableSignUp: signupDisabled,
             disableImplicitSignUp: signupDisabled,
             requireEmailVerification: emailVerificationRequired,
