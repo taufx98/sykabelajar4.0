@@ -200,6 +200,7 @@ const DEFAULT_QUOTAS: Record<EmailProvider, { hour: number; day: number; month: 
   mailjet: { hour: 0, day: 200, month: 6000 },
   mailtrap: { hour: 0, day: 150, month: 4000 },
   resend: { hour: 0, day: 100, month: 3000 },
+  custom_http: { hour: 0, day: 0, month: 0 },
 };
 
 function providerName(provider: EmailProvider): string {
