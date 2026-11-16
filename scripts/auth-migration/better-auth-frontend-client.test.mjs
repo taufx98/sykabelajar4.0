@@ -320,7 +320,7 @@ assert.match(client, /provider === 'google' \|\| provider === 'github'/);
 // while email/password and social sign-in remain together on the right.
 const collectiveLoginIndex = loginPage.indexOf('Masuk Peserta Kolektif');
 const loginEmailIndex = loginPage.indexOf('id="login-email"');
-const loginSocialIndex = loginPage.indexOf('atau masuk dengan');
+const loginSocialIndex = loginPage.lastIndexOf('or continue with');
 assert.ok(collectiveLoginIndex >= 0 && loginEmailIndex > collectiveLoginIndex);
 assert.ok(loginSocialIndex > loginEmailIndex);
 assert.match(loginPage, /lg:grid-cols-\[minmax\(0,0\.92fr\)_minmax\(0,1\.08fr\)\]/);
