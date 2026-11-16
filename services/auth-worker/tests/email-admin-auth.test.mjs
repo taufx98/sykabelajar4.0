@@ -294,7 +294,7 @@ test("missing staging publishable key and unavailable UserInfo/role services fai
   const userInfoDown = makeFetch({ failUserInfo: true });
   await assert.rejects(
     resolveBetterAuthAdminIdentity(input({ fetchImpl: userInfoDown.fetchImpl })),
-    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_INVALID",
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_USERINFO_UNAVAILABLE",
   );
   assert.equal(userInfoDown.calls.length, 1);
 
