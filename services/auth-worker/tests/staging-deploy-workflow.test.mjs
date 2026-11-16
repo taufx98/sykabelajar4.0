@@ -120,7 +120,7 @@ test("hosted staging deploy smoke test validates public providers and locks both
   assert.match(workflow, /googleOAuthCredentialsConfigured: publicProviders\.providers\.includes\("google"\)/);
   assert.ok(workflow.includes("/api/admin/login-providers"));
   assert.match(workflow, /Admin provider settings must reject requests without a Better Auth resource token/);
-  assert.ok(workflow.includes('unauthenticatedAdminBody.error, "AUTH_REQUIRED"'));
+  assert.ok(workflow.includes('unauthenticatedAdminBody.error, "AUTH_BEARER_MISSING"'));
   assert.match(workflow, /Admin provider settings must reject untrusted browser origins/);
   assert.ok(workflow.includes("/api/admin/email-settings"));
   assert.match(workflow, /Admin email settings must reject requests without a Better Auth resource token/);
