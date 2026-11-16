@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { unblockChatUser } from '@/services/chat.service';
 import { getProfileBadges } from '@/services/badge.service';
 import { updateProfile as updateProfileRecord } from '@/services/profile.service';
+import { isBetterAuthEnabled, updatePassword as updateAccountPassword } from '@/services/auth.service';
 import type { ProfileBadge } from '@/components/profile/BadgeCard';
 
 const DEFAULT_MOBILE_NAV = ['home', 'myCompetitions', 'leaderboard', 'awards', 'chat'];
@@ -80,6 +81,7 @@ function SectionCard({ id, title, description, children }: { id?: string; title:
 
 export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: boolean }) {
   const { user, toast, refreshUser } = useApp();
+  const requiresCurrentPassword = isBetterAuthEnabled();
   const [showSocial, setShowSocial] = useState(true);
   const [showFollowing, setShowFollowing] = useState(true);
   const [showBadges, setShowBadges] = useState(true);
@@ -91,6 +93,7 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
   const [blocked, setBlocked] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -234,6 +237,10 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
       toast('Password baru dan konfirmasi wajib diisi.', 'error');
       return;
     }
+    if (requiresCurrentPassword && !currentPassword) {
+      toast('Password saat ini wajib diisi.', 'error');
+      return;
+    }
     if (password.length < 8) {
       toast('Password minimal 8 karakter.', 'error');
       return;
@@ -244,8 +251,8 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
     }
     setPasswordBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      await updateAccountPassword(password, requiresCurrentPassword ? currentPassword : undefined);
+      setCurrentPassword('');
       setPassword('');
       setPasswordConfirmation('');
       toast('Password berhasil diubah.', 'success');
@@ -344,9 +351,11 @@ export function ProfileInterfaceSettingsPage({ embedded = false }: { embedded?: 
 
           <SectionCard id="security" title="Keamanan" description="Kelola password akun yang sedang login.">
             <div className="grid gap-3 sm:grid-cols-2">
+              {requiresCurrentPassword && <label className="block"><span className="mb-1.5 block text-xs font-semibold text-fg">Password saat ini</span><div className="relative"><Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"/><input type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} disabled={passwordBusy} className="input w-full pl-9" placeholder="Masukkan password saat ini"/></div></label>}
               <label className="block"><span className="mb-1.5 block text-xs font-semibold text-fg">Password baru</span><div className="relative"><KeyRound size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"/><input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={passwordBusy} className="input w-full pl-9" placeholder="Minimal 8 karakter"/></div></label>
               <label className="block"><span className="mb-1.5 block text-xs font-semibold text-fg">Konfirmasi password</span><div className="relative"><Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"/><input type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(e) => setPasswordConfirmation(e.target.value)} disabled={passwordBusy} className="input w-full pl-9" placeholder="Ulangi password baru"/></div></label>
             </div>
+            {requiresCurrentPassword && <p className="mt-3 text-xs leading-relaxed text-fg-muted">Akun yang dibuat melalui Google, Facebook, atau X dan belum memiliki password perlu menggunakan alur “Lupa Password” di halaman masuk terlebih dahulu.</p>}
             <div className="mt-3 flex justify-end"><Button size="sm" onClick={() => void changePassword()} disabled={passwordBusy} icon={<ShieldCheck size={14}/>}>{passwordBusy ? 'Mengubah…' : 'Ubah Password'}</Button></div>
           </SectionCard>
 

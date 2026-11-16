@@ -1,0 +1,29 @@
+project_id = "sykabelajar-auth-local-ci"
+
+[api]
+enabled = true
+port = 54391
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54392
+shadow_port = 54390
+major_version = 17
+
+[studio]
+enabled = false
+
+[local_smtp]
+enabled = false
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+enable_signup = false
+
+[analytics]
+enabled = false

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Building2, Camera, Check, GraduationCap, School, User as UserIcon, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Camera, Check, GraduationCap, School, User as UserIcon, Eye, EyeOff, Github } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -8,9 +8,16 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { CATEGORY_LABELS, LEVEL_LABELS } from '@/data/catalog';
 import { uploadProfileImage } from '@/services/cloudinary.service';
 import { updateProfile } from '@/services/profile.service';
-import { supabase } from '@/lib/supabase';
+import { getSession as getAuthSession, isBetterAuthEnabled, signInWithSocial } from '@/services/auth.service';
+import { getStagingBetterAuthClient } from '@/services/betterAuthApi.client';
 import type { CompetitionCategory, EducationLevel, Role } from '@/types';
 import { isValidReferralId } from '@/lib/referralAttribution';
+import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
+import { getSocialAuthErrorCategory } from '@/services/betterAuthErrorCode.mjs';
+
+const MIN_PASSWORD_LENGTH = 8;
+type RegisterSocialProvider = 'google' | 'github';
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,39}$/;
 
 const ROLE_OPTIONS: { value: Exclude<Role,'admin'>; label:string; icon:typeof UserIcon }[]=[{value:'pelajar',label:'Pelajar',icon:UserIcon},{value:'guru',label:'Guru',icon:School},{value:'penyelenggara',label:'Penyelenggara',icon:Building2}];
 
@@ -18,30 +25,131 @@ export function RegisterPage(){
  const { language } = useLanguage();
  const text = (id: string, en: string) => language === 'en' ? en : id;
  const navigate = useNavigate();
- const [searchParams] = useSearchParams();
+ const [searchParams, setSearchParams] = useSearchParams();
  const requestedRedirect = searchParams.get('redirect') || '/home';
  const rawReferralCode = searchParams.get('ref')?.trim() ?? '';
  const referralCode = isValidReferralId(rawReferralCode) ? rawReferralCode : '';
- const redirectTo = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/home';
+ const redirectTo = resolveSafeInternalRedirect(requestedRedirect, window.location.origin);
  const loginTo = redirectTo === '/home' ? '/login' : `/login?redirect=${encodeURIComponent(redirectTo)}`;
- const { register, toast } = useApp(); const fileRef=useRef<HTMLInputElement>(null); const [step,setStep]=useState(1); const [loading,setLoading]=useState(false); const [photoFile,setPhotoFile]=useState<File|null>(null); const [photoPreview,setPhotoPreview]=useState<string>('');
+ const { register, toast } = useApp(); const fileRef=useRef<HTMLInputElement>(null); const [step,setStep]=useState(1); const [loading,setLoading]=useState(false); const [socialLoading,setSocialLoading]=useState<RegisterSocialProvider|null>(null); const [photoFile,setPhotoFile]=useState<File|null>(null); const [photoPreview,setPhotoPreview]=useState<string>('');
+ const betterAuthPreview = isBetterAuthEnabled();
+ const [emailVerificationConfigured,setEmailVerificationConfigured]=useState<boolean|null>(null);
+ const [emailVerificationRequired,setEmailVerificationRequired]=useState(true); const [socialProviders,setSocialProviders]=useState<RegisterSocialProvider[]>([]);
  const [showPw,setShowPw]=useState(false);const [showConfirmPw,setShowConfirmPw]=useState(false);const [form,setForm]=useState({email:'',password:'',confirmPassword:'',role:'pelajar' as Exclude<Role,'admin'>,displayName:'',username:'',birthDate:'',school:'',educationLevel:'' as EducationLevel|'',favoriteCategories:[] as CompetitionCategory[]});
  useEffect(()=>{return()=>{if(photoPreview)URL.revokeObjectURL(photoPreview)}},[photoPreview]);
+ useEffect(()=>{
+  if(!betterAuthPreview) return;
+  let active=true;
+  const client=getStagingBetterAuthClient();
+  void Promise.all([client.getAvailableSocialProviders(),client.getEmailVerificationConfigured(),client.getEmailVerificationRequired()])
+    .then(([providers,ready,required])=>{if(active){setSocialProviders(providers.filter((provider):provider is RegisterSocialProvider=>provider==='google'||provider==='github'));setEmailVerificationConfigured(ready);setEmailVerificationRequired(required)}})
+    .catch(()=>{if(active){setSocialProviders([]);setEmailVerificationConfigured(false);setEmailVerificationRequired(true)}});
+  return ()=>{active=false};
+ },[betterAuthPreview]);
+ useEffect(()=>{
+  if(searchParams.get('oauthError')!=='1') return;
+  const category=getSocialAuthErrorCategory(searchParams.get('error'));
+  const message=category==='account_not_linked'
+   ? text('Akun sosial ini belum terhubung ke akun SYKABELAJAR yang ada. Silakan masuk dengan metode akun yang sebelumnya digunakan.','This social account is not linked to an existing SYKABELAJAR account. Sign in with the method you used originally.')
+   : category==='cancelled'
+    ? text('Pendaftaran sosial dibatalkan. Kamu bisa mencoba lagi.','Social sign-up was cancelled. You can try again.')
+    : text('Pendaftaran dengan akun sosial belum berhasil. Silakan coba lagi atau gunakan email.','Social sign-up could not be completed. Please try again or use email.');
+  toast(message,'error');
+  const nextParams=new URLSearchParams(searchParams);
+  nextParams.delete('oauthError');
+  nextParams.delete('error');
+  nextParams.delete('error_description');
+  setSearchParams(nextParams,{replace:true});
+ },[searchParams,setSearchParams,toast,language]);
  const set=(k:keyof typeof form,v:any)=>setForm(f=>({...f,[k]:v}));
  const toggleCategory=(category:CompetitionCategory)=>setForm(f=>({...f,favoriteCategories:f.favoriteCategories.includes(category)?f.favoriteCategories.filter(x=>x!==category):[...f.favoriteCategories,category]}));
- const step1Valid=form.email.includes('@')&&form.password.length>=6&&form.password===form.confirmPassword;
- const step2Valid=!!form.displayName&&!!form.username&&!!form.birthDate&&!!form.school&&(form.role!=='pelajar'||!!form.educationLevel);
+ const step1Valid=form.email.includes('@')&&form.password.length>=MIN_PASSWORD_LENGTH&&form.password===form.confirmPassword;
+ const step2Valid=!!form.displayName&&USERNAME_PATTERN.test(form.username.trim())&&!!form.birthDate&&!!form.school&&(form.role!=='pelajar'||!!form.educationLevel);
  const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')||file.size>5*1024*1024){toast('Foto harus gambar dan maksimal 5MB.','error');return;}if(photoPreview)URL.revokeObjectURL(photoPreview);setPhotoFile(file);setPhotoPreview(URL.createObjectURL(file));e.target.value='';};
- const handleSubmit=async()=>{if(!form.favoriteCategories.length){toast('Pilih minimal 1 kategori lomba favorit.','error');return;}setLoading(true);try{
+ const handleSocialRegister=async(provider:RegisterSocialProvider)=>{
+   setSocialLoading(provider);
+   try{
+    await signInWithSocial(provider,'/auth/complete-profile?redirect='+encodeURIComponent(redirectTo),{
+     requestSignUp:true,
+     errorCallbackURL:'/register?oauthError=1',
+    });
+   } catch(error:unknown) {
+    const code=error instanceof Error?error.message:'';
+    const category=getSocialAuthErrorCategory(code);
+    toast(category==='account_not_linked'
+      ? text('Akun sosial ini belum terhubung. Silakan masuk dengan metode akun yang sebelumnya digunakan.','This social account is not linked. Please sign in with the method you used originally.')
+      : text('Pendaftaran dengan akun sosial belum berhasil. Coba lagi.','Social sign-up could not be completed. Please try again.'),'error');
+    setSocialLoading(null);
+   }
+ };
+ const handleSubmit=async()=>{
+   if(betterAuthPreview && emailVerificationRequired && emailVerificationConfigured !== true){
+     toast(text('Pendaftaran staging sementara ditutup sampai layanan pengiriman email verifikasi aktif.','Staging registration is paused until the verification email service is active.'),'info');
+     return;
+   }
+   if(!form.favoriteCategories.length){toast('Pilih minimal 1 kategori lomba favorit.','error');return;}setLoading(true);try{
    const result=await register({email:form.email,password:form.password,displayName:form.displayName,username:form.username,role:form.role,school:form.school,birthDate:form.birthDate,educationLevel:form.educationLevel||undefined,favoriteCategories:form.favoriteCategories,referralCode:referralCode||undefined});
    if(!result.ok){toast(result.error||'Pendaftaran gagal.','error');return;}
-   // Upload only after Supabase account creation has succeeded.
-   if(photoFile){const {data}=await supabase.auth.getSession(); if(data.session?.user){const up=await uploadProfileImage(photoFile,'profile',form.username);await updateProfile(data.session.user.id,{avatar_url:up.secure_url,avatar_public_id:up.public_id,avatar_width:up.width,avatar_height:up.height,avatar_version:up.version?String(up.version):null,avatar_resource_type:up.resource_type||'image'});}else{toast('Akun berhasil dibuat. Foto profil akan diunggah setelah konfirmasi email dan login pertama.','info');}}
-   toast('Pendaftaran berhasil. Silakan masuk.','success');navigate(loginTo);
+   // A disabled email-verification policy can create an immediate Better Auth session.
+   // Refresh the app shell after signup so its auth bridge hydrates that cookie.
+   let session=null;
+   try{session=await getAuthSession()}catch(error){if(!/EMAIL_VERIFICATION_REQUIRED|EMAIL_NOT_VERIFIED|EMAIL_NOT_CONFIRMED/i.test(error instanceof Error?error.message:''))throw error;}
+   if(photoFile && session?.user){const up=await uploadProfileImage(photoFile,'profile',form.username);await updateProfile(session.user.id,{avatar_url:up.secure_url,avatar_public_id:up.public_id,avatar_width:up.width,avatar_height:up.height,avatar_version:up.version?String(up.version):null,avatar_resource_type:up.resource_type||'image'});}
+   if (betterAuthPreview && emailVerificationRequired) {
+     if(photoFile && !session?.user) toast('Akun berhasil dibuat. Foto profil dapat diunggah setelah verifikasi email dan login pertama.','info');
+     toast('Akun berhasil dibuat. Kode verifikasi 6 digit sudah dikirim ke email.','info');
+     navigate('/auth/verified', { state: { email: form.email.trim().toLowerCase() } });
+   } else if (session?.user) {
+     toast('Pendaftaran berhasil. Kamu sudah masuk.','success');
+     window.location.replace(redirectTo);
+   } else {
+     toast('Pendaftaran berhasil. Silakan masuk.','success');
+     navigate(loginTo);
+   }
  }catch(error:any){toast(error?.message||'Pendaftaran gagal.','error')}finally{setLoading(false)}};
- return <div className="min-h-screen flex flex-col"><header className="px-4 h-16 flex items-center justify-between border-b surface-border"><Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white"/></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-accent">.id</span></span></Link><Link to={loginTo} className="text-sm text-slate-400">{text('Sudah punya akun?','Already have an account?')} <span className="text-accent">{text('Masuk','Sign in')}</span></Link></header><div className="flex-1 flex items-center justify-center px-4 py-10"><div className="w-full max-w-md"><div className="flex gap-2 mb-8">{[1,2,3].map(s=><div key={s} className="flex-1 h-1.5 rounded-full surface-elevated overflow-hidden"><div className={`h-full ${s<=step?'gradient-moss w-full':'w-0'}`}/></div>)}</div>
- {step===1&&<div className="card p-6"><h1 className="font-display font-bold text-2xl text-fg">{text('Buat Akun','Create an Account')}</h1><p className="text-sm text-slate-400 mt-1">{text('Akun dibuat terlebih dahulu sebelum media diupload.','Create the account first before uploading media.')}</p><div className="space-y-4 mt-6"><div><label className="label">{text('Email','Email')}</label><input className="input" type="email" value={form.email} onChange={e=>set('email',e.target.value)}/></div><div><label className="label">{text('Password','Password')}</label><div className="relative"><input className="input pr-10" type={showPw?"text":"password"} value={form.password} onChange={e=>set('password',e.target.value)}/><button type="button" onClick={()=>setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showPw?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div><div><label className="label">{text('Konfirmasi Password','Confirm password')}</label><div className="relative"><input className="input pr-10" type={showConfirmPw?"text":"password"} value={form.confirmPassword} onChange={e=>set('confirmPassword',e.target.value)}/><button type="button" onClick={()=>setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showConfirmPw?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div></div><Button fullWidth size="lg" className="mt-6" disabled={!step1Valid} onClick={()=>setStep(2)} icon={<ArrowRight size={18}/>}>{text('Lanjut','Continue')}</Button></div>}
- {step===2&&<div className="card p-6"><h1 className="font-display font-bold text-2xl text-fg">{text('Tentang Kamu','About You')}</h1><p className="text-sm text-slate-400 mt-1">{text('Role disimpan di backend Supabase.','Your role is saved by the Supabase backend.')}</p><div className="space-y-4 mt-6"><div><label className="label">{text('Saya adalah','I am a')}</label><div className="grid grid-cols-3 gap-2">{ROLE_OPTIONS.map(({value,label,icon:Icon})=><button key={value} type="button" onClick={()=>set('role',value)} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${form.role===value?'border-moss-500 bg-moss-500/10':'surface-border'}`}><Icon size={20}/><span className="text-xs">{label}</span></button>)}</div></div><div><label className="label">{text('Foto Profil','Profile photo')}</label><div className="flex items-center gap-4"><div className="relative">{photoPreview?<img src={photoPreview} alt="Preview" className="w-16 h-16 rounded-full object-cover"/>:<Avatar name={form.displayName||'U'} id="register-preview" size={64}/>}<button type="button" onClick={()=>fileRef.current?.click()} className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-moss-600 flex items-center justify-center border-2 border-ink-900"><Camera size={13}/></button></div><div><button type="button" onClick={()=>fileRef.current?.click()} className="text-xs text-accent">{photoFile?text('Ganti foto','Change photo'):text('Pilih foto (opsional)','Choose photo (optional)')}</button><p className="text-[10px] text-slate-600">{text('Preview lokal; upload setelah akun sukses.','Local preview; upload after the account is created.')}</p></div></div><input ref={fileRef} type="file" accept="image/*" onChange={choosePhoto} className="hidden"/></div><div><label className="label">{text('Nama Lengkap','Full name')}</label><input className="input" value={form.displayName} onChange={e=>set('displayName',e.target.value)}/></div><div><label className="label">Username</label><input className="input" value={form.username} onChange={e=>set('username',e.target.value.replace(/\s/g,'').toLowerCase())}/></div><div><label className="label">{text('Tanggal Lahir','Date of birth')}</label><input type="date" className="input" value={form.birthDate} onChange={e=>set('birthDate',e.target.value)}/></div><div><label className="label">{text('Sekolah / Institusi','School / Institution')}</label><input className="input" value={form.school} onChange={e=>set('school',e.target.value)}/></div>{form.role==='pelajar'&&<div><label className="label">{text('Jenjang','Education level')}</label><select className="input" value={form.educationLevel} onChange={e=>set('educationLevel',e.target.value as EducationLevel)}><option value="">{text('Pilih jenjang...','Choose an education level...')}</option>{Object.entries(LEVEL_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>}</div><div className="flex gap-2 mt-6"><Button variant="outline" onClick={()=>setStep(1)} icon={<ArrowLeft size={18}/>}>{text('Kembali','Back')}</Button><Button fullWidth disabled={!step2Valid} onClick={()=>setStep(3)}>{text('Lanjut','Continue')}</Button></div></div>}
- {step===3&&<div className="card p-6"><h1 className="font-display font-bold text-2xl text-fg">{text('Kategori Favorit','Favorite Categories')}</h1><p className="text-sm text-slate-400 mt-1">{text('Pilih minimal satu.','Choose at least one.')}</p><div className="grid grid-cols-2 gap-2 mt-6">{Object.entries(CATEGORY_LABELS).map(([key,label])=>{const selected=form.favoriteCategories.includes(key as CompetitionCategory);return <button key={key} onClick={()=>toggleCategory(key as CompetitionCategory)} className={`p-3 rounded-xl border text-sm flex items-center justify-between ${selected?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-fg-secondary'}`}>{label}{selected&&<Check size={16}/>}</button>})}</div><div className="flex gap-2 mt-6"><Button variant="outline" onClick={()=>setStep(2)} icon={<ArrowLeft size={18}/>}>{text('Kembali','Back')}</Button><Button fullWidth loading={loading} onClick={()=>void handleSubmit()} >{text('Buat Akun','Create Account')}</Button></div></div>}
- <p className="text-xs text-slate-600 text-center mt-4">{text('Admin hanya dapat diberikan manual melalui backend.','Admin access can only be assigned manually through the backend.') }</p></div></div></div>;
+ return <div className="min-h-screen flex flex-col">
+ <header className="px-4 h-16 flex items-center justify-between border-b surface-border">
+  <Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white"/></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-accent">.id</span></span></Link>
+  <Link to={loginTo} className="text-sm text-slate-400">{text('Sudah punya akun?','Already have an account?')} <span className="text-accent">{text('Masuk','Sign in')}</span></Link>
+ </header>
+ <main className="flex-1 flex items-center justify-center px-4 py-8 md:py-10">
+  <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[minmax(280px,0.82fr)_minmax(0,1.18fr)] gap-5 lg:gap-8 items-start">
+   <aside className="hidden lg:flex card p-8 flex-col justify-between min-h-[520px]">
+    <div>
+     <div className="w-12 h-12 rounded-2xl gradient-moss flex items-center justify-center mb-6"><GraduationCap size={24} className="text-white"/></div>
+     <h1 className="font-display font-bold text-3xl leading-tight text-fg">{text('Mulai perjalanan belajarmu.','Start your learning journey.')}</h1>
+     <p className="text-sm leading-relaxed text-slate-400 mt-3">{text('Buat akun SYKABELAJAR untuk mengikuti lomba, menemukan minat, dan mengembangkan kemampuanmu.','Create a SYKABELAJAR account to join competitions, discover your interests, and grow your skills.')}</p>
+    </div>
+    <div className="space-y-4 mt-8">
+     <div className="flex items-start gap-3"><span className="w-7 h-7 rounded-lg bg-moss-500/10 text-accent flex items-center justify-center shrink-0"><Check size={15}/></span><p className="text-sm text-slate-400">{text('Profil dan minat dapat dilengkapi bertahap saat pendaftaran.','Complete your profile and interests during signup.')}</p></div>
+     <div className="flex items-start gap-3"><span className="w-7 h-7 rounded-lg bg-moss-500/10 text-accent flex items-center justify-center shrink-0"><Check size={15}/></span><p className="text-sm text-slate-400">{text('Gunakan email atau akun Google/GitHub yang tersedia.','Use email or an available Google/GitHub account.')}</p></div>
+     <div className="flex items-start gap-3"><span className="w-7 h-7 rounded-lg bg-moss-500/10 text-accent flex items-center justify-center shrink-0"><Check size={15}/></span><p className="text-sm text-slate-400">{text('Data akun dan hak akses tetap diverifikasi oleh sistem.','Account data and access are still verified by the system.')}</p></div>
+    </div>
+   </aside>
+   <section className="w-full max-w-2xl min-w-0 mx-auto lg:max-w-none">
+    <div className="flex gap-2 mb-8">{[1,2,3].map(s=><div key={s} className="flex-1 h-1.5 rounded-full surface-elevated overflow-hidden"><div className={`h-full ${s<=step?'gradient-moss w-full':'w-0'}`}/></div>)}</div>
+    {step===1&&<div className="card p-6 md:p-7"><h1 className="font-display font-bold text-2xl text-fg">{text('Buat Akun','Create an Account')}</h1><p className="text-sm text-slate-400 mt-1">{text('Pilih cara mendaftar, lalu lengkapi informasi akunmu.','Choose how to sign up, then complete your account information.')}</p>{betterAuthPreview && emailVerificationRequired && emailVerificationConfigured === false && <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">{text('Pendaftaran staging sedang ditahan karena pengiriman email verifikasi belum dikonfigurasi. Akun baru tidak akan dibuat sampai layanan ini siap.','Staging registration is paused because verification email delivery is not configured. No new account will be created until it is ready.')}</p>}{betterAuthPreview && socialProviders.length > 0 && <>
+     <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {socialProviders.map(provider=><Button key={provider} type="button" variant="outline" fullWidth loading={socialLoading===provider} disabled={socialLoading!==null&&socialLoading!==provider} onClick={()=>void handleSocialRegister(provider)} className="justify-center">
+       <span className="mr-2 inline-flex h-5 w-5 items-center justify-center shrink-0" aria-hidden="true">
+        {provider === 'google' ? <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" focusable="false">
+         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.05 5.05 0 0 1-2.2 3.31v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.09Z" />
+         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.25 1.05-3.71 1.05-2.86 0-5.28-1.93-6.15-4.53H2.16v2.87A11 11 0 0 0 12 23Z" />
+         <path fill="#FBBC05" d="M5.85 14.09A6.6 6.6 0 0 1 5.5 12c0-.72.12-1.42.35-2.09V7.04H2.16A11 11 0 0 0 1 12c0 1.78.43 3.46 1.16 4.96l3.69-2.87Z" />
+         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.2 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.84 6.04l3.69 2.87C6.72 7.31 9.14 5.38 12 5.38Z" />
+        </svg> : <Github size={18} strokeWidth={2.2} aria-hidden="true" />}
+       </span>
+       {provider==='google'?'Google / Gmail':'GitHub'}
+      </Button>)}
+     </div>
+     <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{text('Setelah akun terhubung, kamu tetap akan melengkapi username, data pendidikan, dan minat sebelum masuk ke beranda. Akun sosial baru dibuat sebagai Pelajar.','After connecting your account, you will still complete your username, education details, and interests before entering the home page. New social accounts start as Student.')}</p>
+    </>}
+    <div className="space-y-4 mt-6"><div><label className="label" htmlFor="register-email">{text('Email','Email')}</label><input id="register-email" name="email" className="input" type="email" autoComplete="email" inputMode="email" value={form.email} onChange={e=>set('email',e.target.value)}/></div><div><label className="label" htmlFor="register-password">{text('Password','Password')}</label><div className="relative"><input id="register-password" name="password" className="input pr-10" type={showPw?"text":"password"} autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} value={form.password} onChange={e=>set('password',e.target.value)}/><button type="button" onClick={()=>setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showPw?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div><p className="text-xs text-slate-500 mt-1">{text('Gunakan minimal 8 karakter.','Use at least 8 characters.')}</p><div><label className="label" htmlFor="register-password-confirm">{text('Konfirmasi Password','Confirm password')}</label><div className="relative"><input id="register-password-confirm" name="confirmPassword" className="input pr-10" type={showConfirmPw?"text":"password"} autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} value={form.confirmPassword} onChange={e=>set('confirmPassword',e.target.value)}/><button type="button" onClick={()=>setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showConfirmPw?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div></div><Button fullWidth size="lg" className="mt-6" disabled={!step1Valid} onClick={()=>setStep(2)} icon={<ArrowRight size={18}/>}>{text('Lanjut','Continue')}</Button></div>}
+    {step===2&&<div className="card p-6 md:p-7"><h1 className="font-display font-bold text-2xl text-fg">{text('Tentang Kamu','About You')}</h1><p className="text-sm text-slate-400 mt-1">{text('Role disimpan di backend Supabase.','Your role is saved by the Supabase backend.')}</p><div className="space-y-4 mt-6"><div><label className="label">{text('Saya adalah','I am a')}</label><div className="grid grid-cols-3 gap-2" role="group" aria-label={text('Jenis akun','Account type')}>{ROLE_OPTIONS.map(({value,label,icon:Icon})=><button key={value} type="button" aria-pressed={form.role===value} onClick={()=>set('role',value)} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${form.role===value?'border-moss-500 bg-moss-500/10':'surface-border'}`}><Icon size={20}/><span className="text-xs">{label}</span></button>)}</div></div><div><label className="label">{text('Foto Profil','Profile photo')}</label><div className="flex items-center gap-4"><div className="relative">{photoPreview?<img src={photoPreview} alt="Preview" className="w-16 h-16 rounded-full object-cover"/>:<Avatar name={form.displayName||'U'} id="register-preview" size={64}/>}<button type="button" onClick={()=>fileRef.current?.click()} className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-moss-600 flex items-center justify-center border-2 border-ink-900"><Camera size={13}/></button></div><div><button type="button" onClick={()=>fileRef.current?.click()} className="text-xs text-accent">{photoFile?text('Ganti foto','Change photo'):text('Pilih foto (opsional)','Choose photo (optional)')}</button><p className="text-[10px] text-slate-600">{text('Preview lokal; upload setelah akun sukses.','Local preview; upload after the account is created.')}</p></div></div><input ref={fileRef} type="file" accept="image/*" onChange={choosePhoto} className="hidden"/></div><div><label className="label" htmlFor="register-full-name">{text('Nama Lengkap','Full name')}</label><input id="register-full-name" name="fullName" className="input" autoComplete="name" value={form.displayName} onChange={e=>set('displayName',e.target.value)}/></div><div><label className="label" htmlFor="register-username">Username</label><input id="register-username" name="username" className="input" autoComplete="username" value={form.username} onChange={e=>set('username',e.target.value.replace(/\s/g,'').toLowerCase())}/></div><p className="text-xs text-slate-500 mt-1">{form.username.length>0&&!USERNAME_PATTERN.test(form.username)?text('Username harus 3–40 karakter, diawali huruf kecil atau angka, dan hanya memakai huruf kecil, angka, titik, garis bawah, atau tanda hubung.','Username must be 3–40 characters, start with a lowercase letter or number, and use only lowercase letters, numbers, dots, underscores, or hyphens.'):text('Username 3–40 karakter.','Username must be 3–40 characters.')}</p><div><label className="label" htmlFor="register-birth-date">{text('Tanggal Lahir','Date of birth')}</label><input id="register-birth-date" name="birthDate" type="date" autoComplete="bday" className="input" value={form.birthDate} onChange={e=>set('birthDate',e.target.value)}/></div><div><label className="label" htmlFor="register-school">{text('Sekolah / Institusi','School / Institution')}</label><input id="register-school" name="school" className="input" autoComplete="organization" value={form.school} onChange={e=>set('school',e.target.value)}/></div>{form.role==='pelajar'&&<div><label className="label" htmlFor="register-education-level">{text('Jenjang','Education level')}</label><select id="register-education-level" name="educationLevel" className="input" value={form.educationLevel} onChange={e=>set('educationLevel',e.target.value as EducationLevel)}><option value="">{text('Pilih jenjang...','Choose an education level...')}</option>{Object.entries(LEVEL_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>}</div><div className="flex gap-2 mt-6"><Button variant="outline" onClick={()=>setStep(1)} icon={<ArrowLeft size={18}/>}>{text('Kembali','Back')}</Button><Button fullWidth disabled={!step2Valid} onClick={()=>setStep(3)}>{text('Lanjut','Continue')}</Button></div></div>}
+    {step===3&&<div className="card p-6 md:p-7"><h1 className="font-display font-bold text-2xl text-fg">{text('Kategori Favorit','Favorite Categories')}</h1><p className="text-sm text-slate-400 mt-1">{text('Pilih minimal satu.','Choose at least one.')}</p><div className="grid grid-cols-2 gap-2 mt-6" role="group" aria-label={text('Kategori lomba favorit','Favorite competition categories')}>{Object.entries(CATEGORY_LABELS).map(([key,label])=>{const selected=form.favoriteCategories.includes(key as CompetitionCategory);return <button key={key} onClick={()=>toggleCategory(key as CompetitionCategory)} className={`p-3 rounded-xl border text-sm flex items-center justify-between ${selected?'border-moss-500 bg-moss-500/10 text-accent':'surface-border text-fg-secondary'}`}>{label}{selected&&<Check size={16}/>}</button>})}</div><div className="flex gap-2 mt-6"><Button variant="outline" onClick={()=>setStep(2)} icon={<ArrowLeft size={18}/>}>{text('Kembali','Back')}</Button><Button fullWidth loading={loading} disabled={betterAuthPreview && emailVerificationRequired && emailVerificationConfigured !== true} onClick={()=>void handleSubmit()} >{text('Buat Akun','Create Account')}</Button></div></div>}
+    <p className="text-xs text-slate-600 text-center mt-4">{text('Admin hanya dapat diberikan manual melalui backend.','Admin access can only be assigned manually through the backend.')}</p>
+   </section>
+  </div>
+ </main>
+ </div>;
 }

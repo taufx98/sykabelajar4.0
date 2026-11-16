@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getSupabaseResourceAccessToken } from '@/services/applicationAccessToken';
 import { env } from '@/lib/env';
 import { reportSystemError } from '@/lib/errorIntelligence';
 
@@ -23,7 +24,7 @@ export async function uploadPaymentProof(file: File): Promise<CloudinaryUploadRe
 export async function uploadProfileImageSigned(file: File, publicId: string): Promise<CloudinaryUploadResult> {
   if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar'); assertFile(file, 5 * 1024 * 1024);
   try {
-    const { data: sessionData } = await supabase.auth.getSession(); const token = sessionData?.session?.access_token;
+    const token = await getSupabaseResourceAccessToken();
     if (!token) throw new Error('Anda harus login untuk mengunggah foto profil.');
     const signatureResponse = await fetch(`${env.edgeFunctionUrl}/get-cloudinary-signature`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ public_id: publicId }) });
     if (!signatureResponse.ok) { const errText = await signatureResponse.text().catch(() => ''); const error = new Error(`Gagal mendapatkan signature upload (${signatureResponse.status}): ${errText}`); reportUploadError('edge_function', error, { function: 'get-cloudinary-signature', status: signatureResponse.status }); throw error; }

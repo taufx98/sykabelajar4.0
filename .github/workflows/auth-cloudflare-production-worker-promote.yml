@@ -1,0 +1,507 @@
+name: Auth Cloudflare Production Worker Promotion
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/PROMOTE-PRODUCTION-WORKER-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type PROMOTE-PRODUCTION-WORKER-sykabelajar-auth-poc to promote the existing Worker to Production D1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-production-worker-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+    name: One-time promotion of the existing Better Auth Worker to Production D1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Checkout the guarded auth migration branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Verify the exact one-time Production promotion authorization
+        run: |
+          set -euo pipefail
+          # Confirmation phrases are visible in source; restrict Production mutations to the repository owner.
+          test "$GITHUB_ACTOR" = "taufx98" || {
+            echo "Blocked: Production Worker promotion may only be triggered by repository owner taufx98." >&2
+            exit 1
+          }
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1" || {
+            echo "Blocked: Production Worker promotion is permitted only from the auth migration branch." >&2
+            exit 1
+          }
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "PROMOTE-PRODUCTION-WORKER-sykabelajar-auth-poc" || {
+              echo "Blocked: exact Production Worker promotion confirmation is missing." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker="../../.github/auth-ops/PROMOTE-PRODUCTION-WORKER-0001"
+            test -f "$marker" || {
+              echo "Blocked: the exact Production Worker promotion marker is missing." >&2
+              exit 1
+            }
+            test "$(cat "$marker")" = "PROMOTE-PRODUCTION-WORKER-sykabelajar-auth-poc" || {
+              echo "Blocked: Production Worker promotion marker content is not exact." >&2
+              exit 1
+            }
+          else
+            echo "Blocked: unsupported event for Production Worker promotion." >&2
+            exit 1
+          fi
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN." >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID." >&2; exit 1; }
+
+      - name: Install the locked Worker toolchain and run the full non-deploy validation
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+
+      - name: Install pinned dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate source, security contracts and both Worker configurations without deploying
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm test
+          npm run build
+          npx wrangler --config wrangler.production.toml deploy --dry-run --outdir "$RUNNER_TEMP/production-worker-dry-run"
+
+      - name: Verify exact current Worker, staging D1 binding, Production D1 and custom hostname
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const scriptName = "sykabelajar-auth-poc";
+          const productionD1Name = "sykabelajar-auth-prod";
+          const productionD1Id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7";
+          const stagingD1Id = "7a4f9008-a1c6-42b6-8a04-abde12699248";
+          const hostname = "auth.sykabelajar.my.id";
+          const base = "https://api.cloudflare.com/client/v4";
+          const headers = { Authorization: "Bearer " + token, Accept: "application/json" };
+          const config = readFileSync("wrangler.production.toml", "utf8");
+          const stagingConfig = readFileSync("wrangler.toml", "utf8");
+
+          const required = [
+            /^name = "sykabelajar-auth-poc"$/m,
+            /^database_name = "sykabelajar-auth-prod"$/m,
+            /^database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"$/m,
+            /^migrations_dir = "migrations-production"$/m,
+            /^pattern = "auth\.sykabelajar\.my\.id"$/m,
+            /^AUTH_SIGNUP_DISABLED = "true"$/m,
+            /^SUPABASE_PROVISIONING_ENABLED = "false"$/m,
+            /^SUPABASE_PROVISIONING_ENV = "production"$/m,
+            /^SUPABASE_PROVISIONING_URL = "https:\/\/mvdczyitbkxkldjughor\.supabase\.co"$/m,
+            /^SUPABASE_PROVISIONING_PUBLISHABLE_KEY = "sb_publishable_M0wRkz7pdVB-0s5JtT3Zhg_J9fXU31m"$/m,
+            /^OAUTH_CALLBACK_URL = "https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback"$/m,
+          ];
+          if (!required.every((pattern) => pattern.test(config))) {
+            throw new Error("Production Wrangler config does not match the reviewed Worker/D1/hostname/closed-signup target.");
+          }
+          if (/DEV_APP_ORIGIN|OAUTH_STAGING_CALLBACK_URL|staging\.sykabelajar\.my\.id|ydamszdfsxqisanazdkb/.test(config)) {
+            throw new Error("Production Worker configuration contains a staging host or staging Supabase target.");
+          }
+          if (!/^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m.test(stagingConfig)) {
+            throw new Error("Staging D1 configuration changed unexpectedly; refusing the one-time promotion.");
+          }
+
+          async function read(path, label) {
+            const response = await fetch(base + path, { headers, redirect: "error" });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || body.success !== true) {
+              throw new Error(label + " failed with HTTP " + response.status);
+            }
+            return body.result;
+          }
+
+          const [scriptList, domainList, settings, productionD1] = await Promise.all([
+            read("/accounts/" + encodeURIComponent(accountId) + "/workers/scripts", "Worker script inventory"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/workers/domains?hostname=" + encodeURIComponent(hostname), "Worker custom-domain inventory"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/workers/scripts/" + encodeURIComponent(scriptName) + "/settings", "Existing Worker binding inventory"),
+            read("/accounts/" + encodeURIComponent(accountId) + "/d1/database/" + encodeURIComponent(productionD1Id), "Production D1 inventory"),
+          ]);
+          if (!Array.isArray(scriptList) || scriptList.filter((row) => row?.id === scriptName).length !== 1) {
+            throw new Error("The existing Worker resource is missing or ambiguous; no second Worker will be created.");
+          }
+          if (!Array.isArray(domainList) || domainList.filter((row) => row?.hostname === hostname && row?.service === scriptName && row?.enabled === true).length !== 1) {
+            throw new Error("The exact existing auth hostname is not attached to the expected Worker; no DNS/domain changes are permitted.");
+          }
+          if (productionD1?.name !== productionD1Name || productionD1?.uuid !== productionD1Id) {
+            throw new Error("Cloudflare did not confirm the exact Production D1 name and UUID.");
+          }
+          const d1Bindings = Array.isArray(settings?.bindings)
+            ? settings.bindings.filter((binding) => binding?.type === "d1" && binding?.name === "DB")
+            : [];
+          if (d1Bindings.length !== 1 || (d1Bindings[0].database_id ?? d1Bindings[0].id) !== stagingD1Id) {
+            throw new Error("The current Worker is not bound to the exact accepted staging D1. Refusing an unexpected source-state promotion.");
+          }
+          console.log(JSON.stringify({
+            existingWorker: scriptName,
+            currentD1: "accepted staging D1 verified",
+            targetD1: productionD1Name,
+            targetD1Uuid: productionD1Id,
+            existingHostname: hostname,
+            publicSignup: "closed",
+            SupabaseProvisioning: "disabled",
+            stagingD1WillBeModified: false,
+          }));
+          NODE
+
+      - name: Verify Production D1 migrations, schema and empty identity state
+        run: |
+          set -euo pipefail
+          npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM d1_migrations ORDER BY name;" > "$RUNNER_TEMP/production-promotion-migrations.json"
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('account','auth_email_accounts','auth_email_admin_test_limits','auth_email_settings','auth_runtime_settings','auth_worker_internal_config','jwks','oauthAccessToken','oauthClient','oauthClientAssertion','oauthClientResource','oauthConsent','oauthRefreshToken','oauthResource','rateLimit','session','user','verification','auth_phone_verification_challenges','auth_social_provider_meta','auth_social_provider_settings','auth_email_provider_accounts','auth_email_provider_settings') ORDER BY name;" > "$RUNNER_TEMP/production-promotion-tables.json"
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT
+            (SELECT COUNT(*) FROM user) AS users,
+            (SELECT COUNT(*) FROM account) AS accounts,
+            (SELECT COUNT(*) FROM session) AS sessions,
+            (SELECT COUNT(*) FROM verification) AS verifications,
+            (SELECT COUNT(*) FROM oauthAccessToken) AS access_tokens,
+            (SELECT COUNT(*) FROM oauthRefreshToken) AS refresh_tokens,
+            (SELECT COUNT(*) FROM oauthConsent) AS consents,
+            (SELECT COUNT(*) FROM auth_email_accounts) AS email_accounts,
+            (SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_provider_accounts,
+            (SELECT COUNT(*) FROM auth_email_provider_settings) AS email_provider_settings,
+            (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id=1) AS auto_failover_enabled,
+            (SELECT COUNT(*) FROM auth_phone_verification_challenges) AS phone_challenges,
+            (SELECT COUNT(*) FROM auth_runtime_settings) AS runtime_settings,
+            (SELECT email_verification_required FROM auth_runtime_settings WHERE id=1) AS email_verification_required,
+            (SELECT COUNT(*) FROM oauthClient WHERE clientId='sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS first_party_clients,
+            (SELECT redirectUris FROM oauthClient WHERE clientId='sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y') AS redirect_uris;" > "$RUNNER_TEMP/production-promotion-counts.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const root = process.env.RUNNER_TEMP;
+          const read = (name) => JSON.parse(readFileSync(root + "/" + name, "utf8"));
+          const visitRows = (value, predicate, out = []) => {
+            if (Array.isArray(value)) value.forEach((item) => visitRows(item, predicate, out));
+            else if (value && typeof value === "object") {
+              if (predicate(value)) out.push(value);
+              Object.values(value).forEach((item) => visitRows(item, predicate, out));
+            }
+            return out;
+          };
+          const expectedMigrations = [
+            "0000_auth_worker_internal_config.sql",
+            "0001_better_auth.sql",
+            "0002_seed_first_party_oauth_client.sql",
+            "0003_zeptomail_agent_settings.sql",
+            "0004_better_auth_registration_attributes.sql",
+            "0005_telegram_phone_verification.sql",
+            "0006_transactional_email_provider.sql",
+            "0007_managed_social_login_providers.sql",
+            "0008_auth_runtime_settings.sql",
+            "0009_multi_provider_email_routing.sql",
+            "0010_custom_http_email_provider.sql",
+          ];
+          const migrationNames = visitRows(read("production-promotion-migrations.json"), (row) => typeof row.name === "string").map((row) => row.name).sort();
+          if (JSON.stringify(migrationNames) !== JSON.stringify([...expectedMigrations].sort())) {
+            throw new Error("Production D1 must have exactly reviewed migrations 0000–0010 before Worker promotion.");
+          }
+          const expectedTables = [
+            "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
+            "auth_runtime_settings","auth_worker_internal_config","jwks","oauthAccessToken",
+            "oauthClient","oauthClientAssertion","oauthClientResource","oauthConsent",
+            "oauthRefreshToken","oauthResource","rateLimit","session","user","verification",
+            "auth_phone_verification_challenges","auth_social_provider_meta","auth_social_provider_settings",
+            "auth_email_provider_accounts","auth_email_provider_settings",
+          ];
+          if (expectedTables.length !== 23) throw new Error("Production promotion requires exactly 23 reviewed D1 tables.");
+          const tableNames = visitRows(read("production-promotion-tables.json"), (row) =>
+            typeof row.name === "string" && expectedTables.includes(row.name)).map((row) => row.name).sort();
+          if (JSON.stringify(tableNames) !== JSON.stringify([...expectedTables].sort())) {
+            throw new Error("Production D1 schema is incomplete; apply the guarded runtime-policy and multi-provider email migrations first.");
+          }
+          const counts = visitRows(read("production-promotion-counts.json"), (row) => Object.hasOwn(row, "users") && Object.hasOwn(row, "runtime_settings"));
+          if (counts.length !== 1) throw new Error("Could not read exactly one Production identity-state summary.");
+          const row = counts[0];
+          for (const field of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens","consents","email_accounts","email_provider_accounts","phone_challenges"]) {
+            if (Number(row[field]) !== 0) throw new Error("Production D1 must remain empty before Worker promotion: " + field + " is nonzero.");
+          }
+          if (Number(row.runtime_settings) !== 1 || Number(row.email_verification_required) !== 1) {
+            throw new Error("Production email verification policy must have exactly one required-by-default row.");
+          }
+          if (Number(row.email_provider_settings) !== 1 || Number(row.auto_failover_enabled) !== 1) throw new Error("Production email routing must have one failover-enabled default settings row.");
+          if (Number(row.first_party_clients) !== 1) throw new Error("Expected exactly one migration-seeded first-party OAuth client.");
+          let redirectUris;
+          try { redirectUris = JSON.parse(row.redirect_uris); } catch { throw new Error("Production OAuth callback allowlist is not valid JSON."); }
+          const expectedCallback = "https://sykabelajar.my.id/auth/oidc/callback";
+          if (!Array.isArray(redirectUris) || redirectUris.length !== 1 || redirectUris[0] !== expectedCallback) {
+            throw new Error("Production OAuth client must contain only the canonical Production callback.");
+          }
+          console.log("PASS: Production D1 migrations 0000–0010 and 23 tables verified; email verification required; email failover defaults enabled; provider accounts and identities remain empty.");
+          NODE
+
+      - name: Replace staging-only secrets with fresh Production-only Worker keys
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { randomBytes } from "node:crypto";
+
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const scriptName = "sykabelajar-auth-poc";
+          const endpoint = "https://api.cloudflare.com/client/v4/accounts/" +
+            encodeURIComponent(accountId) + "/workers/scripts/" +
+            encodeURIComponent(scriptName) + "/secrets";
+          const base = "https://api.cloudflare.com/client/v4";
+          const headers = { Authorization: "Bearer " + token, Accept: "application/json" };
+
+          async function listSecrets() {
+            const response = await fetch(endpoint, { headers, redirect: "error" });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || body.success !== true || !Array.isArray(body.result)) {
+              throw new Error("Cannot safely inspect existing Worker secret names/types; refusing Production secret changes.");
+            }
+            return body.result;
+          }
+          async function deleteSecret(name) {
+            const response = await fetch(endpoint + "/" + encodeURIComponent(name), {
+              method: "DELETE",
+              headers,
+              redirect: "error",
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || body.success !== true) {
+              throw new Error("Cloudflare did not confirm removal of a staging-only Worker secret binding: " + name);
+            }
+          }
+          async function putSecret(name, value) {
+            const response = await fetch(endpoint, {
+              method: "PUT",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({ name, text: value, type: "secret_text" }),
+              redirect: "error",
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || body.success !== true || body.result?.name !== name) {
+              throw new Error("Cloudflare did not confirm the Production Worker secret binding: " + name);
+            }
+          }
+
+          const stagingOnly = [
+            "SUPABASE_PROVISIONING_API_KEY","SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_PUBLISHABLE_KEY",
+            "GOOGLE_CLIENT_ID","GOOGLE_CLIENT_SECRET",
+            "FACEBOOK_CLIENT_ID","FACEBOOK_CLIENT_SECRET",
+            "TWITTER_CLIENT_ID","TWITTER_CLIENT_SECRET",
+            "AUTH_TELEGRAM_CLIENT_ID","AUTH_TELEGRAM_CLIENT_SECRET",
+            "AUTH_EMAIL_WEBHOOK_URL","AUTH_EMAIL_WEBHOOK_TOKEN","AUTH_EMAIL_FROM",
+            "OAUTH_CLIENT_BOOTSTRAP_TOKEN","D1_SCHEMA_BOOTSTRAP_TOKEN",
+          ];
+          const before = await listSecrets();
+          for (const name of stagingOnly) {
+            const matches = before.filter((item) => item?.name === name);
+            if (matches.length > 1) throw new Error("Duplicate Worker secret bindings found for " + name + "; refusing promotion.");
+            if (matches.length === 1) {
+              if (matches[0].type !== "secret_text") throw new Error("Unexpected binding type for staging-only secret " + name);
+              await deleteSecret(name);
+            }
+          }
+
+          const productionKeys = {
+            BETTER_AUTH_SECRET: randomBytes(32).toString("base64url"),
+            AUTH_PROVIDER_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
+            AUTH_EMAIL_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
+          };
+          for (const [name, value] of Object.entries(productionKeys)) {
+            if (value.length < 32) throw new Error("Generated Production secret failed its minimum-length guard.");
+            await putSecret(name, value);
+          }
+
+          const after = await listSecrets();
+          const required = Object.keys(productionKeys);
+          for (const name of required) {
+            const matches = after.filter((item) => item?.name === name && item?.type === "secret_text");
+            if (matches.length !== 1) throw new Error("Production Worker is missing exactly one secret_text binding: " + name);
+          }
+          for (const name of stagingOnly) {
+            if (after.some((item) => item?.name === name)) {
+              throw new Error("A staging-only secret remains bound to the Production Worker: " + name);
+            }
+          }
+          console.log(JSON.stringify({
+            productionSecretBindings: required,
+            stagingOnlySecretBindingsRemoved: stagingOnly,
+            valuesReadOrLogged: false,
+          }));
+          NODE
+
+      - name: Deploy the existing Worker resource to Production D1
+        run: |
+          set -euo pipefail
+          npx wrangler --config wrangler.production.toml deploy --message "One-time Better Auth Production promotion $GITHUB_SHA"
+
+      - name: Verify the promoted Worker binding, stable issuer, closed signup and healthy Production D1
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const scriptName = "sykabelajar-auth-poc";
+          const productionD1Id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7";
+          const appOrigin = "https://sykabelajar.my.id";
+          const authOrigin = "https://auth.sykabelajar.my.id";
+          const expectedIssuer = authOrigin + "/api/auth";
+          const headers = { Authorization: "Bearer " + token, Accept: "application/json" };
+          const base = "https://api.cloudflare.com/client/v4";
+
+          async function cloudflare(path) {
+            const response = await fetch(base + path, { headers, redirect: "error" });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || body.success !== true) throw new Error("Cloudflare post-deploy verification failed with HTTP " + response.status);
+            return body.result;
+          }
+          async function getJson(path, origin) {
+            const response = await fetch(authOrigin + path, {
+              headers: origin ? { Origin: origin } : {},
+              redirect: "error",
+              signal: AbortSignal.timeout(8000),
+            });
+            const body = await response.json().catch(() => null);
+            assert.equal(response.status, 200, path + " must return HTTP 200");
+            assert.ok(body && typeof body === "object", path + " must return JSON");
+            return { response, body };
+          }
+
+          const [settings, domains] = await Promise.all([
+            cloudflare("/accounts/" + encodeURIComponent(accountId) + "/workers/scripts/" + encodeURIComponent(scriptName) + "/settings"),
+            cloudflare("/accounts/" + encodeURIComponent(accountId) + "/workers/domains?hostname=auth.sykabelajar.my.id"),
+          ]);
+          const dbBindings = (settings?.bindings ?? []).filter((item) => item?.type === "d1" && item?.name === "DB");
+          assert.equal(dbBindings.length, 1, "promoted Worker must expose exactly one D1 DB binding");
+          assert.equal(dbBindings[0].database_id ?? dbBindings[0].id, productionD1Id, "the existing Worker must now be bound to Production D1");
+          assert.equal(
+            (domains ?? []).filter((item) => item?.hostname === "auth.sykabelajar.my.id" && item?.service === scriptName && item?.enabled === true).length,
+            1,
+            "the existing auth hostname must remain attached to the same Worker",
+          );
+
+          const { body: health } = await getJson("/healthz");
+          assert.equal(health.ok, true);
+          const { body: discovery } = await getJson("/api/auth/.well-known/openid-configuration");
+          assert.equal(discovery.issuer, expectedIssuer);
+          assert.ok(discovery.jwks_uri?.startsWith(authOrigin + "/"));
+          assert.ok(discovery.code_challenge_methods_supported?.includes("S256"));
+          const jwksUrl = new URL(discovery.jwks_uri);
+          assert.equal(jwksUrl.origin, authOrigin);
+          const { body: jwks } = await getJson(jwksUrl.pathname + jwksUrl.search);
+          assert.ok(Array.isArray(jwks.keys) && jwks.keys.some((key) =>
+            key.kty === "EC" && key.crv === "P-256" && key.alg === "ES256" &&
+            typeof key.kid === "string" && key.kid.length > 0 && !Object.hasOwn(key, "d")
+          ), "Production JWKS must expose a public ES256 P-256 key");
+
+          const { response: providerResponse, body: providers } = await getJson("/api/auth/providers", appOrigin);
+          assert.equal(providerResponse.headers.get("Access-Control-Allow-Origin"), appOrigin);
+          assert.equal(providers.emailVerificationRequired, true, "Production email verification must remain required");
+          assert.equal(providers.emailVerificationConfigured, false, "real Production email sender is not configured yet");
+          assert.deepEqual(providers.providers, [], "staging OAuth credentials must not survive Production promotion");
+          const hostile = await fetch(authOrigin + "/api/auth/providers", {
+            headers: { Origin: "https://attacker.example" },
+            redirect: "error",
+            signal: AbortSignal.timeout(8000),
+          });
+          assert.equal(hostile.headers.get("Access-Control-Allow-Origin"), null, "hostile origins must receive no CORS permission");
+
+          const unauthenticated = await fetch(authOrigin + "/api/admin/auth-runtime-settings", {
+            headers: { Origin: appOrigin },
+            redirect: "error",
+            signal: AbortSignal.timeout(8000),
+          });
+          assert.equal(unauthenticated.status, 401, "Production Admin runtime settings must reject unauthenticated access");
+
+          const signup = await fetch(authOrigin + "/api/auth/sign-up/email", {
+            method: "POST",
+            headers: { Origin: appOrigin, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: "Blocked Production Smoke",
+              email: "auth-promotion-smoke@example.invalid",
+              password: "Never-Create-This-Account-1",
+            }),
+            redirect: "error",
+            signal: AbortSignal.timeout(8000),
+          });
+          const signupBody = await signup.json().catch(() => null);
+          assert.equal(signup.status, 503, "Production signup remains closed while real email delivery is not configured");
+          assert.equal(signupBody?.error, "EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED");
+
+          console.log(JSON.stringify({
+            health: "ok",
+            issuer: discovery.issuer,
+            jwks: "public ES256 P-256 verified",
+            productionD1Binding: productionD1Id,
+            existingHostnamePreserved: true,
+            emailVerificationRequired: true,
+            emailSenderConfigured: false,
+            publicSignup: "closed",
+            socialProviders: [],
+            supabaseProvisioning: "disabled",
+            mainFrontendSwitch: "not performed",
+            supabaseProductionDatabaseChanged: false,
+          }));
+          NODE
+
+      - name: Verify no Production identity or credential was created by promotion smoke tests
+        run: |
+          set -euo pipefail
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT
+            (SELECT COUNT(*) FROM user) AS users,
+            (SELECT COUNT(*) FROM account) AS accounts,
+            (SELECT COUNT(*) FROM session) AS sessions,
+            (SELECT COUNT(*) FROM verification) AS verifications,
+            (SELECT COUNT(*) FROM auth_email_accounts) AS email_accounts,
+            (SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_provider_accounts,
+            (SELECT COUNT(*) FROM auth_email_provider_settings) AS email_provider_settings;" > "$RUNNER_TEMP/production-promotion-after.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const payload = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/production-promotion-after.json", "utf8"));
+          const rows = [];
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "users") && Object.hasOwn(value, "accounts")) rows.push(value);
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          if (rows.length !== 1 || ["users","accounts","sessions","verifications","email_accounts","email_provider_accounts"].some((name) => Number(rows[0][name]) !== 0) || Number(rows[0].email_provider_settings) !== 1) {
+            throw new Error("Production D1 must remain identity/credential-empty after the promotion smoke checks.");
+          }
+          console.log("PASS: Production D1 still contains zero Better Auth users, credentials, sessions, verifications or email sender accounts.");
+          NODE
+
+      - name: Remove temporary runner files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/production-worker-dry-run" "$RUNNER_TEMP/production-promotion-migrations.json" "$RUNNER_TEMP/production-promotion-tables.json" "$RUNNER_TEMP/production-promotion-counts.json" "$RUNNER_TEMP/production-promotion-after.json"

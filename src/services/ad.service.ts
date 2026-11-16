@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getCurrentApplicationUserId } from '@/services/applicationIdentity';
 import { uploadImage } from './cloudinary.service';
 import { env } from '@/lib/env';
 
@@ -150,8 +151,8 @@ export async function submitBannerRequest(params: {
   totalPrice: number;
   mediaType?: MediaType;
 }): Promise<AdBannerRequest> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('Unauthorized');
+  const userId = await getCurrentApplicationUserId();
+  if (!userId) throw new Error('Unauthorized');
   if (!['home_top', 'home_sidebar'].includes(params.placement)) throw new Error('Penempatan iklan tidak valid.');
   if (!Number.isInteger(params.slotsRequested) || params.slotsRequested < 1 || params.slotsRequested > (params.placement === 'home_sidebar' ? 1 : 2)) {
     throw new Error(params.placement === 'home_sidebar'
@@ -182,7 +183,7 @@ export async function submitBannerRequest(params: {
     .from('ad_banner_requests')
     .insert({
       organizer_id: params.organizerId,
-      user_id: auth.user.id,
+      user_id: userId,
       placement: params.placement,
       image_url: primaryUrl,
       image_urls: allUrls,
@@ -238,12 +239,12 @@ export async function createAdBannerPaymentOrder(input: {
 
 // ── Organizer: my requests ──
 export async function loadMyBannerRequests(): Promise<AdBannerRequest[]> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return [];
+  const userId = await getCurrentApplicationUserId();
+  if (!userId) return [];
   const { data } = await supabase
     .from('ad_banner_requests')
     .select('*')
-    .eq('user_id', auth.user.id)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
   return (data ?? []) as AdBannerRequest[];
 }
@@ -399,8 +400,8 @@ export async function adminAddBanner(params: {
   durationDays: number;
   slideDuration: number;
 }): Promise<AdBanner> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('Unauthorized');
+  const userId = await getCurrentApplicationUserId();
+  if (!userId) throw new Error('Unauthorized');
   if (!Number.isInteger(params.slotNumber) || params.slotNumber < 1) {
     throw new Error('Urutan iklan harus berupa bilangan bulat minimal 1.');
   }
@@ -441,7 +442,7 @@ export async function adminAddBanner(params: {
       expires_at: expiresAt.toISOString(),
       is_active: true,
       organizer_id: null,
-      user_id: auth.user.id,
+      user_id: userId,
     })
     .select()
     .single();

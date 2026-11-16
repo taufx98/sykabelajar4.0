@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Building2, CheckCircle2, Copy, KeyRound, MailCheck, Phone, ShieldCheck, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { setSelectedOrganizerId } from '@/services/organizerAuth.service';
+import { isBetterAuthEnabled } from '@/services/auth.service';
+import { getStagingBetterAuthClient } from '@/services/betterAuthApi.client';
 
 type SetupMode = 'create' | 'join';
 type SetupResult = {
@@ -38,7 +41,9 @@ function readableOrganizerError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const value = raw.toUpperCase();
   if (value.includes('EMAIL_VERIFICATION_REQUIRED')) return 'Verifikasi email akun terlebih dahulu, lalu masuk kembali.';
-  if (value.includes('PHONE_VERIFICATION_REQUIRED')) return 'Nomor telepon harus diverifikasi melalui kode OTP sebelum membuat organisasi.';
+  if (value.includes('PHONE_VERIFICATION_REQUIRED')) return 'Nomor telepon harus diverifikasi oleh penyedia tepercaya sebelum membuat organisasi.';
+  if (value.includes('PHONE_VERIFICATION_STATUS_NOT_READY')) return 'Pemeriksaan status verifikasi telepon belum tersedia pada backend staging. Migrasi identitas Stage 3 harus diterapkan terlebih dahulu.';
+  if (value.includes('PHONE_VERIFICATION_NOT_CONFIGURED')) return 'Verifikasi telepon Telegram belum dikonfigurasi oleh administrator.';
   if (value.includes('FREE_ORGANIZER_ALREADY_CLAIMED')) return 'Nomor telepon ini sudah digunakan untuk klaim workspace gratis. Hubungi admin bila ini keliru.';
   if (value.includes('ORGANIZER_LIMIT_REACHED')) return 'Akun ini sudah memiliki workspace penyelenggara.';
   if (value.includes('ORGANIZER_ROLE_REQUIRED')) return 'Akun belum memiliki role Penyelenggara yang aktif.';
@@ -53,9 +58,12 @@ function readableOrganizerError(error: unknown): string {
 
 export function OrganizerWorkspaceOnboarding({ onContinue }: { onContinue: () => Promise<void> }) {
   const { toast } = useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const betterAuthMode = isBetterAuthEnabled();
   const [mode, setMode] = useState<SetupMode>('create');
   const [authLoading, setAuthLoading] = useState(true);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const [betterAuthPhoneVerified, setBetterAuthPhoneVerified] = useState(false);
   const [confirmedPhone, setConfirmedPhone] = useState('');
   const [phone, setPhone] = useState('');
   const [pendingPhone, setPendingPhone] = useState('');
@@ -72,14 +80,24 @@ export function OrganizerWorkspaceOnboarding({ onContinue }: { onContinue: () =>
     let live = true;
     void (async () => {
       try {
-        const { data, error } = await supabase.auth.getUser();
-        if (error) throw error;
-        if (!data.user) throw new Error('Masuk terlebih dahulu untuk mengelola organisasi.');
-        if (!live) return;
-        setEmailConfirmed(Boolean(data.user.email_confirmed_at));
-        const verified = data.user.phone_confirmed_at ? normalizePhone(data.user.phone ?? '') : null;
-        setConfirmedPhone(verified ?? '');
-        setPhone(verified ?? '');
+        if (betterAuthMode) {
+          const client = getStagingBetterAuthClient();
+          const session = await client.getSession();
+          if (!session) throw new Error('Masuk terlebih dahulu dengan email yang sudah diverifikasi.');
+          const status = await client.getTelegramPhoneVerificationStatus();
+          if (!live) return;
+          setEmailConfirmed(session.user.emailVerified === true);
+          setBetterAuthPhoneVerified(status.verified);
+        } else {
+          const { data, error } = await supabase.auth.getUser();
+          if (error) throw error;
+          if (!data.user) throw new Error('Masuk terlebih dahulu untuk mengelola organisasi.');
+          if (!live) return;
+          setEmailConfirmed(Boolean(data.user.email_confirmed_at));
+          const verified = data.user.phone_confirmed_at ? normalizePhone(data.user.phone ?? '') : null;
+          setConfirmedPhone(verified ?? '');
+          setPhone(verified ?? '');
+        }
       } catch (error) {
         if (live) toast(readableOrganizerError(error), 'error');
       } finally {
@@ -87,14 +105,49 @@ export function OrganizerWorkspaceOnboarding({ onContinue }: { onContinue: () =>
       }
     })();
     return () => { live = false; };
-  }, [toast]);
+  }, [betterAuthMode, toast]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    const status = searchParams.get('phoneVerification');
+    if (!status) return;
+    if (status === 'success' && betterAuthPhoneVerified) {
+      toast('Nomor telepon berhasil diverifikasi oleh Telegram.', 'success');
+    } else if (status === 'success') {
+      toast('Verifikasi selesai, tetapi backend belum mengonfirmasi status nomor telepon. Coba perbarui halaman.', 'error');
+    } else {
+      toast('Verifikasi Telegram gagal atau dibatalkan. Silakan coba kembali.', 'error');
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('phoneVerification');
+    next.delete('reason');
+    setSearchParams(next, { replace: true });
+  }, [authLoading, betterAuthPhoneVerified, searchParams, setSearchParams, toast]);
 
   const normalizedPhone = normalizePhone(phone);
-  const phoneVerified = Boolean(normalizedPhone && confirmedPhone && normalizedPhone === confirmedPhone);
+  const phoneVerified = betterAuthMode
+    ? betterAuthPhoneVerified
+    : Boolean(normalizedPhone && confirmedPhone && normalizedPhone === confirmedPhone);
 
   const handleSendOtp = async () => {
     if (!emailConfirmed) {
       toast('Verifikasi email terlebih dahulu sebelum membuat workspace.', 'error');
+      return;
+    }
+    if (betterAuthMode) {
+      if (phoneVerified) {
+        toast('Nomor telepon ini sudah terverifikasi.', 'info');
+        return;
+      }
+      setBusy(true);
+      try {
+        const challenge = await getStagingBetterAuthClient().startTelegramPhoneVerification();
+        window.location.assign(challenge.authorizationUrl);
+      } catch (error) {
+        toast(readableOrganizerError(error), 'error');
+      } finally {
+        setBusy(false);
+      }
       return;
     }
     if (!normalizedPhone) {
@@ -298,20 +351,24 @@ export function OrganizerWorkspaceOnboarding({ onContinue }: { onContinue: () =>
             <MailCheck size={17} className={emailConfirmed ? 'text-emerald-400' : 'text-amber-400'} />
             <span className="text-sm text-fg">{emailConfirmed ? 'Email akun terverifikasi' : 'Email perlu diverifikasi'}</span>
           </div>
-          {!emailConfirmed && <p className="text-xs text-fg-muted">Verifikasi email dari tautan Supabase, lalu masuk kembali untuk membuat workspace.</p>}
+          {!emailConfirmed && <p className="text-xs text-fg-muted">Verifikasi email melalui tautan yang dikirim ke alamat akun, lalu masuk kembali untuk membuat workspace.</p>}
           <div className="flex items-center gap-2">
             <Phone size={17} className={phoneVerified ? 'text-emerald-400' : 'text-fg-muted'} />
             <span className="text-sm text-fg">{phoneVerified ? 'Nomor telepon terverifikasi' : 'Verifikasi nomor telepon diperlukan'}</span>
           </div>
           {!phoneVerified && <>
-            <label className="block text-xs text-fg-muted">Nomor telepon
+            {!betterAuthMode && <label className="block text-xs text-fg-muted">Nomor telepon
               <input className="input mt-1" type="tel" autoComplete="tel" value={phone} onChange={event => { setPhone(event.target.value); setOtpSent(false); setPendingPhone(''); setOtp(''); }} placeholder="+6281234567890" />
-            </label>
-            {otpSent ? <div className="flex flex-col sm:flex-row gap-2">
-              <input className="input flex-1" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={event => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Kode OTP 6 digit" />
-              <Button loading={busy} disabled={busy || otp.trim().length !== 6} onClick={() => void handleVerifyOtp()}>Verifikasi OTP</Button>
-            </div> : <Button variant="outline" loading={busy} disabled={busy || !normalizedPhone || !emailConfirmed} onClick={() => void handleSendOtp()} icon={<KeyRound size={16} />}>Kirim Kode OTP</Button>}
-            <p className="text-xs text-fg-muted">Pembuatan workspace gratis membutuhkan email dan nomor telepon terverifikasi. Pemeriksaan backend tetap berlaku untuk mencegah klaim berulang.</p>
+            </label>}
+            {betterAuthMode
+              ? <Button variant="outline" loading={busy} disabled={busy || !emailConfirmed} onClick={() => void handleSendOtp()} icon={<KeyRound size={16} />}>Verifikasi melalui Telegram</Button>
+              : otpSent
+                ? <div className="flex flex-col sm:flex-row gap-2">
+                    <input className="input flex-1" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={event => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Kode OTP 6 digit" />
+                    <Button loading={busy} disabled={busy || otp.trim().length !== 6} onClick={() => void handleVerifyOtp()}>Verifikasi OTP</Button>
+                  </div>
+                : <Button variant="outline" loading={busy} disabled={busy || !normalizedPhone || !emailConfirmed} onClick={() => void handleSendOtp()} icon={<KeyRound size={16} />}>Kirim Kode OTP</Button>}
+            <p className="text-xs text-fg-muted">{betterAuthMode ? 'Telegram akan mengonfirmasi nomor telepon melalui OIDC. SYKABELAJAR hanya menyimpan hash verifikasi; nomor mentah tidak dikirim ke Supabase.' : 'Pembuatan workspace gratis membutuhkan email dan nomor telepon terverifikasi. Pemeriksaan backend tetap berlaku untuk mencegah klaim berulang.'}</p>
           </>}
         </div>
 

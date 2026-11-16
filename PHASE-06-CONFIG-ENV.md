@@ -5,6 +5,7 @@
 - Frontend Supabase configuration is read from `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 - Cloudinary configuration is read from `VITE_CLOUDINARY_CLOUD_NAME`, `VITE_CLOUDINARY_UPLOAD_PRESET`, and `VITE_CLOUDINARY_PROFILE_PRESET`.
 - Edge Function URL is read from `VITE_EDGE_FUNCTION_URL`; when omitted, it is derived from `VITE_SUPABASE_URL` as `/functions/v1`.
+- `VITE_AUTH_WORKER_URL` is an optional public base URL used by the admin ZeptoMail settings panel. Set it only after the non-production Auth Worker is deployed; it is an endpoint URL, not a secret.
 - `src/lib/supabase.ts` no longer contains hardcoded Supabase URL/key values or credential-related console logging.
 - `.env.example` documents the expected frontend configuration.
 - `.gitignore` explicitly excludes `.env` and `.env.*` while allowing `.env.example`.
@@ -20,5 +21,6 @@ Configure these repository Actions secrets before a production build is expected
 - `VITE_CLOUDINARY_UPLOAD_PRESET`
 - `VITE_CLOUDINARY_PROFILE_PRESET`
 - `VITE_EDGE_FUNCTION_URL` (optional; omit when the default derived URL is desired)
+- `VITE_AUTH_WORKER_URL` (optional until the non-production Auth Worker is deployed)
 
 Never put `service_role`, database passwords, API provider secret keys, or other server-only secrets in any `VITE_*` variable.

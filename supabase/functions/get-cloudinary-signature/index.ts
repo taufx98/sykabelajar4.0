@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isOwnedCloudinaryPublicId } from "../_shared/cloudinary-ownership.mjs";
+import { requireApplicationUser } from "../_shared/require-application-user.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -9,16 +10,46 @@ const CORS_HEADERS = {
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Missing authorization" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
-
-    const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", { global: { headers: { Authorization: authHeader } } });
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+    const identity = await requireApplicationUser(req);
+    if (!identity.ok) {
+      return new Response(JSON.stringify({ error: identity.error }), { status: identity.status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+    }
+    const { userId, supabase } = identity;
 
     const body = await req.json().catch(() => ({}));
     const publicId = typeof body.public_id === 'string' ? body.public_id.trim() : '';
     if (!publicId) return new Response(JSON.stringify({ error: "public_id is required" }), { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+
+    // Resolve ownership using the caller-scoped client and the UUID returned
+    // by Supabase's verified Auth endpoint. Never trust a username or owner ID
+    // supplied by the browser, and never use service_role for these lookups.
+    const { data: profileResult, error: profileError } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", userId)
+      .maybeSingle();
+    // profiles is not generated into this Edge Function local Supabase type bundle.
+    // Narrow the one selected field; the lookup remains caller-scoped and UUID-bound.
+    const profile = profileResult as { username: string | null } | null;
+    if (profileError || !profile) {
+      return new Response(JSON.stringify({ error: "PROFILE_NOT_FOUND" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+    }
+
+    let ownedOrganizers: Array<{ id: string; slug: string }> = [];
+    if (publicId.startsWith("sykabelajar/organizers/")) {
+      const { data, error } = await supabase
+        .from("organizers")
+        .select("id,slug")
+        .eq("owner_user_id", userId);
+      if (error) {
+        return new Response(JSON.stringify({ error: "ORGANIZER_OWNERSHIP_CHECK_FAILED" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+      }
+      ownedOrganizers = (data ?? []) as Array<{ id: string; slug: string }>;
+    }
+
+    if (!isOwnedCloudinaryPublicId(publicId, { userId, username: profile.username, ownedOrganizers })) {
+      return new Response(JSON.stringify({ error: "CLOUDINARY_PUBLIC_ID_NOT_OWNED" }), { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+    }
 
     const apiSecret = Deno.env.get("CLOUDINARY_API_SECRET")?.trim();
     const apiKey = Deno.env.get("CLOUDINARY_API_KEY")?.trim();

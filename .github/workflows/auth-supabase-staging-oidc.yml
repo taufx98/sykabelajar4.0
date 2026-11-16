@@ -1,0 +1,178 @@
+name: Register Better Auth issuer in isolated Supabase staging
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/REGISTER-STAGING-OIDC-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type REGISTER-STAGING-OIDC-sykabelajar-auth-staging to register only the isolated staging issuer"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-staging-better-auth-oidc
+  cancel-in-progress: false
+
+jobs:
+  register:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Add exact Better Auth issuer to the dedicated Supabase Free staging project
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v7
+
+      - name: Verify exact marker or manual confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "REGISTER-STAGING-OIDC-sykabelajar-auth-staging" || {
+              echo "Blocked: the exact staging OIDC confirmation is missing." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker=".github/auth-ops/REGISTER-STAGING-OIDC-0001"
+            test -f "$marker" || {
+              echo "Blocked: one-time staging OIDC marker is missing." >&2
+              exit 1
+            }
+            test "$(cat "$marker")" = "REGISTER-STAGING-OIDC-sykabelajar-auth-staging" || {
+              echo "Blocked: one-time staging OIDC marker content is not exact." >&2
+              exit 1
+            }
+          else
+            echo "Blocked: unsupported workflow event." >&2
+            exit 1
+          fi
+
+      - name: Verify hosted issuer, staging project target, and register Custom OIDC
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token = process.env.SUPABASE_ACCESS_TOKEN;
+          if (!token) {
+            throw new Error(
+              "SUPABASE_ACCESS_TOKEN Actions secret is not configured. Add a Supabase Management API token with auth:write / auth_config_write permission to GitHub Actions secrets; never put the token in chat or source control."
+            );
+          }
+
+          const projectRef = "ydamszdfsxqisanazdkb";
+          const expectedProjectName = "sykabelajar-auth-staging";
+          const expectedOrganizationId = "qdmwatwyyrdjbrvxtcfu";
+          const issuer = "https://auth.sykabelajar.my.id/api/auth";
+          const managementBase = "https://api.supabase.com/v1";
+          const headers = {
+            Authorization: "Bearer " + token,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          };
+
+          async function getJson(url, label) {
+            const response = await fetch(url, { headers, redirect: "error" });
+            if (!response.ok) {
+              throw new Error(label + " failed with HTTP " + response.status +
+                (response.status === 403 ? "; check the token auth_config_write permission." : ""));
+            }
+            return response.json();
+          }
+
+          const discoveryResponse = await fetch(
+            issuer + "/.well-known/openid-configuration",
+            { redirect: "error" },
+          );
+          if (!discoveryResponse.ok) {
+            throw new Error("Better Auth discovery failed with HTTP " + discoveryResponse.status);
+          }
+          const discovery = await discoveryResponse.json();
+          if (discovery.issuer !== issuer) {
+            throw new Error("Better Auth discovery issuer does not match the fixed staging issuer.");
+          }
+          if (!Array.isArray(discovery.code_challenge_methods_supported) ||
+              !discovery.code_challenge_methods_supported.includes("S256")) {
+            throw new Error("Better Auth discovery does not advertise PKCE S256.");
+          }
+          if (typeof discovery.jwks_uri !== "string" ||
+              !discovery.jwks_uri.startsWith("https://auth.sykabelajar.my.id/")) {
+            throw new Error("Better Auth JWKS URI is not on the approved auth hostname.");
+          }
+          const jwksResponse = await fetch(discovery.jwks_uri, { redirect: "error" });
+          if (!jwksResponse.ok) {
+            throw new Error("Better Auth JWKS failed with HTTP " + jwksResponse.status);
+          }
+          const jwks = await jwksResponse.json();
+          if (!Array.isArray(jwks.keys) || !jwks.keys.some((key) =>
+            key.kty === "EC" && key.crv === "P-256" && key.alg === "ES256" &&
+            typeof key.kid === "string" && key.kid.length > 0 && !Object.hasOwn(key, "d")
+          )) {
+            throw new Error("Better Auth JWKS has no acceptable public ES256 P-256 key.");
+          }
+
+          const project = await getJson(
+            managementBase + "/projects/" + projectRef,
+            "Supabase staging project lookup",
+          );
+          if (project.id !== projectRef ||
+              project.name !== expectedProjectName ||
+              project.organization_id !== expectedOrganizationId) {
+            throw new Error("Supabase project identity guard failed; refusing OIDC registration.");
+          }
+
+          const integrationsUrl =
+            managementBase + "/projects/" + projectRef + "/config/auth/third-party-auth";
+          const integrations = await getJson(integrationsUrl, "Supabase Third-Party Auth inventory");
+          if (!Array.isArray(integrations)) {
+            throw new Error("Supabase Third-Party Auth inventory returned an unexpected shape.");
+          }
+          const matches = integrations.filter((item) => item.oidc_issuer_url === issuer);
+          if (matches.length > 1) {
+            throw new Error("Multiple duplicate Better Auth issuer integrations exist; manual review is required.");
+          }
+
+          if (matches.length === 0) {
+            const response = await fetch(integrationsUrl, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ oidc_issuer_url: issuer }),
+              redirect: "error",
+            });
+            if (response.status !== 201) {
+              throw new Error("Supabase Custom OIDC registration failed with HTTP " + response.status +
+                (response.status === 403 ? "; check the token auth_config_write permission." : ""));
+            }
+          }
+
+          const verified = await getJson(integrationsUrl, "Supabase Third-Party Auth verification");
+          const registered = verified.filter((item) => item.oidc_issuer_url === issuer);
+          if (registered.length !== 1) {
+            throw new Error("Post-registration verification did not find exactly one matching issuer.");
+          }
+
+          console.log(JSON.stringify({
+            success: true,
+            project: expectedProjectName,
+            project_ref: projectRef,
+            issuer,
+            integration_id: registered[0].id,
+            idempotent: matches.length === 1,
+            pkce: "S256 verified",
+            signing_key: "public ES256 P-256 verified",
+            production_project_touched: false,
+          }));
+          NODE
+
+      - name: Remove temporary runner material
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/*supabase-oidc* 2>/dev/null || true

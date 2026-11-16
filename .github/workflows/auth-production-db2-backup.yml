@@ -1,0 +1,339 @@
+name: Auth Production DB2 Full Backup and Restore Rehearsal
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/workflows/auth-production-db2-backup.yml"
+      - ".github/auth-ops/BACKUP-PRODUCTION-DB2-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type BACKUP-AND-RESTORE-PRODUCTION-DB2 to run a full encrypted Production DB2 backup and disposable restore rehearsal"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-production-db2-backup
+  cancel-in-progress: false
+
+jobs:
+  backup-and-restore:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    name: Read-only Production DB2 dump, isolated restore, then encrypt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SUPABASE_PROJECT_REF: mvdczyitbkxkldjughor
+    steps:
+      - name: Checkout guarded backup request
+        uses: actions/checkout@v7
+
+      - name: Define isolated runner temporary paths
+        run: |
+          set -euo pipefail
+          echo "SUPABASE_CLI_WORKDIR=$RUNNER_TEMP/sykabelajar-db2-backup-restore" >> "$GITHUB_ENV"
+          echo "BACKUP_DIR=$RUNNER_TEMP/sykabelajar-db2-backup" >> "$GITHUB_ENV"
+
+      - name: Verify exact one-time backup request and credentials
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_BACKUP_AGE_RECIPIENT: ${{ secrets.SUPABASE_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1" || {
+            echo "Blocked: backup runs only on the auth migration branch." >&2
+            exit 1
+          }
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "BACKUP-AND-RESTORE-PRODUCTION-DB2" || {
+              echo "Blocked: exact Production DB2 backup confirmation was not supplied." >&2
+              exit 1
+            }
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker=".github/auth-ops/BACKUP-PRODUCTION-DB2-0001"
+            test -f "$marker" || { echo "Blocked: exact backup marker is missing." >&2; exit 1; }
+            test "$(cat "$marker")" = "BACKUP-AND-RESTORE-PRODUCTION-DB2" || {
+              echo "Blocked: backup marker value is not exact." >&2
+              exit 1
+            }
+          else
+            echo "Blocked: unsupported workflow event." >&2
+            exit 1
+          fi
+          test -n "$SUPABASE_DB_URL" || {
+            echo "Missing SUPABASE_DB_URL Actions secret. No database connection was attempted." >&2
+            exit 1
+          }
+          test -n "$SUPABASE_BACKUP_AGE_RECIPIENT" || {
+            echo "Missing SUPABASE_BACKUP_AGE_RECIPIENT Actions secret. Add the public age recipient; keep its private identity outside GitHub." >&2
+            exit 1
+          }
+          case "$SUPABASE_BACKUP_AGE_RECIPIENT" in
+            age1*) ;;
+            *) echo "The backup encryption secret must be an age1 public recipient, not a private key." >&2; exit 1 ;;
+          esac
+          node --input-type=module <<'NODE'
+          const ref = process.env.SUPABASE_PROJECT_REF;
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          let url;
+          try { url = new URL(raw); } catch { throw new Error("SUPABASE_DB_URL is not a valid PostgreSQL URI."); }
+          const username = decodeURIComponent(url.username);
+          const validPooler = url.hostname.endsWith(".pooler.supabase.com") &&
+            username === "postgres." + ref && url.port === "5432";
+          if ((url.protocol !== "postgres:" && url.protocol !== "postgresql:") || !validPooler) {
+            throw new Error("SUPABASE_DB_URL must be the Production project's Session Pooler URI (port 5432, username postgres.<project-ref>). No dump was started.");
+          }
+          if (!decodeURIComponent(url.password) || !url.pathname || url.pathname === "/" ||
+              !["require", "verify-ca", "verify-full", ""].includes(url.searchParams.get("sslmode") ?? "")) {
+            throw new Error("SUPABASE_DB_URL is incomplete or does not require TLS.");
+          }
+          console.log("Production DB2 endpoint and encryption key format verified; neither secret value was printed.");
+          NODE
+
+      - name: Prepare isolated disposable Supabase stack
+        run: |
+          set -euo pipefail
+          rm -rf "$SUPABASE_CLI_WORKDIR" "$BACKUP_DIR"
+          mkdir -p "$SUPABASE_CLI_WORKDIR/supabase/migrations" "$BACKUP_DIR"
+          cat > "$SUPABASE_CLI_WORKDIR/supabase/config.toml" <<'TOML'
+          project_id = "sykabelajar-production-backup-restore"
+          TOML
+
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 3.1.0
+
+      - name: Start local disposable Supabase stack
+        working-directory: ${{ runner.temp }}/sykabelajar-db2-backup-restore
+        run: supabase start
+
+      - name: Prepare private PostgreSQL connection file without exposing the database password
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import { writeFileSync, appendFileSync } from "node:fs";
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          const ref = process.env.SUPABASE_PROJECT_REF ?? "";
+          const url = new URL(raw);
+          const username = decodeURIComponent(url.username);
+          const password = decodeURIComponent(url.password);
+          const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
+          const port = url.port || "5432";
+          const sslmode = url.searchParams.get("sslmode") || "require";
+          if (!password || !database || /[\r\n]/.test(password) ||
+              !url.hostname.endsWith(".pooler.supabase.com") ||
+              username !== "postgres." + ref || port !== "5432" ||
+              !["require", "verify-ca", "verify-full"].includes(sslmode)) {
+            throw new Error("Production database connection details failed validation.");
+          }
+          const escapePass = (value) => value.replaceAll("\\", "\\\\").replaceAll(":", "\\:");
+          const passfile = process.env.RUNNER_TEMP + "/production-db2.pgpass";
+          writeFileSync(passfile,
+            [url.hostname, port, database, username, password].map(escapePass).join(":") + "\n",
+            { mode: 0o600 });
+          const env = [
+            "PGHOST=" + url.hostname,
+            "PGPORT=" + port,
+            "PGDATABASE=" + database,
+            "PGUSER=" + username,
+            "PGSSLMODE=" + sslmode,
+            "PGPASSFILE=" + passfile,
+          ].join("\n") + "\n";
+          appendFileSync(process.env.GITHUB_ENV, env);
+          NODE
+          test -s "$RUNNER_TEMP/production-db2.pgpass"
+          chmod 600 "$RUNNER_TEMP/production-db2.pgpass"
+
+      - name: Create full custom-format Production DB2 backup (read only)
+        run: |
+          set -euo pipefail
+
+          # Keep the dump owned by the GitHub runner. A root-owned file created
+          # by Docker cannot be chmod'ed or removed by the runner afterwards.
+          umask 077
+          rm -f "$BACKUP_DIR/production-db2.dump"
+          : > "$BACKUP_DIR/production-db2.dump"
+          chmod 600 "$BACKUP_DIR/production-db2.dump"
+
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGSSLMODE \
+            -e PGPASSFILE=/run/secrets/pgpass \
+            -v "$RUNNER_TEMP/production-db2.pgpass:/run/secrets/pgpass:ro" \
+            -v "$BACKUP_DIR:/backup" \
+            postgres:17.6-alpine \
+            pg_dump --format=custom --no-owner --no-acl --compress=6 \
+              --file=/backup/production-db2.dump
+
+          test -s "$BACKUP_DIR/production-db2.dump"
+          chmod 600 "$BACKUP_DIR/production-db2.dump"
+          echo "Full custom-format DB2 dump created in the ephemeral runner; its contents and rows were not printed."
+
+      - name: Verify archive catalog and prepare isolated restore list
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -v "$BACKUP_DIR:/backup:ro" \
+            postgres:17.6-alpine \
+            pg_restore --list /backup/production-db2.dump > "$BACKUP_DIR/restore-catalog.txt"
+
+          DATA_ENTRIES="$(grep -c 'TABLE DATA' "$BACKUP_DIR/restore-catalog.txt" || true)"
+          test "$DATA_ENTRIES" -gt 0 || {
+            echo "The Production dump contains no table-data entries; refusing to accept a schema-only artifact." >&2
+            exit 1
+          }
+
+          # Supabase pins pg_cron to cron.database_name=postgres. Do not try
+          # to install it in the separate restore database and do not restore
+          # Production scheduler rows into a runner that could execute them.
+          PG_CRON_EXTENSION_ENTRIES="$(grep -Ec ' EXTENSION - pg_cron([[:space:]]|$)' "$BACKUP_DIR/restore-catalog.txt" || true)"
+          test "$PG_CRON_EXTENSION_ENTRIES" -eq 1 || {
+            echo "Expected exactly one pg_cron extension entry in the full Production archive." >&2
+            exit 1
+          }
+
+          awk '
+            /^;/ { print; next }
+            /^[[:space:]]*[0-9]+;/ && $0 ~ /(^|[[:space:]])(pg_cron|cron)([[:space:]]|$)/ {
+              excluded++
+              next
+            }
+            { print }
+            END {
+              if (excluded == 0) exit 3
+            }
+          ' "$BACKUP_DIR/restore-catalog.txt" > "$BACKUP_DIR/restore-application.list"
+
+          RESTORE_ENTRIES="$(grep -Ec '^[[:space:]]*[0-9]+;' "$BACKUP_DIR/restore-application.list" || true)"
+          test "$RESTORE_ENTRIES" -gt 0 || {
+            echo "The application restore list is empty after excluding cluster-bound pg_cron objects." >&2
+            exit 1
+          }
+
+          if grep -Eq '(^|[[:space:]])(pg_cron|cron)([[:space:]]|$)' "$BACKUP_DIR/restore-application.list"; then
+            echo "The isolated restore list still contains pg_cron or cron scheduler objects; refusing to start restore." >&2
+            exit 1
+          fi
+
+          echo "Full Production archive contains table data. Only the disposable application-restore list excludes pg_cron and cron scheduler objects; the original full dump remains unchanged for encryption and recovery."
+
+      - name: Verify local Supabase bootstrap superuser and create empty restore target
+        run: |
+          set -euo pipefail
+
+          # Supabase's local postgres role is not the cluster bootstrap
+          # superuser. Managed Realtime routines in a full dump set SUSET
+          # parameters such as log_min_messages, so restore as supabase_admin.
+          ADMIN_CHECK="$(docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            postgres:17.6-alpine \
+            psql "postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres" \
+              -X -qAt --set=ON_ERROR_STOP=1 \
+              --command "SELECT rolsuper FROM pg_roles WHERE rolname = current_user AND current_user = 'supabase_admin';")"
+
+          test "$ADMIN_CHECK" = "t" || {
+            echo "The disposable Supabase bootstrap role is not a verified superuser; refusing the restore rehearsal." >&2
+            exit 1
+          }
+
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            postgres:17.6-alpine \
+            createdb --host=127.0.0.1 --port=54322 --username=supabase_admin sykabelajar_db2_restore
+
+      - name: Restore Production DB2 application database to disposable local PostgreSQL
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$BACKUP_DIR:/backup:ro" \
+            postgres:17.6-alpine \
+            pg_restore --exit-on-error --no-owner --no-acl \
+              --use-list=/backup/restore-application.list \
+              --dbname=postgresql://supabase_admin:postgres@127.0.0.1:54322/sykabelajar_db2_restore \
+              /backup/production-db2.dump
+
+      - name: Verify restored database catalog without selecting application data
+        run: |
+          set -euo pipefail
+          SQL=$(cat <<'SQL'
+          SELECT
+            to_regclass('public.profiles') IS NOT NULL,
+            to_regclass('auth.users') IS NOT NULL,
+            to_regclass('private.app_users') IS NULL,
+            (SELECT count(*) > 0
+             FROM pg_class c
+             JOIN pg_namespace n ON n.oid=c.relnamespace
+             WHERE c.relkind IN ('r','p')
+               AND n.nspname NOT IN ('pg_catalog','information_schema')),
+            (SELECT current_setting('server_version_num') LIKE '170%');
+          SQL
+          )
+          RESULT="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://supabase_admin:postgres@127.0.0.1:54322/sykabelajar_db2_restore" \
+              -X -qAt --field-separator='|' --set=ON_ERROR_STOP=1 --command "$SQL")"
+          EXPECTED="t|t|t|t|t"
+          test "$RESULT" = "$EXPECTED" || {
+            echo "Disposable restore catalog verification failed; no encrypted backup artifact will be published." >&2
+            exit 1
+          }
+          echo "Production application database restore completed and the disposable catalog contains the expected identity baseline. pg_cron extension and scheduler-owned cron objects remain in the encrypted source archive but were excluded from the separate restore target; no scheduler jobs were executed. No application rows were selected or printed."
+
+      - name: Encrypt the verified full backup with the owner-managed age recipient
+        env:
+          SUPABASE_BACKUP_AGE_RECIPIENT: ${{ secrets.SUPABASE_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y age
+          age --encrypt --recipient "$SUPABASE_BACKUP_AGE_RECIPIENT" \
+            --output "$BACKUP_DIR/production-db2.dump.age" \
+            "$BACKUP_DIR/production-db2.dump"
+          test -s "$BACKUP_DIR/production-db2.dump.age"
+          sha256sum "$BACKUP_DIR/production-db2.dump.age" > "$BACKUP_DIR/production-db2.dump.age.sha256"
+          cat > "$BACKUP_DIR/manifest.txt" <<EOF
+          project_ref=mvdczyitbkxkldjughor
+          database_version=PostgreSQL 17.6
+          backup_format=pg_dump custom archive
+          restore_rehearsal=passed in disposable local Supabase PostgreSQL 17.6 (application objects)
+          restore_exclusion=pg_cron extension and cron scheduler objects excluded only from isolated target; retained in encrypted source dump
+          encryption=age public-key encryption
+          plaintext_artifact=not uploaded
+          production_ddl_or_dml=not performed
+          generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt" "$BACKUP_DIR/restore-application.list" "$RUNNER_TEMP/production-db2.pgpass"
+          echo "Verified full backup encrypted. Only the encrypted dump, checksum and non-sensitive manifest will be uploaded."
+
+      - name: Upload encrypted Production DB2 backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sykabelajar-production-db2-encrypted-backup
+          path: |
+            ${{ runner.temp }}/sykabelajar-db2-backup/production-db2.dump.age
+            ${{ runner.temp }}/sykabelajar-db2-backup/production-db2.dump.age.sha256
+            ${{ runner.temp }}/sykabelajar-db2-backup/manifest.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Stop isolated Supabase stack and remove plaintext material
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          set +e
+          if [ -d "$SUPABASE_CLI_WORKDIR" ]; then
+            cd "$SUPABASE_CLI_WORKDIR" && supabase stop --no-backup >/dev/null 2>&1 || true
+          fi
+          rm -f "$RUNNER_TEMP/production-db2.pgpass"
+          rm -f "$BACKUP_DIR/production-db2.dump" "$BACKUP_DIR/restore-catalog.txt" "$BACKUP_DIR/restore-application.list"
+          exit 0

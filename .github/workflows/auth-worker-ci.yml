@@ -5,18 +5,90 @@ on:
     branches:
       - main
       - security/auth-migration-phase-0
+      - security/auth-poc-stage-1
+      - security/auth-temporary-email-bypass
     paths:
       - "services/auth-worker/**"
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - "scripts/auth-migration/**"
+      - "src/**"
       - ".github/workflows/auth-worker-ci.yml"
+      - "docs/security/**"
   push:
     branches:
       - security/auth-poc-stage-1
+      - security/auth-temporary-email-bypass
     paths:
       - "services/auth-worker/**"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/cloudinary-delete-asset/**"
+      - "supabase/functions/cloudinary-delete-asset-v2/**"
+      - "supabase/functions/cloudinary-profile-upload/**"
+      - "supabase/functions/cloudinary-profile-upload-v2/**"
+      - "supabase/functions/cloudinary-delete-profile/**"
+      - "supabase/functions/payment-gateway-admin/**"
+      - "supabase/functions/payment-gateway-create/**"
+      - "supabase/functions/payment-gateway-reconcile/**"
+      - "supabase/functions/midtrans-create-payment/**"
+      - "supabase/functions/payment-gateway-webhook/**"
+      - "supabase/config.toml"
+      - "scripts/auth-migration/edge-auth-claims.test.mjs"
+      - "scripts/auth-migration/cloudinary-ownership.test.mjs"
+      - "scripts/auth-migration/payment-edge-auth-migration.test.mjs"
+      - "scripts/auth-migration/frontend-auth-inventory.test.mjs"
+      - "src/services/betterAuthApi.client.ts"
+      - "src/services/auth.service.ts"
+      - "src/services/betterAuthSessionBridge.mjs"
+      - "src/services/betterAuthSessionBridge.d.mts"
+      - "src/services/authSessionConfirmation.mjs"
+      - "src/services/authSessionConfirmation.d.mts"
+      - "scripts/auth-migration/auth-session-confirmation.test.mjs"
+      - "src/pages/AdminErrorIntelligencePage.tsx"
+      - "src/pages/AdminPage.tsx"
+      - "src/components/admin/BetterAuthAcceptancePanel.tsx"
+      - "scripts/auth-migration/better-auth-stage2-acceptance-panel.test.mjs"
+      - "src/pages/RegisterPage.tsx"
+      - "src/pages/LoginPage.tsx"
+      - "src/pages/ResetPasswordPage.tsx"
+      - "src/pages/AuthEmailVerifiedPage.tsx"
+      - "src/lib/safeInternalRedirect.mjs"
+      - "src/lib/safeInternalRedirect.d.mts"
+      - "scripts/auth-migration/safe-internal-redirect.test.mjs"
+      - "scripts/auth-migration/better-auth-session-bridge.test.mjs"
+      - "scripts/auth-migration/auth-hydration-gate.test.mjs"
+      - "src/lib/supabase.ts"
+      - "src/lib/env.ts"
+      - "src/lib/supabaseEnvironment.mjs"
+      - "src/lib/supabaseEnvironment.d.mts"
+      - "scripts/auth-migration/supabase-environment-selection.test.mjs"
+      - "src/services/supabaseClientOptions.mjs"
+      - "src/services/supabaseClientOptions.d.mts"
+      - "scripts/auth-migration/supabase-client-options.test.mjs"
+      - "src/services/applicationIdentity.ts"
+      - "src/services/applicationIdentityReader.mjs"
+      - "src/services/applicationIdentityReader.d.mts"
+      - "scripts/auth-migration/application-identity-reader.test.mjs"
+      - "src/services/authSessionEvents.mjs"
+      - "src/services/authSessionEvents.d.mts"
+      - "src/services/organizerAuth.service.ts"
+      - "src/store/AppContext.tsx"
+      - "src/lib/cacheAuthLifecycle.ts"
+      - "src/App.tsx"
+      - "src/services/authSessionIsolation.mjs"
+      - "src/services/authSessionIsolation.d.mts"
+      - "scripts/auth-migration/auth-session-isolation.test.mjs"
+      - "docs/security/AUTH-FRONTEND-MIGRATION-INVENTORY.md"
+      - "scripts/auth-migration/auth-session-events.test.mjs"
+      - "src/vite-env.d.ts"
+      - "scripts/auth-migration/better-auth-frontend-client.test.mjs"
       - ".github/workflows/auth-worker-ci.yml"
+      - ".github/workflows/auth-worker-staging-deploy.yml"
+      - ".github/workflows/auth-cloudflare-d1-migrate.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: auth-worker-ci-${{ github.ref }}
@@ -24,7 +96,7 @@ concurrency:
 
 jobs:
   check:
-    if: ${{ github.head_ref == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-poc-stage-1' }}
+    if: ${{ github.head_ref == 'security/auth-poc-stage-1' || github.head_ref == 'security/auth-temporary-email-bypass' || github.ref_name == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-temporary-email-bypass' }}
     name: Audit, tests, D1 migration, OIDC/JWKS smoke test, and Worker dry run
     runs-on: ubuntu-latest
     defaults:
@@ -39,10 +111,10 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: services/auth-worker/package.json
+          cache-dependency-path: services/auth-worker/package-lock.json
 
       - name: Install pinned direct dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Check dependency advisories
         run: npm audit --audit-level=high
@@ -53,18 +125,82 @@ jobs:
       - name: Security contract tests
         run: npm test
 
-      - name: Apply bootstrap-state migration to local D1
-        run: npx wrangler d1 migrations apply sykabelajar-auth-poc --local
+      - name: Setup Deno for migrated Supabase Edge Functions
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.8
 
-      - name: Start local Worker and generate Better Auth D1 schema
+      - name: Type-check Better Auth identity adapter and migrated Edge handlers
+        working-directory: ${{ github.workspace }}
+        run: |
+          deno check --node-modules-dir=auto \
+            supabase/functions/_shared/auth-claims.mjs \
+            supabase/functions/_shared/better-auth-user.ts \
+            supabase/functions/_shared/require-application-user.ts \
+            supabase/functions/get-cloudinary-signature/index.ts \
+            supabase/functions/cloudinary-profile-upload/index.ts \
+            supabase/functions/cloudinary-profile-upload-v2/index.ts \
+            supabase/functions/cloudinary-delete-asset/index.ts \
+            supabase/functions/cloudinary-delete-asset-v2/index.ts \
+            supabase/functions/cloudinary-delete-profile/index.ts \
+            supabase/functions/payment-gateway-admin/index.ts \
+            supabase/functions/payment-gateway-create/index.ts \
+            supabase/functions/payment-gateway-reconcile/index.ts \
+            supabase/functions/midtrans-create-payment/index.ts
+
+      - name: Verify Better Auth staging Storage, Realtime, and Edge acceptance panel
+        run: node ../../scripts/auth-migration/better-auth-stage2-acceptance-panel.test.mjs
+
+      - name: Verify Supabase Custom OIDC and Edge Function auth contract
+        run: node ../../scripts/auth-migration/edge-auth-claims.test.mjs
+
+      - name: Verify Cloudinary signer ownership boundaries
+        run: node ../../scripts/auth-migration/cloudinary-ownership.test.mjs
+
+      - name: Verify payment Edge Function identity migration boundaries
+        run: node ../../scripts/auth-migration/payment-edge-auth-migration.test.mjs
+
+      - name: Verify frontend Supabase Auth dependency inventory
+        run: node ../../scripts/auth-migration/frontend-auth-inventory.test.mjs
+
+      - name: Verify auth redirect stays on the exact application origin
+        run: node ../../scripts/auth-migration/safe-internal-redirect.test.mjs
+
+      - name: Verify Better Auth frontend and organizer verification contracts
+        run: node ../../scripts/auth-migration/better-auth-frontend-client.test.mjs
+
+      - name: Verify shared Supabase client auth-token source
+        run: node ../../scripts/auth-migration/supabase-client-options.test.mjs
+
+      - name: Verify hostname-scoped staging Supabase environment selection
+        run: node ../../scripts/auth-migration/supabase-environment-selection.test.mjs
+
+      - name: Verify Better Auth email-admin JWT and staging authorization
+        run: node tests/email-admin-auth.test.mjs
+
+      - name: Verify Better Auth cross-tab session synchronization
+        run: node ../../scripts/auth-migration/better-auth-session-bridge.test.mjs
+
+      - name: Verify Better Auth session confirmation respects D1 quota Retry-After
+        run: node ../../scripts/auth-migration/auth-session-confirmation.test.mjs
+
+      - name: Verify login transitions do not hard-reload before navigation
+        run: node ../../scripts/auth-migration/auth-session-isolation.test.mjs
+
+      - name: Verify stale auth hydration generations and rejection handling
+        run: node ../../scripts/auth-migration/auth-hydration-gate.test.mjs
+
+      - name: Run local Worker, apply D1 migrations, and verify auth/OAuth flows
         shell: bash
         run: |
           set -euo pipefail
           SCHEMA_TOKEN="$(openssl rand -hex 32)"
-          printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" > .dev.vars
-          npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
+          OAUTH_CLIENT_TOKEN="$(openssl rand -hex 32)"
+          MAIL_TOKEN="$(openssl rand -hex 32)"
+          printf 'BETTER_AUTH_URL=http://localhost:8787\nBETTER_AUTH_SECRET=%s\nDEV_APP_ORIGIN=http://localhost:5173\nD1_SCHEMA_BOOTSTRAP_TOKEN=%s\nALLOW_SCHEMA_BOOTSTRAP=true\nOAUTH_CLIENT_BOOTSTRAP_TOKEN=%s\nOAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback\nAUTH_EMAIL_PROVIDER=webhook\nSUPABASE_PROVISIONING_ENABLED=false\nAUTH_EMAIL_WEBHOOK_URL=http://localhost:8788/send\nAUTH_EMAIL_WEBHOOK_TOKEN=%s\nAUTH_EMAIL_FROM=noreply@example.test\n' "$(openssl rand -hex 32)" "$SCHEMA_TOKEN" "$OAUTH_CLIENT_TOKEN" "$MAIL_TOKEN" > .dev.vars
+          setsid npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker.log" 2>&1 &
           WORKER_PID=$!
-          trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
+          trap 'kill -- -"$WORKER_PID" 2>/dev/null || true' EXIT
           WORKER_READY=false
           for attempt in $(seq 1 30); do
             if curl --silent --fail http://127.0.0.1:8787/bootz > /dev/null; then
@@ -92,11 +228,11 @@ jobs:
           const discoveryResponse = await fetch("http://127.0.0.1:8787/api/auth/.well-known/openid-configuration");
           assert.equal(discoveryResponse.status, 200, "OIDC discovery must respond 200");
           const discovery = await discoveryResponse.json();
-          assert.equal(new URL(discovery.issuer).hostname, "localhost", "issuer must use the local Worker host");
+          assert.equal(new URL(discovery.issuer).hostname, "localhost", "schema bootstrap issuer must use the local Worker host");
           assert.ok(discovery.authorization_endpoint, "authorization endpoint must be advertised");
           assert.ok(discovery.token_endpoint, "token endpoint must be advertised");
           assert.ok(discovery.jwks_uri, "JWKS URI must be advertised");
-          const jwksResponse = await fetch(discovery.jwks_uri.replace("localhost", "127.0.0.1"));
+          const jwksResponse = await fetch("http://127.0.0.1:8787/api/auth/jwks");
           assert.equal(jwksResponse.status, 200, "JWKS endpoint must respond 200");
           const jwks = await jwksResponse.json();
           assert.ok(Array.isArray(jwks.keys) && jwks.keys.length > 0, "JWKS must contain a signing key");
@@ -105,8 +241,129 @@ jobs:
           console.log("JWKS keys:", jwks.keys.length);
           NODE
 
+          # The schema export endpoint runs Better Auth's supported migrator on the
+          # scratch D1 used by wrangler dev. Discard that scratch DB before testing
+          # the checked-in versioned migration chain from an empty database; otherwise
+          # migration 0004 correctly reports duplicate columns already created by the
+          # schema exporter. This keeps the 0001 baseline immutable and proves the additive migrations through 0005.
+          kill -- -"$WORKER_PID" 2>/dev/null || true
+          wait "$WORKER_PID" 2>/dev/null || true
+          WORKER_PID=""
+          rm -rf .wrangler/state/v3/d1
+
+          npx wrangler d1 migrations apply sykabelajar-auth-poc --local
+          D1_TABLES="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_email_accounts','auth_email_settings','auth_email_admin_test_limits') ORDER BY name" 2>&1)"
+          printf '%s\\n' "$D1_TABLES"
+          TABLE_COUNT="$(printf '%s\\n' "$D1_TABLES" | grep -c 'auth_email_' || true)"
+          test "$TABLE_COUNT" -ge 3 || { echo "ZeptoMail D1 migration tables are missing." >&2; exit 1; }
+
+          D1_USER_COLUMNS="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name" 2>&1)"
+          printf '%s\\n' "$D1_USER_COLUMNS"
+          COLUMN_COUNT="$(printf '%s\\n' "$D1_USER_COLUMNS" | grep -Ec 'accountType|username|referralCode|birthDate|institution|grade|subjects' || true)"
+          test "$COLUMN_COUNT" -eq 7 || { echo "Better Auth registration/profile columns are missing after the versioned migration chain." >&2; exit 1; }
+
+          D1_PHONE_TABLE="$(npx wrangler d1 execute sykabelajar-auth-poc --local --command "SELECT name FROM sqlite_master WHERE type='table' AND name='auth_phone_verification_challenges'" 2>&1)"
+          printf '%s\\n' "$D1_PHONE_TABLE"
+          printf '%s\\n' "$D1_PHONE_TABLE" | grep -q 'auth_phone_verification_challenges' || {
+            echo "Telegram verified-phone challenge migration 0005 is missing." >&2
+            exit 1
+          }
+
+          npx wrangler d1 execute sykabelajar-auth-poc --local --json --command "SELECT cfg.key AS config_key, cfg.value AS configured_client_id, c.clientId AS client_id, c.clientSecret AS client_secret, c.disabled AS disabled, c.scopes AS scopes, c.redirectUris AS redirect_uris, c.tokenEndpointAuthMethod AS token_endpoint_auth_method, c.grantTypes AS grant_types, c.responseTypes AS response_types, c.requirePKCE AS require_pkce, r.resourceId AS resource_id FROM auth_worker_internal_config AS cfg JOIN oauthClient AS c ON c.clientId = cfg.value JOIN oauthClientResource AS r ON r.clientId = c.clientId WHERE cfg.key = 'first_party_oauth_client_id' AND cfg.value <> 'pending';" > "$RUNNER_TEMP/auth-worker-oauth-seed.json"
+
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const raw = readFileSync(process.env.RUNNER_TEMP + "/auth-worker-oauth-seed.json", "utf8");
+          const payload = JSON.parse(raw);
+          let row;
+          const visit = (value) => {
+            if (Array.isArray(value)) return value.forEach(visit);
+            if (!value || typeof value !== "object") return;
+            if (Object.hasOwn(value, "client_id")) row = value;
+            Object.values(value).forEach(visit);
+          };
+          visit(payload);
+          assert.ok(row, "versioned D1 migrations must seed and link the first-party OAuth client");
+          assert.equal(row.config_key, "first_party_oauth_client_id");
+          assert.equal(row.client_id, "sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y");
+          assert.equal(row.configured_client_id, row.client_id);
+          assert.equal(row.client_secret, null);
+          assert.equal(Number(row.disabled), 0);
+          assert.equal(row.token_endpoint_auth_method, "none");
+          assert.equal(Number(row.require_pkce), 1);
+          assert.equal(row.resource_id, "https://sykabelajar.my.id");
+          assert.deepEqual(JSON.parse(row.scopes), ["openid", "profile", "email"]);
+          assert.deepEqual(JSON.parse(row.grant_types), ["authorization_code"]);
+          assert.deepEqual(JSON.parse(row.response_types), ["code"]);
+          assert.deepEqual(JSON.parse(row.redirect_uris), [
+            "https://sykabelajar.my.id/auth/oidc/callback",
+            "https://staging.sykabelajar.my.id/auth/oidc/callback",
+          ]);
+          console.log("Verified the fixed first-party OAuth client seed, PKCE, resource and exact callback in the migrated D1 database.");
+          NODE
+
+          # Keep the schema-bootstrap phase bound to localhost. Once the
+          # checked-in D1 migrations are applied, restart the same local Worker
+          # with the canonical issuer so its D1-signed test JWT matches staging.
+          sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=https://auth.sykabelajar.my.id|' .dev.vars
+                    setsid npx wrangler dev --local --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/auth-worker-migrated.log" 2>&1 &
+          WORKER_PID=$!
+          WORKER_READY=false
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8787/healthz > /dev/null; then
+              WORKER_READY=true
+              break
+            fi
+            if ! kill -0 "$WORKER_PID" 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          if [ "$WORKER_READY" != "true" ]; then
+            echo "Worker did not restart against the versioned migrated D1. Log follows:"
+            cat "$RUNNER_TEMP/auth-worker-migrated.log"
+            exit 1
+          fi
+
+          if ! AUTH_WORKER_BASE_URL=http://127.0.0.1:8787 \
+            DEV_APP_ORIGIN=http://localhost:5173 \
+            SUPABASE_RESOURCE_AUDIENCE=https://sykabelajar.my.id \
+            OAUTH_CALLBACK_URL=https://sykabelajar.my.id/auth/oidc/callback \
+            OAUTH_CLIENT_BOOTSTRAP_TOKEN="$OAUTH_CLIENT_TOKEN" \
+            AUTH_EMAIL_WEBHOOK_TOKEN="$MAIL_TOKEN" \
+            STAGE5_D1_HANDLER_ACCEPTANCE=true \
+            STAGE5_EXPECTED_ISSUER=https://auth.sykabelajar.my.id/api/auth \
+            STAGE5_D1_ISSUER_ORIGIN=https://auth.sykabelajar.my.id \
+            STAGE5_LOCAL_WORKER_JWKS_PROXY=http://127.0.0.1:8787 \
+            node tests/auth-flow.integration.mjs; then
+            echo "Auth integration failed. Worker runtime diagnostics follow:"
+            cat "$RUNNER_TEMP/auth-worker-migrated.log"
+            exit 1
+          fi
+
       - name: Bundle Worker without deploying
         run: npm run build
+
+      - name: Bundle Production Worker configuration without deploying
+        run: npx wrangler --config wrangler.production.toml deploy --dry-run --outdir=dist-production
+
+
+      - name: Persist generated D1 schema and dependency lock
+        if: ${{ github.event_name == 'push' }}
+        env:
+          HEAD_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json migrations/0001_better_auth.sql
+          if git diff --cached --quiet; then
+            echo "Generated schema and package lock are already committed."
+            exit 0
+          fi
+          git commit -m "chore(auth-poc): commit generated D1 schema and lockfile"
+          git push origin "HEAD:${HEAD_REF}"
 
       - name: Upload generated schema and dependency lock
         if: always()
@@ -118,3 +375,37 @@ jobs:
             services/auth-worker/package-lock.json
           if-no-files-found: warn
           retention-days: 7
+
+  frontend-check:
+    name: Frontend lint, typecheck, and build (no deploy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build frontend without deploying
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
+          VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+          VITE_CLOUDINARY_PROFILE_PRESET: ${{ secrets.VITE_CLOUDINARY_PROFILE_PRESET }}
+          VITE_EDGE_FUNCTION_URL: ${{ secrets.VITE_EDGE_FUNCTION_URL }}
+          VITE_AUTH_WORKER_URL: ${{ secrets.VITE_AUTH_WORKER_URL }}

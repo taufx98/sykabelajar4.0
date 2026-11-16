@@ -1,0 +1,106 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  applyResponseHeaders,
+  createCorsHeaders,
+  isAllowedOrigin,
+  timingSafeEqualString,
+} from "../src/security.mjs";
+
+test("allows only the exact configured HTTPS origin", () => {
+  const allowlist = ["https://sykabelajar.my.id"];
+  assert.equal(isAllowedOrigin("https://sykabelajar.my.id", allowlist), true);
+  assert.equal(isAllowedOrigin("https://www.sykabelajar.my.id", allowlist), false);
+  assert.equal(isAllowedOrigin("https://sykabelajar.my.id.evil.example", allowlist), false);
+  assert.equal(isAllowedOrigin("http://sykabelajar.my.id", allowlist), false);
+  assert.equal(isAllowedOrigin("null", allowlist), false);
+});
+
+test("rejects origins containing paths, credentials, or malformed URLs", () => {
+  const allowlist = ["https://sykabelajar.my.id"];
+  assert.equal(isAllowedOrigin("https://sykabelajar.my.id/path", allowlist), false);
+  assert.equal(isAllowedOrigin("https://user@sykabelajar.my.id", allowlist), false);
+  assert.equal(isAllowedOrigin("not-a-url", allowlist), false);
+  assert.equal(isAllowedOrigin(null, allowlist), false);
+});
+
+test("CORS allows credentials only for an exact allowlisted origin", () => {
+  const allowedRequest = new Request("https://auth.example.test/api/auth/get-session", {
+    headers: { Origin: "https://sykabelajar.my.id" },
+  });
+  const allowed = createCorsHeaders(allowedRequest, ["https://sykabelajar.my.id"]);
+  assert.equal(allowed.get("Access-Control-Allow-Origin"), "https://sykabelajar.my.id");
+  assert.equal(allowed.get("Access-Control-Allow-Credentials"), "true");
+  assert.notEqual(allowed.get("Access-Control-Allow-Origin"), "*");
+
+  const rejectedRequest = new Request("https://auth.example.test/api/auth/get-session", {
+    headers: { Origin: "https://attacker.example" },
+  });
+  assert.equal(createCorsHeaders(rejectedRequest, ["https://sykabelajar.my.id"]), null);
+});
+
+test("the dedicated migration Pages preview is allowed only as an exact origin", () => {
+  const preview = "https://security-auth-poc-stage-1.sykabelajar4.pages.dev";
+  const allowlist = ["https://sykabelajar.my.id", preview];
+  assert.equal(isAllowedOrigin(preview, allowlist), true);
+  assert.equal(isAllowedOrigin("https://attacker.security-auth-poc-stage-1.sykabelajar4.pages.dev", allowlist), false);
+  assert.equal(isAllowedOrigin("https://security-auth-poc-stage-1.sykabelajar4.pages.dev.evil.example", allowlist), false);
+  const allowed = createCorsHeaders(new Request("https://auth.sykabelajar.my.id/api/admin/email-settings", {
+    headers: { Origin: preview },
+  }), allowlist);
+  assert.equal(allowed?.get("Access-Control-Allow-Origin"), preview);
+  assert.equal(allowed?.get("Access-Control-Allow-Credentials"), "true");
+});
+
+test("development localhost is allowed only when explicitly listed", () => {
+  assert.equal(isAllowedOrigin("http://localhost:5173", ["https://sykabelajar.my.id"]), false);
+  assert.equal(isAllowedOrigin("http://localhost:5173", ["http://localhost:5173"]), true);
+});
+
+test("CORS never treats a wildcard or opaque null origin as trusted", () => {
+  const wildcardRequest = new Request("https://auth.sykabelajar.my.id/api/admin/email-settings", {
+    headers: { Origin: "https://attacker.example" },
+  });
+  assert.equal(createCorsHeaders(wildcardRequest, ["*"]), null);
+  const nullRequest = new Request("https://auth.sykabelajar.my.id/api/admin/email-settings", {
+    headers: { Origin: "null" },
+  });
+  assert.equal(createCorsHeaders(nullRequest, ["https://sykabelajar.my.id"]), null);
+});
+
+test("bootstrap secret comparison accepts exact value and rejects wrong/empty values", () => {
+  assert.equal(timingSafeEqualString("a".repeat(32), "a".repeat(32)), true);
+  assert.equal(timingSafeEqualString("a".repeat(32), "a".repeat(31) + "b"), false);
+  assert.equal(timingSafeEqualString("secret", ""), false);
+  assert.equal(timingSafeEqualString("secret", null), false);
+});
+
+
+test("CORS exposes only the auth availability headers needed by browser recovery", () => {
+  const request = new Request("https://auth.example.test/api/auth/get-session", {
+    headers: { Origin: "https://sykabelajar.my.id" },
+  });
+  const corsHeaders = createCorsHeaders(request, ["https://sykabelajar.my.id"]);
+  assert.equal(
+    corsHeaders?.get("Access-Control-Expose-Headers"),
+    "X-Auth-Availability, Retry-After",
+  );
+
+  const response = applyResponseHeaders(new Response(JSON.stringify({
+    code: "D1_FREE_TIER_ROWS_READ_LIMIT_REACHED",
+    retry_at_utc: "2026-11-14T00:00:00.000Z",
+  }), {
+    status: 503,
+    headers: {
+      "X-Auth-Availability": "degraded",
+      "Retry-After": "3600",
+    },
+  }), corsHeaders);
+
+  assert.equal(response.headers.get("X-Auth-Availability"), "degraded");
+  assert.equal(response.headers.get("Retry-After"), "3600");
+  assert.equal(
+    response.headers.get("Access-Control-Expose-Headers"),
+    "X-Auth-Availability, Retry-After",
+  );
+});

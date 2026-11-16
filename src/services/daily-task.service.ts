@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { getJakartaDateKey } from '@/lib/jakartaDate';
+import { requireCurrentApplicationUserId } from '@/services/applicationIdentity';
 
 export interface LiveDailyTask {
   id: string;
@@ -18,12 +19,11 @@ export interface LiveDailyTask {
 }
 
 export async function getDailyTasks(claimDate = getJakartaDateKey()): Promise<LiveDailyTask[]> {
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) throw new Error('LOGIN_REQUIRED');
+  const userId = await requireCurrentApplicationUserId('LOGIN_REQUIRED');
 
   const [{ data: tasks, error: taskError }, { data: claims, error: claimError }] = await Promise.all([
     supabase.from('daily_tasks').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
-    supabase.from('daily_task_claims').select('*').eq('user_id', userData.user.id).eq('claim_date', claimDate),
+    supabase.from('daily_task_claims').select('*').eq('user_id', userId).eq('claim_date', claimDate),
   ]);
 
   if (taskError) throw taskError;

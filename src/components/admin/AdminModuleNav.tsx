@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Trophy, Users, FileText, Activity, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote, Medal, Gift } from 'lucide-react';
+import { LayoutDashboard, Trophy, Users, FileText, Activity, ShoppingBag, Store, Coins, Settings, ShieldCheck, ClipboardList, Megaphone, Award, Wrench, Banknote, Medal, Gift, Mail } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 type AdminNavItem = { title: string; path: string; icon: typeof LayoutDashboard; badge?: string };
@@ -26,6 +26,7 @@ const GROUPS: AdminNavGroup[] = [
     { title: 'Metode Pembayaran', path: '/admin/payment-settings', icon: Banknote },
     { title: 'Moderasi', path: '/admin/moderation', icon: ShieldCheck },
     { title: 'Fulfillment', path: '/admin/fulfillment', icon: Wrench },
+    { title: 'Pengaturan Email', path: '/admin/core?tab=settings', icon: Mail },
     { title: 'Pengaturan Sosial & Notifikasi', path: '/admin/social-notification-settings', icon: Settings },
     { title: 'Role & Akses', path: '/admin/roles', icon: ShieldCheck },
   ] },
@@ -56,7 +57,7 @@ export function AdminModuleNav() {
   useEffect(() => { setOpenGroup(activeGroup); }, [activeGroup]);
 
   const selectedGroup = GROUPS.find(group => group.key === openGroup) ?? null;
-  const gridClass = selectedGroup?.items.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2 lg:grid-cols-5';
+  const gridClass = selectedGroup?.items.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : selectedGroup && selectedGroup.items.length >= 6 ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6' : 'grid-cols-2 lg:grid-cols-5';
 
   return <nav className="border-b surface-border bg-surface-elevated/15" aria-label="Navigasi modul Admin">
     <div className="mx-auto max-w-7xl px-3 py-2 md:px-6">
@@ -64,7 +65,7 @@ export function AdminModuleNav() {
         <Link to="/admin" className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${!openGroup && location.pathname === '/admin' ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`}><LayoutDashboard size={14} /><span className="truncate">Dashboard</span></Link>
         {GROUPS.map(group => <button key={group.key} type="button" onClick={() => setOpenGroup(value => value === group.key ? null : group.key)} className={`flex min-w-0 items-center justify-center rounded-xl px-2 py-2 text-xs font-semibold transition-all duration-200 ${openGroup === group.key ? 'bg-accent-muted-strong text-accent shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-fg-secondary'}`} aria-expanded={openGroup === group.key}><span className="truncate">{group.title}</span></button>)}
       </div>
-      <div className={`overflow-hidden transition-all duration-300 ease-out ${selectedGroup ? 'mt-2 max-h-40 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-1'}`}>
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${selectedGroup ? `mt-2 ${selectedGroup.items.length >= 6 ? 'max-h-80' : 'max-h-40'} opacity-100 translate-y-0` : 'max-h-0 opacity-0 -translate-y-1'}`}>
         {selectedGroup && <div className={`grid ${gridClass} gap-1.5 pb-1`}>{selectedGroup.items.map(({ title, path, icon: Icon }) => <Link key={title} to={path} className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-medium transition-all duration-200 ${matchesItem(location, path) ? 'border-accent/20 bg-accent-muted-strong text-accent shadow-sm' : 'border-transparent text-slate-500 hover:border-surface-border hover:bg-white/5 hover:text-fg-secondary'}`}><Icon size={14} /><span className="truncate">{title}</span></Link>)}</div>}
       </div>
     </div>

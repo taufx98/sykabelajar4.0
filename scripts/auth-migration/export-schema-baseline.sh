@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Export schema-only metadata for a local SYKABELAJAR auth-migration baseline.
+# This helper is deliberately read-only against the remote project.
+# It does not export application rows, custom role definitions, or credentials.
+# It does not restore, apply, deploy, pause, or modify any remote resource.
+
+die() { printf 'ERROR: %s\n' "$1" >&2; exit 1; }
+need_cmd() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
+
+need_cmd supabase
+need_cmd docker
+need_cmd psql
+need_cmd git
+need_cmd mktemp
+need_cmd node
+
+: "${SUPABASE_PROJECT_REF:?Set SUPABASE_PROJECT_REF to the existing project ref}"
+: "${SUPABASE_DB_URL:?Set SUPABASE_DB_URL in your local shell; never commit it or paste it into chat}"
+
+[[ "$SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || die 'SUPABASE_PROJECT_REF must be the 20-character project ref.'
+[[ "$SUPABASE_DB_URL" == postgres://* || "$SUPABASE_DB_URL" == postgresql://* ]] || die 'SUPABASE_DB_URL must be a PostgreSQL connection string.'
+
+# Prevent mixed-project artifacts: the schema dump and Auth/Storage diff must
+# refer to the same Supabase project. Accept direct DB hosts and session pooler.
+node --input-type=module <<'NODE'
+const ref = process.env.SUPABASE_PROJECT_REF;
+const raw = process.env.SUPABASE_DB_URL;
+let parsed;
+try {
+  parsed = new URL(raw);
+} catch {
+  console.error("SUPABASE_DB_URL is not a valid PostgreSQL URL.");
+  process.exit(1);
+}
+const host = parsed.hostname.toLowerCase();
+const username = decodeURIComponent(parsed.username);
+const directMatch = host === `db.${ref}.supabase.co`;
+const poolerMatch = host.endsWith(".pooler.supabase.com") && username === `postgres.${ref}`;
+if (!directMatch && !poolerMatch) {
+  console.error("Connection string does not match SUPABASE_PROJECT_REF. Use the direct host db.<project-ref>.supabase.co or the session pooler with username postgres.<project-ref>. No export was run.");
+  process.exit(1);
+}
+NODE
+
+CLI_VERSION="$(supabase --version 2>/dev/null || true)"
+[[ "$CLI_VERSION" == *"3.1.0"* ]] || die "Expected Supabase CLI 3.1.0 for a reproducible export; found: ${CLI_VERSION:-unknown}"
+
+REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")/../.." rev-parse --show-toplevel)"
+SUPABASE_CLI_WORKDIR="${SUPABASE_CLI_WORKDIR:-$REPO_ROOT}"
+[[ -f "$SUPABASE_CLI_WORKDIR/supabase/config.toml" ]] || die "Supabase CLI workdir must contain supabase/config.toml."
+
+OUTPUT_ROOT="${TMPDIR:-/tmp}"
+if [[ -n "${SCHEMA_BASELINE_OUTPUT_DIR:-}" ]]; then
+  OUTPUT_DIR="$(mkdir -p "$SCHEMA_BASELINE_OUTPUT_DIR" && cd "$SCHEMA_BASELINE_OUTPUT_DIR" && pwd -P)"
+  [[ -z "$(find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]] || die "Configured schema baseline output directory must be empty."
+else
+  OUTPUT_DIR="$(mktemp -d "${OUTPUT_ROOT%/}/sykabelajar-auth-schema-baseline.XXXXXX")"
+fi
+case "$OUTPUT_DIR/" in
+  "$REPO_ROOT/"*) die 'Refusing to write a schema dump inside the Git repository.' ;;
+esac
+chmod 700 "$OUTPUT_DIR"
+
+# Keep the database password in a private temporary .pgpass file. The psql
+# command itself receives only PG* connection metadata, never the URI/password.
+umask 077
+PGPASSFILE="$OUTPUT_DIR/.schema-baseline.pgpass"
+PG_ENV="$OUTPUT_DIR/.schema-baseline.pg-env"
+trap 'rm -f "$PGPASSFILE" "$PG_ENV"' EXIT
+node --input-type=module - "$PGPASSFILE" "$PG_ENV" <<'NODE'
+import { writeFileSync } from "node:fs";
+
+const [passFile, envFile] = process.argv.slice(2);
+const raw = process.env.SUPABASE_DB_URL ?? "";
+const ref = process.env.SUPABASE_PROJECT_REF ?? "";
+const url = new URL(raw);
+const username = decodeURIComponent(url.username);
+const direct = url.hostname === "db." + ref + ".supabase.co";
+const pooler = url.hostname.endsWith(".pooler.supabase.com") &&
+  username === "postgres." + ref;
+if ((url.protocol !== "postgres:" && url.protocol !== "postgresql:") ||
+    (!direct && !pooler)) {
+  throw new Error("Database URI does not match the expected Supabase project.");
+}
+const sslmode = url.searchParams.get("sslmode") || "require";
+if (!["require", "verify-ca", "verify-full"].includes(sslmode)) {
+  throw new Error("TLS is required for the production database connection.");
+}
+const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
+const password = decodeURIComponent(url.password);
+const port = url.port || "5432";
+if (!database || !username || !password || /[\r\n]/.test(password)) {
+  throw new Error("Database URI is incomplete.");
+}
+const escapePass = (value) => value.replaceAll("\\", "\\\\").replaceAll(":", "\\:");
+writeFileSync(passFile, [url.hostname, port, database, username, password].map(escapePass).join(":") + "\n", { mode: 0o600 });
+const shellQuote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
+writeFileSync(envFile, [
+  "export PGHOST=" + shellQuote(url.hostname),
+  "export PGPORT=" + shellQuote(port),
+  "export PGDATABASE=" + shellQuote(database),
+  "export PGUSER=" + shellQuote(username),
+  "export PGSSLMODE=" + shellQuote(sslmode),
+  "export PGPASSFILE=" + shellQuote(passFile),
+].join("\n") + "\n", { mode: 0o600 });
+NODE
+source "$PG_ENV"
+
+# Capture only definitions and schema metadata needed for Stage 3 restore parity.
+# This query does not select application rows, identity values, or credentials.
+CATALOG_METADATA_SQL="$(cat "$REPO_ROOT/scripts/auth-migration/stage3-baseline-metadata.sql")"
+psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align \
+  --command "$CATALOG_METADATA_SQL" \
+  > "$OUTPUT_DIR/production-catalog-metadata.json"
+unset CATALOG_METADATA_SQL
+
+printf 'Output folder: %s\n' "$OUTPUT_DIR"
+printf 'Exporting schema-only custom database objects using Supabase CLI v3 remote mode...\n'
+# CLI v3 accepts the database URL as --remote; no CLI login, link, or project picker is required.
+(
+  cd "$SUPABASE_CLI_WORKDIR"
+  # Default db dump exports schema only; it intentionally omits data and custom roles.
+  supabase db dump -f "$OUTPUT_DIR/schema.sql" --remote="$SUPABASE_DB_URL"
+
+  [[ -s "$OUTPUT_DIR/schema.sql" ]] || die 'The schema dump is empty.'
+  if grep -Eq '^[[:space:]]*COPY[[:space:]].*[[:space:]]FROM stdin;' "$OUTPUT_DIR/schema.sql"; then
+    die 'The schema dump unexpectedly contains a COPY data block; refusing to seed the disposable diff baseline.'
+  fi
+
+  # pg-delta validates cross-schema dependencies. The Auth trigger
+  # on auth.users calls public.handle_new_auth_user(), so a diff filtered to
+  # auth,storage must still have the full, data-free public schema in its
+  # disposable shadow baseline. This temporary migration is applied only to
+  # the CLI shadow database; the emitted diff remains restricted to auth,storage.
+  SHADOW_MIGRATIONS_DIR="$SUPABASE_CLI_WORKDIR/supabase/migrations"
+  mkdir -p "$SHADOW_MIGRATIONS_DIR"
+  if [[ -n "$(find "$SHADOW_MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' -print -quit)" ]]; then
+    die 'Expected an empty temporary migration directory before preparing the schema-only shadow baseline.'
+  fi
+  cp "$OUTPUT_DIR/schema.sql" "$SHADOW_MIGRATIONS_DIR/20261110000000_production_schema_shadow_baseline.sql"
+  printf 'Prepared a schema-only dependency baseline for the disposable pg-delta shadow database...\n'
+
+  printf 'Capturing custom Auth/Storage DDL separately...\n'
+  # The empty disposable CLI workdir is used by the workflow to capture all custom managed-schema DDL.
+  # The explicit migra engine is compatible with session-pooler connections and legacy projects.
+  # PGSSLMODE=require is exported for direct read-only Production catalog/psql
+  # connections above. The CLI also opens a local shadow database without TLS;
+  # keep TLS in the remote URL and remove only the inherited env override here.
+  env -u PGSSLMODE supabase db diff --use-pg-delta --schema auth,storage --remote="$SUPABASE_DB_URL" > "$OUTPUT_DIR/auth-storage-custom.sql"
+)
+
+printf 'Recording PostgreSQL version and installed extension versions...\n'
+psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+  --command 'select version();' > "$OUTPUT_DIR/postgres-version.txt"
+psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+  --command 'select extname, extversion from pg_extension order by extname;' > "$OUTPUT_DIR/extensions.txt"
+
+# Record role attributes and default ACL metadata without ever selecting
+# rolpassword or exporting role definitions. Platform roles are recreated by
+# the disposable local Supabase stack; this file is a comparison checklist.
+{
+  printf '%s\n' '# Roles (no password hashes or role DDL)'
+  psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+    --command "select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolbypassrls from pg_roles where rolname !~ '^pg_' order by rolname;"
+  printf '%s\n' '# Default ACLs (object types: r=relations, S=sequences, f=functions)'
+  psql -X --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' \
+    --command "select n.nspname, d.defaclobjtype, r.rolname, coalesce(pg_catalog.array_to_string(d.defaclacl, ','), '') from pg_default_acl d join pg_namespace n on n.oid=d.defaclnamespace join pg_roles r on r.oid=d.defaclrole order by n.nspname,d.defaclobjtype,r.rolname;"
+} > "$OUTPUT_DIR/role-metadata.txt"
+
+[[ -s "$OUTPUT_DIR/schema.sql" ]] || die 'The schema dump is empty.'
+[[ -f "$OUTPUT_DIR/auth-storage-custom.sql" ]] || die 'The Auth/Storage DDL diff was not created.'
+[[ -s "$OUTPUT_DIR/role-metadata.txt" ]] || die 'The password-free role/default-ACL metadata file is empty.'
+[[ -s "$OUTPUT_DIR/production-catalog-metadata.json" ]] || die 'The Stage 3 production catalog metadata snapshot is empty.'
+
+# A schema-only dump must not contain pg_dump COPY data blocks.
+if grep -Eq '^[[:space:]]*COPY[[:space:]].*[[:space:]]FROM stdin;' "$OUTPUT_DIR/schema.sql"; then
+  die 'The schema dump unexpectedly contains a COPY data block; do not use this artifact.'
+fi
+
+cat > "$OUTPUT_DIR/manifest.txt" <<EOF
+project_ref=$SUPABASE_PROJECT_REF
+supabase_cli=$CLI_VERSION
+cli_mode=explicit_remote_url_no_link_or_login
+generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+mode=schema-only
+contains_application_rows=false
+contains_custom_role_dump=false
+remote_restore_or_deploy=not-performed
+EOF
+
+chmod 600 "$OUTPUT_DIR"/*
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "$OUTPUT_DIR" && sha256sum schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt role-metadata.txt production-catalog-metadata.json manifest.txt > SHA256SUMS)
+elif command -v shasum >/dev/null 2>&1; then
+  (cd "$OUTPUT_DIR" && shasum -a 256 schema.sql auth-storage-custom.sql postgres-version.txt extensions.txt role-metadata.txt production-catalog-metadata.json manifest.txt > SHA256SUMS)
+else
+  die 'Neither sha256sum nor shasum is available to checksum the export.'
+fi
+
+printf '\nSchema-only export completed. No remote DDL/DML or deployment was executed.\n'
+printf 'Local artifacts: %s\n' "$OUTPUT_DIR"
+printf 'Review schema.sql and auth-storage-custom.sql before using them in any local baseline.\n'

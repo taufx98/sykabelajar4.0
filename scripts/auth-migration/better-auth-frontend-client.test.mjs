@@ -1,0 +1,354 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const client = readFileSync(new URL("../../src/services/betterAuthApi.client.ts", import.meta.url), "utf8");
+const organizerOnboarding = readFileSync(new URL("../../src/components/organizer/OrganizerWorkspaceOnboarding.tsx", import.meta.url), "utf8");
+const authWorker = readFileSync(new URL("../../services/auth-worker/src/worker.ts", import.meta.url), "utf8");
+const viteEnv = readFileSync(new URL("../../src/vite-env.d.ts", import.meta.url), "utf8");
+const appContext = readFileSync(new URL("../../src/store/AppContext.tsx", import.meta.url), "utf8");
+const authService = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
+const callbackPage = readFileSync(new URL("../../src/pages/AuthOidcCallbackPage.tsx", import.meta.url), "utf8");
+const resetPasswordPage = readFileSync(new URL("../../src/pages/ResetPasswordPage.tsx", import.meta.url), "utf8");
+const emailVerifiedPage = readFileSync(new URL("../../src/pages/AuthEmailVerifiedPage.tsx", import.meta.url), "utf8");
+const accessTokenProvider = readFileSync(new URL("../../src/services/applicationAccessToken.ts", import.meta.url), "utf8");
+const authSessionBridge = readFileSync(new URL("../../src/services/auth.service.ts", import.meta.url), "utf8");
+const supabaseClient = readFileSync(new URL("../../src/lib/supabase.ts", import.meta.url), "utf8");
+const sessionBridge = readFileSync(new URL("../../src/services/betterAuthSessionBridge.mjs", import.meta.url), "utf8");
+const cloudinaryService = readFileSync(new URL("../../src/services/cloudinary.service.ts", import.meta.url), "utf8");
+const profileSettingsPage = readFileSync(new URL("../../src/pages/ProfileInterfaceSettingsPage.tsx", import.meta.url), "utf8");
+const adminPage = readFileSync(new URL("../../src/pages/AdminPage.tsx", import.meta.url), "utf8");
+const transactionalEmailPanel = readFileSync(new URL("../../src/components/admin/TransactionalEmailSettingsPanel.tsx", import.meta.url), "utf8");
+const loginProvidersPanel = readFileSync(new URL("../../src/components/admin/LoginProvidersSettingsPanel.tsx", import.meta.url), "utf8");
+const socialProviderSettings = readFileSync(new URL("../../services/auth-worker/src/social-provider-settings.ts", import.meta.url), "utf8");
+
+const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
+const loginPage = readFileSync(new URL("../../src/pages/LoginPage.tsx", import.meta.url), "utf8");
+const registerPage = readFileSync(new URL("../../src/pages/RegisterPage.tsx", import.meta.url), "utf8");
+const socialAuthErrors = readFileSync(new URL("../../src/services/betterAuthErrorCode.mjs", import.meta.url), "utf8");
+
+
+assert.match(client, /AUTH_API_REQUEST_TIMEOUT_MS = 12_000/);
+assert.match(client, /new AbortController\(\)/);
+assert.match(client, /signal: controller\.signal/);
+assert.match(client, /AUTH_REQUEST_TIMEOUT/);
+assert.match(client, /Credential POSTs are never replayed/);
+assert.ok((client.match(/fetchWithTimeout\(/g) ?? []).length >= 5);
+assert.match(client, /credentials:\s*'include'/);
+assert.match(client, /cache:\s*'no-store'/);
+assert.match(client, /\/get-session/);
+assert.match(client, /\/oauth2\/authorize/);
+assert.match(client, /\/oauth2\/token/);
+assert.doesNotMatch(client, /request<unknown>\('\/token'\)/);
+assert.match(client, /code_challenge_method: 'S256'/);
+assert.match(client, /prompt: 'none'/);
+assert.match(client, /resource: SUPABASE_RESOURCE_AUDIENCE/);
+assert.match(client, /FIRST_PARTY_OAUTH_CLIENT_ID/);
+assert.match(client, /getSupabaseAccessToken\(\)/);
+assert.match(client, /payload\.role !== 'authenticated'/);
+assert.match(client, /payload\.sub !== userId/);
+assert.match(client, /payload\.iss !== expectedIssuer/);
+assert.match(client, /payload\.refresh_token/);
+assert.doesNotMatch(client, /offline_access/);
+assert.match(callbackPage, /postMessage/);
+assert.match(callbackPage, /postMessage\(message, window\.location\.origin\)/);
+assert.doesNotMatch(callbackPage, /postMessage\(message, ['"]\*['"]\)/);
+assert.match(client, /clearResourceTokenCache\(\);\s*return null/);
+assert.match(client, /getSupabaseAccessToken\(\)[\s\S]*AUTH_SESSION_EXPIRED/);
+assert.match(client, /AUTH_SESSION_CHANGED_DURING_TOKEN_REQUEST/);
+assert.match(
+  client,
+  /const latestSession = await readSessionPayload\(\);[\s\S]*latestSession\.user\.id !== userId[\s\S]*latestSession\.user\.emailVerified !== true[\s\S]*cachedResourceToken =/,
+);
+
+assert.match(callbackPage, /sykabelajar-better-auth-oidc/);
+assert.match(app, /auth\/oidc\/callback/);
+assert.match(client, /\/sign-in\/email/);
+assert.ok(client.includes("const workerOrigin = baseUrl.replace(/\\/api\\/auth$/, '');"));
+
+assert.match(client, /\/sign-in\/social/);
+assert.match(client, /\/sign-up\/email/);
+assert.match(client, /\/email-otp\/send-verification-otp/);
+assert.match(client, /\/email-otp\/verify-email/);
+assert.ok(client.includes(String.raw`if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {`));
+assert.ok(client.includes(String.raw`|| !/^\d{6}$/.test(otp.trim())) {`));
+assert.match(client, /\/request-password-reset/);
+assert.match(client, /\/reset-password/);
+assert.match(client, /\/change-password/);
+assert.match(client, /\/sign-out/);
+assert.match(client, /VITE_BETTER_AUTH_FRONTEND_ENABLED !== 'true'/);
+assert.match(client, /hostname === 'staging\.sykabelajar\.my\.id'/);
+assert.doesNotMatch(client, /hostname\.endsWith\('\.pages\.dev'\)/);
+assert.match(client, /resolveOAuthCallbackUrl\(\)/);
+assert.match(client, /ALLOWED_OAUTH_CALLBACK_ORIGINS/);
+assert.match(client, /event\.origin !== callbackOrigin/);
+assert.match(client, /worker\.hostname === 'auth\.sykabelajar\.my\.id'/);
+assert.match(client, /isBetterAuthFrontendEnabledForSupabase\(projectUrl: string\)/);
+assert.match(client, /https:\/\/ydamszdfsxqisanazdkb\.supabase\.co/);
+
+assert.match(viteEnv, /VITE_AUTH_WORKER_URL\?: string/);
+assert.match(viteEnv, /VITE_BETTER_AUTH_FRONTEND_ENABLED\?: string/);
+
+// The token broker must not create a browser-side persistence path.
+assert.equal(client.includes('.localStorage'), false);
+assert.equal(client.includes('.sessionStorage'), false);
+assert.equal(client.includes('.indexedDB'), false);
+assert.match(client, /getResourceToken\(\)/);
+assert.match(client, /AUTH_RESOURCE_TOKEN_RESPONSE_INVALID/);
+
+// Only the server-approved self-service account types are accepted.
+assert.match(client, /'student', 'teacher', 'organizer'/);
+assert.doesNotMatch(client, /'admin'/);
+assert.match(client, /USERNAME_PATTERN/);
+assert.match(client, /REGISTRATION_USERNAME_INVALID/);
+
+assert.match(client, /getTelegramPhoneVerificationStatus\(\)/);
+assert.match(client, /startTelegramPhoneVerification\(\)/);
+assert.match(client, /\/api\/phone-verification\/telegram\/status/);
+assert.match(client, /\/api\/phone-verification\/telegram\/start/);
+assert.match(client, /authorizationUrl\.origin !== 'https:\/\/oauth\.telegram\.org'/);
+assert.match(organizerOnboarding, /isBetterAuthEnabled\(\)/);
+assert.match(organizerOnboarding, /getTelegramPhoneVerificationStatus\(\)/);
+assert.match(organizerOnboarding, /startTelegramPhoneVerification\(\)/);
+assert.match(organizerOnboarding, /supabase\.auth\.verifyOtp/);
+assert.match(authWorker, /url\.pathname === "\/api\/phone-verification\/telegram\/status"/);
+assert.match(authWorker, /getSupabasePhoneVerificationStatus\(env, userId\)/);
+const phoneStatusHandler = authWorker.slice(
+  authWorker.indexOf("async function getTelegramPhoneVerificationStatus"),
+  authWorker.indexOf("async function completeTelegramPhoneCallback"),
+);
+assert.match(phoneStatusHandler, /const session = await auth\.api\.getSession\(\{ headers: request\.headers \}\)/);
+assert.match(phoneStatusHandler, /const userId = session\?\.user\?\.id/);
+assert.match(phoneStatusHandler, /if \(!corsHeaders\)/);
+assert.doesNotMatch(phoneStatusHandler, /request\.json\(|searchParams\.get\(/);
+
+assert.match(authWorker, /new URL\("\/organizer", app\.origin\)/);
+
+// This is a transport scaffold only: the live app must keep one session source.
+assert.match(appContext, /getAuthSession\(\)/);
+assert.match(appContext, /onAuthStateChange\(/);
+assert.doesNotMatch(appContext, /supabase\.auth/);
+assert.match(authService, /signInWithPassword/);
+assert.match(authService, /const client = getStagingBetterAuthClient\(\);[\s\S]*?client\.signInWithEmail\(/);
+assert.match(authService, /confirmSessionAfterSignIn/);
+assert.match(authService, /if \(!isD1FreeQuotaError\(error\) \|\| !retryAtUtc \|\|/);
+assert.match(authService, /publishAuthSessionEvent\('SIGNED_IN', credentialResult\.user\.id\)/);
+assert.match(appContext, /publishAuthSessionEvent\('INITIAL_SESSION', session\.user\.id\)/);
+assert.match(authService, /session: null,[\s\S]*authUnavailableRetryAtUtc: retryAtUtc/);
+assert.match(appContext, /quotaRetryAtUtcFromCredential/);
+
+assert.match(authService, /await client\.signInWithEmail\(email\.trim\(\), password\);[\s\S]*confirmSessionAfterSignIn/);
+assert.match(authService, /credential POST is sent exactly once/);
+
+const appLoginStart = appContext.indexOf("const login = useCallback");
+const appLoginEnd = appContext.indexOf("const register = useCallback", appLoginStart);
+assert.ok(appLoginStart >= 0 && appLoginEnd > appLoginStart);
+const appLogin = appContext.slice(appLoginStart, appLoginEnd);
+assert.match(appLogin, /const existingSession = await getAuthSession\(\)/);
+assert.match(appLogin, /existingEmail !== requestedEmail/);
+assert.ok(
+  appLogin.indexOf("await signOut()") < appLogin.indexOf("await signIn(requestedEmail, password)"),
+  "switching to another account must clear the previous cookie session before attempting credentials",
+);
+
+assert.match(authService, /isBetterAuthFrontendEnabledForSupabase\(env\.supabaseUrl\)/);
+assert.match(authService, /createBetterAuthSessionBridge/);
+assert.match(authService, /export function isBetterAuthEnabled\(\)/);
+assert.match(authService, /export async function updatePassword\(newPassword: string, currentPassword\?: string\)/);
+assert.match(authService, /changePassword\(currentPassword, newPassword, true\)/);
+assert.match(authService, /const redirectPath = resolveSafeInternalRedirect\([\s\S]*?redirectTo \?\? '\/reset-password'/);
+assert.match(authService, /new URL\(redirectPath, window\.location\.origin\)/);
+assert.match(authService, /export async function completePasswordReset\(token: string, newPassword: string\)/);
+assert.match(authService, /callbackURL: new URL\('\/auth\/verified', window\.location\.origin\)\.toString\(\)/);
+assert.match(authService, /new URL\('\/auth\/verified', window\.location\.origin\)/);
+assert.match(client, /callbackURL\?: string/);
+assert.match(client, /\? \{ callbackURL: input\.callbackURL \} : \{\}/);
+assert.match(emailVerifiedPage, /getSession\(\)/);
+assert.match(emailVerifiedPage, /session\?\.user\.emailVerified === true/);
+assert.doesNotMatch(emailVerifiedPage, /searchParams\.get\('status'\).*verified|params\.get\('status'\).*verified/);
+assert.match(emailVerifiedPage, /autoComplete="one-time-code"/);
+assert.match(emailVerifiedPage, /verifyEmailOtp\(normalizedEmail, otp\)/);
+assert.match(app, /path="\/auth\/verified"/);
+
+assert.match(authService, /export async function sendVerificationEmail\(email: string, callbackURL\?: string\)/);
+assert.match(authService, /getStagingBetterAuthClient\(\)\.sendVerificationOtp\(normalizedEmail\)/);
+assert.match(authService, /supabase\.auth\.resend\(\{[\s\S]*?type: 'signup'[\s\S]*?emailRedirectTo: destination/);
+assert.match(loginPage, /sendVerificationEmail/);
+assert.match(loginPage, /handleResendVerification/);
+const resendHandler = loginPage.slice(
+  loginPage.indexOf("const handleResendVerification"),
+  loginPage.indexOf("const handleReset", loginPage.indexOf("const handleResendVerification")),
+);
+assert.match(resendHandler, /safeCode/);
+assert.match(resendHandler, /Kode verifikasi gagal diminta/);
+assert.doesNotMatch(resendHandler, /If that address has an unverified account, a verification code will be sent\.[\s\S]*'success'/);
+assert.match(loginPage, /EMAIL_VERIFICATION_REQUIRED\|EMAIL_NOT_VERIFIED\|EMAIL_NOT_CONFIRMED/);
+assert.match(loginPage, /If that address has an unverified account, a verification link will be sent\./);
+assert.match(registerPage, /isBetterAuthEnabled\(\)/);
+assert.match(registerPage, /Akun berhasil dibuat\. Kode verifikasi 6 digit sudah dikirim ke email/);
+
+assert.match(authService, /getStagingBetterAuthClient\(\)\.resetPassword\(token, newPassword\)/);
+assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
+assert.match(resetPasswordPage, /new URLSearchParams\(window\.location\.search\)\.get\('token'\)/);
+assert.match(resetPasswordPage, /searchParams\.delete\('token'\)/);
+assert.match(resetPasswordPage, /completePasswordReset\(token, password\)/);
+assert.match(resetPasswordPage, /Setelah berhasil, masuk kembali menggunakan password baru\./);
+assert.doesNotMatch(resetPasswordPage, /semua sesi lama akan dicabut/i);
+
+assert.match(resetPasswordPage, /password\.length < 8/);
+assert.match(app, /path="\/reset-password"/);
+
+assert.match(authService, /supabase\.auth\.updateUser\(\{ password: newPassword \}\)/);
+assert.match(client, /async changePassword\(currentPassword, newPassword, revokeOtherSessions = true\)[\s\S]*?await request<unknown>\('\/change-password'[\s\S]*?clearResourceTokenCache\(\);/);
+assert.match(profileSettingsPage, /isBetterAuthEnabled, updatePassword as updateAccountPassword/);
+assert.match(profileSettingsPage, /updateAccountPassword\(password, requiresCurrentPassword \? currentPassword : undefined\)/);
+assert.match(profileSettingsPage, /autoComplete="current-password"/);
+assert.doesNotMatch(profileSettingsPage, /supabase\.auth/);
+assert.match(adminPage, /import \{ TransactionalEmailSettingsPanel \} from '@\/components\/admin\/TransactionalEmailSettingsPanel'/);
+assert.match(adminPage, /tab === 'settings'[\s\S]*?<TransactionalEmailSettingsPanel\s*\/>/);
+assert.match(transactionalEmailPanel, /const EMPTY_DRAFT:[\s\S]*?provider: 'sendpulse'/);
+for (const provider of ['sendpulse', 'brevo', 'mailjet', 'mailtrap', 'resend']) {
+  assert.ok(transactionalEmailPanel.includes(provider), 'multi-provider Admin panel must support ' + provider);
+}
+assert.match(transactionalEmailPanel, /request\('save'/);
+assert.match(transactionalEmailPanel, /request\('configure'/);
+assert.match(transactionalEmailPanel, /request\('test'/);
+assert.match(transactionalEmailPanel, /request\('delete'/);
+assert.match(transactionalEmailPanel, /autoFailoverEnabled/);
+assert.doesNotMatch(transactionalEmailPanel, /<option value="zeptomail"/);
+assert.match(sessionBridge, /sykabelajar-better-auth-session/);
+assert.doesNotMatch(sessionBridge, /access_token|refresh_token/);
+assert.match(supabaseClient, /createSupabaseClientOptions/);
+assert.match(supabaseClient, /getSupabaseAccessToken\(\)/);
+assert.match(supabaseClient, /isBetterAuthFrontendEnabledForSupabase\(env\.supabaseUrl\)/);
+assert.doesNotMatch(appContext, /getStagingBetterAuthClient/);
+assert.match(accessTokenProvider, /isBetterAuthFrontendEnabledForSupabase\(env\.supabaseUrl\)/);
+assert.match(accessTokenProvider, /getStagingBetterAuthClient\(\)\.getSupabaseAccessToken\(\)/);
+assert.match(accessTokenProvider, /supabase\.auth\.getSession\(\)/);
+assert.match(cloudinaryService, /getSupabaseResourceAccessToken\(\)/);
+assert.doesNotMatch(cloudinaryService, /supabase\.auth/);
+
+
+
+assert.match(adminPage, /if \(tab === 'settings' \|\| tab === 'referral'\) return;/);
+assert.match(adminPage, /Settings and referral panels load their own data/);
+const settingsTabIndex = adminPage.indexOf("{tab === 'settings' &&");
+assert.ok(settingsTabIndex >= 0);
+const settingsTab = adminPage.slice(settingsTabIndex, settingsTabIndex + 650);
+assert.match(settingsTab, /<LoginProvidersSettingsPanel\s*\/>/);
+assert.match(settingsTab, /<TransactionalEmailSettingsPanel\s*\/>/);
+
+assert.match(loginProvidersPanel, /const PROVIDER_ORDER: BetterAuthSocialProvider\[\] = \['google', 'github', 'facebook', 'twitter'\]/);
+assert.match(loginProvidersPanel, /Google \/ Gmail/);
+assert.match(loginProvidersPanel, /Facebook/);
+assert.match(loginProvidersPanel, /X \/ Twitter/);
+assert.match(loginProvidersPanel, /Instagram/);
+assert.match(loginProvidersPanel, /Badge>Unavailable<\/Badge/);
+assert.match(loginProvidersPanel, /Instagram Login ditujukan untuk akun profesional/);
+assert.match(loginProvidersPanel, /Tidak ada tombol aktivasi atau workaround/);
+assert.match(loginProvidersPanel, /const previewEnabled = isBetterAuthEnabled\(\)/);
+assert.match(loginProvidersPanel, /clientSecret: ''/);
+assert.match(loginProvidersPanel, /draft\.clientSecret\.trim\(\) \? \{ clientSecret: draft\.clientSecret\.trim\(\) \} : \{\}/);
+
+assert.match(socialProviderSettings, /export const SOCIAL_LOGIN_PROVIDERS = \["google", "github", "facebook", "twitter"\]/);
+assert.match(socialProviderSettings, /instagram:\s*\{ available: false/);
+assert.match(socialProviderSettings, /const authorization = await requireBetterAuthAdmin\(request, env\)/);
+assert.match(transactionalEmailPanel, /apiKey: ''/);
+assert.match(transactionalEmailPanel, /apiSecret: ''/);
+assert.match(transactionalEmailPanel, /getSupabaseResourceAccessToken\(\)/);
+assert.match(transactionalEmailPanel, /AUTH_WORKER_URL_NOT_CONFIGURED/);
+
+// Refresh/focus checks must reuse a still-valid resource token, and all
+// session/status reads must be deduplicated and recover from transient GETs.
+assert.match(client, /EMAIL_VERIFICATION_POLICY_CACHE_MS = 15_000/);
+assert.match(client, /sessionReadInFlight/);
+assert.match(client, /const pending = request<unknown>\('\/get-session'\)/);
+assert.match(client, /safeRead && response\.headers\.get\('X-Auth-Availability'\) !== 'degraded' &&\s*\(response\.status === 429 \|\| response\.status >= 500\)/);
+assert.match(client, /createResponseError\(response, payload\)/);
+assert.match(client, /if \(!safeRead \|\| attempt === 2\)/);
+assert.match(authSessionBridge, /onSessionChanged: \(\) => client\.invalidateResourceTokenCache\(\)/);
+assert.doesNotMatch(sessionBridge, /onBeforeRefresh/);
+assert.match(sessionBridge, /input\.onSessionChanged\?\.\(\)/);
+assert.match(appContext, /AUTH_READ_RETRY_DELAYS_MS = \[150, 400\]/);
+assert.match(appContext, /retryTransientAuthRead\(\(\) => getAuthSession\(\)\)/);
+assert.match(appContext, /isDefinitiveAuthRejection\(error\) \|\| isDefinitiveIdentityFailure\(error\)/);
+assert.match(appContext, /setAuthUnavailable\(true\)/);
+assert.match(appContext, /retryAuthSession/);
+assert.match(app, /authUnavailable, authUnavailableRetryAtUtc, retryAuthSession/);
+assert.match(app, /Batas penggunaan harian layanan login telah tercapai/);
+assert.match(app, /Sesi belum dinyatakan berakhir/);
+
+
+// Login controls expose stable names/IDs for browser autofill and labels.
+assert.match(loginPage, /<label className="label" htmlFor="login-email">Email<\/label>/);
+assert.match(loginPage, /<input id="login-email" name="email" type="email"/);
+assert.match(loginPage, /<label className="label" htmlFor="login-password">Password<\/label>/);
+assert.match(loginPage, /<input id="login-password" name="password"/);
+assert.match(loginPage, /<label className="label" htmlFor="forgot-password-email">Email<\/label>/);
+assert.match(loginPage, /<input id="forgot-password-email" name="forgotEmail"/);
+assert.match(loginPage, /aria-label=\{showPassword \? text\("Sembunyikan password","Hide password"\)/);
+
+
+const loginHandlerStart = appContext.indexOf("const login = useCallback");
+const loginHandlerEnd = appContext.indexOf("const register = useCallback", loginHandlerStart);
+assert.ok(loginHandlerStart >= 0 && loginHandlerEnd > loginHandlerStart);
+const loginHandler = appContext.slice(loginHandlerStart, loginHandlerEnd);
+// A post-password Supabase role/profile failure must retain the accepted
+// Better Auth session and enter the AuthGuard retry path; it is not bad credentials.
+assert.ok(loginHandler.includes("if (authenticatedIdentity)"));
+assert.ok(loginHandler.includes("isDefinitiveIdentityFailure(error)"));
+assert.ok(loginHandler.includes("setAuthUnavailable(true)"));
+assert.ok(loginHandler.includes("return { ok: true };"));
+assert.doesNotMatch(loginHandler, /Email atau password tidak valid\./);
+assert.match(loginHandler, /LOGIN_REQUEST_FAILED/);
+
+console.log("Better Auth frontend transport contract passed; Supabase Auth remains the sole live app session source.");
+
+assert.match(loginPage, /google: 'Google \/ Gmail'/);
+assert.match(loginPage, /github: 'GitHub'/);
+assert.match(loginPage, /<Github size=\{18\} strokeWidth=\{2\.2\} aria-hidden="true" \/>/);
+assert.match(loginPage, /fill="#4285F4"/);
+assert.doesNotMatch(loginPage, /Lanjutkan dengan /);
+assert.match(registerPage, /handleSocialRegister/);
+assert.match(registerPage, /\{betterAuthPreview && socialProviders\.length > 0 && <>/);
+assert.match(registerPage, /fill="#4285F4"/);
+assert.match(registerPage, /<Github size=\{18\} strokeWidth=\{2\.2\} aria-hidden="true" \/>/);
+assert.doesNotMatch(registerPage, /Daftar dengan /);
+assert.match(client, /provider === 'google' \|\| provider === 'github'/);
+
+
+// Auth desktop layout: collective accounts stay in the left information panel,
+// while email/password and social sign-in remain together on the right.
+const collectiveLoginIndex = loginPage.indexOf('Masuk Peserta Kolektif');
+const loginEmailIndex = loginPage.indexOf('id="login-email"');
+const loginSocialIndex = loginPage.lastIndexOf('or continue with');
+assert.ok(collectiveLoginIndex >= 0 && loginEmailIndex > collectiveLoginIndex);
+assert.ok(loginSocialIndex > loginEmailIndex);
+assert.match(loginPage, /lg:grid-cols-\[minmax\(0,0\.92fr\)_minmax\(0,1\.08fr\)\]/);
+assert.match(registerPage, /lg:grid-cols-\[minmax\(280px,0\.82fr\)_minmax\(0,1\.18fr\)\]/);
+assert.match(registerPage, /hidden lg:flex card p-8/);
+
+
+assert.match(client, /requestSignUp\?: boolean; errorCallbackURL\?: string/);
+assert.match(client, /requestSignUp: true/);
+assert.match(client, /errorCallbackURL: options\.errorCallbackURL/);
+assert.match(authService, /options\.errorCallbackURL \?\? '\/login\?oauthError=1'/);
+assert.match(loginPage, /errorCallbackURL = `\/login\?oauthError=1/);
+assert.match(loginPage, /searchParams\.get\('oauthError'\) !== '1'/);
+assert.match(loginPage, /Belum ada akun SYKABELAJAR yang terhubung/);
+assert.match(registerPage, /requestSignUp:true/);
+assert.match(socialAuthErrors, /account_not_linked/);
+assert.match(loginPage, /provider=\$\{provider\}&redirect=/);
+assert.match(loginPage, /An unlinked OAuth identity is not created during login/);
+assert.match(loginPage, /intent !== 'signup'/);
+assert.match(loginPage, /setUnlinkedSocialProvider\(provider\)/);
+assert.match(loginPage, /const handleContinueSocialSignup = async/);
+assert.match(loginPage, /requestSignUp: true/);
+assert.match(loginPage, /intent=signup/);
+assert.match(loginPage, /aria-modal="true"/);
+assert.match(loginPage, /\{text\('Batal','Cancel'\)\}/);
+assert.match(loginPage, /\{text\('Daftar baru','Create account'\)\}/);
+assert.match(loginPage, /providerLabel\[unlinkedSocialProvider\]/);
+const loginSocialStart = loginPage.indexOf("const handleSocialLogin");
+const loginSocialEnd = loginPage.indexOf("const handleContinueSocialSignup", loginSocialStart);
+assert.ok(loginSocialStart >= 0 && loginSocialEnd > loginSocialStart);
+assert.doesNotMatch(loginPage.slice(loginSocialStart, loginSocialEnd), /requestSignUp:\s*true/);

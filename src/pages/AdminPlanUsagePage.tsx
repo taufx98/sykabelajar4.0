@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useApp } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
+import { getCurrentApplicationUserId } from '@/services/applicationIdentity';
 import { adminUpsertOrganizerVoucher, listOrganizerVouchers, listOrganizerPaymentFieldSettings, adminSaveOrganizerPaymentFields, type OrganizerVoucher, type OrganizerPaymentFieldSetting } from '@/services/commerce.service';
 
 
@@ -77,7 +78,7 @@ export function AdminPlanUsagePage() {
   const copyVoucher = async (code: string) => { try { await navigator.clipboard.writeText(code); toast('Kode disalin.', 'success'); } catch { toast('Kode tidak dapat disalin otomatis.', 'info'); } };
   const deleteVoucher = async () => { if (!deleteVoucherTarget) return; const target = deleteVoucherTarget; setBusy(true); try { const { error } = await supabase.rpc('admin_delete_organizer_voucher', { p_id: target.id }); if (error) throw error; setVouchers((current) => current.filter((item) => item.id !== target.id)); setDeleteVoucherTarget(null); toast('Voucher berhasil dihapus atau dinonaktifkan sesuai histori transaksi.', 'success'); } catch (e: any) { toast(e?.message || 'Gagal menghapus voucher.', 'error'); } finally { setBusy(false); } };
   const toggleBilling = (value: string) => setVoucherForm((current) => ({ ...current, targetBillingPeriods: current.targetBillingPeriods.includes(value) ? current.targetBillingPeriods.filter((item) => item !== value) : [...current.targetBillingPeriods, value] }));
-  const updateRequest = async (request: CustomRequest, patch: Partial<CustomRequest>) => { setBusy(true); try { const { data: auth } = await supabase.auth.getUser(); const payload: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() }; if (patch.status && patch.status !== 'PENDING') { payload.reviewed_by = auth.user?.id ?? null; payload.reviewed_at = new Date().toISOString(); } const { error } = await supabase.from('organizer_custom_plan_requests').update(payload).eq('id', request.id); if (error) throw error; toast('Permintaan diperbarui.', 'success'); await load(); } catch (e: any) { toast(e?.message || 'Gagal memperbarui permintaan.', 'error'); } finally { setBusy(false); } };
+  const updateRequest = async (request: CustomRequest, patch: Partial<CustomRequest>) => { setBusy(true); try { const reviewerId = await getCurrentApplicationUserId(); const payload: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() }; if (patch.status && patch.status !== 'PENDING') { payload.reviewed_by = reviewerId; payload.reviewed_at = new Date().toISOString(); } const { error } = await supabase.from('organizer_custom_plan_requests').update(payload).eq('id', request.id); if (error) throw error; toast('Permintaan diperbarui.', 'success'); await load(); } catch (e: any) { toast(e?.message || 'Gagal memperbarui permintaan.', 'error'); } finally { setBusy(false); } };
 
   const nav = [
     { id: 'plans' as const, label: 'Paket & Benefit', icon: CreditCard }, { id: 'checkout' as const, label: 'Formulir Checkout', icon: Settings2 }, { id: 'payments' as const, label: 'Pembayaran', icon: Banknote }, { id: 'promos' as const, label: 'Voucher & Promo', icon: TicketPercent }, { id: 'requests' as const, label: 'Permintaan Custom', icon: ClipboardList },

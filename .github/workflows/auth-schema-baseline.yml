@@ -1,0 +1,929 @@
+name: Auth Production Schema Baseline
+# Triggered by a workflow-file push; production reads remain schema-only and isolated.
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - "scripts/auth-migration/export-schema-baseline.sh"
+      - "scripts/auth-migration/export-schema-baseline.contract.test.mjs"
+      - "scripts/auth-migration/verify-restored-auth-fk-catalog.mjs"
+      - "scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs"
+      - "scripts/auth-migration/stage3-baseline-metadata.sql"
+      - "scripts/auth-migration/verify-stage3-baseline-metadata.mjs"
+      - "scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs"
+      - "scripts/auth-migration/stage3-production-schema-regression.sql"
+      - "scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs"
+      - "docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-3-ROLLBACK-DRAFT.sql"
+      - "scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs"
+      - "scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs"
+      - "scripts/auth-migration/stage3-better-auth-provisioning-regression.sql"
+      - "scripts/auth-migration/generate-app-users-fk-plan.mjs"
+      - "scripts/auth-migration/generate-app-users-fk-plan.test.mjs"
+      - "scripts/auth-migration/stage3-issuer-guard.contract.test.mjs"
+      - "scripts/auth-migration/stage3-issuer-guard-regression.sql"
+      - "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
+      - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
+      - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
+      - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-5-PAYMENT-SERVICE-ROLE-CLAIM-DRAFT.sql"
+      - "scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs"
+      - "scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs"
+      - "scripts/auth-migration/live-auth-users-fk-catalog.json"
+      - "scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs"
+      - "supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql"
+      - "scripts/auth-migration/generate-stage3-function-acl-restore.mjs"
+      - "scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs"
+      - "scripts/auth-migration/generate-stage5-payment-function-acl-restore.mjs"
+      - "scripts/auth-migration/generate-stage5-payment-function-acl-restore.test.mjs"
+      - "scripts/auth-migration/stage5-business-edge-two-user.integration.test.mjs"
+      - "scripts/auth-migration/stage5-edge-two-user-fixtures.sql"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/cloudinary-delete-asset/**"
+      - "supabase/functions/cloudinary-profile-upload/**"
+      - "supabase/functions/cloudinary-delete-profile/**"
+      - "supabase/functions/cloudinary-profile-upload-v2/**"
+      - "supabase/functions/cloudinary-delete-asset-v2/**"
+      - "supabase/functions/payment-gateway-admin/**"
+      - "supabase/functions/payment-gateway-create/**"
+      - "supabase/functions/payment-gateway-reconcile/**"
+      - "supabase/functions/payment-gateway-webhook/**"
+      - ".github/workflows/auth-schema-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Keep one read-only export per branch; newer code cancels stale baseline attempts.
+  group: auth-schema-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schema-only-restore:
+    name: Read-only production export and isolated restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SUPABASE_PROJECT_REF: mvdczyitbkxkldjughor
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set isolated workspace paths
+        run: |
+          echo "SUPABASE_CLI_WORKDIR=$RUNNER_TEMP/sykabelajar-auth-baseline" >> "$GITHUB_ENV"
+          echo "SCHEMA_BASELINE_OUTPUT_DIR=$RUNNER_TEMP/sykabelajar-auth-schema-export" >> "$GITHUB_ENV"
+
+      - name: Check whether the one-time database secret is configured
+        id: credentials
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SUPABASE_DB_URL" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Schema baseline was not run. Add the Supabase session-pooler URI as the repository Actions secret SUPABASE_DB_URL. Do not put it in chat, source code, or workflow logs."
+            {
+              echo "## Production schema baseline"
+              echo ""
+              echo "Skipped safely: repository secret \`SUPABASE_DB_URL\` is not configured."
+              echo ""
+              echo "The only owner action required is to add the production **session pooler** URI (port 5432, username \`postgres.mvdczyitbkxkldjughor\`) in Settings → Secrets and variables → Actions. No CLI command is needed."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+          const ref = process.env.SUPABASE_PROJECT_REF;
+          let supplied = (process.env.SUPABASE_DB_URL ?? "").trim();
+
+          // Normalize common copy formats without displaying the secret.
+          if (supplied.startsWith("export ")) supplied = supplied.slice(7).trim();
+          for (const prefix of ["SUPABASE_DB_URL=", "DATABASE_URL=", "DB_URL="]) {
+            if (supplied.startsWith(prefix)) {
+              supplied = supplied.slice(prefix.length).trim();
+              break;
+            }
+          }
+          if (supplied.startsWith("psql ")) supplied = supplied.slice(5).trim();
+          if ((supplied.startsWith("'") && supplied.endsWith("'")) ||
+              (supplied.startsWith('"') && supplied.endsWith('"'))) {
+            supplied = supplied.slice(1, -1);
+          }
+
+          if (!supplied.toLowerCase().startsWith("postgresql://") &&
+              !supplied.toLowerCase().startsWith("postgres://")) {
+            throw new Error("SUPABASE_DB_URL is not a raw PostgreSQL URI. Store only the connection URI starting with postgresql:// (or postgres://), not the database password alone, an export command, or a surrounding terminal command.");
+          }
+          const lf = String.fromCharCode(10);
+          const cr = String.fromCharCode(13);
+          // Dashboard copy/paste can wrap a connection URI with CR/LF.
+          // These are not valid URI characters, so join the wrapped lines
+          // before parsing; never print or persist the raw secret.
+          supplied = supplied.replaceAll(cr, "").replaceAll(lf, "");
+          if (supplied.includes("\\t")) {
+            throw new Error("SUPABASE_DB_URL contains an unexpected tab character. Save the URI as one continuous line.");
+          }
+
+          const url = new URL(supplied);
+          const username = decodeURIComponent(url.username);
+          const endpointMismatches = [];
+          if (!url.hostname.endsWith(".pooler.supabase.com")) endpointMismatches.push("HOST");
+          if (username !== "postgres." + ref) endpointMismatches.push("USERNAME");
+          if (url.port !== "5432") endpointMismatches.push("PORT");
+          if (endpointMismatches.length) {
+            throw new Error("Supabase Session Pooler connection details do not match: " + endpointMismatches.join(", ") + ". Correct only the listed fields using the exact URI from Supabase Connect → Session pooler; the secret value is never printed.");
+          }
+          const decodedPassword = decodeURIComponent(url.password);
+          if (!decodedPassword || !url.pathname || url.pathname === "/" ||
+              decodedPassword === "[YOUR-PASSWORD]" || decodedPassword === "[DB-PASSWORD]") {
+            throw new Error("SUPABASE_DB_URL is incomplete. Replace the password placeholder with the database password before saving the secret.");
+          }
+
+          // Normalize the accepted form for following steps without printing it.
+          const safeEnvValue = supplied.replaceAll("%", "%25").replaceAll(cr, "%0D").replaceAll(lf, "%0A");
+          appendFileSync(process.env.GITHUB_ENV, "SUPABASE_DB_URL=" + safeEnvValue + lf);
+          console.log("Secret format verified without printing its value.");
+          NODE
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up pinned Supabase CLI
+        if: steps.credentials.outputs.available == 'true'
+        uses: supabase/setup-cli@v3
+        with:
+          version: 3.1.0
+
+      - name: Test exact restored FK catalog verifier contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs
+
+      - name: Test Stage 3 function, trigger, RLS and profile metadata parity contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs
+
+      - name: Test Stage 3 function ACL restore generator contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
+
+      - name: Test Stage 5 payment function ACL restore generator contract
+        run: node scripts/auth-migration/generate-stage5-payment-function-acl-restore.test.mjs
+
+      - name: Test create_organizer PL/pgSQL ambiguity fix contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs
+
+      - name: Test rollback-only Stage 3 regression guard contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs
+
+      - name: Test Better Auth Stage 3 identity-root draft contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs
+
+      - name: Test Better Auth Stage 3 issuer-guard draft contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage3-issuer-guard.contract.test.mjs
+
+      - name: Test fail-closed Stage 3 reverse FK rollback plan contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
+
+      - name: Test UUID-only, no-account-migration FK tombstone plan contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/generate-app-users-fk-plan.test.mjs
+
+      - name: Test complete Stage 3 rollback draft contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs
+
+      - name: Test Stage 5 targeted no-policy table ACL draft contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs
+
+      - name: Test Stage 5 payment service-role claim draft contract
+        run: node scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs
+
+      - name: Prepare an empty disposable Supabase project
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          rm -rf "$SUPABASE_CLI_WORKDIR" "$SCHEMA_BASELINE_OUTPUT_DIR"
+          mkdir -p "$SUPABASE_CLI_WORKDIR/supabase/migrations"
+          cat > "$SUPABASE_CLI_WORKDIR/supabase/config.toml" <<'TOML'
+          project_id = "sykabelajar-auth-baseline"
+          TOML
+          test -d "$SUPABASE_CLI_WORKDIR/supabase/migrations"
+          test ! -e "$SUPABASE_CLI_WORKDIR/supabase/seed.sql"
+
+      - name: Start isolated local Supabase stack
+        if: steps.credentials.outputs.available == 'true'
+        id: local_supabase
+        run: |
+          set -euo pipefail
+          cd "$SUPABASE_CLI_WORKDIR"
+          supabase start
+
+      - name: Provide a PostgreSQL 17.6 client without installing packages on the runner
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pg17-bin"
+          cat > "$RUNNER_TEMP/pg17-bin/psql" <<'SH'
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+          : "${PGPASSFILE:?The exporter must provide a private PGPASSFILE.}"
+          docker run --rm --network host \
+            -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGSSLMODE \
+            -e PGPASSFILE=/run/secrets/pgpass \
+            -v "$PGPASSFILE:/run/secrets/pgpass:ro" \
+            postgres:17.6-alpine psql "$@"
+          SH
+          chmod 700 "$RUNNER_TEMP/pg17-bin/psql"
+          echo "$RUNNER_TEMP/pg17-bin" >> "$GITHUB_PATH"
+
+      - name: Export production schema only
+        if: steps.credentials.outputs.available == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          set +x
+          bash scripts/auth-migration/export-schema-baseline.sh
+          test -s "$SCHEMA_BASELINE_OUTPUT_DIR/schema.sql"
+          test -s "$SCHEMA_BASELINE_OUTPUT_DIR/auth-storage-custom.sql"
+          test -s "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const metadata = JSON.parse(readFileSync(
+            process.env.SCHEMA_BASELINE_OUTPUT_DIR + "/production-catalog-metadata.json",
+            "utf8",
+          ));
+          const profiles = (metadata.auth_and_profile_triggers ?? [])
+            .filter((entry) => entry.table_schema === "public" && entry.table_name === "profiles")
+            .map((entry) => ({
+              triggerName: entry.trigger_name,
+              functionName: entry.function_schema + "." + entry.function_name,
+              definition: entry.definition,
+              functionDefinition: entry.function_definition,
+            }));
+          if (profiles.length !== 4) {
+            throw new Error("Expected exactly four production profiles triggers; found " + profiles.length);
+          }
+          console.log("Production profiles trigger behavior inventory:");
+          for (const trigger of profiles) console.log(JSON.stringify(trigger));
+
+          const policies = metadata.uid_policies ?? [];
+          const policyTables = metadata.uid_policy_tables ?? [];
+          if (policies.length !== 109 || policyTables.length !== 61) {
+            throw new Error("Expected 109 auth.uid policies on 61 tables; found " + policies.length + " policies on " + policyTables.length + " tables");
+          }
+          const byCommand = Object.fromEntries(
+            [...new Set(policies.map((policy) => policy.command))].sort().map((command) => [
+              command,
+              policies.filter((policy) => policy.command === command).length,
+            ]),
+          );
+          const byRole = {};
+          for (const policy of policies) {
+            for (const role of policy.roles ?? []) {
+              byRole[role] = (byRole[role] ?? 0) + 1;
+            }
+          }
+          const details = policies
+            .map((policy) => ({
+              table: policy.table_schema + "." + policy.table_name,
+              policy: policy.policy_name,
+              command: policy.command,
+              mode: policy.policy_mode,
+              roles: (policy.roles ?? []).join(",") || "(none)",
+            }))
+            .sort((a, b) => a.table.localeCompare(b.table) || a.policy.localeCompare(b.policy));
+          console.log("Production auth.uid policy inventory summary:");
+          console.log(JSON.stringify({ policies: policies.length, tables: policyTables.length, byCommand, byRole }));
+          for (const detail of details) console.log(JSON.stringify(detail));
+          const markdown = [
+            "",
+            "### Production auth.uid RLS inventory",
+            "",
+            "Total: **" + policies.length + " policies** across **" + policyTables.length + " tables**.",
+            "",
+            "**By command:** " + Object.entries(byCommand).map(([key, value]) => key + ": " + value).join(" · "),
+            "",
+            "**By role:** " + Object.entries(byRole).map(([key, value]) => key + ": " + value).join(" · "),
+            "",
+            "| Table | Policy | Command | Mode | Roles |",
+            "|---|---|---|---|---|",
+            ...details.map((item) => "| " + item.table + " | " + item.policy + " | " + item.command + " | " + item.mode + " | " + item.roles + " |"),
+          ].join("\n");
+          await import("node:fs/promises").then(({ appendFile }) =>
+            appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + "\n"));
+          NODE
+
+      - name: Restore schema into the disposable local Supabase database
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$SCHEMA_BASELINE_OUTPUT_DIR:/baseline:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --file=/baseline/schema.sql
+
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$SCHEMA_BASELINE_OUTPUT_DIR:/baseline:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --file=/baseline/auth-storage-custom.sql
+
+      - name: Reconstruct production Auth function ACLs in disposable local database only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          node scripts/auth-migration/generate-stage3-function-acl-restore.mjs \
+            --metadata "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json" \
+            --out "$RUNNER_TEMP/stage3-function-acls.sql"
+
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$RUNNER_TEMP/stage3-function-acls.sql:/baseline/stage3-function-acls.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-function-acls.sql
+
+          {
+            echo ""
+            echo "- Reconstructed ACLs for the ten audited Auth-dependent functions from production metadata in the disposable local database only"
+            echo "- No production grant/revoke statement was executed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          node scripts/auth-migration/generate-stage5-payment-function-acl-restore.mjs \
+            --metadata "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json" \
+            --out "$RUNNER_TEMP/stage5-payment-function-acl.sql"
+
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$RUNNER_TEMP/stage5-payment-function-acl.sql:/baseline/stage5-payment-function-acl.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage5-payment-function-acl.sql
+
+          {
+            echo "- Restored the payment fulfillment function's exact service_role-only ACL from Production metadata on the disposable database only"
+            echo "- No Production grant/revoke statement was executed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify the restored production schema shape and zero imported user rows
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          SQL=$(cat <<'SQL'
+          SELECT
+            (SELECT count(*)
+             FROM pg_constraint c
+             JOIN pg_class src ON src.oid = c.conrelid
+             JOIN pg_namespace src_ns ON src_ns.oid = src.relnamespace
+             JOIN pg_class dst ON dst.oid = c.confrelid
+             JOIN pg_namespace dst_ns ON dst_ns.oid = dst.relnamespace
+             WHERE c.contype = 'f'
+               AND src_ns.nspname IN ('public', 'private')
+               AND dst_ns.nspname = 'auth'
+               AND dst.relname = 'users'),
+            (SELECT count(DISTINCT src_ns.nspname || '.' || src.relname)
+             FROM pg_constraint c
+             JOIN pg_class src ON src.oid = c.conrelid
+             JOIN pg_namespace src_ns ON src_ns.oid = src.relnamespace
+             JOIN pg_class dst ON dst.oid = c.confrelid
+             JOIN pg_namespace dst_ns ON dst_ns.oid = dst.relnamespace
+             WHERE c.contype = 'f'
+               AND src_ns.nspname IN ('public', 'private')
+               AND dst_ns.nspname = 'auth'
+               AND dst.relname = 'users'),
+            (SELECT count(*)
+             FROM pg_trigger t
+             JOIN pg_class tbl ON tbl.oid = t.tgrelid
+             JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+             WHERE ns.nspname = 'auth' AND tbl.relname = 'users' AND NOT t.tgisinternal),
+            (SELECT count(*)
+             FROM pg_trigger t
+             JOIN pg_class tbl ON tbl.oid = t.tgrelid
+             JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+             WHERE ns.nspname = 'public' AND tbl.relname = 'profiles' AND NOT t.tgisinternal),
+            (SELECT count(*)
+             FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'profiles'),
+            (SELECT count(*)
+             FROM pg_policies
+             WHERE coalesce(qual, '') || coalesce(with_check, '') ILIKE '%auth.uid%'),
+            (SELECT count(*)
+             FROM pg_proc p
+             JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname IN ('public', 'private')
+               AND p.proname IN (
+                 'apply_referral_qualification',
+                 'capture_signup_referral',
+                 'process_referral_email_confirmation',
+                 'create_organizer',
+                 'get_my_referrals',
+                 'get_my_referrals_v2',
+                 'get_my_verified_referrals',
+                 'handle_new_auth_user',
+                 'register_for_competition',
+                 'verify_pending_referrals'
+               )),
+            (SELECT count(*) FROM auth.users),
+            (SELECT count(*) FROM public.profiles);
+          SQL
+          )
+
+          actual="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -qAt --field-separator='|' --set=ON_ERROR_STOP=1 --command "$SQL")"
+          expected="69|62|3|4|36|109|10|0|0"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Disposable restore does not match the reviewed production schema baseline."
+            echo "Expected: $expected"
+            echo "Observed: $actual"
+            exit 1
+          fi
+          echo "- Verified 69 FKs/62 tables, 3 Auth triggers, 4 profile triggers/36 columns, 109 auth.uid() policies, 10 dependent functions, and zero imported Auth/profile rows" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compare every restored auth.users FK with the reviewed production catalog
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          FK_SQL=$(cat <<'SQL'
+          SELECT COALESCE(
+            jsonb_agg(
+              jsonb_build_object(
+                'name', c.conname,
+                'on_delete', CASE c.confdeltype
+                  WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
+                  WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END,
+                'on_update', CASE c.confupdtype
+                  WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE'
+                  WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END,
+                'validated', c.convalidated,
+                'deferrable', c.condeferrable,
+                'match_type', CASE c.confmatchtype
+                  WHEN 's' THEN 'SIMPLE' WHEN 'f' THEN 'FULL' WHEN 'p' THEN 'PARTIAL' END,
+                'source_table', source_table.relname,
+                'target_table', target_table.relname,
+                'source_schema', source_ns.nspname,
+                'target_schema', target_ns.nspname,
+                'source_columns', (
+                  SELECT COALESCE(jsonb_agg(source_att.attname ORDER BY source_key.ordinality), '[]'::jsonb)
+                  FROM unnest(c.conkey) WITH ORDINALITY AS source_key(attnum, ordinality)
+                  JOIN pg_attribute source_att
+                    ON source_att.attrelid = source_table.oid
+                   AND source_att.attnum = source_key.attnum
+                ),
+                'target_columns', (
+                  SELECT COALESCE(jsonb_agg(target_att.attname ORDER BY target_key.ordinality), '[]'::jsonb)
+                  FROM unnest(c.confkey) WITH ORDINALITY AS target_key(attnum, ordinality)
+                  JOIN pg_attribute target_att
+                    ON target_att.attrelid = target_table.oid
+                   AND target_att.attnum = target_key.attnum
+                ),
+                'initially_deferred', c.condeferred
+              ) ORDER BY source_ns.nspname, source_table.relname, c.conname
+            ), '[]'::jsonb
+          )::text
+          FROM pg_constraint c
+          JOIN pg_class source_table ON source_table.oid = c.conrelid
+          JOIN pg_namespace source_ns ON source_ns.oid = source_table.relnamespace
+          JOIN pg_class target_table ON target_table.oid = c.confrelid
+          JOIN pg_namespace target_ns ON target_ns.oid = target_table.relnamespace
+          WHERE c.contype = 'f'
+            AND source_ns.nspname IN ('public', 'private')
+            AND target_ns.nspname = 'auth'
+            AND target_table.relname = 'users';
+          SQL
+          )
+
+          docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -qAt --set=ON_ERROR_STOP=1 --command "$FK_SQL" \
+              > "$RUNNER_TEMP/restored-auth-users-fks.json"
+
+          node scripts/auth-migration/verify-restored-auth-fk-catalog.mjs \
+            --actual "$RUNNER_TEMP/restored-auth-users-fks.json" \
+            --expected scripts/auth-migration/live-auth-users-fk-catalog.json
+
+      - name: Compare restored functions, triggers, RLS policies and profile columns
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-baseline-metadata.sql:/baseline/stage3-baseline-metadata.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -qAt --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-baseline-metadata.sql \
+              > "$RUNNER_TEMP/restored-stage3-baseline-metadata.json"
+
+          node scripts/auth-migration/verify-stage3-baseline-metadata.mjs \
+            --production "$SCHEMA_BASELINE_OUTPUT_DIR/production-catalog-metadata.json" \
+            --restored "$RUNNER_TEMP/restored-stage3-baseline-metadata.json"
+
+      - name: Apply reviewed create_organizer ambiguity fix to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql:/baseline/create-organizer-fix.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/create-organizer-fix.sql
+          echo "- Applied the reviewed create_organizer ambiguity correction to the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Better Auth Stage 3 identity-root draft to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql:/baseline/auth-stage3-identity-root-draft.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/auth-stage3-identity-root-draft.sql
+          echo "- Applied Stage 3 identity-root draft; no legacy Auth accounts/backfill" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Simulate all 69 FK expansion, validation and atomic cutover on disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          PLAN_DIR="$RUNNER_TEMP/stage3-app-users-fk-plan"
+          rm -rf "$PLAN_DIR"
+          mkdir -p "$PLAN_DIR"
+          node scripts/auth-migration/generate-app-users-fk-plan.mjs \
+            --catalog scripts/auth-migration/live-auth-users-fk-catalog.json \
+            --out-dir "$PLAN_DIR"
+
+          # Preserve only UUID parent references required by existing application rows.
+          # Never backfill Auth users, emails, credentials or verification data.
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
+            -v "$PLAN_DIR:/plan:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --file=/plan/00-identity-tombstones.sql
+
+          for phase in 01-preflight-expand.sql 02-validate.sql 03-cutover.sql; do
+            docker run --rm --network host \
+              -e PGPASSWORD=postgres \
+              -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
+              -v "$PLAN_DIR:/plan:ro" \
+              postgres:17.6-alpine \
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+                -X -q --set=ON_ERROR_STOP=1 --file="/plan/$phase"
+          done
+
+          actual="$(
+            docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+                -X -qAt --set=ON_ERROR_STOP=1 --command "
+                  SELECT
+                    (SELECT count(*)
+                     FROM pg_constraint c
+                     JOIN pg_class src ON src.oid=c.conrelid
+                     JOIN pg_namespace sn ON sn.oid=src.relnamespace
+                     JOIN pg_class dst ON dst.oid=c.confrelid
+                     JOIN pg_namespace dn ON dn.oid=dst.relnamespace
+                     WHERE c.contype='f'
+                       AND sn.nspname IN ('public','private')
+                       AND dn.nspname='private'
+                       AND dst.relname='app_users'
+                       AND c.convalidated)
+                    || '|' ||
+                    (SELECT count(*)
+                     FROM pg_constraint c
+                     JOIN pg_class src ON src.oid=c.conrelid
+                     JOIN pg_namespace sn ON sn.oid=src.relnamespace
+                     JOIN pg_class dst ON dst.oid=c.confrelid
+                     JOIN pg_namespace dn ON dn.oid=dst.relnamespace
+                     WHERE c.contype='f'
+                       AND sn.nspname IN ('public','private')
+                       AND dn.nspname='auth'
+                       AND dst.relname='users');
+                "
+          )"
+          expected="69|0"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Disposable identity-root FK cutover did not reach 69 validated replacement FKs and zero legacy application FKs."
+            echo "Expected: $expected"
+            echo "Observed: $actual"
+            exit 1
+          fi
+          echo "- Simulated all 69 replacement FKs, validation and the atomic cutover on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Better Auth provisioning, referral, email, phone and organizer acceptance on disposable restore
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-better-auth-provisioning-regression.sql:/baseline/stage3-better-auth-provisioning-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-better-auth-provisioning-regression.sql
+          echo "- Better Auth identity, role, referral/email, Telegram-phone and organizer assertions passed and rolled back locally" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run rollback-only production-shaped Stage 3 behavior and RLS regression
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-production-schema-regression.sql:/baseline/stage3-production-schema-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-production-schema-regression.sql
+          {
+            echo ""
+            echo "- Production-shaped Auth/referral/organizer/competition and representative RLS behavior fixtures passed"
+            echo "- Every synthetic row and mutation was rolled back"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 3 issuer guard to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql:/baseline/auth-stage3-issuer-guard.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/auth-stage3-issuer-guard.sql
+          echo "- Added restrictive Better Auth issuer-only guard to the 61 auth.uid()-policy tables in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Stage 3 trusted-issuer RLS acceptance on disposable restore
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-issuer-guard-regression.sql:/baseline/stage3-issuer-guard-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-issuer-guard-regression.sql
+          echo "- Verified legacy Supabase and Better Auth issuer access; rejected an untrusted issuer; rolled back all fixtures" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 5 no-policy table ACL draft to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql:/baseline/stage5-no-policy-table-acl-draft.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage5-no-policy-table-acl-draft.sql
+          echo "- Tested targeted anon/authenticated table-grant revocation for three RLS-enabled/no-policy tables on the disposable restore only; service_role and postgres access remained intact" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Simulate fail-closed 69-FK rollback on disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          PLAN_DIR="$RUNNER_TEMP/stage3-app-users-fk-rollback-plan"
+          rm -rf "$PLAN_DIR"
+          mkdir -p "$PLAN_DIR"
+          node scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs \
+            --catalog scripts/auth-migration/live-auth-users-fk-catalog.json \
+            --out-dir "$PLAN_DIR"
+
+          # A Better Auth-only identity must block reverse cutover before any FK DDL.
+          docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --command "
+                INSERT INTO private.app_users(id)
+                VALUES ('f8b8f8b8-9999-4999-8999-999999999999')
+                ON CONFLICT (id) DO NOTHING;
+              "
+          set +e
+          blocker_output="$(docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
+            -v "$PLAN_DIR:/plan:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/plan/01-preflight-expand-auth-rollback.sql 2>&1)"
+          blocker_status=$?
+          set -e
+          docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 --command "
+                DELETE FROM private.app_users
+                WHERE id='f8b8f8b8-9999-4999-8999-999999999999';
+              "
+          if [[ "$blocker_status" -eq 0 ]] || ! grep -q "ROLLBACK_BLOCKED_BETTER_AUTH_ONLY_IDENTITY_EXISTS" <<<"$blocker_output"; then
+            echo "::error::Reverse-FK preflight did not fail closed for a Better Auth-only identity."
+            echo "$blocker_output"
+            exit 1
+          fi
+          remaining_temp_fks="$(
+            docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+                -X -qAt --set=ON_ERROR_STOP=1 --command "
+                  SELECT count(*) FROM pg_constraint WHERE conname LIKE 'ba_auth_rollback_fk_%';
+                "
+          )"
+          if [[ "$remaining_temp_fks" != "0" ]]; then
+            echo "::error::Rollback preflight created temporary FKs before its identity guard."
+            exit 1
+          fi
+          echo "- Better Auth-only synthetic UUID correctly blocked reverse FK preflight before any FK DDL; fixture removed" >> "$GITHUB_STEP_SUMMARY"
+
+          for phase in 01-preflight-expand-auth-rollback.sql 02-validate-auth-rollback.sql 03-cutover-auth-rollback.sql; do
+            docker run --rm --network host \
+              -e PGPASSWORD=postgres \
+              -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
+              -v "$PLAN_DIR:/plan:ro" \
+              postgres:17.6-alpine \
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+                -X -q --set=ON_ERROR_STOP=1 --file="/plan/$phase"
+          done
+
+          actual="$(
+            docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+                -X -qAt --set=ON_ERROR_STOP=1 --command "
+                  SELECT
+                    (SELECT count(*)
+                     FROM pg_constraint c
+                     JOIN pg_class src ON src.oid=c.conrelid
+                     JOIN pg_namespace sn ON sn.oid=src.relnamespace
+                     JOIN pg_class dst ON dst.oid=c.confrelid
+                     JOIN pg_namespace dn ON dn.oid=dst.relnamespace
+                     WHERE c.contype='f' AND sn.nspname IN ('public','private')
+                       AND dn.nspname='auth' AND dst.relname='users' AND c.convalidated)
+                    || '|' ||
+                    (SELECT count(*)
+                     FROM pg_constraint c
+                     JOIN pg_class src ON src.oid=c.conrelid
+                     JOIN pg_namespace sn ON sn.oid=src.relnamespace
+                     JOIN pg_class dst ON dst.oid=c.confrelid
+                     JOIN pg_namespace dn ON dn.oid=dst.relnamespace
+                     WHERE c.contype='f' AND sn.nspname IN ('public','private')
+                       AND dn.nspname='private' AND dst.relname='app_users');
+                "
+          )"
+          expected="69|0"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Disposable reverse FK rollback did not restore 69 validated auth.users relationships."
+            echo "Expected: $expected"
+            echo "Observed: $actual"
+            exit 1
+          fi
+          echo "- Simulated bounded, fail-closed reverse of all 69 FK targets on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- This is an FK-only rollback simulation; the following step verifies restoration of legacy functions/triggers/policies and removal of the identity projection" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Simulate complete Stage 3 rollback on disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=120s" \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-ROLLBACK-DRAFT.sql:/baseline/auth-stage3-rollback-draft.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/auth-stage3-rollback-draft.sql
+          echo "- Full Stage 3 rollback draft restored legacy Auth functions/triggers/issuer policies and removed private.app_users on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 5 payment service-role claim draft to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-5-PAYMENT-SERVICE-ROLE-CLAIM-DRAFT.sql:/baseline/stage5-payment-service-role-claim-draft.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage5-payment-service-role-claim-draft.sql
+          echo "- Applied and exercised the service-role claim guard draft on the disposable restore only; authenticated/anon role rejection and legacy fallback were verified" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Seed synthetic two-user Cloudinary/payment fixtures on the disposable database
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage5-edge-two-user-fixtures.sql:/baseline/stage5-edge-two-user-fixtures.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage5-edge-two-user-fixtures.sql
+
+      - name: Prepare isolated local workspace for migrated Cloudinary/payment Edge Functions
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          FUNCTION_ROOT="$SUPABASE_CLI_WORKDIR/supabase/functions"
+          mkdir -p "$FUNCTION_ROOT/_shared"
+          for file in auth-claims.mjs better-auth-user.ts cloudinary-ownership.mjs resolve-application-identity-mode.mjs require-application-user.ts; do
+            cp "supabase/functions/_shared/$file" "$FUNCTION_ROOT/_shared/$file"
+          done
+          for name in get-cloudinary-signature cloudinary-delete-asset cloudinary-profile-upload cloudinary-delete-profile cloudinary-profile-upload-v2 cloudinary-delete-asset-v2 payment-gateway-admin payment-gateway-create payment-gateway-reconcile payment-gateway-webhook; do
+            cp -a "supabase/functions/$name" "$FUNCTION_ROOT/$name"
+          done
+          cat >> "$SUPABASE_CLI_WORKDIR/supabase/config.toml" <<'TOML'
+
+          [functions.get-cloudinary-signature]
+          verify_jwt = false
+          [functions.cloudinary-delete-asset]
+          verify_jwt = false
+          [functions.cloudinary-profile-upload]
+          verify_jwt = false
+          [functions.cloudinary-delete-profile]
+          verify_jwt = false
+          [functions.cloudinary-profile-upload-v2]
+          verify_jwt = false
+          [functions.cloudinary-delete-asset-v2]
+          verify_jwt = false
+          [functions.payment-gateway-admin]
+          verify_jwt = false
+          [functions.payment-gateway-create]
+          verify_jwt = false
+          [functions.payment-gateway-reconcile]
+          verify_jwt = false
+
+          [functions.payment-gateway-webhook]
+          verify_jwt = false
+          TOML
+
+      - name: Start local Edge Runtime with disposable-only Cloudinary credentials
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          cd "$SUPABASE_CLI_WORKDIR"
+          eval "$(supabase status -o env)"
+          echo "STAGE5_API_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "STAGE5_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          cat > "$RUNNER_TEMP/stage5-edge-functions.env" <<'ENV'
+          AUTH_IDENTITY_MODE=supabase
+          CLOUDINARY_API_KEY=123456789
+          CLOUDINARY_API_SECRET=stage5-disposable-only-not-a-provider-secret
+          CLOUDINARY_CLOUD_NAME=invalid-stage5-disposable-cloud
+          ENV
+          supabase functions serve --env-file "$RUNNER_TEMP/stage5-edge-functions.env" \
+            > "$RUNNER_TEMP/stage5-edge-functions.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/stage5-edge-functions.pid"
+
+          probe_status="000"
+          for attempt in $(seq 1 90); do
+            probe_status="$(curl --silent --show-error --max-time 3 \
+              --output "$RUNNER_TEMP/stage5-edge-probe.json" \
+              --write-out '%{http_code}' \
+              --request POST "$API_URL/functions/v1/get-cloudinary-signature" \
+              --header "apikey: $ANON_KEY" \
+              --header 'Content-Type: application/json' \
+              --data '{}')" || probe_status="000"
+            if [ "$probe_status" = "401" ]; then break; fi
+            sleep 2
+          done
+          if [ "$probe_status" != "401" ]; then
+            echo "Local Edge Runtime did not return the handler's expected anonymous 401 (received $probe_status)." >&2
+            cat "$RUNNER_TEMP/stage5-edge-functions.log"
+            cat "$RUNNER_TEMP/stage5-edge-probe.json" || true
+            exit 1
+          fi
+
+      - name: Run Stage 5 two-user Cloudinary/payment Edge integration on the disposable database
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage5-business-edge-two-user.integration.test.mjs
+
+      - name: Stop disposable local Supabase
+        if: always() && steps.local_supabase.outcome == 'success'
+        run: |
+          cd "$SUPABASE_CLI_WORKDIR"
+          supabase stop || true
+
+      - name: Remove schema export and temporary local project
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/restored-auth-users-fks.json" "$RUNNER_TEMP/restored-stage3-baseline-metadata.json" "$RUNNER_TEMP/stage3-function-acls.sql" "$RUNNER_TEMP/stage5-payment-function-acl.sql"
+          rm -rf "$SCHEMA_BASELINE_OUTPUT_DIR" "$SUPABASE_CLI_WORKDIR"

@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireApplicationUser } from "../_shared/require-application-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,13 +47,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ ok: false, error: "METHOD_NOT_ALLOWED" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const authorization = req.headers.get("Authorization");
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+  if (!supabaseUrl || !serviceRoleKey) {
     return json({ ok: false, error: "SERVER_NOT_CONFIGURED" }, 503);
   }
-  if (!authorization?.startsWith("Bearer ")) return json({ ok: false, error: "AUTH_REQUIRED" }, 401);
 
   const body = obj(await req.json().catch(() => null));
   const orderId = str(body.order_id);
@@ -63,27 +61,30 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "INVALID_TRANSACTION_ID" }, 422);
   }
 
-  const authClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authorization } },
-  });
-  const { data: authData, error: authError } = await authClient.auth.getUser();
-  if (authError || !authData.user) return json({ ok: false, error: "AUTH_REQUIRED" }, 401);
+  const identity = await requireApplicationUser(req);
+  if (!identity.ok) return json({ ok: false, error: identity.error }, identity.status);
+  const { userId } = identity;
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const [{ data: order, error: orderError }, { data: intent, error: intentError }] = await Promise.all([
-    admin.from("orders")
-      .select("id,user_id,status,total,currency,payment_provider")
-      .eq("id", orderId)
-      .eq("user_id", authData.user.id)
-      .maybeSingle(),
-    admin.from("payment_intents")
-      .select("id,order_id,provider,provider_reference,amount,status,raw_meta")
-      .eq("order_id", orderId)
-      .maybeSingle(),
-  ]);
+  // Resolve ownership before reading any payment-intent record. The verified
+  // UUID is part of the database predicate, not merely a post-query check.
+  const { data: order, error: orderError } = await admin.from("orders")
+    .select("id,user_id,status,total,currency,payment_provider")
+    .eq("id", orderId)
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  if (orderError || intentError) return json({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
-  if (!order || !intent || order.user_id !== authData.user.id) return json({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
+  if (orderError) return json({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
+  if (!order || order.user_id !== userId) return json({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
+
+  // Only after the caller owns the order may service-role access its intent.
+  const { data: intent, error: intentError } = await admin.from("payment_intents")
+    .select("id,order_id,provider,provider_reference,amount,status,raw_meta")
+    .eq("order_id", order.id)
+    .maybeSingle();
+
+  if (intentError) return json({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
+  if (!intent) return json({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
 
   const orderStatus = str(order.status).toUpperCase();
   const intentStatus = str(intent.status).toUpperCase();
