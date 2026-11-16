@@ -17,7 +17,7 @@ const sessionBridge = readFileSync(new URL("../../src/services/betterAuthSession
 const cloudinaryService = readFileSync(new URL("../../src/services/cloudinary.service.ts", import.meta.url), "utf8");
 const profileSettingsPage = readFileSync(new URL("../../src/pages/ProfileInterfaceSettingsPage.tsx", import.meta.url), "utf8");
 const adminPage = readFileSync(new URL("../../src/pages/AdminPage.tsx", import.meta.url), "utf8");
-const zeptoMailPanel = readFileSync(new URL("../../src/components/admin/ZeptoMailSettingsPanel.tsx", import.meta.url), "utf8");
+const transactionalEmailPanel = readFileSync(new URL("../../src/components/admin/TransactionalEmailSettingsPanel.tsx", import.meta.url), "utf8");
 const loginProvidersPanel = readFileSync(new URL("../../src/components/admin/LoginProvidersSettingsPanel.tsx", import.meta.url), "utf8");
 const socialProviderSettings = readFileSync(new URL("../../services/auth-worker/src/social-provider-settings.ts", import.meta.url), "utf8");
 
@@ -203,18 +203,18 @@ assert.match(profileSettingsPage, /isBetterAuthEnabled, updatePassword as update
 assert.match(profileSettingsPage, /updateAccountPassword\(password, requiresCurrentPassword \? currentPassword : undefined\)/);
 assert.match(profileSettingsPage, /autoComplete="current-password"/);
 assert.doesNotMatch(profileSettingsPage, /supabase\.auth/);
-assert.match(adminPage, /import \{ ZeptoMailSettingsPanel \} from '@\/components\/admin\/ZeptoMailSettingsPanel'/);
+assert.match(adminPage, /import \{ TransactionalEmailSettingsPanel \} from '@\/components\/admin\/ZeptoMailSettingsPanel'/);
 assert.match(adminPage, /tab === 'settings'[\s\S]*?<ZeptoMailSettingsPanel\s*\/>/);
-assert.match(zeptoMailPanel, /const EMPTY_DRAFT:[\s\S]*?provider: 'sendpulse'/);
+assert.match(transactionalEmailPanel, /const EMPTY_DRAFT:[\s\S]*?provider: 'sendpulse'/);
 for (const provider of ['sendpulse', 'brevo', 'mailjet', 'mailtrap', 'resend']) {
-  assert.ok(zeptoMailPanel.includes(provider), 'multi-provider Admin panel must support ' + provider);
+  assert.ok(transactionalEmailPanel.includes(provider), 'multi-provider Admin panel must support ' + provider);
 }
-assert.match(zeptoMailPanel, /request\('save'/);
-assert.match(zeptoMailPanel, /request\('configure'/);
-assert.match(zeptoMailPanel, /request\('test'/);
-assert.match(zeptoMailPanel, /request\('delete'/);
-assert.match(zeptoMailPanel, /autoFailoverEnabled/);
-assert.doesNotMatch(zeptoMailPanel, /<option value="zeptomail"/);
+assert.match(transactionalEmailPanel, /request\('save'/);
+assert.match(transactionalEmailPanel, /request\('configure'/);
+assert.match(transactionalEmailPanel, /request\('test'/);
+assert.match(transactionalEmailPanel, /request\('delete'/);
+assert.match(transactionalEmailPanel, /autoFailoverEnabled/);
+assert.doesNotMatch(transactionalEmailPanel, /<option value="zeptomail"/);
 assert.match(sessionBridge, /sykabelajar-better-auth-session/);
 assert.doesNotMatch(sessionBridge, /access_token|refresh_token/);
 assert.match(supabaseClient, /createSupabaseClientOptions/);
@@ -252,10 +252,10 @@ assert.match(loginProvidersPanel, /draft\.clientSecret\.trim\(\) \? \{ clientSec
 assert.match(socialProviderSettings, /export const SOCIAL_LOGIN_PROVIDERS = \["google", "github", "facebook", "twitter"\]/);
 assert.match(socialProviderSettings, /instagram:\s*\{ available: false/);
 assert.match(socialProviderSettings, /const authorization = await requireBetterAuthAdmin\(request, env\)/);
-assert.match(zeptoMailPanel, /apiKey: ''/);
-assert.match(zeptoMailPanel, /apiSecret: ''/);
-assert.match(zeptoMailPanel, /getSupabaseResourceAccessToken\(\)/);
-assert.match(zeptoMailPanel, /AUTH_WORKER_URL_NOT_CONFIGURED/);
+assert.match(transactionalEmailPanel, /apiKey: ''/);
+assert.match(transactionalEmailPanel, /apiSecret: ''/);
+assert.match(transactionalEmailPanel, /getSupabaseResourceAccessToken\(\)/);
+assert.match(transactionalEmailPanel, /AUTH_WORKER_URL_NOT_CONFIGURED/);
 
 // Refresh/focus checks must reuse a still-valid resource token, and all
 // session/status reads must be deduplicated and recover from transient GETs.
