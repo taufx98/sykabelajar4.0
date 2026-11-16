@@ -1,7 +1,6 @@
 import { decryptEmailSecret } from "./email-secret.mjs";
-import { sendZeptoMail } from "./zeptomail.mjs";
 import { deliverAuthEmail, isEmailDeliveryConfigured } from "./email-delivery.mjs";
-import { EmailProviderDeliveryError, sendEmailWithProvider } from "./email-providers.mjs";
+import { EmailProviderDeliveryError, normalizeCustomHttpConfig, sendEmailWithProvider } from "./email-providers.mjs";
 import type { AuthWorkerEnv } from "./env";
 
 type AuthEmailMessage = {
@@ -11,7 +10,7 @@ type AuthEmailMessage = {
   action: "verify-email" | "verify-email-otp" | "reset-password" | "admin-test";
 };
 
-type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend";
+type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend" | "custom_http";
 type ProviderAccount = {
   id: string;
   provider: EmailProvider;
@@ -77,66 +76,12 @@ function parseCredentials(value: string): Record<string, string> {
 
 function hasRequiredProviderCredentials(provider: EmailProvider, credentials: Record<string, string>): boolean {
   const usable = (value: string | undefined) => typeof value === "string" && value.trim().length >= 16;
+  if (provider === "custom_http") {
+    try { normalizeCustomHttpConfig(credentials); return true; } catch { return false; }
+  }
   if (provider === "mailjet") return usable(credentials.apiKey) && usable(credentials.apiSecret);
   if (provider === "mailtrap") return usable(credentials.apiToken);
   return usable(credentials.apiKey);
-}
-
-type LegacyEmailAccount = {
-  provider: "zeptomail" | "brevo";
-  sender_address: string;
-  sender_name: string;
-  bounce_address: string | null;
-  send_mail_token_ciphertext: string;
-  sendMailToken?: string;
-};
-
-/**
- * Staging may still have an encrypted Agent profile from the earlier
- * ZeptoMail/Brevo settings panel. Keep that sender usable as a recovery
- * fallback: the new multi-provider table is additive and does not rewrite
- * those legacy credentials.
- */
-async function readLegacyEmailAccount(env: AuthWorkerEnv): Promise<LegacyEmailAccount | null> {
-  if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) return null;
-  try {
-    const row = await env.DB.prepare(
-      "SELECT a.provider, a.sender_address, a.sender_name, a.bounce_address, a.send_mail_token_ciphertext " +
-      "FROM auth_email_settings s JOIN auth_email_accounts a ON a.id = s.active_account_id " +
-      "WHERE s.id = 1 AND length(a.send_mail_token_ciphertext) > 0",
-    ).first<Omit<LegacyEmailAccount, "sendMailToken">>();
-    if (!row || !row.sender_address?.trim() || !row.sender_name?.trim()) return null;
-    if (row.provider !== "zeptomail" && row.provider !== "brevo") return null;
-    const token = (await decryptEmailSecret(
-      env.AUTH_EMAIL_ENCRYPTION_KEY,
-      row.send_mail_token_ciphertext,
-    )).trim();
-    if (token.length < 16) return null;
-    return { ...row, sendMailToken: token };
-  } catch {
-    return null;
-  }
-}
-
-async function sendLegacyEmail(env: AuthWorkerEnv, message: AuthEmailMessage): Promise<void> {
-  const account = await readLegacyEmailAccount(env);
-  if (!account || !account.sendMailToken) {
-    throw new Error("AUTH_EMAIL_ACTIVE_ACCOUNT_NOT_CONFIGURED");
-  }
-  const sender = {
-    senderAddress: account.sender_address,
-    senderName: account.sender_name,
-  };
-  if (account.provider === "zeptomail") {
-    await sendZeptoMail({
-      sendMailToken: account.sendMailToken,
-      senderAddress: sender.senderAddress,
-      senderName: sender.senderName,
-      bounceAddress: account.bounce_address,
-    }, message);
-    return;
-  }
-  await sendEmailWithProvider("brevo", { apiKey: account.sendMailToken }, sender, message);
 }
 
 /**
@@ -177,9 +122,9 @@ export async function isAuthEmailVerificationConfigured(env: AuthWorkerEnv): Pro
       }
     }
   } catch {
-    // Continue to the encrypted legacy Agent profile below.
+    return false;
   }
-  return Boolean(await readLegacyEmailAccount(env));
+  return false;
 }
 
 async function sendManagedEmail(env: AuthWorkerEnv, message: AuthEmailMessage): Promise<void> {
@@ -198,7 +143,7 @@ async function sendManagedEmail(env: AuthWorkerEnv, message: AuthEmailMessage): 
     "ORDER BY priority ASC, created_at ASC",
   ).all<ProviderAccount>();
   const accounts = result.results ?? [];
-  if (accounts.length === 0) return sendLegacyEmail(env, message);
+  if (accounts.length === 0) throw new Error("AUTH_EMAIL_ALL_PROVIDERS_EXHAUSTED");
 
   const candidates = autoFailover ? accounts : accounts.slice(0, 1);
   let lastSafeError = "AUTH_EMAIL_ALL_PROVIDERS_EXHAUSTED";
@@ -249,19 +194,8 @@ async function sendManagedEmail(env: AuthWorkerEnv, message: AuthEmailMessage): 
     }
   }
 
-  // If every new-provider candidate was skipped for quota or rejected before
-  // accepting the message, the previous active Agent profile is a safe
-  // fallback. Never use it after an ambiguous timeout/network/5xx outcome.
-  if (
-    attempted === 0 ||
-    lastSafeError === "AUTH_EMAIL_PROVIDER_QUOTA_REACHED" ||
-    lastSafeError === "AUTH_EMAIL_PROVIDER_CREDENTIAL_UNAVAILABLE" ||
-    lastSafeError === "EMAIL_PROVIDER_QUOTA_REACHED" ||
-    lastSafeError === "EMAIL_PROVIDER_CREDENTIAL_REJECTED"
-  ) {
-    return sendLegacyEmail(env, message);
-  }
-  throw new Error(attempted === 0 ? "AUTH_EMAIL_ALL_PROVIDERS_QUOTA_EXHAUSTED" : lastSafeError);
+  if (attempted === 0) throw new Error("AUTH_EMAIL_ALL_PROVIDERS_EXHAUSTED");
+  throw new Error(lastSafeError);
 }
 
 export async function sendAuthEmail(
