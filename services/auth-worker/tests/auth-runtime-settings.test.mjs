@@ -45,7 +45,7 @@ test("Worker rebuilds cached Better Auth when the Admin changes policy and gates
   assert.match(worker, /!verificationRequired \|\| await isAuthEmailVerificationConfigured\(env\)/);
   assert.match(auth, /emailVerificationRequired = true/);
   assert.match(auth, /requireEmailVerification: emailVerificationRequired/);
-  assert.match(auth, /sendOnSignUp: false/);
+  assert.match(auth, /sendOnSignUp: emailVerificationRequired/);
   assert.doesNotMatch(auth, /Verifikasi alamat email Anda melalui tautan berikut/);
   assert.match(auth, /emailVerificationRequired && user\.emailVerified !== true/);
 });
