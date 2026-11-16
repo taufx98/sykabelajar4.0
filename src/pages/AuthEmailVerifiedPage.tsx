@@ -19,6 +19,19 @@ export function AuthEmailVerifiedPage() {
   const [sent, setSent] = useState(Boolean(routeEmail));
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  const [expiresAt, setExpiresAt] = useState(() => routeEmail ? Date.now() + 5 * 60_000 : 0);
+  const [resendAvailableAt, setResendAvailableAt] = useState(() => routeEmail ? Date.now() + 2 * 60_000 : 0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const expirySeconds = Math.max(0, Math.ceil((expiresAt - now) / 1_000));
+  const resendSeconds = Math.max(0, Math.ceil((resendAvailableAt - now) / 1_000));
+  const formatCountdown = (seconds: number) =>
+    `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
   useEffect(() => {
     let live = true;
@@ -56,7 +69,10 @@ export function AuthEmailVerifiedPage() {
       setEmail(normalizedEmail);
       setOtp('');
       setSent(true);
-      setNotice('Jika akun tersebut belum terverifikasi, kode baru akan dikirim ke email.');
+      const sentAt = Date.now();
+      setExpiresAt(sentAt + 5 * 60_000);
+      setResendAvailableAt(sentAt + 2 * 60_000);
+      setNotice('Kode verifikasi berhasil diminta. Periksa kotak masuk emailmu.');
     } catch {
       setError('Kode belum dapat dikirim. Periksa email dan coba lagi beberapa saat.');
     } finally {
@@ -74,7 +90,11 @@ export function AuthEmailVerifiedPage() {
     setError('');
     setNotice('');
     try {
-      await getStagingBetterAuthClient().verifyEmailOtp(normalizedEmail, otp.trim());
+      if (expirySeconds <= 0) {
+        setError('Kode sudah kedaluwarsa. Tunggu hingga bisa meminta kode baru.');
+        return;
+      }
+      await getStagingBetterAuthClient().verifyEmailOtp(normalizedEmail, otp);
       setEmail(normalizedEmail);
       setState('verified');
       setNotice('Alamat email berhasil diverifikasi. Sesi login telah disiapkan.');
@@ -152,16 +172,26 @@ export function AuthEmailVerifiedPage() {
                 {sent && (
                   <div>
                     <label className="label" htmlFor="verification-code">Kode verifikasi</label>
+                    <p className="text-xs text-slate-400 mb-2" role="timer" aria-live="off">
+                      {expirySeconds > 0
+                        ? `Kode berlaku ${formatCountdown(expirySeconds)} lagi`
+                        : 'Kode sudah kedaluwarsa'}
+                    </p>
                     <input
                       id="verification-code"
                       name="verificationCode"
                       type="text"
                       inputMode="numeric"
+                      pattern="[0-9]*"
                       autoComplete="one-time-code"
                       maxLength={6}
                       className="input text-center tracking-[0.35em] text-lg font-semibold"
                       value={otp}
-                      onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(event) => setOtp(event.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                      onPaste={(event) => {
+                        event.preventDefault();
+                        setOtp(event.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6));
+                      }}
                       disabled={verifying}
                       placeholder="000000"
                     />
@@ -170,12 +200,19 @@ export function AuthEmailVerifiedPage() {
                 {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
                 {notice && <p role="status" className="text-xs text-emerald-400">{notice}</p>}
                 {sent && (
-                  <Button fullWidth size="lg" loading={verifying} disabled={verifying || !/^\d{6}$/.test(otp)} onClick={() => void verifyCode()}>
+                  <Button fullWidth size="lg" loading={verifying} disabled={verifying || expirySeconds <= 0 || !/^\d{6}$/.test(otp)} onClick={() => void verifyCode()}>
                     Verifikasi kode
                   </Button>
                 )}
-                <Button fullWidth size="sm" variant="outline" loading={sending} disabled={sending || verifying || !email.trim()} onClick={() => void sendCode()} icon={<RefreshCw size={14} />}>
-                  {sent ? 'Kirim ulang kode' : 'Kirim kode verifikasi'}
+                {sent && (
+                  <p className="text-xs text-center text-slate-400" role="timer" aria-live="off">
+                    {resendSeconds > 0
+                      ? `Kirim ulang tersedia dalam ${formatCountdown(resendSeconds)}`
+                      : 'Kamu sudah bisa meminta kode baru.'}
+                  </p>
+                )}
+                <Button fullWidth size="sm" variant="outline" loading={sending} disabled={sending || verifying || !email.trim() || resendSeconds > 0} onClick={() => void sendCode()} icon={<RefreshCw size={14} />}>
+                  {sent ? (resendSeconds > 0 ? `Kirim ulang (${formatCountdown(resendSeconds)})` : 'Kirim ulang kode') : 'Kirim kode verifikasi'}
                 </Button>
               </div>
             </>
