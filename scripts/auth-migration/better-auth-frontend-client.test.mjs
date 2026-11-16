@@ -24,6 +24,7 @@ const socialProviderSettings = readFileSync(new URL("../../services/auth-worker/
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
 const loginPage = readFileSync(new URL("../../src/pages/LoginPage.tsx", import.meta.url), "utf8");
 const registerPage = readFileSync(new URL("../../src/pages/RegisterPage.tsx", import.meta.url), "utf8");
+const socialAuthErrors = readFileSync(new URL("../../src/services/betterAuthErrorCode.mjs", import.meta.url), "utf8");
 
 
 assert.match(client, /AUTH_API_REQUEST_TIMEOUT_MS = 12_000/);
@@ -325,3 +326,14 @@ assert.ok(loginSocialIndex > loginEmailIndex);
 assert.match(loginPage, /lg:grid-cols-\[minmax\(0,0\.92fr\)_minmax\(0,1\.08fr\)\]/);
 assert.match(registerPage, /lg:grid-cols-\[minmax\(280px,0\.82fr\)_minmax\(0,1\.18fr\)\]/);
 assert.match(registerPage, /hidden lg:flex card p-8/);
+
+
+assert.match(client, /requestSignUp\?: boolean; errorCallbackURL\?: string/);
+assert.match(client, /requestSignUp: true/);
+assert.match(client, /errorCallbackURL: options\.errorCallbackURL/);
+assert.match(authService, /options\.errorCallbackURL \?\? '\/login\?oauthError=1'/);
+assert.match(loginPage, /errorCallbackURL = `\/login\?oauthError=1/);
+assert.match(loginPage, /searchParams\.get\('oauthError'\) !== '1'/);
+assert.match(loginPage, /Belum ada akun SYKABELAJAR yang terhubung/);
+assert.match(registerPage, /requestSignUp:true/);
+assert.match(socialAuthErrors, /account_not_linked/);
