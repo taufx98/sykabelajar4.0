@@ -40,8 +40,7 @@ async function requestPolicy(
   action: 'get-verification-policy' | 'set-verification-policy',
   required?: boolean,
 ): Promise<Policy> {
-  const token = await getSupabaseResourceAccessToken();
-  if (!token) throw new Error('AUTH_REQUIRED');
+  const token = await getStagingAdminAccessToken();
 
   const response = await fetch(STAGING_AUTH_WORKER_URL + '/api/admin/email-settings', {
     method: 'POST',
