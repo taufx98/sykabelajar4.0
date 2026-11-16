@@ -203,8 +203,8 @@ assert.match(profileSettingsPage, /isBetterAuthEnabled, updatePassword as update
 assert.match(profileSettingsPage, /updateAccountPassword\(password, requiresCurrentPassword \? currentPassword : undefined\)/);
 assert.match(profileSettingsPage, /autoComplete="current-password"/);
 assert.doesNotMatch(profileSettingsPage, /supabase\.auth/);
-assert.match(adminPage, /import \{ TransactionalEmailSettingsPanel \} from '@\/components\/admin\/ZeptoMailSettingsPanel'/);
-assert.match(adminPage, /tab === 'settings'[\s\S]*?<ZeptoMailSettingsPanel\s*\/>/);
+assert.match(adminPage, /import \{ TransactionalEmailSettingsPanel \} from '@\/components\/admin\/TransactionalEmailSettingsPanel'/);
+assert.match(adminPage, /tab === 'settings'[\s\S]*?<TransactionalEmailSettingsPanel\s*\/>/);
 assert.match(transactionalEmailPanel, /const EMPTY_DRAFT:[\s\S]*?provider: 'sendpulse'/);
 for (const provider of ['sendpulse', 'brevo', 'mailjet', 'mailtrap', 'resend']) {
   assert.ok(transactionalEmailPanel.includes(provider), 'multi-provider Admin panel must support ' + provider);
@@ -235,7 +235,7 @@ const settingsTabIndex = adminPage.indexOf("{tab === 'settings' &&");
 assert.ok(settingsTabIndex >= 0);
 const settingsTab = adminPage.slice(settingsTabIndex, settingsTabIndex + 650);
 assert.match(settingsTab, /<LoginProvidersSettingsPanel\s*\/>/);
-assert.match(settingsTab, /<ZeptoMailSettingsPanel\s*\/>/);
+assert.match(settingsTab, /<TransactionalEmailSettingsPanel\s*\/>/);
 
 assert.match(loginProvidersPanel, /const PROVIDER_ORDER: BetterAuthSocialProvider\[\] = \['google', 'github', 'facebook', 'twitter'\]/);
 assert.match(loginProvidersPanel, /Google \/ Gmail/);
