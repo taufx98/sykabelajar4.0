@@ -10,6 +10,7 @@ on:
       - "e2e/staging/login-smoke.spec.ts"
       - "playwright.staging.config.ts"
       - "src/components/admin/BetterAuthAcceptancePanel.tsx"
+      - "src/pages/LoginPage.tsx"
   pull_request:
     branches:
       - security/auth-migration-phase-0
@@ -19,6 +20,7 @@ on:
       - "e2e/staging/login-smoke.spec.ts"
       - "playwright.staging.config.ts"
       - "src/components/admin/BetterAuthAcceptancePanel.tsx"
+      - "src/pages/LoginPage.tsx"
   workflow_dispatch: {}
 
 permissions:
