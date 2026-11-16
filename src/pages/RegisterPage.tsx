@@ -13,6 +13,7 @@ import { getStagingBetterAuthClient } from '@/services/betterAuthApi.client';
 import type { CompetitionCategory, EducationLevel, Role } from '@/types';
 import { isValidReferralId } from '@/lib/referralAttribution';
 import { resolveSafeInternalRedirect } from '@/lib/safeInternalRedirect.mjs';
+import { getSocialAuthErrorCategory } from '@/services/betterAuthErrorCode.mjs';
 
 const MIN_PASSWORD_LENGTH = 8;
 type RegisterSocialProvider = 'google' | 'github';
@@ -24,7 +25,7 @@ export function RegisterPage(){
  const { language } = useLanguage();
  const text = (id: string, en: string) => language === 'en' ? en : id;
  const navigate = useNavigate();
- const [searchParams] = useSearchParams();
+ const [searchParams, setSearchParams] = useSearchParams();
  const requestedRedirect = searchParams.get('redirect') || '/home';
  const rawReferralCode = searchParams.get('ref')?.trim() ?? '';
  const referralCode = isValidReferralId(rawReferralCode) ? rawReferralCode : '';
@@ -45,6 +46,21 @@ export function RegisterPage(){
     .catch(()=>{if(active){setSocialProviders([]);setEmailVerificationConfigured(false);setEmailVerificationRequired(true)}});
   return ()=>{active=false};
  },[betterAuthPreview]);
+ useEffect(()=>{
+  if(searchParams.get('oauthError')!=='1') return;
+  const category=getSocialAuthErrorCategory(searchParams.get('error'));
+  const message=category==='account_not_linked'
+   ? text('Akun sosial ini belum terhubung ke akun SYKABELAJAR yang ada. Silakan masuk dengan metode akun yang sebelumnya digunakan.','This social account is not linked to an existing SYKABELAJAR account. Sign in with the method you used originally.')
+   : category==='cancelled'
+    ? text('Pendaftaran sosial dibatalkan. Kamu bisa mencoba lagi.','Social sign-up was cancelled. You can try again.')
+    : text('Pendaftaran dengan akun sosial belum berhasil. Silakan coba lagi atau gunakan email.','Social sign-up could not be completed. Please try again or use email.');
+  toast(message,'error');
+  const nextParams=new URLSearchParams(searchParams);
+  nextParams.delete('oauthError');
+  nextParams.delete('error');
+  nextParams.delete('error_description');
+  setSearchParams(nextParams,{replace:true});
+ },[searchParams,setSearchParams,toast,language]);
  const set=(k:keyof typeof form,v:any)=>setForm(f=>({...f,[k]:v}));
  const toggleCategory=(category:CompetitionCategory)=>setForm(f=>({...f,favoriteCategories:f.favoriteCategories.includes(category)?f.favoriteCategories.filter(x=>x!==category):[...f.favoriteCategories,category]}));
  const step1Valid=form.email.includes('@')&&form.password.length>=MIN_PASSWORD_LENGTH&&form.password===form.confirmPassword;
@@ -52,8 +68,19 @@ export function RegisterPage(){
  const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')||file.size>5*1024*1024){toast('Foto harus gambar dan maksimal 5MB.','error');return;}if(photoPreview)URL.revokeObjectURL(photoPreview);setPhotoFile(file);setPhotoPreview(URL.createObjectURL(file));e.target.value='';};
  const handleSocialRegister=async(provider:RegisterSocialProvider)=>{
    setSocialLoading(provider);
-   try{ await signInWithSocial(provider,'/auth/complete-profile?redirect='+encodeURIComponent(redirectTo)); }
-   catch(error:any){ toast(error?.message||'SOCIAL_SIGNUP_FAILED','error'); setSocialLoading(null); }
+   try{
+    await signInWithSocial(provider,'/auth/complete-profile?redirect='+encodeURIComponent(redirectTo),{
+     requestSignUp:true,
+     errorCallbackURL:'/register?oauthError=1',
+    });
+   } catch(error:unknown) {
+    const code=error instanceof Error?error.message:'';
+    const category=getSocialAuthErrorCategory(code);
+    toast(category==='account_not_linked'
+      ? text('Akun sosial ini belum terhubung. Silakan masuk dengan metode akun yang sebelumnya digunakan.','This social account is not linked. Please sign in with the method you used originally.')
+      : text('Pendaftaran dengan akun sosial belum berhasil. Coba lagi.','Social sign-up could not be completed. Please try again.'),'error');
+    setSocialLoading(null);
+   }
  };
  const handleSubmit=async()=>{
    if(betterAuthPreview && emailVerificationRequired && emailVerificationConfigured !== true){
