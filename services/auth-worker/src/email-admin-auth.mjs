@@ -16,6 +16,57 @@ let cachedJwksUrl = "";
 /** @type {ReturnType<typeof createRemoteJWKSet> | null} */
 let cachedJwks = null;
 
+/** @type {Readonly<Record<string, string>>} */
+const JOSE_FAILURE_CODES = Object.freeze({
+  ERR_JWKS_NO_MATCHING_KEY: "BETTER_AUTH_JWKS_KEY_NOT_FOUND",
+  ERR_JWKS_MULTIPLE_MATCHING_KEYS: "BETTER_AUTH_JWKS_KEY_AMBIGUOUS",
+  ERR_JWKS_TIMEOUT: "BETTER_AUTH_JWKS_UNAVAILABLE",
+  ERR_JWKS_INVALID: "BETTER_AUTH_JWKS_INVALID",
+  ERR_JWS_SIGNATURE_VERIFICATION_FAILED: "BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID",
+  ERR_JWT_EXPIRED: "BETTER_AUTH_RESOURCE_TOKEN_EXPIRED",
+  ERR_JWT_CLAIM_VALIDATION_FAILED: "BETTER_AUTH_RESOURCE_TOKEN_CLAIMS_INVALID",
+  ERR_JWS_INVALID: "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID",
+  ERR_JWT_INVALID: "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID",
+});
+
+/**
+ * Return only a fixed, non-sensitive diagnostic code from the JOSE verifier.
+ * @param {unknown} error
+ */
+function safeJoseFailureCode(error) {
+  let code = "";
+  if (error && typeof error === "object") {
+    /** @type {{code?: unknown}} */
+    const errorWithCode = error;
+    if (typeof errorWithCode.code === "string") code = errorWithCode.code;
+  }
+  return JOSE_FAILURE_CODES[code] ?? "BETTER_AUTH_RESOURCE_TOKEN_INVALID";
+}
+
+/** @type {Readonly<Record<string, {error:string, status:401|503}>>} */
+const PUBLIC_ADMIN_AUTH_ERRORS = Object.freeze({
+  BETTER_AUTH_RESOURCE_TOKEN_INVALID: { error: "AUTH_RESOURCE_TOKEN_INVALID", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID: { error: "AUTH_RESOURCE_TOKEN_HEADER_INVALID", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID: { error: "AUTH_RESOURCE_TOKEN_FORMAT_INVALID", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID: { error: "AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_EXPIRED: { error: "AUTH_RESOURCE_TOKEN_EXPIRED", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_CLAIMS_INVALID: { error: "AUTH_RESOURCE_TOKEN_CLAIMS_INVALID", status: 401 },
+  BETTER_AUTH_JWKS_KEY_NOT_FOUND: { error: "AUTH_JWKS_KEY_NOT_FOUND", status: 401 },
+  BETTER_AUTH_JWKS_KEY_AMBIGUOUS: { error: "AUTH_JWKS_KEY_AMBIGUOUS", status: 401 },
+  BETTER_AUTH_JWKS_UNAVAILABLE: { error: "AUTH_JWKS_UNAVAILABLE", status: 503 },
+  BETTER_AUTH_JWKS_INVALID: { error: "AUTH_JWKS_INVALID", status: 503 },
+  BETTER_AUTH_USERINFO_INVALID: { error: "AUTH_USERINFO_INVALID", status: 401 },
+  BETTER_AUTH_USERINFO_UNAVAILABLE: { error: "AUTH_USERINFO_UNAVAILABLE", status: 503 },
+});
+
+/**
+ * Convert internal verifier failures to a fixed public code and HTTP status.
+ * @param {string} code
+ */
+export function publicBetterAuthAdminAuthError(code) {
+  return PUBLIC_ADMIN_AUTH_ERRORS[code] ?? null;
+}
+
 export class BetterAuthAdminAuthError extends Error {
   /** @param {string} code */
   constructor(code) {
@@ -153,14 +204,14 @@ export async function resolveBetterAuthAdminIdentity(input) {
   try {
     protectedHeader = decodeProtectedHeader(accessToken);
   } catch {
-    throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_INVALID");
+    throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID");
   }
   if (
     protectedHeader.alg !== "ES256" ||
     typeof protectedHeader.kid !== "string" ||
     !protectedHeader.kid.trim()
   ) {
-    throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_INVALID");
+    throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID");
   }
 
   let payload;
@@ -180,8 +231,8 @@ export async function resolveBetterAuthAdminIdentity(input) {
       clockTolerance: CLOCK_SKEW_SECONDS,
     });
     payload = verified.payload;
-  } catch {
-    throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_INVALID");
+  } catch (error) {
+    throw new BetterAuthAdminAuthError(safeJoseFailureCode(error));
   }
 
   const audienceMatches = payload.aud === resourceAudience ||
@@ -201,7 +252,7 @@ export async function resolveBetterAuthAdminIdentity(input) {
     expiresAt <= issuedAt ||
     expiresAt - issuedAt > MAX_ACCESS_TOKEN_AGE_SECONDS
   ) {
-    throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_INVALID");
+    throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_CLAIMS_INVALID");
   }
 
   let userInfoResponse;
@@ -219,7 +270,10 @@ export async function resolveBetterAuthAdminIdentity(input) {
     throw new BetterAuthAdminAuthError("BETTER_AUTH_USERINFO_UNAVAILABLE");
   }
   if (!userInfoResponse.ok) {
-    throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_INVALID");
+    if (userInfoResponse.status === 429 || userInfoResponse.status >= 500) {
+      throw new BetterAuthAdminAuthError("BETTER_AUTH_USERINFO_UNAVAILABLE");
+    }
+    throw new BetterAuthAdminAuthError("BETTER_AUTH_USERINFO_INVALID");
   }
 
   const userInfo = await userInfoResponse.json().catch(() => null);
