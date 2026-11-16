@@ -306,5 +306,5 @@ assert.match(loginPage, /provider === 'github' \? 'GH'/);
 assert.match(registerPage, /handleSocialRegister/);
 assert.match(registerPage, /\{betterAuthPreview && socialProviders\.length > 0 && <>/);
 assert.match(registerPage, /Daftar dengan /);
-assert.match(registerPage, /provider==='github'\?'GH'/);
+assert.match(registerPage, /provider==='google'\?'G':'GH'/);
 assert.match(client, /provider === 'google' \|\| provider === 'github'/);
