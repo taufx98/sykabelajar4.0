@@ -21,6 +21,7 @@ const DEFAULT_CUSTOM_PAYLOAD = JSON.stringify({
   action: "{{action}}",
 }, null, 2);
 
+/** @param {string} value @returns {string} */
 function safeCustomEndpoint(value) {
   let url;
   try { url = new URL(required(value)); } catch { throw new Error("EMAIL_CUSTOM_ENDPOINT_INVALID"); }
@@ -37,11 +38,13 @@ function safeCustomEndpoint(value) {
   return url.toString();
 }
 
+/** @param {string} value @returns {boolean} */
 function safeCustomHeaderName(value) {
   return /^[!#$%&'*+.^_|~0-9A-Za-z-]{1,80}$/.test(value) &&
     !FORBIDDEN_CUSTOM_HEADERS.has(value.toLowerCase());
 }
 
+/** @param {string} value @returns {Record<string, unknown>} */
 function parseCustomPayloadTemplate(value) {
   if (value.length > 12000) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
   let parsed;
@@ -49,7 +52,8 @@ function parseCustomPayloadTemplate(value) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
   }
-  const used = new Set();
+  const used = new Set<string>();
+  /** @param {unknown} item @param {number} depth @returns {void} */
   function visit(item, depth) {
     if (depth > 8) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
     if (typeof item === "string") {
@@ -142,6 +146,7 @@ export function normalizeCustomHttpConfig(input) {
   };
 }
 
+/** @param {unknown} value @param {Record<string, string>} replacements @returns {unknown} */
 function replaceCustomTokens(value, replacements) {
   if (typeof value === "string") {
     const exact = /^\{\{([^{}]+)\}\}$/.exec(value);
@@ -157,6 +162,12 @@ function replaceCustomTokens(value, replacements) {
   return value;
 }
 
+/**
+ * @param {Record<string, string>} credentials
+ * @param {{senderAddress:string,senderName:string,to:string,subject:string,text:string}} values
+ * @param {{action?:string}} message
+ * @returns {{endpoint:string,init:RequestInit}}
+ */
 function buildCustomHttpRequest(credentials, values, message) {
   const config = normalizeCustomHttpConfig(credentials);
   const headers = JSON.parse(config.extraHeadersJson);
@@ -226,6 +237,7 @@ function quotaError(body) {
 /**
  * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"|"custom_http"} provider
  * @param {typeof fetch} fetcher
+ * @param {string} endpoint
  * @param {RequestInit} init
  * @returns {Promise<{result: Record<string, unknown> | null, bodyText: string}>}
  */
@@ -302,7 +314,7 @@ function jsonInit(headers, body) {
  * Only definite provider rejections (quota or invalid credentials) are
  * eligible for automatic failover. Ambiguous transport/5xx errors are not.
  *
- * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"} provider
+ * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"|"custom_http"} provider
  * @param {Record<string,string>} credentials
  * @param {{senderAddress:string,senderName:string}} account
  * @param {{to:string,subject:string,text:string,action?:string}} message
@@ -311,7 +323,7 @@ function jsonInit(headers, body) {
 export async function sendEmailWithProvider(provider, credentials, account, message, fetcher = fetch) {
   const values = assertMessage(account, message);
   let init;
-  let endpoint = ENDPOINTS[provider];
+  let endpoint = provider === "custom_http" ? "" : ENDPOINTS[provider];
 
   if (provider === "custom_http") {
     try {
