@@ -1,3 +1,9 @@
+## Email provider extension — 17 November 2026
+
+The five built-in services remain selected, with an additional Custom HTTP adapter for compatible HTTPS JSON sending APIs. Admin can configure endpoint, auth mode (none/Bearer/API key/Basic), additional headers and JSON body template. Secrets and custom payload/header values are encrypted in D1. Public/local IP and URL redirects are blocked; test mail remains Admin-only. The new runtime has no ZeptoMail fallback.
+
+The additive schema extension is staging migration 0012 and Production migration 0010. It rebuilds only the email provider configuration table to add the custom_http provider and safe endpoint/auth metadata, preserving email-provider configurations and quota counters. It does not touch Better Auth user/account/session/credential tables or Supabase identity/application data. Staging 0012 and Production 0010 are prepared and unexecuted. Production D1 migration workflow and Worker promotion guard now require migrations 0000–0010.
+
 # Better Auth Production Promotion Decision — 14 November 2026
 
 ## Email provider decision update — 15 November 2026
