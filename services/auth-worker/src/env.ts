@@ -9,6 +9,8 @@ export interface AuthWorkerEnv {
   /** Optional social login credentials; unset keeps that provider disabled. */
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
   FACEBOOK_CLIENT_ID?: string;
   FACEBOOK_CLIENT_SECRET?: string;
   TWITTER_CLIENT_ID?: string;
