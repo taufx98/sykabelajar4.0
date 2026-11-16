@@ -57,7 +57,7 @@ test("email verification remains required by default but the runtime policy can 
   assert.match(hook, /emailVerificationRequired && user\.emailVerified !== true/);
   assert.match(hook, /EMAIL_VERIFICATION_REQUIRED/);
   assert.match(auth, /requireEmailVerification: emailVerificationRequired/);
-  assert.match(auth, /sendOnSignUp: emailVerificationRequired/);
+  assert.match(auth, /sendOnSignUp: false/);
   assert.match(auth, /autoSignInAfterVerification: true/);
 });
 
