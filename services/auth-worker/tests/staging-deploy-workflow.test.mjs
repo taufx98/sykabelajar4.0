@@ -73,7 +73,7 @@ test("staging deployment is hard-bound to the reviewed Worker, D1, and hostname"
   assert.match(workflow, /auth_phone_verification_challenges/);
   assert.match(workflow, /auth_social_provider_settings/);
   assert.match(workflow, /0011_add_github_social_provider\.sql/);
-  assert.match(workflow, /GitHub social-provider D1 migration 0011 has not been separately authorized and applied/);
+  assert.match(workflow, /GitHub social-provider migration 0011 has not been separately authorized and applied/);
   assert.match(workflow, /schema\.includes\("'github'"\)/);
   assert.match(workflow, /auth_social_provider_meta/);
   assert.match(workflow, /auth_runtime_settings/);
