@@ -64,7 +64,16 @@ export function RegisterPage(){
    if(photoFile && session?.user){const up=await uploadProfileImage(photoFile,'profile',form.username);await updateProfile(session.user.id,{avatar_url:up.secure_url,avatar_public_id:up.public_id,avatar_width:up.width,avatar_height:up.height,avatar_version:up.version?String(up.version):null,avatar_resource_type:up.resource_type||'image'});}
    if (betterAuthPreview && emailVerificationRequired) {
      if(photoFile && !session?.user) toast('Akun berhasil dibuat. Foto profil dapat diunggah setelah verifikasi email dan login pertama.','info');
-     toast('Akun berhasil dibuat. Masukkan kode 6 digit yang dikirim ke email untuk verifikasi.','info');
+     let otpSent = false;
+     try {
+       await getStagingBetterAuthClient().sendVerificationOtp(form.email.trim().toLowerCase());
+       otpSent = true;
+     } catch {
+       // The account is already created. The verification page offers a safe resend action.
+     }
+     toast(otpSent
+       ? 'Akun berhasil dibuat. Kode verifikasi 6 digit sudah dikirim ke email.'
+       : 'Akun berhasil dibuat, tetapi kode belum terkirim. Tekan Kirim ulang kode di halaman verifikasi.','info');
      navigate('/auth/verified', { state: { email: form.email.trim().toLowerCase() } });
    } else if (session?.user) {
      toast('Pendaftaran berhasil. Kamu sudah masuk.','success');
