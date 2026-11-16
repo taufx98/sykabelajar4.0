@@ -5,7 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0013"
+      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0014"
       - ".github/workflows/auth-worker-staging-deploy.yml"
   workflow_dispatch:
     inputs:
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' }}
     name: Deploy isolated Better Auth Worker and verify hosted OIDC
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -75,7 +75,7 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0013"
+            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0014"
             test -f "$marker" || {
               echo "Blocked: the one-time staging Worker deployment marker is missing." >&2
               exit 1
@@ -199,6 +199,37 @@ jobs:
           visit(payload);
           if (!columns.has("provider")) throw new Error("Transactional email provider migration 0006 is missing; refusing deployment.");
           console.log("Verified provider-aware transactional email schema.");
+          NODE
+
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0012_custom_http_email_provider.sql';" > "$RUNNER_TEMP/auth-worker-staging-custom-email-migration.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('auth_email_provider_accounts') WHERE name IN ('endpoint_url','auth_mode') ORDER BY name;" > "$RUNNER_TEMP/auth-worker-staging-custom-email-columns.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_email_provider_accounts';" > "$RUNNER_TEMP/auth-worker-staging-custom-email-schema.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const root = process.env.RUNNER_TEMP;
+          const read = (name) => JSON.parse(readFileSync(root + "/" + name, "utf8"));
+          const collect = (value, key, out = []) => {
+            if (Array.isArray(value)) value.forEach((item) => collect(item, key, out));
+            else if (value && typeof value === "object") {
+              if (Object.hasOwn(value, key)) out.push(value[key]);
+              Object.values(value).forEach((item) => { if (item && typeof item === "object") collect(item, key, out); });
+            }
+            return out;
+          };
+          const migration = collect(read("auth-worker-staging-custom-email-migration.json"), "name");
+          const columns = new Set(collect(read("auth-worker-staging-custom-email-columns.json"), "name"));
+          const schema = String(collect(read("auth-worker-staging-custom-email-schema.json"), "sql")[0] ?? "").toLowerCase();
+          if (!migration.includes("0012_custom_http_email_provider.sql")) {
+            throw new Error("Staging custom email migration 0012 is not recorded as applied; refusing Worker deployment.");
+          }
+          for (const name of ["endpoint_url", "auth_mode"]) {
+            if (!columns.has(name)) throw new Error("Staging custom email schema is missing " + name + "; refusing Worker deployment.");
+          }
+          if (!schema.includes("'custom_http'")) {
+            throw new Error("Staging email provider constraint does not allow custom_http; refusing Worker deployment.");
+          }
+          console.log("Verified staging custom HTTPS JSON email provider migration 0012 and columns before Worker deployment.");
           NODE
 
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0011_add_github_social_provider.sql';" > "$RUNNER_TEMP/auth-worker-staging-github-migration.json"
@@ -638,4 +669,4 @@ jobs:
 
       - name: Remove temporary secret material from runner
         if: always()
-        run: rm -f "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-user-columns.json" "$RUNNER_TEMP/auth-worker-staging-email-provider.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok" "$RUNNER_TEMP/wrangler-deploy.log" "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
+        run: rm -f "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-user-columns.json" "$RUNNER_TEMP/auth-worker-staging-email-provider.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-migration.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-columns.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-schema.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok" "$RUNNER_TEMP/wrangler-deploy.log" "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
