@@ -6,6 +6,7 @@ on:
       - security/auth-poc-stage-1
     paths:
       - ".github/auth-ops/DEPLOY-STAGING-WORKER-0013"
+      - ".github/workflows/auth-worker-staging-deploy.yml"
   workflow_dispatch:
     inputs:
       confirmation:
