@@ -36,6 +36,26 @@ function safeJoseFailureCode(error) {
   return JOSE_FAILURE_CODES[code] ?? "BETTER_AUTH_RESOURCE_TOKEN_INVALID";
 }
 
+const PUBLIC_ADMIN_AUTH_ERRORS = Object.freeze({
+  BETTER_AUTH_RESOURCE_TOKEN_INVALID: { error: "AUTH_RESOURCE_TOKEN_INVALID", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID: { error: "AUTH_RESOURCE_TOKEN_HEADER_INVALID", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID: { error: "AUTH_RESOURCE_TOKEN_FORMAT_INVALID", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID: { error: "AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_EXPIRED: { error: "AUTH_RESOURCE_TOKEN_EXPIRED", status: 401 },
+  BETTER_AUTH_RESOURCE_TOKEN_CLAIMS_INVALID: { error: "AUTH_RESOURCE_TOKEN_CLAIMS_INVALID", status: 401 },
+  BETTER_AUTH_JWKS_KEY_NOT_FOUND: { error: "AUTH_JWKS_KEY_NOT_FOUND", status: 401 },
+  BETTER_AUTH_JWKS_KEY_AMBIGUOUS: { error: "AUTH_JWKS_KEY_AMBIGUOUS", status: 401 },
+  BETTER_AUTH_JWKS_UNAVAILABLE: { error: "AUTH_JWKS_UNAVAILABLE", status: 503 },
+  BETTER_AUTH_JWKS_INVALID: { error: "AUTH_JWKS_INVALID", status: 503 },
+  BETTER_AUTH_USERINFO_INVALID: { error: "AUTH_USERINFO_INVALID", status: 401 },
+  BETTER_AUTH_USERINFO_UNAVAILABLE: { error: "AUTH_USERINFO_UNAVAILABLE", status: 503 },
+});
+
+/** Convert internal verifier failures to a fixed public code and HTTP status. */
+export function publicBetterAuthAdminAuthError(code) {
+  return PUBLIC_ADMIN_AUTH_ERRORS[code] ?? null;
+}
+
 export class BetterAuthAdminAuthError extends Error {
   /** @param {string} code */
   constructor(code) {
