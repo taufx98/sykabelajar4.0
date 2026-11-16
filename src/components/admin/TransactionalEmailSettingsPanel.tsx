@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ArrowDown, ArrowUp, CircleAlert, Mail, Pencil, Plus, RefreshCw, Send, ShieldCheck, Trash2, X } from 'lucide-react';
-import { getSupabaseResourceAccessToken } from '@/services/applicationAccessToken';
+import { getStagingAdminAccessToken } from '@/services/adminBetterAuthAccessToken';
 import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -83,7 +83,11 @@ const EMPTY_DRAFT: AccountDraft = {
   quotaMonthLimit: QUOTAS.sendpulse.month,
 };
 const ERROR_LABELS: Record<string, string> = {
-  AUTH_REQUIRED: 'Sesi admin tidak ditemukan. Silakan login kembali.',
+  AUTH_REQUIRED: 'Worker menolak token autentikasi Admin. Muat ulang staging dan login kembali.',
+  AUTH_SESSION_REQUIRED: 'Sesi Better Auth staging tidak ditemukan. Login ulang melalui staging.',
+  AUTH_SESSION_EXPIRED: 'Sesi Better Auth staging sudah berakhir. Login ulang melalui staging.',
+  AUTH_STAGING_APP_ORIGIN_REQUIRED: 'Buka pengaturan melalui https://staging.sykabelajar.my.id, bukan link preview Pages.',
+  BETTER_AUTH_FRONTEND_DISABLED: 'Better Auth frontend staging belum aktif pada halaman ini.',
   ADMIN_REQUIRED: 'Hanya admin aktif yang dapat mengelola email.',
   ADMIN_AUTH_UNAVAILABLE: 'Layanan verifikasi admin sementara tidak tersedia.',
   INVALID_EMAIL_PROVIDER: 'Penyedia email tidak didukung.',
@@ -146,8 +150,7 @@ export function TransactionalEmailSettingsPanel() {
   const baseUrl = useMemo(() => authWorkerUrl(), []);
 
   const getAccessToken = useCallback(async () => {
-    const token = await getSupabaseResourceAccessToken();
-    if (!token) throw new Error('AUTH_REQUIRED');
+    const token = await getStagingAdminAccessToken();
     return token;
   }, []);
   const request = useCallback(async (action: string, payload?: Record<string, unknown>) => {
