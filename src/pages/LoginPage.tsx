@@ -156,61 +156,132 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="px-4 h-16 flex items-center justify-between border-b surface-border">
-        <Link to="/" className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center"><GraduationCap size={16} className="text-white" /></div><span className="font-display font-bold text-fg">sykabelajar<span className="text-accent">.id</span></span></Link>
-        <Link to={registerTo} className="text-sm text-slate-400 hover:text-fg">{text('Belum punya akun?','Don’t have an account?')} <span className="text-accent">{text('Daftar','Sign up')}</span></Link>
-      </header>
-      <div className="flex-1 flex items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md">
-          <div className="card p-6 md:p-8 animate-slide-up">
-            <h1 className="font-display font-bold text-2xl text-fg mb-1">{text('Masuk','Sign in')}</h1>
-            <p className="text-sm text-slate-400 mb-6">{text('Masuk dengan email dan password. Sistem akan mengenali peran akun secara otomatis dari backend.','Sign in with your email and password. Your account role is detected automatically by the backend.')}</p>
-            {betterAuthPreview && socialProviders.length > 0 && <div className="mb-6">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">{text('Masuk dengan akun','Continue with')}</p>
-              <div className="grid grid-cols-1 gap-2">
-                {socialProviders.map((provider) => <Button
-                  key={provider}
-                  type="button"
-                  fullWidth
-                  variant="outline"
-                  loading={socialLoading === provider}
-                  disabled={socialLoading !== null && socialLoading !== provider}
-                  onClick={() => void handleSocialLogin(provider)}
-                  className="justify-center"
-                >
-                  <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">
-                    {provider === 'google' ? 'G' : provider === 'github' ? 'GH' : provider === 'facebook' ? 'f' : 'X'}
-                  </span>
-                  {text('Lanjutkan dengan ', 'Continue with ')}{providerLabel[provider]}
-                </Button>)}
-              </div>
-              {emailVerificationRequired && socialProviders.includes('facebook') && <p className="mt-2 text-[11px] text-slate-500">{text('Facebook memerlukan verifikasi email SYKABELAJAR sebelum sesi dapat dibuat.','Facebook requires SYKABELAJAR email verification before a session can be created.')}</p>}
-              <div className="relative my-5"><div className="absolute inset-0 flex items-center"><span className="w-full border-t surface-border"/></div><div className="relative flex justify-center"><span className="surface-bg px-3 text-xs text-slate-500">{text('atau masuk dengan email','or sign in with email')}</span></div></div>
-            </div>}
-
-            <Link to="/peserta-kolektif/login" className="mb-5 flex items-center gap-3 rounded-xl border surface-border px-3 py-3 hover:border-moss-500/40 hover:bg-moss-500/5 transition">
-              <span className="w-9 h-9 rounded-lg bg-moss-500/10 flex items-center justify-center text-accent"><ShieldCheck size={17} /></span>
-              <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-fg">{text('Masuk sebagai Peserta Kolektif','Sign in as a Group Participant')}</span><span className="block text-xs text-slate-500 mt-0.5">{text('Gunakan password portal dari Guru.','Use the portal password provided by your teacher.')}</span></span>
-              <ArrowRight size={16} className="text-slate-500" />
-            </Link>
-            <div className="space-y-4">
-              <div><label className="label" htmlFor="login-email">Email</label><div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input id="login-email" name="email" type="email" className="input pl-9" placeholder={text("nama@email.com","name@email.com")} value={email} onChange={(e) => { setEmail(e.target.value); setNeedsEmailVerification(false); }} autoComplete="email" /></div></div>
-              <div><label className="label" htmlFor="login-password">Password</label><div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input id="login-password" name="password" type={showPassword ? "text" : "password"} className="input pl-9 pr-10" placeholder={text("Password","Password")} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void handleLogin()} autoComplete="current-password" /><button type="button" aria-label={showPassword ? text("Sembunyikan password","Hide password") : text("Tampilkan password","Show password")} onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
-            </div>
-            {needsEmailVerification && emailVerificationRequired && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-              <p className="text-sm font-medium text-fg">{text('Email belum terverifikasi','Email not verified')}</p>
-              <p className="mt-1 text-xs text-slate-500">{emailVerificationConfigured === false
-                ? text('Layanan pengiriman email verifikasi belum aktif di staging. Login tetap ditolak sampai email berhasil diverifikasi.','The staging verification email service is not active. Sign-in remains blocked until the email is verified.')
-                : betterAuthPreview
-                  ? text('Periksa email untuk kode verifikasi 6 digit. Kode dapat dimasukkan di halaman verifikasi.','Check your inbox for a 6-digit verification code. Enter it on the verification page.')
-                  : text('Periksa kotak masuk dan folder spam. Kamu dapat meminta tautan verifikasi dikirim kembali.','Check your inbox and spam folder. You can request another verification link.')}</p>
-              <Button fullWidth size="sm" variant="outline" className="mt-3" loading={verificationLoading} disabled={verificationLoading || !email.trim() || emailVerificationConfigured !== true} onClick={() => void handleResendVerification()}>{betterAuthPreview ? text('Kirim ulang kode verifikasi','Resend verification code') : text('Kirim ulang tautan verifikasi','Resend verification link')}</Button>
-            </div>}
-            <div className="flex justify-end mt-3"><button onClick={() => { setForgotEmail(email); setShowForgot(true); }} className="text-xs text-accent hover:underline">{text('Lupa password?','Forgot password?')}</button></div>
-            <Button fullWidth size="lg" className="mt-6" loading={loading} onClick={() => void handleLogin()} icon={<ArrowRight size={18} />}>Masuk</Button>
+        <Link to="/" className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg gradient-moss flex items-center justify-center">
+            <GraduationCap size={16} className="text-white" />
           </div>
-          {showForgot && <div className="card p-4 mt-3 animate-slide-down"><p className="text-sm text-fg-secondary mb-2">{text('Reset password','Reset password')}</p><p className="text-xs text-slate-500 mb-3">{betterAuthPreview ? text('Better Auth akan mengirim tautan pemulihan ke email akun.','Better Auth will send a recovery link to your account email.') : text('Supabase akan mengirim tautan reset password ke email akun.','Supabase will send a password reset link to your account email.')}</p><label className="label" htmlFor="forgot-password-email">Email</label><input id="forgot-password-email" name="forgotEmail" className="input mb-2" type="email" autoComplete="email" placeholder={text("Email kamu","Your email")} value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} /><div className="flex gap-2"><Button variant="outline" fullWidth size="sm" onClick={() => setShowForgot(false)}>{text('Batal','Cancel')}</Button><Button fullWidth size="sm" loading={resetLoading} onClick={() => void handleReset()}>{text('Kirim Link Reset','Send reset link')}</Button></div></div>}
+          <span className="font-display font-bold text-fg">sykabelajar<span className="text-accent">.id</span></span>
+        </Link>
+        <Link to={registerTo} className="text-sm text-slate-400 hover:text-fg">
+          {text('Belum punya akun?','Don’t have an account?')} <span className="text-accent">{text('Daftar','Sign up')}</span>
+        </Link>
+      </header>
+
+      <main className="flex-1 flex items-center justify-center px-4 py-8 md:py-10">
+        <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] gap-4 lg:gap-7 items-stretch">
+          <section className="card order-1 p-6 md:p-8 flex flex-col justify-between lg:min-h-[520px]">
+            <div>
+              <div className="w-12 h-12 rounded-2xl gradient-moss flex items-center justify-center mb-6">
+                <GraduationCap size={24} className="text-white" />
+              </div>
+              <h2 className="font-display font-bold text-2xl md:text-3xl leading-tight text-fg">
+                {text('Belajar, berkompetisi, dan berkembang bersama.','Learn, compete, and grow together.')}
+              </h2>
+              <p className="text-sm leading-relaxed text-slate-400 mt-3 max-w-md">
+                {text('Masuk ke SYKABELAJAR untuk mengikuti kompetisi, mengembangkan kemampuan, dan memantau perjalanan belajarmu.','Sign in to SYKABELAJAR to join competitions, build your skills, and follow your learning journey.')}
+              </p>
+            </div>
+
+            <Link to="/peserta-kolektif/login" className="mt-8 flex items-center gap-3 rounded-xl border surface-border px-3.5 py-3.5 hover:border-moss-500/40 hover:bg-moss-500/5 transition">
+              <span className="w-10 h-10 shrink-0 rounded-lg bg-moss-500/10 flex items-center justify-center text-accent">
+                <ShieldCheck size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-fg">{text('Masuk Peserta Kolektif','Group Participant Login')}</span>
+                <span className="block text-xs text-slate-500 mt-0.5">{text('Gunakan akun dan password portal dari Guru.','Use the portal account and password provided by your teacher.')}</span>
+              </span>
+              <ArrowRight size={16} className="text-slate-500 shrink-0" />
+            </Link>
+          </section>
+
+          <section className="order-2 min-w-0">
+            <div className="card p-6 md:p-8">
+              <h1 className="font-display font-bold text-2xl text-fg mb-1">{text('Masuk','Sign in')}</h1>
+              <p className="text-sm text-slate-400">
+                {text('Gunakan email dan password akun SYKABELAJAR.','Use your SYKABELAJAR account email and password.')}
+              </p>
+
+              <div className="space-y-4 mt-6">
+                <div>
+                  <label className="label" htmlFor="login-email">Email</label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input id="login-email" name="email" type="email" className="input pl-9" placeholder={text("nama@email.com","name@email.com")} value={email} onChange={(e) => { setEmail(e.target.value); setNeedsEmailVerification(false); }} autoComplete="email" />
+                  </div>
+                </div>
+                <div>
+                  <label className="label" htmlFor="login-password">Password</label>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input id="login-password" name="password" type={showPassword ? "text" : "password"} className="input pl-9 pr-10" placeholder={text("Password","Password")} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void handleLogin()} autoComplete="current-password" />
+                    <button type="button" aria-label={showPassword ? text("Sembunyikan password","Hide password") : text("Tampilkan password","Show password")} onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-fg-secondary">
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {needsEmailVerification && emailVerificationRequired && <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                <p className="text-sm font-medium text-fg">{text('Email belum terverifikasi','Email not verified')}</p>
+                <p className="mt-1 text-xs text-slate-500">{emailVerificationConfigured === false
+                  ? text('Layanan pengiriman email verifikasi belum aktif di staging. Login tetap ditolak sampai email berhasil diverifikasi.','The staging verification email service is not active. Sign-in remains blocked until the email is verified.')
+                  : betterAuthPreview
+                    ? text('Periksa email untuk kode verifikasi 6 digit. Kode dapat dimasukkan di halaman verifikasi.','Check your inbox for a 6-digit verification code. Enter it on the verification page.')
+                    : text('Periksa kotak masuk dan folder spam. Kamu dapat meminta tautan verifikasi dikirim kembali.','Check your inbox and spam folder. You can request another verification link.')}</p>
+                <Button fullWidth size="sm" variant="outline" className="mt-3" loading={verificationLoading} disabled={verificationLoading || !email.trim() || emailVerificationConfigured !== true} onClick={() => void handleResendVerification()}>
+                  {betterAuthPreview ? text('Kirim ulang kode verifikasi','Resend verification code') : text('Kirim ulang tautan verifikasi','Resend verification link')}
+                </Button>
+              </div>}
+
+              <div className="flex justify-end mt-3">
+                <button onClick={() => { setForgotEmail(email); setShowForgot(true); }} className="text-xs text-accent hover:underline">
+                  {text('Lupa password?','Forgot password?')}
+                </button>
+              </div>
+              <Button fullWidth size="lg" className="mt-5" loading={loading} onClick={() => void handleLogin()} icon={<ArrowRight size={18} />}>
+                {text('Masuk','Sign in')}
+              </Button>
+
+              {betterAuthPreview && socialProviders.length > 0 && <div className="mt-6 pt-5 border-t surface-border">
+                <div className="relative mb-4">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t surface-border" /></div>
+                  <div className="relative flex justify-center"><span className="surface-bg px-3 text-xs text-slate-500">{text('atau masuk dengan','or continue with')}</span></div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {socialProviders.map((provider) => <Button
+                    key={provider}
+                    type="button"
+                    fullWidth
+                    variant="outline"
+                    loading={socialLoading === provider}
+                    disabled={socialLoading !== null && socialLoading !== provider}
+                    onClick={() => void handleSocialLogin(provider)}
+                    className="justify-center"
+                  >
+                    <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">
+                      {provider === 'google' ? 'G' : provider === 'github' ? 'GH' : provider === 'facebook' ? 'f' : 'X'}
+                    </span>
+                    {text('Lanjutkan dengan ', 'Continue with ')}{providerLabel[provider]}
+                  </Button>)}
+                </div>
+                {emailVerificationRequired && socialProviders.includes('facebook') && <p className="mt-2 text-[11px] text-slate-500">{text('Facebook memerlukan verifikasi email SYKABELAJAR sebelum sesi dapat dibuat.','Facebook requires SYKABELAJAR email verification before a session can be created.')}</p>}
+              </div>}
+            </div>
+
+            {showForgot && <div className="card p-4 mt-3 animate-slide-down">
+              <p className="text-sm text-fg-secondary mb-2">{text('Reset password','Reset password')}</p>
+              <p className="text-xs text-slate-500 mb-3">{betterAuthPreview ? text('Better Auth akan mengirim tautan pemulihan ke email akun.','Better Auth will send a recovery link to your account email.') : text('Supabase akan mengirim tautan reset password ke email akun.','Supabase will send a password reset link to your account email.')}</p>
+              <label className="label" htmlFor="forgot-password-email">Email</label>
+              <input id="forgot-password-email" name="forgotEmail" className="input mb-2" type="email" autoComplete="email" placeholder={text("Email kamu","Your email")} value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} />
+              <div className="flex gap-2">
+                <Button variant="outline" fullWidth size="sm" onClick={() => setShowForgot(false)}>{text('Batal','Cancel')}</Button>
+                <Button fullWidth size="sm" loading={resetLoading} onClick={() => void handleReset()}>{text('Kirim Link Reset','Send reset link')}</Button>
+              </div>
+            </div>}
+          </section>
         </div>
-      </div>
+      </main>
     </div>
   );
+}
 }
