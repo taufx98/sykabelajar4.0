@@ -337,6 +337,11 @@ test("email verification, session lifecycle, public OAuth PKCE, and ES256 access
       "unverified signup must leave no authenticated session before email verification",
     );
 
+    const sendVerificationOtp = await authRequest("/email-otp/send-verification-otp", {
+      method: "POST",
+      body: { email, type: "email-verification" },
+    });
+    assert.ok(sendVerificationOtp.ok, "the explicit OTP send endpoint must deliver a verification code; HTTP " + sendVerificationOtp.status);
     const verificationMessage = mailMessages.find((message) => message.category === "verify-email-otp" && message.to === email);
     assert.ok(verificationMessage, "sign-up must deliver a numeric verification code through the configured webhook");
     assert.doesNotMatch(verificationMessage.text, /https?:\\/\\//i, "verification email must not contain a clickable link");
