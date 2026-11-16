@@ -349,7 +349,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
         expiresIn: 300,
         allowedAttempts: 3,
         storeOTP: "encrypted",
-        rateLimit: { window: 60, max: 3 },
+        rateLimit: { window: 120, max: 1 },
         async sendVerificationOTP({ email, otp, type }) {
           if (type !== "email-verification") {
             throw new Error("AUTH_EMAIL_OTP_TYPE_NOT_SUPPORTED");
