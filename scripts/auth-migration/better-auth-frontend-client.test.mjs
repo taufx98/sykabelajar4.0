@@ -228,6 +228,8 @@ assert.doesNotMatch(cloudinaryService, /supabase\.auth/);
 
 
 
+assert.match(adminPage, /if \(tab === 'settings' \|\| tab === 'referral'\) return;/);
+assert.match(adminPage, /Settings and referral panels load their own data/);
 const settingsTabIndex = adminPage.indexOf("tab === 'settings'");
 assert.ok(settingsTabIndex >= 0);
 const settingsTab = adminPage.slice(settingsTabIndex, settingsTabIndex + 650);
