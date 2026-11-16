@@ -52,7 +52,8 @@ function parseCustomPayloadTemplate(value) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
   }
-  const used = new Set<string>();
+  /** @type {Set<string>} */
+  const used = new Set();
   /** @param {unknown} item @param {number} depth @returns {void} */
   function visit(item, depth) {
     if (depth > 8) throw new Error("EMAIL_CUSTOM_PAYLOAD_INVALID");
