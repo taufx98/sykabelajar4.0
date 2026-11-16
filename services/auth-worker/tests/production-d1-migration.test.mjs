@@ -69,6 +69,7 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
     "0007_managed_social_login_providers.sql",
     "0008_auth_runtime_settings.sql",
     "0009_multi_provider_email_routing.sql",
+    "0010_custom_http_email_provider.sql",
   ]);
   const seed = readFileSync(new URL("../migrations-production/0002_seed_first_party_oauth_client.sql", import.meta.url), "utf8");
   assert.ok(seed.includes('["https://sykabelajar.my.id/auth/oidc/callback"]'));
@@ -83,6 +84,13 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
   assert.match(emailMigration, /VALUES \(1, 1, CURRENT_TIMESTAMP, NULL\)/);
   assert.match(emailMigration, /credentials_ciphertext TEXT NOT NULL/);
   assert.doesNotMatch(emailMigration, /INSERT INTO auth_email_provider_accounts/i);
+  const customMigration = readFileSync(new URL("../migrations-production/0010_custom_http_email_provider.sql", import.meta.url), "utf8");
+  assert.match(customMigration, /custom_http/);
+  assert.match(customMigration, /endpoint_url TEXT/);
+  assert.match(customMigration, /auth_mode TEXT/);
+  assert.match(customMigration, /INSERT INTO auth_email_provider_accounts/);
+  assert.match(customMigration, /FROM auth_email_provider_accounts_before_custom_http/);
+  assert.doesNotMatch(customMigration, /INSERT INTO \"(user|session|account)\"|UPDATE \"(user|session|account)\"/i);
 });
 
 test("Production D1 migration workflow is pinned, owner-gated by manual dispatch or a one-time marker, and cannot deploy the Worker", () => {
@@ -90,7 +98,7 @@ test("Production D1 migration workflow is pinned, owner-gated by manual dispatch
   assert.match(workflow, /sykabelajar-auth-prod/);
   assert.match(workflow, /6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
   assert.match(workflow, /migrations-production/);
-  assert.match(workflow, /0000–0009/);
+  assert.match(workflow, /0000–0010/);
   assert.match(workflow, /0009_multi_provider_email_routing\.sql/);
   assert.match(workflow, /0010_multi_provider_email_routing\.sql/);
   assert.match(workflow, /auth_email_provider_accounts/);
