@@ -372,11 +372,12 @@ export function LoginPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="unlinked-social-title"
+            aria-describedby="unlinked-social-description"
           >
             <h2 id="unlinked-social-title" className="font-display text-xl font-bold text-fg">
               {text('Akun belum terhubung','Account not connected')}
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-slate-400">
+            <p id="unlinked-social-description" className="mt-3 text-sm leading-relaxed text-slate-400">
               {text(
                 `Belum ada akun SYKABELAJAR yang terhubung dengan akun ${providerLabel[unlinkedSocialProvider]} ini. Apakah kamu ingin daftar baru?`,
                 `No SYKABELAJAR account is connected to this ${providerLabel[unlinkedSocialProvider]} account. Would you like to create a new account?`,
