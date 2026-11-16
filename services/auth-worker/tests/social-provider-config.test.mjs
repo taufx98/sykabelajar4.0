@@ -29,7 +29,17 @@ test("managed OAuth configuration falls back only when migration 0007 is absent"
   assert.match(settings, /AUTH_PROVIDER_ENCRYPTION_KEY/);
 });
 
-test("Google and GitHub login do not implicitly create accounts; social signup is explicit", () => {\n  for (const provider of ["google", "github"]) {\n    const start = auth.indexOf(provider + ": {");\n    const next = auth.indexOf("\\n          },", start);\n    const block = auth.slice(start, next);\n    assert.match(block, /disableImplicitSignUp:\\s*true/);\n    assert.match(block, /disableSignUp:\\s*signupDisabled/);\n  }\n});\n\ntest("GitHub login requests the user email scope and uses verified-email enforcement", () => {
+test("Google and GitHub login do not implicitly create accounts; social signup is explicit", () => {
+  for (const provider of ["google", "github"]) {
+    const start = auth.indexOf(provider + ": {");
+    const next = auth.indexOf("\n          },", start);
+    const providerBlock = auth.slice(start, next);
+    assert.match(providerBlock, /disableImplicitSignUp:\s*true/);
+    assert.match(providerBlock, /disableSignUp:\s*signupDisabled/);
+  }
+});
+
+test("GitHub login requests the user email scope and uses verified-email enforcement", () => {
   assert.match(auth, /github:\s*\{/);
   const githubBlock = auth.slice(auth.indexOf("github:"), auth.indexOf("facebook:"));
   assert.match(githubBlock, /scope:\s*\["read:user",\s*"user:email"\]/);
