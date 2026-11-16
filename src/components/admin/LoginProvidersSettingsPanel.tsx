@@ -34,6 +34,11 @@ function errorMessage(error: unknown): string {
   const code = error instanceof Error ? error.message : 'SOCIAL_PROVIDER_REQUEST_FAILED';
   const known: Record<string, string> = {
     AUTH_SESSION_REQUIRED: 'Sesi Better Auth diperlukan. Masuk kembali melalui preview staging.',
+    AUTH_BEARER_MISSING: 'Token akses Better Auth tidak terkirim ke Worker. Muat ulang lalu masuk kembali.',
+    AUTH_BEARER_INVALID: 'Token akses Better Auth kosong atau tidak valid. Masuk kembali ke staging.',
+    AUTH_TOKEN_ISSUER_MISMATCH: 'Token berasal dari issuer yang tidak cocok dengan Worker staging. Periksa sesi login staging.',
+    AUTH_RESOURCE_TOKEN_INVALID: 'Worker menolak resource-token Better Auth. Penerbitan token PKCE atau klaim token perlu diperiksa.',
+    AUTH_USERINFO_INVALID: 'Identitas pada token tidak cocok atau klaim email terverifikasi tidak diterima.',
     ADMIN_REQUIRED: 'Akun Better Auth ini belum memiliki role admin aktif di Supabase staging.',
     ADMIN_AUTH_UNAVAILABLE: 'Pemeriksaan admin staging tidak tersedia. Periksa provisioning staging dan role admin.',
     SOCIAL_PROVIDER_ENCRYPTION_NOT_CONFIGURED: 'Kunci AUTH_PROVIDER_ENCRYPTION_KEY belum dipasang sebagai Worker secret.',
