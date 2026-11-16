@@ -82,10 +82,11 @@ jobs:
             ["0007_managed_social_login_providers.sql", "f9c02fec5de73e5faa598809cc18c88d1d1bb52b"],
             ["0008_auth_runtime_settings.sql", "d4fd38de44ee2d8b58e6d7ef06ffc06a238d87e4"],
             ["0009_multi_provider_email_routing.sql", "9753f06217a7a258edc689bdbaba1d0b8d026996"],
+            ["0010_custom_http_email_provider.sql", "b1859cbded23446f5eb28ab6e2da23945801af74"],
           ];
           const actual = readdirSync("migrations-production").filter((name) => name.endsWith(".sql")).sort();
           if (JSON.stringify(actual) !== JSON.stringify(expected.map(([name]) => name).sort())) {
-            throw new Error("Production must contain exactly migrations 0000–0009; staging-only callback migration is not allowed.");
+            throw new Error("Production must contain exactly migrations 0000–0010; staging-only callback migration is not allowed.");
           }
           for (const [name, expectedSha] of expected) {
             const prodSha = execFileSync("git", ["hash-object", "migrations-production/" + name], { encoding: "utf8" }).trim();
@@ -94,11 +95,13 @@ jobs:
             }
             // Production 0008 is the secure-default runtime policy; staging uses
             // 0009 for that policy and 0008 for its callback allowlist. The new
-            // email-routing schema is shared as staging 0010 / Production 0009.
+            // email-routing schema is shared as staging 0010 / Production 0009; custom HTTP is staging 0012 / Production 0010.
             if (name !== "0008_auth_runtime_settings.sql") {
               const sourceName = name === "0009_multi_provider_email_routing.sql"
                 ? "0010_multi_provider_email_routing.sql"
-                : name;
+                : name === "0010_custom_http_email_provider.sql"
+                  ? "0012_custom_http_email_provider.sql"
+                  : name;
               const sourceSha = execFileSync("git", ["hash-object", "migrations/" + sourceName], { encoding: "utf8" }).trim();
               if (sourceSha !== expectedSha) {
                 throw new Error("Staging/source migration hash mismatch: " + name);
@@ -133,7 +136,7 @@ jobs:
             throw new Error("Production first-party OAuth seed must contain only the canonical Production callback.");
           }
           if (config.includes("wrangler.toml")) throw new Error("Unexpected staging config reference.");
-          console.log("Verified exact Production D1 UUID, existing Worker name, immutable migration hashes 0000–0008, Production-only callback, secure-default email verification, provisioning disabled, and no staging host.");
+          console.log("Verified exact Production D1 UUID, existing Worker name, immutable migration hashes 0000–0010, Production-only callback, secure-default email verification, provisioning disabled, and no staging host.");
           NODE
 
       - name: Install pinned Wrangler toolchain
@@ -187,7 +190,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
 
-      - name: Apply only reviewed Production migrations 0000–0008
+      - name: Apply only reviewed Production migrations 0000–0010
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
