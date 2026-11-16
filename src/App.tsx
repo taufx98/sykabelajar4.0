@@ -201,7 +201,7 @@ function AppRoutes() {
         <Route path="/peserta-kolektif" element={<CollectiveParticipantPortalPage />} />
         <Route path="/peserta-kolektif/kerja" element={<CollectiveParticipantWorkPage />} />
         <Route path="/lomba/:slug/hasil" element={<CompetitionResultsPage />} />
-        <Route path="/organizer/join" element={<AuthGuard><OrganizerInviteJoinPage /></AuthGuard>} />
+        <Route path="/organizer/join" element={<AuthGuard><InitialProfileCompletionGuard><OrganizerInviteJoinPage /></InitialProfileCompletionGuard></AuthGuard>} />
         <Route element={<AuthGuard><InitialProfileCompletionGuard><AppLayout /></InitialProfileCompletionGuard></AuthGuard>}>
           <Route path="/home" element={<HomePage />} />
           <Route path="/lomba-saya" element={<MyCompetitionsPage />} />
