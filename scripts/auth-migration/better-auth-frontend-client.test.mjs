@@ -23,6 +23,8 @@ const adminAccessTokenProvider = readFileSync(new URL("../../src/services/adminB
 const loginProvidersPanel = readFileSync(new URL("../../src/components/admin/LoginProvidersSettingsPanel.tsx", import.meta.url), "utf8");
 const socialProviderSettings = readFileSync(new URL("../../services/auth-worker/src/social-provider-settings.ts", import.meta.url), "utf8");
 
+// Admin settings use the staging Better Auth resource token directly; never fall back to a legacy Supabase Auth session.
+
 const app = readFileSync(new URL("../../src/App.tsx", import.meta.url), "utf8");
 const loginPage = readFileSync(new URL("../../src/pages/LoginPage.tsx", import.meta.url), "utf8");
 const registerPage = readFileSync(new URL("../../src/pages/RegisterPage.tsx", import.meta.url), "utf8");
