@@ -109,7 +109,7 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signInWithSocial(
-  provider: 'google' | 'facebook' | 'twitter',
+  provider: 'google' | 'github' | 'facebook' | 'twitter',
   callbackURL: string,
 ) {
   if (!isBetterAuthFrontendEnabledForSupabase(env.supabaseUrl)) {
