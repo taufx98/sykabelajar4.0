@@ -151,8 +151,8 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
       },
     },
     emailVerification: {
-      // The frontend explicitly requests an Email OTP after signup; never send the legacy link automatically.
-      sendOnSignUp: false,
+      // The Email OTP plugin overrides this callback, so signup sends a numeric code (not a verification link).
+      sendOnSignUp: emailVerificationRequired,
       autoSignInAfterVerification: true,
       afterEmailVerification: async (user) => {
         if (!isSupabaseProvisioningEnabled(env)) return;
