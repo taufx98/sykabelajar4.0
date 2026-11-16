@@ -72,8 +72,8 @@ test("staging Admin panel exposes verification settings only on the same-site st
   assert.match(panel, /get-verification-policy/);
   assert.match(panel, /set-verification-policy/);
   assert.match(panel, /Aktifkan wajib verifikasi/);
+  assert.match(panel, /Nonaktifkan sementara/);
   assert.match(panel, /window\.confirm/);
-  assert.match(panel, /window\\.confirm/);
   assert.match(panel, /hanya mengubah Auth Worker.*D1 staging/);
 });
 test("email Admin API limits verification policy changes to active admins and the pinned staging D1", () => {
