@@ -228,7 +228,7 @@ test("the production verifier validates an actual ES256 signature against the is
       verifyJwtImpl: undefined,
       createJwksImpl: () => publicKey,
     })),
-    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_INVALID",
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID",
   );
   assert.equal(tamperedNetwork.calls.length, 0, "bad signatures must be rejected before UserInfo or Supabase");
 });
