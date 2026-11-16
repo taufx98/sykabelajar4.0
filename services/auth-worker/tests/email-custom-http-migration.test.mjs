@@ -9,6 +9,9 @@ const stagingConfig = readFileSync(new URL("../wrangler.toml", import.meta.url),
 
 test("custom HTTP email schema migration is owner-confirmed and pinned to staging only", () => {
   assert.match(workflow, /workflow_dispatch/);
+  assert.ok(workflow.includes('".github/auth-ops/APPLY-CUSTOM-HTTP-EMAIL-0001"'));
+  assert.match(workflow, /github\\.actor == 'taufx98'/);
+  assert.match(workflow, /CONFIRMATION_INPUT/);
   assert.match(workflow, /github\.actor == 'taufx98'/);
   assert.match(workflow, /APPLY-CUSTOM-HTTP-EMAIL-sykabelajar-auth-poc/);
   assert.match(workflow, /7a4f9008-a1c6-42b6-8a04-abde12699248/);
