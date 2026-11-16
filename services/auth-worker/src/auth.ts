@@ -151,19 +151,12 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
       },
     },
     emailVerification: {
-      sendOnSignUp: emailVerificationRequired,
+      // The frontend explicitly requests an Email OTP after signup; never send the legacy link automatically.
+      sendOnSignUp: false,
       autoSignInAfterVerification: true,
       afterEmailVerification: async (user) => {
         if (!isSupabaseProvisioningEnabled(env)) return;
         await completeSupabaseEmailVerification(env, user);
-      },
-      sendVerificationEmail: async ({ user, url }) => {
-        await sendAuthEmail(env, {
-          to: user.email,
-          subject: "Verifikasi email SYKABELAJAR",
-          text: "Verifikasi alamat email Anda melalui tautan berikut: " + url + "\n\nJika Anda tidak membuat akun SYKABELAJAR, abaikan email ini.",
-          action: "verify-email",
-        });
       },
     },
     socialProviders,
