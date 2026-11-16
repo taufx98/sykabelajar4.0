@@ -95,6 +95,7 @@ export function LoginPage() {
 
   const providerLabel: Record<BetterAuthSocialProvider, string> = {
     google: 'Google / Gmail',
+    github: 'GitHub',
     facebook: 'Facebook',
     twitter: 'X / Twitter',
   };
@@ -177,7 +178,7 @@ export function LoginPage() {
                   className="justify-center"
                 >
                   <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">
-                    {provider === 'google' ? 'G' : provider === 'facebook' ? 'f' : 'X'}
+                    {provider === 'google' ? 'G' : provider === 'github' ? 'GH' : provider === 'facebook' ? 'f' : 'X'}
                   </span>
                   {text('Lanjutkan dengan ', 'Continue with ')}{providerLabel[provider]}
                 </Button>)}
