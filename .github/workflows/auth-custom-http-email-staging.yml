@@ -108,6 +108,7 @@ jobs:
           set -euo pipefail
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations ORDER BY name;" > "$RUNNER_TEMP/custom-email-before-migrations.json"
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\") AS users,(SELECT COUNT(*) FROM \"account\") AS accounts,(SELECT COUNT(*) FROM \"session\") AS sessions,(SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_accounts;" > "$RUNNER_TEMP/custom-email-before-counts.json"
+          npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT 'user' AS entity,id AS entity_id,NULL AS user_id,NULL AS provider_id,NULL AS account_id FROM \"user\" UNION ALL SELECT 'account',id,\"userId\",\"providerId\",\"accountId\" FROM \"account\" UNION ALL SELECT 'session',id,\"userId\",NULL,NULL FROM \"session\" ORDER BY entity,entity_id;" > "$RUNNER_TEMP/custom-email-before-identity.json"
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT id,label,provider,sender_address,sender_name,credentials_ciphertext,enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,hour_bucket,hour_used,day_bucket,day_used,month_bucket,month_used,cooldown_until,last_error_code,last_error_at,last_success_at,created_at,updated_at,created_by,updated_by FROM auth_email_provider_accounts ORDER BY id;" > "$RUNNER_TEMP/custom-email-before-providers.json"
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
@@ -127,6 +128,12 @@ jobs:
             .sort((a, b) => a.id.localeCompare(b.id));
           const providerFingerprintBefore = createHash("sha256").update(JSON.stringify(providerRowsBefore)).digest("hex");
           writeFileSync(root + "/custom-email-provider-fingerprint.txt", providerFingerprintBefore);
+          const identityRowsBefore = rows(read("custom-email-before-identity.json"))
+            .filter((x) => typeof x.entity === "string" && typeof x.entity_id === "string")
+            .sort((a, b) => (a.entity + ":" + a.entity_id).localeCompare(b.entity + ":" + b.entity_id));
+          const identityFingerprintBefore = createHash("sha256").update(JSON.stringify(identityRowsBefore)).digest("hex");
+          writeFileSync(root + "/custom-email-identity-fingerprint.txt", identityFingerprintBefore);
+          console.log(JSON.stringify({ betterAuthIdentityRowsBefore: identityRowsBefore.length, identityFingerprintBefore }));
           console.log(JSON.stringify({ providerAccountCountBefore: providerRowsBefore.length, providerFingerprintBefore }));
           const applied = new Set(rows(read("custom-email-before-migrations.json")).map((x) => x.name).filter(Boolean));
           const required = [
@@ -168,6 +175,7 @@ jobs:
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM pragma_table_info('auth_email_provider_accounts') WHERE name IN ('endpoint_url','auth_mode') ORDER BY name;" > "$RUNNER_TEMP/custom-email-columns.json"
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT provider,COUNT(*) AS count FROM auth_email_provider_accounts GROUP BY provider ORDER BY provider;" > "$RUNNER_TEMP/custom-email-provider-counts.json"
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\") AS users,(SELECT COUNT(*) FROM \"account\") AS accounts,(SELECT COUNT(*) FROM \"session\") AS sessions,(SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_accounts;" > "$RUNNER_TEMP/custom-email-after-counts.json"
+          npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT 'user' AS entity,id AS entity_id,NULL AS user_id,NULL AS provider_id,NULL AS account_id FROM \"user\" UNION ALL SELECT 'account',id,\"userId\",\"providerId\",\"accountId\" FROM \"account\" UNION ALL SELECT 'session',id,\"userId\",NULL,NULL FROM \"session\" ORDER BY entity,entity_id;" > "$RUNNER_TEMP/custom-email-after-identity.json"
           npx wrangler --config wrangler.toml d1 execute sykabelajar-auth-poc --remote --json --command "SELECT id,label,provider,sender_address,sender_name,credentials_ciphertext,enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,hour_bucket,hour_used,day_bucket,day_used,month_bucket,month_used,cooldown_until,last_error_code,last_error_at,last_success_at,created_at,updated_at,created_by,updated_by FROM auth_email_provider_accounts ORDER BY id;" > "$RUNNER_TEMP/custom-email-after-providers.json"
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
@@ -189,6 +197,17 @@ jobs:
             .filter((x) => typeof x.id === "string" && typeof x.provider === "string")
             .sort((a, b) => a.id.localeCompare(b.id));
           const fingerprintBefore = readFileSync(root + "/custom-email-provider-fingerprint.txt", "utf8");
+          const identityRowsBefore = rows(read("custom-email-before-identity.json"))
+            .filter((x) => typeof x.entity === "string" && typeof x.entity_id === "string")
+            .sort((a, b) => (a.entity + ":" + a.entity_id).localeCompare(b.entity + ":" + b.entity_id));
+          const identityRowsAfter = rows(read("custom-email-after-identity.json"))
+            .filter((x) => typeof x.entity === "string" && typeof x.entity_id === "string")
+            .sort((a, b) => (a.entity + ":" + a.entity_id).localeCompare(b.entity + ":" + b.entity_id));
+          const identityFingerprintBefore = readFileSync(root + "/custom-email-identity-fingerprint.txt", "utf8");
+          const identityFingerprintAfter = createHash("sha256").update(JSON.stringify(identityRowsAfter)).digest("hex");
+          if (identityFingerprintBefore !== identityFingerprintAfter || identityRowsBefore.length !== identityRowsAfter.length) {
+            throw new Error("Better Auth user/account/session identity linkage changed during the email schema migration.");
+          }
           const fingerprintAfter = createHash("sha256").update(JSON.stringify(providerRowsAfter)).digest("hex");
           if (fingerprintBefore !== fingerprintAfter || providerRowsBefore.length !== providerRowsAfter.length) {
             throw new Error("Existing provider profiles, encrypted credentials, routing or quota state changed.");
