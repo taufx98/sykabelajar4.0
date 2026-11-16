@@ -1,5 +1,6 @@
 import {
   createRemoteJWKSet,
+  customFetch,
   decodeJwt,
   decodeProtectedHeader,
   jwtVerify,
@@ -18,6 +19,10 @@ let cachedJwks = null;
 
 /** @type {Readonly<Record<string, string>>} */
 const JOSE_FAILURE_CODES = Object.freeze({
+  ERR_JOSE_ALG_NOT_ALLOWED: "BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID",
+  ERR_JOSE_GENERIC: "BETTER_AUTH_JWKS_UNAVAILABLE",
+  ERR_JOSE_NOT_SUPPORTED: "BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID",
+  ERR_JWK_INVALID: "BETTER_AUTH_JWKS_INVALID",
   ERR_JWKS_NO_MATCHING_KEY: "BETTER_AUTH_JWKS_KEY_NOT_FOUND",
   ERR_JWKS_MULTIPLE_MATCHING_KEYS: "BETTER_AUTH_JWKS_KEY_AMBIGUOUS",
   ERR_JWKS_TIMEOUT: "BETTER_AUTH_JWKS_UNAVAILABLE",
@@ -27,6 +32,11 @@ const JOSE_FAILURE_CODES = Object.freeze({
   ERR_JWT_CLAIM_VALIDATION_FAILED: "BETTER_AUTH_RESOURCE_TOKEN_CLAIMS_INVALID",
   ERR_JWS_INVALID: "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID",
   ERR_JWT_INVALID: "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID",
+  BETTER_AUTH_JWKS_FETCH_FAILED: "BETTER_AUTH_JWKS_UNAVAILABLE",
+  BETTER_AUTH_JWKS_UNAVAILABLE: "BETTER_AUTH_JWKS_UNAVAILABLE",
+  BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND: "BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND",
+  BETTER_AUTH_JWKS_ACCESS_DENIED: "BETTER_AUTH_JWKS_ACCESS_DENIED",
+  BETTER_AUTH_JWKS_RESPONSE_INVALID: "BETTER_AUTH_JWKS_INVALID",
 });
 
 /**
@@ -45,6 +55,8 @@ function safeJoseFailureCode(error) {
 
 /** @type {Readonly<Record<string, {error:string, status:401|503}>>} */
 const PUBLIC_ADMIN_AUTH_ERRORS = Object.freeze({
+  BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND: { error: "AUTH_JWKS_ENDPOINT_NOT_FOUND", status: 503 },
+  BETTER_AUTH_JWKS_ACCESS_DENIED: { error: "AUTH_JWKS_ACCESS_DENIED", status: 503 },
   BETTER_AUTH_RESOURCE_TOKEN_INVALID: { error: "AUTH_RESOURCE_TOKEN_INVALID", status: 401 },
   BETTER_AUTH_RESOURCE_TOKEN_HEADER_INVALID: { error: "AUTH_RESOURCE_TOKEN_HEADER_INVALID", status: 401 },
   BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID: { error: "AUTH_RESOURCE_TOKEN_FORMAT_INVALID", status: 401 },
@@ -74,6 +86,49 @@ export class BetterAuthAdminAuthError extends Error {
     this.name = "BetterAuthAdminAuthError";
     this.code = code;
   }
+}
+
+/** @param {string} code */
+function codedJwksFailure(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+/**
+ * Normalize only the remote JWKS transport boundary. Do not expose upstream
+ * response bodies, URLs, headers, or runtime error messages to Admin clients.
+ * @param {string} url
+ * @param {RequestInit} init
+ * @param {typeof fetch} fetchImpl
+ */
+async function fetchRemoteJwks(url, init, fetchImpl) {
+  let response;
+  try {
+    response = await fetchImpl(url, init);
+  } catch (error) {
+    if (error && typeof error === "object" && error.name === "TimeoutError") {
+      throw error;
+    }
+    throw codedJwksFailure("BETTER_AUTH_JWKS_FETCH_FAILED");
+  }
+
+  if (response.status !== 200) {
+    if (response.status === 404) {
+      throw codedJwksFailure("BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND");
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw codedJwksFailure("BETTER_AUTH_JWKS_ACCESS_DENIED");
+    }
+    throw codedJwksFailure("BETTER_AUTH_JWKS_UNAVAILABLE");
+  }
+
+  try {
+    await response.clone().json();
+  } catch {
+    throw codedJwksFailure("BETTER_AUTH_JWKS_RESPONSE_INVALID");
+  }
+  return response;
 }
 
 /** @param {string} authBaseUrl */
@@ -218,10 +273,12 @@ export async function resolveBetterAuthAdminIdentity(input) {
   try {
     if (!cachedJwks || cachedJwksUrl !== jwksUrl || input.createJwksImpl) {
       cachedJwksUrl = jwksUrl;
+      const jwksFetch = input.fetchImpl ?? fetch;
       cachedJwks = createJwksImpl(new URL(jwksUrl), {
         timeoutDuration: 5000,
         cooldownDuration: 30000,
         cacheMaxAge: 600000,
+        [customFetch]: (url, init) => fetchRemoteJwks(url, init, jwksFetch),
       });
     }
     const verified = await verifyJwtImpl(accessToken, cachedJwks, {
