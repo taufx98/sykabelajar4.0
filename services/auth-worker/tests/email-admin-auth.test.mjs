@@ -140,7 +140,7 @@ test("Better Auth admin identity is verified and role checked only in the pinned
   assert.equal(network.calls[0].init.headers.Authorization, "Bearer " + fakeToken());
   assert.equal(network.calls[0].init.headers.apikey, PUBLISHABLE_KEY);
   assert.equal(db.statements.length, 2);
-  assert.match(db.statements[1], /SELECT id, email, emailVerified FROM user WHERE id = \\?1 LIMIT 1/);
+  assert.match(db.statements[1], /SELECT id, email, emailVerified FROM user WHERE id = \?1 LIMIT 1/);
   assert.deepEqual(db.userLookups[0].values, [USER_ID]);
 
   const roleCall = network.calls[0];
@@ -226,7 +226,7 @@ test("Admin verification loads only public ES256 keys from the issuer D1 databas
   assert.equal(db.statements.length, 2);
   assert.match(db.statements[0], /SELECT id, publicKey, alg, crv, expiresAt FROM jwks/);
   assert.doesNotMatch(db.statements[0], /privateKey/i);
-  assert.match(db.statements[1], /SELECT id, email, emailVerified FROM user WHERE id = \\?1 LIMIT 1/);
+  assert.match(db.statements[1], /SELECT id, email, emailVerified FROM user WHERE id = \?1 LIMIT 1/);
   assert.deepEqual(db.userLookups[0].values, [USER_ID]);
   assert.equal(network.calls.length, 1, "only the pinned Supabase role check uses outbound fetch");
 });
