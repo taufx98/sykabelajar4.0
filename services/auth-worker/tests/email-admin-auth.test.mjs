@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { customFetch, generateKeyPair, SignJWT } from "jose";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { readFileSync } from "node:fs";
 import {
   BetterAuthAdminAuthError,
@@ -18,6 +18,27 @@ const PUBLISHABLE_KEY = "sb_publishable_staging_key_for_tests_only";
 const PRODUCTION_PUBLISHABLE_KEY = "sb_publishable_production_key_for_tests_only";
 const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = 1_800_000_000;
+const TEST_KEY_PAIR = await generateKeyPair("ES256");
+const TEST_PUBLIC_JWK = await exportJWK(TEST_KEY_PAIR.publicKey);
+
+function makeJwksDb(rows = [{
+  id: "staging-key-1",
+  publicKey: JSON.stringify(TEST_PUBLIC_JWK),
+  alg: "ES256",
+  crv: "P-256",
+  expiresAt: null,
+}]) {
+  const statements = [];
+  return {
+    statements,
+    prepare(sql) {
+      statements.push(sql);
+      return {
+        all: async () => ({ success: true, results: rows }),
+      };
+    },
+  };
+}
 const emailAdminSource = readFileSync(new URL("../src/email-admin.ts", import.meta.url), "utf8");
 const runtimeSettingsSource = readFileSync(new URL("../src/auth-runtime-settings.ts", import.meta.url), "utf8");
 
@@ -82,6 +103,7 @@ function input(overrides = {}) {
     supabaseUrl: SUPABASE_URL,
     supabaseEnvironment: "staging",
     publishableKey: PUBLISHABLE_KEY,
+    jwksDb: makeJwksDb(),
     nowSeconds: NOW,
     verifyJwtImpl: verifyStub({
       iss: ISSUER,
@@ -91,7 +113,6 @@ function input(overrides = {}) {
       iat: NOW - 10,
       exp: NOW + 290,
     }),
-    createJwksImpl: () => ({ stagingJwks: true }),
     ...overrides,
   };
 }
@@ -184,69 +205,60 @@ test("JOSE failures are reduced to stable, non-sensitive verifier diagnostics", 
   }
 });
 
-test("remote JWKS transport failures are classified without exposing upstream details", async () => {
-  const validPayload = {
-    iss: ISSUER,
-    sub: USER_ID,
-    aud: RESOURCE,
-    role: "authenticated",
-    iat: NOW - 10,
-    exp: NOW + 290,
+test("Admin verification loads only public ES256 keys from the issuer D1 database", async () => {
+  const db = makeJwksDb();
+  const network = makeFetch();
+  const user = await resolveBetterAuthAdminIdentity(input({
+    jwksDb: db,
+    fetchImpl: network.fetchImpl,
+  }));
+  assert.deepEqual(user, { id: USER_ID, email: "admin@example.test" });
+  assert.equal(db.statements.length, 1);
+  assert.match(db.statements[0], /SELECT id, publicKey, alg, crv, expiresAt FROM jwks/);
+  assert.doesNotMatch(db.statements[0], /privateKey/i);
+  assert.equal(network.calls.length, 2, "only UserInfo and the pinned Supabase role check use outbound fetch");
+});
+
+test("local JWKS database failures and malformed/private rows fail closed", async () => {
+  const network = makeFetch();
+  const unavailableDb = {
+    prepare(sql) {
+      assert.doesNotMatch(sql, /privateKey/i);
+      return { all: async () => { throw new Error("private database detail"); } };
+    },
   };
-  const scenarios = [
-    {
-      name: "404 endpoint",
-      fetchImpl: async () => new Response("private upstream body", { status: 404 }),
-      expected: "BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND",
-    },
-    {
-      name: "403 endpoint",
-      fetchImpl: async () => new Response("private upstream body", { status: 403 }),
-      expected: "BETTER_AUTH_JWKS_ACCESS_DENIED",
-    },
-    {
-      name: "5xx endpoint",
-      fetchImpl: async () => new Response("private upstream body", { status: 503 }),
-      expected: "BETTER_AUTH_JWKS_UNAVAILABLE",
-    },
-    {
-      name: "network failure",
-      fetchImpl: async () => { throw new TypeError("private network detail"); },
-      expected: "BETTER_AUTH_JWKS_UNAVAILABLE",
-    },
-    {
-      name: "malformed JSON",
-      fetchImpl: async () => new Response("not-json", { status: 200 }),
-      expected: "BETTER_AUTH_JWKS_INVALID",
-    },
-  ];
+  await assert.rejects(
+    resolveBetterAuthAdminIdentity(input({ jwksDb: unavailableDb, fetchImpl: network.fetchImpl })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_JWKS_UNAVAILABLE",
+  );
+  assert.equal(network.calls.length, 0, "no token-dependent network calls occur when local JWKS cannot be read");
 
-  for (const scenario of scenarios) {
-    let jwksOptions;
-    const createJwksImpl = (_url, options) => {
-      jwksOptions = options;
-      return { remoteJwks: true };
-    };
-    const verifyJwtImpl = async () => {
-      await jwksOptions[customFetch](ISSUER + "/jwks", {
-        method: "GET",
-        headers: new Headers({ Accept: "application/json" }),
-        redirect: "manual",
-        signal: AbortSignal.timeout(1000),
-      });
-      return { payload: validPayload };
-    };
+  const malformedDb = makeJwksDb([{
+    id: "staging-key-1",
+    publicKey: JSON.stringify({
+      kty: "EC", crv: "P-256", x: "x", y: "y", d: "must-never-be-present",
+    }),
+    alg: "ES256",
+    crv: "P-256",
+    expiresAt: null,
+  }]);
+  await assert.rejects(
+    resolveBetterAuthAdminIdentity(input({ jwksDb: malformedDb, fetchImpl: network.fetchImpl })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_JWKS_INVALID",
+  );
 
-    await assert.rejects(
-      resolveBetterAuthAdminIdentity(input({
-        fetchImpl: scenario.fetchImpl,
-        createJwksImpl,
-        verifyJwtImpl,
-      })),
-      (error) => error instanceof BetterAuthAdminAuthError && error.code === scenario.expected,
-      scenario.name,
-    );
-  }
+  const unsupportedDb = makeJwksDb([{
+    id: "old-rsa-key",
+    publicKey: JSON.stringify(TEST_PUBLIC_JWK),
+    alg: "RS256",
+    crv: "P-256",
+    expiresAt: null,
+  }]);
+  await assert.rejects(
+    resolveBetterAuthAdminIdentity(input({ jwksDb: unsupportedDb, fetchImpl: network.fetchImpl })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_JWKS_KEY_NOT_FOUND",
+  );
+  assert.equal(network.calls.length, 0);
 });
 
 test("public Admin auth diagnostics are allowlisted and carry safe status codes", () => {
@@ -279,15 +291,20 @@ test("the production verifier validates an actual ES256 signature against the is
     .setExpirationTime(NOW + 290)
     .sign(privateKey);
 
+  const publicJwk = await exportJWK(publicKey);
+  const jwksDb = makeJwksDb([{
+    id: "staging-key-1",
+    publicKey: JSON.stringify(publicJwk),
+    alg: "ES256",
+    crv: "P-256",
+    expiresAt: null,
+  }]);
   const network = makeFetch();
   const user = await resolveBetterAuthAdminIdentity(input({
     accessToken: token,
+    jwksDb,
     fetchImpl: network.fetchImpl,
     verifyJwtImpl: undefined,
-    createJwksImpl: (url) => {
-      assert.equal(url.toString(), ISSUER + "/jwks");
-      return publicKey;
-    },
   }));
   assert.deepEqual(user, { id: USER_ID, email: "admin@example.test" });
 
@@ -299,9 +316,15 @@ test("the production verifier validates an actual ES256 signature against the is
   await assert.rejects(
     resolveBetterAuthAdminIdentity(input({
       accessToken: tampered,
+      jwksDb: makeJwksDb([{
+        id: "staging-key-1",
+        publicKey: JSON.stringify(publicJwk),
+        alg: "ES256",
+        crv: "P-256",
+        expiresAt: null,
+      }]),
       fetchImpl: tamperedNetwork.fetchImpl,
       verifyJwtImpl: undefined,
-      createJwksImpl: () => publicKey,
     })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID",
   );
