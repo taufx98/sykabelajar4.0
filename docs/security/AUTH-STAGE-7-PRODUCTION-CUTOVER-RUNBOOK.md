@@ -127,6 +127,13 @@ Do not create paid Supabase branches, enable paid PITR, upgrade the organization
 
 ### D. Enable provisioning and bootstrap the first admin
 
+### D1. First Production Admin bootstrap — additional hard gate
+
+- The existing `AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP.sql` and `AUTH-STAGING-FIRST-ADMIN-BOOTSTRAP-UNVERIFIED.sql` files are explicitly staging-only. **Never execute or adapt them in place on Production.** They reference the staging project and the unverified exception must never be used in Production.
+- The Production Worker configuration intentionally sets `AUTH_SIGNUP_DISABLED=true`. The current code has no separately reviewed, one-time Production owner bootstrap endpoint or email allowlist. Therefore the first Production Better Auth identity cannot safely be created merely by toggling public signup off/on or by assuming the staging SQL will work.
+- Before cutover GO, implement and test a Production-only, owner-authorized, one-time first-account path that creates only the explicitly selected owner identity, requires a genuine email-verified Better Auth session, verifies the same UUID from the Production D1 session, uses the pinned Production provisioning destination, refuses any shadow `auth.users` identity, and can assign the `admin` business role only through the protected owner procedure. The guard must atomically prevent reuse and must not expose general public signup. Keep public signup closed before and after this operation.
+- Add local disposable tests for unauthorized invocation, wrong email/UUID, unverified identity, duplicate/replay, existing Admin membership, wrong project/environment, and successful single-UUID projection. Review the SQL/API and rollback behavior before any Production use. Do not enable Production provisioning or grant an Admin until this gate passes.
+
 - Install only the Production DB2 server-side provisioning credential in the Production Worker secret store. Confirm the URL/ref guard points only to mvdczyitbkxkldjughor.
 - Enable provisioning only after the real Production wrapper signatures, EXECUTE grants, issuer restrictions and end-to-end D1 → private.app_users/profile/role projection are accepted. Fail closed for incomplete or mismatched projections.
 - Create the first admin via normal verified Better Auth registration, then use the protected owner-only bootstrap to grant the admin business role. Public users must not self-assign it.
