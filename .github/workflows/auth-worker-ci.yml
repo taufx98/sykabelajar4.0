@@ -96,7 +96,7 @@ concurrency:
 
 jobs:
   check:
-    if: ${{ github.head_ref == 'fix/auth-admin-local-jwks' || github.head_ref == 'security/auth-poc-stage-1' || github.head_ref == 'security/auth-temporary-email-bypass' || github.ref_name == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-temporary-email-bypass' }}
+    if: ${{ github.head_ref == 'fix/auth-admin-local-identity' || github.head_ref == 'fix/auth-admin-local-jwks' || github.head_ref == 'security/auth-poc-stage-1' || github.head_ref == 'security/auth-temporary-email-bypass' || github.ref_name == 'security/auth-poc-stage-1' || github.ref_name == 'security/auth-temporary-email-bypass' }}
     name: Audit, tests, D1 migration, OIDC/JWKS smoke test, and Worker dry run
     runs-on: ubuntu-latest
     defaults:
