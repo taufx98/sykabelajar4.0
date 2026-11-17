@@ -109,6 +109,7 @@ const ERROR_LABELS: Record<string, string> = {
   INVALID_EMAIL_PROVIDER: 'Penyedia email tidak didukung.',
   EMAIL_PROVIDER_CREDENTIAL_REQUIRED: 'Kredensial penyedia wajib diisi.',
   EMAIL_PROVIDER_CREDENTIAL_REJECTED: 'Penyedia menolak kredensial. Periksa API key/token.',
+  EMAIL_PROVIDER_REJECTED_MESSAGE: 'SendPulse menolak email uji. Pastikan alamat pengirim sudah ditambahkan dan diverifikasi di SMTP > Sender emails, serta akun SMTP sudah aktif.',
   EMAIL_PROVIDER_DNS_ERROR: 'Worker tidak dapat menemukan alamat server SendPulse (DNS).',
   EMAIL_PROVIDER_TLS_ERROR: 'Koneksi TLS ke server SendPulse gagal diverifikasi.',
   EMAIL_PROVIDER_REDIRECT_BLOCKED: 'SendPulse mengarahkan koneksi ke host lain atau melewati batas redirect aman; kredensial tidak diteruskan.',
