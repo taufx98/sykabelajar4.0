@@ -132,15 +132,17 @@ test("only the exact Better Auth issuer selects the external-token verifier", ()
 
 test("Better Auth admin identity is verified and role checked only in the pinned staging project", async () => {
   const network = makeFetch();
-  const user = await resolveBetterAuthAdminIdentity(input({ fetchImpl: network.fetchImpl }));
+  const db = makeJwksDb();
+  const user = await resolveBetterAuthAdminIdentity(input({ jwksDb: db, fetchImpl: network.fetchImpl }));
   assert.deepEqual(user, { id: USER_ID, email: "admin@example.test" });
   assert.equal(network.calls.length, 1, "Admin identity verification must not make a self-HTTP UserInfo request");
   assert.equal(network.calls[0].url.startsWith(SUPABASE_URL + "/rest/v1/user_roles?"), true);
   assert.equal(network.calls[0].init.headers.Authorization, "Bearer " + fakeToken());
   assert.equal(network.calls[0].init.headers.apikey, PUBLISHABLE_KEY);
+  assert.equal(db.statements.length, 2);
+  assert.match(db.statements[1], /SELECT id, email, emailVerified FROM user WHERE id = \\?1 LIMIT 1/);
+  assert.deepEqual(db.userLookups[0].values, [USER_ID]);
 
-  const db = input({ fetchImpl: network.fetchImpl }).jwksDb;
-  void db;
   const roleCall = network.calls[0];
   const roleUrl = new URL(roleCall.url);
   assert.equal(roleUrl.origin, SUPABASE_URL);
@@ -286,6 +288,12 @@ test("public Admin auth diagnostics are allowlisted and carry safe status codes"
   });
   assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID"), {
     error: "AUTH_RESOURCE_TOKEN_SIGNATURE_INVALID", status: 401,
+  });
+  assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_IDENTITY_INVALID"), {
+    error: "AUTH_IDENTITY_INVALID", status: 401,
+  });
+  assert.deepEqual(publicBetterAuthAdminAuthError("BETTER_AUTH_IDENTITY_UNAVAILABLE"), {
+    error: "AUTH_IDENTITY_UNAVAILABLE", status: 503,
   });
   assert.equal(publicBetterAuthAdminAuthError("UNEXPECTED_INTERNAL_ERROR"), null);
 });
