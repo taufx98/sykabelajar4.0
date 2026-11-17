@@ -1,6 +1,5 @@
 import {
-  createRemoteJWKSet,
-  customFetch,
+  createLocalJWKSet,
   decodeJwt,
   decodeProtectedHeader,
   jwtVerify,
@@ -12,10 +11,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const MAX_ACCESS_TOKEN_AGE_SECONDS = 300;
 const CLOCK_SKEW_SECONDS = 30;
 
-/** @type {string} */
-let cachedJwksUrl = "";
-/** @type {ReturnType<typeof createRemoteJWKSet> | null} */
-let cachedJwks = null;
+const JWKS_GRACE_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+const PRIVATE_JWK_MEMBERS = new Set(["d", "p", "q", "dp", "dq", "qi", "oth", "k"]);
 
 /** @type {Readonly<Record<string, string>>} */
 const JOSE_FAILURE_CODES = Object.freeze({
@@ -33,6 +30,8 @@ const JOSE_FAILURE_CODES = Object.freeze({
   ERR_JWS_INVALID: "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID",
   ERR_JWT_INVALID: "BETTER_AUTH_RESOURCE_TOKEN_FORMAT_INVALID",
   BETTER_AUTH_JWKS_FETCH_FAILED: "BETTER_AUTH_JWKS_UNAVAILABLE",
+  BETTER_AUTH_JWKS_INVALID: "BETTER_AUTH_JWKS_INVALID",
+  BETTER_AUTH_JWKS_KEY_NOT_FOUND: "BETTER_AUTH_JWKS_KEY_NOT_FOUND",
   BETTER_AUTH_JWKS_UNAVAILABLE: "BETTER_AUTH_JWKS_UNAVAILABLE",
   BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND: "BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND",
   BETTER_AUTH_JWKS_ACCESS_DENIED: "BETTER_AUTH_JWKS_ACCESS_DENIED",
@@ -96,39 +95,103 @@ function codedJwksFailure(code) {
 }
 
 /**
- * Normalize only the remote JWKS transport boundary. Do not expose upstream
- * response bodies, URLs, headers, or runtime error messages to Admin clients.
- * @param {string} url
- * @param {RequestInit} init
- * @param {typeof fetch} fetchImpl
+ * Read only Better Auth's persisted public signing keys from the same D1
+ * database that the issuer uses. The privateKey column is never selected.
+ * Better Auth publishes rotated keys for a 30-day grace period by default.
+ *
+ * @param {{prepare:(sql:string)=>{all:()=>Promise<{results?:Array<{id?:unknown,publicKey?:unknown,alg?:unknown,crv?:unknown,expiresAt?:unknown}>}>}}} db
+ * @param {number} nowMilliseconds
  */
-async function fetchRemoteJwks(url, init, fetchImpl) {
-  let response;
+async function loadLocalPublicJwks(db, nowMilliseconds) {
+  let rows;
   try {
-    response = await fetchImpl(url, init);
-  } catch (error) {
-    if (error instanceof Error && error.name === "TimeoutError") {
-      throw error;
+    const result = await db.prepare(
+      "SELECT id, publicKey, alg, crv, expiresAt FROM jwks",
+    ).all();
+    if (!Array.isArray(result?.results)) {
+      throw new Error("JWKS_RESULT_INVALID");
     }
-    throw codedJwksFailure("BETTER_AUTH_JWKS_FETCH_FAILED");
-  }
-
-  if (response.status !== 200) {
-    if (response.status === 404) {
-      throw codedJwksFailure("BETTER_AUTH_JWKS_ENDPOINT_NOT_FOUND");
-    }
-    if (response.status === 401 || response.status === 403) {
-      throw codedJwksFailure("BETTER_AUTH_JWKS_ACCESS_DENIED");
-    }
+    rows = result.results;
+  } catch {
     throw codedJwksFailure("BETTER_AUTH_JWKS_UNAVAILABLE");
   }
 
-  try {
-    await response.clone().json();
-  } catch {
-    throw codedJwksFailure("BETTER_AUTH_JWKS_RESPONSE_INVALID");
+  if (rows.length === 0) {
+    throw codedJwksFailure("BETTER_AUTH_JWKS_INVALID");
   }
-  return response;
+
+  const keys = [];
+  for (const row of rows) {
+    if (
+      !row ||
+      typeof row.id !== "string" ||
+      !row.id.trim() ||
+      typeof row.publicKey !== "string"
+    ) {
+      throw codedJwksFailure("BETTER_AUTH_JWKS_INVALID");
+    }
+
+    const alg = typeof row.alg === "string" && row.alg.trim()
+      ? row.alg
+      : "ES256";
+    const crv = typeof row.crv === "string" && row.crv.trim()
+      ? row.crv
+      : "P-256";
+    if (alg !== "ES256" || crv !== "P-256") continue;
+
+    if (row.expiresAt !== null && row.expiresAt !== undefined) {
+      let expiresAtMilliseconds = Number.NaN;
+      if (row.expiresAt instanceof Date) {
+        expiresAtMilliseconds = row.expiresAt.getTime();
+      } else if (typeof row.expiresAt === "number") {
+        expiresAtMilliseconds = row.expiresAt < 1e12
+          ? row.expiresAt * 1000
+          : row.expiresAt;
+      } else if (typeof row.expiresAt === "string") {
+        const numericExpiry = Number(row.expiresAt);
+        expiresAtMilliseconds = row.expiresAt.trim() !== "" && Number.isFinite(numericExpiry)
+          ? (numericExpiry < 1e12 ? numericExpiry * 1000 : numericExpiry)
+          : Date.parse(row.expiresAt);
+      }
+      if (!Number.isFinite(expiresAtMilliseconds)) {
+        throw codedJwksFailure("BETTER_AUTH_JWKS_INVALID");
+      }
+      if (expiresAtMilliseconds + JWKS_GRACE_PERIOD_MS <= nowMilliseconds) {
+        continue;
+      }
+    }
+
+    let publicJwk;
+    try {
+      publicJwk = JSON.parse(row.publicKey);
+    } catch {
+      throw codedJwksFailure("BETTER_AUTH_JWKS_INVALID");
+    }
+    if (
+      !publicJwk ||
+      typeof publicJwk !== "object" ||
+      Array.isArray(publicJwk) ||
+      Object.keys(publicJwk).some((member) => PRIVATE_JWK_MEMBERS.has(member)) ||
+      publicJwk.kty !== "EC" ||
+      publicJwk.crv !== "P-256" ||
+      typeof publicJwk.x !== "string" ||
+      typeof publicJwk.y !== "string"
+    ) {
+      throw codedJwksFailure("BETTER_AUTH_JWKS_INVALID");
+    }
+
+    keys.push({
+      ...publicJwk,
+      alg: "ES256",
+      crv: "P-256",
+      kid: row.id,
+    });
+  }
+
+  if (keys.length === 0) {
+    throw codedJwksFailure("BETTER_AUTH_JWKS_KEY_NOT_FOUND");
+  }
+  return { keys };
 }
 
 /** @param {string} authBaseUrl */
@@ -222,10 +285,11 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
  *   supabaseUrl:string,
  *   supabaseEnvironment?:"staging"|"production",
  *   publishableKey:string,
+ *   jwksDb:{prepare:(sql:string)=>{all:()=>Promise<{results?:Array<{id?:unknown,publicKey?:unknown,alg?:unknown,crv?:unknown,expiresAt?:unknown}>}>}},
  *   allowUnverifiedEmail?:boolean,
  *   fetchImpl?:typeof fetch,
  *   verifyJwtImpl?:typeof jwtVerify,
- *   createJwksImpl?:typeof createRemoteJWKSet,
+ *   createLocalJwksImpl?:typeof createLocalJWKSet,
  *   nowSeconds?:number
  * }} input
  */
@@ -240,17 +304,18 @@ export async function resolveBetterAuthAdminIdentity(input) {
     accessToken.length > 8192 ||
     !resourceAudience ||
     !publishableKey.startsWith("sb_publishable_") ||
-    publishableKey.length > 256
+    publishableKey.length > 256 ||
+    !input?.jwksDb ||
+    typeof input.jwksDb.prepare !== "function"
   ) {
     throw new BetterAuthAdminAuthError("BETTER_AUTH_ADMIN_NOT_CONFIGURED");
   }
 
   const issuer = authIssuer(authBaseUrl);
   const supabaseOrigin = pinnedSupabaseOrigin(input.supabaseUrl, input.supabaseEnvironment ?? "staging");
-  const jwksUrl = issuer + "/jwks";
   const fetchImpl = input.fetchImpl ?? fetch;
   const verifyJwtImpl = input.verifyJwtImpl ?? jwtVerify;
-  const createJwksImpl = input.createJwksImpl ?? createRemoteJWKSet;
+  const createLocalJwksImpl = input.createLocalJwksImpl ?? createLocalJWKSet;
   const nowSeconds = typeof input.nowSeconds === "number" && Number.isSafeInteger(input.nowSeconds)
     ? input.nowSeconds
     : Math.floor(Date.now() / 1000);
@@ -271,17 +336,9 @@ export async function resolveBetterAuthAdminIdentity(input) {
 
   let payload;
   try {
-    if (!cachedJwks || cachedJwksUrl !== jwksUrl || input.createJwksImpl) {
-      cachedJwksUrl = jwksUrl;
-      const jwksFetch = input.fetchImpl ?? fetch;
-      cachedJwks = createJwksImpl(new URL(jwksUrl), {
-        timeoutDuration: 5000,
-        cooldownDuration: 30000,
-        cacheMaxAge: 600000,
-        [customFetch]: (url, init) => fetchRemoteJwks(url, init, jwksFetch),
-      });
-    }
-    const verified = await verifyJwtImpl(accessToken, cachedJwks, {
+    const jwks = await loadLocalPublicJwks(input.jwksDb, nowSeconds * 1000);
+    const localJwks = createLocalJwksImpl(jwks);
+    const verified = await verifyJwtImpl(accessToken, localJwks, {
       issuer,
       audience: resourceAudience,
       algorithms: ["ES256"],
@@ -289,6 +346,7 @@ export async function resolveBetterAuthAdminIdentity(input) {
     });
     payload = verified.payload;
   } catch (error) {
+    if (error instanceof BetterAuthAdminAuthError) throw error;
     throw new BetterAuthAdminAuthError(safeJoseFailureCode(error));
   }
 
