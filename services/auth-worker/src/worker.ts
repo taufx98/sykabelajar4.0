@@ -7,6 +7,7 @@ import {
   timingSafeEqualString,
 } from "./security.mjs";
 import { createD1QuotaResponse } from "./d1-quota.mjs";
+import { safeAuthRuntimeErrorCode } from "./auth-runtime-error.mjs";
 import { getAllowedOriginsForPath } from "./cors-origins.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
 import { isAuthEmailVerificationConfigured } from "./email";
@@ -592,7 +593,19 @@ export default {
         return applyResponseHeaders(quotaResponse, corsHeaders);
       }
       console.error("Better Auth request failed", safeDiagnostic(error));
-      return applyResponseHeaders(json({ error: "AUTH_SERVICE_UNAVAILABLE" }, 503), corsHeaders);
+      // Expose only an explicit allowlist of non-sensitive diagnostic codes
+      // on the isolated staging Worker. Production remains fully generic.
+      const stagingDiagnosticsEnabled =
+        env.SUPABASE_PROVISIONING_ENV === "staging" &&
+        env.DEV_APP_ORIGIN === "https://staging.sykabelajar.my.id" &&
+        env.BETTER_AUTH_URL === "https://auth.sykabelajar.my.id";
+      const diagnosticCode = stagingDiagnosticsEnabled
+        ? safeAuthRuntimeErrorCode(error)
+        : null;
+      return applyResponseHeaders(json({
+        error: "AUTH_SERVICE_UNAVAILABLE",
+        ...(diagnosticCode ? { code: diagnosticCode } : {}),
+      }, 503), corsHeaders);
     }
   },
 } satisfies ExportedHandler<AuthWorkerEnv>;
