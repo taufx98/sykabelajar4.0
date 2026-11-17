@@ -38,8 +38,80 @@ test("SendPulse connection check uses the read-only stats endpoint and never sen
   assert.equal(captured.init.method, "GET");
   assert.equal(captured.init.body, undefined);
   assert.equal(captured.init.headers.authorization, "Bearer sendpulse-static-test-key-123456");
-  assert.equal(captured.init.redirect, "error");
+  assert.equal(captured.init.redirect, "manual");
   assert.deepEqual(result, { total: 1234 });
+});
+
+test("SendPulse read-only check follows one HTTPS redirect only on the exact API origin", async () => {
+  const calls = [];
+  const result = await checkSendPulseConnection(
+    { apiKey: "sendpulse-static-test-key-123456" },
+    async (url, init) => {
+      calls.push({ url: String(url), init });
+      if (calls.length === 1) {
+        return new Response(null, {
+          status: 301,
+          headers: { location: "/smtp/emails/total/" },
+        });
+      }
+      return new Response(JSON.stringify({ total: 8 }), { status: 200 });
+    },
+  );
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, "https://api.sendpulse.com/smtp/emails/total");
+  assert.equal(calls[1].url, "https://api.sendpulse.com/smtp/emails/total/");
+  assert.equal(calls[0].init.redirect, "manual");
+  assert.equal(calls[1].init.redirect, "manual");
+  assert.equal(calls[1].init.headers.authorization, "Bearer sendpulse-static-test-key-123456");
+  assert.deepEqual(result, { total: 8 });
+});
+
+test("SendPulse read-only check blocks cross-origin redirects before forwarding the API key", async () => {
+  let callCount = 0;
+  await assert.rejects(
+    checkSendPulseConnection(
+      { apiKey: "sendpulse-static-test-key-123456" },
+      async (_url, init) => {
+        callCount += 1;
+        assert.equal(init.headers.authorization, "Bearer sendpulse-static-test-key-123456");
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://redirect-target.example/collect" },
+        });
+      },
+    ),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_REDIRECT_BLOCKED",
+  );
+  assert.equal(callCount, 1, "the API key must never be sent to the redirected host");
+});
+
+test("SendPulse read-only check blocks redirect chains and classifies API 429 separately", async () => {
+  let redirectCalls = 0;
+  await assert.rejects(
+    checkSendPulseConnection(
+      { apiKey: "sendpulse-static-test-key-123456" },
+      async () => {
+        redirectCalls += 1;
+        return new Response(null, {
+          status: 307,
+          headers: { location: "/smtp/emails/total/next" },
+        });
+      },
+    ),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_REDIRECT_BLOCKED",
+  );
+  assert.equal(redirectCalls, 2, "only one same-origin redirect is followed");
+
+  await assert.rejects(
+    checkSendPulseConnection(
+      { apiKey: "sendpulse-static-test-key-123456" },
+      async () => new Response(JSON.stringify({ message: "API rate limit exceeded" }), { status: 429 }),
+    ),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_API_RATE_LIMITED",
+  );
 });
 
 test("SendPulse read-only connection check reports safe DNS and auth diagnostics", async () => {
