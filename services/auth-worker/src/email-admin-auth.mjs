@@ -118,7 +118,7 @@ async function loadVerifiedBetterAuthUser(db, subject, allowUnverifiedEmail) {
     !user ||
     user.id !== subject ||
     email.length > 254 ||
-    !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     (!allowUnverifiedEmail && user.emailVerified !== true && user.emailVerified !== 1)
   ) {
     throw new BetterAuthAdminAuthError("BETTER_AUTH_IDENTITY_INVALID");
