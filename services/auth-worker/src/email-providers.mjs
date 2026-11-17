@@ -346,7 +346,7 @@ function base64Utf8(value) {
 }
 
 function buildSendPulseHtml(text) {
-  const safeLines = text.split(/\\r\\n|\\n|\\r/).map(escapeHtml);
+  const safeLines = text.split(/\r\n|\n|\r/).map(escapeHtml);
   const html = "<!doctype html><html><body><div>" +
     safeLines.join("<br>") +
     "</div></body></html>";
