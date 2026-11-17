@@ -17,8 +17,33 @@ test("SendPulse uses the official SMTP REST endpoint and Bearer static API key",
   assert.equal(body.email.from.email, account.senderAddress);
   assert.deepEqual(body.email.to, [{ name: "", email: message.to }]);
   assert.equal(body.email.text, message.text);
+  assert.equal(
+    Buffer.from(body.email.html, "base64").toString("utf8"),
+    "<!doctype html><html><body><div>Isi tes</div></body></html>",
+  );
   assert.equal(result.messageId, "sendpulse-id-1");
   assert.equal(captured.init.body.includes("sendpulse-static-test-key-123456"), false);
+});
+
+test("SendPulse HTML alternative is UTF-8 safe and escapes message content", async () => {
+  const contentText = "Baris 1\n<kode> & “tes” ✅";
+  let captured;
+  await sendEmailWithProvider(
+    "sendpulse",
+    { apiKey: "sendpulse-static-test-key-123456" },
+    account,
+    { ...message, text: contentText },
+    async (_url, init) => {
+      captured = init;
+      return new Response(JSON.stringify({ result: true, id: "sendpulse-id-unicode" }), { status: 200 });
+    },
+  );
+  const body = JSON.parse(captured.body);
+  assert.equal(body.email.text, contentText);
+  assert.equal(
+    Buffer.from(body.email.html, "base64").toString("utf8"),
+    "<!doctype html><html><body><div>Baris 1<br>&lt;kode&gt; &amp; “tes” ✅</div></body></html>",
+  );
 });
 
 test("Brevo sends transactional messages using the API key header", async () => {
@@ -80,14 +105,31 @@ test("explicit quota and credential rejections are safe failover signals", async
   );
 });
 
-test("ambiguous network and 5xx failures never trigger cross-provider retry", async () => {
+test("ambiguous network, timeout and 5xx failures are diagnostic and never fail over", async () => {
   await assert.rejects(
     sendEmailWithProvider("resend", { apiKey: "re_test_api_key_1234567890" }, account, message, async () => new Response("internal error", { status: 503 })),
-    (error) => error instanceof EmailProviderDeliveryError && error.allowFailover === false && error.code === "EMAIL_DELIVERY_STATUS_UNKNOWN",
+    (error) => error instanceof EmailProviderDeliveryError && error.allowFailover === false && error.code === "EMAIL_PROVIDER_HTTP_5XX",
   );
   await assert.rejects(
     sendEmailWithProvider("resend", { apiKey: "re_test_api_key_1234567890" }, account, message, async () => { throw new Error("private transport data"); }),
-    (error) => error instanceof EmailProviderDeliveryError && error.code === "EMAIL_DELIVERY_STATUS_UNKNOWN" && !String(error.message).includes("private"),
+    (error) => error instanceof EmailProviderDeliveryError && error.code === "EMAIL_PROVIDER_NETWORK_ERROR" && !String(error.message).includes("private"),
+  );
+  const timeout = new Error("timeout details must not escape");
+  timeout.name = "TimeoutError";
+  await assert.rejects(
+    sendEmailWithProvider("sendpulse", { apiKey: "sendpulse-static-test-key-123456" }, account, message, async (_url, init) => {
+      assert.ok(init.signal);
+      throw timeout;
+    }),
+    (error) => error instanceof EmailProviderDeliveryError && error.code === "EMAIL_PROVIDER_TIMEOUT" && !String(error.message).includes("details"),
+  );
+  await assert.rejects(
+    sendEmailWithProvider("sendpulse", { apiKey: "sendpulse-static-test-key-123456" }, account, message, async () => {
+      const response = new Response("{}", { status: 200 });
+      response.text = async () => { throw new Error("private response body"); };
+      return response;
+    }),
+    (error) => error instanceof EmailProviderDeliveryError && error.code === "EMAIL_PROVIDER_RESPONSE_READ_FAILED",
   );
 });
 

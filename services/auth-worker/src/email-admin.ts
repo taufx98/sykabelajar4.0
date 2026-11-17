@@ -567,7 +567,14 @@ async function testAccount(body: Record<string, unknown>, user: SupabaseAdminUse
     ).bind(code,new Date().toISOString(),until,id).run();
     if (code === "EMAIL_PROVIDER_CREDENTIAL_REJECTED") return json({ok:false,error:"EMAIL_PROVIDER_CREDENTIAL_REJECTED"},422);
     if (code === "EMAIL_PROVIDER_QUOTA_REACHED") return json({ok:false,error:"EMAIL_PROVIDER_QUOTA_REACHED"},429);
-    if (code === "EMAIL_DELIVERY_STATUS_UNKNOWN") return json({ok:false,error:code},502);
+    if ([
+      "EMAIL_DELIVERY_STATUS_UNKNOWN",
+      "EMAIL_PROVIDER_TIMEOUT",
+      "EMAIL_PROVIDER_NETWORK_ERROR",
+      "EMAIL_PROVIDER_RESPONSE_READ_FAILED",
+      "EMAIL_PROVIDER_HTTP_5XX",
+      "EMAIL_PROVIDER_RESPONSE_INVALID",
+    ].includes(code)) return json({ok:false,error:code},502);
     return json({ok:false,error:"EMAIL_PROVIDER_TEST_FAILED"},502);
   }
 }
