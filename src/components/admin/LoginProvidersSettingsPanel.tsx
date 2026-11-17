@@ -47,7 +47,7 @@ function errorMessage(error: unknown): string {
   AUTH_JWKS_ACCESS_DENIED: 'Endpoint JWKS Better Auth menolak permintaan (HTTP 401/403).',
     AUTH_JWKS_KEY_NOT_FOUND: 'Kunci penandatangan token tidak ditemukan pada JWKS Worker.',
     AUTH_JWKS_KEY_AMBIGUOUS: 'JWKS Worker memiliki lebih dari satu kunci yang cocok untuk token.',
-    AUTH_JWKS_UNAVAILABLE: 'Worker tidak dapat mengambil JWKS dari issuer Better Auth.',
+    AUTH_JWKS_UNAVAILABLE: 'Worker tidak dapat membaca kunci publik Better Auth dari D1.',
     AUTH_JWKS_INVALID: 'Respons JWKS dari issuer Better Auth tidak valid.',
     AUTH_USERINFO_UNAVAILABLE: 'Endpoint UserInfo Better Auth tidak dapat dihubungi.',
     AUTH_USERINFO_INVALID: 'Identitas UserInfo tidak cocok atau email belum terverifikasi.',
