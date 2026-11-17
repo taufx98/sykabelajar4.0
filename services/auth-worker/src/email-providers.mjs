@@ -256,11 +256,7 @@ async function request(provider, fetcher, endpoint, init) {
   } catch (error) {
     // A timeout/network failure is ambiguous: the provider may have accepted
     // the email before the connection failed. Never retry on another provider.
-    const timedOut = error instanceof Error &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
-    throw new EmailProviderDeliveryError(
-      timedOut ? "EMAIL_PROVIDER_TIMEOUT" : "EMAIL_PROVIDER_NETWORK_ERROR",
-    );
+    throw new EmailProviderDeliveryError(classifyFetchFailure(error));
   }
 
   let bodyText;
@@ -292,6 +288,58 @@ async function request(provider, fetcher, endpoint, init) {
     throw new EmailProviderDeliveryError("EMAIL_PROVIDER_HTTP_5XX");
   }
   throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REJECTED_MESSAGE");
+}
+
+/**
+ * Convert fetch failures to safe diagnostic classes. Raw runtime messages and
+ * causes are deliberately never returned to the Admin client or persisted.
+ * @param {unknown} error
+ * @returns {string}
+ */
+function classifyFetchFailure(error) {
+  const failure = error && typeof error === "object"
+    ? /** @type {{name?:unknown,message?:unknown,cause?:unknown}} */ (error)
+    : {};
+  const cause = failure.cause && typeof failure.cause === "object"
+    ? /** @type {{name?:unknown,message?:unknown,code?:unknown}} */ (failure.cause)
+    : {};
+  const details = [
+    failure.name, failure.message, cause.name, cause.message, cause.code,
+  ].filter((value) => typeof value === "string").join(" ");
+
+  if (/timeout|timed out|TimeoutError|AbortError|CONNECT_TIMEOUT/i.test(details)) {
+    return "EMAIL_PROVIDER_TIMEOUT";
+  }
+  if (/redirect/i.test(details)) return "EMAIL_PROVIDER_REDIRECT_BLOCKED";
+  if (/ENOTFOUND|EAI_AGAIN|NXDOMAIN|DNS/i.test(details)) return "EMAIL_PROVIDER_DNS_ERROR";
+  if (/TLS|SSL|CERTIFICATE|CERT_/i.test(details)) return "EMAIL_PROVIDER_TLS_ERROR";
+  return "EMAIL_PROVIDER_NETWORK_ERROR";
+}
+
+/**
+ * Check SendPulse API reachability and API-key acceptance without sending an
+ * email. The official SMTP statistics endpoint is a read-only GET request.
+ * @param {Record<string,string>} credentials
+ * @param {typeof fetch} [fetcher]
+ * @returns {Promise<{total:number}>}
+ */
+export async function checkSendPulseConnection(credentials, fetcher = fetch) {
+  const apiKey = required(credentials?.apiKey);
+  if (!apiKey) throw new EmailProviderDeliveryError("EMAIL_PROVIDER_CONFIGURATION_INCOMPLETE");
+
+  const { result } = await request(
+    "sendpulse",
+    fetcher,
+    "https://api.sendpulse.com/smtp/emails/total",
+    {
+      method: "GET",
+      headers: { accept: "application/json", authorization: "Bearer " + apiKey },
+    },
+  );
+  if (!result || !Number.isSafeInteger(result.total)) {
+    throw new EmailProviderDeliveryError("EMAIL_PROVIDER_RESPONSE_INVALID");
+  }
+  return { total: /** @type {number} */ (result.total) };
 }
 
 /**

@@ -2,7 +2,7 @@ import type { AuthWorkerEnv } from "./env";
 import { decryptEmailSecret, encryptEmailSecret } from "./email-secret.mjs";
 import { isAllowedOrigin } from "./security.mjs";
 import { getEmailAdminAllowedOrigins } from "./cors-origins.mjs";
-import { EmailProviderDeliveryError, normalizeCustomHttpConfig, sendEmailWithProvider } from "./email-providers.mjs";
+import { checkSendPulseConnection, EmailProviderDeliveryError, normalizeCustomHttpConfig, sendEmailWithProvider } from "./email-providers.mjs";
 import {
   BetterAuthAdminAuthError,
   isBetterAuthTokenForIssuer,
@@ -579,6 +579,44 @@ async function testAccount(body: Record<string, unknown>, user: SupabaseAdminUse
   }
 }
 
+async function checkProviderConnection(body: Record<string, unknown>, env: AuthWorkerEnv): Promise<Response> {
+  const id = nonEmpty(body.id);
+  if (!id) return json({ ok: false, error: "EMAIL_ACCOUNT_REQUIRED" }, 422);
+  if (!env.AUTH_EMAIL_ENCRYPTION_KEY || env.AUTH_EMAIL_ENCRYPTION_KEY.length < 32) {
+    return json({ ok: false, error: "EMAIL_ENCRYPTION_NOT_CONFIGURED" }, 503);
+  }
+  const account = await env.DB.prepare(
+    "SELECT id,provider,credentials_ciphertext FROM auth_email_provider_accounts WHERE id=?1",
+  ).bind(id).first<{id:string;provider:EmailProvider;credentials_ciphertext:string}>();
+  if (!account) return json({ ok: false, error: "EMAIL_ACCOUNT_NOT_FOUND" }, 404);
+  if (account.provider !== "sendpulse") {
+    return json({ ok: false, error: "EMAIL_PROVIDER_DIAGNOSTIC_UNSUPPORTED" }, 422);
+  }
+
+  let credentials: Record<string, string>;
+  try {
+    const plaintext = await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY, account.credentials_ciphertext);
+    credentials = parseCredentials(plaintext);
+  } catch {
+    return json({ ok: false, error: "EMAIL_ACCOUNT_SECRET_UNAVAILABLE" }, 503);
+  }
+
+  try {
+    await checkSendPulseConnection(credentials);
+    // This read-only API probe does not send an email, reserve delivery quota,
+    // clear delivery errors, or alter routing/account state.
+    return json({
+      ok: true,
+      message: "Koneksi API SendPulse berhasil dan API key diterima. Tidak ada email yang dikirim.",
+    });
+  } catch (error) {
+    const code = error instanceof EmailProviderDeliveryError
+      ? error.code : "EMAIL_PROVIDER_DIAGNOSTIC_FAILED";
+    const status = code === "EMAIL_PROVIDER_CREDENTIAL_REJECTED" ? 422 : 502;
+    return json({ ok: false, error: code }, status);
+  }
+}
+
 export async function handleEmailAdminRequest(request: Request, env: AuthWorkerEnv): Promise<Response> {
   if (request.method !== "GET" && request.method !== "POST") {
     return json({ ok: false, error: "METHOD_NOT_ALLOWED" }, 405);
@@ -599,5 +637,6 @@ export async function handleEmailAdminRequest(request: Request, env: AuthWorkerE
   if (action === "configure") return configureRouting(record, authorization.user, env);
   if (action === "delete") return deleteAccount(record, env);
   if (action === "test") return testAccount(record, authorization.user, env);
+  if (action === "check-connection") return checkProviderConnection(record, env);
   return json({ ok: false, error: "UNKNOWN_ACTION" }, 400);
 }
