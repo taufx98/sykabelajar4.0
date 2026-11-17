@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowUp, CircleAlert, Mail, Pencil, Plus, RefreshCw, Send, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowUp, CircleAlert, Mail, Pencil, Plus, RefreshCw, Send, ShieldCheck, Trash2, X } from 'lucide-react';
 import { getStagingAdminAccessToken } from '@/services/adminBetterAuthAccessToken';
 import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/Button';
@@ -109,6 +109,11 @@ const ERROR_LABELS: Record<string, string> = {
   INVALID_EMAIL_PROVIDER: 'Penyedia email tidak didukung.',
   EMAIL_PROVIDER_CREDENTIAL_REQUIRED: 'Kredensial penyedia wajib diisi.',
   EMAIL_PROVIDER_CREDENTIAL_REJECTED: 'Penyedia menolak kredensial. Periksa API key/token.',
+  EMAIL_PROVIDER_DNS_ERROR: 'Worker tidak dapat menemukan alamat server SendPulse (DNS).',
+  EMAIL_PROVIDER_TLS_ERROR: 'Koneksi TLS ke server SendPulse gagal diverifikasi.',
+  EMAIL_PROVIDER_REDIRECT_BLOCKED: 'Endpoint SendPulse mengalihkan koneksi; redirect ditolak demi keamanan kredensial.',
+  EMAIL_PROVIDER_NETWORK_ERROR: 'Worker gagal membangun koneksi ke API SendPulse.',
+  EMAIL_PROVIDER_DIAGNOSTIC_UNSUPPORTED: 'Pemeriksaan koneksi saat ini hanya tersedia untuk SendPulse.',
   EMAIL_PROVIDER_QUOTA_REACHED: 'Kuota internal atau kuota provider telah tercapai.',
   EMAIL_DELIVERY_STATUS_UNKNOWN: 'Status pengiriman tidak dapat dipastikan. Email tidak dicoba ulang ke provider lain untuk menghindari duplikasi.',
   EMAIL_TEST_RATE_LIMITED: 'Tes email dibatasi satu kali per menit untuk setiap admin.',
@@ -161,6 +166,7 @@ export function TransactionalEmailSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [savingRouting, setSavingRouting] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const baseUrl = useMemo(() => authWorkerUrl(), []);
@@ -321,6 +327,17 @@ export function TransactionalEmailSettingsPanel() {
     } catch (cause) { toast.error(cause instanceof Error ? cause.message : 'Tes provider gagal.'); }
     finally { setTestingId(null); }
   };
+  const checkConnection = async (account: EmailAccount) => {
+    setCheckingId(account.id);
+    try {
+      const result = await request('check-connection', { id: account.id });
+      toast.success(String(result.message ?? 'Koneksi API SendPulse berhasil. Tidak ada email yang dikirim.'));
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : 'Pemeriksaan koneksi SendPulse gagal.');
+    } finally {
+      setCheckingId(null);
+    }
+  };
   const remove = async (account: EmailAccount) => {
     if (!window.confirm('Hapus profil ' + account.label + '? Kredensial terenkripsi profil ini akan dihapus dari D1.')) return;
     setDeletingId(account.id);
@@ -395,7 +412,8 @@ export function TransactionalEmailSettingsPanel() {
                     <Button size="sm" variant="subtle" icon={<ArrowUp size={13}/>} onClick={() => move(index, -1)} disabled={index === 0 || savingRouting}/>
                     <Button size="sm" variant="subtle" icon={<ArrowDown size={13}/>} onClick={() => move(index, 1)} disabled={index === accounts.length - 1 || savingRouting}/>
                     <Button size="sm" variant="outline" onClick={() => edit(account)}><Pencil size={12}/> Edit</Button>
-                    <Button size="sm" variant="subtle" icon={<Send size={13}/>} onClick={() => void test(account)} loading={testingId === account.id} disabled={!!testingId || !account.credentialConfigured || !account.enabled}>Tes</Button>
+                    {account.provider === 'sendpulse' && <Button size="sm" variant="outline" icon={<Activity size={13}/>} onClick={() => void checkConnection(account)} loading={checkingId === account.id} disabled={!!checkingId || !!testingId || !account.credentialConfigured}>Cek API</Button>}
+                    <Button size="sm" variant="subtle" icon={<Send size={13}/>} onClick={() => void test(account)} loading={testingId === account.id} disabled={!!testingId || !!checkingId || !account.credentialConfigured || !account.enabled}>Tes</Button>
                     <Button size="sm" variant="danger" icon={<Trash2 size={13}/>} onClick={() => void remove(account)} loading={deletingId === account.id} disabled={!!deletingId}/>
                   </div>
                 </div>
