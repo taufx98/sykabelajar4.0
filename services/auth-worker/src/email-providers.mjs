@@ -240,22 +240,59 @@ function quotaError(body) {
  * @param {typeof fetch} fetcher
  * @param {string} endpoint
  * @param {RequestInit} init
+ * @param {{allowedRedirectOrigin?:string,rateLimitErrorCode?:string}} [options]
  * @returns {Promise<{result: Record<string, unknown> | null, bodyText: string}>}
  */
-async function request(provider, fetcher, endpoint, init) {
+async function request(provider, fetcher, endpoint, init, options = {}) {
   let response;
+  const allowedRedirectOrigin = options.allowedRedirectOrigin ?? null;
+  let requestUrl = endpoint;
+  let redirectCount = 0;
+  const timeoutMs = provider === "sendpulse" ? 20000 : 8000;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+
   try {
-    // SendPulse can take longer to accept SMTP queue requests than the other
-    // providers. Keep the timeout bounded, but do not abort it after 8 seconds.
-    const timeoutMs = provider === "sendpulse" ? 20000 : 8000;
-    response = await fetcher(endpoint, {
-      ...init,
-      redirect: "error",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    while (true) {
+      response = await fetcher(requestUrl, {
+        ...init,
+        // Email delivery still rejects every redirect. Only the read-only
+        // SendPulse diagnostic may follow one redirect on its exact API origin.
+        redirect: allowedRedirectOrigin ? "manual" : "error",
+        signal: timeoutSignal,
+      });
+
+      if (!allowedRedirectOrigin || response.status < 300 || response.status >= 400) break;
+
+      const location = response.headers.get("location");
+      if (!location) {
+        throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REDIRECT_BLOCKED");
+      }
+
+      let nextUrl;
+      try {
+        nextUrl = new URL(location, requestUrl);
+      } catch {
+        throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REDIRECT_BLOCKED");
+      }
+
+      if (
+        redirectCount >= 1 ||
+        nextUrl.origin !== allowedRedirectOrigin ||
+        nextUrl.protocol !== "https:" ||
+        nextUrl.username ||
+        nextUrl.password ||
+        nextUrl.hash
+      ) {
+        // Never forward the Bearer key to a different origin or follow chains.
+        throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REDIRECT_BLOCKED");
+      }
+
+      requestUrl = nextUrl.href;
+      redirectCount += 1;
+    }
   } catch (error) {
-    // A timeout/network failure is ambiguous: the provider may have accepted
-    // the email before the connection failed. Never retry on another provider.
+    if (error instanceof EmailProviderDeliveryError) throw error;
+    // Do not expose raw runtime messages or credentials to Admin.
     throw new EmailProviderDeliveryError(classifyFetchFailure(error));
   }
 
@@ -270,6 +307,9 @@ async function request(provider, fetcher, endpoint, init) {
   const result = parseJson(bodyText);
   if (response.ok) return { result, bodyText };
 
+  if (options.rateLimitErrorCode && response.status === 429) {
+    throw new EmailProviderDeliveryError(options.rateLimitErrorCode);
+  }
   if (response.status === 401 || response.status === 403) {
     throw new EmailProviderDeliveryError("EMAIL_PROVIDER_CREDENTIAL_REJECTED", {
       allowFailover: true,
@@ -334,6 +374,10 @@ export async function checkSendPulseConnection(credentials, fetcher = fetch) {
     {
       method: "GET",
       headers: { accept: "application/json", authorization: "Bearer " + apiKey },
+    },
+    {
+      allowedRedirectOrigin: "https://api.sendpulse.com",
+      rateLimitErrorCode: "EMAIL_PROVIDER_API_RATE_LIMITED",
     },
   );
   if (!result || !Number.isSafeInteger(result.total)) {
