@@ -138,7 +138,7 @@ async function loadLocalPublicJwks(db, nowMilliseconds) {
     if (alg !== "ES256" || crv !== "P-256") continue;
 
     if (row.expiresAt !== null && row.expiresAt !== undefined) {
-      let expiresAtMilliseconds;
+      let expiresAtMilliseconds = Number.NaN;
       if (row.expiresAt instanceof Date) {
         expiresAtMilliseconds = row.expiresAt.getTime();
       } else if (typeof row.expiresAt === "number") {
@@ -283,7 +283,7 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
  *   supabaseUrl:string,
  *   supabaseEnvironment?:"staging"|"production",
  *   publishableKey:string,
- *   jwksDb:{prepare:(sql:string)=>{all:()=>Promise<{results?:Array<unknown>}>}},
+ *   jwksDb:{prepare:(sql:string)=>{all:()=>Promise<{results?:Array<{id?:unknown,publicKey?:unknown,alg?:unknown,crv?:unknown,expiresAt?:unknown}>}>}},
  *   allowUnverifiedEmail?:boolean,
  *   fetchImpl?:typeof fetch,
  *   verifyJwtImpl?:typeof jwtVerify,
