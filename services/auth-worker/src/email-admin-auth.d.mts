@@ -17,7 +17,15 @@ export interface ResolveBetterAuthAdminIdentityInput {
   publishableKey: string;
   jwksDb: {
     prepare(sql: string): {
-      all(): Promise<{ results?: Array<unknown> }>;
+      all(): Promise<{
+        results?: Array<{
+          id?: unknown;
+          publicKey?: unknown;
+          alg?: unknown;
+          crv?: unknown;
+          expiresAt?: unknown;
+        }>;
+      }>;
     };
   };
   allowUnverifiedEmail?: boolean;
