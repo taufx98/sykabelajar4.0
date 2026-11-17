@@ -25,6 +25,88 @@ test("SendPulse uses the official SMTP REST endpoint and Bearer static API key",
   assert.equal(captured.init.body.includes("sendpulse-static-test-key-123456"), false);
 });
 
+test("SendPulse rejects invalid sender/message responses with a safe provider rejection code", async () => {
+  await assert.rejects(
+    sendEmailWithProvider("sendpulse", { apiKey: "sendpulse-static-test-key-123456" }, account, message, async () =>
+      new Response(JSON.stringify({ message: "Sender is not valid" }), { status: 422 })),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_REJECTED_MESSAGE",
+  );
+});
+
+test("SendPulse delivery follows one same-origin trailing-slash redirect and preserves POST", async () => {
+  const calls = [];
+  const result = await sendEmailWithProvider(
+    "sendpulse",
+    { apiKey: "sendpulse-static-test-key-123456" },
+    account,
+    message,
+    async (url, init) => {
+      calls.push({ url: String(url), init });
+      if (calls.length === 1) {
+        return new Response(null, {
+          status: 301,
+          headers: { location: "/smtp/emails/" },
+        });
+      }
+      return new Response(JSON.stringify({ result: true, id: "sendpulse-redirect-id" }), { status: 200 });
+    },
+  );
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, "https://api.sendpulse.com/smtp/emails");
+  assert.equal(calls[1].url, "https://api.sendpulse.com/smtp/emails/");
+  for (const call of calls) {
+    assert.equal(call.init.method, "POST");
+    assert.equal(call.init.redirect, "manual");
+    assert.equal(call.init.headers.authorization, "Bearer sendpulse-static-test-key-123456");
+    assert.equal(call.init.body, calls[0].init.body);
+  }
+  assert.deepEqual(result, { messageId: "sendpulse-redirect-id" });
+});
+
+test("SendPulse delivery blocks cross-origin redirects and redirect chains", async () => {
+  let crossOriginCalls = 0;
+  await assert.rejects(
+    sendEmailWithProvider(
+      "sendpulse",
+      { apiKey: "sendpulse-static-test-key-123456" },
+      account,
+      message,
+      async (_url, init) => {
+        crossOriginCalls += 1;
+        assert.equal(init.headers.authorization, "Bearer sendpulse-static-test-key-123456");
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://redirect-target.example/collect" },
+        });
+      },
+    ),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_REDIRECT_BLOCKED",
+  );
+  assert.equal(crossOriginCalls, 1, "the API key must never be sent to a redirected host");
+
+  let chainCalls = 0;
+  await assert.rejects(
+    sendEmailWithProvider(
+      "sendpulse",
+      { apiKey: "sendpulse-static-test-key-123456" },
+      account,
+      message,
+      async () => {
+        chainCalls += 1;
+        return new Response(null, {
+          status: 307,
+          headers: { location: chainCalls === 1 ? "/smtp/emails/" : "/smtp/emails" },
+        });
+      },
+    ),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_REDIRECT_BLOCKED",
+  );
+  assert.equal(chainCalls, 2, "only one same-origin redirect may be followed");
+});
+
 test("SendPulse connection check uses the read-only stats endpoint and never sends an email", async () => {
   let captured;
   const result = await checkSendPulseConnection(
@@ -95,7 +177,7 @@ test("SendPulse read-only check blocks redirect chains and classifies API 429 se
         redirectCalls += 1;
         return new Response(null, {
           status: 307,
-          headers: { location: "/smtp/emails/total/next" },
+          headers: { location: "/smtp/emails/total/" },
         });
       },
     ),
