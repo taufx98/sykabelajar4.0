@@ -28,7 +28,7 @@ concurrency:
 # Custom HTTPS JSON email schema 0012 is verified before this Worker can be deployed.
 # Staging-only diagnostics distinguish JWT header, signature, claims, JWKS and UserInfo failures without logging tokens.
 # Remote JWKS transport diagnostics are covered by worker tests before this staging-only deployment.
-# Deploy the typecheck- and security-test-approved remote JWKS diagnostic implementation to staging only.
+# Deploy the typecheck- and security-test-approved local D1 JWKS Admin verifier to the isolated staging Worker only.
 
 jobs:
   deploy:
