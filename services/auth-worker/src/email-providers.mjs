@@ -297,13 +297,14 @@ async function request(provider, fetcher, endpoint, init) {
  * @returns {string}
  */
 function classifyFetchFailure(error) {
-  const cause = error && typeof error === "object" ? error.cause : null;
+  const failure = error && typeof error === "object"
+    ? /** @type {{name?:unknown,message?:unknown,cause?:unknown}} */ (error)
+    : {};
+  const cause = failure.cause && typeof failure.cause === "object"
+    ? /** @type {{name?:unknown,message?:unknown,code?:unknown}} */ (failure.cause)
+    : {};
   const details = [
-    error && typeof error === "object" ? error.name : "",
-    error && typeof error === "object" ? error.message : "",
-    cause && typeof cause === "object" ? cause.name : "",
-    cause && typeof cause === "object" ? cause.message : "",
-    cause && typeof cause === "object" ? cause.code : "",
+    failure.name, failure.message, cause.name, cause.message, cause.code,
   ].filter((value) => typeof value === "string").join(" ");
 
   if (/timeout|timed out|TimeoutError|AbortError|CONNECT_TIMEOUT/i.test(details)) {
@@ -338,7 +339,7 @@ export async function checkSendPulseConnection(credentials, fetcher = fetch) {
   if (!result || !Number.isSafeInteger(result.total)) {
     throw new EmailProviderDeliveryError("EMAIL_PROVIDER_RESPONSE_INVALID");
   }
-  return { total: result.total };
+  return { total: /** @type {number} */ (result.total) };
 }
 
 /**
