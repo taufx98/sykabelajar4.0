@@ -90,6 +90,7 @@ export class BetterAuthAdminAuthError extends Error {
 
 /** @param {string} code */
 function codedJwksFailure(code) {
+  /** @type {Error & {code: string}} */
   const error = new Error(code);
   error.code = code;
   return error;
@@ -107,7 +108,7 @@ async function fetchRemoteJwks(url, init, fetchImpl) {
   try {
     response = await fetchImpl(url, init);
   } catch (error) {
-    if (error && typeof error === "object" && error.name === "TimeoutError") {
+    if (error instanceof Error && error.name === "TimeoutError") {
       throw error;
     }
     throw codedJwksFailure("BETTER_AUTH_JWKS_FETCH_FAILED");
