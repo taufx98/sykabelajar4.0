@@ -66,8 +66,8 @@ const PUBLIC_ADMIN_AUTH_ERRORS = Object.freeze({
   BETTER_AUTH_JWKS_KEY_AMBIGUOUS: { error: "AUTH_JWKS_KEY_AMBIGUOUS", status: 401 },
   BETTER_AUTH_JWKS_UNAVAILABLE: { error: "AUTH_JWKS_UNAVAILABLE", status: 503 },
   BETTER_AUTH_JWKS_INVALID: { error: "AUTH_JWKS_INVALID", status: 503 },
-  BETTER_AUTH_USERINFO_INVALID: { error: "AUTH_USERINFO_INVALID", status: 401 },
-  BETTER_AUTH_USERINFO_UNAVAILABLE: { error: "AUTH_USERINFO_UNAVAILABLE", status: 503 },
+  BETTER_AUTH_IDENTITY_INVALID: { error: "AUTH_IDENTITY_INVALID", status: 401 },
+  BETTER_AUTH_IDENTITY_UNAVAILABLE: { error: "AUTH_IDENTITY_UNAVAILABLE", status: 503 },
 });
 
 /**
@@ -92,6 +92,39 @@ function codedJwksFailure(code) {
   const error = new Error(code);
   Object.assign(error, { code });
   return error;
+}
+
+/**
+ * Resolve the authenticated subject against Better Auth's own D1 user row.
+ * The email and verification state come from the canonical identity record,
+ * never from unverified JWT claims or a self-HTTP UserInfo request.
+ *
+ * @param {{prepare:(sql:string)=>{bind:(...values:unknown[])=>{first:()=>Promise<{id?:unknown,email?:unknown,emailVerified?:unknown}|null>}}}} db
+ * @param {string} subject
+ * @param {boolean} allowUnverifiedEmail
+ */
+async function loadVerifiedBetterAuthUser(db, subject, allowUnverifiedEmail) {
+  let user;
+  try {
+    user = await db.prepare(
+      "SELECT id, email, emailVerified FROM user WHERE id = ?1 LIMIT 1",
+    ).bind(subject).first();
+  } catch {
+    throw new BetterAuthAdminAuthError("BETTER_AUTH_IDENTITY_UNAVAILABLE");
+  }
+
+  const email = typeof user?.email === "string" ? user.email.trim() : "";
+  if (
+    !user ||
+    user.id !== subject ||
+    email.length > 254 ||
+    !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) ||
+    (!allowUnverifiedEmail && user.emailVerified !== true && user.emailVerified !== 1)
+  ) {
+    throw new BetterAuthAdminAuthError("BETTER_AUTH_IDENTITY_INVALID");
+  }
+
+  return { id: subject, email };
 }
 
 /**
@@ -274,9 +307,10 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
 }
 
 /**
- * Verify a Better Auth resource token, retrieve the verified email from OIDC
- * UserInfo, then check active admin membership only in the exact Supabase
- * identity project pinned by this Worker environment using its publishable key.
+ * Verify a Better Auth resource token against the issuer's public D1 JWKS,
+ * resolve the subject/email/verification status from Better Auth's own D1 user
+ * table, then check active admin membership only in the exact Supabase project
+ * pinned by this Worker environment using its publishable key.
  *
  * @param {{
  *   accessToken:string,
@@ -370,38 +404,11 @@ export async function resolveBetterAuthAdminIdentity(input) {
     throw new BetterAuthAdminAuthError("BETTER_AUTH_RESOURCE_TOKEN_CLAIMS_INVALID");
   }
 
-  let userInfoResponse;
-  try {
-    userInfoResponse = await fetchImpl(issuer + "/oauth2/userinfo", {
-      method: "GET",
-      headers: {
-        Authorization: "Bearer " + accessToken,
-        Accept: "application/json",
-      },
-      cache: "no-store",
-      signal: AbortSignal.timeout(8000),
-    });
-  } catch {
-    throw new BetterAuthAdminAuthError("BETTER_AUTH_USERINFO_UNAVAILABLE");
-  }
-  if (!userInfoResponse.ok) {
-    if (userInfoResponse.status === 429 || userInfoResponse.status >= 500) {
-      throw new BetterAuthAdminAuthError("BETTER_AUTH_USERINFO_UNAVAILABLE");
-    }
-    throw new BetterAuthAdminAuthError("BETTER_AUTH_USERINFO_INVALID");
-  }
-
-  const userInfo = await userInfoResponse.json().catch(() => null);
-  const email = typeof userInfo?.email === "string" ? userInfo.email.trim() : "";
-  if (
-    userInfo?.sub !== payload.sub ||
-    typeof userInfo?.email_verified !== "boolean" ||
-    (!allowUnverifiedEmail && userInfo.email_verified !== true) ||
-    email.length > 254 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  ) {
-    throw new BetterAuthAdminAuthError("BETTER_AUTH_USERINFO_INVALID");
-  }
+  const identity = await loadVerifiedBetterAuthUser(
+    input.jwksDb,
+    payload.sub,
+    allowUnverifiedEmail,
+  );
 
   const roleUrl = new URL("/rest/v1/user_roles", supabaseOrigin);
   roleUrl.searchParams.set("select", "user_id,role,is_active");
@@ -440,5 +447,5 @@ export async function resolveBetterAuthAdminIdentity(input) {
     throw new BetterAuthAdminAuthError("BETTER_AUTH_ADMIN_REQUIRED");
   }
 
-  return { id: payload.sub, email };
+  return identity;
 }
