@@ -1,3 +1,56 @@
+# Stage 7 read-only Production preflight and staging email acceptance — 18 November 2026
+
+**This is the newest authoritative checkpoint and supersedes earlier status notes below where they conflict. It does not authorize Production cutover.** Keep the accepted staging implementation as the protected baseline; do not reopen completed stages without a concrete regression.
+
+## Verified since the 17 November checkpoint
+
+- **Staging SendPulse delivery is now owner-confirmed end-to-end:** after PR #192 was merged and the existing Worker was deployed to staging, the owner ran the test from `https://staging.sykabelajar.my.id/admin/core?tab=settings` and confirmed the email reached the inbox. This validates the staging SendPulse outbound path. It does not prove Production sender configuration, Production verification callbacks or Production password-reset delivery.
+- **PR #192 merged:** `fix(auth): restore safe SendPulse delivery redirects`, merge commit `3b37091e7c48347081df019a514316a370e5eeb2`. Staging Worker deployment [#44122842413](https://github.com/taufx98/sykabelajar4.0/actions/runs/44122842413) succeeded. Auth Worker CI [#44122842507](https://github.com/taufx98/sykabelajar4.0/actions/runs/44122842507) succeeded. No Production resource was changed by that fix/deployment.
+- **Production schema baseline passed:** [#44130643793](https://github.com/taufx98/sykabelajar4.0/actions/runs/44130643793) on 17 November 2026 completed a schema-only export from Production DB2, restored it into an isolated disposable Supabase/PostgreSQL 17.6 instance and removed the temporary workspace. The restored schema matched **69/69 foreign keys across 62 application tables**, **10 Auth-dependent functions**, **7 Auth/profile triggers**, **109 `auth.uid()` policies across 61 tables**, and **36 profile columns**. Stage 3 identity/provisioning/role/referral, all 69 FK forward/rollback, issuer/RLS, and Stage 5 disposable Edge integration checks passed. The run selected no Production application rows and performed no Production DDL/DML.
+- **Supabase Local Auth Claims CI passed:** [#44130643734](https://github.com/taufx98/sykabelajar4.0/actions/runs/44130643734) on the same commit.
+- **Cloudflare Production read-only preflight passed:** [#44145409028](https://github.com/taufx98/sykabelajar4.0/actions/runs/44145409028), completed 18 November 2026 WIB. Cloudflare metadata was read through GET; Production D1 was queried using SELECT only. It verified:
+  - The existing Worker `sykabelajar-auth-poc` and `auth.sykabelajar.my.id` custom hostname are still paired.
+  - The current Worker remains bound to the accepted staging D1 `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`).
+  - The exact Production D1 `sykabelajar-auth-prod` (`6d4dc7b5-8e71-4fdc-9cda-3230e49951c7`) exists and remains at migrations **0000–0007 only**, with the reviewed 20-table pre-promotion schema.
+  - Production D1 contains zero Better Auth users, accounts, sessions, verifications, OAuth access/refresh tokens and legacy email rows.
+  - The canonical Production OAuth callback and seven required user/profile mapping columns match.
+  - Production migration 0008 (required-email runtime policy) and 0009–0010 (multi-provider/custom HTTP email schema) have not been applied.
+  - No Worker deployment, D1 migration, row write, secret change, DNS change, OIDC registration or frontend routing change was attempted.
+- **Non-regression guardrails** were added to [AUTH-MIGRATION-ROADMAP.md](AUTH-MIGRATION-ROADMAP.md). Treat every accepted staging behavior and successful integration as protected. Make only small isolated changes for a concrete blocker/regression; preserve working interfaces, session/role flows, provider configuration and quotas. Do not mutate Production without the exact approved gate.
+
+## Current Stage 7 position
+
+**Production remains NO-GO.** The latest read-only schema and Cloudflare checks passed, but this is not cutover authorization and does not satisfy the requirement to repeat the DB2 catalog check immediately before the approved maintenance window.
+
+The following one-time Production markers remain absent:
+- `.github/auth-ops/APPLY-PRODUCTION-D1-0002`
+- `.github/auth-ops/PROMOTE-PRODUCTION-WORKER-0001`
+- `.github/auth-ops/REGISTER-PRODUCTION-OIDC-0001`
+
+No Production D1 migration 0008–0010, Worker promotion, Production key creation/secret mutation, Production Custom OIDC registration, DB2 identity-root/69-FK/issuer DDL, provisioning activation, first-admin bootstrap, Production sender configuration, frontend switch or DNS/Pages change has been performed.
+
+## Remaining Production release gates
+
+1. Retain the encrypted full DB2 backup and restore evidence. The owner confirmed the encrypted backup was copied outside GitHub on 14 November; the destination checksum verification must remain recorded in the private release record. Do not share its location or age private key.
+2. Re-run the read-only schema baseline and Cloudflare preflight immediately before the maintenance window; stop on any catalog, D1 migration, hostname or binding drift.
+3. Obtain explicit owner approval for the exact Production maintenance/cutover window and operations. The general request to continue Stage 7 does not remove the explicit approval gate in the cutover runbook.
+4. Explicitly reaffirm fresh-account Production semantics: Better Auth creates new UUIDs; a matching email does **not** automatically attach old `auth.users` UUIDs, business roles, profiles, referral, wallet or other application data. Legacy rows remain untouched.
+5. Apply Production D1 migrations 0008–0010; promote the existing Worker to Production D1 using fresh Production-only keys while public signup and provisioning remain disabled; verify health/discovery/JWKS/CORS/closed signup.
+6. Register Production Custom OIDC only after Worker promotion; verify a real Production token and its issuer, audience, UUID subject and PostgreSQL role.
+7. Apply Stage 3 identity root and 69-FK migration to Production DB2 only in the approved window. Enable issuer restrictions and provisioning only after OIDC, wrapper signatures/EXECUTE grants and end-to-end UUID projection are proven.
+8. Configure a Production-only transactional sender through the Production Admin UI after promotion. The successful SendPulse test above is staging only. Prove real Production verification and password-reset email/callback flows before opening signup.
+9. Bootstrap the first Production admin through the normal verified registration plus protected owner-only role bootstrap; verify one UUID across D1, `private.app_users`, profile/role and JWT `sub`.
+10. Switch the Production frontend only after all backend gates pass; run full login/session/token/API/RLS/Storage/Realtime/Edge and unauthorized-access smoke tests. Verify monitoring and Better Auth-compatible rollback through the agreed observation window.
+
+## Change history and branch
+
+- PR #177 was merged on 16 November 2026 (merge commit `643d05d135bb5c1221271115349736cbc11ed784`).
+- PR #192 was merged on 17 November 2026 (merge commit `3b37091e7c48347081df019a514316a370e5eeb2`).
+- The latest read-only Cloudflare preflight workflow is on the auth migration branch; it contains only GET/SELECT operations.
+- This checkpoint records evidence and remaining gates. It does not approve final Production merge or cutover.
+
+---
+
 # Custom email provider continuation checkpoint — 17 November 2026
 
 This checkpoint supersedes the 15 November five-provider note below. The agreed scope remains the seven Better Auth stages; it does not authorize Production D1, Worker, OIDC or DB2 changes.
