@@ -544,20 +544,32 @@ async function testAccount(body: Record<string, unknown>, user: SupabaseAdminUse
   if (!limit) return json({ ok: false, error: "EMAIL_TEST_RATE_LIMITED" }, 429);
   if (!(await reserveTestQuota(env,id))) return json({ ok: false, error: "EMAIL_PROVIDER_QUOTA_REACHED" }, 429);
 
+  let credentials: Record<string, string>;
   try {
     const plaintext = await decryptEmailSecret(env.AUTH_EMAIL_ENCRYPTION_KEY,account.credentials_ciphertext);
-    const credentials = parseCredentials(plaintext);
-    const sent = await sendEmailWithProvider(account.provider,credentials,{
+    credentials = parseCredentials(plaintext);
+  } catch {
+    const failedAt = new Date().toISOString();
+    try {
+      await env.DB.prepare(
+        "UPDATE auth_email_provider_accounts SET last_error_code=?1,last_error_at=?2,cooldown_until=NULL,updated_at=?2 WHERE id=?3",
+      ).bind("EMAIL_ACCOUNT_SECRET_UNAVAILABLE",failedAt,id).run();
+    } catch {
+      // The response remains a safe credential-state diagnostic even if the
+      // account's diagnostic metadata cannot be persisted.
+    }
+    return json({ok:false,error:"EMAIL_ACCOUNT_SECRET_UNAVAILABLE"},503);
+  }
+
+  let sent: {messageId:string|null};
+  try {
+    sent = await sendEmailWithProvider(account.provider,credentials,{
       senderAddress:account.sender_address,senderName:account.sender_name,
     },{
       to:user.email,subject:"Tes pengiriman email SYKABELAJAR",
       text:"Ini adalah email tes dari pengaturan email transaksional SYKABELAJAR.",
       action:"admin-test",
     });
-    await env.DB.prepare(
-      "UPDATE auth_email_provider_accounts SET last_success_at=?1,last_error_code=NULL,last_error_at=NULL,cooldown_until=NULL,updated_at=?1 WHERE id=?2",
-    ).bind(new Date().toISOString(),id).run();
-    return json({ok:true,message:"Email tes "+providerName(account.provider)+" dikirim hanya ke email admin yang sedang login.",requestId:sent.messageId});
   } catch (error) {
     const code = error instanceof EmailProviderDeliveryError ? error.code : "EMAIL_PROVIDER_TEST_FAILED";
     const cooldown = error instanceof EmailProviderDeliveryError ? error.cooldownSeconds : 0;
@@ -571,15 +583,29 @@ async function testAccount(body: Record<string, unknown>, user: SupabaseAdminUse
       "EMAIL_DELIVERY_STATUS_UNKNOWN",
       "EMAIL_PROVIDER_TIMEOUT",
       "EMAIL_PROVIDER_NETWORK_ERROR",
+      "EMAIL_PROVIDER_REDIRECT_BLOCKED",
       "EMAIL_PROVIDER_RESPONSE_READ_FAILED",
       "EMAIL_PROVIDER_HTTP_5XX",
       "EMAIL_PROVIDER_RESPONSE_INVALID",
       "EMAIL_PROVIDER_REJECTED_MESSAGE",
+      "EMAIL_PROVIDER_CONFIGURATION_INCOMPLETE",
     ].includes(code)) return json({ok:false,error:code},502);
     return json({ok:false,error:"EMAIL_PROVIDER_TEST_FAILED"},502);
   }
-}
 
+  try {
+    const result = await env.DB.prepare(
+      "UPDATE auth_email_provider_accounts SET last_success_at=?1,last_error_code=NULL,last_error_at=NULL,cooldown_until=NULL,updated_at=?1 WHERE id=?2",
+    ).bind(new Date().toISOString(),id).run();
+    if (!result.success) throw new Error("EMAIL_PROVIDER_TEST_STATE_UPDATE_FAILED");
+  } catch {
+    // Sending was accepted by the provider. Never report this as an ordinary
+    // send failure or encourage an immediate duplicate test email.
+    return json({ok:false,error:"EMAIL_PROVIDER_ACCEPTED_STATE_UPDATE_FAILED"},503);
+  }
+
+  return json({ok:true,message:"Email tes "+providerName(account.provider)+" dikirim hanya ke email admin yang sedang login.",requestId:sent.messageId});
+}
 async function checkProviderConnection(body: Record<string, unknown>, env: AuthWorkerEnv): Promise<Response> {
   const id = nonEmpty(body.id);
   if (!id) return json({ ok: false, error: "EMAIL_ACCOUNT_REQUIRED" }, 422);
