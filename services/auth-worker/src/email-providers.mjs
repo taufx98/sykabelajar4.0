@@ -245,18 +245,32 @@ function quotaError(body) {
 async function request(provider, fetcher, endpoint, init) {
   let response;
   try {
+    // SendPulse can take longer to accept SMTP queue requests than the other
+    // providers. Keep the timeout bounded, but do not abort it after 8 seconds.
+    const timeoutMs = provider === "sendpulse" ? 20000 : 8000;
     response = await fetcher(endpoint, {
       ...init,
       redirect: "error",
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
+  } catch (error) {
     // A timeout/network failure is ambiguous: the provider may have accepted
     // the email before the connection failed. Never retry on another provider.
-    throw new EmailProviderDeliveryError("EMAIL_DELIVERY_STATUS_UNKNOWN");
+    const timedOut = error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new EmailProviderDeliveryError(
+      timedOut ? "EMAIL_PROVIDER_TIMEOUT" : "EMAIL_PROVIDER_NETWORK_ERROR",
+    );
   }
 
-  const bodyText = await response.text().catch(() => "");
+  let bodyText;
+  try {
+    bodyText = await response.text();
+  } catch {
+    // The request may already have been accepted even if its response body
+    // could not be read. Keep this outcome non-retryable.
+    throw new EmailProviderDeliveryError("EMAIL_PROVIDER_RESPONSE_READ_FAILED");
+  }
   const result = parseJson(bodyText);
   if (response.ok) return { result, bodyText };
 
@@ -274,7 +288,8 @@ async function request(provider, fetcher, endpoint, init) {
     });
   }
   if (response.status >= 500) {
-    throw new EmailProviderDeliveryError("EMAIL_DELIVERY_STATUS_UNKNOWN");
+    // A provider 5xx may occur after queue acceptance; keep it non-retryable.
+    throw new EmailProviderDeliveryError("EMAIL_PROVIDER_HTTP_5XX");
   }
   throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REJECTED_MESSAGE");
 }
@@ -309,6 +324,35 @@ function jsonInit(headers, body) {
   };
 }
 
+/** Escape plain-text content before embedding it in SendPulse's HTML field. */
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
+}
+
+/** Encode UTF-8 bytes to Base64 without corrupting non-ASCII email content. */
+function base64Utf8(value) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+}
+
+function buildSendPulseHtml(text) {
+  const safeLines = text.split(/\\r\\n|\\n|\\r/).map(escapeHtml);
+  const html = "<!doctype html><html><body><div>" +
+    safeLines.join("<br>") +
+    "</div></body></html>";
+  return base64Utf8(html);
+}
+
 /**
  * Send one authentication email through one configured provider.
  * Credentials are decrypted by the caller and are never returned or logged.
@@ -339,6 +383,9 @@ export async function sendEmailWithProvider(provider, credentials, account, mess
     if (!apiKey) throw new EmailProviderDeliveryError("EMAIL_PROVIDER_CONFIGURATION_INCOMPLETE");
     init = jsonInit({ authorization: "Bearer " + apiKey }, {
       email: {
+        // SendPulse's SMTP API documents Base64-encoded HTML alongside the
+        // plain-text alternative for a custom email body.
+        html: buildSendPulseHtml(values.text),
         text: values.text,
         subject: values.subject,
         from: { name: values.senderName, email: values.senderAddress },
@@ -400,6 +447,13 @@ export async function sendEmailWithProvider(provider, credentials, account, mess
       });
     }
     throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REJECTED_MESSAGE");
+  }
+
+  // A 2xx without the documented SendPulse success flag and message ID is
+  // not sufficient proof of acceptance. Do not report success or auto-retry.
+  if (provider === "sendpulse" &&
+      (result?.result !== true || typeof result.id !== "string" || !result.id.trim())) {
+    throw new EmailProviderDeliveryError("EMAIL_PROVIDER_RESPONSE_INVALID");
   }
 
   let messageId = null;
