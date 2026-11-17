@@ -29,7 +29,7 @@ concurrency:
 # Staging-only diagnostics distinguish JWT header, signature, claims, JWKS and UserInfo failures without logging tokens.
 # Remote JWKS transport diagnostics are covered by worker tests before this staging-only deployment.
 # Deploy the typecheck- and security-test-approved staging Worker, including the SendPulse delivery fix from PR #188, to the isolated staging Worker only.
-# Deploy the typecheck- and security-test-approved SendPulse same-origin read-only API redirect fix from PR #190 to the isolated staging Worker only; no email delivery or D1 migration.
+# Deploy the typecheck- and security-test-approved staging login runtime diagnostics from PR #191; no email delivery or D1 migration.
 
 jobs:
   deploy:
@@ -639,6 +639,33 @@ jobs:
                 hostileRuntimeSettingsResponse.headers.get("Access-Control-Allow-Origin"),
                 null,
                 "untrusted origins must not receive runtime settings CORS permission",
+              );
+
+              // Probe the actual email/password handler with a guaranteed non-existent
+              // address. This must return a normal credential rejection, not a 5xx.
+              // It does not create a user, issue a session, or send email.
+              const loginProbe = await fetchWithTimeout(origin + "/api/auth/sign-in/email", {
+                method: "POST",
+                headers: {
+                  Origin: previewOrigin,
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  email: "auth-worker-smoke-" + crypto.randomUUID() + "@example.invalid",
+                  password: "Worker-Smoke-Invalid-Credential-" + crypto.randomUUID(),
+                }),
+                redirect: "error",
+              });
+              assert.equal(
+                loginProbe.status,
+                401,
+                "password sign-in handler must reject a non-existent smoke identity without a 5xx",
+              );
+              const loginProbeBody = await loginProbe.json().catch(() => ({}));
+              assert.ok(
+                loginProbeBody && typeof loginProbeBody === "object",
+                "password sign-in smoke response must be JSON",
               );
 
               console.log(JSON.stringify({
