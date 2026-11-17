@@ -30,6 +30,7 @@ concurrency:
 # Remote JWKS transport diagnostics are covered by worker tests before this staging-only deployment.
 # Deploy the typecheck- and security-test-approved staging Worker, including the SendPulse delivery fix from PR #188, to the isolated staging Worker only.
 # Deploy and verify staging password-login diagnostics from PR #191; repeat the guarded Worker-only staging check, with no email delivery or D1 migration.
+# Deploy PR #192's bounded same-origin SendPulse POST redirect fix and safe email-test diagnostics; no provider email or credential change.
 
 jobs:
   deploy:
