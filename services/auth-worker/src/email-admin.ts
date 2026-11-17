@@ -119,6 +119,7 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
         supabaseUrl: env.SUPABASE_PROVISIONING_URL ?? "",
         supabaseEnvironment: env.SUPABASE_PROVISIONING_ENV ?? "staging",
         publishableKey: env.SUPABASE_PROVISIONING_PUBLISHABLE_KEY ?? "",
+        jwksDb: env.DB,
         allowUnverifiedEmail: !(await readEmailVerificationPolicy(env)),
       });
       return { user };
