@@ -97,7 +97,7 @@ test("SendPulse delivery blocks cross-origin redirects and redirect chains", asy
         chainCalls += 1;
         return new Response(null, {
           status: 307,
-          headers: { location: chainCalls === 1 ? "/smtp/emails/" : "/smtp/emails/final/" },
+          headers: { location: chainCalls === 1 ? "/smtp/emails/" : "/smtp/emails" },
         });
       },
     ),
@@ -177,7 +177,7 @@ test("SendPulse read-only check blocks redirect chains and classifies API 429 se
         redirectCalls += 1;
         return new Response(null, {
           status: 307,
-          headers: { location: "/smtp/emails/total/next" },
+          headers: { location: "/smtp/emails/total/" },
         });
       },
     ),
