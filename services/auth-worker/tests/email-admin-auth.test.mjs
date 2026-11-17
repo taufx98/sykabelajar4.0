@@ -538,33 +538,51 @@ console.log("Better Auth email-admin bridge verification tests passed.");
 
 
 test("unverified email is accepted only when the staging verification policy explicitly allows it", async () => {
-  const unverifiedInfo = {
-    sub: USER_ID,
-    email: "staging-owner@example.test",
-    email_verified: false,
-  };
-  const allowedNetwork = makeFetch({ userInfo: unverifiedInfo });
+  const allowedDb = makeJwksDb(undefined, {
+    userRow: {
+      id: USER_ID,
+      email: "staging-owner@example.test",
+      emailVerified: 0,
+    },
+  });
+  const allowedNetwork = makeFetch();
   const user = await resolveBetterAuthAdminIdentity(input({
+    jwksDb: allowedDb,
     allowUnverifiedEmail: true,
     fetchImpl: allowedNetwork.fetchImpl,
   }));
   assert.deepEqual(user, { id: USER_ID, email: "staging-owner@example.test" });
-  assert.equal(allowedNetwork.calls.length, 2, "the active admin role must still be checked after UserInfo");
+  assert.equal(allowedNetwork.calls.length, 1, "the active admin role must still be checked after local identity validation");
 
-  const deniedNetwork = makeFetch({ userInfo: unverifiedInfo });
+  const deniedDb = makeJwksDb(undefined, {
+    userRow: {
+      id: USER_ID,
+      email: "staging-owner@example.test",
+      emailVerified: 0,
+    },
+  });
+  const deniedNetwork = makeFetch();
   await assert.rejects(
-    resolveBetterAuthAdminIdentity(input({ fetchImpl: deniedNetwork.fetchImpl })),
-    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_USERINFO_INVALID",
+    resolveBetterAuthAdminIdentity(input({ jwksDb: deniedDb, fetchImpl: deniedNetwork.fetchImpl })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_IDENTITY_INVALID",
   );
-  assert.equal(deniedNetwork.calls.length, 1, "default policy must reject an unverified email before role lookup");
+  assert.equal(deniedNetwork.calls.length, 0, "default policy must reject an unverified email before role lookup");
 
-  const nonAdminNetwork = makeFetch({ userInfo: unverifiedInfo, roles: [{ user_id: USER_ID, role: "student", is_active: true }] });
+  const nonAdminDb = makeJwksDb(undefined, {
+    userRow: {
+      id: USER_ID,
+      email: "staging-owner@example.test",
+      emailVerified: 0,
+    },
+  });
+  const nonAdminNetwork = makeFetch({ roles: [{ user_id: USER_ID, role: "student", is_active: true }] });
   await assert.rejects(
     resolveBetterAuthAdminIdentity(input({
+      jwksDb: nonAdminDb,
       allowUnverifiedEmail: true,
       fetchImpl: nonAdminNetwork.fetchImpl,
     })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_REQUIRED",
   );
-  assert.equal(nonAdminNetwork.calls.length, 2, "temporary email bypass must never bypass the admin-role check");
+  assert.equal(nonAdminNetwork.calls.length, 1, "temporary email bypass must never bypass the admin-role check");
 });
