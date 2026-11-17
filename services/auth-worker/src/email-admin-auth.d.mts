@@ -26,6 +26,13 @@ export interface ResolveBetterAuthAdminIdentityInput {
           expiresAt?: unknown;
         }>;
       }>;
+      bind(...values: unknown[]): {
+        first(): Promise<{
+          id?: unknown;
+          email?: unknown;
+          emailVerified?: unknown;
+        } | null>;
+      };
     };
   };
   allowUnverifiedEmail?: boolean;
