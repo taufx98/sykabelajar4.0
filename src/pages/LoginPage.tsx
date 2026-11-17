@@ -109,6 +109,20 @@ export function LoginPage() {
             : text('Verifikasi email terlebih dahulu. Kami dapat mengirim ulang tautan verifikasi.','Verify your email first. You can request another verification link.'), 'info');
           return;
         }
+        if (/^AUTH_EMAIL_(DELIVERY_STATUS_UNKNOWN|DELIVERY_FAILED|ALL_PROVIDERS_EXHAUSTED|PROVIDER_QUOTA_REACHED|PROVIDER_CREDENTIAL_UNAVAILABLE|ENCRYPTION_KEY_NOT_CONFIGURED)$/.test(result.error ?? '')) {
+          toast(text(
+            'Layanan email verifikasi sedang bermasalah. Login akun yang belum terverifikasi belum dapat dilanjutkan. Periksa provider email dan coba lagi setelah pulih.',
+            'Email verification delivery is currently unavailable. Unverified accounts cannot sign in until email delivery recovers.',
+          ), 'error');
+          return;
+        }
+        if (result.error === 'APPLICATION_IDENTITY_NOT_READY') {
+          toast(text(
+            'Identitas akun belum berhasil disinkronkan ke database staging. Coba lagi nanti atau hubungi admin.',
+            'Your account identity could not be synchronized to the staging database. Try again later or contact an admin.',
+          ), 'error');
+          return;
+        }
         toast(result.error || 'Login gagal', 'error');
         return;
       }
