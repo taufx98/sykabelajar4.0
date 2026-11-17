@@ -1,0 +1,309 @@
+name: Auth Cloudflare Production Preflight (Read Only)
+# This workflow performs GET requests and D1 SELECT queries only.
+# It must never deploy a Worker, apply a migration, write D1 rows, alter secrets, or change DNS.
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/workflows/auth-cloudflare-production-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-cloudflare-production-preflight
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' }}
+    name: Read-only verify current Worker source and empty Production D1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    steps:
+      - name: Checkout the exact auth migration branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Verify the reviewed staging and Production config files
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from "node:fs";
+
+          const staging = readFileSync("wrangler.toml", "utf8");
+          const production = readFileSync("wrangler.production.toml", "utf8");
+          const migrations = readdirSync("migrations-production").filter((name) => name.endsWith(".sql")).sort();
+
+          const expectedMigrations = [
+            "0000_auth_worker_internal_config.sql",
+            "0001_better_auth.sql",
+            "0002_seed_first_party_oauth_client.sql",
+            "0003_zeptomail_agent_settings.sql",
+            "0004_better_auth_registration_attributes.sql",
+            "0005_telegram_phone_verification.sql",
+            "0006_transactional_email_provider.sql",
+            "0007_managed_social_login_providers.sql",
+            "0008_auth_runtime_settings.sql",
+            "0009_multi_provider_email_routing.sql",
+            "0010_custom_http_email_provider.sql",
+          ];
+          if (JSON.stringify(migrations) !== JSON.stringify(expectedMigrations)) {
+            throw new Error("Production migration source inventory differs from the reviewed 0000–0010 set.");
+          }
+
+          const exact = [
+            ['production Worker name', production, /^name = "sykabelajar-auth-poc"$/m],
+            ['Production D1 name', production, /^database_name = "sykabelajar-auth-prod"$/m],
+            ['Production D1 UUID', production, /^database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"$/m],
+            ['Production custom hostname', production, /^pattern = "auth\.sykabelajar\.my\.id"$/m],
+            ['Production closed signup', production, /^AUTH_SIGNUP_DISABLED = "true"$/m],
+            ['Production provisioning disabled', production, /^SUPABASE_PROVISIONING_ENABLED = "false"$/m],
+            ['Production environment pin', production, /^SUPABASE_PROVISIONING_ENV = "production"$/m],
+            ['staging Worker name', staging, /^name = "sykabelajar-auth-poc"$/m],
+            ['staging D1 name', staging, /^database_name = "sykabelajar-auth-poc"$/m],
+            ['staging D1 UUID', staging, /^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m],
+          ];
+          for (const [label, source, pattern] of exact) {
+            if (!pattern.test(source)) throw new Error("Config guard failed: " + label);
+          }
+          if (/staging\.sykabelajar\.my\.id|security-auth-poc-stage-1/i.test(production)) {
+            throw new Error("Production Worker config contains a staging hostname.");
+          }
+          if (!production.includes("https://mvdczyitbkxkldjughor.supabase.co")) {
+            throw new Error("Production Worker config is not pinned to the approved DB2 project.");
+          }
+          console.log(JSON.stringify({
+            reviewedProductionTarget: "sykabelajar-auth-prod / 6d4dc7b5-8e71-4fdc-9cda-3230e49951c7",
+            existingWorker: "sykabelajar-auth-poc",
+            productionSignup: "closed",
+            productionProvisioning: "disabled",
+            productionMigrationsReviewed: "0000–0010",
+            stagingConfigIsSeparate: true,
+            secretsOrRuntimeChanged: false,
+          }));
+          NODE
+
+      - name: Install the pinned Wrangler toolchain
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+
+      - name: Install locked Worker dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Read Cloudflare Worker, custom-domain and Production D1 metadata
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          if (!token || !accountId) throw new Error("Cloudflare read credentials are not configured.");
+
+          const base = "https://api.cloudflare.com/client/v4";
+          const headers = { Authorization: "Bearer " + token, Accept: "application/json" };
+          async function read(path, label) {
+            const response = await fetch(base + path, { method: "GET", headers, redirect: "error" });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || body.success !== true) {
+              const codes = Array.isArray(body.errors) ? body.errors.map((entry) => entry.code) : [];
+              throw new Error(label + " read failed (HTTP " + response.status + ", codes " + codes.join(",") + "). No write was attempted.");
+            }
+            return body.result;
+          }
+
+          const account = "/accounts/" + encodeURIComponent(accountId);
+          const [scripts, domains, settings, d1] = await Promise.all([
+            read(account + "/workers/scripts", "Worker script inventory"),
+            read(account + "/workers/domains?hostname=auth.sykabelajar.my.id", "Worker custom-domain inventory"),
+            read(account + "/workers/scripts/sykabelajar-auth-poc/settings", "Current Worker binding inventory"),
+            read(account + "/d1/database/6d4dc7b5-8e71-4fdc-9cda-3230e49951c7", "Production D1 inventory"),
+          ]);
+
+          const scriptRows = Array.isArray(scripts) ? scripts : [];
+          const domainRows = Array.isArray(domains) ? domains : [];
+          const matchingDomains = domainRows.filter((row) =>
+            row?.hostname === "auth.sykabelajar.my.id" &&
+            row?.service === "sykabelajar-auth-poc" &&
+            row?.enabled === true);
+          const d1Bindings = Array.isArray(settings?.bindings)
+            ? settings.bindings.filter((binding) => binding?.type === "d1" && binding?.name === "DB")
+            : [];
+
+          if (!scriptRows.some((row) => row?.id === "sykabelajar-auth-poc")) {
+            throw new Error("The accepted existing Worker script is not present in this Cloudflare account.");
+          }
+          if (matchingDomains.length !== 1) {
+            throw new Error("The existing auth hostname is not attached exactly once to the approved Worker.");
+          }
+          if (d1Bindings.length !== 1 ||
+              (d1Bindings[0].database_id ?? d1Bindings[0].id) !== "7a4f9008-a1c6-42b6-8a04-abde12699248") {
+            throw new Error("The current Worker is not bound to the exact accepted staging D1; refusing an unexpected source state.");
+          }
+          if (d1?.name !== "sykabelajar-auth-prod" ||
+              d1?.uuid !== "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7") {
+            throw new Error("Cloudflare did not confirm the exact Production D1 resource.");
+          }
+
+          console.log(JSON.stringify({
+            workerExists: true,
+            workerName: "sykabelajar-auth-poc",
+            currentWorkerD1: "accepted staging D1 verified",
+            existingAuthHostname: "auth.sykabelajar.my.id",
+            existingHostnameAttachedToSameWorker: true,
+            productionD1: d1.name,
+            productionD1Uuid: d1.uuid,
+            bindingNamesRead: true,
+            secretValuesRead: false,
+            dnsOrWorkerChanged: false,
+          }));
+          NODE
+
+      - name: Read Production D1 migration ledger and schema
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json \
+            --command "SELECT name FROM d1_migrations ORDER BY name;" \
+            > "$RUNNER_TEMP/production-d1-migrations.json"
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json \
+            --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name <> 'd1_migrations' ORDER BY name;" \
+            > "$RUNNER_TEMP/production-d1-tables.json"
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json \
+            --command "SELECT
+              (SELECT COUNT(*) FROM \"user\") AS users,
+              (SELECT COUNT(*) FROM \"account\") AS accounts,
+              (SELECT COUNT(*) FROM \"session\") AS sessions,
+              (SELECT COUNT(*) FROM \"verification\") AS verifications,
+              (SELECT COUNT(*) FROM oauthAccessToken) AS access_tokens,
+              (SELECT COUNT(*) FROM oauthRefreshToken) AS refresh_tokens,
+              (SELECT COUNT(*) FROM auth_email_accounts) AS legacy_email_accounts;" \
+            > "$RUNNER_TEMP/production-d1-empty-state.json"
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json \
+            --command "SELECT redirectUris AS redirect_uris FROM oauthClient WHERE clientId='sykabelajar_web_tSXvLgIj2QKRk69g14KgjRD12uQERQnFYm7_kucut1Y';" \
+            > "$RUNNER_TEMP/production-d1-callback.json"
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json \
+            --command "SELECT name FROM pragma_table_info('user') WHERE name IN ('accountType','username','referralCode','birthDate','institution','grade','subjects') ORDER BY name;" \
+            > "$RUNNER_TEMP/production-d1-profile-columns.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const root = process.env.RUNNER_TEMP;
+          const read = (name) => JSON.parse(readFileSync(root + "/" + name, "utf8"));
+          const visit = (value, predicate, out = []) => {
+            if (Array.isArray(value)) value.forEach((item) => visit(item, predicate, out));
+            else if (value && typeof value === "object") {
+              if (predicate(value)) out.push(value);
+              Object.values(value).forEach((item) => visit(item, predicate, out));
+            }
+            return out;
+          };
+
+          const expectedMigrations = [
+            "0000_auth_worker_internal_config.sql",
+            "0001_better_auth.sql",
+            "0002_seed_first_party_oauth_client.sql",
+            "0003_zeptomail_agent_settings.sql",
+            "0004_better_auth_registration_attributes.sql",
+            "0005_telegram_phone_verification.sql",
+            "0006_transactional_email_provider.sql",
+            "0007_managed_social_login_providers.sql",
+          ];
+          const migrations = visit(read("production-d1-migrations.json"), (row) => typeof row.name === "string")
+            .map((row) => row.name).sort();
+          if (JSON.stringify(migrations) !== JSON.stringify([...expectedMigrations].sort())) {
+            throw new Error("Production D1 migration ledger is not exactly 0000–0007; stop and inspect before any change.");
+          }
+
+          const expectedTables = [
+            "account","auth_email_accounts","auth_email_admin_test_limits","auth_email_settings",
+            "auth_worker_internal_config","jwks","oauthAccessToken","oauthClient","oauthClientAssertion",
+            "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
+            "session","user","verification","auth_phone_verification_challenges",
+            "auth_social_provider_meta","auth_social_provider_settings",
+          ];
+          const tables = visit(read("production-d1-tables.json"), (row) =>
+            typeof row.name === "string" && expectedTables.includes(row.name))
+            .map((row) => row.name).sort();
+          if (JSON.stringify(tables) !== JSON.stringify([...expectedTables].sort())) {
+            throw new Error("Production D1 schema does not match the reviewed pre-promotion 20-table baseline.");
+          }
+          const forbiddenTables = ["auth_runtime_settings","auth_email_provider_accounts","auth_email_provider_settings"];
+          const allTableNames = visit(read("production-d1-tables.json"), (row) => typeof row.name === "string")
+            .map((row) => row.name);
+          if (forbiddenTables.some((name) => allTableNames.includes(name))) {
+            throw new Error("One or more post-0007 email-policy/routing tables already exist; stop and review migration history.");
+          }
+
+          const counts = visit(read("production-d1-empty-state.json"), (row) => Object.hasOwn(row, "users") && Object.hasOwn(row, "legacy_email_accounts"));
+          if (counts.length !== 1) throw new Error("Could not read exactly one Production D1 empty-state summary.");
+          const row = counts[0];
+          for (const field of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens","legacy_email_accounts"]) {
+            if (Number(row[field]) !== 0) throw new Error("Production D1 is not the expected empty auth store: " + field + " is nonzero.");
+          }
+
+          const callbacks = visit(read("production-d1-callback.json"), (item) => typeof item.redirect_uris === "string");
+          if (callbacks.length !== 1) throw new Error("Expected exactly one first-party Production OAuth client.");
+          const redirectUris = JSON.parse(callbacks[0].redirect_uris);
+          if (JSON.stringify(redirectUris) !== JSON.stringify(["https://sykabelajar.my.id/auth/oidc/callback"])) {
+            throw new Error("Production D1 OAuth callback does not match the canonical Production URL.");
+          }
+
+          const profileColumns = visit(read("production-d1-profile-columns.json"), (item) => typeof item.name === "string")
+            .map((item) => item.name);
+          const expectedColumns = ["accountType","username","referralCode","birthDate","institution","grade","subjects"];
+          if (expectedColumns.some((column) => !profileColumns.includes(column))) {
+            throw new Error("Production Better Auth user profile mapping columns are incomplete.");
+          }
+
+          console.log(JSON.stringify({
+            result: "PASS",
+            productionD1Migrations: "0000–0007 only",
+            expectedTables: expectedTables.length,
+            authIdentityRows: 0,
+            credentialAndSessionRows: 0,
+            legacyEmailRows: 0,
+            productionOAuthCallback: "canonical website callback verified",
+            profileMappingColumns: expectedColumns.length,
+            emailVerificationPolicyMigration: "0008 not applied",
+            multiProviderRoutingMigrations: "0009–0010 not applied",
+            remoteOperations: "SELECT only",
+            migrationApplyAttempted: false,
+            WorkerDeploymentAttempted: false,
+            secretsOrDnsChanged: false,
+          }));
+          NODE
+
+      - name: Remove temporary inspection output
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/production-d1-*.json
+
+      - name: Record explicit read-only boundary
+        if: always()
+        run: |
+          {
+            echo "## Cloudflare Production preflight — read only"
+            echo ""
+            echo "- Only Cloudflare GET requests and D1 SELECT queries were permitted."
+            echo "- No D1 migration, row write, Worker deployment, secret mutation, DNS edit, OIDC registration, or application routing change was attempted."
+          } >> "$GITHUB_STEP_SUMMARY"
