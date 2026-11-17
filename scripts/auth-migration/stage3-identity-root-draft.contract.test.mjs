@@ -238,7 +238,9 @@ for (const stage of orderedStages) {
 }
 assert.match(workflow, /expected="69\\|0"/,
   "disposable forward cutover must prove 69 validated app_users FKs and zero auth.users FKs");
-assert.match(workflow, /postgresql:\/\/postgres:postgres@127[.]0[.]0[.]1:54322\/postgres/,
+assert.match(workflow, /port = 55432/,
+  "the disposable local Supabase database must use its isolated non-default port");
+assert.match(workflow, /postgresql:\/\/postgres:postgres@127[.]0[.]0[.]1:55432\/postgres/,
   "identity-root and FK drafts must execute only against the disposable local database");
 assert.match(workflow, /--file=\/baseline\/auth-stage3-identity-root-draft[.]sql/);
 assert.match(workflow, /--file="\/plan\/\$phase"/);
