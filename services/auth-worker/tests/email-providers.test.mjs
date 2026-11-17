@@ -26,7 +26,7 @@ test("SendPulse uses the official SMTP REST endpoint and Bearer static API key",
 });
 
 test("SendPulse HTML alternative is UTF-8 safe and escapes message content", async () => {
-  const contentText = "Baris 1\\n<kode> & “tes” ✅";
+  const contentText = "Baris 1\n<kode> & “tes” ✅";
   let captured;
   await sendEmailWithProvider(
     "sendpulse",
