@@ -96,6 +96,8 @@ const ERROR_LABELS: Record<string, string> = {
   AUTH_JWKS_KEY_AMBIGUOUS: 'JWKS Worker memiliki lebih dari satu kunci yang cocok untuk token.',
   AUTH_JWKS_UNAVAILABLE: 'Worker tidak dapat membaca kunci publik Better Auth dari D1.',
   AUTH_JWKS_INVALID: 'Respons JWKS dari issuer Better Auth tidak valid.',
+  AUTH_IDENTITY_UNAVAILABLE: 'Worker tidak dapat membaca identitas akun dari D1 Better Auth.',
+  AUTH_IDENTITY_INVALID: 'Akun Better Auth tidak ditemukan atau email belum diverifikasi.',
   AUTH_USERINFO_UNAVAILABLE: 'Endpoint UserInfo Better Auth tidak dapat dihubungi.',
   AUTH_USERINFO_INVALID: 'Identitas UserInfo tidak cocok atau email belum terverifikasi.',
   AUTH_SESSION_REQUIRED: 'Sesi Better Auth staging tidak ditemukan. Login ulang melalui staging.',
