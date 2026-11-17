@@ -218,6 +218,10 @@ jobs:
           mkdir -p "$SUPABASE_CLI_WORKDIR/supabase/migrations"
           cat > "$SUPABASE_CLI_WORKDIR/supabase/config.toml" <<'TOML'
           project_id = "sykabelajar-auth-baseline"
+
+          [db]
+          # Avoid runner-host collisions on Supabase CLI default 54322.
+          port = 55432
           TOML
           test -d "$SUPABASE_CLI_WORKDIR/supabase/migrations"
           test ! -e "$SUPABASE_CLI_WORKDIR/supabase/seed.sql"
@@ -335,14 +339,14 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$SCHEMA_BASELINE_OUTPUT_DIR:/baseline:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 --file=/baseline/schema.sql
 
           docker run --rm --network host \
             -e PGPASSWORD=postgres \
             -v "$SCHEMA_BASELINE_OUTPUT_DIR:/baseline:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 --file=/baseline/auth-storage-custom.sql
 
       - name: Reconstruct production Auth function ACLs in disposable local database only
@@ -357,7 +361,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$RUNNER_TEMP/stage3-function-acls.sql:/baseline/stage3-function-acls.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-function-acls.sql
 
@@ -375,7 +379,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$RUNNER_TEMP/stage5-payment-function-acl.sql:/baseline/stage5-payment-function-acl.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage5-payment-function-acl.sql
 
@@ -448,7 +452,7 @@ jobs:
           )
 
           actual="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -qAt --field-separator='|' --set=ON_ERROR_STOP=1 --command "$SQL")"
           expected="69|62|3|4|36|109|10|0|0"
           if [[ "$actual" != "$expected" ]]; then
@@ -513,7 +517,7 @@ jobs:
           )
 
           docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -qAt --set=ON_ERROR_STOP=1 --command "$FK_SQL" \
               > "$RUNNER_TEMP/restored-auth-users-fks.json"
 
@@ -529,7 +533,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-baseline-metadata.sql:/baseline/stage3-baseline-metadata.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -qAt --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-baseline-metadata.sql \
               > "$RUNNER_TEMP/restored-stage3-baseline-metadata.json"
@@ -546,7 +550,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql:/baseline/create-organizer-fix.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/create-organizer-fix.sql
           echo "- Applied the reviewed create_organizer ambiguity correction to the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
@@ -559,7 +563,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql:/baseline/auth-stage3-identity-root-draft.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/auth-stage3-identity-root-draft.sql
           echo "- Applied Stage 3 identity-root draft; no legacy Auth accounts/backfill" >> "$GITHUB_STEP_SUMMARY"
@@ -582,7 +586,7 @@ jobs:
             -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
             -v "$PLAN_DIR:/plan:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 --file=/plan/00-identity-tombstones.sql
 
           for phase in 01-preflight-expand.sql 02-validate.sql 03-cutover.sql; do
@@ -591,13 +595,13 @@ jobs:
               -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
               -v "$PLAN_DIR:/plan:ro" \
               postgres:17.6-alpine \
-              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
                 -X -q --set=ON_ERROR_STOP=1 --file="/plan/$phase"
           done
 
           actual="$(
             docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
                 -X -qAt --set=ON_ERROR_STOP=1 --command "
                   SELECT
                     (SELECT count(*)
@@ -641,7 +645,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-better-auth-provisioning-regression.sql:/baseline/stage3-better-auth-provisioning-regression.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-better-auth-provisioning-regression.sql
           echo "- Better Auth identity, role, referral/email, Telegram-phone and organizer assertions passed and rolled back locally" >> "$GITHUB_STEP_SUMMARY"
@@ -654,7 +658,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-production-schema-regression.sql:/baseline/stage3-production-schema-regression.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-production-schema-regression.sql
           {
@@ -671,7 +675,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql:/baseline/auth-stage3-issuer-guard.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/auth-stage3-issuer-guard.sql
           echo "- Added restrictive Better Auth issuer-only guard to the 61 auth.uid()-policy tables in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
@@ -684,7 +688,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage3-issuer-guard-regression.sql:/baseline/stage3-issuer-guard-regression.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-issuer-guard-regression.sql
           echo "- Verified legacy Supabase and Better Auth issuer access; rejected an untrusted issuer; rolled back all fixtures" >> "$GITHUB_STEP_SUMMARY"
@@ -697,7 +701,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql:/baseline/stage5-no-policy-table-acl-draft.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage5-no-policy-table-acl-draft.sql
           echo "- Tested targeted anon/authenticated table-grant revocation for three RLS-enabled/no-policy tables on the disposable restore only; service_role and postgres access remained intact" >> "$GITHUB_STEP_SUMMARY"
@@ -715,7 +719,7 @@ jobs:
 
           # A Better Auth-only identity must block reverse cutover before any FK DDL.
           docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 --command "
                 INSERT INTO private.app_users(id)
                 VALUES ('f8b8f8b8-9999-4999-8999-999999999999')
@@ -727,13 +731,13 @@ jobs:
             -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
             -v "$PLAN_DIR:/plan:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/plan/01-preflight-expand-auth-rollback.sql 2>&1)"
           blocker_status=$?
           set -e
           docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 --command "
                 DELETE FROM private.app_users
                 WHERE id='f8b8f8b8-9999-4999-8999-999999999999';
@@ -745,7 +749,7 @@ jobs:
           fi
           remaining_temp_fks="$(
             docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
                 -X -qAt --set=ON_ERROR_STOP=1 --command "
                   SELECT count(*) FROM pg_constraint WHERE conname LIKE 'ba_auth_rollback_fk_%';
                 "
@@ -762,13 +766,13 @@ jobs:
               -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
               -v "$PLAN_DIR:/plan:ro" \
               postgres:17.6-alpine \
-              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
                 -X -q --set=ON_ERROR_STOP=1 --file="/plan/$phase"
           done
 
           actual="$(
             docker run --rm --network host -e PGPASSWORD=postgres postgres:17.6-alpine \
-              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
                 -X -qAt --set=ON_ERROR_STOP=1 --command "
                   SELECT
                     (SELECT count(*)
@@ -809,7 +813,7 @@ jobs:
             -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=120s" \
             -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-ROLLBACK-DRAFT.sql:/baseline/auth-stage3-rollback-draft.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/auth-stage3-rollback-draft.sql
           echo "- Full Stage 3 rollback draft restored legacy Auth functions/triggers/issuer policies and removed private.app_users on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
@@ -822,7 +826,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-5-PAYMENT-SERVICE-ROLE-CLAIM-DRAFT.sql:/baseline/stage5-payment-service-role-claim-draft.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage5-payment-service-role-claim-draft.sql
           echo "- Applied and exercised the service-role claim guard draft on the disposable restore only; authenticated/anon role rejection and legacy fallback were verified" >> "$GITHUB_STEP_SUMMARY"
@@ -835,7 +839,7 @@ jobs:
             -e PGPASSWORD=postgres \
             -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage5-edge-two-user-fixtures.sql:/baseline/stage5-edge-two-user-fixtures.sql:ro" \
             postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage5-edge-two-user-fixtures.sql
 
