@@ -15,6 +15,11 @@ export interface ResolveBetterAuthAdminIdentityInput {
   supabaseUrl: string;
   supabaseEnvironment?: "staging" | "production";
   publishableKey: string;
+  jwksDb: {
+    prepare(sql: string): {
+      all(): Promise<{ results?: Array<unknown> }>;
+    };
+  };
   allowUnverifiedEmail?: boolean;
   fetchImpl?: typeof fetch;
   verifyJwtImpl?: (
@@ -22,9 +27,8 @@ export interface ResolveBetterAuthAdminIdentityInput {
     key: unknown,
     options: Record<string, unknown>,
   ) => Promise<{ payload: Record<string, unknown> }>;
-  createJwksImpl?: (
-    url: URL,
-    options?: Record<string, unknown>,
+  createLocalJwksImpl?: (
+    jwks: { keys: Array<Record<string, unknown>> },
   ) => unknown;
   nowSeconds?: number;
 }
