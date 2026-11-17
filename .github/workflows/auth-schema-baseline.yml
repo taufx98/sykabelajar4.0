@@ -1,3 +1,4 @@
+# Read-only Production schema preflight recheck after successful staging SendPulse validation; remote export only, no Production DDL/DML, D1 migration, Worker deployment, secret, DNS, or account changes.
 name: Auth Production Schema Baseline
 # Triggered by a workflow-file push; production reads remain schema-only and isolated.
 
