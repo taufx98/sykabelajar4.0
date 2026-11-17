@@ -25,6 +25,15 @@ test("SendPulse uses the official SMTP REST endpoint and Bearer static API key",
   assert.equal(captured.init.body.includes("sendpulse-static-test-key-123456"), false);
 });
 
+test("SendPulse rejects invalid sender/message responses with a safe provider rejection code", async () => {
+  await assert.rejects(
+    sendEmailWithProvider("sendpulse", { apiKey: "sendpulse-static-test-key-123456" }, account, message, async () =>
+      new Response(JSON.stringify({ message: "Sender is not valid" }), { status: 422 })),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_REJECTED_MESSAGE",
+  );
+});
+
 test("SendPulse connection check uses the read-only stats endpoint and never sends an email", async () => {
   let captured;
   const result = await checkSendPulseConnection(
