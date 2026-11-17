@@ -1,26 +1,29 @@
-# Custom email provider continuation checkpoint — 17 November 2026
+# Staging email provider execution checkpoint — 17 November 2026
 
-This checkpoint supersedes the 15 November five-provider note below. The agreed scope remains the seven Better Auth stages; it does not authorize Production D1, Worker, OIDC or DB2 changes.
+This checkpoint supersedes the earlier 17 November preparation-only note above the historical Production checkpoints. It records the completed staging execution after the latest custom HTTP email-provider integration. It does not authorize Production changes.
 
-## Added in the auth migration branch — preparation only
+## Completed on isolated staging
 
-- Five built-in providers remain: SendPulse, Brevo, Mailjet, Mailtrap Email Sending and Resend.
-- Admin can also add compatible HTTPS JSON email APIs through Custom HTTP: endpoint, no auth/Bearer/API-key header/Basic Auth, custom headers and JSON payload template.
-- Custom endpoint/auth/header/payload configuration is encrypted in D1 with email credentials. Admin GET exposes safe endpoint metadata only; secrets are write-only.
-- Custom endpoints are restricted to HTTPS/public hostnames/standard port; URL credentials, query/fragment, local/IP endpoints, sensitive auth headers and redirects are rejected.
-- Atomic D1 quota counters, priority, cooldown and failover remain shared by built-in and custom providers. Failover is allowed only after definitive credential/quota rejection; timeout and 5xx stop to prevent duplicate messages.
-- The new runtime no longer reads or falls back to legacy ZeptoMail/Brevo Agent settings. Their historic D1 tables/migrations remain inert. Email verification and password reset remain fail-closed until a new provider is configured and actual delivery is accepted.
-- New staging migration 0012 and Production migration 0010 rebuild only the email-provider configuration table, preserving current email-provider settings/counters. They do not touch Better Auth users, accounts, sessions, credentials, Supabase Auth users or application identities.
+- **Integration PR #177 merged to the dedicated auth integration branch**, `security/auth-migration-phase-0`, at merge commit `643d05d135bb5c1221271115349736cbc11ed784`. This was not a merge to `main` and did not authorize Production cutover.
+- **Staging D1 migration 0012 applied successfully** by [workflow #43932703879](https://github.com/taufx98/sykabelajar4.0/actions/runs/43932703879). The `auth_email_provider_accounts` schema now supports the custom HTTPS JSON provider configuration. The migration preserved the existing provider row and its encrypted/configuration data: provider row count remained 1 and its before/after fingerprint was identical.
+- **Existing Better Auth identities were preserved.** Before and after migration: 9 users, 9 accounts, and 2 sessions. Identity-linkage fingerprint was identical. No users, accounts, sessions, credentials, or application identities were copied, imported, deleted, or reset.
+- **Staging Auth Worker deployed successfully** by [workflow #43933409564](https://github.com/taufx98/sykabelajar4.0/actions/runs/43933409564), on staging source head `a04b29f65e808bbd7c9327084b69d8b92a48cc4b`. Deployed Worker version: `ff25c360-9622-4539-85f4-05dd2ed8c935`. Hosted checks verified health, issuer, discovery, ES256 JWKS, PKCE S256, CORS, Admin authorization and required-email-verification policy. Runtime reported `emailVerificationConfigured=true` and `emailVerificationRequired=true`.
+- **Frontend staging deployment succeeded** for the same source head: the Cloudflare Pages check on commit `a04b29f65e808bbd7c9327084b69d8b92a48cc4b` completed successfully. `AdminPage` now renders `TransactionalEmailSettingsPanel` under Admin → Pengaturan.
+- **CI passed** in [Auth Worker CI #43933409511](https://github.com/taufx98/sykabelajar4.0/actions/runs/43933409511), including frontend lint/typecheck/build and Auth Worker security/integration tests.
 
-## Still pending
+## Email acceptance boundary
 
-- Staging migration 0012 and guarded Worker redeployment for the custom adapter have not been executed. No new provider credentials have been entered and no test email has been sent.
-- Production D1 migrations 0008–0010, Worker promotion, Production OIDC registration, DB2 identity/FK migration and frontend switch remain unexecuted.
-- No login account is to be copied/imported/reset. Production starts with fresh Better Auth identities after the explicit cutover gate. PR #177 remains unmerged until final review.
+The owner had already accepted the staging registration/login/email-OTP flow before this continuation. That acceptance is retained; do not repeat the whole login or OTP test without a concrete regression.
 
-The architecture remains unchanged: Better Auth owns credentials/sessions/OIDC; Supabase DB2 remains the application database and business-role/RLS authority. Cloudinary remains the media store. No unrelated application feature or business schema is part of this work.
+This deployment did not send another real email and did not alter the preserved provider credentials. The hosted `emailVerificationConfigured` flag confirms configuration readiness only; it is not evidence of a new delivery attempt. No provider credentials were entered or exposed through chat. The Admin panel is deployed, but an authenticated Admin save/change action was not manually exercised as part of these deployment checks.
 
----
+## Production remains unchanged — NO-GO
+
+No Production D1 migration 0008–0010 was applied. No Production Worker promotion, Production Worker-secret mutation, Custom OIDC registration, DB2 identity/FK DDL or DML, Production frontend auth-routing change, DNS/Pages change, or account mutation was performed.
+
+Production cutover remains blocked pending the existing Stage 7 gates and a separate explicit owner approval. The Production account store is intended to start with fresh Better Auth identities; no legacy login account is to be copied, imported, or reset.
+
+The architecture remains unchanged: Better Auth owns credentials, sessions and OIDC; Supabase DB2 remains the application database and business-role/RLS authority; Cloudinary remains the media store. No unrelated application or business-schema work is included.
 
 ---
 
