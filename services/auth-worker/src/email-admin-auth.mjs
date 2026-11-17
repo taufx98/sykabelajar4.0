@@ -90,9 +90,8 @@ export class BetterAuthAdminAuthError extends Error {
 
 /** @param {string} code */
 function codedJwksFailure(code) {
-  /** @type {Error & {code: string}} */
   const error = new Error(code);
-  error.code = code;
+  Object.assign(error, { code });
   return error;
 }
 
