@@ -255,8 +255,8 @@ async function request(provider, fetcher, endpoint, init, options = {}) {
     while (true) {
       response = await fetcher(requestUrl, {
         ...init,
-        // Email delivery still rejects every redirect. Only the read-only
-        // SendPulse diagnostic may follow one redirect on its exact API origin.
+        // A caller may opt into one same-origin trailing-slash redirect only
+        // after pinning the exact HTTPS API origin. All other redirects fail closed.
         redirect: allowedRedirectOrigin ? "manual" : "error",
         signal: timeoutSignal,
       });
@@ -275,13 +275,19 @@ async function request(provider, fetcher, endpoint, init, options = {}) {
         throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REDIRECT_BLOCKED");
       }
 
+      const currentUrl = new URL(requestUrl);
+      const canonicalSlashPath = currentUrl.pathname.endsWith("/")
+        ? currentUrl.pathname.slice(0, -1)
+        : currentUrl.pathname + "/";
       if (
         redirectCount >= 1 ||
         nextUrl.origin !== allowedRedirectOrigin ||
         nextUrl.protocol !== "https:" ||
         nextUrl.username ||
         nextUrl.password ||
-        nextUrl.hash
+        nextUrl.hash ||
+        nextUrl.search ||
+        nextUrl.pathname !== canonicalSlashPath
       ) {
         // Never forward the Bearer key to a different origin or follow chains.
         throw new EmailProviderDeliveryError("EMAIL_PROVIDER_REDIRECT_BLOCKED");
@@ -539,7 +545,10 @@ export async function sendEmailWithProvider(provider, credentials, account, mess
     throw new EmailProviderDeliveryError("EMAIL_PROVIDER_UNSUPPORTED");
   }
 
-  const { result, bodyText } = await request(provider, fetcher, endpoint, init);
+  const requestOptions = provider === "sendpulse"
+    ? { allowedRedirectOrigin: "https://api.sendpulse.com" }
+    : {};
+  const { result, bodyText } = await request(provider, fetcher, endpoint, init, requestOptions);
   if (result && (result.result === false || result.success === false)) {
     if (quotaError(bodyText)) {
       throw new EmailProviderDeliveryError("EMAIL_PROVIDER_QUOTA_REACHED", {
