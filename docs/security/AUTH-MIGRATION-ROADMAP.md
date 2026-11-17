@@ -564,3 +564,16 @@ Owner-added test `services/auth-worker/supabase-test/supabase/tests/user_roles_b
 - [Auth Cloudflare Staging Preflight #43256248427](https://github.com/taufx98/sykabelajar4.0/actions/runs/43256248427) — passed; read-only staging resource inspection only.
 
 This closes the local **role claim/RLS row-visibility contract** for all four business roles. It does not cryptographically verify a real ES256 token and does not prove route/RPC/Edge business authorization for each role; those positive signed-token checks remain separate. The test created no persistent staging or Production identities. A read-only aggregate of Supabase staging remains: one `private.app_users`, one profile, one active admin role, zero `auth.users`, and two synthetic RLS fixture rows.
+
+
+## Non-regression guardrails — reaffirmed 17 November 2026
+
+Treat every accepted staging behavior, hosted acceptance result, and working integration as a protected baseline. The current working system must not be destabilized merely to simplify or refactor the migration.
+
+- Before changing an accepted component, inspect its current implementation, dependencies, configuration, and latest successful tests/deployment. Change it only when a concrete migration blocker or reproducible regression requires it.
+- Prefer the smallest isolated patch. Preserve existing interfaces, routes, sessions, role mapping, provider configuration, quotas, and successful user flows unless the exact change is necessary and tested.
+- Add regression coverage for the already-working behavior affected by a patch. Run relevant tests and current CI; do not claim a fix or acceptance without evidence.
+- Never replace, reset, delete, rotate, or reconfigure working credentials, accounts, data, D1 bindings, DNS, or routing as a shortcut. Do not rerun or rewrite accepted stages without evidence of regression.
+- Keep staging and Production strictly separated. Read-only Production preflight is allowed when its workflow is verified read-only. Production DDL/DML, D1 migrations, Worker promotion, OIDC registration, secret changes, frontend/DNS cutover, and legacy-account changes require separate explicit owner approval for the exact operation after its impact and rollback are stated.
+- Preserve the existing staging baseline and its test data. Do not use staging credentials or identities in Production, or the reverse.
+- When uncertainty exists about whether an operation mutates Production or can disrupt an accepted flow, stop before that operation and verify its workflow/code path first.
