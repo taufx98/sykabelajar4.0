@@ -319,7 +319,7 @@ export function isBetterAuthTokenForIssuer(token, authBaseUrl) {
  *   supabaseUrl:string,
  *   supabaseEnvironment?:"staging"|"production",
  *   publishableKey:string,
- *   jwksDb:{prepare:(sql:string)=>{all:()=>Promise<{results?:Array<{id?:unknown,publicKey?:unknown,alg?:unknown,crv?:unknown,expiresAt?:unknown}>}>}},
+ *   jwksDb:{prepare:(sql:string)=>{all:()=>Promise<{results?:Array<{id?:unknown,publicKey?:unknown,alg?:unknown,crv?:unknown,expiresAt?:unknown}>}>,bind:(...values:unknown[])=>{first:()=>Promise<{id?:unknown,email?:unknown,emailVerified?:unknown}|null>}}},
  *   allowUnverifiedEmail?:boolean,
  *   fetchImpl?:typeof fetch,
  *   verifyJwtImpl?:typeof jwtVerify,
