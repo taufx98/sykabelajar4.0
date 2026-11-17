@@ -574,6 +574,7 @@ async function testAccount(body: Record<string, unknown>, user: SupabaseAdminUse
       "EMAIL_PROVIDER_RESPONSE_READ_FAILED",
       "EMAIL_PROVIDER_HTTP_5XX",
       "EMAIL_PROVIDER_RESPONSE_INVALID",
+      "EMAIL_PROVIDER_REJECTED_MESSAGE",
     ].includes(code)) return json({ok:false,error:code},502);
     return json({ok:false,error:"EMAIL_PROVIDER_TEST_FAILED"},502);
   }
