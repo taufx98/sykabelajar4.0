@@ -20,6 +20,8 @@
 
 ## Current Stage 7 position
 
+- **Additional first-Production-admin gate identified 18 November 2026:** the only existing SQL bootstrap documents are staging-only. Production signup remains locked and there is no separately tested one-time owner-only Production first-account bootstrap route yet. Do not flip `AUTH_SIGNUP_DISABLED=false` for unrestricted public signup and do not run either staging SQL file against Production. Before GO, add and test a one-time Production owner bootstrap that is bound to the exact Production D1/DB2 environment, verifies the same real `emailVerified=true` Better Auth session UUID, projects the identity through the trusted RPC, grants the `admin` business role only to that selected UUID, rejects shadow `auth.users` identities/replays, and leaves public signup closed. This is a release gate, not a request to change Production now.
+
 **Production remains NO-GO.** The latest read-only schema and Cloudflare checks passed, but this is not cutover authorization and does not satisfy the requirement to repeat the DB2 catalog check immediately before the approved maintenance window.
 
 The following one-time Production markers remain absent:
