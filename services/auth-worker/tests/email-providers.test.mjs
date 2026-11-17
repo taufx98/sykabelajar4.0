@@ -25,6 +25,27 @@ test("SendPulse uses the official SMTP REST endpoint and Bearer static API key",
   assert.equal(captured.init.body.includes("sendpulse-static-test-key-123456"), false);
 });
 
+test("SendPulse HTML alternative is UTF-8 safe and escapes message content", async () => {
+  const contentText = "Baris 1\\n<kode> & “tes” ✅";
+  let captured;
+  await sendEmailWithProvider(
+    "sendpulse",
+    { apiKey: "sendpulse-static-test-key-123456" },
+    account,
+    { ...message, text: contentText },
+    async (_url, init) => {
+      captured = init;
+      return new Response(JSON.stringify({ result: true, id: "sendpulse-id-unicode" }), { status: 200 });
+    },
+  );
+  const body = JSON.parse(captured.body);
+  assert.equal(body.email.text, contentText);
+  assert.equal(
+    Buffer.from(body.email.html, "base64").toString("utf8"),
+    "<!doctype html><html><body><div>Baris 1<br>&lt;kode&gt; &amp; “tes” ✅</div></body></html>",
+  );
+});
+
 test("Brevo sends transactional messages using the API key header", async () => {
   let captured;
   await sendEmailWithProvider("brevo", { apiKey: "brevo-api-key-test-123456" }, account, message, async (url, init) => {
