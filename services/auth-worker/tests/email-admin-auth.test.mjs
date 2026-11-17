@@ -27,14 +27,29 @@ function makeJwksDb(rows = [{
   alg: "ES256",
   crv: "P-256",
   expiresAt: null,
-}]) {
+}], { userRow = {
+  id: USER_ID,
+  email: "admin@example.test",
+  emailVerified: 1,
+}, failUserLookup = false } = {}) {
   const statements = [];
+  const userLookups = [];
   return {
     statements,
+    userLookups,
     prepare(sql) {
       statements.push(sql);
       return {
         all: async () => ({ success: true, results: rows }),
+        bind(...values) {
+          return {
+            first: async () => {
+              userLookups.push({ sql, values });
+              if (failUserLookup) throw new Error("private D1 failure");
+              return userRow;
+            },
+          };
+        },
       };
     },
   };
@@ -57,18 +72,10 @@ function fakeToken(claims = {}) {
   return header + "." + payload + ".signature";
 }
 
-function makeFetch({ userInfo, roles, failUserInfo = false, failRoles = false, supabaseUrl = SUPABASE_URL, publishableKey = PUBLISHABLE_KEY } = {}) {
+function makeFetch({ roles, failRoles = false, supabaseUrl = SUPABASE_URL, publishableKey = PUBLISHABLE_KEY } = {}) {
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url: String(url), init });
-    if (String(url) === ISSUER + "/oauth2/userinfo") {
-      if (failUserInfo) return new Response("unavailable", { status: 503 });
-      return new Response(JSON.stringify(userInfo ?? {
-        sub: USER_ID,
-        email: "admin@example.test",
-        email_verified: true,
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
-    }
     if (String(url).startsWith(supabaseUrl + "/rest/v1/user_roles?")) {
       assert.equal(init.headers.apikey, publishableKey);
       assert.match(init.headers.Authorization, /^Bearer /);
@@ -127,13 +134,14 @@ test("Better Auth admin identity is verified and role checked only in the pinned
   const network = makeFetch();
   const user = await resolveBetterAuthAdminIdentity(input({ fetchImpl: network.fetchImpl }));
   assert.deepEqual(user, { id: USER_ID, email: "admin@example.test" });
-  assert.equal(network.calls.length, 2);
+  assert.equal(network.calls.length, 1, "Admin identity verification must not make a self-HTTP UserInfo request");
+  assert.equal(network.calls[0].url.startsWith(SUPABASE_URL + "/rest/v1/user_roles?"), true);
+  assert.equal(network.calls[0].init.headers.Authorization, "Bearer " + fakeToken());
+  assert.equal(network.calls[0].init.headers.apikey, PUBLISHABLE_KEY);
 
-  const infoCall = network.calls[0];
-  assert.equal(infoCall.url, ISSUER + "/oauth2/userinfo");
-  assert.equal(infoCall.init.headers.Authorization, "Bearer " + fakeToken());
-
-  const roleCall = network.calls[1];
+  const db = input({ fetchImpl: network.fetchImpl }).jwksDb;
+  void db;
+  const roleCall = network.calls[0];
   const roleUrl = new URL(roleCall.url);
   assert.equal(roleUrl.origin, SUPABASE_URL);
   assert.equal(roleUrl.pathname, "/rest/v1/user_roles");
@@ -213,10 +221,12 @@ test("Admin verification loads only public ES256 keys from the issuer D1 databas
     fetchImpl: network.fetchImpl,
   }));
   assert.deepEqual(user, { id: USER_ID, email: "admin@example.test" });
-  assert.equal(db.statements.length, 1);
+  assert.equal(db.statements.length, 2);
   assert.match(db.statements[0], /SELECT id, publicKey, alg, crv, expiresAt FROM jwks/);
   assert.doesNotMatch(db.statements[0], /privateKey/i);
-  assert.equal(network.calls.length, 2, "only UserInfo and the pinned Supabase role check use outbound fetch");
+  assert.match(db.statements[1], /SELECT id, email, emailVerified FROM user WHERE id = \\?1 LIMIT 1/);
+  assert.deepEqual(db.userLookups[0].values, [USER_ID]);
+  assert.equal(network.calls.length, 1, "only the pinned Supabase role check uses outbound fetch");
 });
 
 test("local JWKS database failures and malformed/private rows fail closed", async () => {
@@ -331,19 +341,43 @@ test("the production verifier validates an actual ES256 signature against the is
   assert.equal(tamperedNetwork.calls.length, 0, "bad signatures must be rejected before UserInfo or Supabase");
 });
 
-test("UserInfo must match the verified subject and report verified email", async () => {
-  for (const userInfo of [
-    { sub: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", email: "admin@example.test", email_verified: true },
-    { sub: USER_ID, email: "admin@example.test", email_verified: false },
-    { sub: USER_ID, email: "not-an-email", email_verified: true },
-  ]) {
-    const network = makeFetch({ userInfo });
+test("Admin identity and verified email are resolved from the matching Better Auth D1 user row", async () => {
+  const scenarios = [
+    { userRow: null },
+    { userRow: { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", email: "admin@example.test", emailVerified: 1 } },
+    { userRow: { id: USER_ID, email: "not-an-email", emailVerified: 1 } },
+    { userRow: { id: USER_ID, email: "admin@example.test", emailVerified: 0 } },
+  ];
+  for (const options of scenarios) {
+    const db = makeJwksDb(undefined, options);
+    const network = makeFetch();
     await assert.rejects(
-      resolveBetterAuthAdminIdentity(input({ fetchImpl: network.fetchImpl })),
-      (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_USERINFO_INVALID",
+      resolveBetterAuthAdminIdentity(input({ jwksDb: db, fetchImpl: network.fetchImpl })),
+      (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_IDENTITY_INVALID",
     );
-    assert.equal(network.calls.length, 1, "invalid UserInfo must not trigger an admin role query");
+    assert.equal(network.calls.length, 0, "invalid local identity must fail before the Supabase role lookup");
+    assert.deepEqual(db.userLookups[0].values, [USER_ID]);
   }
+
+  const allowedBypassDb = makeJwksDb(undefined, {
+    userRow: { id: USER_ID, email: "admin@example.test", emailVerified: 0 },
+  });
+  const bypassUser = await resolveBetterAuthAdminIdentity(input({
+    jwksDb: allowedBypassDb,
+    allowUnverifiedEmail: true,
+    fetchImpl: makeFetch().fetchImpl,
+  }));
+  assert.deepEqual(bypassUser, { id: USER_ID, email: "admin@example.test" });
+});
+
+test("local Better Auth user lookup failures are unavailable and never fall back to self-HTTP", async () => {
+  const db = makeJwksDb(undefined, { failUserLookup: true });
+  const network = makeFetch();
+  await assert.rejects(
+    resolveBetterAuthAdminIdentity(input({ jwksDb: db, fetchImpl: network.fetchImpl })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_IDENTITY_UNAVAILABLE",
+  );
+  assert.equal(network.calls.length, 0);
 });
 
 test("admin role lookup allows only the exact Supabase project selected for its environment", async () => {
@@ -352,7 +386,7 @@ test("admin role lookup allows only the exact Supabase project selected for its 
     resolveBetterAuthAdminIdentity(input({ fetchImpl: nonAdminNetwork.fetchImpl })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_REQUIRED",
   );
-  assert.equal(nonAdminNetwork.calls.length, 2, "non-admin identity is still checked only after signature and UserInfo validation");
+  assert.equal(nonAdminNetwork.calls.length, 1, "non-admin identity is checked only after signature and local D1 identity validation");
 
   const productionNetwork = makeFetch({
     supabaseUrl: PRODUCTION_SUPABASE_URL,
@@ -365,8 +399,9 @@ test("admin role lookup allows only the exact Supabase project selected for its 
     fetchImpl: productionNetwork.fetchImpl,
   }));
   assert.deepEqual(productionUser, { id: USER_ID, email: "admin@example.test" });
-  assert.equal(new URL(productionNetwork.calls[1].url).origin, PRODUCTION_SUPABASE_URL);
-  assert.equal(productionNetwork.calls[1].init.headers.apikey, PRODUCTION_PUBLISHABLE_KEY);
+  assert.equal(productionNetwork.calls.length, 1);
+  assert.equal(new URL(productionNetwork.calls[0].url).origin, PRODUCTION_SUPABASE_URL);
+  assert.equal(productionNetwork.calls[0].init.headers.apikey, PRODUCTION_PUBLISHABLE_KEY);
 
   const mismatches = [
     { supabaseUrl: PRODUCTION_SUPABASE_URL, supabaseEnvironment: "staging", publishableKey: PRODUCTION_PUBLISHABLE_KEY },
@@ -379,29 +414,30 @@ test("admin role lookup allows only the exact Supabase project selected for its 
       resolveBetterAuthAdminIdentity(input({ ...mismatch, fetchImpl: noNetwork.fetchImpl })),
       (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_PROJECT_NOT_ALLOWED",
     );
-    assert.equal(noNetwork.calls.length, 0, "environment/project mismatch must fail before UserInfo or role lookup");
+    assert.equal(noNetwork.calls.length, 0, "environment/project mismatch must fail before the role lookup");
   }
 });
 
-test("missing staging publishable key and unavailable UserInfo/role services fail closed", async () => {
+test("missing staging publishable key and unavailable D1/role services fail closed", async () => {
   await assert.rejects(
     resolveBetterAuthAdminIdentity(input({ publishableKey: "" })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_NOT_CONFIGURED",
   );
 
-  const userInfoDown = makeFetch({ failUserInfo: true });
+  const identityDbDown = makeJwksDb(undefined, { failUserLookup: true });
+  const userDown = makeFetch();
   await assert.rejects(
-    resolveBetterAuthAdminIdentity(input({ fetchImpl: userInfoDown.fetchImpl })),
-    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_USERINFO_UNAVAILABLE",
+    resolveBetterAuthAdminIdentity(input({ jwksDb: identityDbDown, fetchImpl: userDown.fetchImpl })),
+    (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_IDENTITY_UNAVAILABLE",
   );
-  assert.equal(userInfoDown.calls.length, 1);
+  assert.equal(userDown.calls.length, 0);
 
   const rolesDown = makeFetch({ failRoles: true });
   await assert.rejects(
     resolveBetterAuthAdminIdentity(input({ fetchImpl: rolesDown.fetchImpl })),
     (error) => error instanceof BetterAuthAdminAuthError && error.code === "BETTER_AUTH_ADMIN_CHECK_FAILED",
   );
-  assert.equal(rolesDown.calls.length, 2);
+  assert.equal(rolesDown.calls.length, 1);
 });
 
 test("email admin route verifies Better Auth separately and keeps the Supabase Auth default path", () => {
