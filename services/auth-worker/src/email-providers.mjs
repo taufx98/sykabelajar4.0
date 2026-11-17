@@ -324,18 +324,26 @@ function jsonInit(headers, body) {
   };
 }
 
-/** Escape plain-text content before embedding it in SendPulse's HTML field. */
+/** Escape plain-text content before embedding it in SendPulse's HTML field.
+ * @param {string} value
+ * @returns {string}
+ */
 function escapeHtml(value) {
-  return value.replace(/[&<>"']/g, (character) => ({
+  /** @type {Record<string, string>} */
+  const entities = {
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;",
-  })[character]);
+  };
+  return value.replace(/[&<>"']/g, (character) => entities[character]);
 }
 
-/** Encode UTF-8 bytes to Base64 without corrupting non-ASCII email content. */
+/** Encode UTF-8 bytes to Base64 without corrupting non-ASCII email content.
+ * @param {string} value
+ * @returns {string}
+ */
 function base64Utf8(value) {
   const bytes = new TextEncoder().encode(value);
   let binary = "";
@@ -345,6 +353,7 @@ function base64Utf8(value) {
   return btoa(binary);
 }
 
+/** @param {string} text @returns {string} */
 function buildSendPulseHtml(text) {
   const safeLines = text.split(/\r\n|\n|\r/).map(escapeHtml);
   const html = "<!doctype html><html><body><div>" +
