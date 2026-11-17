@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { EmailProviderDeliveryError, normalizeCustomHttpConfig, sendEmailWithProvider } from "../src/email-providers.mjs";
+import { checkSendPulseConnection, EmailProviderDeliveryError, normalizeCustomHttpConfig, sendEmailWithProvider } from "../src/email-providers.mjs";
 
 const account = { senderAddress: "noreply@sykabelajar.my.id", senderName: "SYKABELAJAR" };
 const message = { to: "admin@example.test", subject: "Tes SYKABELAJAR", text: "Isi tes", action: "verify-email" };
@@ -23,6 +23,45 @@ test("SendPulse uses the official SMTP REST endpoint and Bearer static API key",
   );
   assert.equal(result.messageId, "sendpulse-id-1");
   assert.equal(captured.init.body.includes("sendpulse-static-test-key-123456"), false);
+});
+
+test("SendPulse connection check uses the read-only stats endpoint and never sends an email", async () => {
+  let captured;
+  const result = await checkSendPulseConnection(
+    { apiKey: "sendpulse-static-test-key-123456" },
+    async (url, init) => {
+      captured = { url: String(url), init };
+      return new Response(JSON.stringify({ total: 1234 }), { status: 200 });
+    },
+  );
+  assert.equal(captured.url, "https://api.sendpulse.com/smtp/emails/total");
+  assert.equal(captured.init.method, "GET");
+  assert.equal(captured.init.body, undefined);
+  assert.equal(captured.init.headers.authorization, "Bearer sendpulse-static-test-key-123456");
+  assert.equal(captured.init.redirect, "error");
+  assert.deepEqual(result, { total: 1234 });
+});
+
+test("SendPulse read-only connection check reports safe DNS and auth diagnostics", async () => {
+  const dnsCause = Object.assign(new Error("getaddrinfo ENOTFOUND api.sendpulse.com"), { code: "ENOTFOUND" });
+  await assert.rejects(
+    checkSendPulseConnection(
+      { apiKey: "sendpulse-static-test-key-123456" },
+      async () => { throw new TypeError("fetch failed", { cause: dnsCause }); },
+    ),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_DNS_ERROR" &&
+      !error.message.includes("ENOTFOUND") &&
+      !error.message.includes("api.sendpulse.com"),
+  );
+  await assert.rejects(
+    checkSendPulseConnection(
+      { apiKey: "sendpulse-static-test-key-123456" },
+      async () => new Response("unauthorized", { status: 401 }),
+    ),
+    (error) => error instanceof EmailProviderDeliveryError &&
+      error.code === "EMAIL_PROVIDER_CREDENTIAL_REJECTED",
+  );
 });
 
 test("SendPulse HTML alternative is UTF-8 safe and escapes message content", async () => {
