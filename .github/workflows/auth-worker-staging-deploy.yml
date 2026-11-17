@@ -29,6 +29,7 @@ concurrency:
 # Staging-only diagnostics distinguish JWT header, signature, claims, JWKS and UserInfo failures without logging tokens.
 # Remote JWKS transport diagnostics are covered by worker tests before this staging-only deployment.
 # Deploy the typecheck- and security-test-approved staging Worker, including the SendPulse delivery fix from PR #188, to the isolated staging Worker only.
+# Deploy the typecheck- and security-test-approved read-only SendPulse API connection diagnostic from PR #189 to staging only; no email delivery or D1 migration.
 
 jobs:
   deploy:
