@@ -71,6 +71,17 @@ CREATE POLICY better_auth_issuer_guard
   USING ((SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth')
   WITH CHECK ((SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth');
 
+-- Simulate one retained legacy Admin UUID and one new Better Auth Admin.
+-- The legacy role row is kept, but must not satisfy any authenticated Admin helper.
+INSERT INTO private.app_users (id, identity_origin)
+VALUES
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy_reference'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better_auth');
+INSERT INTO public.user_roles (user_id, role, is_active)
+VALUES
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'admin'::public.app_role, TRUE);
+
 INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
 VALUES
   ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'owner-a'),
@@ -91,6 +102,12 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_READ_ALLOWED'; END IF;
+  IF private.current_user_is_admin() THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_ADMIN_HELPER_ALLOWED';
+  END IF;
+  IF public.is_active_admin('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid) THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED';
+  END IF;
   BEGIN
     INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
     VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy-insert');
@@ -111,6 +128,12 @@ DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED'; END IF;
+  IF NOT private.current_user_is_admin() THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_HELPER_DENIED';
+  END IF;
+  IF NOT public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED';
+  END IF;
   INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
   VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better-auth-insert');
 END;
