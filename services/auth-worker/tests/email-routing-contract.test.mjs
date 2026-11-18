@@ -10,7 +10,7 @@ test("managed auth email uses all enabled providers in configured priority order
   assert.match(emailSource, /FROM auth_email_provider_accounts WHERE enabled = 1 ORDER BY priority ASC, created_at ASC/);
   assert.match(emailSource, /auto_failover_enabled/);
   assert.match(emailSource, /accounts\.slice\(0, 1\)/);
-  for (const provider of ["sendpulse", "brevo", "mailjet", "mailtrap", "resend", "custom_http"]) {
+  for (const provider of ["sendpulse", "brevo", "mailjet", "mailtrap", "resend", "zeptomail", "custom_http"]) {
     assert.ok(emailSource.includes(provider) || adminSource.includes('"' + provider + '"'));
   }
 });
@@ -56,6 +56,7 @@ test("verification readiness requires an enabled provider with a decryptable cre
   assert.match(emailSource, /hasRequiredProviderCredentials/);
   assert.match(emailSource, /provider === "mailjet"[\s\S]*?credentials\.apiSecret/);
   assert.match(emailSource, /provider === "mailtrap"[\s\S]*?credentials\.apiToken/);
+  assert.match(emailSource, /"zeptomail"/);
   assert.match(readiness, /return false/);
 });
 

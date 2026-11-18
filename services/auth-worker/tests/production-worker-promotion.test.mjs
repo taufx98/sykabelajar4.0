@@ -39,8 +39,8 @@ test("creation preflight locks the correct Production target and proves staging 
   assert.match(createWorkflow, /Staging Worker is not bound to the accepted staging D1/);
   assert.match(createWorkflow, /Production Worker must not exist before first creation/);
   assert.match(createWorkflow, /Production hostname is already attached; refusing to reassign or overwrite it/);
-  assert.match(createWorkflow, /Production D1 migrations must be exactly 0000–0010/);
-  assert.match(createWorkflow, /Production schema 0000–0010/);
+  assert.match(createWorkflow, /Production D1 migrations must be exactly 0000–0011/);
+  assert.match(createWorkflow, /Production schema 0000–0011/);
   assert.match(createWorkflow, /zero identities\/credentials\/provider accounts/);
 });
 

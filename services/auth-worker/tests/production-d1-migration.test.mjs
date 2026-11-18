@@ -73,6 +73,7 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
     "0008_auth_runtime_settings.sql",
     "0009_multi_provider_email_routing.sql",
     "0010_custom_http_email_provider.sql",
+    "0011_zeptomail_email_provider.sql",
   ]);
   const seed = readFileSync(new URL("../migrations-production/0002_seed_first_party_oauth_client.sql", import.meta.url), "utf8");
   assert.ok(seed.includes('["https://sykabelajar.my.id/auth/oidc/callback"]'));
@@ -83,6 +84,11 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
   assert.doesNotMatch(runtimeMigration, /INSERT INTO "(user|session|account)"|UPDATE "(user|session|account)"/i);
   const emailMigration = readFileSync(new URL("../migrations-production/0009_multi_provider_email_routing.sql", import.meta.url), "utf8");
   assert.match(emailMigration, /provider IN \('sendpulse','brevo','mailjet','mailtrap','resend'\)/);
+  const zeptomailMigration = readFileSync(new URL("../migrations-production/0011_zeptomail_email_provider.sql", import.meta.url), "utf8");
+  assert.match(zeptomailMigration, /provider IN \(\x27sendpulse\x27,\x27brevo\x27,\x27mailjet\x27,\x27mailtrap\x27,\x27resend\x27,\x27custom_http\x27,\x27zeptomail\x27\)/);
+  assert.match(zeptomailMigration, /FROM auth_email_provider_accounts_before_zeptomail/);
+  assert.match(zeptomailMigration, /credentials_ciphertext,\s+enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit/);
+  assert.doesNotMatch(zeptomailMigration, /INSERT INTO \x22(user|session|account)\x22|UPDATE \x22(user|session|account)\x22/i);
   assert.match(emailMigration, /auto_failover_enabled INTEGER NOT NULL DEFAULT 1/);
   assert.match(emailMigration, /VALUES \(1, 1, CURRENT_TIMESTAMP, NULL\)/);
   assert.match(emailMigration, /credentials_ciphertext TEXT NOT NULL/);
