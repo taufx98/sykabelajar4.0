@@ -37,8 +37,8 @@ BEGIN
   WHERE ns.nspname IN ('public', 'private')
     AND pol.polname = 'better_auth_issuer_guard'
     AND (
-      pg_get_expr(pol.polqual, pol.polrelid) NOT LIKE '%https://auth.sykabelajar.my.id/api/auth%'
-      OR pg_get_expr(pol.polwithcheck, pol.polrelid) NOT LIKE '%https://auth.sykabelajar.my.id/api/auth%'
+      pg_get_expr(pol.polqual, pol.polrelid) NOT LIKE '%https://auth-prod.sykabelajar.my.id/api/auth%'
+      OR pg_get_expr(pol.polwithcheck, pol.polrelid) NOT LIKE '%https://auth-prod.sykabelajar.my.id/api/auth%'
       OR pg_get_expr(pol.polqual, pol.polrelid) LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
       OR pg_get_expr(pol.polwithcheck, pol.polrelid) LIKE '%https://mvdczyitbkxkldjughor.supabase.co/auth/v1%'
     );
@@ -68,8 +68,8 @@ CREATE POLICY better_auth_issuer_guard
   ON public.auth_issuer_guard_probe
   AS RESTRICTIVE
   FOR ALL TO authenticated
-  USING ((SELECT auth.jwt() ->> 'iss') = 'https://auth.sykabelajar.my.id/api/auth')
-  WITH CHECK ((SELECT auth.jwt() ->> 'iss') = 'https://auth.sykabelajar.my.id/api/auth');
+  USING ((SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth')
+  WITH CHECK ((SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth');
 
 INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
 VALUES
@@ -103,7 +103,7 @@ $legacy_issuer$;
 
 -- Better Auth issuer is also valid and still sees only its own UUID.
 SELECT set_config('request.jwt.claims',
-  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth.sykabelajar.my.id/api/auth"}',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
   true);
 SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
 DO $better_auth_issuer$

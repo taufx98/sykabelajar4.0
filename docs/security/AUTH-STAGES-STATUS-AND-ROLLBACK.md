@@ -1,3 +1,31 @@
+# Stage 7 Production isolation correction — 18 November 2026
+
+**This is the newest checkpoint and supersedes the same-Worker promotion instructions below.** The website is still unreleased; no scheduled public maintenance window is required. Do not trade off the accepted staging setup to accelerate Production.
+
+## New architecture finding and safe correction
+
+- The existing `sykabelajar-auth-poc` Worker + `auth.sykabelajar.my.id` hostname are the accepted staging environment and remain bound to staging D1 `7a4f9008-a1c6-42b6-8a04-abde12699248`.
+- The prior Production workflow would deploy a Production config to that **same Worker resource and hostname**, replacing the staging D1 binding and issuer. That is incompatible with the user's non-regression requirement.
+- Preparation branch `security/auth-production-isolation` now contains a separate Production config: Worker `sykabelajar-auth-prod`, D1 `6d4dc7b5-8e71-4fdc-9cda-3230e49951c7`, hostname `auth-prod.sykabelajar.my.id`, issuer `https://auth-prod.sykabelajar.my.id/api/auth`. It is code/configuration only and has not been deployed.
+- The old same-Worker promotion job is disabled on the preparation branch. A separate guarded creation workflow is prepared; its one-time marker `.github/auth-ops/CREATE-PRODUCTION-AUTH-WORKER-0001` is absent.
+- Production OIDC registration has been updated on the preparation branch to the isolated issuer; the registration marker remains absent. The Production frontend endpoint still must be changed only after backend acceptance.
+- The Production D1 migration marker was committed on the active auth branch in commit `c073938e7f0564d9bb2422dec6d8ffc250a03045`. Guarded workflow [#44341594485](https://github.com/taufx98/sykabelajar4.0/actions/runs/44341594485) completed successfully. It confirmed migrations 0000–0010, 23 expected tables, required email verification, one default failover settings row, and zero Better Auth users/accounts/sessions/verifications/OAuth tokens/email-provider accounts. It did not deploy a Worker, set secrets, change DNS, alter Supabase DB2 or frontend. The action itself was designed to mutate only the exact Production D1 schema; no Worker deploy, secrets, DNS, DB2 DDL or frontend routing is part of that workflow.
+- The earlier preflight `#44145409028` remains the last verifiable Cloudflare snapshot before the marker commit: staging Worker/hostname were paired; Worker was bound to staging D1; Production D1 was 0000–0007 and empty. Re-run a read-only ledger check to resolve the post-marker state.
+
+## Hard gates still open
+
+1. Confirm the exact live Production D1 ledger/schema and empty identity/provider state.
+2. Review/merge the isolated Worker configuration and workflow; prove preflight preserves the staging Worker and D1.
+3. Implement and test the one-time owner-only Production first-account/email-sender bootstrap. Public signup must remain disabled; no staging SQL, forged verification flag, shadow `auth.users` row or unrestricted signup.
+4. Deploy only the dedicated Production Worker after the above gates, then verify health, discovery, JWKS, PKCE, CORS, closed signup and staging non-regression.
+5. Register the isolated Production Custom OIDC issuer; verify a real Production token.
+6. Apply DB2 identity root, 69-FK and issuer migration; enable provisioning only after RPC/grant/issuer tests pass.
+7. Configure and prove real Production OTP verification and password-reset delivery; bootstrap the first Admin; then switch Production frontend and run full smoke/rollback checks.
+
+**Production remains NO-GO.** No Production Worker, Production OIDC, DB2 identity DDL, provisioning, first Admin, Production sender credential, or frontend switch has been completed by this preparation branch. Accepted staging remains protected.
+
+---
+
 # Stage 7 read-only Production preflight and staging email acceptance — 18 November 2026
 
 **This is the newest authoritative checkpoint and supersedes earlier status notes below where they conflict. It does not authorize Production cutover.** Keep the accepted staging implementation as the protected baseline; do not reopen completed stages without a concrete regression.

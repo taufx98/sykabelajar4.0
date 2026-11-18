@@ -98,7 +98,7 @@ Only the digits-only SHA-256 identity hash, Telegram provider subject and truste
 
 ### Operational preconditions for a pre-cutover rollback
 
-First pause Better Auth registration/provisioning (Worker-side `SUPABASE_PROVISIONING_ENABLED=false`) and switch the app back to Supabase Auth only if no Better Auth-only identity exists. Preserve the Worker, D1 and key material. If Custom OIDC for `https://auth.sykabelajar.my.id/api/auth` was installed in production Supabase, remove that exact provider via Dashboard/Management API before deleting its restrictive SQL issuer policies; the provider configuration is not controlled by SQL.
+First pause Better Auth registration/provisioning (Worker-side `SUPABASE_PROVISIONING_ENABLED=false`) and switch the app back to Supabase Auth only if no Better Auth-only identity exists. Preserve the Worker, D1 and key material. If Custom OIDC for `https://auth-prod.sykabelajar.my.id/api/auth` was installed in production Supabase, remove that exact provider via Dashboard/Management API before deleting its restrictive SQL issuer policies; the provider configuration is not controlled by SQL.
 
 ### Reverse FK safety and point of no return
 
@@ -147,7 +147,7 @@ This is a **SQL generator only**. It has no database connection and never execut
 
 Do not mass-rewrite the 109 policies and 188 functions that use auth.uid(). With a UUID sub, auth.uid() should continue to resolve the application identity. The Stage 3 issuer draft installs a Better Auth-only restrictive issuer guard; legacy Supabase Auth tokens are denied because legacy accounts are not migrated. The local fixture proves the base Postgres JWT claim mapping and ownership behavior.
 
-Before adding a Custom OIDC issuer to Supabase, validate the hosted integration in a separate Free project. Because legacy Supabase Auth accounts are not migrated, the Stage 3 restrictive issuer guard accepts only `https://auth.sykabelajar.my.id/api/auth`; old Supabase Auth JWTs and foreign issuers are denied. There is no dual-issuer overlap. Never rely only on UUID matching when multiple issuers are trusted.
+Before adding a Custom OIDC issuer to Supabase, validate the hosted integration in a separate Free project. Because legacy Supabase Auth accounts are not migrated, the Stage 3 restrictive issuer guard accepts only `https://auth-prod.sykabelajar.my.id/api/auth`; old Supabase Auth JWTs and foreign issuers are denied. There is no dual-issuer overlap. Never rely only on UUID matching when multiple issuers are trusted.
 
 Supabase's Custom OIDC integration requires an HTTPS issuer with discovery/JWKS, asymmetric signing, kid, and a JWT role claim set to authenticated. Supabase's current Free plan includes 50,000 Third-Party MAUs; stay within this allowance and do not enable paid overage or upgrade.
 

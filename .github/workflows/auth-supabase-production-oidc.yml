@@ -66,7 +66,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify the promoted issuer and register Custom OIDC in exact Production DB2
+      - name: Verify the isolated Production issuer and register Custom OIDC in exact Production DB2
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
@@ -82,7 +82,7 @@ jobs:
           const projectRef = "mvdczyitbkxkldjughor";
           const expectedProjectName = "sykabelajar_db2";
           const expectedOrganizationId = "qdmwatwyyrdjbrvxtcfu";
-          const issuer = "https://auth.sykabelajar.my.id/api/auth";
+          const issuer = "https://auth-prod.sykabelajar.my.id/api/auth";
           const managementBase = "https://api.supabase.com/v1";
           const headers = {
             Authorization: "Bearer " + token,
@@ -99,8 +99,8 @@ jobs:
             return response.json();
           }
 
-          // Run this workflow only after the existing Worker has been promoted
-          // to Production D1. The issuer hostname remains unchanged.
+          // Run this workflow only after the isolated Production Worker has been deployed
+          // to Production D1. Production uses auth-prod.sykabelajar.my.id; staging retains auth.sykabelajar.my.id.
           const discoveryResponse = await fetch(
             issuer + "/.well-known/openid-configuration",
             { redirect: "error" },
@@ -117,7 +117,7 @@ jobs:
             throw new Error("Better Auth discovery does not advertise PKCE S256.");
           }
           if (typeof discovery.jwks_uri !== "string" ||
-              new URL(discovery.jwks_uri).origin !== "https://auth.sykabelajar.my.id") {
+              new URL(discovery.jwks_uri).origin !== "https://auth-prod.sykabelajar.my.id") {
             throw new Error("Better Auth JWKS URI is not on the approved auth hostname.");
           }
           const jwksResponse = await fetch(discovery.jwks_uri, { redirect: "error" });

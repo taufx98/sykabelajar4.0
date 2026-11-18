@@ -60,10 +60,10 @@ jobs:
           }
 
           const exact = [
-            ['production Worker name', production, /^name = "sykabelajar-auth-poc"$/m],
+            ['production Worker name', production, /^name = "sykabelajar-auth-prod"$/m],
             ['Production D1 name', production, /^database_name = "sykabelajar-auth-prod"$/m],
             ['Production D1 UUID', production, /^database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"$/m],
-            ['Production custom hostname', production, /^pattern = "auth\.sykabelajar\.my\.id"$/m],
+            ['Production custom hostname', production, /^pattern = "auth-prod\.sykabelajar\.my\.id"$/m],
             ['Production closed signup', production, /^AUTH_SIGNUP_DISABLED = "true"$/m],
             ['Production provisioning disabled', production, /^SUPABASE_PROVISIONING_ENABLED = "false"$/m],
             ['Production environment pin', production, /^SUPABASE_PROVISIONING_ENV = "production"$/m],

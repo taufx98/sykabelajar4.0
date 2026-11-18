@@ -158,7 +158,7 @@ for (const name of [
   const end = draft.indexOf("$function$;", start);
   assert.ok(start >= 0 && end > start, "missing Better Auth caller RPC: " + name);
   const definition = draft.slice(start, end);
-  assert.match(definition, /auth[.]jwt\(\)[\s\S]{0,220}https:\/\/auth[.]sykabelajar[.]my[.]id\/api\/auth/,
+  assert.match(definition, /auth[.]jwt\(\)[\s\S]{0,220}https:\/\/auth-prod[.]sykabelajar[.]my[.]id\/api\/auth/,
     "SECURITY DEFINER caller RPC must require the exact Better Auth issuer: " + name);
 }
 assert.match(draft, /REVOKE ALL ON FUNCTION public[.]get_my_verified_referrals\(\)[\s\S]{0,180}FROM PUBLIC, anon, authenticated, service_role;/i,

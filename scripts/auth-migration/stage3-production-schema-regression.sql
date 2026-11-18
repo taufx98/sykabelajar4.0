@@ -481,7 +481,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claim.sub',u_organizer::text,true);
   PERFORM set_config('request.jwt.claims',
-    jsonb_build_object('sub',u_organizer::text,'role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+    jsonb_build_object('sub',u_organizer::text,'role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
     true
   );
 
@@ -559,7 +559,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claim.sub',u_duplicate_organizer::text,true);
   PERFORM set_config('request.jwt.claims',
-    jsonb_build_object('sub',u_duplicate_organizer::text,'role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+    jsonb_build_object('sub',u_duplicate_organizer::text,'role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
     true
   );
   v_caught := false;
@@ -583,7 +583,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claim.sub',u_no_phone::text,true);
   PERFORM set_config('request.jwt.claims',
-    jsonb_build_object('sub',u_no_phone::text,'role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+    jsonb_build_object('sub',u_no_phone::text,'role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
     true
   );
   v_caught := false;
@@ -608,7 +608,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claim.sub',u_no_email::text,true);
   PERFORM set_config('request.jwt.claims',
-    jsonb_build_object('sub',u_no_email::text,'role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+    jsonb_build_object('sub',u_no_email::text,'role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
     true
   );
   v_caught := false;
@@ -660,7 +660,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claim.sub',u_participant::text,true);
   PERFORM set_config('request.jwt.claims',
-    jsonb_build_object('sub',u_participant::text,'role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+    jsonb_build_object('sub',u_participant::text,'role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
     true
   );
 
@@ -947,7 +947,7 @@ GRANT SELECT, INSERT, UPDATE ON TABLE pg_temp.stage3_profile_guard_probe TO auth
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a001',true);
 SELECT set_config('request.jwt.claims',
-  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a001','role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a001','role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
   true
 );
 
@@ -1260,7 +1260,7 @@ $stage3_rls_referrer$;
 
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a005',true);
 SELECT set_config('request.jwt.claims',
-  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a005','role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a005','role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
   true
 );
 
@@ -1304,7 +1304,7 @@ $stage3_rls_organizer_owner$;
 
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a013',true);
 SELECT set_config('request.jwt.claims',
-  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a013','role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a013','role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
   true
 );
 
@@ -1357,7 +1357,7 @@ $stage3_rls_active_member$;
 
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a014',true);
 SELECT set_config('request.jwt.claims',
-  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a014','role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a014','role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
   true
 );
 
@@ -1401,7 +1401,7 @@ $stage3_rls_inactive_member$;
 
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a002',true);
 SELECT set_config('request.jwt.claims',
-  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a002','role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a002','role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
   true
 );
 
@@ -1479,7 +1479,7 @@ $stage3_rls_referred$;
 
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a009',true);
 SELECT set_config('request.jwt.claims',
-  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a009','role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a009','role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
   true
 );
 
@@ -1678,7 +1678,7 @@ $stage3_rls_participant$;
 
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a012',true);
 SELECT set_config('request.jwt.claims',
-  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a012','role','authenticated','iss','https://auth.sykabelajar.my.id/api/auth')::text,
+  jsonb_build_object('sub','00000000-0000-4000-8000-00000000a012','role','authenticated','iss','https://auth-prod.sykabelajar.my.id/api/auth')::text,
   true
 );
 

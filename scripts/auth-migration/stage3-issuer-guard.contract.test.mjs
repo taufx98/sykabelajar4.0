@@ -16,7 +16,8 @@ const acceptance = readFileSync(
 assert.match(draft, /AS RESTRICTIVE FOR ALL TO authenticated/i);
 assert.match(draft, /auth\.jwt\(\)\s*->>\s*''iss''/i);
 assert.doesNotMatch(draft, /https:\/\/mvdczyitbkxkldjughor\.supabase\.co\/auth\/v1/);
-assert.match(draft, /https:\/\/auth\.sykabelajar\.my\.id\/api\/auth/);
+assert.match(draft, /https:\/\/auth-prod\.sykabelajar\.my\.id\/api\/auth/);
+assert.match(acceptance, /https:\/\/auth-prod\.sykabelajar\.my\.id\/api\/auth/);
 assert.match(draft, /v_expected_tables constant integer := 61/);
 assert.match(draft, /STAGE3_ISSUER_GUARD_ALREADY_EXISTS/);
 assert.match(draft, /STAGE3_ISSUER_GUARD_TABLE_COUNT_DRIFT/);
