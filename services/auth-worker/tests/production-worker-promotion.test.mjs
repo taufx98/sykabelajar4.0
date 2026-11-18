@@ -3,93 +3,77 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
-const workflow = read("../../../.github/workflows/auth-cloudflare-production-worker-promote.yml");
+const retiredWorkflow = read("../../../.github/workflows/auth-cloudflare-production-worker-promote.yml");
+const createWorkflow = read("../../../.github/workflows/auth-cloudflare-production-worker-create.yml");
 const productionConfig = read("../wrangler.production.toml");
 const stagingConfig = read("../wrangler.toml");
 
-test("Production Worker promotion requires one exact owner marker or manual confirmation", () => {
-  assert.match(workflow, /^on:\n  push:/m);
-  assert.match(workflow, /\.github\/auth-ops\/PROMOTE-PRODUCTION-WORKER-0001/);
-  assert.match(workflow, /PROMOTE-PRODUCTION-WORKER-sykabelajar-auth-poc/);
-  assert.match(workflow, /exact one-time Production promotion authorization/);
-  assert.match(workflow, /github\.event_name == 'workflow_dispatch' \|\| github\.event_name == 'push'/);
-  assert.doesNotMatch(workflow, /^  pull_request:/m);
-  assert.match(workflow, /cancel-in-progress: false/);
+test("the previous same-Worker Production promotion remains disabled", () => {
+  assert.match(retiredWorkflow, /if: \$\{\{ false \}\}/);
+  assert.match(retiredWorkflow, /Disabled: the previous workflow would replace the staging Worker/);
+  assert.match(productionConfig, /^name = "sykabelajar-auth-prod"$/m);
+  assert.match(stagingConfig, /^name = "sykabelajar-auth-poc"$/m);
+  assert.match(productionConfig, /^pattern = "auth-prod\.sykabelajar\.my\.id"$/m);
+  assert.match(stagingConfig, /^pattern = "auth\.sykabelajar\.my\.id"$/m);
 });
 
-test("promotion verifies the existing staging Worker/D1 and preserves the sole auth hostname", () => {
-  assert.match(workflow, /scriptName = "sykabelajar-auth-poc"/);
-  assert.match(workflow, /stagingD1Id = "7a4f9008-a1c6-42b6-8a04-abde12699248"/);
-  assert.match(workflow, /productionD1Id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"/);
-  assert.match(workflow, /d1Bindings\[0\]\.database_id \?\? d1Bindings\[0\]\.id/);
-  assert.match(workflow, /domainList\.filter/);
-  assert.match(workflow, /auth\.sykabelajar\.my\.id/);
-  assert.match(workflow, /no DNS\/domain changes are permitted/);
-  assert.match(workflow, /wrangler\.production\.toml deploy --dry-run/);
-  assert.match(workflow, /wrangler\.production\.toml deploy --message/);
-  assert.doesNotMatch(workflow, /wrangler d1 (delete|create)|workers\/scripts\/[^\s]+\/delete/);
+test("isolated Production Worker creation requires exact owner authorization", () => {
+  assert.match(createWorkflow, /^on:\n  push:/m);
+  assert.match(createWorkflow, /\.github\/auth-ops\/CREATE-PRODUCTION-AUTH-WORKER-0001/);
+  assert.match(createWorkflow, /CREATE-PRODUCTION-AUTH-WORKER-sykabelajar-auth-prod/);
+  assert.match(createWorkflow, /github\.actor == 'taufx98'/);
+  assert.match(createWorkflow, /refs\/heads\/security\/auth-poc-stage-1/);
+  assert.match(createWorkflow, /github\.event_name == 'workflow_dispatch' \|\| github\.event_name == 'push'/);
+  assert.match(createWorkflow, /cancel-in-progress: false/);
+  assert.doesNotMatch(createWorkflow, /^  pull_request:/m);
 });
 
-test("promotion requires a fully migrated, empty Production D1 with verification enabled", () => {
-  assert.match(workflow, /0008_auth_runtime_settings\.sql/);
-  assert.match(workflow, /0009_multi_provider_email_routing\.sql/);
-  assert.match(workflow, /0000–0010/);
-  assert.match(workflow, /productionD1Name = "sykabelajar-auth-prod"/);
-  assert.match(workflow, /SELECT email_verification_required FROM auth_runtime_settings WHERE id=1\) AS email_verification_required/);
-  assert.match(workflow, /Number\(row\.email_verification_required\) !== 1/);
-  assert.match(workflow, /Number\(row\.email_provider_settings\) !== 1/);
-  assert.match(workflow, /Number\(row\.auto_failover_enabled\) !== 1/);
-  assert.match(workflow, /expectedTables\.length !== 23/);
-  for (const field of ["users", "accounts", "sessions", "verifications", "access_tokens", "refresh_tokens", "consents", "email_accounts", "email_provider_accounts", "phone_challenges"]) {
-    assert.ok(workflow.includes('"' + field + '"'), "Production empty-state guard must include " + field);
-  }
-  assert.ok(workflow.includes("if (Number(row[field]) !== 0)"), "each Production identity counter must be zero before promotion");
-  assert.match(workflow, /first_party_clients\) !== 1/);
-  assert.match(workflow, /redirectUris\.length !== 1/);
-  assert.match(workflow, /https:\/\/sykabelajar\.my\.id\/auth\/oidc\/callback/);
+test("creation preflight locks the correct Production target and proves staging remains untouched", () => {
+  assert.match(createWorkflow, /scriptName = "sykabelajar-auth-prod"/);
+  assert.match(createWorkflow, /6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
+  assert.match(createWorkflow, /7a4f9008-a1c6-42b6-8a04-abde12699248/);
+  assert.match(createWorkflow, /auth-prod\.sykabelajar\.my\.id/);
+  assert.match(createWorkflow, /auth\.sykabelajar\.my\.id/);
+  assert.match(createWorkflow, /Staging Worker must exist exactly once/);
+  assert.match(createWorkflow, /The accepted staging hostname must remain paired with the staging Worker/);
+  assert.match(createWorkflow, /Staging Worker is not bound to the accepted staging D1/);
+  assert.match(createWorkflow, /Production Worker must not exist before first creation/);
+  assert.match(createWorkflow, /Production hostname is already attached; refusing to reassign or overwrite it/);
+  assert.match(createWorkflow, /Production D1 migrations must be exactly 0000–0010/);
+  assert.match(createWorkflow, /Production schema 0000–0010/);
+  assert.match(createWorkflow, /zero identities\/credentials\/provider accounts/);
 });
 
-test("the new Worker must remain closed to public signup and Supabase provisioning", () => {
+test("Production remains closed to public signup and Supabase provisioning during Worker creation", () => {
   assert.match(productionConfig, /^AUTH_SIGNUP_DISABLED = "true"$/m);
   assert.match(productionConfig, /^SUPABASE_PROVISIONING_ENABLED = "false"$/m);
   assert.match(productionConfig, /^SUPABASE_PROVISIONING_ENV = "production"$/m);
-  assert.doesNotMatch(productionConfig, /DEV_APP_ORIGIN|OAUTH_STAGING_CALLBACK_URL|staging\.sykabelajar\.my\.id|ydamszdfsxqisanazdkb/);
-  assert.match(stagingConfig, /^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m);
-  assert.match(workflow, /emailVerificationRequired, true/);
-  assert.match(workflow, /publicSignup: "closed"/);
-  assert.match(workflow, /supabaseProvisioning: "disabled"/);
-  assert.match(workflow, /mainFrontendSwitch: "not performed"/);
+  assert.match(createWorkflow, /Production signup must remain closed/);
+  assert.match(createWorkflow, /emailVerificationRequired:true/);
+  assert.match(createWorkflow, /publicSignup:"closed"/);
+  assert.match(createWorkflow, /frontendSwitch:"not performed"/);
 });
 
-test("promotion removes staging-only secret bindings and generates fresh Production-only key material", () => {
-  const rotation = workflow.slice(
-    workflow.indexOf("name: Replace staging-only secrets with fresh Production-only Worker keys"),
-    workflow.indexOf("name: Deploy the existing Worker resource to Production D1"),
-  );
-  assert.match(rotation, /SUPABASE_PROVISIONING_API_KEY/);
-  assert.match(rotation, /SUPABASE_SERVICE_ROLE_KEY/);
-  for (const name of [
-    "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
-    "FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET",
-    "TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET",
-    "AUTH_TELEGRAM_CLIENT_ID", "AUTH_TELEGRAM_CLIENT_SECRET",
-    "SUPABASE_PROVISIONING_API_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_PUBLISHABLE_KEY",
-    "AUTH_EMAIL_WEBHOOK_URL", "AUTH_EMAIL_WEBHOOK_TOKEN", "AUTH_EMAIL_FROM",
-  ]) assert.ok(rotation.includes(name), "staging-only credential/config binding must be removed: " + name);
-  assert.match(rotation, /DELETE/);
-  assert.match(rotation, /randomBytes\(32\)/);
+test("creation generates fresh Production-only secrets without deleting staging secrets", () => {
+  assert.match(createWorkflow, /randomBytes\(32\)/);
   for (const name of ["BETTER_AUTH_SECRET", "AUTH_PROVIDER_ENCRYPTION_KEY", "AUTH_EMAIL_ENCRYPTION_KEY"]) {
-    assert.ok(rotation.includes(name), "fresh Production key must be generated: " + name);
+    assert.ok(createWorkflow.includes(name), "fresh Production-only secret missing: " + name);
   }
-  assert.match(rotation, /valuesReadOrLogged: false/);
-  assert.doesNotMatch(rotation, /console\.log\([^\n]*(?:generatedKey|productionKeys|secretValue)/i);
+  assert.match(createWorkflow, /stagingWorkerSecretsChanged: false/);
+  assert.match(createWorkflow, /stagingWorkerAndD1:"verified unchanged"/);
+  assert.doesNotMatch(createWorkflow, /workers\/scripts\/sykabelajar-auth-poc\/secrets/);
+  assert.doesNotMatch(createWorkflow, /DELETE\s+.*sykabelajar-auth-poc/i);
+  assert.match(createWorkflow, /secretValuesReadOrLogged: false/);
 });
 
-test("post-promotion smoke tests preserve OIDC, exact CORS and zero seeded identity data", () => {
-  assert.match(workflow, /discovery\.issuer, expectedIssuer/);
-  assert.match(workflow, /key\.alg === "ES256"/);
-  assert.match(workflow, /attacker\.example/);
-  assert.match(workflow, /unauthenticated access/);
-  assert.match(workflow, /EMAIL_VERIFICATION_DELIVERY_NOT_CONFIGURED/);
-  assert.match(workflow, /Production D1 must remain identity\/credential-empty after the promotion smoke checks/);
+test("post-creation smoke checks prove Production issuer/JWKS/PKCE/CORS and signup remains blocked", () => {
+  assert.match(createWorkflow, /await get\("\/healthz"\)/);
+  assert.match(createWorkflow, /discovery\.issuer,origin\+"\/api\/auth"/);
+  assert.match(createWorkflow, /code_challenge_methods_supported/);
+  assert.match(createWorkflow, /key\.alg==="ES256"/);
+  assert.match(createWorkflow, /attacker\.example/);
+  assert.match(createWorkflow, /providers\.body\.emailVerificationRequired,true/);
+  assert.match(createWorkflow, /assert\.equal\(signup\.status,503/);
+  assert.match(createWorkflow, /stagingWorkerAndD1:"verified unchanged"/);
+  assert.match(createWorkflow, /stagingHostname:"preserved"/);
 });

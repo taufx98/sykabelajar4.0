@@ -16,7 +16,7 @@ test("Production Custom OIDC registration is manual and exact-target guarded", (
   assert.match(workflow, /projectRef = "mvdczyitbkxkldjughor"/);
   assert.match(workflow, /expectedProjectName = "sykabelajar_db2"/);
   assert.match(workflow, /expectedOrganizationId = "qdmwatwyyrdjbrvxtcfu"/);
-  assert.match(workflow, /https:\/\/auth\.sykabelajar\.my\.id\/api\/auth/);
+  assert.match(workflow, /https:\/\/auth-prod\.sykabelajar\.my\.id\/api\/auth/);
   assert.match(workflow, /code_challenge_methods_supported/);
   assert.match(workflow, /key\.alg === "ES256"/);
   assert.match(workflow, /registrationAttempted/);

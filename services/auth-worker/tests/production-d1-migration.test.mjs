@@ -13,12 +13,15 @@ const workflow = readFileSync(
 const migrationDir = new URL("../migrations-production/", import.meta.url);
 const migrations = readdirSync(migrationDir).filter((name) => name.endsWith(".sql")).sort();
 
-test("Production runtime config reuses the existing Worker hostname with its own new D1 binding", () => {
-  assert.match(productionConfig, /^name = "sykabelajar-auth-poc"$/m);
+test("Production runtime config uses a separate Worker and hostname while staging remains unchanged", () => {
+  assert.match(productionConfig, /^name = "sykabelajar-auth-prod"$/m);
   assert.match(stagingConfig, /^name = "sykabelajar-auth-poc"$/m);
+  assert.match(stagingConfig, /^pattern = "auth\.sykabelajar\.my\.id"$/m);
+  assert.match(productionConfig, /^BETTER_AUTH_URL = "https:\/\/auth-prod\.sykabelajar\.my\.id"$/m);
+  assert.doesNotMatch(productionConfig, /auth\.sykabelajar\.my\.id|staging\.sykabelajar\.my\.id|ydamszdfsxqisanazdkb/);
   assert.match(productionConfig, /^database_name = "sykabelajar-auth-prod"$/m);
   assert.match(productionConfig, /^database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"$/m);
-  assert.match(productionConfig, /^pattern = "auth\.sykabelajar\.my\.id"$/m);
+  assert.match(productionConfig, /^pattern = "auth-prod\.sykabelajar\.my\.id"$/m);
   assert.match(productionConfig, /^APP_ORIGIN = "https:\/\/sykabelajar\.my\.id"$/m);
   assert.match(productionConfig, /^SUPABASE_PROVISIONING_ENV = "production"$/m);
   assert.match(productionConfig, /^SUPABASE_PROVISIONING_ENABLED = "false"$/m);
