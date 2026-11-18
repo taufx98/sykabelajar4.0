@@ -1,4 +1,4 @@
-name: Auth Custom HTTP Email Provider — Staging D1 Schema
+name: Auth ZeptoMail Email — Staging D1 Schema
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: "Type APPLY-ZEPTOMAIL-EMAIL-sykabelajar-auth-poc to add custom HTTP provider support to staging D1"
+        description: "Type APPLY-ZEPTOMAIL-EMAIL-sykabelajar-auth-poc to add ZeptoMail provider support to staging D1"
         required: true
         type: string
 
@@ -155,7 +155,7 @@ jobs:
           if (unexpected.length) throw new Error("Unexpected staging D1 migration history: " + unexpected.join(", "));
           const before = rows(read("zeptomail-email-before-counts.json")).find((x) => Object.hasOwn(x, "users"));
           if (!before) throw new Error("Could not capture current Better Auth account counts.");
-          console.log(JSON.stringify({ migration0013AlreadyApplied: applied.has("0012_custom_http_email_provider.sql"), before }));
+          console.log(JSON.stringify({ migration0013AlreadyApplied: applied.has("0013_zeptomail_email_provider.sql"), before }));
           NODE
 
       - name: Apply only the reviewed additive staging D1 migration when pending
@@ -221,7 +221,7 @@ jobs:
           }
           const columns = rows(read("zeptomail-email-columns.json")).map((x) => x.name).filter(Boolean);
           if (JSON.stringify(columns.sort()) !== JSON.stringify(["auth_mode", "endpoint_url"])) {
-            throw new Error("Custom HTTP provider schema columns are incomplete.");
+            throw new Error("ZeptoMail provider schema columns are incomplete.");
           }
           const schemaRows = rows(read("zeptomail-email-schema.json"));
           const schema = String(schemaRows.find((x) => typeof x.sql === "string")?.sql ?? "").toLowerCase();
