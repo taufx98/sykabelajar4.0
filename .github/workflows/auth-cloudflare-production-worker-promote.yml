@@ -22,7 +22,8 @@ concurrency:
 
 jobs:
   promote:
-    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+    # Disabled: the previous workflow would replace the staging Worker because both environments shared one hostname.
+    if: ${{ false }}
     name: One-time promotion of the existing Better Auth Worker to Production D1
     runs-on: ubuntu-24.04
     timeout-minutes: 25
