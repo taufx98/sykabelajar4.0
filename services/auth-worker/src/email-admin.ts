@@ -12,7 +12,7 @@ import {
 import { readEmailVerificationPolicy } from "./auth-runtime-settings";
 
 type SupabaseAdminUser = { id: string; email: string };
-type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend" | "zeptomail" | "custom_http";
+type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend" | "custom_http";
 type EmailAccountRow = {
   id: string;
   label: string;
@@ -199,19 +199,18 @@ async function requireActiveAdmin(request: Request, env: AuthWorkerEnv): Promise
 }
 
 
-const PROVIDERS = ["sendpulse", "brevo", "mailjet", "mailtrap", "resend", "zeptomail", "custom_http"] as const;
+const PROVIDERS = ["sendpulse", "brevo", "mailjet", "mailtrap", "resend", "custom_http"] as const;
 const DEFAULT_QUOTAS: Record<EmailProvider, { hour: number; day: number; month: number }> = {
   sendpulse: { hour: 50, day: 400, month: 0 },
   brevo: { hour: 0, day: 300, month: 0 },
   mailjet: { hour: 0, day: 200, month: 6000 },
   mailtrap: { hour: 0, day: 150, month: 4000 },
   resend: { hour: 0, day: 100, month: 3000 },
-  zeptomail: { hour: 50, day: 300, month: 0 },
   custom_http: { hour: 0, day: 0, month: 0 },
 };
 
 function providerName(provider: EmailProvider): string {
-  return ({ sendpulse: "SendPulse", brevo: "Brevo", mailjet: "Mailjet", mailtrap: "Mailtrap", resend: "Resend", zeptomail: "ZeptoMail", custom_http: "Custom HTTP" })[provider];
+  return ({ sendpulse: "SendPulse", brevo: "Brevo", mailjet: "Mailjet", mailtrap: "Mailtrap", resend: "Resend", custom_http: "Custom HTTP" })[provider];
 }
 
 function parseCredentials(value: string): Record<string, string> {
@@ -227,11 +226,6 @@ function parseCredentials(value: string): Record<string, string> {
 function normalizeCredentials(provider: EmailProvider, raw: unknown): Record<string, string> | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const input = raw as Record<string, unknown>;
-  if (provider === "zeptomail") {
-    const token = normalizeSendMailToken(nonEmpty(input.apiKey));
-    if (!token || token.length < 16 || token.length > 4096) return null;
-    return { apiKey: token };
-  }
   const values: Record<string, string> = {};
   const keys = provider === "mailjet"
     ? ["apiKey", "apiSecret"]
