@@ -298,7 +298,7 @@ declare
   v_identity_hash text;
   v_identity_origin text;
 begin
-  if (select auth.jwt() ->> 'iss') is distinct from 'https://auth.sykabelajar.my.id/api/auth' then
+  if (select auth.jwt() ->> 'iss') is distinct from 'https://auth-prod.sykabelajar.my.id/api/auth' then
     raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
   end if;
 
@@ -417,7 +417,7 @@ AS $function$
   LEFT JOIN public.profiles p ON p.id = re.referred_user_id
   WHERE re.referrer_user_id = auth.uid()
     AND re.status IN ('PENDING', 'VERIFIED', 'CREDITED')
-    AND (SELECT auth.jwt() ->> 'iss') = 'https://auth.sykabelajar.my.id/api/auth'
+    AND (SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth'
   ORDER BY re.created_at DESC;
 $function$;
 
@@ -455,7 +455,7 @@ AS $function$
   LEFT JOIN public.profiles p ON p.id = re.referred_user_id
   WHERE re.referrer_user_id = (SELECT auth.uid())
     AND re.status IN ('PENDING', 'VERIFIED', 'CREDITED')
-    AND (SELECT auth.jwt() ->> 'iss') = 'https://auth.sykabelajar.my.id/api/auth'
+    AND (SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth'
   ORDER BY re.created_at DESC;
 $function$;
 
@@ -484,7 +484,7 @@ AS $function$
   LEFT JOIN public.profiles AS p ON p.id = re.referred_user_id
   WHERE re.referrer_user_id = (SELECT auth.uid())
     AND re.verified_at IS NOT NULL
-    AND (SELECT auth.jwt() ->> 'iss') = 'https://auth.sykabelajar.my.id/api/auth'
+    AND (SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth'
   ORDER BY re.verified_at DESC;
 $function$;
 
@@ -516,7 +516,7 @@ DECLARE
   v_referral_reward_amount integer;
   v_now timestamptz := clock_timestamp();
 BEGIN
-  IF (SELECT auth.jwt() ->> 'iss') IS DISTINCT FROM 'https://auth.sykabelajar.my.id/api/auth' THEN
+  IF (SELECT auth.jwt() ->> 'iss') IS DISTINCT FROM 'https://auth-prod.sykabelajar.my.id/api/auth' THEN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
   END IF;
   IF v_user_id IS NULL THEN
