@@ -8,6 +8,7 @@ on:
       - security/auth-poc-stage-1
     paths:
       - ".github/workflows/auth-cloudflare-production-preflight.yml"
+      - ".github/auth-ops/VERIFY-PRODUCTION-WORKER-READONLY-0001"
   workflow_dispatch:
 
 permissions:
