@@ -729,3 +729,48 @@ CREATE OR REPLACE FUNCTION public.save_question_with_options(p_question_id uuid,
  SECURITY DEFINER
  SET search_path TO 'public', 'private'
 AS $function$ declare v_uid uuid:=auth.uid();v_question public.questions%rowtype;v_org uuid;v_plan text;v_option jsonb;v_count int;v_correct int;begin if v_uid is null then raise exception 'AUTH_REQUIRED';end if;select organizer_id into v_org from public.question_banks where id=p_question_bank_id;if v_org is null then raise exception 'BANK_NOT_FOUND';end if;if not(private.current_user_is_active_organizer_member(v_org) or private.current_user_is_admin()) then raise exception 'FORBIDDEN';end if;select op.plan_code into v_plan from public.organizer_plans op where op.organizer_id=v_org and op.is_active=true and op.starts_at<=now() and(op.ends_at is null or op.ends_at>now()) order by op.starts_at desc,op.created_at desc limit 1;if lower(p_type) in('essay','long-answer') and(coalesce(p_config,'{}'::jsonb) ? 'answer_key' or coalesce(p_config,'{}'::jsonb)->'ai_assessment'->>'enabled'='true') then if not exists(select 1 from public.plan_entitlements pe where pe.plan_code=v_plan and pe.capability='essay_ai_assessment' and coalesce(pe.limit_value,0)>0) then raise exception 'PREMIUM_REQUIRED';end if;end if;if lower(p_type) in('multiple-choice','mcq') then v_count:=jsonb_array_length(coalesce(p_options,'[]'::jsonb));if v_count<3 or v_count>6 then raise exception 'MCQ_OPTIONS_3_6';end if;select count(*) into v_correct from jsonb_array_elements(coalesce(p_options,'[]'::jsonb)) x where coalesce((x->>'is_correct')::boolean,false);if v_correct<>1 then raise exception 'MCQ_EXACTLY_ONE_CORRECT';end if;elsif lower(p_type) in('true-false','true_false') then if jsonb_array_length(coalesce(p_options,'[]'::jsonb))<>2 then raise exception 'TRUE_FALSE_REQUIRES_TWO_OPTIONS';end if;select count(*) into v_correct from jsonb_array_elements(coalesce(p_options,'[]'::jsonb)) x where coalesce((x->>'is_correct')::boolean,false);if v_correct<>1 then raise exception 'TRUE_FALSE_EXACTLY_ONE_CORRECT';end if;p_options:=jsonb_build_array(jsonb_build_object('label','Benar','value','Benar','is_correct',coalesce((p_options->0->>'is_correct')::boolean,false),'display_order',0),jsonb_build_object('label','Salah','value','Salah','is_correct',coalesce((p_options->1->>'is_correct')::boolean,false),'display_order',1));end if;if p_question_id is null then insert into public.questions(question_bank_id,type,prompt,points,required,display_order,status,config) values(p_question_bank_id,p_type,p_prompt,p_points,p_required,p_display_order,p_status,p_config) returning * into v_question;else update public.questions set question_bank_id=p_question_bank_id,type=p_type,prompt=p_prompt,points=p_points,required=p_required,display_order=p_display_order,status=p_status,config=p_config,updated_at=now() where id=p_question_id returning * into v_question;if not found then raise exception 'QUESTION_NOT_FOUND';end if;end if;delete from public.question_options where question_id=v_question.id;for v_option in select * from jsonb_array_elements(coalesce(p_options,'[]'::jsonb)) loop insert into public.question_options(question_id,label,value,is_correct,display_order) values(v_question.id,coalesce(v_option->>'label',''),coalesce(v_option->>'value',v_option->>'label',''),coalesce((v_option->>'is_correct')::boolean,false),coalesce((v_option->>'display_order')::int,0));end loop;return v_question;end;$function$;
+
+-- The collective Realtime bind RPC is also SECURITY DEFINER and can write its own
+-- session row. Keep it unavailable to legacy Supabase Auth sessions after issuer
+-- restriction even though the binding is scoped to auth.uid().
+CREATE OR REPLACE FUNCTION private.collective_realtime_bind(p_access_token text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private', 'extensions'
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_cp uuid := private.collective_session_participant(trim(coalesce(p_access_token, '')));
+  v_competition uuid;
+  v_expires timestamptz;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not private.current_user_is_better_auth() then raise exception 'BETTER_AUTH_ISSUER_REQUIRED'; end if;
+  if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  select competition_id into v_competition
+  from public.collective_participants
+  where id = v_cp and status = 'ACTIVE';
+  if v_competition is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  select least(s.expires_at, now() + interval '8 hours') into v_expires
+  from public.collective_access_sessions s
+  where s.token_hash = private.hash_collective_token(trim(coalesce(p_access_token, '')))
+    and s.revoked_at is null
+    and s.expires_at > now()
+    and s.session_type = 'COMPETITION'
+    and s.collective_participant_id = v_cp
+  order by s.created_at desc
+  limit 1;
+  if v_expires is null then raise exception 'COLLECTIVE_SESSION_INVALID'; end if;
+  insert into private.collective_chat_realtime_sessions(
+    auth_user_id, collective_participant_id, competition_id, expires_at, updated_at
+  )
+  values(v_uid, v_cp, v_competition, v_expires, now())
+  on conflict(auth_user_id) do update
+    set collective_participant_id = excluded.collective_participant_id,
+        competition_id = excluded.competition_id,
+        expires_at = excluded.expires_at,
+        updated_at = now();
+  return jsonb_build_object('ok', true, 'competition_id', v_competition, 'expires_at', v_expires);
+end;
+$function$;
