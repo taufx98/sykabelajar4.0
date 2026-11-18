@@ -7,6 +7,7 @@ on:
     paths:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
+      - "docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql"
       - "supabase/migrations/**"
       - "supabase/tests/**"
       - "src/App.tsx"
@@ -42,6 +43,7 @@ on:
     paths:
       - "services/auth-worker/supabase-test/**"
       - "scripts/auth-migration/**"
+      - "docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql"
       - "supabase/migrations/**"
       - "supabase/tests/**"
       - "src/App.tsx"
