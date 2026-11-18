@@ -48,6 +48,65 @@ test("staging and Production migrations rebuild only the routing table and prese
   }
 });
 
+test("staging and Production ZeptoMail D1 migrations are separately owner-gated and never deploy Workers", () => {
+  const stagingWorkflow = read("../../../.github/workflows/auth-zeptomail-email-staging.yml");
+  const productionWorkflow = read("../../../.github/workflows/auth-cloudflare-production-zeptomail-migrate.yml");
+  assert.match(stagingWorkflow, /APPLY-ZEPTOMAIL-EMAIL-0013/);
+  assert.match(stagingWorkflow, /APPLY-ZEPTOMAIL-EMAIL-sykabelajar-auth-poc/);
+  assert.match(stagingWorkflow, /7a4f9008-a1c6-42b6-8a04-abde12699248/);
+  assert.match(stagingWorkflow, /git hash-object migrations\/0013_zeptomail_email_provider\.sql/);
+  assert.match(stagingWorkflow, /providerFingerprintBefore/);
+  assert.match(stagingWorkflow, /identityFingerprintBefore/);
+  assert.match(stagingWorkflow, /zeptomailProviderAllowed/);
+  assert.match(stagingWorkflow, /npm run typecheck && npm test/);
+  assert.doesNotMatch(stagingWorkflow, /wrangler\s+deploy|wrangler\s+secret\s+(put|delete)/i);
+  assert.doesNotMatch(stagingWorkflow, /wrangler --config wrangler\.production\.toml|sykabelajar-auth-prod|mvdczyitbkxkldjughor/);
+
+  assert.match(productionWorkflow, /APPLY-PRODUCTION-ZEPTOMAIL-0011/);
+  assert.match(productionWorkflow, /APPLY-PRODUCTION-ZEPTOMAIL-sykabelajar-auth-prod/);
+  assert.match(productionWorkflow, /6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
+  assert.match(productionWorkflow, /git hash-object migrations-production\/0011_zeptomail_email_provider\.sql/);
+  assert.match(productionWorkflow, /providerAndQuotaFingerprintRecorded/);
+  assert.match(productionWorkflow, /identityFingerprintRecorded/);
+  assert.match(productionWorkflow, /WorkerDeploymentAttempted:false/);
+  assert.match(productionWorkflow, /secretsOrDnsChanged:false/);
+  assert.match(productionWorkflow, /npm run check/);
+  assert.doesNotMatch(productionWorkflow, /wrangler\s+deploy|wrangler\s+secret\s+(put|delete)/i);
+});
+
+test("Production Worker deploy-only workflow preserves existing secrets, staging binding and closed signup", () => {
+  const workflow = read("../../../.github/workflows/auth-cloudflare-production-worker-deploy.yml");
+  assert.match(workflow, /DEPLOY-PRODUCTION-AUTH-WORKER-0011/);
+  assert.match(workflow, /DEPLOY-PRODUCTION-AUTH-WORKER-sykabelajar-auth-prod/);
+  assert.match(workflow, /github\.actor == 'taufx98'/);
+  assert.match(workflow, /sykabelajar-auth-prod/);
+  assert.match(workflow, /6d4dc7b5-8e71-4fdc-9cda-3230e49951c7/);
+  assert.match(workflow, /7a4f9008-a1c6-42b6-8a04-abde12699248/);
+  assert.match(workflow, /auth-prod\.sykabelajar\.my\.id/);
+  assert.match(workflow, /auth\.sykabelajar\.my\.id/);
+  assert.match(workflow, /production-secret-names-before/);
+  assert.match(workflow, /secretNames\.join/);
+  assert.match(workflow, /assert\.equal\(secretNames\.join/);
+  assert.match(workflow, /secretValuesRead:false/);
+  assert.match(workflow, /Production signup must stay closed/);
+  assert.match(workflow, /npm run check/);
+  assert.match(workflow, /wrangler --config wrangler\.production\.toml deploy --message/);
+  assert.doesNotMatch(workflow, /workers\/scripts\/sykabelajar-auth-prod\/secrets[^\n]*method:\s*"PUT"/i);
+  assert.doesNotMatch(workflow, /wrangler\s+secret\s+(put|delete)|randomBytes\(32\)/i);
+});
+
+test("Production Cloudflare preflight tolerates ZeptoMail schema pending or applied without performing writes", () => {
+  const workflow = read("../../../.github/workflows/auth-cloudflare-production-preflight.yml");
+  assert.match(workflow, /0011_zeptomail_email_provider\.sql/);
+  assert.match(workflow, /expectedWithoutZeptoMail/);
+  assert.match(workflow, /zeptomailMigrationApplied/);
+  assert.match(workflow, /production-d1-email-schema\.json/);
+  assert.match(workflow, /zeptomailProviderSchema/);
+  assert.match(workflow, /remoteOperations: "SELECT only"/);
+  assert.match(workflow, /migrationApplyAttempted: false/);
+  assert.doesNotMatch(workflow, /wrangler d1 migrations apply|wrangler\s+deploy/i);
+});
+
 test("ZeptoMail remains a generic encrypted API-key provider without a legacy-table fallback", () => {
   assert.match(email, /credentials_ciphertext/);
   assert.match(email, /decryptEmailSecret/);
