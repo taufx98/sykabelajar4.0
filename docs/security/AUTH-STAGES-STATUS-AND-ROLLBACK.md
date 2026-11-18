@@ -14,6 +14,7 @@
 
 ## Remaining Stage 7 gates
 
+- **Production OIDC attempt:** [#44349164162](https://github.com/taufx98/sykabelajar4.0/actions/runs/44349164162) failed on the read-only Management API project lookup with HTTP 403. It stopped before OIDC inventory or POST; DB2 OIDC settings were not changed. Update Actions secret `SUPABASE_ACCESS_TOKEN` with a PAT scoped only to `mvdczyitbkxkldjughor`, with `Project Settings: Read` and `Auth Config: Read/Write`. The PAT owner's Supabase role must already permit these actions. Reference: [Supabase PAT permissions](https://supabase.com/docs/guides/platform/personal-access-tokens).
 1. Implement and test a narrow owner-only Production bootstrap for first email sender and first Admin, without public signup, staging SQL, forged verification, shadow `auth.users`, or replayable bootstrap credentials.
 2. Register Production DB2 Custom OIDC for `https://auth-prod.sykabelajar.my.id/api/auth` and verify hosted resource-token acceptance.
 3. Apply Stage 3 Production DB2 identity-root, 69-FK and issuer restrictions; confirm rollback behavior and fresh-account UUID projection.
