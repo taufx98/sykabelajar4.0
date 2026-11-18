@@ -1,3 +1,30 @@
+# Latest Staging ZeptoMail rollout checkpoint — 18 November 2026
+
+**This checkpoint records the completed staging-only schema and Worker rollout. It does not authorize Production sender setup or Production auth cutover.**
+
+## Completed
+
+- ZeptoMail provider PR [#196](https://github.com/taufx98/sykabelajar4.0/pull/196) merged in commit `8caa31a49d45e74327fd696406f514c2f15edfca`. It adds the provider to the managed Worker dispatcher, readiness check, Admin routing API and `TransactionalEmailSettingsPanel`.
+- Staging migration workflow [#44358349156](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358349156) successfully applied `0013_zeptomail_email_provider.sql` to staging D1 `sykabelajar-auth-poc` only.
+- Before/after checks preserved **9 Better Auth users, 9 accounts, 2 sessions, 20 identity-linkage rows and 1 existing provider account**. Provider fingerprint (encrypted credential, route/priority, quotas/counters, cooldown and delivery status) was unchanged. The new table constraint accepts both `zeptomail` and `custom_http`.
+- Staging Worker deployment [#44358777889](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358777889) succeeded. New Worker version: `8431e3b4-212f-4ffb-859b-582ac8928fb5`. It ran the full typecheck/security test/dry-run suite, checked 23 staging D1 tables and existing identities, preserved secrets, and passed hosted health, issuer, public ES256 JWKS and PKCE checks.
+- Auth Worker CI [#44358777986](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358777986) passed both Worker/Edge integration and frontend lint/typecheck/build jobs.
+- Public staging providers smoke confirmed the Better Auth issuer and email-verification policy remain active. The public endpoint intentionally exposes no provider tokens or private credential settings.
+
+## Not yet done
+
+- No ZeptoMail Agent Send Mail Token has been entered; no email was sent. Real ZeptoMail delivery and inbox acceptance remain to be tested by the owner from the staging Admin panel after adding the token there. **Never paste the token into chat or source control.**
+- Production D1 migration `0011_zeptomail_email_provider.sql` has not been applied. Marker `.github/auth-ops/APPLY-PRODUCTION-ZEPTOMAIL-0011` is absent.
+- Production Worker code-only deploy has not been run. Marker `.github/auth-ops/DEPLOY-PRODUCTION-AUTH-WORKER-0011` is absent. It must run only after Production D1 0011 and must preserve existing Production secret bindings.
+- Production OIDC remains blocked by the scoped Supabase PAT HTTP 403 recorded below; DB2 identity/FK/provisioning and the first Production Admin/sender bootstrap remain hard gates.
+- No Production sender credentials, public signup, frontend auth switch or user/account migration have been enabled.
+
+## Next owner step for a real ZeptoMail delivery check
+
+Open staging Admin → transactional email settings and add ZeptoMail using the Agent-specific **Send Mail Token** (not the Agent profile name or general account password). The panel stores it encrypted. Do not share it in chat. After saving and selecting it in the routing order, use the Admin test-to-self function and confirm the message reaches the inbox. This is a real email send and consumes the provider's quota; do not test it until the owner is ready.
+
+---
+
 # ZeptoMail managed-provider and Production readiness checkpoint — 18 November 2026
 
 **This is the newest checkpoint for the email-provider work.** It supplements the 18 November Stage 7 isolation/OIDC checkpoint immediately below.
