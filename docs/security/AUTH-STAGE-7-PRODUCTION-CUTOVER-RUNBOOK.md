@@ -4,45 +4,48 @@
 
 This document follows the owner-approved one-time promotion recorded in [AUTH-PRODUCTION-PROMOTION-DECISION-2026-11-14.md](AUTH-PRODUCTION-PROMOTION-DECISION-2026-11-14.md). It defines the controlled release sequence for the agreed Better Auth-only, fresh-account authentication model. It is not a production migration, deployment, DNS change, secret operation, account reset, or cutover authorization. Production steps require all GO gates below plus explicit owner approval for the cutover window.
 
-## 1. Live environment snapshot — reviewed 18 November 2026 (latest Production read-only checks: 17–18 November 2026)
+## 1. Live environment snapshot — reviewed 18 November 2026
 
 ### Supabase projects
 
-| Environment | Project | Plan / PostgreSQL | private.app_users | auth.users | Application FK state |
-|---|---|---|---:|---:|---|
-| Production DB2 | mvdczyitbkxkldjughor | Free / 17.6 | absent | legacy rows retained | 69 FKs to auth.users; 0 to private.app_users; 3 non-internal auth.users triggers |
-| Auth staging | ydamszdfsxqisanazdkb | Free / 17.11 | present | 0 rows | isolated identity fixture and provisioning contract |
+| Environment | Project | Plan / PostgreSQL | Identity status |
+|---|---|---|---|
+| Production DB2 | mvdczyitbkxkldjughor | Free / 17.6 | Existing Auth/application rows retained; Stage 3 identity root and FK cutover not applied |
+| Auth staging | ydamszdfsxqisanazdkb | Free / 17.11 | Isolated identity fixture; accepted staging users and roles remain intact |
 
-These figures come from read-only checks. No Production DDL/DML, account, Auth setting, RLS policy, trigger, secret, or Edge Function was changed.
+The successful schema-only baseline is not a data backup. The encrypted full backup/restore passed on 14 November; owner confirmed the encrypted archive was copied outside GitHub. Keep the destination checksum verification in the private owner release record.
 
-The connected Supabase organization is on the Free plan. Supabase Free does not provide automatic daily backups or PITR. The schema-only CI export is not a data backup; see Section 5.
+### Cloudflare authentication resources
 
-### Cloudflare authentication resources — verified 14 November 2026
+- **Staging remains the protected accepted environment:** Worker `sykabelajar-auth-poc`, D1 `sykabelajar-auth-poc` (UUID `7a4f9008-a1c6-42b6-8a04-abde12699248`) and hostname `auth.sykabelajar.my.id` stay paired. Do not promote or rebind this Worker.
+- **Production D1:** `sykabelajar-auth-prod` (UUID `6d4dc7b5-8e71-4fdc-9cda-3230e49951c7`). The last verified read-only snapshot on 18 November showed migrations 0000–0007, 20 tables and zero Better Auth identity/session/provider credential rows.
+- A one-time D1 migration authorization marker was committed on 18 November (`c073938e7f0564d9bb2422dec6d8ffc250a03045`) to apply Production migrations 0008–0010. The current connector did not expose the push-triggered run result. **Do not assume it succeeded or failed:** re-read the Production D1 migration ledger and schema before creating the Production Worker. The migration itself does not deploy a Worker, alter DNS, set secrets or switch the app.
+- **Dedicated Production Worker target:** `sykabelajar-auth-prod`, hostname `auth-prod.sykabelajar.my.id`, issuer `https://auth-prod.sykabelajar.my.id/api/auth`. Its Wrangler config and owner-guarded creation workflow are prepared on branch `security/auth-production-isolation`; they have not been merged or run. This target is separate from staging.
+- The previous same-Worker promotion plan is retired. The old `auth-cloudflare-production-worker-promote.yml` job is disabled in the preparation branch because it would replace the staging Worker/D1 binding.
 
-- Existing Better Auth Worker script: `sykabelajar-auth-poc`. It currently serves the accepted staging setup and remains the single Worker resource to be promoted once.
-- Staging D1: `sykabelajar-auth-poc` (`7a4f9008-a1c6-42b6-8a04-abde12699248`). It and its test records remain untouched.
-- Existing custom hostname: `auth.sykabelajar.my.id`, currently attached to that Worker. Keep it unchanged during the approved one-time promotion.
-- Production D1: `sykabelajar-auth-prod` (`6d4dc7b5-8e71-4fdc-9cda-3230e49951c7`). Migrations `0000–0007` are applied and the identity store is empty. Production-only `0008_auth_runtime_settings.sql`, `0009_multi_provider_email_routing.sql` and `0010_custom_http_email_provider.sql` are prepared but **not applied**. They create the required email-verification policy and extend the email-provider configuration schema only. They do not create Better Auth users, login accounts, sessions, credentials or application identities. Production 0009 matches staging migration 0010; Production 0010 matches staging 0012.
-- `services/auth-worker/wrangler.production.toml` is prepared to bind the existing Worker resource to Production D1 and the Production DB2 target. It has not been deployed.
-- No second auth Worker or staging hostname is planned. The one-time promotion changes the existing Worker's binding/configuration; it does not copy staging users, sessions, keys or credentials.
+### Release availability
+
+The website is still in progress and has not been publicly released. No scheduled public maintenance window is needed for this preparation/cutover. That does not mean a live route switch is risk-free: keep signup closed until the new Production issuer, sender, identity projection and app checks are accepted. Do not promise zero interruption after public release.
 
 ### Owner-operated staging acceptance
 
-The owner has run the hosted Uji Penerimaan Better Auth — Staging panel and reported 5/5 passed: session/Data API/profile/role isolation; PKCE resource-token re-issuance on the same session and UUID; private Storage ownership; private Realtime topic isolation; and shared ES256 verifier checks for issuer, audience, subject, role and RLS. The temporary Storage probe file was deleted. Do not repeat this panel unless a concrete regression occurs.
+The owner reported 5/5 passed: session/Data API/profile/role isolation; PKCE resource-token re-issuance on the same session and UUID; private Storage ownership; private Realtime topic isolation; and shared ES256 verifier checks. The owner also confirmed the staging SendPulse test email reached the inbox after PR #192. These are staging-only proofs; do not rerun unless a concrete regression appears.
 
-## 2. One-time promotion model — keep the current hostname and Worker
+## 2. Production isolation plan — preserve the accepted staging environment
 
-The owner has approved a one-time promotion after staging acceptance. Do not create another staging hostname, move the existing staging hostname, or create another Production Worker.
+The previous plan to promote `sykabelajar-auth-poc` in place is **retired**. Both environments previously pointed at the same Worker resource and hostname; deploying the Production config there would disconnect the working staging D1 and change the issuer serving the accepted staging environment. Never run the old promotion job or rebind the staging Worker.
 
-1. Keep `auth.sykabelajar.my.id` unchanged. It remains the Production issuer after promotion: `https://auth.sykabelajar.my.id/api/auth`.
-2. Keep the existing Cloudflare Worker resource and tested Worker code. Production promotion changes its D1 binding, environment variables and secrets in one controlled deployment; it does not rebuild or duplicate the authentication system.
-3. The empty Production D1 already exists as `sykabelajar-auth-prod` (UUID `6d4dc7b5-8e71-4fdc-9cda-3230e49951c7`) with migrations `0000–0007` applied and verified. Before Worker promotion, apply Production migrations `0008_auth_runtime_settings.sql`, `0009_multi_provider_email_routing.sql` and `0010_custom_http_email_provider.sql` once through `.github/workflows/auth-cloudflare-production-d1-migrate.yml`; it requires exact marker `.github/auth-ops/APPLY-PRODUCTION-D1-0002` or the exact manual confirmation `APPLY-PRODUCTION-D1-sykabelajar-auth-prod-6d4dc7b5`. The marker is absent and the workflow has not run. Verify `email_verification_required=1`, one failover-enabled email settings row, zero provider accounts and zero identity/credential/session records. Do not recreate the database or copy staging data, users, credentials, sessions, grants or keys.
-4. Leave the existing staging D1 database and its test records untouched. Freeze staging acceptance after the owner-approved checks; staging login will no longer be served from this Worker after it is promoted.
-5. Use Production-only Better Auth/JWT/email-encryption secrets and the Production Supabase provisioning destination. Do not reuse staging secrets or point Production to the staging Supabase project.
-6. After the existing Worker has been promoted to Production D1, register the unchanged Production issuer in Production DB2 Custom OIDC. Use `.github/workflows/auth-supabase-production-oidc.yml` only with exact marker `.github/auth-ops/REGISTER-PRODUCTION-OIDC-0001` or exact manual confirmation `REGISTER-PRODUCTION-OIDC-mvdczyitbkxkldjughor`. The marker is absent and the workflow has not run. No staging hostname change or new staging Custom OIDC registration is part of this cutover.
-7. Update only the Production frontend auth endpoint/configuration after the Production Worker, D1, DB2 identity migration and OIDC checks pass.
+1. Keep staging unchanged: `sykabelajar-auth-poc` + D1 `sykabelajar-auth-poc` + `auth.sykabelajar.my.id`.
+2. Read the live Production D1 ledger after the owner-authorized migration action. Require exactly migrations 0000–0010, 23 expected tables, email verification policy `email_verification_required=1`, one failover-enabled routing row, and zero user/account/session/verification/OAuth token/provider-account rows.
+3. Create a **new** Worker `sykabelajar-auth-prod` with only Production D1, Production DB2 URL, closed public signup and disabled provisioning. Bind it to the new custom hostname `auth-prod.sykabelajar.my.id`; do not attach or reassign `auth.sykabelajar.my.id`.
+4. Generate fresh Production-only Better Auth, provider-encryption and email-encryption secrets for the new Worker. Never copy staging secrets or delete staging Worker secret bindings.
+5. Verify Production health, discovery, issuer, public ES256 JWKS, PKCE S256, exact CORS, closed signup, zero identities and D1 binding. Re-read staging Worker/D1/hostname metadata and require no change.
+6. Register only `https://auth-prod.sykabelajar.my.id/api/auth` as the Production DB2 Custom OIDC issuer after the new Production Worker passes hosted checks. Keep the staging Supabase OIDC provider pinned to the staging issuer.
+7. Apply Stage 3 Production DB2 identity/FK/issuer work only after OIDC and the real Production token checks pass. Enable provisioning only after wrapper/grant/issuer checks; then complete the one-time verified first-admin bootstrap.
+8. Configure a Production-only sender and prove real numeric OTP verification and password-reset email delivery. Keep public signup closed until these proofs pass.
+9. Update only the Production frontend auth endpoint to `https://auth-prod.sykabelajar.my.id` after all backend gates pass; verify login/session/token/RLS/Storage/Realtime/Edge smoke coverage and rollback readiness.
 
-This is a single cutover, not a dual-environment architecture. The current staging Worker/D1 remain the accepted test record; the Worker resource is promoted once, and the staging D1 remains preserved but disconnected from live authentication.
+The isolated Production Worker creation workflow is `.github/workflows/auth-cloudflare-production-worker-create.yml`. It requires the exact owner marker `.github/auth-ops/CREATE-PRODUCTION-AUTH-WORKER-0001` or its manual confirmation phrase. The marker is intentionally absent; do not create it until D1 ledger verification and the first-admin/email bootstrap design are complete. The workflow's preflight checks that staging still uses the original Worker/D1/hostname and that the Production Worker/hostname do not already exist before creation.
 
 ## 3. Production authentication configuration
 
@@ -214,7 +217,7 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 - [x] Owner confirmed the encrypted DB2 backup was copied to durable storage outside GitHub.
 - [ ] Record/confirm the destination checksum verification in the private release record; keep the private age identity offline.
 - [x] Latest full read-only Production schema baseline [#44130643793](https://github.com/taufx98/sykabelajar4.0/actions/runs/44130643793) completed 17 November 2026: schema-only Production export and isolated PostgreSQL 17.6 restore matched all 69/69 FKs across 62 application tables, 10 Auth-dependent functions, 7 Auth/profile triggers, 109 `auth.uid()` policies across 61 tables and 36 profile columns. All 69-FK forward/rollback, Stage 3 identity/provisioning, issuer/RLS, and Stage 5 disposable Edge checks passed. No Production DDL/DML was executed. Repeat immediately before approved DDL.
-- [ ] Apply Stage 3 identity-root, trusted provisioning and 69-FK migration to Production DB2 under the approved maintenance window.
+- [ ] Apply Stage 3 identity-root, trusted provisioning and 69-FK migration to Production DB2 after the technical GO gates pass; no scheduled maintenance window is needed while the website remains unreleased.
 - [x] Production D1 created and verified; migrations 0000–0007 applied; no user/session/account/credential records present.
 - [ ] Apply Production D1 migrations `0008_auth_runtime_settings.sql`, `0009_multi_provider_email_routing.sql`, and `0010_custom_http_email_provider.sql` through the guarded one-time D1 workflow. Verify the single default policy row remains `email_verification_required=1`, the 23-table target schema is exact, failover defaults are enabled, and provider/identity/credential/session rows remain empty. Marker `.github/auth-ops/APPLY-PRODUCTION-D1-0002` absent; not executed.
 - [ ] Run the guarded existing-Worker Production promotion workflow with exact one-time marker/manual confirmation; verify generated Production-only keys, removal of staging-only key bindings, Production D1 binding and preserved hostname. Marker absent; not executed.
@@ -224,7 +227,7 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 - [ ] Deploy the Production frontend auth configuration and pass the complete login/session/API/Storage/Realtime/Edge smoke suite.
 - [ ] Verify monitoring/alerts and the Better Auth-compatible rollback path; close the migration only after the observation window is green.
 
-**Current decision: NO-GO for live cutover.** The encrypted full backup/restore passed and the owner confirmed the encrypted copy is stored outside GitHub; retain the destination checksum verification in the private release record. The 17 November full Production schema baseline passed with exact 69/69 FK and metadata parity. The 18 November Cloudflare read-only preflight [#44145409028](https://github.com/taufx98/sykabelajar4.0/actions/runs/44145409028) verified that the existing Worker and `auth.sykabelajar.my.id` remain paired, the Worker is still bound to the accepted staging D1, and Production D1 remains exactly migrations 0000–0007 with 20 expected tables, canonical callback, profile columns and zero identity/credential/session/legacy-email rows. Only Cloudflare GET requests and D1 SELECT queries ran. Production migrations 0008–0010, Worker promotion/secrets, Custom OIDC, DB2 identity/FK DDL, provisioning, real Production email, first-admin bootstrap, frontend switch, smoke/monitoring and explicit cutover approval remain outstanding. Do not deploy or mutate Production until every GO gate passes and the owner approves the exact maintenance/cutover window. No second Worker or hostname move is required.
+**Current decision: NO-GO for live cutover.** The encrypted full backup/restore passed and the owner confirmed the encrypted copy is stored outside GitHub; retain the destination checksum verification in the private release record. The 17 November full Production schema baseline passed with exact 69/69 FK and metadata parity. The 18 November Cloudflare read-only preflight [#44145409028](https://github.com/taufx98/sykabelajar4.0/actions/runs/44145409028) verified that the existing Worker and `auth.sykabelajar.my.id` remain paired, the Worker is still bound to the accepted staging D1, and Production D1 remains exactly migrations 0000–0007 with 20 expected tables, canonical callback, profile columns and zero identity/credential/session/legacy-email rows. Only Cloudflare GET requests and D1 SELECT queries ran. Production migrations 0008–0010, Worker promotion/secrets, Custom OIDC, DB2 identity/FK DDL, provisioning, real Production email, first-admin bootstrap, frontend switch, smoke/monitoring and explicit cutover approval remain outstanding. Do not deploy or mutate Production until every GO gate passes and the already-granted owner approval is still applicable to the exact operation. No scheduled maintenance window is required while the website remains unreleased. No second Worker or hostname move is required.
 
 ## 10. Safety record
 
