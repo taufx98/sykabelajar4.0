@@ -11,9 +11,11 @@
 - Cloudflare read-only inventory [#44347784875](https://github.com/taufx98/sykabelajar4.0/actions/runs/44347784875) confirmed staging Worker/D1/custom-domain pairing unchanged and Production Worker/D1/custom-domain pairing correct.
 - Staging remains Worker `sykabelajar-auth-poc` + D1 UUID `7a4f9008-a1c6-42b6-8a04-abde12699248` + `auth.sykabelajar.my.id`. Production uses Worker `sykabelajar-auth-prod` + D1 UUID `6d4dc7b5-8e71-4fdc-9cda-3230e49951c7` + `auth-prod.sykabelajar.my.id`.
 - Production signup remains disabled; Supabase provisioning remains disabled; no Production frontend switch occurred.
+- Guarded Production Custom OIDC run [#44349164162](https://github.com/taufx98/sykabelajar4.0/actions/runs/44349164162) stopped at the read-only Supabase Management API `GET /projects/mvdczyitbkxkldjughor` with HTTP 403. It did not read the Third-Party Auth list or send the registration POST; DB2 OIDC configuration remains unchanged. The scoped PAT needs `Project Settings: Read` and `Auth Config: Read/Write` on this exact project; the token owner must already have the matching Supabase role.
 
 ## Remaining Stage 7 gates
 
+- **Production OIDC attempt:** [#44349164162](https://github.com/taufx98/sykabelajar4.0/actions/runs/44349164162) failed on the read-only Management API project lookup with HTTP 403. It stopped before OIDC inventory or POST; DB2 OIDC settings were not changed. Update Actions secret `SUPABASE_ACCESS_TOKEN` with a PAT scoped only to `mvdczyitbkxkldjughor`, with `Project Settings: Read` and `Auth Config: Read/Write`. The PAT owner's Supabase role must already permit these actions. Reference: [Supabase PAT permissions](https://supabase.com/docs/guides/platform/personal-access-tokens).
 1. Implement and test a narrow owner-only Production bootstrap for first email sender and first Admin, without public signup, staging SQL, forged verification, shadow `auth.users`, or replayable bootstrap credentials.
 2. Register Production DB2 Custom OIDC for `https://auth-prod.sykabelajar.my.id/api/auth` and verify hosted resource-token acceptance.
 3. Apply Stage 3 Production DB2 identity-root, 69-FK and issuer restrictions; confirm rollback behavior and fresh-account UUID projection.

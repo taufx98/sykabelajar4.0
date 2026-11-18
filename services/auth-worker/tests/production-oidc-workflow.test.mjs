@@ -32,3 +32,12 @@ test("Production issuer registration cannot run automatically on branch pushes",
   assert.doesNotMatch(workflow, /^  pull_request:/m);
   assert.match(workflow, /type: string/);
 });
+
+test("Production OIDC workflow reports the exact minimum scoped PAT permissions without exposing token data", () => {
+  assert.match(workflow, /Project Settings: Read/);
+  assert.match(workflow, /Auth Config: Read\/Write/);
+  assert.match(workflow, /Auth Config: Read \(or Read\/Write\)/);
+  assert.match(workflow, /project mvdczyitbkxkldjughor/);
+  assert.match(workflow, /its owner has project access/);
+  assert.doesNotMatch(workflow, /console\.log\([^\n]*SUPABASE_ACCESS_TOKEN|SUPABASE_ACCESS_TOKEN[^\n]*console\.log/i);
+});

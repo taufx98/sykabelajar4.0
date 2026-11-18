@@ -75,7 +75,7 @@ jobs:
           const token = process.env.SUPABASE_ACCESS_TOKEN;
           if (!token) {
             throw new Error(
-              "SUPABASE_ACCESS_TOKEN Actions secret is not configured. Add a Supabase Management API token with auth_config_write permission; never put the token in chat or source control."
+              "SUPABASE_ACCESS_TOKEN Actions secret is not configured. Add a Supabase Management API token scoped to Production project mvdczyitbkxkldjughor with Project Settings: Read and Auth Config: Read/Write; never put the token in chat or source control."
             );
           }
 
@@ -93,8 +93,13 @@ jobs:
           async function getJson(url, label) {
             const response = await fetch(url, { headers, redirect: "error" });
             if (!response.ok) {
-              throw new Error(label + " failed with HTTP " + response.status +
-                (response.status === 403 ? "; check the token auth_config_write permission." : ""));
+              let permissionHint = "";
+              if (response.status === 403) {
+                permissionHint = label.includes("Third-Party Auth")
+                  ? "; the scoped PAT must include Auth Config: Read (or Read/Write) for this Production project."
+                  : "; verify the scoped PAT includes Project Settings: Read for this Production project and that its owner has project access.";
+              }
+              throw new Error(label + " failed with HTTP " + response.status + permissionHint);
             }
             return response.json();
           }
@@ -135,7 +140,10 @@ jobs:
           const projectUrl = managementBase + "/projects/" + projectRef;
           const projectResponse = await fetch(projectUrl, { headers, redirect: "error" });
           if (!projectResponse.ok) {
-            throw new Error("Supabase Production DB2 lookup failed with HTTP " + projectResponse.status);
+            const permissionHint = projectResponse.status === 403
+              ? "; the scoped PAT needs Project Settings: Read for project mvdczyitbkxkldjughor. Also grant Auth Config: Read/Write for the subsequent Third-Party Auth inventory/create operations. Confirm the PAT is scoped to this exact project and its owner role permits those reads/writes."
+              : "";
+            throw new Error("Supabase Production DB2 lookup failed with HTTP " + projectResponse.status + permissionHint);
           }
           const project = await projectResponse.json();
           if (project.id !== projectRef ||
@@ -165,8 +173,10 @@ jobs:
               redirect: "error",
             });
             if (response.status !== 201) {
-              throw new Error("Supabase Production Custom OIDC registration failed with HTTP " + response.status +
-                (response.status === 403 ? "; check the token auth_config_write permission." : ""));
+              const permissionHint = response.status === 403
+                ? "; the scoped PAT must include Auth Config: Read/Write for project mvdczyitbkxkldjughor."
+                : "";
+              throw new Error("Supabase Production Custom OIDC registration failed with HTTP " + response.status + permissionHint);
             }
           }
 
