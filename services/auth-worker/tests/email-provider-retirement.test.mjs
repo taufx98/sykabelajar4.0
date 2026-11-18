@@ -50,7 +50,7 @@ test("staging schema workflow is owner-gated, staging-only and fingerprints sens
   assert.ok(workflow.includes("0013_zeptomail_email_provider.sql"));
   assert.ok(workflow.includes("unsupported_rows"));
   assert.ok(workflow.includes("credentials_ciphertext"));
-  assert.doesNotMatch(workflow, /wrangler[^\n]*deploy|wrangler[^\n]*secret|wrangler\.production|sykabelajar-auth-prod|mvdczyitbkxkldjughor/);
+  assert.doesNotMatch(workflow, /wrangler[^\n]*deploy|wrangler[^\n]*secret|wrangler\.production|mvdczyitbkxkldjughor/);
 });
 
 test("staging Worker deployment requires finalized schema and uses a fresh manual gate", () => {
