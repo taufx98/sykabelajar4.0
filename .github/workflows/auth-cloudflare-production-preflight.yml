@@ -125,32 +125,44 @@ jobs:
           }
 
           const account = "/accounts/" + encodeURIComponent(accountId);
-          const [scripts, domains, settings, d1] = await Promise.all([
+          const [scripts, stagingDomains, productionDomains, stagingSettings, productionSettings, d1] = await Promise.all([
             read(account + "/workers/scripts", "Worker script inventory"),
-            read(account + "/workers/domains?hostname=auth.sykabelajar.my.id", "Worker custom-domain inventory"),
-            read(account + "/workers/scripts/sykabelajar-auth-poc/settings", "Current Worker binding inventory"),
+            read(account + "/workers/domains?hostname=auth.sykabelajar.my.id", "Staging Worker custom-domain inventory"),
+            read(account + "/workers/domains?hostname=auth-prod.sykabelajar.my.id", "Production Worker custom-domain inventory"),
+            read(account + "/workers/scripts/sykabelajar-auth-poc/settings", "Staging Worker binding inventory"),
+            read(account + "/workers/scripts/sykabelajar-auth-prod/settings", "Production Worker binding inventory"),
             read(account + "/d1/database/6d4dc7b5-8e71-4fdc-9cda-3230e49951c7", "Production D1 inventory"),
           ]);
 
           const scriptRows = Array.isArray(scripts) ? scripts : [];
-          const domainRows = Array.isArray(domains) ? domains : [];
-          const matchingDomains = domainRows.filter((row) =>
+          const stageDomains = Array.isArray(stagingDomains) ? stagingDomains.filter((row) =>
             row?.hostname === "auth.sykabelajar.my.id" &&
-            row?.service === "sykabelajar-auth-poc" &&
-            row?.enabled === true);
-          const d1Bindings = Array.isArray(settings?.bindings)
-            ? settings.bindings.filter((binding) => binding?.type === "d1" && binding?.name === "DB")
-            : [];
+            row?.service === "sykabelajar-auth-poc" && row?.enabled === true) : [];
+          const prodDomains = Array.isArray(productionDomains) ? productionDomains.filter((row) =>
+            row?.hostname === "auth-prod.sykabelajar.my.id" &&
+            row?.service === "sykabelajar-auth-prod" && row?.enabled === true) : [];
+          const stageBindings = Array.isArray(stagingSettings?.bindings)
+            ? stagingSettings.bindings.filter((binding) => binding?.type === "d1" && binding?.name === "DB") : [];
+          const prodBindings = Array.isArray(productionSettings?.bindings)
+            ? productionSettings.bindings.filter((binding) => binding?.type === "d1" && binding?.name === "DB") : [];
 
-          if (!scriptRows.some((row) => row?.id === "sykabelajar-auth-poc")) {
-            throw new Error("The accepted existing Worker script is not present in this Cloudflare account.");
+          if (scriptRows.filter((row) => row?.id === "sykabelajar-auth-poc").length !== 1 ||
+              scriptRows.filter((row) => row?.id === "sykabelajar-auth-prod").length !== 1) {
+            throw new Error("Both the accepted staging Worker and the dedicated Production Worker must exist exactly once.");
           }
-          if (matchingDomains.length !== 1) {
-            throw new Error("The existing auth hostname is not attached exactly once to the approved Worker.");
+          if (stageDomains.length !== 1) {
+            throw new Error("Staging auth hostname is not attached exactly once to the staging Worker.");
           }
-          if (d1Bindings.length !== 1 ||
-              (d1Bindings[0].database_id ?? d1Bindings[0].id) !== "7a4f9008-a1c6-42b6-8a04-abde12699248") {
-            throw new Error("The current Worker is not bound to the exact accepted staging D1; refusing an unexpected source state.");
+          if (prodDomains.length !== 1) {
+            throw new Error("Production auth custom domain is not attached exactly once to the dedicated Production Worker.");
+          }
+          if (stageBindings.length !== 1 ||
+              (stageBindings[0].database_id ?? stageBindings[0].id) !== "7a4f9008-a1c6-42b6-8a04-abde12699248") {
+            throw new Error("Staging Worker is not bound to the exact accepted staging D1.");
+          }
+          if (prodBindings.length !== 1 ||
+              (prodBindings[0].database_id ?? prodBindings[0].id) !== "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7") {
+            throw new Error("Production Worker is not bound to the exact Production D1.");
           }
           if (d1?.name !== "sykabelajar-auth-prod" ||
               d1?.uuid !== "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7") {
@@ -158,14 +170,15 @@ jobs:
           }
 
           console.log(JSON.stringify({
-            workerExists: true,
-            workerName: "sykabelajar-auth-poc",
-            currentWorkerD1: "accepted staging D1 verified",
-            existingAuthHostname: "auth.sykabelajar.my.id",
-            existingHostnameAttachedToSameWorker: true,
+            stagingWorker: "sykabelajar-auth-poc",
+            stagingHostname: "auth.sykabelajar.my.id",
+            stagingD1: "7a4f9008-a1c6-42b6-8a04-abde12699248",
+            stagingBindingAndDomain: "verified unchanged",
+            productionWorker: "sykabelajar-auth-prod",
+            productionHostname: "auth-prod.sykabelajar.my.id",
             productionD1: d1.name,
             productionD1Uuid: d1.uuid,
-            bindingNamesRead: true,
+            productionBindingAndDomain: "verified",
             secretValuesRead: false,
             dnsOrWorkerChanged: false,
           }));
