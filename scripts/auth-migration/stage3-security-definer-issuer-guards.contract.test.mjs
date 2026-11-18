@@ -91,8 +91,8 @@ assert.match(publicAdminProfile, /app_user\.identity_origin = 'better_auth'/);
 
 const listTeacherCertificates = draft.match(/CREATE OR REPLACE FUNCTION public\.list_teacher_collective_certificates[\s\S]*?\$function\$;/i)?.[0] ?? "";
 assert.match(listTeacherCertificates, /private\.current_user_is_better_auth\(\)/);
-const realtimeBind = draft.match(/CREATE OR REPLACE FUNCTION private\\.collective_realtime_bind[\\s\\S]*?\\$function\\$;/i)?.[0] ?? "";
-assert.match(realtimeBind, /private\\.current_user_is_better_auth\\(\\)/);
+const realtimeBind = draft.match(/CREATE OR REPLACE FUNCTION private\.collective_realtime_bind[\s\S]*?\$function\$;/i)?.[0] ?? "";
+assert.match(realtimeBind, /private\.current_user_is_better_auth\(\)/);
 
 
 assert.match(regression, /STAGE3_LEGACY_ISSUER_ADMIN_HELPER_ALLOWED/);
