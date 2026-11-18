@@ -17,7 +17,7 @@ DECLARE
   v_table record;
   v_created integer := 0;
   v_expected_tables constant integer := 61;
-  v_better_auth_issuer constant text := 'https://auth.sykabelajar.my.id/api/auth';
+  v_better_auth_issuer constant text := 'https://auth-prod.sykabelajar.my.id/api/auth';
 BEGIN
   IF EXISTS (
     SELECT 1
