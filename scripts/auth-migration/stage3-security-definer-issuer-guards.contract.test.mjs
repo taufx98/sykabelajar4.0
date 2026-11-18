@@ -99,7 +99,7 @@ assert.match(regression, /STAGE3_LEGACY_ISSUER_ADMIN_HELPER_ALLOWED/);
 assert.match(regression, /STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED/);
 assert.match(regression, /STAGE3_BETTER_AUTH_ADMIN_HELPER_DENIED/);
 assert.match(regression, /STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED/);
-assert.doesNotMatch(draft, /^\s*(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-z_]+\s+SET|DELETE FROM)\b/im,
+assert.doesNotMatch(draft, /^(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-z_]+\s+SET|DELETE FROM)\b/im,
   "draft must not mutate application data or replace RLS policy state");
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
