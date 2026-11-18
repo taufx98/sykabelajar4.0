@@ -238,6 +238,32 @@ jobs:
           console.log("Verified staging custom HTTPS JSON email provider migration 0012 and columns before Worker deployment.");
           NODE
 
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0013_zeptomail_email_provider.sql';" > "$RUNNER_TEMP/auth-worker-staging-zeptomail-migration.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_email_provider_accounts';" > "$RUNNER_TEMP/auth-worker-staging-zeptomail-schema.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const root = process.env.RUNNER_TEMP;
+          const read = (name) => JSON.parse(readFileSync(root + "/" + name, "utf8"));
+          const collect = (value, key, out = []) => {
+            if (Array.isArray(value)) value.forEach((item) => collect(item, key, out));
+            else if (value && typeof value === "object") {
+              if (Object.hasOwn(value, key)) out.push(value[key]);
+              Object.values(value).forEach((item) => { if (item && typeof item === "object") collect(item, key, out); });
+            }
+            return out;
+          };
+          const migration = collect(read("auth-worker-staging-zeptomail-migration.json"), "name");
+          const schema = String(collect(read("auth-worker-staging-zeptomail-schema.json"), "sql")[0] ?? "").toLowerCase();
+          if (!migration.includes("0013_zeptomail_email_provider.sql")) {
+            throw new Error("Staging ZeptoMail migration 0013 is not recorded as applied; refusing Worker deployment.");
+          }
+          if (!schema.includes("'zeptomail'") || !schema.includes("'custom_http'")) {
+            throw new Error("Staging email provider schema must retain custom_http and allow ZeptoMail before Worker deployment.");
+          }
+          console.log("Verified staging ZeptoMail migration 0013 and both ZeptoMail/custom_http provider constraints before Worker deployment.");
+          NODE
+
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0011_add_github_social_provider.sql';" > "$RUNNER_TEMP/auth-worker-staging-github-migration.json"
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_social_provider_settings';" > "$RUNNER_TEMP/auth-worker-staging-github-schema.json"
 
