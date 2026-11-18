@@ -195,7 +195,11 @@ jobs:
               (SELECT COUNT(*) FROM \"verification\") AS verifications,
               (SELECT COUNT(*) FROM oauthAccessToken) AS access_tokens,
               (SELECT COUNT(*) FROM oauthRefreshToken) AS refresh_tokens,
-              (SELECT COUNT(*) FROM auth_email_accounts) AS legacy_email_accounts;" \
+              (SELECT COUNT(*) FROM auth_email_accounts) AS legacy_email_accounts,
+              (SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_provider_accounts,
+              (SELECT COUNT(*) FROM auth_email_provider_settings) AS email_provider_settings,
+              (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id=1) AS auto_failover_enabled,
+              (SELECT email_verification_required FROM auth_runtime_settings WHERE id=1) AS email_verification_required;" \
             > "$RUNNER_TEMP/production-d1-empty-state.json"
 
           npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json \
@@ -228,11 +232,14 @@ jobs:
             "0005_telegram_phone_verification.sql",
             "0006_transactional_email_provider.sql",
             "0007_managed_social_login_providers.sql",
+            "0008_auth_runtime_settings.sql",
+            "0009_multi_provider_email_routing.sql",
+            "0010_custom_http_email_provider.sql",
           ];
           const migrations = visit(read("production-d1-migrations.json"), (row) => typeof row.name === "string")
             .map((row) => row.name).sort();
           if (JSON.stringify(migrations) !== JSON.stringify([...expectedMigrations].sort())) {
-            throw new Error("Production D1 migration ledger is not exactly 0000–0007; stop and inspect before any change.");
+            throw new Error("Production D1 migration ledger is not exactly 0000–0010; stop and inspect before any change.");
           }
 
           const expectedTables = [
@@ -240,26 +247,26 @@ jobs:
             "auth_worker_internal_config","jwks","oauthAccessToken","oauthClient","oauthClientAssertion",
             "oauthClientResource","oauthConsent","oauthRefreshToken","oauthResource","rateLimit",
             "session","user","verification","auth_phone_verification_challenges",
-            "auth_social_provider_meta","auth_social_provider_settings",
+            "auth_social_provider_meta","auth_social_provider_settings","auth_runtime_settings",
+            "auth_email_provider_accounts","auth_email_provider_settings",
           ];
           const tables = visit(read("production-d1-tables.json"), (row) =>
             typeof row.name === "string" && expectedTables.includes(row.name))
             .map((row) => row.name).sort();
           if (JSON.stringify(tables) !== JSON.stringify([...expectedTables].sort())) {
-            throw new Error("Production D1 schema does not match the reviewed pre-promotion 20-table baseline.");
-          }
-          const forbiddenTables = ["auth_runtime_settings","auth_email_provider_accounts","auth_email_provider_settings"];
-          const allTableNames = visit(read("production-d1-tables.json"), (row) => typeof row.name === "string")
-            .map((row) => row.name);
-          if (forbiddenTables.some((name) => allTableNames.includes(name))) {
-            throw new Error("One or more post-0007 email-policy/routing tables already exist; stop and review migration history.");
+            throw new Error("Production D1 schema does not match the reviewed 0000–0010 23-table baseline.");
           }
 
           const counts = visit(read("production-d1-empty-state.json"), (row) => Object.hasOwn(row, "users") && Object.hasOwn(row, "legacy_email_accounts"));
           if (counts.length !== 1) throw new Error("Could not read exactly one Production D1 empty-state summary.");
           const row = counts[0];
-          for (const field of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens","legacy_email_accounts"]) {
+          for (const field of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens","legacy_email_accounts","email_provider_accounts"]) {
             if (Number(row[field]) !== 0) throw new Error("Production D1 is not the expected empty auth store: " + field + " is nonzero.");
+          }
+          if (Number(row.email_provider_settings) !== 1 ||
+              Number(row.auto_failover_enabled) !== 1 ||
+              Number(row.email_verification_required) !== 1) {
+            throw new Error("Production D1 must have exactly one failover-enabled routing settings row and required email verification.");
           }
 
           const callbacks = visit(read("production-d1-callback.json"), (item) => typeof item.redirect_uris === "string");
@@ -278,15 +285,15 @@ jobs:
 
           console.log(JSON.stringify({
             result: "PASS",
-            productionD1Migrations: "0000–0007 only",
+            productionD1Migrations: "0000–0010 only",
             expectedTables: expectedTables.length,
             authIdentityRows: 0,
             credentialAndSessionRows: 0,
             legacyEmailRows: 0,
             productionOAuthCallback: "canonical website callback verified",
             profileMappingColumns: expectedColumns.length,
-            emailVerificationPolicyMigration: "0008 not applied",
-            multiProviderRoutingMigrations: "0009–0010 not applied",
+            emailVerificationRequired: true,
+            multiProviderRouting: "default failover enabled; no provider credentials configured",
             remoteOperations: "SELECT only",
             migrationApplyAttempted: false,
             WorkerDeploymentAttempted: false,
