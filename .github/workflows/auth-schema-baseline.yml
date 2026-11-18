@@ -191,6 +191,10 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage3-issuer-guard.contract.test.mjs
 
+      - name: Test Stage 3 SECURITY DEFINER issuer-guard contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs
+
       - name: Test fail-closed Stage 3 reverse FK rollback plan contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
@@ -679,6 +683,19 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/auth-stage3-issuer-guard.sql
           echo "- Added restrictive Better Auth issuer-only guard to the 61 auth.uid()-policy tables in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 3 SECURITY DEFINER issuer guards to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql:/baseline/stage3-security-definer-issuer-guards.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-security-definer-issuer-guards.sql
+          echo "- Restricted Admin, organizer, and collective Realtime SECURITY DEFINER helper/RPC paths to the Production Better Auth issuer and better_auth identity rows in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Stage 3 trusted-issuer RLS acceptance on disposable restore
         if: steps.credentials.outputs.available == 'true'
