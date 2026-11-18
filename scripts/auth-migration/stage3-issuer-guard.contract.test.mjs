@@ -17,6 +17,16 @@ assert.match(draft, /AS RESTRICTIVE FOR ALL TO authenticated/i);
 assert.match(draft, /auth\.jwt\(\)\s*->>\s*''iss''/i);
 assert.doesNotMatch(draft, /https:\/\/mvdczyitbkxkldjughor\.supabase\.co\/auth\/v1/);
 assert.match(draft, /https:\/\/auth-prod\.sykabelajar\.my\.id\/api\/auth/);
+
+assert.match(draft, /CREATE OR REPLACE FUNCTION private\.current_user_has_role/);
+assert.match(draft, /app_user\.identity_origin = 'better_auth'/);
+assert.match(draft, /CREATE OR REPLACE FUNCTION public\.is_active_admin/);
+assert.match(draft, /auth\.jwt\(\) ->> 'iss'/);
+assert.match(acceptance, /STAGE3_LEGACY_ISSUER_ADMIN_HELPER_ALLOWED/);
+assert.match(acceptance, /STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED/);
+assert.match(acceptance, /STAGE3_BETTER_AUTH_ADMIN_HELPER_DENIED/);
+assert.match(acceptance, /STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED/);
+
 assert.match(acceptance, /https:\/\/auth-prod\.sykabelajar\.my\.id\/api\/auth/);
 assert.match(draft, /v_expected_tables constant integer := 61/);
 assert.match(draft, /STAGE3_ISSUER_GUARD_ALREADY_EXISTS/);
