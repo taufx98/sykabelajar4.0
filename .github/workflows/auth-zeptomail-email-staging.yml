@@ -149,9 +149,10 @@ jobs:
             "0009_auth_runtime_settings.sql",
             "0010_multi_provider_email_routing.sql",
             "0011_add_github_social_provider.sql",
+            "0012_custom_http_email_provider.sql",
           ];
           for (const name of required) if (!applied.has(name)) throw new Error("Required staging migration missing: " + name);
-          const unexpected = [...applied].filter((name) => ![...required, "0012_custom_http_email_provider.sql", "0013_zeptomail_email_provider.sql"].includes(name));
+          const unexpected = [...applied].filter((name) => ![...required, "0013_zeptomail_email_provider.sql"].includes(name));
           if (unexpected.length) throw new Error("Unexpected staging D1 migration history: " + unexpected.join(", "));
           const before = rows(read("zeptomail-email-before-counts.json")).find((x) => Object.hasOwn(x, "users"));
           if (!before) throw new Error("Could not capture current Better Auth account counts.");
