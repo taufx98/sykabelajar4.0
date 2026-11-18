@@ -74,7 +74,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: services/auth-worker/package-lock.json
 
       - run: npm ci --no-audit --no-fund
       - run: npm run check
