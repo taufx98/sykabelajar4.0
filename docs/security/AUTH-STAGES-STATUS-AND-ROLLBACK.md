@@ -1,3 +1,35 @@
+# ZeptoMail managed-provider and Production readiness checkpoint — 18 November 2026
+
+**This is the newest checkpoint for the email-provider work.** It supplements the 18 November Stage 7 isolation/OIDC checkpoint immediately below.
+
+## ZeptoMail implementation prepared — no live migration or delivery
+
+- PR [#196](https://github.com/taufx98/sykabelajar4.0/pull/196) adds ZeptoMail as a first-class provider to the managed email dispatcher, Worker readiness check, Admin routing API and `TransactionalEmailSettingsPanel`.
+- Delivery uses the Zoho CPaaS Send Email API endpoint `https://cpaas.zoho.com/v1.1/email`, Agent-specific `Zoho-enczapikey` Authorization, documented `from`/`to` JSON shape and strict accepted-response checking. Only one same-origin trailing-slash redirect is permitted; cross-origin redirects are blocked. An optional pasted `Zoho-enczapikey ` prefix is stripped before the token is encrypted.
+- The Send Mail Token goes through the existing AES-GCM encrypted `credentials_ciphertext` path. The legacy `auth_email_accounts` / `auth_email_settings` tables are not read or used as fallback. Existing provider credentials are not imported or rewritten.
+- Admin default internal throttles for Zeptomail are 50 messages/hour and 300/day (operational limits only; they are not a claim about the vendor plan quota).
+- Staging D1 migration `0013_zeptomail_email_provider.sql` and Production D1 migration `0011_zeptomail_email_provider.sql` extend the provider CHECK by rebuilding only `auth_email_provider_accounts`; all existing encrypted credentials, routing priorities, quota buckets/counters, cooldowns and delivery status fields are copied. Better Auth users/accounts/sessions and Supabase data are not touched.
+- Separate owner-gated schema workflows are prepared: `.github/workflows/auth-zeptomail-email-staging.yml` and `.github/workflows/auth-cloudflare-production-zeptomail-migrate.yml`. The Production preflight accepts either the current 0000–0010 ledger or 0000–0011 after a future approved migration.
+- Production Worker code update is separate: `.github/workflows/auth-cloudflare-production-worker-deploy.yml` updates the already deployed Worker only after Production D1 0011; it checks existing secret names before/after, does not read or rotate their values, and rechecks the staging Worker/D1/hostname.
+- **No ZeptoMail migration marker exists**, no sender profile or token has been entered, no test email has been sent, and no staging/Production Worker deployment has been run for this PR.
+
+## Validation
+
+- [Auth Worker CI #44356044553](https://github.com/taufx98/sykabelajar4.0/actions/runs/44356044553) passed on 18 November 2026: dependency audit, TypeScript typecheck, all security/provider/SQL workflow contract tests, Deno/Edge typechecks and auth/JWKS tests, local Worker/D1/OAuth integration, staging and Production Wrangler dry-run bundles, and frontend lint/typecheck/build. No remote D1 migration, email send, Worker deployment, secret, DNS or frontend routing operation occurred in this CI run.
+
+## Remaining gates
+
+1. Review/merge PR #196; do not create either ZeptoMail D1 marker until the review is accepted.
+2. Apply staging migration 0013 through its owner-gated workflow (requires existing staging migration 0012); then deploy the tested Worker to staging with the separately guarded staging deploy and verify Admin UI/provider configuration without sending mail until a credential is deliberately entered.
+3. Resolve the existing Production DB2 OIDC PAT 403 by replacing GitHub Actions secret `SUPABASE_ACCESS_TOKEN` with a PAT scoped to DB2 with Project Settings: Read and Auth Config: Read/Write. The token owner must already have DB2 access.
+4. Apply Production D1 migration 0011 through the guarded workflow only after its exact target/fingerprint checks; then deploy provider code to existing Production Worker via the deploy-only workflow that preserves secret names.
+5. Complete the owner-only first-sender and first-Admin bootstrap design; no public signup, staging SQL, forged email verification or shadow `auth.users` identity.
+6. Prove real Production numeric OTP and password-reset delivery; only then consider Production frontend/auth cutover.
+
+**Production remains NO-GO for live login/auth cutover.** Existing staging and Production Workers remain as verified; Production signup/provisioning remain closed. No user, account, session or application data has been changed by the ZeptoMail preparation.
+
+---
+
 # Latest Stage 7 Production checkpoint — 18 November 2026
 
 **This checkpoint supersedes older Stage 7 statements below where they conflict.** The site is unreleased; no scheduled public maintenance window is needed. Owner has approved the Production cutover and fresh-account model. Production remains technically NO-GO for frontend/login switch until sender/Admin, OIDC, DB2 identity/FK and provisioning gates pass.
