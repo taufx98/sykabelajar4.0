@@ -39,7 +39,7 @@ test("staging and Production migrations rebuild only the routing table and prese
     assert.match(migration, /endpoint_url TEXT/);
     assert.match(migration, /auth_mode TEXT/);
     assert.match(migration, /credentials_ciphertext TEXT NOT NULL/);
-    assert.match(migration, /INSERT INTO auth_email_provider_accounts\s*\([\s\S]*?credentials_ciphertext[\s\S]*?hour_bucket[\s\S]*?updated_by\)/);
+    assert.match(migration, /INSERT INTO auth_email_provider_accounts\s*\([\s\S]*?credentials_ciphertext[\s\S]*?hour_bucket[\s\S]*?updated_by\s*\)/);
     assert.match(migration, /SELECT\s+id,label,provider,sender_address,sender_name,endpoint_url,auth_mode,credentials_ciphertext,[\s\S]*?hour_bucket,hour_used,day_bucket,day_used,month_bucket,month_used,[\s\S]*?created_by,updated_by\s+FROM auth_email_provider_accounts_before_zeptomail/);
     assert.match(migration, /DROP TABLE auth_email_provider_accounts_before_zeptomail/);
     assert.match(migration, /CREATE INDEX IF NOT EXISTS auth_email_provider_accounts_route_idx/);
@@ -60,7 +60,7 @@ test("staging and Production ZeptoMail D1 migrations are separately owner-gated 
   assert.match(stagingWorkflow, /0012_custom_http_email_provider\.sql/);
   assert.match(stagingWorkflow, /Required staging migration missing/);
   assert.match(stagingWorkflow, /Unexpected staging D1 migration history/);
-  assert.match(stagingWorkflow, /zeptomailProviderAllowed/);
+  assert.match(stagingWorkflow, /zeptoMailProviderAllowed/);
   assert.match(stagingWorkflow, /npm run typecheck && npm test/);
   assert.doesNotMatch(stagingWorkflow, /wrangler\s+deploy|wrangler\s+secret\s+(put|delete)/i);
   assert.doesNotMatch(stagingWorkflow, /wrangler --config wrangler\.production\.toml|sykabelajar-auth-prod|mvdczyitbkxkldjughor/);
