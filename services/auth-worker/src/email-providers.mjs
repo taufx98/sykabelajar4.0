@@ -4,6 +4,7 @@ const ENDPOINTS = {
   mailjet: "https://api.mailjet.com/v3.1/send",
   mailtrap: "https://send.api.mailtrap.io/api/send",
   resend: "https://api.resend.com/emails",
+  zeptomail: "https://cpaas.zoho.com/v1.1/email",
 };
 
 
@@ -236,7 +237,7 @@ function quotaError(body) {
 }
 
 /**
- * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"|"custom_http"} provider
+ * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"|"zeptomail"|"custom_http"} provider
  * @param {typeof fetch} fetcher
  * @param {string} endpoint
  * @param {RequestInit} init
@@ -466,7 +467,7 @@ function buildSendPulseHtml(text) {
  * Only definite provider rejections (quota or invalid credentials) are
  * eligible for automatic failover. Ambiguous transport/5xx errors are not.
  *
- * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"|"custom_http"} provider
+ * @param {"sendpulse"|"brevo"|"mailjet"|"mailtrap"|"resend"|"zeptomail"|"custom_http"} provider
  * @param {Record<string,string>} credentials
  * @param {{senderAddress:string,senderName:string}} account
  * @param {{to:string,subject:string,text:string,action?:string}} message
@@ -541,13 +542,24 @@ export async function sendEmailWithProvider(provider, credentials, account, mess
       subject: values.subject,
       text: values.text,
     });
+  } else if (provider === "zeptomail") {
+    const apiKey = required(credentials?.apiKey);
+    if (!apiKey) throw new EmailProviderDeliveryError("EMAIL_PROVIDER_CONFIGURATION_INCOMPLETE");
+    init = jsonInit({ authorization: "Zoho-enczapikey " + apiKey }, {
+      from: { address: values.senderAddress, name: values.senderName },
+      to: [{ email_address: { address: values.to, name: "" } }],
+      subject: values.subject,
+      textbody: values.text,
+    });
   } else {
     throw new EmailProviderDeliveryError("EMAIL_PROVIDER_UNSUPPORTED");
   }
 
   const requestOptions = provider === "sendpulse"
     ? { allowedRedirectOrigin: "https://api.sendpulse.com" }
-    : {};
+    : provider === "zeptomail"
+      ? { allowedRedirectOrigin: "https://cpaas.zoho.com" }
+      : {};
   const { result, bodyText } = await request(provider, fetcher, endpoint, init, requestOptions);
   if (result && (result.result === false || result.success === false)) {
     if (quotaError(bodyText)) {
@@ -565,11 +577,17 @@ export async function sendEmailWithProvider(provider, credentials, account, mess
       (result?.result !== true || typeof result.id !== "string" || !result.id.trim())) {
     throw new EmailProviderDeliveryError("EMAIL_PROVIDER_RESPONSE_INVALID");
   }
+  if (provider === "zeptomail" &&
+      (result?.message !== "OK" || !Array.isArray(result.data) || result.data.length !== 1 ||
+       result.data[0]?.message !== "OK" || typeof result.request_id !== "string" || !result.request_id.trim())) {
+    throw new EmailProviderDeliveryError("EMAIL_PROVIDER_RESPONSE_INVALID");
+  }
 
   let messageId = null;
   if (provider === "sendpulse") messageId = typeof result?.id === "string" ? result.id : null;
   if (provider === "brevo") messageId = typeof result?.messageId === "string" ? result.messageId : null;
   if (provider === "resend") messageId = typeof result?.id === "string" ? result.id : null;
+  if (provider === "zeptomail") messageId = typeof result?.request_id === "string" ? result.request_id : null;
   if (provider === "mailtrap") {
     messageId = Array.isArray(result?.message_ids) && typeof result.message_ids[0] === "string"
       ? result.message_ids[0] : null;
