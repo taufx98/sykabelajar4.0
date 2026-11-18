@@ -1,7 +1,7 @@
-# Production runtime configuration for the one-time promotion.
-# The Worker name and custom hostname deliberately match the already-attached
-# staging resource; deploying this file updates that same Worker in place.
-# This file is NOT used by the staging workflows.
+# Dedicated Production runtime configuration.
+# This creates a separate Worker and hostname so the accepted staging Worker,
+# staging D1 binding, staging secrets and staging issuer remain untouched.
+# This file is NOT used by staging workflows.
 
 name = "sykabelajar-auth-prod"
 main = "src/worker.ts"
