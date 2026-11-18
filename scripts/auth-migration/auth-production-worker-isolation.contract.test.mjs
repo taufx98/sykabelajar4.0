@@ -48,7 +48,7 @@ assert.match(createWorkflow, new RegExp(stagingHost.replaceAll(".", "\\.")));
 assert.match(createWorkflow, new RegExp(productionHost.replaceAll(".", "\\.")));
 assert.match(createWorkflow, /Staging Worker must exist exactly once/);
 assert.match(createWorkflow, /The accepted staging hostname must remain paired/);
-assert.match(createWorkflow, /Staging Worker is not bound to the accepted staging D1/);
+assert.match(createWorkflow, /The staging Worker is not bound to the exact accepted staging D1/);
 assert.match(createWorkflow, /Production Worker must not exist before first creation/);
 assert.match(createWorkflow, /Production hostname is already attached; refusing to reassign or overwrite it/);
 assert.match(createWorkflow, /stagingWorkerSecretsChanged: false/);
