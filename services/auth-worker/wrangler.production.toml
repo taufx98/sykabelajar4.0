@@ -3,7 +3,7 @@
 # staging resource; deploying this file updates that same Worker in place.
 # This file is NOT used by the staging workflows.
 
-name = "sykabelajar-auth-poc"
+name = "sykabelajar-auth-prod"
 main = "src/worker.ts"
 compatibility_date = "2026-10-31"
 compatibility_flags = ["nodejs_compat"]
@@ -17,13 +17,13 @@ database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"
 migrations_dir = "migrations-production"
 
 [[routes]]
-pattern = "auth.sykabelajar.my.id"
+pattern = "auth-prod.sykabelajar.my.id"
 custom_domain = true
 
 [vars]
 AUTH_EMAIL_PROVIDER = "managed"
 AUTH_SIGNUP_DISABLED = "true"
-BETTER_AUTH_URL = "https://auth.sykabelajar.my.id"
+BETTER_AUTH_URL = "https://auth-prod.sykabelajar.my.id"
 APP_ORIGIN = "https://sykabelajar.my.id"
 SUPABASE_RESOURCE_AUDIENCE = "https://sykabelajar.my.id"
 SUPABASE_URL = "https://mvdczyitbkxkldjughor.supabase.co"
