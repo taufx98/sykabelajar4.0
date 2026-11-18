@@ -226,6 +226,7 @@ const orderedStages = [
   "Run Better Auth provisioning, referral, email, phone and organizer acceptance on disposable restore",
   "Run rollback-only production-shaped Stage 3 behavior and RLS regression",
   "Apply Stage 3 issuer guard to disposable restore only",
+  "Apply Stage 3 SECURITY DEFINER issuer guards to disposable restore only",
   "Run Stage 3 trusted-issuer RLS acceptance on disposable restore",
   "Simulate fail-closed 69-FK rollback on disposable restore only",
   "Simulate complete Stage 3 rollback on disposable restore only",
