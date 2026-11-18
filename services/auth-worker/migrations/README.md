@@ -1,5 +1,14 @@
 # D1 migrations
 
+## Current owner decision — 19 November 2026
+
+SendPulse remains the tested primary transactional-email provider. The approved managed provider set is SendPulse, Brevo, Mailjet, Mailtrap Email Sending, Resend, and Custom HTTP. Do not add or configure another provider unless the owner explicitly requests it.
+
+The already-applied staging migration `0013` is immutable history and must not be edited or removed. The corrective staging migration `0014_finalize_email_provider_allowlist.sql` restores the approved provider CHECK constraint by rebuilding only `auth_email_provider_accounts` while copying every row field, including encrypted credentials, sender details, enabled state, priority, quota limits/counters, cooldown and delivery status. It does not change Better Auth identities or sessions. Migration 0014 is only a reviewed source change at this stage; it must be applied through `.github/workflows/auth-finalize-email-provider-staging.yml` after the owner authorizes it. That workflow preflights the exact staging D1 target, checks for unsupported provider rows, and verifies before/after fingerprints. The staging Worker can only be manually redeployed after 0014 is recorded and its schema is verified.
+
+Production remains at migrations 0000–0010. No Production D1 migration, Worker deployment, secret, DNS, Supabase DB2 or frontend operation is part of this staging correction.
+
+
 ## Current transactional email architecture — 15 November 2026
 
 The current managed email dispatcher uses the additive multi-provider routing schema introduced by staging migration `0010_multi_provider_email_routing.sql` and Production migration `0009_multi_provider_email_routing.sql`. The two files create the same schema; the numbering differs because staging already uses migration 0008 for its OAuth callback and 0009 for runtime verification settings, while Production uses 0008 for runtime settings.
