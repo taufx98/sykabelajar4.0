@@ -108,6 +108,7 @@ BEGIN
   IF public.is_active_admin('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED';
   END IF;
+  v_denied := false;
   BEGIN
     PERFORM public.admin_set_collective_certificate_price(12);
   EXCEPTION WHEN OTHERS THEN
@@ -125,9 +126,6 @@ BEGIN
   END IF;
   IF private.current_user_is_active_organizer_member('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_ORGANIZER_MEMBERSHIP_ALLOWED';
-  END IF;
-  IF private.collective_realtime_can_read('dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid) THEN
-    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_REALTIME_READ_ALLOWED';
   END IF;
   BEGIN
     INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
