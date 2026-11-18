@@ -26,6 +26,8 @@ on:
       - "scripts/auth-migration/stage3-issuer-guard.contract.test.mjs"
       - "scripts/auth-migration/stage3-issuer-guard-regression.sql"
       - "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql"
+      - "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
       - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
       - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
