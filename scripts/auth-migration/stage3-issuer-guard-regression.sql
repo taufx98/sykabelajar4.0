@@ -109,6 +109,27 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED';
   END IF;
   BEGIN
+    PERFORM public.admin_set_collective_certificate_price(12);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'FORBIDDEN' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_DIRECT_ADMIN_RPC_ALLOWED';
+  END IF;
+  IF private.current_user_organizer_role('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid) IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_ORGANIZER_ROLE_ALLOWED';
+  END IF;
+  IF private.current_user_is_active_organizer_member('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid) THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_ORGANIZER_MEMBERSHIP_ALLOWED';
+  END IF;
+  IF private.collective_realtime_can_read('dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid) THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_REALTIME_READ_ALLOWED';
+  END IF;
+  BEGIN
     INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
     VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy-insert');
   EXCEPTION WHEN insufficient_privilege THEN
@@ -133,6 +154,9 @@ BEGIN
   END IF;
   IF NOT public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED';
+  END IF;
+  IF public.admin_set_collective_certificate_price(0) <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_DIRECT_ADMIN_RPC_DENIED';
   END IF;
   INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
   VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better-auth-insert');
