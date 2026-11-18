@@ -148,7 +148,7 @@ jobs:
           }));
           NODE
 
-      - name: Require Production D1 migration 0011 and ZeptoMail provider constraint
+      - name: Require the reviewed Production D1 baseline and Custom HTTP email routing
         run: |
           set -euo pipefail
           npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
@@ -164,12 +164,12 @@ jobs:
             "0003_zeptomail_agent_settings.sql","0004_better_auth_registration_attributes.sql",
             "0005_telegram_phone_verification.sql","0006_transactional_email_provider.sql",
             "0007_managed_social_login_providers.sql","0008_auth_runtime_settings.sql",
-            "0009_multi_provider_email_routing.sql","0010_custom_http_email_provider.sql","0011_zeptomail_email_provider.sql",
+            "0009_multi_provider_email_routing.sql","0010_custom_http_email_provider.sql",
           ].sort();
-          if(JSON.stringify(migrations)!==JSON.stringify(expected)) throw new Error("Production D1 must have exactly migrations 0000–0011 before Worker update.");
+          if(JSON.stringify(migrations)!==JSON.stringify(expected)) throw new Error("Production D1 must have exactly migrations 0000–0010 before Worker update.");
           const schema=String(walk(JSON.parse(readFileSync(root+"/production-worker-email-schema.json","utf8"))).find(x=>typeof x.sql==="string")?.sql??"").toLowerCase();
-          if(!schema.includes("'zeptomail'")||!schema.includes("'custom_http'")) throw new Error("Production D1 email provider schema is missing ZeptoMail/custom HTTP.");
-          console.log("PASS: Production D1 schema 0000–0011 and ZeptoMail provider constraint verified.");
+          if(schema.includes("'zeptomail'")||!schema.includes("'custom_http'")||!schema.includes("'sendpulse'")) throw new Error("Production D1 email provider schema does not match the approved provider allowlist.");
+          console.log("PASS: Production D1 schema 0000–0010 and approved email provider constraint verified.");
           NODE
 
       - name: Capture Better Auth identity and email-provider state before Worker-only deployment
@@ -182,7 +182,7 @@ jobs:
       - name: Deploy the updated Production Worker without changing secret bindings
         run: |
           set -euo pipefail
-          npx wrangler --config wrangler.production.toml deploy --message "Update isolated Better Auth Production Worker $GITHUB_SHA with ZeptoMail support"
+          npx wrangler --config wrangler.production.toml deploy --message "Update isolated Better Auth Production Worker $GITHUB_SHA"
 
       - name: Verify Production runtime, staging invariants, secret names and D1 rows after deployment
         run: |
@@ -253,7 +253,14 @@ jobs:
           import {readFileSync} from "node:fs";
           const root=process.env.RUNNER_TEMP;
           const read=n=>JSON.parse(readFileSync(root+"/"+n,"utf8"));
-          const rows=(v,out=[])=>{if(Array.isArray(v))v.forEach(x=>rows(x,out));else if(v&&typeof v==="object"){out.push(v);Object.values(v).forEach(x=>{if(x&&typeof x==="object")rows(x,out);});}return out;};
+          const rows=(v,out=[])=>{
+            if(Array.isArray(v))v.forEach(x=>rows(x,out));
+            else if(v&&typeof v==="object"){
+              if(Array.isArray(v.results))v.results.forEach(x=>{if(x&&typeof x==="object")out.push(x);});
+              else Object.values(v).forEach(x=>{if(x&&typeof x==="object")rows(x,out);});
+            }
+            return out;
+          };
           const hash=v=>createHash("sha256").update(JSON.stringify(v)).digest("hex");
           const beforeCounts=rows(read("production-worker-before-counts.json")).find(x=>Object.hasOwn(x,"users"));
           const afterCounts=rows(read("production-worker-after-counts.json")).find(x=>Object.hasOwn(x,"users"));

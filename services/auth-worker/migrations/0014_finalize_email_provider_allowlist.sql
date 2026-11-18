@@ -1,16 +1,16 @@
--- Add ZeptoMail as a first-class managed transactional email provider.
--- Rebuild only the provider routing table so existing provider credentials,
--- routing and quota counters are copied byte-for-byte. Better Auth identities,
--- sessions and Supabase application data are not touched.
+-- Finalize the approved managed transactional-email provider allowlist.
+-- Rebuild only the provider routing table. Preserve every existing row and
+-- encrypted credential byte-for-byte; Better Auth identities and sessions
+-- are outside this migration.
 DROP INDEX IF EXISTS auth_email_provider_accounts_route_idx;
 
 ALTER TABLE auth_email_provider_accounts
-  RENAME TO auth_email_provider_accounts_before_zeptomail;
+  RENAME TO auth_email_provider_accounts_before_allowlist;
 
 CREATE TABLE auth_email_provider_accounts (
   id TEXT PRIMARY KEY NOT NULL,
   label TEXT NOT NULL,
-  provider TEXT NOT NULL CHECK (provider IN ('sendpulse','brevo','mailjet','mailtrap','resend','custom_http','zeptomail')),
+  provider TEXT NOT NULL CHECK (provider IN ('sendpulse','brevo','mailjet','mailtrap','resend','custom_http')),
   sender_address TEXT NOT NULL,
   sender_name TEXT NOT NULL,
   endpoint_url TEXT,
@@ -52,9 +52,9 @@ SELECT
   enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,
   hour_bucket,hour_used,day_bucket,day_used,month_bucket,month_used,
   cooldown_until,last_error_code,last_error_at,last_success_at,created_at,updated_at,created_by,updated_by
-FROM auth_email_provider_accounts_before_zeptomail;
+FROM auth_email_provider_accounts_before_allowlist;
 
-DROP TABLE auth_email_provider_accounts_before_zeptomail;
+DROP TABLE auth_email_provider_accounts_before_allowlist;
 
 CREATE INDEX IF NOT EXISTS auth_email_provider_accounts_route_idx
   ON auth_email_provider_accounts(enabled, priority, created_at);

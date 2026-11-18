@@ -5,8 +5,7 @@ on:
     branches:
       - security/auth-poc-stage-1
     paths:
-      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0014"
-      - ".github/workflows/auth-worker-staging-deploy.yml"
+      - ".github/auth-ops/DEPLOY-STAGING-WORKER-0015"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -21,8 +20,8 @@ concurrency:
   group: auth-worker-staging-deploy
   cancel-in-progress: false
 
-# A workflow-file update re-runs the same guarded staging-only deploy, including tests.
-# Triggered for the explicit staging login-consent UI verification; Production promotion remains separate.
+# Staging Worker deployment is manual/one-time gated after staging D1 migration 0014 is verified.
+# Editing this workflow or merging its PR must never trigger an automatic deployment.
 # OTP resend cooldown is enforced by the Better Auth Worker plugin rate limiter.
 # GitHub social login schema 0011 is applied through its separately guarded staging workflow.
 # Custom HTTPS JSON email schema 0012 is verified before this Worker can be deployed.
@@ -81,7 +80,7 @@ jobs:
               exit 1
             }
           elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0014"
+            marker="../../.github/auth-ops/DEPLOY-STAGING-WORKER-0015"
             test -f "$marker" || {
               echo "Blocked: the one-time staging Worker deployment marker is missing." >&2
               exit 1
@@ -238,8 +237,8 @@ jobs:
           console.log("Verified staging custom HTTPS JSON email provider migration 0012 and columns before Worker deployment.");
           NODE
 
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0013_zeptomail_email_provider.sql';" > "$RUNNER_TEMP/auth-worker-staging-zeptomail-migration.json"
-          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_email_provider_accounts';" > "$RUNNER_TEMP/auth-worker-staging-zeptomail-schema.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0014_finalize_email_provider_allowlist.sql';" > "$RUNNER_TEMP/auth-worker-staging-email-finalize-migration.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_email_provider_accounts';" > "$RUNNER_TEMP/auth-worker-staging-email-finalize-schema.json"
 
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
@@ -253,15 +252,15 @@ jobs:
             }
             return out;
           };
-          const migration = collect(read("auth-worker-staging-zeptomail-migration.json"), "name");
-          const schema = String(collect(read("auth-worker-staging-zeptomail-schema.json"), "sql")[0] ?? "").toLowerCase();
-          if (!migration.includes("0013_zeptomail_email_provider.sql")) {
-            throw new Error("Staging ZeptoMail migration 0013 is not recorded as applied; refusing Worker deployment.");
+          const migrations = collect(read("auth-worker-staging-email-finalize-migration.json"), "name");
+          const schema = String(collect(read("auth-worker-staging-email-finalize-schema.json"), "sql")[0] ?? "").toLowerCase();
+          if (!migrations.includes("0014_finalize_email_provider_allowlist.sql")) {
+            throw new Error("Staging email provider schema migration 0014 is not recorded as applied; refusing Worker deployment.");
           }
-          if (!schema.includes("'zeptomail'") || !schema.includes("'custom_http'")) {
-            throw new Error("Staging email provider schema must retain custom_http and allow ZeptoMail before Worker deployment.");
+          if (schema.includes("'zeptomail'") || !schema.includes("'sendpulse'") || !schema.includes("'custom_http'")) {
+            throw new Error("Staging email provider schema does not match the approved provider allowlist; refusing Worker deployment.");
           }
-          console.log("Verified staging ZeptoMail migration 0013 and both ZeptoMail/custom_http provider constraints before Worker deployment.");
+          console.log("Verified staging migration 0014 and the approved email provider schema before Worker deployment.");
           NODE
 
           npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0011_add_github_social_provider.sql';" > "$RUNNER_TEMP/auth-worker-staging-github-migration.json"
@@ -728,4 +727,4 @@ jobs:
 
       - name: Remove temporary secret material from runner
         if: always()
-        run: rm -f "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-user-columns.json" "$RUNNER_TEMP/auth-worker-staging-email-provider.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-migration.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-columns.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-schema.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok" "$RUNNER_TEMP/wrangler-deploy.log" "$RUNNER_TEMP/wrangler-deploy-sanitized.log"
+        run: rm -f "$RUNNER_TEMP/auth-worker-staging-tables.json" "$RUNNER_TEMP/auth-worker-staging-user-columns.json" "$RUNNER_TEMP/auth-worker-staging-email-provider.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-migration.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-columns.json" "$RUNNER_TEMP/auth-worker-staging-custom-email-schema.json" "$RUNNER_TEMP/auth-worker-staging-email-finalize-migration.json" "$RUNNER_TEMP/auth-worker-staging-email-finalize-schema.json" "$RUNNER_TEMP/auth-worker-staging-counts.json" "$RUNNER_TEMP/auth-worker-staging-config-ok" "$RUNNER_TEMP/wrangler-deploy.log" "$RUNNER_TEMP/wrangler-deploy-sanitized.log"

@@ -1,0 +1,160 @@
+name: Auth Finalize Managed Email Provider Schema (Staging)
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/APPLY-STAGING-D1-0014"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type FINALIZE-MANAGED-EMAIL-sykabelajar-auth-poc to apply migration 0014 to staging D1 only"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-staging-email-provider-finalize
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+    name: Apply guarded staging-only email provider schema finalization
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Checkout the reviewed Better Auth staging branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Verify owner approval, exact staging target and immutable migration
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "taufx98"
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "FINALIZE-MANAGED-EMAIL-sykabelajar-auth-poc"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker="../../.github/auth-ops/APPLY-STAGING-D1-0014"
+            test -f "$marker"
+            test "$(cat "$marker")" = "FINALIZE-MANAGED-EMAIL-sykabelajar-auth-poc"
+          else
+            exit 1
+          fi
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          expected="ea81055bb46c28fdaa30493392e4a914c0e0c180be823295d5848b43a44c55b1"
+          actual="$(sha256sum migrations/0014_finalize_email_provider_allowlist.sql | cut -d ' ' -f 1)"
+          test "$actual" = "$expected" || {
+            echo "Blocked: reviewed staging migration hash mismatch." >&2
+            exit 1
+          }
+          grep -Eq '^name = "sykabelajar-auth-poc"$' wrangler.toml
+          grep -Eq '^database_name = "sykabelajar-auth-poc"$' wrangler.toml
+          grep -Eq '^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$' wrangler.toml
+          grep -Eq '^migrations_dir = "migrations"$' wrangler.toml
+          ! grep -Eq 'sykabelajar-auth-prod|6d4dc7b5-8e71-4fdc-9cda-3230e49951c7|mvdczyitbkxkldjughor' wrangler.toml
+          echo "Verified owner, exact staging D1 and immutable migration source."
+
+      - name: Run Worker checks before any remote D1 operation
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+
+      - name: Verify migration history and capture private before fingerprints
+        run: |
+          set -euo pipefail
+          npx wrangler d1 migrations list sykabelajar-auth-poc --remote
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations ORDER BY name;" > "$RUNNER_TEMP/migration-ledger-before.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT COUNT(*) AS unsupported_rows FROM auth_email_provider_accounts WHERE provider='zeptomail';" > "$RUNNER_TEMP/provider-unsupported-count.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT id,label,provider,sender_address,sender_name,endpoint_url,auth_mode,credentials_ciphertext,enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,hour_bucket,hour_used,day_bucket,day_used,month_bucket,month_used,cooldown_until,last_error_code,last_error_at,last_success_at,created_at,updated_at,created_by,updated_by FROM auth_email_provider_accounts ORDER BY id;" > "$RUNNER_TEMP/provider-rows-before.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\") AS users,(SELECT COUNT(*) FROM \"account\") AS accounts,(SELECT COUNT(*) FROM \"session\") AS sessions,(SELECT COUNT(*) FROM \"verification\") AS verifications;" > "$RUNNER_TEMP/identity-counts-before.json"
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { createHash } from "node:crypto";
+          import { readFileSync, writeFileSync } from "node:fs";
+          const root=process.env.RUNNER_TEMP;
+          const read=n=>JSON.parse(readFileSync(root+"/"+n,"utf8"));
+          function rows(value,out=[]) {
+            if(Array.isArray(value)) value.forEach(x=>rows(x,out));
+            else if(value&&typeof value==="object") {
+              if(Array.isArray(value.results)) value.results.forEach(x=>{if(x&&typeof x==="object")out.push(x);});
+              else Object.values(value).forEach(x=>{if(x&&typeof x==="object")rows(x,out);});
+            }
+            return out;
+          }
+          const ledger=rows(read("migration-ledger-before.json")).map(x=>x.name).filter(Boolean);
+          assert.ok(ledger.includes("0013_zeptomail_email_provider.sql"),"Applied staging migration 0013 is required before 0014");
+          assert.ok(!ledger.includes("0014_finalize_email_provider_allowlist.sql"),"Migration 0014 must not already be applied");
+          const bad=rows(read("provider-unsupported-count.json")).find(x=>Object.hasOwn(x,"unsupported_rows"));
+          assert.ok(bad,"Could not read the provider preflight count");
+          assert.equal(Number(bad.unsupported_rows),0,"Staging contains an unsupported provider row; stop without changing data");
+          const providers=rows(read("provider-rows-before.json"));
+          const identities=rows(read("identity-counts-before.json")).find(x=>Object.hasOwn(x,"users"));
+          assert.ok(identities,"Identity aggregate unavailable");
+          const digest=v=>createHash("sha256").update(JSON.stringify(v)).digest("hex");
+          writeFileSync(root+"/provider-before.sha256",digest(providers));
+          writeFileSync(root+"/identity-before.sha256",digest(identities));
+          console.log(JSON.stringify({preflight:"PASS",migration0013:"present",migration0014:"pending",unsupportedProviderRows:0,providerRows:providers.length,identityCountsRecorded:true,credentialValuesLogged:false}));
+          NODE
+
+      - name: Apply only the guarded staging D1 migration
+        run: npx wrangler d1 migrations apply sykabelajar-auth-poc --remote
+
+      - name: Verify final provider schema and exact before/after preservation
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT name FROM d1_migrations WHERE name='0014_finalize_email_provider_allowlist.sql';" > "$RUNNER_TEMP/migration-014-after.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_email_provider_accounts';" > "$RUNNER_TEMP/provider-schema-after.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT id,label,provider,sender_address,sender_name,endpoint_url,auth_mode,credentials_ciphertext,enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,hour_bucket,hour_used,day_bucket,day_used,month_bucket,month_used,cooldown_until,last_error_code,last_error_at,last_success_at,created_at,updated_at,created_by,updated_by FROM auth_email_provider_accounts ORDER BY id;" > "$RUNNER_TEMP/provider-rows-after.json"
+          npx wrangler d1 execute sykabelajar-auth-poc --remote --json --command "SELECT (SELECT COUNT(*) FROM \"user\") AS users,(SELECT COUNT(*) FROM \"account\") AS accounts,(SELECT COUNT(*) FROM \"session\") AS sessions,(SELECT COUNT(*) FROM \"verification\") AS verifications;" > "$RUNNER_TEMP/identity-counts-after.json"
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { createHash } from "node:crypto";
+          import { readFileSync } from "node:fs";
+          const root=process.env.RUNNER_TEMP;
+          const read=n=>JSON.parse(readFileSync(root+"/"+n,"utf8"));
+          function rows(value,out=[]) {
+            if(Array.isArray(value)) value.forEach(x=>rows(x,out));
+            else if(value&&typeof value==="object") {
+              if(Array.isArray(value.results)) value.results.forEach(x=>{if(x&&typeof x==="object")out.push(x);});
+              else Object.values(value).forEach(x=>{if(x&&typeof x==="object")rows(x,out);});
+            }
+            return out;
+          }
+          const migration=rows(read("migration-014-after.json"));
+          assert.ok(migration.some(x=>x.name==="0014_finalize_email_provider_allowlist.sql"));
+          const schema=String(rows(read("provider-schema-after.json")).find(x=>typeof x.sql==="string")?.sql??"").toLowerCase();
+          assert.ok(schema.includes("'sendpulse'"),"SendPulse must remain allowed");
+          assert.ok(schema.includes("'custom_http'"),"Custom HTTP must remain allowed");
+          assert.ok(!schema.includes("'zeptomail'"),"Unsupported provider remains in the active schema");
+          const providers=rows(read("provider-rows-after.json"));
+          const identities=rows(read("identity-counts-after.json")).find(x=>Object.hasOwn(x,"users"));
+          const digest=v=>createHash("sha256").update(JSON.stringify(v)).digest("hex");
+          assert.equal(digest(providers),readFileSync(root+"/provider-before.sha256","utf8"),"Provider credentials, route, priority, quotas or delivery metadata changed");
+          assert.equal(digest(identities),readFileSync(root+"/identity-before.sha256","utf8"),"Better Auth identity/session counts changed");
+          assert.ok(providers.every(x=>x.provider!=="zeptomail"));
+          console.log(JSON.stringify({result:"PASS",migration:"0014 applied",activeProviders:"SendPulse/Brevo/Mailjet/Mailtrap/Resend/Custom HTTP",providerRowsPreserved:providers.length,sendPulseRows:providers.filter(x=>x.provider==="sendpulse").length,identityCounts:"unchanged",credentialValuesLogged:false,workerDeployment:"not performed",production:"not touched"}));
+          NODE
+
+      - name: Remove temporary fingerprints and query results
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/migration-ledger-before.json "$RUNNER_TEMP"/provider-unsupported-count.json "$RUNNER_TEMP"/provider-rows-before.json "$RUNNER_TEMP"/identity-counts-before.json "$RUNNER_TEMP"/provider-before.sha256 "$RUNNER_TEMP"/identity-before.sha256 "$RUNNER_TEMP"/migration-014-after.json "$RUNNER_TEMP"/provider-schema-after.json "$RUNNER_TEMP"/provider-rows-after.json "$RUNNER_TEMP"/identity-counts-after.json

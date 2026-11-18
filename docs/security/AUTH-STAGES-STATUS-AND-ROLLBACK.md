@@ -1,4 +1,38 @@
-# Latest Staging ZeptoMail rollout checkpoint — 18 November 2026
+# Current authoritative checkpoint — 19 November 2026
+
+**Owner correction:** SendPulse is the approved and tested primary transactional-email provider. The unsupported provider experiment is not part of the product and must be removed from active Worker runtime and Admin UI.
+
+## Verified state before this correction
+
+- PR #196 was merged to staging on 18 November.
+- Staging D1 migration 0013 and the staging Worker deployment ran successfully: [D1 migration #44358349156](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358349156) and [staging Worker deploy #44358777889](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358777889).
+- The migration/deploy checkpoints reported 9 Better Auth users, 9 accounts, 2 sessions, 20 identity-linkage rows and 1 provider account preserved. The encrypted credential, provider route, priority, quotas, counters, cooldown and delivery metadata were unchanged.
+- No unsupported-provider token was entered and no email was sent. SendPulse remains the retained/tested provider.
+- Production D1 remains exactly at migrations 0000–0010; Production Worker, secrets, hostname, Supabase DB2, DNS and frontend routing were not changed.
+
+## Correction prepared in this branch
+
+- Restore active Worker provider code, Admin API and Admin UI to the pre-experiment version, keeping SendPulse and the other previously approved adapters.
+- Retain migration 0013 as immutable migration history because it has already been applied to staging.
+- Add migration 0014 to rebuild only `auth_email_provider_accounts` with the approved CHECK constraint. It copies every provider row and every field, including encrypted credentials, priority, quotas, counters, cooldown and delivery status.
+- The guarded migration preflight requires no unsupported-provider rows before DDL and compares SHA-256 fingerprints of provider rows and Better Auth user/account/session/verification counts after DDL.
+- Remove the now-unused provider-specific workflows, production migration draft and tests. Keep the separate Production Worker deploy workflow but return its precondition to the already-verified Production D1 0000–0010 schema and correct its result-row hashing.
+- Update the staging Worker deploy gate to require migration 0014. Merge does not auto-deploy; deployment requires a separate owner-only manual dispatch.
+- No Production migration, Worker deploy, secret rotation, DNS, Supabase DB2, frontend switch or email send is included.
+
+## Pending owner-controlled operations
+
+1. Review and merge the correction PR after CI passes.
+2. Manually run the staging-only migration workflow with the exact confirmation shown in the workflow.
+3. Verify its provider and identity fingerprints pass.
+4. Manually deploy the staging Worker using the exact guarded confirmation.
+5. Confirm the existing SendPulse configuration still reports healthy; no credentials need to be pasted into chat.
+
+Production remains NO-GO for live auth cutover until the independent OIDC, DB2 identity, provisioning, first-admin, verified-email delivery and frontend acceptance gates are complete.
+
+---
+
+# Superseded historical staging provider experiment — 18 November 2026
 
 **This checkpoint records the completed staging-only schema and Worker rollout. It does not authorize Production sender setup or Production auth cutover.**
 
@@ -19,9 +53,9 @@
 - Production OIDC remains blocked by the scoped Supabase PAT HTTP 403 recorded below; DB2 identity/FK/provisioning and the first Production Admin/sender bootstrap remain hard gates.
 - No Production sender credentials, public signup, frontend auth switch or user/account migration have been enabled.
 
-## Next owner step for a real ZeptoMail delivery check
+## Superseded instruction — do not configure an additional email provider
 
-Open staging Admin → transactional email settings and add ZeptoMail using the Agent-specific **Send Mail Token** (not the Agent profile name or general account password). The panel stores it encrypted. Do not share it in chat. After saving and selecting it in the routing order, use the Admin test-to-self function and confirm the message reaches the inbox. This is a real email send and consumes the provider's quota; do not test it until the owner is ready.
+This historical instruction is withdrawn. SendPulse remains the tested primary provider. No additional provider token is to be entered and no test email is to be sent.
 
 ---
 

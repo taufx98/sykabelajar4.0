@@ -5,7 +5,7 @@ import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
-type EmailProvider = 'sendpulse' | 'brevo' | 'mailjet' | 'mailtrap' | 'resend' | 'zeptomail' | 'custom_http';
+type EmailProvider = 'sendpulse' | 'brevo' | 'mailjet' | 'mailtrap' | 'resend' | 'custom_http';
 type CustomAuthMode = 'none' | 'bearer' | 'api_key' | 'basic';
 type EmailAccount = {
   id: string;
@@ -63,7 +63,6 @@ const QUOTAS: Record<EmailProvider, { hour: number; day: number; month: number }
   mailjet: { hour: 0, day: 200, month: 6000 },
   mailtrap: { hour: 0, day: 150, month: 4000 },
   resend: { hour: 0, day: 100, month: 3000 },
-  zeptomail: { hour: 50, day: 300, month: 0 },
   custom_http: { hour: 0, day: 0, month: 0 },
 };
 const PROVIDER_LABELS: Record<EmailProvider, string> = {
@@ -72,7 +71,6 @@ const PROVIDER_LABELS: Record<EmailProvider, string> = {
   mailjet: 'Mailjet',
   mailtrap: 'Mailtrap Email Sending',
   resend: 'Resend',
-  zeptomail: 'ZeptoMail',
   custom_http: 'Custom HTTP API',
 };
 const EMPTY_DRAFT: AccountDraft = {
@@ -157,7 +155,6 @@ function providerQuotaHint(provider: EmailProvider) {
     case 'mailjet': return 'Batas awal Free: 200 email/hari dan 6.000 email/bulan. Butuh Public API Key dan Private API Key.';
     case 'mailtrap': return 'Batas awal Free: 150 email/hari dan 4.000 email/bulan. Gunakan token Email Sending, bukan Email Sandbox.';
     case 'resend': return 'Batas awal Free: 100 email/hari dan 3.000 email/bulan. Kredensial: Resend API Key.';
-    case 'zeptomail': return 'Kredensial: Send Mail Token khusus Agent dari menu SMTP/API → API Setup. Batas di sini bersifat internal (50/jam, 300/hari); kuota akun mengikuti paket ZeptoMail.';
     case 'custom_http': return 'Hubungkan layanan email apa pun yang menyediakan HTTPS JSON API. Siapkan endpoint, metode autentikasi, kredensial, header opsional, dan format payload JSON.';
   }
 }
@@ -476,7 +473,7 @@ export function TransactionalEmailSettingsPanel() {
             {draft.provider !== 'custom_http' ? (
               <>
                 <label className="block text-xs text-fg-muted sm:col-span-2">
-                  {draft.provider === 'mailjet' ? 'Public API Key' : draft.provider === 'mailtrap' ? 'Mailtrap API Token (Email Sending)' : draft.provider === 'sendpulse' ? 'SendPulse Static API Key' : draft.provider === 'brevo' ? 'Brevo API Key v3' : draft.provider === 'zeptomail' ? 'ZeptoMail Send Mail Token (Agent-specific)' : 'Resend API Key'}
+                  {draft.provider === 'mailjet' ? 'Public API Key' : draft.provider === 'mailtrap' ? 'Mailtrap API Token (Email Sending)' : draft.provider === 'sendpulse' ? 'SendPulse Static API Key' : draft.provider === 'brevo' ? 'Brevo API Key v3' : 'Resend API Key'}
                   <input className="input mt-1 w-full" type="password" autoComplete="new-password" value={draft.apiKey} onChange={(event) => setDraft((current) => ({...current,apiKey:event.target.value}))} placeholder={draft.id ? 'Kosongkan untuk mempertahankan kredensial saat ini' : 'Tempel kredensial provider'} required={!draft.id}/>
                 </label>
                 {draft.provider === 'mailjet' && <label className="block text-xs text-fg-muted sm:col-span-2">Private API Key

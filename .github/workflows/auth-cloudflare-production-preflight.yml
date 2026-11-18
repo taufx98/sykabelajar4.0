@@ -55,10 +55,9 @@ jobs:
             "0008_auth_runtime_settings.sql",
             "0009_multi_provider_email_routing.sql",
             "0010_custom_http_email_provider.sql",
-            "0011_zeptomail_email_provider.sql",
           ];
           if (JSON.stringify(migrations) !== JSON.stringify(expectedMigrations)) {
-            throw new Error("Production migration source inventory differs from the reviewed 0000–0011 set.");
+            throw new Error("Production migration source inventory differs from the reviewed 0000–0010 set.");
           }
 
           const exact = [
@@ -203,10 +202,6 @@ jobs:
             > "$RUNNER_TEMP/production-d1-tables.json"
 
           npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json \
-            --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_email_provider_accounts';" \
-            > "$RUNNER_TEMP/production-d1-email-schema.json"
-
-          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json \
             --command "SELECT
               (SELECT COUNT(*) FROM \"user\") AS users,
               (SELECT COUNT(*) FROM \"account\") AS accounts,
@@ -254,14 +249,11 @@ jobs:
             "0008_auth_runtime_settings.sql",
             "0009_multi_provider_email_routing.sql",
             "0010_custom_http_email_provider.sql",
-            "0011_zeptomail_email_provider.sql",
           ];
           const migrations = visit(read("production-d1-migrations.json"), (row) => typeof row.name === "string")
             .map((row) => row.name).sort();
-          const expectedWithoutZeptoMail = expectedMigrations.slice(0, -1).sort();
-          const zeptomailMigrationApplied = JSON.stringify(migrations) === JSON.stringify([...expectedMigrations].sort());
-          if (!zeptomailMigrationApplied && JSON.stringify(migrations) !== JSON.stringify(expectedWithoutZeptoMail)) {
-            throw new Error("Production D1 migration ledger must be exactly 0000–0010 or 0000–0011; stop and inspect before any change.");
+          if (JSON.stringify(migrations) !== JSON.stringify([...expectedMigrations].sort())) {
+            throw new Error("Production D1 migration ledger is not exactly 0000–0010; stop and inspect before any change.");
           }
 
           const expectedTables = [
@@ -276,7 +268,7 @@ jobs:
             typeof row.name === "string" && expectedTables.includes(row.name))
             .map((row) => row.name).sort();
           if (JSON.stringify(tables) !== JSON.stringify([...expectedTables].sort())) {
-            throw new Error("Production D1 schema does not match the reviewed 23-table auth baseline.");
+            throw new Error("Production D1 schema does not match the reviewed 0000–0010 23-table baseline.");
           }
 
           const counts = visit(read("production-d1-empty-state.json"), (row) => Object.hasOwn(row, "users") && Object.hasOwn(row, "legacy_email_accounts"));
@@ -305,19 +297,9 @@ jobs:
             throw new Error("Production Better Auth user profile mapping columns are incomplete.");
           }
 
-          const emailSchemaRows = visit(read("production-d1-email-schema.json"), (item) => typeof item.sql === "string");
-          const emailSchema = String(emailSchemaRows[0]?.sql ?? "").toLowerCase();
-          if (emailSchemaRows.length !== 1 || !emailSchema.includes("'custom_http'")) {
-            throw new Error("Production email provider routing schema is incomplete.");
-          }
-          if (emailSchema.includes("'zeptomail'") !== zeptomailMigrationApplied) {
-            throw new Error("Production ZeptoMail provider constraint does not match its migration ledger entry.");
-          }
-
           console.log(JSON.stringify({
             result: "PASS",
-            productionD1Migrations: zeptomailMigrationApplied ? "0000–0011" : "0000–0010 (ZeptoMail migration pending)",
-            zeptomailProviderSchema: zeptomailMigrationApplied ? "enabled" : "pending",
+            productionD1Migrations: "0000–0010 only",
             expectedTables: expectedTables.length,
             authIdentityRows: 0,
             credentialAndSessionRows: 0,

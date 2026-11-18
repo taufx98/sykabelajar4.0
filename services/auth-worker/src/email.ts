@@ -10,7 +10,7 @@ type AuthEmailMessage = {
   action: "verify-email" | "verify-email-otp" | "reset-password" | "admin-test";
 };
 
-type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend" | "zeptomail" | "custom_http";
+type EmailProvider = "sendpulse" | "brevo" | "mailjet" | "mailtrap" | "resend" | "custom_http";
 type ProviderAccount = {
   id: string;
   provider: EmailProvider;
