@@ -1,0 +1,216 @@
+name: Verify Isolated Better Auth Production Worker
+
+on:
+  push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - ".github/auth-ops/VERIFY-PRODUCTION-WORKER-SMOKE-0001"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type VERIFY-PRODUCTION-WORKER-SMOKE-sykabelajar-auth-prod"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-production-worker-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+    name: Verify Production hostname, issuer and closed runtime without changing resources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Checkout the exact guarded auth migration branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Verify exact owner authorization and fail-closed Production config
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "taufx98"
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$CONFIRMATION" = "VERIFY-PRODUCTION-WORKER-SMOKE-sykabelajar-auth-prod"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            marker="../../.github/auth-ops/VERIFY-PRODUCTION-WORKER-SMOKE-0001"
+            test -f "$marker"
+            test "$(cat "$marker")" = "VERIFY-PRODUCTION-WORKER-SMOKE-sykabelajar-auth-prod"
+          else
+            exit 1
+          fi
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const production = readFileSync("wrangler.production.toml","utf8");
+          const staging = readFileSync("wrangler.toml","utf8");
+          for (const [label, pattern] of [
+            ["Production Worker", /^name = "sykabelajar-auth-prod"$/m],
+            ["Production D1 UUID", /^database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"$/m],
+            ["Production custom domain", /^pattern = "auth-prod\.sykabelajar\.my\.id"$/m],
+            ["Production issuer", /^BETTER_AUTH_URL = "https:\/\/auth-prod\.sykabelajar\.my\.id"$/m],
+            ["Production signup closed", /^AUTH_SIGNUP_DISABLED = "true"$/m],
+            ["Production provisioning disabled", /^SUPABASE_PROVISIONING_ENABLED = "false"$/m],
+          ]) if (!pattern.test(production)) throw new Error("Production config guard failed: "+label);
+          if (!/^name = "sykabelajar-auth-poc"$/m.test(staging) ||
+              !/^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m.test(staging) ||
+              !/^pattern = "auth\.sykabelajar\.my\.id"$/m.test(staging)) {
+            throw new Error("Accepted staging config changed unexpectedly.");
+          }
+          console.log("PASS: Production remains closed and isolated from unchanged staging config.");
+          NODE
+
+      - name: Verify Cloudflare Worker, custom-domain and D1 bindings using GET only
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const accountId=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const base="https://api.cloudflare.com/client/v4";
+          const headers={Authorization:"Bearer "+token,Accept:"application/json"};
+          const root="/accounts/"+encodeURIComponent(accountId);
+          async function read(path,label){
+            const response=await fetch(base+path,{method:"GET",headers,redirect:"error"});
+            const body=await response.json().catch(()=>({}));
+            if(!response.ok||body.success!==true)throw new Error(label+" failed with HTTP "+response.status);
+            return body.result;
+          }
+          const [scripts,stageDomains,prodDomains,stageSettings,prodSettings,prodD1]=await Promise.all([
+            read(root+"/workers/scripts","Worker inventory"),
+            read(root+"/workers/domains?hostname=auth.sykabelajar.my.id","Staging custom domain"),
+            read(root+"/workers/domains?hostname=auth-prod.sykabelajar.my.id","Production custom domain"),
+            read(root+"/workers/scripts/sykabelajar-auth-poc/settings","Staging binding"),
+            read(root+"/workers/scripts/sykabelajar-auth-prod/settings","Production binding"),
+            read(root+"/d1/database/6d4dc7b5-8e71-4fdc-9cda-3230e49951c7","Production D1"),
+          ]);
+          const hasScript=(name)=>scripts.filter(row=>row?.id===name).length===1;
+          if(!Array.isArray(scripts)||!hasScript("sykabelajar-auth-poc")||!hasScript("sykabelajar-auth-prod"))
+            throw new Error("Both dedicated Worker scripts must exist exactly once.");
+          const domainOk=(rows,host,service)=>Array.isArray(rows)&&rows.filter(row=>row?.hostname===host&&row?.service===service&&row?.enabled===true).length===1;
+          if(!domainOk(stageDomains,"auth.sykabelajar.my.id","sykabelajar-auth-poc"))
+            throw new Error("Staging hostname-to-Worker pairing changed.");
+          if(!domainOk(prodDomains,"auth-prod.sykabelajar.my.id","sykabelajar-auth-prod"))
+            throw new Error("Production hostname-to-Worker pairing is not active.");
+          const binding=(settings)=>Array.isArray(settings?.bindings)?settings.bindings.filter(row=>row?.type==="d1"&&row?.name==="DB"):[];
+          const stageDb=binding(stageSettings),prodDb=binding(prodSettings);
+          if(stageDb.length!==1||(stageDb[0].database_id??stageDb[0].id)!=="7a4f9008-a1c6-42b6-8a04-abde12699248")
+            throw new Error("Staging Worker D1 binding changed.");
+          if(prodDb.length!==1||(prodDb[0].database_id??prodDb[0].id)!=="6d4dc7b5-8e71-4fdc-9cda-3230e49951c7")
+            throw new Error("Production Worker D1 binding mismatch.");
+          if(prodD1?.name!=="sykabelajar-auth-prod"||prodD1?.uuid!=="6d4dc7b5-8e71-4fdc-9cda-3230e49951c7")
+            throw new Error("Production D1 resource mismatch.");
+          console.log(JSON.stringify({
+            stagingWorker:"sykabelajar-auth-poc",stagingDomain:"verified",stagingD1:"verified",
+            productionWorker:"sykabelajar-auth-prod",productionDomain:"verified",productionD1:"verified",
+            onlyCloudflareGET:true,mutationsAttempted:false,secretValuesRead:false,
+          }));
+          NODE
+
+      - name: Wait briefly for the custom-domain DNS and verify public runtime endpoints
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { promises as dns } from "node:dns";
+          const host="auth-prod.sykabelajar.my.id";
+          const origin="https://"+host;
+          const appOrigin="https://sykabelajar.my.id";
+          let resolved=false;
+          let lastError;
+          for(let attempt=1;attempt<=18;attempt++){
+            try{
+              const addresses=await dns.lookup(host,{all:true});
+              if(addresses.length){resolved=true;console.log("DNS resolved on attempt "+attempt+": "+addresses.map(x=>x.address).join(","));break;}
+            }catch(error){lastError=error;}
+            await new Promise(resolve=>setTimeout(resolve,5000));
+          }
+          if(!resolved)throw new Error("Production custom-domain is registered in Cloudflare but DNS did not resolve after retry window: "+(lastError?.code??"unknown"));
+
+          async function get(path,requestOrigin){
+            const response=await fetch(origin+path,{
+              method:"GET",
+              headers:requestOrigin?{Origin:requestOrigin}:{},
+              redirect:"error",
+              signal:AbortSignal.timeout(10000),
+            });
+            const body=await response.json().catch(()=>null);
+            assert.equal(response.status,200,path+" must return HTTP 200");
+            assert.ok(body&&typeof body==="object",path+" must return JSON");
+            return {response,body};
+          }
+          const health=(await get("/healthz")).body;
+          assert.equal(health.ok,true);
+          const discovery=(await get("/api/auth/.well-known/openid-configuration")).body;
+          assert.equal(discovery.issuer,origin+"/api/auth");
+          assert.ok(discovery.code_challenge_methods_supported?.includes("S256"));
+          assert.equal(new URL(discovery.jwks_uri).origin,origin);
+          const jwks=(await get(new URL(discovery.jwks_uri).pathname)).body;
+          assert.ok(jwks.keys?.some(key=>key.kty==="EC"&&key.crv==="P-256"&&key.alg==="ES256"&&typeof key.kid==="string"&&!Object.hasOwn(key,"d")));
+          const providers=await get("/api/auth/providers",appOrigin);
+          assert.equal(providers.response.headers.get("Access-Control-Allow-Origin"),appOrigin);
+          assert.equal(providers.body.emailVerificationRequired,true);
+          assert.equal(providers.body.emailVerificationConfigured,false);
+          assert.deepEqual(providers.body.providers,[]);
+          const hostile=await fetch(origin+"/api/auth/providers",{method:"GET",headers:{Origin:"https://attacker.example"},redirect:"error"});
+          assert.equal(hostile.headers.get("Access-Control-Allow-Origin"),null);
+          console.log(JSON.stringify({
+            dns:"resolved",health:"ok",issuer:discovery.issuer,pkce:"S256 verified",
+            jwks:"public ES256 P-256 verified",cors:"exact application origin only",
+            emailVerificationRequired:true,emailSenderConfigured:false,
+            providers:"none enabled",publicSignup:"closed by Production config",
+          }));
+          NODE
+
+      - name: Confirm Production D1 remains empty using SELECT only
+        run: |
+          set -euo pipefail
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT
+            (SELECT COUNT(*) FROM \"user\") AS users,
+            (SELECT COUNT(*) FROM \"account\") AS accounts,
+            (SELECT COUNT(*) FROM \"session\") AS sessions,
+            (SELECT COUNT(*) FROM \"verification\") AS verifications,
+            (SELECT COUNT(*) FROM oauthAccessToken) AS access_tokens,
+            (SELECT COUNT(*) FROM oauthRefreshToken) AS refresh_tokens,
+            (SELECT COUNT(*) FROM auth_email_provider_accounts) AS email_accounts,
+            (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id=1) AS auto_failover_enabled,
+            (SELECT email_verification_required FROM auth_runtime_settings WHERE id=1) AS email_verification_required;" > "$RUNNER_TEMP/production-worker-final-state.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from "node:fs";
+          const value=JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-worker-final-state.json","utf8"));
+          const rows=[];
+          const walk=(x)=>{if(Array.isArray(x))x.forEach(walk);else if(x&&typeof x==="object"){if(Object.hasOwn(x,"users"))rows.push(x);Object.values(x).forEach(walk);}};
+          walk(value);
+          if(rows.length!==1)throw new Error("Cannot identify exactly one Production D1 status row.");
+          const row=rows[0];
+          for(const key of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens","email_accounts"])
+            if(Number(row[key])!==0)throw new Error("Production D1 unexpectedly contains "+key);
+          if(Number(row.auto_failover_enabled)!==1||Number(row.email_verification_required)!==1)
+            throw new Error("Production D1 email routing/security defaults changed.");
+          console.log("PASS: Production identity, credential, session and provider-account tables remain empty; required email verification and failover defaults remain enabled.");
+          NODE
+
+      - name: Record no-mutation verification boundary
+        if: always()
+        run: |
+          {
+            echo "## Isolated Production Worker verification"
+            echo ""
+            echo "- Cloudflare operations: GET only; D1 operations: SELECT only."
+            echo "- No Worker deployment, secret mutation, DNS mutation, D1 write, OIDC registration or frontend change was performed."
+          } >> "$GITHUB_STEP_SUMMARY"
