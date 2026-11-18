@@ -18,6 +18,7 @@ on:
   push:
     branches:
       - security/auth-poc-stage-1
+      - security/auth-oidc-pat-scope-diagnostics
       - security/auth-temporary-email-bypass
     paths:
       - "services/auth-worker/**"
