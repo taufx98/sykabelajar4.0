@@ -57,6 +57,9 @@ test("staging and Production ZeptoMail D1 migrations are separately owner-gated 
   assert.match(stagingWorkflow, /git hash-object migrations\/0013_zeptomail_email_provider\.sql/);
   assert.match(stagingWorkflow, /providerFingerprintBefore/);
   assert.match(stagingWorkflow, /identityFingerprintBefore/);
+  assert.match(stagingWorkflow, /0012_custom_http_email_provider\.sql/);
+  assert.match(stagingWorkflow, /Required staging migration missing/);
+  assert.match(stagingWorkflow, /Unexpected staging D1 migration history/);
   assert.match(stagingWorkflow, /zeptomailProviderAllowed/);
   assert.match(stagingWorkflow, /npm run typecheck && npm test/);
   assert.doesNotMatch(stagingWorkflow, /wrangler\s+deploy|wrangler\s+secret\s+(put|delete)/i);
