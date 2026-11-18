@@ -74,6 +74,7 @@ test("Production D1 migrations deliberately omit the staging-only callback migra
     "0009_multi_provider_email_routing.sql",
     "0010_custom_http_email_provider.sql",
     "0011_zeptomail_email_provider.sql",
+    "0011_zeptomail_email_provider.sql",
   ]);
   const seed = readFileSync(new URL("../migrations-production/0002_seed_first_party_oauth_client.sql", import.meta.url), "utf8");
   assert.ok(seed.includes('["https://sykabelajar.my.id/auth/oidc/callback"]'));
