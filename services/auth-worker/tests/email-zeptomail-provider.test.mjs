@@ -71,8 +71,8 @@ test("staging and Production ZeptoMail D1 migrations are separately owner-gated 
   assert.match(productionWorkflow, /git hash-object migrations-production\/0011_zeptomail_email_provider\.sql/);
   assert.match(productionWorkflow, /providerAndQuotaFingerprintRecorded/);
   assert.match(productionWorkflow, /identityFingerprintRecorded/);
-  assert.match(productionWorkflow, /WorkerDeploymentAttempted:false/);
-  assert.match(productionWorkflow, /secretsOrDnsChanged:false/);
+  assert.match(productionWorkflow, /WorkerDeploymentAttempted:\s*false/);
+  assert.match(productionWorkflow, /secretsOrDnsChanged:\s*false/);
   assert.match(productionWorkflow, /npm run check/);
   assert.doesNotMatch(productionWorkflow, /wrangler\s+deploy|wrangler\s+secret\s+(put|delete)/i);
 });
