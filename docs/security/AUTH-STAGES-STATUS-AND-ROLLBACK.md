@@ -1,3 +1,30 @@
+# Latest Stage 7 Production checkpoint — 18 November 2026
+
+**This checkpoint supersedes older Stage 7 statements below where they conflict.** The site is unreleased; no scheduled public maintenance window is needed. Owner has approved the Production cutover and fresh-account model. Production remains technically NO-GO for frontend/login switch until sender/Admin, OIDC, DB2 identity/FK and provisioning gates pass.
+
+## Completed on Production Cloudflare
+
+- Production D1 migrations 0008–0010 completed in [#44341594485](https://github.com/taufx98/sykabelajar4.0/actions/runs/44341594485). Current schema is exactly 0000–0010 / 23 expected tables; required email verification is on; one failover-enabled settings row exists; Better Auth users/accounts/sessions/verifications/OAuth tokens/email provider accounts remain zero.
+- A dedicated Worker `sykabelajar-auth-prod` was deployed to custom hostname `auth-prod.sykabelajar.my.id`, version `2ead8e3f-f244-4851-91d3-52d4c0b1bf24`, bound to Production D1. Three fresh Production-only secrets were generated and installed. Do not rerun the create workflow/marker; it would redeploy and rotate them.
+- Creation run [#44347403101](https://github.com/taufx98/sykabelajar4.0/actions/runs/44347403101) completed deploy and secret installation, but its immediate hostname smoke step first encountered DNS `ENOTFOUND`. This was not a failed Worker deploy.
+- Follow-up GET/SELECT-only verification [#44348084987](https://github.com/taufx98/sykabelajar4.0/actions/runs/44348084987) subsequently passed DNS resolution, `/healthz`, exact OIDC issuer, PKCE S256 discovery, public ES256 JWKS, exact app-origin CORS, providers endpoint with email verification required and no email sender/provider configured, and confirmed Production D1 still empty.
+- Cloudflare read-only inventory [#44347784875](https://github.com/taufx98/sykabelajar4.0/actions/runs/44347784875) confirmed staging Worker/D1/custom-domain pairing unchanged and Production Worker/D1/custom-domain pairing correct.
+- Staging remains Worker `sykabelajar-auth-poc` + D1 UUID `7a4f9008-a1c6-42b6-8a04-abde12699248` + `auth.sykabelajar.my.id`. Production uses Worker `sykabelajar-auth-prod` + D1 UUID `6d4dc7b5-8e71-4fdc-9cda-3230e49951c7` + `auth-prod.sykabelajar.my.id`.
+- Production signup remains disabled; Supabase provisioning remains disabled; no Production frontend switch occurred.
+
+## Remaining Stage 7 gates
+
+1. Implement and test a narrow owner-only Production bootstrap for first email sender and first Admin, without public signup, staging SQL, forged verification, shadow `auth.users`, or replayable bootstrap credentials.
+2. Register Production DB2 Custom OIDC for `https://auth-prod.sykabelajar.my.id/api/auth` and verify hosted resource-token acceptance.
+3. Apply Stage 3 Production DB2 identity-root, 69-FK and issuer restrictions; confirm rollback behavior and fresh-account UUID projection.
+4. Install Production provisioning service credential and enable provisioning only after RPC/grant/issuer acceptance.
+5. Complete real Production numeric OTP verification and password-reset delivery.
+6. Switch only the Production frontend auth endpoint, run full functional smoke, observe, and validate rollback.
+
+**No-go boundary:** no Production OIDC provider, DB2 identity/FK/issuer DDL, provisioning credential, first Admin, email sender credential, frontend switch or public signup has been enabled. Accepted staging is preserved.
+
+---
+
 # Stage 7 Production isolation correction — 18 November 2026
 
 **This is the newest checkpoint and supersedes the same-Worker promotion instructions below.** The website is still unreleased; no scheduled public maintenance window is required. Do not trade off the accepted staging setup to accelerate Production.
