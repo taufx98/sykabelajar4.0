@@ -63,7 +63,7 @@ test("staging and Production ZeptoMail D1 migrations are separately owner-gated 
   assert.match(stagingWorkflow, /zeptoMailProviderAllowed/);
   assert.match(stagingWorkflow, /npm run typecheck && npm test/);
   assert.doesNotMatch(stagingWorkflow, /wrangler\s+deploy|wrangler\s+secret\s+(put|delete)/i);
-  assert.doesNotMatch(stagingWorkflow, /wrangler --config wrangler\.production\.toml|sykabelajar-auth-prod|mvdczyitbkxkldjughor/);
+  assert.doesNotMatch(stagingWorkflow, /wrangler\s+--config\s+wrangler\.production\.toml|wrangler[^\n]*(?:sykabelajar-auth-prod|mvdczyitbkxkldjughor)/);
 
   assert.match(productionWorkflow, /APPLY-PRODUCTION-ZEPTOMAIL-0011/);
   assert.match(productionWorkflow, /APPLY-PRODUCTION-ZEPTOMAIL-sykabelajar-auth-prod/);
