@@ -163,7 +163,7 @@ for (const functionName of ["cloudinary-profile-upload", "cloudinary-profile-upl
 
 // Only user B is an active admin. User A's valid signed-in JWT is insufficient.
 const deniedAdmin = await invoke("payment-gateway-admin", tokenA, { action: "get" });
-assert.equal(deniedAdmin.status, 403);
+assert.equal(deniedAdmin.status, 403, "non-admin payment settings access must return 403: " + JSON.stringify(deniedAdmin.body));
 assert.equal(deniedAdmin.body.error, "ADMIN_REQUIRED");
 
 const allowedAdmin = await invoke("payment-gateway-admin", tokenB, { action: "get" });
