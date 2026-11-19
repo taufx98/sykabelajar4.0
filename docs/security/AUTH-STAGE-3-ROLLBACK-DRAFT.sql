@@ -1479,6 +1479,7 @@ DECLARE
   v_auth_trigger_count integer;
   v_profile_trigger_count integer;
   v_issuer_guard_count integer;
+  v_residual_app_users_functions integer;
 BEGIN
   SELECT count(*) INTO v_auth_fk_count
   FROM pg_constraint c
@@ -1532,6 +1533,20 @@ BEGIN
   END IF;
   IF to_regclass('private.app_users') IS NOT NULL THEN
     RAISE EXCEPTION 'STAGE3_ROLLBACK_APP_USERS_TABLE_REMAINS';
+  END IF;
+
+  SELECT count(*) INTO v_residual_app_users_functions
+  FROM unnest(ARRAY['private.current_user_has_role(public.app_role)', 'public.is_active_admin(uuid)', 'private.current_user_is_active_organizer_member(uuid)', 'private.current_user_organizer_role(uuid)', 'private.collective_realtime_can_read(uuid)', 'public.admin_adjust_user_currency(uuid,text,bigint,text)', 'public.admin_bulk_adjust_currency(uuid[],text,bigint,text)', 'public.admin_set_certificate_status(uuid,public.certificate_status,text)', 'public.admin_set_collective_certificate_price(numeric)', 'public.admin_transition_certificate(uuid,public.certificate_status,text)', 'public.admin_transition_order(uuid,public.order_status,text,text,text)', 'public.auto_grade_essay_item(uuid,uuid)', 'public.create_collective_participants(uuid,uuid[])', 'public.generate_awards_for_competition(uuid)', 'public.is_public_profile_admin(uuid)', 'public.issue_certificate_for_award(uuid)', 'public.list_teacher_achievement_report(uuid,text)', 'public.list_teacher_collective_certificates(uuid)', 'public.save_organizer_competition_config(uuid,jsonb,jsonb,jsonb)', 'public.save_question_with_options(uuid,uuid,text,text,numeric,boolean,integer,text,jsonb,jsonb)', 'private.collective_realtime_bind(text)']::text[]) AS target(signature)
+  WHERE to_regprocedure(target.signature) IS NULL
+     OR position(
+       'private.app_users' IN pg_catalog.pg_get_functiondef(to_regprocedure(target.signature)::oid)
+     ) > 0;
+  IF v_residual_app_users_functions <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_RESIDUAL_IDENTITY_FUNCTIONS: %',
+      v_residual_app_users_functions;
+  END IF;
+  IF to_regprocedure('private.current_user_is_better_auth()') IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_BETTER_AUTH_HELPER_REMAINS';
   END IF;
 END;
 $stage3_rollback_postflight$;
