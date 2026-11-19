@@ -1,95 +1,49 @@
 # Current authoritative checkpoint — 19 November 2026
 
-**Owner correction:** SendPulse is the approved and tested primary transactional-email provider. The unsupported provider experiment is not part of the product and must be removed from active Worker runtime and Admin UI.
+**Provider decision (reaffirmed 19 November 2026):** SendPulse is the approved and successfully tested primary transactional-email provider. Do not enable, select, configure, or add credentials for any other provider, including the retired ZeptoMail experiment. Active Worker runtime and Admin UI no longer include that provider.
 
-## Verified state before this correction
+**Archive notice:** Older checkpoint entries below preserve historical facts only. Any older setup instructions mentioning ZeptoMail or another sender are superseded by this checkpoint and must not be followed.
 
-- PR #196 was merged to staging on 18 November.
-- Staging D1 migration 0013 and the staging Worker deployment ran successfully: [D1 migration #44358349156](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358349156) and [staging Worker deploy #44358777889](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358777889).
-- The migration/deploy checkpoints reported 9 Better Auth users, 9 accounts, 2 sessions, 20 identity-linkage rows and 1 provider account preserved. The encrypted credential, provider route, priority, quotas, counters, cooldown and delivery metadata were unchanged.
-- No unsupported-provider token was entered and no email was sent. SendPulse remains the retained/tested provider.
+## Verified state before correction
+
+- PR #196 was merged to staging on 18 November and applied immutable migration 0013_zeptomail_email_provider.sql to staging D1.
+- The staging migration and Worker deployment preserved the recorded Better Auth user/account/session and existing provider-account state. No new provider token was entered and no test email was sent during that experiment.
 - Production D1 remains exactly at migrations 0000–0010; Production Worker, secrets, hostname, Supabase DB2, DNS and frontend routing were not changed.
 
-## Correction prepared in this branch
+## Correction merged — PR #197 (19 November 2026)
 
-- Restore active Worker provider code, Admin API and Admin UI to the pre-experiment version, keeping SendPulse and the other previously approved adapters.
-- Retain migration 0013 as immutable migration history because it has already been applied to staging.
-- Add migration 0014 to rebuild only `auth_email_provider_accounts` with the approved CHECK constraint. It copies every provider row and every field, including encrypted credentials, priority, quotas, counters, cooldown and delivery status.
-- The guarded migration preflight requires no unsupported-provider rows before DDL and compares SHA-256 fingerprints of provider rows and Better Auth user/account/session/verification counts after DDL.
-- Remove the now-unused provider-specific workflows, production migration draft and tests. Keep the separate Production Worker deploy workflow but return its precondition to the already-verified Production D1 0000–0010 schema and correct its result-row hashing.
-- Update the staging Worker deploy gate to require migration 0014. Merge does not auto-deploy; deployment requires a separate owner-only manual dispatch.
-- No Production migration, Worker deploy, secret rotation, DNS, Supabase DB2, frontend switch or email send is included.
+- PR [#197](https://github.com/taufx98/sykabelajar4.0/pull/197) merged to security/auth-poc-stage-1 as commit 53f6fdb4177043884055bae013a34f14ba9fe293.
+- Restored the approved Worker dispatcher, Admin API and Admin Settings provider list. SendPulse remains the tested primary provider; no saved credentials were rotated or rewritten by the code change.
+- Removed the retired provider-specific migration/deploy workflows, tests and active Admin provider option. Production preflight/deploy assumptions were returned to the already verified D1 0000–0010 baseline.
+- Post-merge Auth Worker CI and frontend lint/typecheck/build passed in [#44424917347](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917347). Read-only Cloudflare staging preflight passed in [#44424917376](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917376); read-only Production preflight passed in [#44424917342](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917342).
+
+## Current staging state after merge
+
+- Staging D1 migration 0013 remains immutable because it is already recorded remotely.
+- Migration 0014_finalize_email_provider_allowlist.sql is prepared but **has not been applied**. It rebuilds only auth_email_provider_accounts, preserves every existing provider field including encrypted credentials/routing/quotas/delivery state, refuses unsupported-provider rows, and compares before/after fingerprints for provider rows and Better Auth identity/session counts.
+- Migration 0014 is staging-only and requires a separate owner-authorized run through .github/workflows/auth-finalize-email-provider-staging.yml. Merging PR #197 did not run it.
+- The staging Worker has not been redeployed after PR #197. Its guarded deployment is separate and must only occur after migration 0014 is verified.
+- Production D1 remains at 0000–0010. Production Worker, secrets, hostname, Supabase DB2, DNS and frontend routing remain unchanged.
 
 ## Pending owner-controlled operations
 
-1. Review and merge the correction PR after CI passes.
-2. Manually run the staging-only migration workflow with the exact confirmation shown in the workflow.
-3. Verify its provider and identity fingerprints pass.
-4. Manually deploy the staging Worker using the exact guarded confirmation.
-5. Confirm the existing SendPulse configuration still reports healthy; no credentials need to be pasted into chat.
+1. Apply staging-only migration 0014 through its guarded workflow after confirming the current provider rows pass its preflight.
+2. Verify the workflow reports the provider-row and Better Auth identity/session fingerprints unchanged.
+3. Manually deploy the staging Worker only after migration 0014 is verified; the workflow preserves existing Worker secrets.
+4. Recheck the existing SendPulse connection/configuration without rotating credentials or sending an unnecessary test message.
 
-Production remains NO-GO for live auth cutover until the independent OIDC, DB2 identity, provisioning, first-admin, verified-email delivery and frontend acceptance gates are complete.
+Production remains **NO-GO** for live app/auth cutover until the independent OIDC, DB2 identity/FK, provisioning, first-admin, verified-email delivery, frontend, monitoring and rollback gates are complete.
 
 ---
 
 # Superseded historical staging provider experiment — 18 November 2026
 
-**This checkpoint records the completed staging-only schema and Worker rollout. It does not authorize Production sender setup or Production auth cutover.**
+**Archive only.** This records the previous staging-only experiment and the already-applied migration 0013. It does not authorize use of the retired provider, entry of provider credentials, or any Production operation. PR #197 is the authoritative correction.
 
-## Completed
-
-- ZeptoMail provider PR [#196](https://github.com/taufx98/sykabelajar4.0/pull/196) merged in commit `8caa31a49d45e74327fd696406f514c2f15edfca`. It adds the provider to the managed Worker dispatcher, readiness check, Admin routing API and `TransactionalEmailSettingsPanel`.
-- Staging migration workflow [#44358349156](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358349156) successfully applied `0013_zeptomail_email_provider.sql` to staging D1 `sykabelajar-auth-poc` only.
-- Before/after checks preserved **9 Better Auth users, 9 accounts, 2 sessions, 20 identity-linkage rows and 1 existing provider account**. Provider fingerprint (encrypted credential, route/priority, quotas/counters, cooldown and delivery status) was unchanged. The new table constraint accepts both `zeptomail` and `custom_http`.
-- Staging Worker deployment [#44358777889](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358777889) succeeded. New Worker version: `8431e3b4-212f-4ffb-859b-582ac8928fb5`. It ran the full typecheck/security test/dry-run suite, checked 23 staging D1 tables and existing identities, preserved secrets, and passed hosted health, issuer, public ES256 JWKS and PKCE checks.
-- Auth Worker CI [#44358777986](https://github.com/taufx98/sykabelajar4.0/actions/runs/44358777986) passed both Worker/Edge integration and frontend lint/typecheck/build jobs.
-- Public staging providers smoke confirmed the Better Auth issuer and email-verification policy remain active. The public endpoint intentionally exposes no provider tokens or private credential settings.
-
-## Not yet done
-
-- No ZeptoMail Agent Send Mail Token has been entered; no email was sent. Real ZeptoMail delivery and inbox acceptance remain to be tested by the owner from the staging Admin panel after adding the token there. **Never paste the token into chat or source control.**
-- Production D1 migration `0011_zeptomail_email_provider.sql` has not been applied. Marker `.github/auth-ops/APPLY-PRODUCTION-ZEPTOMAIL-0011` is absent.
-- Production Worker code-only deploy has not been run. Marker `.github/auth-ops/DEPLOY-PRODUCTION-AUTH-WORKER-0011` is absent. It must run only after Production D1 0011 and must preserve existing Production secret bindings.
-- Production OIDC remains blocked by the scoped Supabase PAT HTTP 403 recorded below; DB2 identity/FK/provisioning and the first Production Admin/sender bootstrap remain hard gates.
-- No Production sender credentials, public signup, frontend auth switch or user/account migration have been enabled.
-
-## Superseded instruction — do not configure an additional email provider
-
-This historical instruction is withdrawn. SendPulse remains the tested primary provider. No additional provider token is to be entered and no test email is to be sent.
-
----
-
-# ZeptoMail managed-provider and Production readiness checkpoint — 18 November 2026
-
-**This is the newest checkpoint for the email-provider work.** It supplements the 18 November Stage 7 isolation/OIDC checkpoint immediately below.
-
-## ZeptoMail implementation prepared — no live migration or delivery
-
-- PR [#196](https://github.com/taufx98/sykabelajar4.0/pull/196) adds ZeptoMail as a first-class provider to the managed email dispatcher, Worker readiness check, Admin routing API and `TransactionalEmailSettingsPanel`.
-- Delivery uses the Zoho CPaaS Send Email API endpoint `https://cpaas.zoho.com/v1.1/email`, Agent-specific `Zoho-enczapikey` Authorization, documented `from`/`to` JSON shape and strict accepted-response checking. Only one same-origin trailing-slash redirect is permitted; cross-origin redirects are blocked. An optional pasted `Zoho-enczapikey ` prefix is stripped before the token is encrypted.
-- The Send Mail Token goes through the existing AES-GCM encrypted `credentials_ciphertext` path. The legacy `auth_email_accounts` / `auth_email_settings` tables are not read or used as fallback. Existing provider credentials are not imported or rewritten.
-- Admin default internal throttles for Zeptomail are 50 messages/hour and 300/day (operational limits only; they are not a claim about the vendor plan quota).
-- Staging D1 migration `0013_zeptomail_email_provider.sql` and Production D1 migration `0011_zeptomail_email_provider.sql` extend the provider CHECK by rebuilding only `auth_email_provider_accounts`; all existing encrypted credentials, routing priorities, quota buckets/counters, cooldowns and delivery status fields are copied. Better Auth users/accounts/sessions and Supabase data are not touched.
-- Separate owner-gated schema workflows are prepared: `.github/workflows/auth-zeptomail-email-staging.yml` and `.github/workflows/auth-cloudflare-production-zeptomail-migrate.yml`. The Production preflight accepts either the current 0000–0010 ledger or 0000–0011 after a future approved migration.
-- Production Worker code update is separate: `.github/workflows/auth-cloudflare-production-worker-deploy.yml` updates the already deployed Worker only after Production D1 0011; it checks existing secret names before/after, does not read or rotate their values, and rechecks the staging Worker/D1/hostname.
-- **No ZeptoMail migration marker exists**, no sender profile or token has been entered, no test email has been sent, and no staging/Production Worker deployment has been run for this PR.
-
-## Validation
-
-- [Auth Worker CI #44356044553](https://github.com/taufx98/sykabelajar4.0/actions/runs/44356044553) passed on 18 November 2026: dependency audit, TypeScript typecheck, all security/provider/SQL workflow contract tests, Deno/Edge typechecks and auth/JWKS tests, local Worker/D1/OAuth integration, staging and Production Wrangler dry-run bundles, and frontend lint/typecheck/build. No remote D1 migration, email send, Worker deployment, secret, DNS or frontend routing operation occurred in this CI run.
-
-## Remaining gates
-
-1. Review/merge PR #196; do not create either ZeptoMail D1 marker until the review is accepted.
-2. Apply staging migration 0013 through its owner-gated workflow (requires existing staging migration 0012); then deploy the tested Worker to staging with the separately guarded staging deploy and verify Admin UI/provider configuration without sending mail until a credential is deliberately entered.
-3. Resolve the existing Production DB2 OIDC PAT 403 by replacing GitHub Actions secret `SUPABASE_ACCESS_TOKEN` with a PAT scoped to DB2 with Project Settings: Read and Auth Config: Read/Write. The token owner must already have DB2 access.
-4. Apply Production D1 migration 0011 through the guarded workflow only after its exact target/fingerprint checks; then deploy provider code to existing Production Worker via the deploy-only workflow that preserves secret names.
-5. Complete the owner-only first-sender and first-Admin bootstrap design; no public signup, staging SQL, forged email verification or shadow `auth.users` identity.
-6. Prove real Production numeric OTP and password-reset delivery; only then consider Production frontend/auth cutover.
-
-**Production remains NO-GO for live login/auth cutover.** Existing staging and Production Workers remain as verified; Production signup/provisioning remain closed. No user, account, session or application data has been changed by the ZeptoMail preparation.
-
----
+- PR #196 and its guarded staging migration/deployment created the historical migration 0013 state. The recorded migration and Worker checks preserved the nine Better Auth users, nine accounts, two sessions and one existing provider account.
+- The applied migration filename remains in D1 history and must not be edited or replayed. Migration 0014 is the forward-only staging correction.
+- No sender token from the retired experiment was entered and no email was sent for it.
+- Production D1 remained at 0000–0010. Its dedicated Worker, secrets, hostname, Supabase DB2 and frontend routing were not changed.
 
 # Latest Stage 7 Production checkpoint — 18 November 2026
 
