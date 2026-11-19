@@ -4,37 +4,21 @@
 
 **Archive notice:** Older checkpoint entries below preserve historical facts only. Any older setup instructions mentioning ZeptoMail or another sender are superseded by this checkpoint and must not be followed.
 
-## Verified state before correction
+## Verified correction and staging completion
 
-- PR #196 was merged to staging on 18 November and applied immutable migration 0013_zeptomail_email_provider.sql to staging D1.
-- The staging migration and Worker deployment preserved the recorded Better Auth user/account/session and existing provider-account state. No new provider token was entered and no test email was sent during that experiment.
-- Production D1 remains exactly at migrations 0000–0010; Production Worker, secrets, hostname, Supabase DB2, DNS and frontend routing were not changed.
+- PR [#197](https://github.com/taufx98/sykabelajar4.0/pull/197) merged to `security/auth-poc-stage-1` as commit `53f6fdb4177043884055bae013a34f14ba9fe293`. The approved Worker dispatcher, Admin API and Admin Settings provider list were restored; retired provider code/options/workflows/tests were removed.
+- Auth Worker CI and frontend lint/typecheck/build passed in [#44424917347](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917347). Read-only Cloudflare staging preflight passed in [#44424917376](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917376), and read-only Production preflight passed in [#44424917342](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917342).
+- Staging D1 migration `0013` remains immutable as existing migration history. Guarded staging migration `0014_finalize_email_provider_allowlist.sql` completed successfully in [#44428277116](https://github.com/taufx98/sykabelajar4.0/actions/runs/44428277116). Preflight found zero unsupported-provider rows; the single existing provider row was preserved as SendPulse; encrypted credential and routing/quota/delivery metadata fingerprints matched; Better Auth identity/session counts were unchanged.
+- Existing staging identity snapshot after migration/deploy: 9 users, 9 accounts, 2 sessions and 2 verification rows; three unverified accounts had zero active sessions. No user/session was seeded or removed by the correction.
+- The staging-only Worker was redeployed successfully in [#44428434358](https://github.com/taufx98/sykabelajar4.0/actions/runs/44428434358). New Worker version: `1d0e0506-9ed9-437b-aded-5432936d47a6`, still attached to `auth.sykabelajar.my.id` and D1 `sykabelajar-auth-poc`. Hosted checks passed for `/healthz`, exact OIDC issuer `https://auth.sykabelajar.my.id/api/auth`, public ES256 JWKS, PKCE S256 and required email verification.
+- Existing Worker secrets were preserved; the deployment workflow did not enumerate, recreate, rotate or delete their values. No provider credential was entered and no email was sent during this correction.
+- Production D1 remains exactly at migrations 0000–0010. Production Worker, secrets, hostname, Supabase DB2, DNS and frontend routing were not changed.
 
-## Correction merged — PR #197 (19 November 2026)
+## Current staging state
 
-- PR [#197](https://github.com/taufx98/sykabelajar4.0/pull/197) merged to security/auth-poc-stage-1 as commit 53f6fdb4177043884055bae013a34f14ba9fe293.
-- Restored the approved Worker dispatcher, Admin API and Admin Settings provider list. SendPulse remains the tested primary provider; no saved credentials were rotated or rewritten by the code change.
-- Removed the retired provider-specific migration/deploy workflows, tests and active Admin provider option. Production preflight/deploy assumptions were returned to the already verified D1 0000–0010 baseline.
-- Post-merge Auth Worker CI and frontend lint/typecheck/build passed in [#44424917347](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917347). Read-only Cloudflare staging preflight passed in [#44424917376](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917376); read-only Production preflight passed in [#44424917342](https://github.com/taufx98/sykabelajar4.0/actions/runs/44424917342).
-
-## Current staging state after merge
-
-- Staging D1 migration 0013 remains immutable because it is already recorded remotely.
-- Migration 0014_finalize_email_provider_allowlist.sql is prepared but **has not been applied**. It rebuilds only auth_email_provider_accounts, preserves every existing provider field including encrypted credentials/routing/quotas/delivery state, refuses unsupported-provider rows, and compares before/after fingerprints for provider rows and Better Auth identity/session counts.
-- Migration 0014 is staging-only and requires a separate owner-authorized run through .github/workflows/auth-finalize-email-provider-staging.yml. Merging PR #197 did not run it.
-- The staging Worker has not been redeployed after PR #197. Its guarded deployment is separate and must only occur after migration 0014 is verified.
-- Production D1 remains at 0000–0010. Production Worker, secrets, hostname, Supabase DB2, DNS and frontend routing remain unchanged.
-
-## Pending owner-controlled operations
-
-1. Apply staging-only migration 0014 through its guarded workflow after confirming the current provider rows pass its preflight.
-2. Verify the workflow reports the provider-row and Better Auth identity/session fingerprints unchanged.
-3. Manually deploy the staging Worker only after migration 0014 is verified; the workflow preserves existing Worker secrets.
-4. Recheck the existing SendPulse connection/configuration without rotating credentials or sending an unnecessary test message.
-
-Production remains **NO-GO** for live app/auth cutover until the independent OIDC, DB2 identity/FK, provisioning, first-admin, verified-email delivery, frontend, monitoring and rollback gates are complete.
-
----
+- The approved managed provider schema is now active in staging D1. SendPulse remains the existing, preserved provider and the primary provider decision.
+- PR #197, migration 0014, and the guarded staging Worker redeploy are complete. No further D1 migration or Worker deployment is required for this provider correction.
+- Production remains **NO-GO** for live app/auth cutover until the independent Production OIDC, DB2 identity/FK, provisioning, first-admin, verified-email delivery, frontend, monitoring and rollback gates are complete.
 
 # Superseded historical staging provider experiment — 18 November 2026
 
