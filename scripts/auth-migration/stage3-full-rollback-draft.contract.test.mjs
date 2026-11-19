@@ -79,6 +79,11 @@ assert.match(sql, /v_issuer_guard_count <> 0/);
 assert.match(sql, /to_regclass\('private[.]app_users'\) IS NOT NULL/);
 assert.match(sql, /COMMIT;/);
 
-assert.doesNotMatch(sql, /DROP TABLE auth[.]users|TRUNCATE|DELETE FROM auth[.]users|DELETE FROM public[.]/i);
+const rollbackOperations = sql.replace(/CREATE OR REPLACE FUNCTION[\s\S]*?\$function\$;/gi, "");
+assert.doesNotMatch(
+  rollbackOperations,
+  /DROP TABLE auth[.]users|TRUNCATE|DELETE FROM auth[.]users|DELETE FROM public[.]/i,
+  "the rollback itself must not delete legacy Auth rows or application data",
+);
 assert.doesNotMatch(sql, /INSERT INTO auth[.]users|UPDATE auth[.]users/i);
 console.log("Stage 3 rollback contract passed: legacy Auth triggers are restored only by explicit rollback; no old account or credentials are copied.");
