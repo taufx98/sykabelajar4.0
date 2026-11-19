@@ -102,8 +102,11 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_READ_ALLOWED'; END IF;
-  IF private.current_user_is_admin() THEN
-    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_ADMIN_HELPER_ALLOWED';
+  -- The private schema intentionally has no USAGE for API roles.
+  -- Verify that boundary; exercise its SECURITY DEFINER helpers through
+  -- public entrypoints below instead of invoking private functions directly.
+  IF has_schema_privilege(current_user, 'private', 'USAGE') THEN
+    RAISE EXCEPTION 'STAGE3_PRIVATE_SCHEMA_USAGE_UNEXPECTED';
   END IF;
   IF public.is_active_admin('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED';
@@ -120,12 +123,6 @@ BEGIN
   END;
   IF NOT v_denied THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_DIRECT_ADMIN_RPC_ALLOWED';
-  END IF;
-  IF private.current_user_organizer_role('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid) IS NOT NULL THEN
-    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_ORGANIZER_ROLE_ALLOWED';
-  END IF;
-  IF private.current_user_is_active_organizer_member('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid) THEN
-    RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_ORGANIZER_MEMBERSHIP_ALLOWED';
   END IF;
   BEGIN
     INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
@@ -147,8 +144,8 @@ DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED'; END IF;
-  IF NOT private.current_user_is_admin() THEN
-    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_HELPER_DENIED';
+  IF has_schema_privilege(current_user, 'private', 'USAGE') THEN
+    RAISE EXCEPTION 'STAGE3_PRIVATE_SCHEMA_USAGE_UNEXPECTED';
   END IF;
   IF NOT public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED';
