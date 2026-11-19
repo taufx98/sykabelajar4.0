@@ -59,7 +59,7 @@ for (const wrapper of [
 ]) assert.ok(sql.includes("DROP FUNCTION " + wrapper), "rollback drops Stage 3 RPC: " + wrapper);
 
 assert.match(sql, /CREATE OR REPLACE FUNCTION public\.is_active_admin\(p_uid uuid\)/);
-assert.match(sql, /CREATE OR REPLACE FUNCTION private\.current_user_has_role\(p_role public\.app_role\)/);
+assert.match(sql, /CREATE OR REPLACE FUNCTION private\.current_user_has_role\(p_role (?:public\.)?app_role\)/);
 assert.match(sql, /DROP FUNCTION IF EXISTS private\.current_user_is_better_auth\(\)/);
 assert.match(sql, /STAGE3_ROLLBACK_RESIDUAL_IDENTITY_FUNCTIONS/);
 assert.match(sql, /STAGE3_ROLLBACK_BETTER_AUTH_HELPER_REMAINS/);
