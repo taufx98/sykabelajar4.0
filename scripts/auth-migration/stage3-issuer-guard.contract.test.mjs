@@ -22,9 +22,13 @@ assert.match(draft, /CREATE OR REPLACE FUNCTION private\.current_user_has_role/)
 assert.match(draft, /app_user\.identity_origin = 'better_auth'/);
 assert.match(draft, /CREATE OR REPLACE FUNCTION public\.is_active_admin/);
 assert.match(draft, /auth\.jwt\(\) ->> 'iss'/);
-assert.match(acceptance, /STAGE3_LEGACY_ISSUER_ADMIN_HELPER_ALLOWED/);
+assert.match(acceptance, /has_schema_privilege\(current_user, 'private', 'USAGE'\)/);
+assert.doesNotMatch(
+  acceptance,
+  /private\.current_user_(?:is_admin|organizer_role|is_active_organizer_member)\(/i,
+  "authenticated must not call private helpers directly; verify them through public SECURITY DEFINER entrypoints",
+);
 assert.match(acceptance, /STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED/);
-assert.match(acceptance, /STAGE3_BETTER_AUTH_ADMIN_HELPER_DENIED/);
 assert.match(acceptance, /STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED/);
 
 assert.match(acceptance, /https:\/\/auth-prod\.sykabelajar\.my\.id\/api\/auth/);
