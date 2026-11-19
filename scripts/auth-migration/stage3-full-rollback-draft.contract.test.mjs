@@ -63,8 +63,11 @@ assert.match(sql, /CREATE OR REPLACE FUNCTION private\.current_user_has_role\(p_
 assert.match(sql, /DROP FUNCTION IF EXISTS private\.current_user_is_better_auth\(\)/);
 assert.match(sql, /STAGE3_ROLLBACK_RESIDUAL_IDENTITY_FUNCTIONS/);
 assert.match(sql, /STAGE3_ROLLBACK_BETTER_AUTH_HELPER_REMAINS/);
+const restoredFunctionBlock = sql
+  .slice(sql.indexOf("-- Restore the exact pre-Stage-3 Production definitions"), sql.indexOf("-- Remove the Better Auth-only provisioning surface"))
+  .replace(/^--.*$/gm, "");
 assert.doesNotMatch(
-  sql.slice(sql.indexOf("-- Restore the exact pre-Stage-3 Production definitions"), sql.indexOf("-- Remove the Better Auth-only provisioning surface")),
+  restoredFunctionBlock,
   /private\.app_users/,
   "restored original functions must not depend on the Better Auth identity root",
 );
