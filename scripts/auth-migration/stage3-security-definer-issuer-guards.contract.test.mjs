@@ -95,9 +95,13 @@ const realtimeBind = draft.match(/CREATE OR REPLACE FUNCTION private\.collective
 assert.match(realtimeBind, /private\.current_user_is_better_auth\(\)/);
 
 
-assert.match(regression, /STAGE3_LEGACY_ISSUER_ADMIN_HELPER_ALLOWED/);
+assert.match(regression, /has_schema_privilege\(current_user, 'private', 'USAGE'\)/);
+assert.doesNotMatch(
+  regression,
+  /private\.current_user_(?:is_admin|organizer_role|is_active_organizer_member)\(/i,
+  "authenticated must not call private helpers directly; verify them through public SECURITY DEFINER entrypoints",
+);
 assert.match(regression, /STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED/);
-assert.match(regression, /STAGE3_BETTER_AUTH_ADMIN_HELPER_DENIED/);
 assert.match(regression, /STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED/);
 assert.doesNotMatch(draft, /^(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-z_]+\s+SET|DELETE FROM)\b/im,
   "draft must not mutate application data or replace RLS policy state");
