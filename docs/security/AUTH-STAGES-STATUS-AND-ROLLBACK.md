@@ -4,6 +4,14 @@
 
 **Archive notice:** Older checkpoint entries below preserve historical facts only. Any older setup instructions mentioning ZeptoMail or another sender are superseded by this checkpoint and must not be followed.
 
+## Production OIDC and DB2 read-only checkpoint — 19 November 2026
+
+- Production Custom OIDC registration is now **complete**. Guarded workflow [#44349164162](https://github.com/taufx98/sykabelajar4.0/actions/runs/44349164162), attempt 2, registered and verified exactly one issuer integration in project `mvdczyitbkxkldjughor`: `https://auth-prod.sykabelajar.my.id/api/auth`. Integration ID: `def142a5-e811-446a-9e7d-db21c093ed2a`. Discovery, PKCE S256 and public ES256/P-256 JWKS passed; staging and application data were not touched.
+- This is OIDC registration only. A real Production access-token exchange/acceptance has not been demonstrated because Production D1 still contains no Better Auth account and signup/provisioning remain closed.
+- A fresh read-only DB2 inventory on PostgreSQL 17.6 found: 12 `auth.users`, 12 `auth.identities`, 46 sessions, 76 refresh tokens, 12 profiles, and 17 role rows (1 admin, 6 organizer_member, 7 student, 3 teacher). All existing rows are retained.
+- Stage 3 is not yet applied in DB2: `private.app_users` is absent, 69 FKs still reference `auth.users`, and the three legacy Auth lifecycle triggers remain. No Production DDL/DML has been performed by this checkpoint.
+- The exact live catalog, identity-root/issuer regression and rollback sequence are being revalidated by [Auth Production Schema Baseline #44567937881](https://github.com/taufx98/sykabelajar4.0/actions/runs/44567937881). Its final result must be checked before proceeding to any Production DDL. Production remains NO-GO for frontend routing/signup until Stage 3, sender, bootstrap, token acceptance and smoke gates pass.
+
 ## Verified correction and staging completion
 
 - PR [#197](https://github.com/taufx98/sykabelajar4.0/pull/197) merged to `security/auth-poc-stage-1` as commit `53f6fdb4177043884055bae013a34f14ba9fe293`. The approved Worker dispatcher, Admin API and Admin Settings provider list were restored; retired provider code/options/workflows/tests were removed.
