@@ -19,6 +19,41 @@ function json(data, status = 200) {
   });
 }
 
+/** @param {Request} request @param {number} maxBytes @returns {Promise<{ok:true,value:unknown}|{ok:false,tooLarge:boolean}>} */
+async function parseLimitedJson(request, maxBytes) {
+  const reader = request.body?.getReader();
+  if (!reader) return { ok: false, tooLarge: false };
+  /** @type {Uint8Array[]} */
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return { ok: false, tooLarge: true };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, tooLarge: false };
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { ok: true, value: JSON.parse(new TextDecoder().decode(bytes)) };
+  } catch {
+    return { ok: false, tooLarge: false };
+  }
+}
+
+
 /** @param {unknown} value @returns {string} */
 function nonEmpty(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -103,8 +138,13 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
   if (request.headers.has("origin")) return json({ ok: false, error: "ORIGIN_NOT_ALLOWED" }, 403);
 
   const length = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(length) && length > 8192) {
-    return json({ ok: false, error: "REQUEST_TOO_LARGE" }, 413);
+  if (Number.isFinite(length) && length > 8192) return json({ ok: false, error: "REQUEST_TOO_LARGE" }, 413);
+  const parsedBody = await parseLimitedJson(request, 8192);
+  if (!parsedBody.ok) {
+    return json(
+      { ok: false, error: parsedBody.tooLarge ? "REQUEST_TOO_LARGE" : "INVALID_REQUEST_BODY" },
+      parsedBody.tooLarge ? 413 : 400,
+    );
   }
 
   if (!isPinnedClosedProduction(env)) {
@@ -117,12 +157,7 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
     return json({ ok: false, error: "EMAIL_ENCRYPTION_NOT_CONFIGURED" }, 503);
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ ok: false, error: "INVALID_REQUEST_BODY" }, 400);
-  }
+  const body = parsedBody.value;
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return json({ ok: false, error: "INVALID_REQUEST_BODY" }, 400);
   }
