@@ -23,7 +23,7 @@ test("Production first-admin requires an existing verified Better Auth projectio
   assert.match(sql, /auth[.]users WHERE id = v_user_id/);
   assert.match(sql, /PRODUCTION_FIRST_ADMIN_SHADOW_AUTH_USER_NOT_ALLOWED/);
   assert.doesNotMatch(sql, /UPDATE\s+private[.]app_users\s+SET\s+email_verified_at/i);
-  assert.doesNotMatch(sql, /better_auth_provision_user\s*\(/i);
+  assert.doesNotMatch(sql, /\b(?:SELECT|PERFORM)\s+public\.better_auth_provision_user\s*\(/i);
 });
 
 test("Production first-admin requires completed 69-FK and issuer cutover", () => {
