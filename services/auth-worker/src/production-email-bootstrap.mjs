@@ -7,6 +7,7 @@ const BOOTSTRAP_MARKER = "production_email_bootstrap";
 const ACCOUNT_ID = "production-sendpulse-primary";
 const encoder = new TextEncoder();
 
+/** @param {unknown} data @param {number} [status] */
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -18,10 +19,12 @@ function json(data, status = 200) {
   });
 }
 
+/** @param {unknown} value @returns {string} */
 function nonEmpty(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/** @param {string} value @returns {boolean} */
 function validEmail(value) {
   return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -31,6 +34,7 @@ function randomOperationId() {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** @param {Request} request @param {string} configuredToken @returns {Promise<boolean>} */
 async function matchesBootstrapToken(request, configuredToken) {
   const supplied = request.headers.get("authorization") ?? "";
   if (!configuredToken || configuredToken.length < 32 || !/^Bearer [A-Za-z0-9._~-]{32,512}$/.test(supplied)) {
@@ -50,6 +54,7 @@ async function matchesBootstrapToken(request, configuredToken) {
   return difference === 0;
 }
 
+/** @param {import("./env").AuthWorkerEnv} env @returns {boolean} */
 function isPinnedClosedProduction(env) {
   return env.BETTER_AUTH_URL === EXPECTED_PRODUCTION.issuerOrigin &&
     env.APP_ORIGIN === EXPECTED_PRODUCTION.appOrigin &&
@@ -89,7 +94,7 @@ async function readBootstrapState(db) {
  * @param {Request} request
  * @param {import("./env").AuthWorkerEnv} env
  * @param {{
- *   checkSendPulseConnection?: (credentials:Record<string,string>)=>Promise<unknown>,
+ *   checkSendPulseConnection?: (credentials:Record<string,string>)=>Promise<{total:number}>,
  *   encryptEmailSecret?: (masterKey:string,plaintext:string)=>Promise<string>
  * }} [dependencies]
  */
@@ -166,8 +171,10 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
     }
     ciphertext = await encrypt(env.AUTH_EMAIL_ENCRYPTION_KEY, JSON.stringify({ apiKey }));
   } catch (error) {
-    const code = error && typeof error === "object" && typeof error.code === "string"
-      ? error.code : "";
+    const structuredError = error && typeof error === "object"
+      ? /** @type {{code?: unknown}} */ (error)
+      : {};
+    const code = typeof structuredError.code === "string" ? structuredError.code : "";
     const status = code === "EMAIL_PROVIDER_CREDENTIAL_REJECTED" ? 422 : 503;
     return json({
       ok: false,
