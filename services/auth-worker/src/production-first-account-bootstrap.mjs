@@ -6,6 +6,7 @@ const EXPECTED_PRODUCTION = Object.freeze({
 const BOOTSTRAP_MARKER = "production_first_account_bootstrap";
 const encoder = new TextEncoder();
 
+/** @param {unknown} data @param {number} [status] */
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
