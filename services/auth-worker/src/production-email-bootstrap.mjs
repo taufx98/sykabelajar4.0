@@ -66,7 +66,7 @@ function isPinnedClosedProduction(env) {
  */
 /** @param {import("./env").AuthWorkerEnv["DB"]} db */
 async function readBootstrapState(db) {
-  return db.prepare(\`
+  return db.prepare(`
     SELECT
       (SELECT COUNT(*) FROM "user") AS users,
       (SELECT COUNT(*) FROM "account") AS accounts,
@@ -78,7 +78,7 @@ async function readBootstrapState(db) {
       (SELECT COUNT(*) FROM auth_worker_internal_config WHERE key = ?1) AS bootstrap_markers,
       (SELECT email_verification_required FROM auth_runtime_settings WHERE id = 1) AS email_verification_required,
       (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id = 1) AS auto_failover_enabled
-  \`).bind(BOOTSTRAP_MARKER).first();
+  `).bind(BOOTSTRAP_MARKER).first();
 }
 
 /**
@@ -180,7 +180,7 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
   const now = new Date().toISOString();
   try {
     const results = await env.DB.batch([
-      env.DB.prepare(\`
+      env.DB.prepare(`
         INSERT INTO auth_worker_internal_config (key, value)
         SELECT ?1, ?2
         WHERE NOT EXISTS (SELECT 1 FROM auth_worker_internal_config WHERE key = ?1)
@@ -193,8 +193,8 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
           AND (SELECT COUNT(*) FROM auth_email_provider_accounts) = 0
           AND (SELECT email_verification_required FROM auth_runtime_settings WHERE id = 1) = 1
           AND (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id = 1) = 1
-      \`).bind(BOOTSTRAP_MARKER, inProgress),
-      env.DB.prepare(\`
+      `).bind(BOOTSTRAP_MARKER, inProgress),
+      env.DB.prepare(`
         INSERT INTO auth_email_provider_accounts (
           id, label, provider, sender_address, sender_name, endpoint_url, auth_mode,
           credentials_ciphertext, enabled, priority,
@@ -208,8 +208,8 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
           SELECT 1 FROM auth_worker_internal_config WHERE key = ?6 AND value = ?7
         )
           AND NOT EXISTS (SELECT 1 FROM auth_email_provider_accounts)
-      \`).bind(ACCOUNT_ID, senderAddress, senderName, ciphertext, now, BOOTSTRAP_MARKER, inProgress),
-      env.DB.prepare(\`
+      `).bind(ACCOUNT_ID, senderAddress, senderName, ciphertext, now, BOOTSTRAP_MARKER, inProgress),
+      env.DB.prepare(`
         UPDATE auth_worker_internal_config
         SET value = 'consumed'
         WHERE key = ?1 AND value = ?2
@@ -217,7 +217,7 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
             SELECT 1 FROM auth_email_provider_accounts
             WHERE id = ?3 AND provider = 'sendpulse' AND enabled = 1
           )
-      \`).bind(BOOTSTRAP_MARKER, inProgress, ACCOUNT_ID),
+      `).bind(BOOTSTRAP_MARKER, inProgress, ACCOUNT_ID),
     ]);
 
     const changes = results.map((result) => Number(result?.meta?.changes ?? 0));
