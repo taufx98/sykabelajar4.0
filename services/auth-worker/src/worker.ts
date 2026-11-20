@@ -11,6 +11,7 @@ import { safeAuthRuntimeErrorCode } from "./auth-runtime-error.mjs";
 import { getAllowedOriginsForPath } from "./cors-origins.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
 import { handleProductionEmailBootstrap } from "./production-email-bootstrap.mjs";
+import { handleProductionFirstAccountBootstrap } from "./production-first-account-bootstrap.mjs";
 import { isAuthEmailVerificationConfigured } from "./email";
 import { handleAuthRuntimeSettings, readEmailVerificationPolicy } from "./auth-runtime-settings";
 import { getApprovedOAuthCallbackUrls } from "./oauth-callback-policy.mjs";
@@ -473,6 +474,17 @@ export default {
 
     if (url.pathname === "/_internal/bootstrap-production-email") {
       return applyResponseHeaders(await handleProductionEmailBootstrap(request, env), null);
+    }
+
+    if (url.pathname === "/_internal/bootstrap-first-production-account") {
+      const response = await handleProductionFirstAccountBootstrap(request, env, {
+        createAuth: async () => {
+          const socialConfig = await readSocialProviderConfiguration(env);
+          const verificationRequired = await readEmailVerificationPolicy(env);
+          return createAuth(env, socialConfig, verificationRequired, true);
+        },
+      });
+      return applyResponseHeaders(response, null);
     }
 
     if (url.pathname === "/_internal/schema-migrate") {
