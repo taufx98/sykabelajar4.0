@@ -98,10 +98,18 @@ export async function handleProductionFirstAccountBootstrap(request, env, depend
     return json({ ok: false, error: "BOOTSTRAP_AUTH_FAILED" }, 401);
   }
 
-  const apiKey = nonEmpty(env.SUPABASE_PROVISIONING_API_KEY) ||
-    nonEmpty(env.SUPABASE_SERVICE_ROLE_KEY);
+  const provisioningApiKey = nonEmpty(env.SUPABASE_PROVISIONING_API_KEY);
+  const legacyServiceRoleKey = nonEmpty(env.SUPABASE_SERVICE_ROLE_KEY);
+  if (provisioningApiKey && legacyServiceRoleKey) {
+    return json({ ok: false, error: "PRODUCTION_PROVISIONING_KEY_BINDINGS_CONFLICT" }, 503);
+  }
+  const apiKey = provisioningApiKey || legacyServiceRoleKey;
   if (!apiKey || apiKey.startsWith("sb_publishable_")) {
     return json({ ok: false, error: "PRODUCTION_PROVISIONING_CREDENTIAL_NOT_READY" }, 503);
+  }
+  const pinnedOwnerEmail = nonEmpty(env.AUTH_FIRST_ACCOUNT_EMAIL).toLowerCase();
+  if (!validEmail(pinnedOwnerEmail)) {
+    return json({ ok: false, error: "PRODUCTION_FIRST_ACCOUNT_EMAIL_NOT_CONFIGURED" }, 503);
   }
 
   let body;
@@ -122,6 +130,9 @@ export async function handleProductionFirstAccountBootstrap(request, env, depend
     return json({ ok: false, error: "INVALID_OWNER_NAME" }, 422);
   }
   if (!validEmail(email)) return json({ ok: false, error: "INVALID_OWNER_EMAIL" }, 422);
+  if (email !== pinnedOwnerEmail) {
+    return json({ ok: false, error: "OWNER_EMAIL_NOT_ALLOWED" }, 403);
+  }
   if (password.length < 12 || password.length > 128) {
     return json({ ok: false, error: "INVALID_OWNER_PASSWORD_LENGTH" }, 422);
   }
