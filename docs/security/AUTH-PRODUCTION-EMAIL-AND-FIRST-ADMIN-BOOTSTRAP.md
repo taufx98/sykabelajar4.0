@@ -54,20 +54,23 @@ After success, remove AUTH_EMAIL_BOOTSTRAP_TOKEN from the Production Worker secr
 
 ## 2. Apply Production identity foundation and enable provisioning
 
-Only after the sender row is configured and the disposable Stage 3 baseline still passes:
+Only after the SendPulse row is configured, the disposable Stage 3 baseline passes, the external backup destination checksum is verified in the private owner release record, and the exact Production DDL is explicitly approved:
 
-1. Re-read DB2's live schema and all 69 FK definitions.
-2. Obtain explicit owner approval for the exact Production DB2 DDL sequence.
-3. Apply the reviewed private.app_users identity root, UUID-only legacy-reference tombstones, all 69 FK replacements, 61 issuer guards and corrected function/trigger lifecycle. Preserve all existing Auth rows, profiles, roles and application data.
-4. Install the Production-only server-side Supabase provisioning API key in the Production Worker secret store. This is not the Supabase Management API PAT; never expose it to the browser or chat.
-5. Verify the exact RPC signatures, postgres ownership, SECURITY DEFINER/search_path, service-role-only EXECUTE grants, issuer restrictions and D1-to-DB2 projection behavior.
-6. Only then set SUPABASE_PROVISIONING_ENABLED=true for the Production Worker. Keep AUTH_SIGNUP_DISABLED=true. The public signup path remains closed; only the dedicated internal first-account route can create the one pinned owner identity.
+1. Re-read DB2's live catalog immediately before DDL. Confirm the exact 69 FK source constraints, 62 source tables, Auth/profile triggers, policy/function inventory and PostgreSQL 17.6 version.
+2. Generate and review the three-phase plan with scripts/auth-migration/generate-app-users-fk-plan.mjs. Do not use the checked-in catalog snapshot as the live apply source.
+3. Apply docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql, then seed only UUID-only legacy_reference tombstones required by existing application FK values. Apply the generated FK plan in order: add replacement constraints NOT VALID, validate every replacement, then atomically swap the existing constraints while preserving their delete actions.
+4. Verify private.app_users, the exact 69 replacement FKs, all provisioning RPC signatures, postgres ownership, SECURITY DEFINER/search_path and service_role-only EXECUTE grants. Confirm the three legacy Auth signup/referral triggers were retired by the identity-root transaction. Preserve every existing auth.users row, profile, role and application row.
+5. Do not apply either issuer-guard draft yet. The RLS issuer restriction and SECURITY DEFINER guards are a separate final security step, applied only after the pinned owner account is genuinely verified and its real Production OIDC resource token is accepted by DB2. This ordering prevents a circular dependency: the owner can only be created after the Stage 3 projection RPCs are active.
+6. Install only the Production DB2 server-side provisioning API key in the Production Worker secret store. This is not the Supabase Management API PAT and must never reach the browser, source code, logs or chat. Verify the exact Production project URL and D1-to-DB2 UUID projection.
+7. Only after the core identity/FK and RPC checks pass, set SUPABASE_PROVISIONING_ENABLED=true. Keep AUTH_SIGNUP_DISABLED=true. The public Better Auth signup handler, social signups and application frontend remain signup-disabled; only the one-time internal owner route may create the pinned account.
 
-Do not copy staging provisioning credentials.
+Do not copy staging provisioning credentials. Stop on any mismatch, orphan UUID, catalog drift, unexpected FK action, permission regression or partial apply; never improvise a Production repair.
 
 ## 3. Create the one permitted owner account — public signup stays closed
 
 The first-account route has a separate temporary owner token and exact email allowlist. It also requires the Production provisioning secret, the active SendPulse provider, required email verification and an entirely empty Better Auth D1 identity state.
+
+This is the first Better Auth-only Production identity and therefore the documented point of no return. Before calling the endpoint, confirm the external backup checksum and accept that rollback to a Supabase-Auth-only application is no longer possible after the new identity is created. Do not reset, migrate or delete legacy/demo identities.
 
 After Sections 1 and 2 pass, install these temporary Production Worker secrets:
 
@@ -133,26 +136,41 @@ After receiving the code, verify it against the exact owner email through the Pr
 
 Keep cookie jar and response files local with restrictive file permissions; never paste or publish their contents. The owner must confirm the session UUID and emailVerified=true. The email-verification callback then projects the same UUID into private.app_users and writes email_verified_at using the trusted server-side provisioning RPC. Verify that row with SELECT-only SQL. Never set emailVerified or email_verified_at manually.
 
+### Verify the genuine Production token before issuer restrictions
+
+From the same verified owner session, use the already-registered Production Custom OIDC and the approved PKCE/resource-token flow. Verify the token's exact issuer https://auth-prod.sykabelajar.my.id/api/auth, expected application audience, ES256 signature against the Production JWKS, and UUID sub matching Better Auth user.id, D1 projection and private.app_users.id. Use a safe authenticated read of only the owner's own DB2 profile to prove OIDC/Data API acceptance. Never fabricate a JWT or paste the token/cookie into chat.
+
+Only after that real token succeeds, apply these two drafts in the exact disposable-workflow order:
+
+1. docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql
+2. docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql
+
+Then run scripts/auth-migration/stage3-issuer-guard-regression.sql and confirm all 61 restrictive policies plus the Admin, organizer and collective Realtime SECURITY DEFINER paths reject legacy/untrusted issuers. The Production first-admin grant must not run before this step.
+
 After verification, remove temporary AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN and AUTH_FIRST_ACCOUNT_EMAIL secrets from the Production Worker. Keep the one-time D1 marker. Do not open general public signup.
 
 ## 4. Grant the first Admin role
 
-Only after the owner session is verified and DB2 projection is confirmed:
+Only after the owner session is verified, DB2 projection is confirmed, the real Production token passes the OIDC/Data API check, and both issuer-guard drafts plus the regression pass:
 
 1. Open the verified Production DB2 SQL Editor for project mvdczyitbkxkldjughor as postgres.
-2. Run docs/security/AUTH-PRODUCTION-FIRST-ADMIN-BOOTSTRAP-DRAFT.sql once, replacing only the UUID sentinel with OWNER_BETTER_AUTH_UUID from the same verified Production session.
-3. The SQL refuses to run unless all 69 FKs target private.app_users, none target auth.users and all 61 restrictive issuer guards match. It requires identity_origin='better_auth', a non-null email_verified_at and the matching profile.
+2. Run docs/security/AUTH-PRODUCTION-FIRST-ADMIN-BOOTSTRAP-DRAFT.sql once, replacing only the UUID sentinel with OWNER_BETTER_AUTH_UUID from that same verified Production session.
+3. The SQL refuses to run unless all 69 FKs target private.app_users, none target auth.users, all 61 restrictive issuer guards match, identity_origin='better_auth', email_verified_at is non-null and the matching profile exists.
 4. It inserts one active admin role for that Better Auth UUID. It does not create an identity, write auth.users, forge email verification or modify the existing legacy admin row.
 5. Verify the grant with SELECT-only SQL, sign out/in and confirm the Admin session and Admin Settings path. Send a test mail only to the signed-in Admin address after the owner confirms the sender configuration.
 
 ## 5. Explicitly not done
 
-- The email and first-account bootstrap routes are not deployed to Production or staging.
+- Production OIDC issuer registration is complete and verified, but no real Production owner token has been accepted yet.
+- The updated Production Worker source containing both bootstrap routes is not deployed.
 - No AUTH_EMAIL_BOOTSTRAP_TOKEN or AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN is installed.
 - No AUTH_FIRST_ACCOUNT_EMAIL owner allowlist is installed.
-- No Production SendPulse API key has been entered or tested.
-- No Production provider row or Better Auth identity/account/session has been written.
-- No OTP/test email has been sent.
+- No Production SendPulse API key has been entered or tested; no Production email-provider row exists.
+- No Production OTP/test email has been sent.
 - No Production provisioning credential has been installed or enabled.
-- No Production Admin role has been created.
-- No Stage 3 Production DB2 DDL or frontend switch has been performed.
+- No Stage 3 Production DB2 identity-root/FK/issuer DDL has been applied.
+- No Production Better Auth identity/account/session has been created.
+- No Production Admin role has been granted.
+- The external backup destination checksum remains to be recorded in the private owner release record.
+- No Production frontend auth switch has been performed.
+
