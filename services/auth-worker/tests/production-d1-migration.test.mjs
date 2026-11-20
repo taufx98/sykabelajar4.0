@@ -41,7 +41,14 @@ test("Production keeps public signup closed while staging remains open", () => {
     authSource.indexOf("emailAndPassword: {"),
     authSource.indexOf("emailVerification: {"),
   );
-  assert.match(emailAndPassword, /disableSignUp: signupDisabled/);
+  assert.match(authSource, /const emailPasswordSignupDisabled = signupDisabled && !allowOwnerFirstAccountSignup/);
+  assert.match(emailAndPassword, /disableSignUp: emailPasswordSignupDisabled/);
+  assert.match(authSource, /allowOwnerFirstAccountSignup && \(/);
+  assert.match(authSource, /env\.AUTH_SIGNUP_DISABLED !== "true"/);
+  assert.match(authSource, /env\.SUPABASE_PROVISIONING_ENABLED !== "true"/);
+  assert.match(authSource, /!emailVerificationRequired/);
+  assert.match(authSource, /env\.BETTER_AUTH_URL !== "https:\/\/auth-prod\.sykabelajar\.my\.id"/);
+  assert.match(authSource, /env\.SUPABASE_PROVISIONING_URL !== "https:\/\/mvdczyitbkxkldjughor\.supabase\.co"/);
 
   for (const provider of ["google", "github", "facebook", "twitter"]) {
     const start = authSource.indexOf(provider + ": {");
