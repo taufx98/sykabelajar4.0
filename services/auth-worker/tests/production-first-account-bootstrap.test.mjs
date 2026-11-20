@@ -83,6 +83,34 @@ function authRecorder(captured, fail = false) {
   };
 }
 
+test("first-account bootstrap enforces the actual streaming body limit without Content-Length", async () => {
+  const { env, captured } = mockEnv();
+  const body = JSON.stringify({
+    name: "Owner",
+    email: "owner@example.test",
+    password: newPassword,
+    padding: "x".repeat(9000),
+  });
+  const oversizedRequest = new Request(
+    "https://auth-prod.sykabelajar.my.id/_internal/bootstrap-first-production-account",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + ownerToken,
+      },
+      body,
+    },
+  );
+  const response = await handleProductionFirstAccountBootstrap(oversizedRequest, env, {
+    createAuth: async () => authRecorder(captured),
+  });
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error, "REQUEST_TOO_LARGE");
+  assert.equal(captured.preflightCalls, 0);
+  assert.equal(captured.markerWrites, 0);
+});
+
 test("rejects browser Origin and wrong owner token before D1 access", async () => {
   for (const request of [
     makeRequest({ origin: "https://sykabelajar.my.id" }),
