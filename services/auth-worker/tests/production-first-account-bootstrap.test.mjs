@@ -15,6 +15,7 @@ const credentials = {
   SUPABASE_PROVISIONING_ENABLED: "true",
   SUPABASE_PROVISIONING_API_KEY: dbSecret,
   AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN: ownerToken,
+  AUTH_FIRST_ACCOUNT_EMAIL: "owner@example.test",
 };
 const newPassword = "S".repeat(28);
 
@@ -130,6 +131,18 @@ test("rejects an existing identity, missing required verification or no enabled 
     assert.notEqual(response.status, 202);
     assert.equal(captured.markerWrites, 0);
   }
+});
+
+test("only the explicitly pinned owner email may be created", async () => {
+  const { env, captured } = mockEnv();
+  const response = await handleProductionFirstAccountBootstrap(
+    makeRequest({ body: { name: "Owner", email: "someone-else@example.test", password: newPassword } }),
+    env,
+    { createAuth: async () => authRecorder(captured) },
+  );
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).error, "OWNER_EMAIL_NOT_ALLOWED");
+  assert.equal(captured.markerWrites, 0);
 });
 
 test("uses one server-side email signup call and leaves public signup disabled", async () => {
