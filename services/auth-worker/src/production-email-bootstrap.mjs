@@ -64,6 +64,7 @@ function isPinnedClosedProduction(env) {
 /**
  * @param {import("./env").AuthWorkerEnv} env
  */
+/** @param {import("./env").AuthWorkerEnv["DB"]} db */
 async function readBootstrapState(db) {
   return db.prepare(\`
     SELECT
