@@ -209,6 +209,9 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs
 
+      - name: Test owner-only Production first-admin bootstrap draft contract
+        run: node scripts/auth-migration/production-first-admin-bootstrap.contract.test.mjs
+
       - name: Test Stage 5 targeted no-policy table ACL draft contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs
