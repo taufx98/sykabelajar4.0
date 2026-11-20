@@ -92,6 +92,7 @@ jobs:
           node ../../../scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs
           node ../../../scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs
           node ../../../scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs
+          node ../../../scripts/auth-migration/production-first-admin-bootstrap.contract.test.mjs
           node ../../../scripts/auth-migration/stage3-issuer-guard.contract.test.mjs
           node ../../../scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs
           node ../../../scripts/auth-migration/auth-production-worker-isolation.contract.test.mjs
