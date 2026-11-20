@@ -83,6 +83,35 @@ function request({
   });
 }
 
+test("Production SendPulse bootstrap enforces the actual streaming body limit without Content-Length", async () => {
+  const { env, captured } = mockEnv();
+  const body = JSON.stringify({
+    senderAddress: "info@sykabelajar.my.id",
+    senderName: "SYKABELAJAR",
+    credentials: { apiKey: providerToken },
+    padding: "x".repeat(9000),
+  });
+  const oversizedRequest = new Request(
+    "https://auth-prod.sykabelajar.my.id/_internal/bootstrap-production-email",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + ownerToken,
+      },
+      body,
+    },
+  );
+  const response = await handleProductionEmailBootstrap(oversizedRequest, env, {
+    checkSendPulseConnection: async () => ({ total: 1 }),
+    encryptEmailSecret: async () => "cipher",
+  });
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error, "REQUEST_TOO_LARGE");
+  assert.equal(captured.preflightCalls, 0);
+  assert.equal(captured.batchCalls, 0);
+});
+
 test("Production SendPulse bootstrap rejects browser origins before database access", async () => {
   const { env, captured } = mockEnv();
   const response = await handleProductionEmailBootstrap(
