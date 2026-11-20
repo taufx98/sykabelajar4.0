@@ -60,7 +60,7 @@ function isPinnedClosedProduction(env) {
 
 /** @param {import("./env").AuthWorkerEnv["DB"]} db */
 async function readBootstrapState(db) {
-  return db.prepare(\`
+  return db.prepare(`
     SELECT
       (SELECT COUNT(*) FROM "user") AS users,
       (SELECT COUNT(*) FROM "account") AS accounts,
@@ -72,7 +72,7 @@ async function readBootstrapState(db) {
       (SELECT email_verification_required FROM auth_runtime_settings WHERE id = 1) AS email_verification_required,
       (SELECT COUNT(*) FROM auth_email_provider_accounts
        WHERE provider = 'sendpulse' AND enabled = 1) AS active_sendpulse_accounts
-  \`).bind(BOOTSTRAP_MARKER).first();
+  `).bind(BOOTSTRAP_MARKER).first();
 }
 
 /**
@@ -157,7 +157,7 @@ export async function handleProductionFirstAccountBootstrap(request, env, depend
   // provider returns an ambiguous error after a partial create, the endpoint
   // cannot be replayed blindly. Owner must inspect D1 before any manual recovery.
   try {
-    const result = await env.DB.prepare(\`
+    const result = await env.DB.prepare(`
       INSERT INTO auth_worker_internal_config (key, value)
       SELECT ?1, 'consumed'
       WHERE NOT EXISTS (SELECT 1 FROM auth_worker_internal_config WHERE key = ?1)
@@ -172,7 +172,7 @@ export async function handleProductionFirstAccountBootstrap(request, env, depend
           SELECT 1 FROM auth_email_provider_accounts
           WHERE provider = 'sendpulse' AND enabled = 1
         )
-    \`).bind(BOOTSTRAP_MARKER).run();
+    `).bind(BOOTSTRAP_MARKER).run();
     if (Number(result?.meta?.changes ?? 0) !== 1) {
       return json({ ok: false, error: "BOOTSTRAP_ALREADY_CONSUMED_OR_IDENTITY_EXISTS" }, 409);
     }
@@ -195,13 +195,13 @@ export async function handleProductionFirstAccountBootstrap(request, env, depend
 
   let createdUser;
   try {
-    createdUser = await env.DB.prepare(\`
+    createdUser = await env.DB.prepare(`
       SELECT id, email, emailVerified,
         (SELECT COUNT(*) FROM "session") AS sessions
       FROM "user"
       WHERE lower(email) = ?1
       LIMIT 2
-    \`).bind(email).first();
+    `).bind(email).first();
   } catch {
     return json({ ok: false, error: "FIRST_ACCOUNT_POSTFLIGHT_UNAVAILABLE", manualInspectionRequired: true }, 503);
   }
