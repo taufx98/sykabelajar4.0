@@ -22,6 +22,8 @@ export interface AuthWorkerEnv {
   AUTH_TELEGRAM_CLIENT_SECRET?: string;
   AUTH_EMAIL_PROVIDER?: "webhook" | "managed";
   AUTH_EMAIL_ENCRYPTION_KEY?: string;
+  /** One-time owner-only credential for the closed Production SendPulse bootstrap; remove after use. */
+  AUTH_EMAIL_BOOTSTRAP_TOKEN?: string;
   AUTH_EMAIL_WEBHOOK_URL?: string;
   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
   AUTH_EMAIL_FROM?: string;
