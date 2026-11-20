@@ -24,6 +24,8 @@ export interface AuthWorkerEnv {
   AUTH_EMAIL_ENCRYPTION_KEY?: string;
   /** One-time owner-only credential for the closed Production SendPulse bootstrap; remove after use. */
   AUTH_EMAIL_BOOTSTRAP_TOKEN?: string;
+  /** Temporary one-time owner-only token for the first verified Production Better Auth identity; remove after use. */
+  AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN?: string;
   AUTH_EMAIL_WEBHOOK_URL?: string;
   AUTH_EMAIL_WEBHOOK_TOKEN?: string;
   AUTH_EMAIL_FROM?: string;
