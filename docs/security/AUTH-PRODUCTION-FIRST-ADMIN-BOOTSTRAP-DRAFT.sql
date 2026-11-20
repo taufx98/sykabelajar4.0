@@ -10,7 +10,7 @@
 -- Required external checks immediately before execution:
 -- 1. Sign in to https://auth-prod.sykabelajar.my.id using the owner-controlled
 --    Better Auth account.
--- 2. In that same browser session open
+-- 2. Use the same Production Better Auth session created by the one-time owner bootstrap; read it through
 --    https://auth-prod.sykabelajar.my.id/api/auth/get-session.
 -- 3. Confirm user.id is the UUID below and user.emailVerified is exactly true.
 --    Do not use a copied token, cookie, client-supplied claim or email address.
