@@ -10,6 +10,7 @@ import { createD1QuotaResponse } from "./d1-quota.mjs";
 import { safeAuthRuntimeErrorCode } from "./auth-runtime-error.mjs";
 import { getAllowedOriginsForPath } from "./cors-origins.mjs";
 import { handleEmailAdminRequest } from "./email-admin";
+import { handleProductionEmailBootstrap } from "./production-email-bootstrap.mjs";
 import { isAuthEmailVerificationConfigured } from "./email";
 import { handleAuthRuntimeSettings, readEmailVerificationPolicy } from "./auth-runtime-settings";
 import { getApprovedOAuthCallbackUrls } from "./oauth-callback-policy.mjs";
@@ -468,6 +469,10 @@ export default {
       } catch {
         return applyResponseHeaders(json({ ok: false, service: "sykabelajar-auth-poc" }, 503), corsHeaders);
       }
+    }
+
+    if (url.pathname === "/_internal/bootstrap-production-email") {
+      return applyResponseHeaders(await handleProductionEmailBootstrap(request, env), null);
     }
 
     if (url.pathname === "/_internal/schema-migrate") {
