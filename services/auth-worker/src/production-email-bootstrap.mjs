@@ -157,10 +157,12 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
     return json({ ok: false, error: "EMAIL_ENCRYPTION_NOT_CONFIGURED" }, 503);
   }
 
-  const body = parsedBody.value;
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  const bodyValue = parsedBody.value;
+  if (!bodyValue || typeof bodyValue !== "object" || Array.isArray(bodyValue)) {
     return json({ ok: false, error: "INVALID_REQUEST_BODY" }, 400);
   }
+  /** @type {Record<string, unknown>} */
+  const body = bodyValue;
   const keys = Object.keys(body);
   if (keys.some((key) => !["senderAddress", "senderName", "credentials"].includes(key))) {
     return json({ ok: false, error: "INVALID_REQUEST_BODY" }, 422);
