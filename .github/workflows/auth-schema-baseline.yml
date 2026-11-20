@@ -19,6 +19,8 @@ on:
       - "docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql"
       - "docs/security/AUTH-STAGE-3-ROLLBACK-DRAFT.sql"
       - "scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs"
+      - "scripts/auth-migration/production-first-admin-bootstrap.contract.test.mjs"
+      - "docs/security/AUTH-PRODUCTION-FIRST-ADMIN-BOOTSTRAP-DRAFT.sql"
       - "scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs"
       - "scripts/auth-migration/stage3-better-auth-provisioning-regression.sql"
       - "scripts/auth-migration/generate-app-users-fk-plan.mjs"
