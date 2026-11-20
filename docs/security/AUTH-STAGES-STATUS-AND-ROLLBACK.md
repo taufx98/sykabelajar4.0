@@ -1,16 +1,20 @@
-# Current authoritative checkpoint — 19 November 2026
+# Current authoritative checkpoint — 20 November 2026
 
 **Provider decision (reaffirmed 19 November 2026):** SendPulse is the approved and successfully tested primary transactional-email provider. Do not enable, select, configure, or add credentials for any other provider, including the retired ZeptoMail experiment. Active Worker runtime and Admin UI no longer include that provider.
 
 **Archive notice:** Older checkpoint entries below preserve historical facts only. Any older setup instructions mentioning ZeptoMail or another sender are superseded by this checkpoint and must not be followed.
 
-## Production OIDC and DB2 read-only checkpoint — 19 November 2026
+## Production OIDC, DB2 and bootstrap checkpoint — 20 November 2026
 
-- Production Custom OIDC registration is now **complete**. Guarded workflow [#44349164162](https://github.com/taufx98/sykabelajar4.0/actions/runs/44349164162), attempt 2, registered and verified exactly one issuer integration in project `mvdczyitbkxkldjughor`: `https://auth-prod.sykabelajar.my.id/api/auth`. Integration ID: `def142a5-e811-446a-9e7d-db21c093ed2a`. Discovery, PKCE S256 and public ES256/P-256 JWKS passed; staging and application data were not touched.
-- This is OIDC registration only. A real Production access-token exchange/acceptance has not been demonstrated because Production D1 still contains no Better Auth account and signup/provisioning remain closed.
-- A fresh read-only DB2 inventory on PostgreSQL 17.6 found: 12 `auth.users`, 12 `auth.identities`, 46 sessions, 76 refresh tokens, 12 profiles, and 17 role rows (1 admin, 6 organizer_member, 7 student, 3 teacher). All existing rows are retained.
-- Stage 3 is not yet applied in DB2: `private.app_users` is absent, 69 FKs still reference `auth.users`, and the three legacy Auth lifecycle triggers remain. No Production DDL/DML has been performed by this checkpoint.
-- The exact live catalog, identity-root/issuer regression and rollback sequence are being revalidated by [Auth Production Schema Baseline #44567937881](https://github.com/taufx98/sykabelajar4.0/actions/runs/44567937881). Its final result must be checked before proceeding to any Production DDL. Production remains NO-GO for frontend routing/signup until Stage 3, sender, bootstrap, token acceptance and smoke gates pass.
+- Production Custom OIDC registration is complete. Guarded workflow [#44349164162](https://github.com/taufx98/sykabelajar4.0/actions/runs/44349164162), attempt 2, registered and read-back verified exactly one issuer integration in project `mvdczyitbkxkldjughor`: `https://auth-prod.sykabelajar.my.id/api/auth`. Integration ID: `def142a5-e811-446a-9e7d-db21c093ed2a`. Discovery, PKCE S256 and public ES256/P-256 JWKS passed; staging and application data were not touched.
+- A real Production access-token exchange/acceptance has **not** yet been demonstrated. Production D1 still has no Better Auth account and signup/provisioning remain closed.
+- Fresh read-only DB2 inventory on PostgreSQL 17.6 found 12 `auth.users`, 12 `auth.identities`, 46 sessions, 76 refresh tokens, 12 profiles and 17 role rows (1 legacy admin, 6 organizer_member, 7 student, 3 teacher). All existing rows remain intact. `private.app_users` is absent; 69 FKs still reference `auth.users`; the three legacy Auth lifecycle triggers remain. No Production Stage 3 DDL/DML has been run.
+- Full disposable schema/identity rehearsal [Auth Production Schema Baseline #44571272221](https://github.com/taufx98/sykabelajar4.0/actions/runs/44571272221) passed all 49 steps: 69-FK forward/cutover/rollback, identity-root provisioning/role/referral/verification/organizer checks, 61 issuer guards, RLS, restored legacy functions/triggers and Stage 5 Cloudinary/payment Edge tests. This used a disposable PostgreSQL 17.6 restore and did not write to Production.
+- Production SendPulse bootstrap handler and tests are present in the preparation branch; [Auth Worker CI #44681256590](https://github.com/taufx98/sykabelajar4.0/actions/runs/44681256590) passed typecheck, tests and dry-run. The route is **not deployed**, no temporary owner token or SendPulse Production API key has been installed, no provider row has been written, and no email has been sent.
+- The Production first-admin grant SQL draft has a passing contract in [Supabase Local Auth Claims CI #44681672972](https://github.com/taufx98/sykabelajar4.0/actions/runs/44681672972). It only grants Admin to an already existing, genuinely verified Better Auth identity projected to `private.app_users`; it does not create an account or forge verification. It preserves the existing legacy admin row.
+- A separate, narrowly gated one-time **first-account creation path** remains unimplemented. Public signup remains closed. Do not temporarily expose unrestricted registration to create the owner account.
+- Production remains **NO-GO** for Stage 3 DB2 DDL, provisioning enablement, first account/Admin, verified-email delivery, real token acceptance, frontend routing and live cutover until those gates are completed and explicitly approved.
+
 
 ## Verified correction and staging completion
 
