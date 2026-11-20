@@ -24,9 +24,26 @@ function requireHttpsOrigin(value: string, label: string, allowLocalhost = false
   return url.origin;
 }
 
-export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProviderRuntimeConfig, emailVerificationRequired = true) {
+export function createAuth(
+  env: AuthWorkerEnv,
+  managedSocialConfig?: SocialProviderRuntimeConfig,
+  emailVerificationRequired = true,
+  allowOwnerFirstAccountSignup = false,
+) {
   if (!env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < 32) {
     throw new Error("BETTER_AUTH_SECRET_MUST_BE_AT_LEAST_32_CHARACTERS");
+  }
+
+  if (allowOwnerFirstAccountSignup && (
+    env.BETTER_AUTH_URL !== "https://auth-prod.sykabelajar.my.id" ||
+    env.APP_ORIGIN !== "https://sykabelajar.my.id" ||
+    env.SUPABASE_PROVISIONING_ENV !== "production" ||
+    env.SUPABASE_PROVISIONING_URL !== "https://mvdczyitbkxkldjughor.supabase.co" ||
+    env.AUTH_SIGNUP_DISABLED !== "true" ||
+    env.SUPABASE_PROVISIONING_ENABLED !== "true" ||
+    !emailVerificationRequired
+  )) {
+    throw new Error("OWNER_FIRST_ACCOUNT_SIGNUP_OVERRIDE_NOT_ALLOWED");
   }
 
   const appOrigin = requireHttpsOrigin(env.APP_ORIGIN, "APP_ORIGIN");
@@ -39,6 +56,10 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
   // Staging remains open unless its dedicated config opts out.
   const signupDisabled = env.AUTH_SIGNUP_DISABLED === "true" ||
     (env.SUPABASE_PROVISIONING_ENV === "production" && env.AUTH_SIGNUP_DISABLED !== "false");
+  // Only a transient server-side auth instance used by the internal one-time
+  // bootstrap may bypass the email-password signup flag. Normal Worker auth
+  // instances and all social providers remain signup-disabled.
+  const emailPasswordSignupDisabled = signupDisabled && !allowOwnerFirstAccountSignup;
   const trustedOrigins = [appOrigin];
 
   if (env.DEV_APP_ORIGIN) {
@@ -156,7 +177,7 @@ export function createAuth(env: AuthWorkerEnv, managedSocialConfig?: SocialProvi
     trustedOrigins,
     emailAndPassword: {
       enabled: true,
-      disableSignUp: signupDisabled,
+      disableSignUp: emailPasswordSignupDisabled,
       requireEmailVerification: emailVerificationRequired,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
