@@ -53,6 +53,11 @@ async function parseLimitedJson(request, maxBytes) {
 }
 
 
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /** @param {unknown} value @returns {string} */
 function nonEmpty(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -156,10 +161,9 @@ export async function handleProductionFirstAccountBootstrap(request, env, depend
   }
 
   const bodyValue = parsedBody.value;
-  if (!bodyValue || typeof bodyValue !== "object" || Array.isArray(bodyValue)) {
+  if (!isRecord(bodyValue)) {
     return json({ ok: false, error: "INVALID_REQUEST_BODY" }, 400);
   }
-  /** @type {Record<string, unknown>} */
   const body = bodyValue;
   if (Object.keys(body).some((key) => !["name", "email", "password"].includes(key))) {
     return json({ ok: false, error: "INVALID_REQUEST_BODY" }, 422);
