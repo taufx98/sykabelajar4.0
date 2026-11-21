@@ -1234,6 +1234,7 @@ BEGIN
     'public.admin_update_system_error_status(uuid,text,text)',
     'public.get_follow_status(uuid,uuid)',
     'public.get_public_profile_social(uuid)',
+    'public.get_my_verified_referrals()',
     'public.reopen_system_error_incident(uuid,text)'
   ]
   LOOP
@@ -1270,6 +1271,8 @@ REVOKE EXECUTE ON FUNCTION public.get_follow_status(uuid, uuid)
   FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.get_public_profile_social(uuid)
   FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_my_verified_referrals()
+  FROM anon;
 REVOKE EXECUTE ON FUNCTION public.reopen_system_error_incident(uuid, text)
   FROM anon;
 
@@ -1284,6 +1287,7 @@ BEGIN
     'public.admin_update_system_error_status(uuid,text,text)',
     'public.get_follow_status(uuid,uuid)',
     'public.get_public_profile_social(uuid)',
+    'public.get_my_verified_referrals()',
     'public.reopen_system_error_incident(uuid,text)'
   ]
   LOOP
