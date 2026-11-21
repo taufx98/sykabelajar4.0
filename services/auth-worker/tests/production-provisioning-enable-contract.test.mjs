@@ -23,6 +23,11 @@ test("Production provisioning activation requires off-GitHub backup and complete
   assert.match(workflow, /inventorySignatures/);
   assert.match(workflow, /production-definer-live\\.json/);
   assert.match(workflow, /assert\\.deepEqual\\(liveRows,expectedRows/);
+  assert.match(workflow, /production-provisioning-secret-names-before\\.json/);
+  assert.match(workflow, /production-provisioning-vars-before\\.sha256/);
+  assert.match(workflow, /production-provisioning-provider-before\\.json/);
+  assert.match(workflow, /production-provisioning-provider-after\\.json/);
+  assert.match(workflow, /Encrypted SendPulse credentials, routing\\/quota\\/delivery state changed/);
   assert.match(workflow, /\{64\}/);
   assert.match(workflow, /AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21\.json/);
   assert.match(workflow, /authenticatedSecurityDefinerCount !== 202/);
