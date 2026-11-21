@@ -17,7 +17,7 @@ const functions = [
   ["public.reopen_system_error_incident(uuid, text)", "FROM anon;"],
 ];
 
-test("only six authenticated-only RPCs have anonymous EXECUTE removed", () => {
+test("only reviewed authenticated-only RPCs have anonymous EXECUTE removed", () => {
   for (const [signature, roleClause] of functions) {
     assert.ok(
       sql.includes("REVOKE EXECUTE ON FUNCTION " + signature + "\n  " + roleClause),
@@ -45,7 +45,7 @@ test("ACL postflight denies anon and preserves authenticated plus service_role",
 
 test("private referral summary is not callable anonymously", () => {
   assert.ok(
-    sql.includes("REVOKE EXECUTE ON FUNCTION public.get_my_verified_referrals()\\n  FROM anon;"),
+    sql.includes("REVOKE EXECUTE ON FUNCTION public.get_my_verified_referrals()\n  FROM anon;"),
   );
   assert.match(sql, /'public\\.get_my_verified_referrals\\(\\)'/);
 });
