@@ -81,6 +81,17 @@ jobs:
           let manifest;
           try { manifest = JSON.parse(readFileSync(allowlistPath, "utf8")); }
           catch { throw new Error("Production SECURITY DEFINER review manifest is missing or invalid; provisioning must remain disabled."); }
+          const inventoryPath = "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-INVENTORY-2026-11-21.json";
+          let inventory;
+          try { inventory = JSON.parse(readFileSync(inventoryPath, "utf8")); }
+          catch { throw new Error("Fresh Production SECURITY DEFINER inventory snapshot is missing; provisioning must remain disabled."); }
+          if (inventory.status !== "inventory_only_unreviewed" ||
+              inventory.project_ref !== "mvdczyitbkxkldjughor" ||
+              inventory.count !== 202 ||
+              !Array.isArray(inventory.functions) ||
+              inventory.functions.length !== 202) {
+            throw new Error("Production SECURITY DEFINER inventory snapshot is not the reviewed 202-function scope.");
+          }
           if (manifest.status !== "complete" ||
               manifest.projectRef !== "mvdczyitbkxkldjughor" ||
               manifest.authenticatedSecurityDefinerCount !== 202 ||
@@ -89,6 +100,12 @@ jobs:
               !Array.isArray(manifest.functions) ||
               manifest.functions.length !== 202) {
             throw new Error("Production SECURITY DEFINER audit is not complete for the reviewed 202-function inventory.");
+          }
+          const inventorySignatures = new Set(inventory.functions.map((item) => item.signature));
+          const manifestSignatures = new Set(manifest.functions.map((item) => item?.signature));
+          if (inventorySignatures.size !== 202 || manifestSignatures.size !== 202 ||
+              [...inventorySignatures].some((signature) => !manifestSignatures.has(signature))) {
+            throw new Error("SECURITY DEFINER allowlist does not cover the exact current inventory signatures.");
           }
           const signatures = new Set();
           const allowedClasses = new Set([
@@ -166,6 +183,61 @@ jobs:
           test -s "$RUNNER_TEMP/production-db2.pgpass"
           chmod 600 "$RUNNER_TEMP/production-db2.pgpass"
           psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command "select 1" >/dev/null
+
+      - name: Capture live SECURITY DEFINER catalog and compare against the reviewed inventory snapshot
+        run: |
+          set -euo pipefail
+          psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command "
+            SELECT coalesce(jsonb_agg(jsonb_build_object(
+              'signature',p.oid::regprocedure::text,
+              'identity_arguments',pg_get_function_identity_arguments(p.oid),
+              'returns',pg_get_function_result(p.oid),
+              'language',l.lanname,
+              'owner',pg_get_userbyid(p.proowner),
+              'config',coalesce(to_jsonb(p.proconfig),'[]'::jsonb),
+              'acl',coalesce(to_jsonb(p.proacl::text[]),'[]'::jsonb),
+              'anon_execute',has_function_privilege('anon',p.oid,'EXECUTE'),
+              'authenticated_execute',has_function_privilege('authenticated',p.oid,'EXECUTE'),
+              'service_role_execute',has_function_privilege('service_role',p.oid,'EXECUTE'),
+              'source_md5',md5(p.prosrc),
+              'mentions_auth_uid',position('auth.uid' in p.prosrc)>0,
+              'mentions_auth_jwt',position('auth.jwt' in p.prosrc)>0,
+              'mentions_admin_helper',position('private.current_user_is_admin' in p.prosrc)>0,
+              'mentions_role_helper',position('private.current_user_has_role' in p.prosrc)>0,
+              'mentions_better_auth_helper',position('private.current_user_is_better_auth' in p.prosrc)>0,
+              'mentions_user_roles',position('user_roles' in p.prosrc)>0,
+              'mentions_token_parameter',(position('p_access_token' in p.prosrc)>0 OR position('p_portal_token' in p.prosrc)>0)
+            ) ORDER BY p.oid),'[]'::jsonb)
+            FROM pg_proc p
+            JOIN pg_namespace n ON n.oid=p.pronamespace
+            JOIN pg_language l ON l.oid=p.prolang
+            WHERE n.nspname='public'
+              AND p.prosecdef
+              AND has_function_privilege('authenticated',p.oid,'EXECUTE')
+          " > "$RUNNER_TEMP/production-definer-live.json"
+
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const expected = JSON.parse(readFileSync("../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-INVENTORY-2026-11-21.json","utf8"));
+          const live = JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-definer-live.json","utf8"));
+          const fields = [
+            "signature","identity_arguments","returns","language","owner","config","acl",
+            "anon_execute","authenticated_execute","service_role_execute","source_md5",
+            "mentions_auth_uid","mentions_auth_jwt","mentions_admin_helper","mentions_role_helper",
+            "mentions_better_auth_helper","mentions_user_roles","mentions_token_parameter"
+          ];
+          const normalize = (rows) => rows.map((row) => Object.fromEntries(fields.map((key) => [
+            key,
+            Array.isArray(row[key]) ? [...row[key]].sort() : row[key]
+          ]))).sort((a,b) => a.signature.localeCompare(b.signature));
+          const expectedRows = normalize(expected.functions);
+          const liveRows = normalize(live);
+          assert.equal(expectedRows.length,202,"The reviewed catalog snapshot must contain 202 functions.");
+          assert.equal(liveRows.length,202,"Production currently exposes a different SECURITY DEFINER function count.");
+          assert.deepEqual(liveRows,expectedRows,"Production SECURITY DEFINER source/ACL/owner/search_path inventory changed; re-review before enabling provisioning.");
+          console.log("PASS: exact 202-function Production SECURITY DEFINER catalog, ACL, owner, search_path and source fingerprints match the reviewed snapshot.");
+          NODE
 
       - name: Verify DB2 identity root, 69 application FKs, legacy trigger retirement and server-only RPC wrappers
         run: |
