@@ -5,6 +5,8 @@
 -- CREATE OR REPLACE preserves existing function signatures/defaults/owners/ACLs.
 -- Legacy Supabase Auth users/profiles/roles are retained; they are not authorized as Better Auth identities.
 
+BEGIN;
+
 CREATE OR REPLACE FUNCTION private.current_user_is_better_auth()
  RETURNS boolean
  LANGUAGE sql
@@ -933,3 +935,5 @@ BEGIN
   END LOOP;
 END;
 $acl_postflight$;
+
+COMMIT;
