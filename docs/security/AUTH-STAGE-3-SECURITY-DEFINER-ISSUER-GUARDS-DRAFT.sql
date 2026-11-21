@@ -7,6 +7,149 @@
 
 BEGIN;
 
+-- Individual linear exam state is user-owned. auth.uid() alone is not enough:
+-- legacy Supabase Auth JWTs must not be accepted after the Better Auth cutover.
+-- This shared guard protects answer, skip, timeout, state and preview flows that
+-- call it, while preserving preview-owner and participant ownership checks.
+CREATE OR REPLACE FUNCTION private.assert_individual_linear_exam_access(p_attempt_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := (SELECT auth.uid());
+  v_attempt public.attempts%rowtype;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT *
+    INTO v_attempt
+  FROM public.attempts
+  WHERE id = p_attempt_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+
+  IF v_attempt.is_preview THEN
+    IF v_attempt.preview_owner_id IS DISTINCT FROM v_uid THEN
+      RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+    END IF;
+  ELSIF v_attempt.participant_id IS DISTINCT FROM v_uid THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+END;
+$function$;
+
+-- Canonical participant creation/repair is also tied to the active identity.
+-- Existing FK/participant rows are not migrated or deleted by this function.
+CREATE OR REPLACE FUNCTION private.ensure_canonical_participant_for_user(
+  p_competition_id uuid,
+  p_registration_id uuid DEFAULT NULL::uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := (SELECT auth.uid());
+  v_id uuid;
+  v_reg public.registrations%rowtype;
+  v_profile public.profiles%rowtype;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  IF p_registration_id IS NOT NULL THEN
+    SELECT *
+      INTO v_reg
+    FROM public.registrations
+    WHERE id = p_registration_id
+      AND user_id = v_uid
+      AND competition_id = p_competition_id
+    LIMIT 1;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'REGISTRATION_NOT_FOUND';
+    END IF;
+  ELSE
+    SELECT *
+      INTO v_reg
+    FROM public.registrations
+    WHERE competition_id = p_competition_id
+      AND user_id = v_uid
+      AND status IN ('APPROVED', 'ACTIVE')
+    ORDER BY created_at DESC
+    LIMIT 1;
+  END IF;
+
+  SELECT *
+    INTO v_profile
+  FROM public.profiles
+  WHERE id = v_uid
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PROFILE_NOT_FOUND';
+  END IF;
+
+  SELECT id
+    INTO v_id
+  FROM public.participants
+  WHERE competition_id = p_competition_id
+    AND user_id = v_uid
+  LIMIT 1;
+
+  IF v_id IS NULL THEN
+    INSERT INTO public.participants(
+      competition_id,
+      registration_id,
+      user_id,
+      participant_type,
+      full_name,
+      grade,
+      school_id,
+      photo_url
+    )
+    VALUES (
+      p_competition_id,
+      v_reg.id,
+      v_uid,
+      'INDIVIDUAL',
+      COALESCE(v_profile.full_name, v_profile.username, 'Participant'),
+      v_profile.grade,
+      v_profile.school_id,
+      v_profile.avatar_url
+    )
+    RETURNING id INTO v_id;
+  ELSE
+    UPDATE public.participants
+    SET
+      registration_id = COALESCE(v_reg.id, registration_id),
+      full_name = COALESCE(v_profile.full_name, v_profile.username, full_name),
+      grade = COALESCE(v_profile.grade, grade),
+      school_id = COALESCE(v_profile.school_id, school_id),
+      photo_url = COALESCE(v_profile.avatar_url, photo_url)
+    WHERE id = v_id;
+  END IF;
+
+  RETURN v_id;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION private.current_user_is_better_auth()
  RETURNS boolean
  LANGUAGE sql
