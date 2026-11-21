@@ -54,7 +54,9 @@ test("SendPulse is the only active provider prerequisite and identity state stay
   assert.match(workflow, /email_verification_required/);
   assert.match(workflow, /production_email_bootstrap/);
   assert.match(workflow, /first_account_marker/);
-  assert.match(workflow, /users.*accounts.*sessions/);
+  assert.match(workflow, /AS users/);
+  assert.match(workflow, /AS accounts/);
+  assert.match(workflow, /AS sessions/);
 });
 
 test("Deployment changes only the Production provisioning flag and preserves staging", () => {
