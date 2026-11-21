@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const workflow = readFileSync(
-  new URL("../../.github/workflows/auth-cloudflare-production-provisioning-enable.yml", import.meta.url),
+  new URL("../../../.github/workflows/auth-cloudflare-production-provisioning-enable.yml", import.meta.url),
   "utf8",
 );
 
