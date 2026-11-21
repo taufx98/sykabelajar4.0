@@ -855,6 +855,219 @@ BEGIN
 END;
 $function$;
 
+-- Private profile reads may be public only when the target profile's
+-- existing public-visibility setting allows it. A private profile's owner
+-- exception must be a real Better Auth identity, not only a matching auth.uid().
+CREATE OR REPLACE FUNCTION public.get_public_profile_badge_visibility(p_profile_id uuid)
+RETURNS TABLE(show_badges boolean, show_badge_collection boolean)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT
+    COALESCE(s.show_badges, true),
+    COALESCE(s.show_badge_collection, true)
+  FROM public.profiles AS p
+  LEFT JOIN public.profile_ui_settings AS s ON s.user_id = p.id
+  WHERE p.id = p_profile_id
+    AND (
+      (
+        private.current_user_is_better_auth()
+        AND (SELECT auth.uid()) = p_profile_id
+      )
+      OR COALESCE(p.is_public, false) = true
+      OR private.current_user_is_admin()
+    );
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_profile_badges(p_profile_id uuid)
+RETURNS TABLE(
+  id uuid,
+  name text,
+  description text,
+  icon_url text,
+  icon_emoji text,
+  category text,
+  rarity text,
+  awarded_at timestamptz,
+  reason text,
+  award_source text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT
+    ub.id,
+    b.name,
+    b.description,
+    b.icon_url,
+    b.icon_emoji,
+    b.category,
+    b.rarity,
+    ub.awarded_at,
+    ub.reason,
+    ub.award_source
+  FROM public.user_badges AS ub
+  JOIN public.badges AS b ON b.id = ub.badge_id
+  JOIN public.profiles AS p ON p.id = ub.user_id
+  LEFT JOIN public.profile_ui_settings AS s ON s.user_id = p.id
+  WHERE ub.user_id = p_profile_id
+    AND b.status = 'ACTIVE'
+    AND (
+      (
+        private.current_user_is_better_auth()
+        AND (SELECT auth.uid()) = p_profile_id
+      )
+      OR private.current_user_is_admin()
+      OR (
+        COALESCE(p.is_public, false) = true
+        AND COALESCE(s.show_badge_collection, true) = true
+      )
+    );
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_profile_ui_settings(p_profile_id uuid)
+RETURNS TABLE(show_social_popup boolean, show_following_popup boolean)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT
+    COALESCE(s.show_social_popup, true),
+    COALESCE(s.show_following_popup, true)
+  FROM public.profile_ui_settings AS s
+  JOIN public.profiles AS pr ON pr.id = s.user_id
+  WHERE s.user_id = p_profile_id
+    AND (
+      (
+        private.current_user_is_better_auth()
+        AND p_profile_id = (SELECT auth.uid())
+      )
+      OR private.current_user_is_admin()
+      OR COALESCE(pr.is_public, true) = true
+    )
+  UNION ALL
+  SELECT true, true
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.profile_ui_settings AS s2
+    JOIN public.profiles AS pr2 ON pr2.id = s2.user_id
+    WHERE s2.user_id = p_profile_id
+      AND (
+        (
+          private.current_user_is_better_auth()
+          AND p_profile_id = (SELECT auth.uid())
+        )
+        OR private.current_user_is_admin()
+        OR COALESCE(pr2.is_public, true) = true
+      )
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM public.profiles AS pr3
+    WHERE pr3.id = p_profile_id
+      AND (
+        (
+          private.current_user_is_better_auth()
+          AND p_profile_id = (SELECT auth.uid())
+        )
+        OR private.current_user_is_admin()
+        OR COALESCE(pr3.is_public, true) = true
+      )
+  )
+  LIMIT 1;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_follow_status(
+  p_follower_id uuid,
+  p_following_id uuid
+)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := (SELECT auth.uid());
+BEGIN
+  IF v_uid IS NULL OR NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  IF p_follower_id IS NULL
+     OR p_following_id IS NULL
+     OR p_follower_id = p_following_id THEN
+    RETURN 'none';
+  END IF;
+
+  IF v_uid <> p_follower_id
+     AND v_uid <> p_following_id
+     AND NOT public.is_active_admin(v_uid) THEN
+    RAISE EXCEPTION 'ACCESS_DENIED';
+  END IF;
+
+  RETURN COALESCE(
+    (
+      SELECT f.status
+      FROM public.follows AS f
+      WHERE f.follower_id = p_follower_id
+        AND f.following_id = p_following_id
+      LIMIT 1
+    ),
+    'none'
+  );
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_profile_social(p_profile_id uuid)
+RETURNS TABLE(follower_count bigint, following_count bigint, follow_status text)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := (SELECT auth.uid());
+  v_status text := 'none';
+BEGIN
+  IF v_uid IS NULL OR NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT CASE
+    WHEN f.status::text IN ('approved', 'auto') THEN 'approved'
+    WHEN f.status::text = 'pending' THEN 'pending'
+    ELSE 'none'
+  END
+    INTO v_status
+  FROM public.follows AS f
+  WHERE f.follower_id = v_uid
+    AND f.following_id = p_profile_id
+  LIMIT 1;
+
+  RETURN QUERY
+  SELECT
+    (
+      SELECT count(*)
+      FROM public.follows AS f
+      WHERE f.following_id = p_profile_id
+        AND f.status::text IN ('approved', 'auto')
+    ),
+    (
+      SELECT count(*)
+      FROM public.follows AS f
+      WHERE f.follower_id = p_profile_id
+        AND f.status::text IN ('approved', 'auto')
+    ),
+    COALESCE(v_status, 'none');
+END;
+$function$;
+
 -- These RPCs have explicit auth.uid()/Admin guards and are used by signed-in
 -- application users only. Remove redundant anon/PUBLIC EXECUTE without
 -- changing authenticated, service_role, or owner privileges.
