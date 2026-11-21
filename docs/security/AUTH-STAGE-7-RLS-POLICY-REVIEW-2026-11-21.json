@@ -526,6 +526,6 @@
     }
   ],
   "catalog_reviewed_table_count": 3,
-  "catalog_review_note": "Three tables with broad browser-role CRUD grants were inspected against live pg_class ACL/RLS metadata and PostgreSQL function definitions on 2026-11-21. Their candidate least-privilege action is drafted in docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql. These are not acceptance-reviewed: positive/negative disposable runtime tests remain empty, reviewed_table_count remains 0, and the overall status stays blocked_unreviewed until those tests and the remaining 20 table reviews are complete.",
-  "hardening_draft_path": "docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql"
+  "catalog_review_note": "Three tables with broad browser-role CRUD grants were inspected against live pg_class ACL/RLS metadata and PostgreSQL function definitions on 2026-11-21. Their candidate least-privilege action is drafted in docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql. These are not acceptance-reviewed: positive/negative disposable runtime tests remain empty, reviewed_table_count remains 0, and the overall status stays blocked_unreviewed until those tests and the remaining 20 table reviews are complete. The actual grant change is already maintained in the shared Stage 5 draft, which the Auth Production Schema Baseline applies only to its disposable PostgreSQL 17.6 restore; the Stage 7 copy was intentionally removed to prevent duplicate conflicting DDL. New Stage 7 tests point to that single source of truth.",
+  "hardening_draft_path": "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
 }
