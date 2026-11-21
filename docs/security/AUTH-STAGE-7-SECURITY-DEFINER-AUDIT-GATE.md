@@ -27,7 +27,7 @@ The exact, read-only 21 November metadata inventory for all 202 signatures is sa
 
 The three custom \`auth.users\` triggers are still present: \`on_auth_user_created\`, \`trg_referral_email_confirmed\`, and \`trg_referral_signup_attribution\`. \`private.app_users\` is still absent. No Production DDL/DML was run.
 
-The machine-readable review gate \`docs/security/AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21.json\` is intentionally \`status: blocked\` with 0/202 reviewed functions. The new owner-only activation workflow refuses to run unless the inventory is completely classified and every per-function legacy-issuer/token boundary test is marked passing. Do not change the manifest to complete merely to pass the workflow.
+The machine-readable review gate `docs/security/AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21.json` is intentionally `status: blocked` with 0/202 reviewed functions. The owner-only activation workflow and its tests were merged by PR #202; post-merge Auth Worker CI #44851590910 and read-only staging preflight #44851590980 passed. The workflow refuses to run unless the inventory is completely classified and every per-function legacy-issuer/token boundary test is marked passing. It also rejects any live catalog fingerprint drift, and is not dispatched. Do not change the manifest to complete merely to pass the workflow.
 
 DB2 remains unchanged: 12 Auth users/identities, 46 sessions, 76 refresh tokens, 12 profiles, 17 business-role rows, 69 application FKs still reference \`auth.users\`, \`private.app_users\` is absent, and three legacy Auth lifecycle triggers remain.
 
