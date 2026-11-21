@@ -226,6 +226,18 @@ BEGIN
 
   v_denied := false;
   BEGIN
+    PERFORM public.get_collective_registration_options('ffffffff-ffff-4fff-8fff-fffffffffff5'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_COLLECTIVE_OPTIONS_ALLOWED'; END IF;
+
+  v_denied := false;
+  BEGIN
     PERFORM public.admin_set_collective_certificate_price(12);
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM = 'FORBIDDEN' THEN
@@ -403,6 +415,20 @@ BEGIN
   END;
   IF NOT v_exam_denied THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_INDIVIDUAL_EXAM_ISSUER_GATE_FAILED';
+  END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.get_collective_registration_options('ffffffff-ffff-4fff-8fff-fffffffffff5'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN
+      v_exam_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_COLLECTIVE_OPTIONS_ISSUER_GATE_FAILED';
   END IF;
 
   -- A verified Better Auth owner may read their own private/hidden connections
