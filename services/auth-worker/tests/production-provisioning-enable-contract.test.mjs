@@ -94,3 +94,19 @@ test("Deployment changes only the Production provisioning flag and preserves sta
   assert.match(workflow, /signup\.status,503/);
   assert.match(workflow, /no Better Auth identity\/session state or SendPulse provider configuration was altered/);
 });
+
+test("post-Stage-3 activation pins each reviewed live function instead of stale pre-migration source hashes", () => {
+  assert.match(workflow, /manifestBySignature/);
+  assert.match(workflow, /liveBySignature/);
+  for (const field of [
+    "sourceMd5", "identityArguments", "returns", "language", "owner",
+    "config", "acl", "anonExecute", "authenticatedExecute", "serviceRoleExecute",
+  ]) {
+    assert.ok(workflow.includes("item." + field), "missing per-function fingerprint field " + field);
+  }
+  assert.match(workflow, /manifestAnonCount/);
+  assert.match(workflow, /manifestAuthenticatedCount !== 202/);
+  assert.doesNotMatch(workflow, /anonSecurityDefinerCount !== 46/);
+  assert.doesNotMatch(workflow, /assert\.deepEqual\(liveRows,expectedRows/);
+  assert.match(workflow, /Production SECURITY DEFINER signature set changed/);
+});
