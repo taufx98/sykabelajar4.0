@@ -1,0 +1,432 @@
+name: Enable Better Auth Production identity provisioning (owner gated)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type ENABLE-PRODUCTION-PROVISIONING-sykabelajar-auth-prod-DB2-IDENTITY-ROOT-SENDPULSE"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-production-provisioning-enable
+  cancel-in-progress: false
+
+jobs:
+  enable:
+    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' && github.actor == 'taufx98' && github.event_name == 'workflow_dispatch' }}
+    name: Enable only the gated Production provisioning flag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: services/auth-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PRODUCTION_DB2_BACKUP_SHA256: ${{ secrets.PRODUCTION_DB2_BACKUP_SHA256 }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Checkout exact reviewed auth branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/auth-poc-stage-1
+
+      - name: Verify owner dispatch, immutable target and backup attestation
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "taufx98"
+          test "$GITHUB_REF" = "refs/heads/security/auth-poc-stage-1"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$CONFIRMATION" = "ENABLE-PRODUCTION-PROVISIONING-sykabelajar-auth-prod-DB2-IDENTITY-ROOT-SENDPULSE"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$SUPABASE_DB_URL"
+          [[ "$PRODUCTION_DB2_BACKUP_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]] || {
+            echo "Blocked: add the verified off-GitHub Production DB2 backup SHA-256 as Actions secret PRODUCTION_DB2_BACKUP_SHA256. Its value is never printed."
+            exit 1
+          }
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const production = readFileSync("wrangler.production.toml", "utf8");
+          const staging = readFileSync("wrangler.toml", "utf8");
+          const exact = [
+            /^name = "sykabelajar-auth-prod"$/m,
+            /^database_name = "sykabelajar-auth-prod"$/m,
+            /^database_id = "6d4dc7b5-8e71-4fdc-9cda-3230e49951c7"$/m,
+            /^pattern = "auth-prod\.sykabelajar\.my\.id"$/m,
+            /^AUTH_SIGNUP_DISABLED = "true"$/m,
+            /^SUPABASE_PROVISIONING_ENABLED = "false"$/m,
+            /^SUPABASE_PROVISIONING_ENV = "production"$/m,
+            /^SUPABASE_PROVISIONING_URL = "https:\/\/mvdczyitbkxkldjughor\.supabase\.co"$/m,
+          ];
+          if (!exact.every((pattern) => pattern.test(production))) {
+            throw new Error("Production baseline is not the exact closed-signup/disabled-provisioning target.");
+          }
+          if (/staging\.sykabelajar\.my\.id|ydamszdfsxqisanazdkb|auth\.sykabelajar\.my\.id/.test(production)) {
+            throw new Error("Production Wrangler config contains a staging hostname or project.");
+          }
+          if (!/^name = "sykabelajar-auth-poc"$/m.test(staging) ||
+              !/^database_id = "7a4f9008-a1c6-42b6-8a04-abde12699248"$/m.test(staging) ||
+              !/^pattern = "auth\.sykabelajar\.my\.id"$/m.test(staging)) {
+            throw new Error("Accepted staging Worker/D1/hostname config changed.");
+          }
+          const allowlistPath = "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21.json";
+          let manifest;
+          try { manifest = JSON.parse(readFileSync(allowlistPath, "utf8")); }
+          catch { throw new Error("Production SECURITY DEFINER review manifest is missing or invalid; provisioning must remain disabled."); }
+          if (manifest.status !== "complete" ||
+              manifest.projectRef !== "mvdczyitbkxkldjughor" ||
+              manifest.authenticatedSecurityDefinerCount !== 202 ||
+              manifest.anonSecurityDefinerCount !== 46 ||
+              manifest.reviewedAuthenticatedFunctionCount !== 202 ||
+              !Array.isArray(manifest.functions) ||
+              manifest.functions.length !== 202) {
+            throw new Error("Production SECURITY DEFINER audit is not complete for the reviewed 202-function inventory.");
+          }
+          const signatures = new Set();
+          const allowedClasses = new Set([
+            "better_auth_user", "admin_organizer", "public_read",
+            "participant_portal_token", "worker_internal", "scheduler_trigger", "deprecated_unused",
+          ]);
+          for (const item of manifest.functions) {
+            if (!item || typeof item.signature !== "string" || !item.signature.includes("(") ||
+                signatures.has(item.signature) || !allowedClasses.has(item.classification) ||
+                typeof item.rationale !== "string" || item.rationale.trim().length < 20 ||
+                !item.tests || item.tests.legacySupabaseAuth !== "pass" ||
+                item.tests.validBetterAuthOrExplicitPublic !== "pass" ||
+                item.tests.idorOrTokenBoundary !== "pass") {
+              throw new Error("SECURITY DEFINER allowlist contains an incomplete, duplicate or untested function classification.");
+            }
+            signatures.add(item.signature);
+          }
+          console.log("PASS: exact Production target, unchanged staging config, backup checksum attestation format and full SECURITY DEFINER audit manifest structure.");
+          NODE
+          echo "No secret value or backup checksum was printed."
+
+      - name: Install pinned Worker toolchain and checks
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/auth-worker/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+
+      - name: Install PostgreSQL client for read-only DB2 catalog verification
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-client
+          psql --version
+
+      - name: Prepare private Production DB2 connection without printing credentials
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import { writeFileSync, appendFileSync } from "node:fs";
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          const ref = "mvdczyitbkxkldjughor";
+          let url;
+          try { url = new URL(raw); } catch { throw new Error("SUPABASE_DB_URL is not a valid PostgreSQL URI."); }
+          const username = decodeURIComponent(url.username);
+          const password = decodeURIComponent(url.password);
+          const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
+          const port = url.port || "5432";
+          const sslmode = url.searchParams.get("sslmode") || "require";
+          if ((url.protocol !== "postgres:" && url.protocol !== "postgresql:") ||
+              !url.hostname.endsWith(".pooler.supabase.com") ||
+              username !== "postgres." + ref || port !== "5432" ||
+              !password || !database ||
+              !["require", "verify-ca", "verify-full"].includes(sslmode)) {
+            throw new Error("SUPABASE_DB_URL must be the exact Production Session Pooler target with TLS; no connection was attempted.");
+          }
+          const escape = (value) => value.replaceAll("\\", "\\\\").replaceAll(":", "\\:");
+          const passfile = process.env.RUNNER_TEMP + "/production-db2.pgpass";
+          writeFileSync(passfile, [url.hostname, port, database, username, password].map(escape).join(":") + "\n", { mode: 0o600 });
+          appendFileSync(process.env.GITHUB_ENV, [
+            "PGHOST=" + url.hostname,
+            "PGPORT=" + port,
+            "PGDATABASE=" + database,
+            "PGUSER=" + username,
+            "PGSSLMODE=" + sslmode,
+            "PGPASSFILE=" + passfile,
+          ].join("\n") + "\n");
+          NODE
+          test -s "$RUNNER_TEMP/production-db2.pgpass"
+          chmod 600 "$RUNNER_TEMP/production-db2.pgpass"
+          psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command "select 1" >/dev/null
+
+      - name: Verify DB2 identity root, 69 application FKs, legacy trigger retirement and server-only RPC wrappers
+        run: |
+          set -euo pipefail
+          APP_USERS_EXISTS="$(psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command "select (to_regclass('private.app_users') is not null)::int")"
+          test "$APP_USERS_EXISTS" = "1" || {
+            echo "Blocked: private.app_users is not installed. Do not activate provisioning before Stage 3 core DDL."
+            exit 1
+          }
+
+          DB2_STATE="$(psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --field-separator='|' --command "
+            WITH expected(signature) AS (
+              VALUES
+                ('public.better_auth_provision_user(uuid,text,text,text,text,boolean,date,text,text,text)'),
+                ('public.better_auth_complete_email_verification(uuid,timestamp with time zone)')
+            ),
+            wrappers AS (
+              SELECT e.signature, p.oid, p.prosecdef, p.proowner, p.proconfig, p.proacl
+              FROM expected e
+              LEFT JOIN LATERAL (SELECT to_regprocedure(e.signature) AS oid) resolved ON true
+              LEFT JOIN pg_proc p ON p.oid = resolved.oid
+            )
+            SELECT
+              (SELECT count(*) FROM pg_constraint c
+                JOIN pg_class r ON r.oid=c.conrelid
+                JOIN pg_namespace n ON n.oid=r.relnamespace
+                WHERE c.contype='f' AND c.confrelid='auth.users'::regclass
+                  AND n.nspname IN ('public','private'))::int,
+              (SELECT count(*) FROM pg_constraint c
+                JOIN pg_class r ON r.oid=c.conrelid
+                JOIN pg_namespace n ON n.oid=r.relnamespace
+                WHERE c.contype='f' AND c.confrelid='private.app_users'::regclass
+                  AND n.nspname IN ('public','private'))::int,
+              (SELECT count(*) FROM pg_trigger
+                WHERE tgrelid='auth.users'::regclass AND NOT tgisinternal)::int,
+              (SELECT count(*) FROM pg_trigger
+                WHERE tgrelid='auth.users'::regclass AND NOT tgisinternal
+                  AND tgname IN ('on_auth_user_created','trg_referral_email_confirmed','trg_referral_signup_attribution'))::int,
+              (SELECT count(*) FROM private.app_users WHERE identity_origin='better_auth')::int,
+              (SELECT count(*) FROM wrappers WHERE oid IS NOT NULL)::int,
+              (SELECT count(*) FROM wrappers w
+                WHERE w.oid IS NOT NULL
+                  AND w.prosecdef
+                  AND pg_catalog.pg_get_userbyid(w.proowner)='postgres'
+                  AND w.proconfig @> ARRAY['search_path=""']::text[]
+                  AND pg_catalog.has_function_privilege('service_role',w.oid,'EXECUTE')
+                  AND NOT pg_catalog.has_function_privilege('anon',w.oid,'EXECUTE')
+                  AND NOT pg_catalog.has_function_privilege('authenticated',w.oid,'EXECUTE')
+                  AND NOT EXISTS (
+                    SELECT 1 FROM pg_catalog.aclexplode(
+                      coalesce(w.proacl,pg_catalog.acldefault('f',w.proowner))
+                    ) acl
+                    WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'
+                  ))::int,
+              (SELECT count(*) FROM pg_proc
+                WHERE oid IN (
+                  to_regprocedure('private.provision_better_auth_user(uuid,text,text,text,text,boolean,date,text,text,text)'),
+                  to_regprocedure('private.complete_better_auth_email_verification(uuid,timestamp with time zone)')
+                ))::int,
+              (SELECT count(*) FROM private.app_users
+                WHERE identity_origin='legacy_reference')::int
+          " )"
+          IFS='|' read -r AUTH_FKS APP_USERS_FKS USER_TRIGGERS NAMED_LEGACY_TRIGGERS BETTER_AUTH_ROWS WRAPPERS WRAPPERS_SECURE INNER_FUNCTIONS LEGACY_TOMBSTONES <<< "$DB2_STATE"
+
+          test "$AUTH_FKS" = "0" || { echo "Blocked: application FKs still reference auth.users."; exit 1; }
+          test "$APP_USERS_FKS" = "69" || { echo "Blocked: expected exactly 69 application FKs to private.app_users."; exit 1; }
+          test "$USER_TRIGGERS" = "0" || { echo "Blocked: auth.users custom lifecycle triggers have not all been retired."; exit 1; }
+          test "$NAMED_LEGACY_TRIGGERS" = "0" || { echo "Blocked: legacy Supabase Auth triggers remain."; exit 1; }
+          test "$BETTER_AUTH_ROWS" = "0" || { echo "Blocked: a Better Auth identity already exists; first-owner sequencing requires manual reconciliation."; exit 1; }
+          test "$WRAPPERS" = "2" || { echo "Blocked: required Better Auth provisioning wrappers are missing."; exit 1; }
+          test "$WRAPPERS_SECURE" = "2" || { echo "Blocked: wrapper ownership, search_path or execute grants are not the reviewed server-only contract."; exit 1; }
+          test "$INNER_FUNCTIONS" = "2" || { echo "Blocked: trusted private provisioning helpers are missing."; exit 1; }
+
+          echo "PASS: DB2 Stage 3 core identity foundation, 69 application FK cutover, trigger retirement and service_role-only wrappers verified. Legacy Auth users/roles were not enumerated or changed."
+          echo "UUID-only legacy reference tombstones: $LEGACY_TOMBSTONES (count only)."
+
+      - name: Verify exact Production Worker, D1, SendPulse and secret bindings before activation
+        run: |
+          set -euo pipefail
+          npx wrangler --config wrangler.production.toml d1 migrations list sykabelajar-auth-prod --remote
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT
+            (SELECT COUNT(*) FROM d1_migrations) AS migration_count,
+            (SELECT COUNT(*) FROM \"user\") AS users,
+            (SELECT COUNT(*) FROM \"account\") AS accounts,
+            (SELECT COUNT(*) FROM \"session\") AS sessions,
+            (SELECT COUNT(*) FROM \"verification\") AS verifications,
+            (SELECT COUNT(*) FROM oauthAccessToken) AS access_tokens,
+            (SELECT COUNT(*) FROM oauthRefreshToken) AS refresh_tokens,
+            (SELECT COUNT(*) FROM auth_email_provider_accounts WHERE provider='sendpulse' AND enabled=1 AND credentials_ciphertext IS NOT NULL AND length(trim(credentials_ciphertext))>0) AS active_sendpulse,
+            (SELECT COUNT(*) FROM auth_email_provider_accounts WHERE enabled=1) AS active_providers,
+            (SELECT COUNT(*) FROM auth_worker_internal_config WHERE key='production_email_bootstrap' AND value='consumed') AS sendpulse_bootstrap_consumed,
+            (SELECT COUNT(*) FROM auth_worker_internal_config WHERE key='production_first_account_bootstrap') AS first_account_marker,
+            (SELECT email_verification_required FROM auth_runtime_settings WHERE id=1) AS email_verification_required,
+            (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id=1) AS auto_failover_enabled;" > "$RUNNER_TEMP/production-provisioning-d1-before.json"
+
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync, createHash } from "node:crypto";
+          import { readFileSync as read } from "node:fs";
+          const root=process.env.RUNNER_TEMP;
+          const walk=(v,out=[])=>{if(Array.isArray(v))v.forEach(x=>walk(x,out));else if(v&&typeof v==="object"){if(Array.isArray(v.results))v.results.forEach(x=>{if(x&&typeof x==="object")out.push(x);});else Object.values(v).forEach(x=>{if(x&&typeof x==="object")walk(x,out);});}return out;};
+          const parsed=JSON.parse(read(root+"/production-provisioning-d1-before.json","utf8"));
+          const rows=walk(parsed).filter(x=>Object.hasOwn(x,"migration_count"));
+          if(rows.length!==1)throw new Error("Could not read exactly one Production D1 pre-activation summary.");
+          const s=rows[0];
+          for(const key of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens","first_account_marker"]) {
+            if(Number(s[key])!==0)throw new Error("Production D1 is not at the empty first-owner state: "+key);
+          }
+          if(Number(s.migration_count)!==11 ||
+             Number(s.active_sendpulse)!==1 ||
+             Number(s.active_providers)!==1 ||
+             Number(s.sendpulse_bootstrap_consumed)!==1 ||
+             Number(s.email_verification_required)!==1 ||
+             Number(s.auto_failover_enabled)!==1) {
+            throw new Error("Production D1 does not meet the reviewed SendPulse/verification/0000-0010 preconditions.");
+          }
+          writeFileSync(root+"/production-provisioning-d1-summary.json",JSON.stringify(s));
+          console.log("PASS: Production D1 is still identity-empty; one active encrypted SendPulse account, mandatory verification and default failover are present.");
+          NODE
+
+          node --input-type=module <<'NODE'
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const account=encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID);
+          const headers={Authorization:"Bearer "+token,Accept:"application/json"};
+          const base="https://api.cloudflare.com/client/v4";
+          async function get(path){const r=await fetch(base+path,{headers,redirect:"error"});const b=await r.json().catch(()=>({}));if(!r.ok||b.success!==true)throw new Error("Cloudflare metadata request failed: "+r.status);return b.result;}
+          const [scripts,stageDomains,prodDomains,stageSettings,prodSettings,secretRows]=await Promise.all([
+            get("/accounts/"+account+"/workers/scripts"),
+            get("/accounts/"+account+"/workers/domains?hostname=auth.sykabelajar.my.id"),
+            get("/accounts/"+account+"/workers/domains?hostname=auth-prod.sykabelajar.my.id"),
+            get("/accounts/"+account+"/workers/scripts/sykabelajar-auth-poc/settings"),
+            get("/accounts/"+account+"/workers/scripts/sykabelajar-auth-prod/settings"),
+            get("/accounts/"+account+"/workers/scripts/sykabelajar-auth-prod/secrets"),
+          ]);
+          if(!scripts.some(x=>x?.id==="sykabelajar-auth-poc")||!scripts.some(x=>x?.id==="sykabelajar-auth-prod"))throw new Error("Expected existing staging and Production Workers.");
+          if(!stageDomains.some(x=>x?.hostname==="auth.sykabelajar.my.id"&&x?.service==="sykabelajar-auth-poc"&&x?.enabled===true))throw new Error("Accepted staging hostname drift.");
+          if(!prodDomains.some(x=>x?.hostname==="auth-prod.sykabelajar.my.id"&&x?.service==="sykabelajar-auth-prod"&&x?.enabled===true))throw new Error("Production hostname drift.");
+          const d1=(s)=>((s?.bindings??[]).filter(x=>x?.type==="d1"&&x?.name==="DB"));
+          if(d1(stageSettings).length!==1||(d1(stageSettings)[0].database_id??d1(stageSettings)[0].id)!=="7a4f9008-a1c6-42b6-8a04-abde12699248")throw new Error("Staging D1 binding drift.");
+          if(d1(prodSettings).length!==1||(d1(prodSettings)[0].database_id??d1(prodSettings)[0].id)!=="6d4dc7b5-8e71-4fdc-9cda-3230e49951c7")throw new Error("Production D1 binding drift.");
+          const names=secretRows.map(x=>x?.name).filter(Boolean);
+          for(const required of ["BETTER_AUTH_SECRET","AUTH_PROVIDER_ENCRYPTION_KEY","AUTH_EMAIL_ENCRYPTION_KEY","SUPABASE_PROVISIONING_API_KEY"])if(names.filter(x=>x===required).length!==1)throw new Error("Missing required Production secret binding: "+required);
+          for(const forbidden of ["SUPABASE_SERVICE_ROLE_KEY","AUTH_EMAIL_BOOTSTRAP_TOKEN","AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN"])if(names.includes(forbidden))throw new Error("Remove conflicting/temporary secret binding before provisioning activation: "+forbidden);
+          const bindingMap=new Map((prodSettings.bindings??[]).filter(x=>x?.type==="plain_text").map(x=>[x.name,x.text]));
+          const vars=prodSettings.vars??{};
+          const getVar=(key)=>vars[key]??bindingMap.get(key);
+          if(getVar("AUTH_SIGNUP_DISABLED")!=="true"||getVar("SUPABASE_PROVISIONING_ENABLED")!=="false"||
+             getVar("SUPABASE_PROVISIONING_ENV")!=="production"||
+             getVar("SUPABASE_PROVISIONING_URL")!=="https://mvdczyitbkxkldjughor.supabase.co") {
+            throw new Error("Live Production runtime flags do not match the closed baseline.");
+          }
+          for(const name of ["AUTH_FIRST_ACCOUNT_EMAIL"])if(getVar(name))throw new Error("First-owner allowlist must not be installed before provisioning activation.");
+          console.log("PASS: exact Worker/D1/domain pairing, server-only provisioning binding, no temporary bootstrap secrets, closed signup and disabled provisioning verified. Secret values were not read.");
+          NODE
+
+      - name: Build a temporary Production config with only provisioning enabled
+        run: |
+          set -euo pipefail
+          temp_config=".wrangler.production.provisioning-enabled.toml"
+          test ! -e "$temp_config"
+          cp wrangler.production.toml "$temp_config"
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const path=".wrangler.production.provisioning-enabled.toml";
+          const original=readFileSync("wrangler.production.toml","utf8");
+          const temp=readFileSync(path,"utf8");
+          const match='SUPABASE_PROVISIONING_ENABLED = "false"';
+          if(original.split(match).length!==2||temp!==original)throw new Error("Expected exactly one disabled provisioning flag in the reviewed Production config.");
+          const enabled=temp.replace(match,'SUPABASE_PROVISIONING_ENABLED = "true"');
+          if(enabled.replace('SUPABASE_PROVISIONING_ENABLED = "true"',match)!==original)throw new Error("Temporary config changed more than the provisioning flag.");
+          if(!/^AUTH_SIGNUP_DISABLED = "true"$/m.test(enabled))throw new Error("Public signup must remain closed.");
+          writeFileSync(path,enabled);
+          NODE
+          npx wrangler --config "$temp_config" deploy --dry-run --outdir "$RUNNER_TEMP/production-provisioning-enable-dry-run"
+
+      - name: Record and verify closed-signup state, deploy only the gated Production flag, then postflight
+        run: |
+          set -euo pipefail
+          temp_config=".wrangler.production.provisioning-enabled.toml"
+          trap 'rm -f "$temp_config"' EXIT
+          npx wrangler --config "$temp_config" deploy --message "Enable gated Production identity provisioning; public signup remains closed ($GITHUB_SHA)"
+
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const account=encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID);
+          const headers={Authorization:"Bearer "+token,Accept:"application/json"};
+          const base="https://api.cloudflare.com/client/v4";
+          async function get(path){const r=await fetch(base+path,{headers,redirect:"error"});const b=await r.json().catch(()=>({}));if(!r.ok||b.success!==true)throw new Error("Cloudflare postflight failed: "+r.status);return b.result;}
+          const [stageDomains,prodDomains,stageSettings,prodSettings,secretRows]=await Promise.all([
+            get("/accounts/"+account+"/workers/domains?hostname=auth.sykabelajar.my.id"),
+            get("/accounts/"+account+"/workers/domains?hostname=auth-prod.sykabelajar.my.id"),
+            get("/accounts/"+account+"/workers/scripts/sykabelajar-auth-poc/settings"),
+            get("/accounts/"+account+"/workers/scripts/sykabelajar-auth-prod/settings"),
+            get("/accounts/"+account+"/workers/scripts/sykabelajar-auth-prod/secrets"),
+          ]);
+          assert.ok(stageDomains.some(x=>x?.hostname==="auth.sykabelajar.my.id"&&x?.service==="sykabelajar-auth-poc"&&x?.enabled===true));
+          assert.ok(prodDomains.some(x=>x?.hostname==="auth-prod.sykabelajar.my.id"&&x?.service==="sykabelajar-auth-prod"&&x?.enabled===true));
+          const binding=(s)=>((s?.bindings??[]).filter(x=>x?.type==="d1"&&x?.name==="DB"));
+          assert.equal(binding(stageSettings).length,1);
+          assert.equal(binding(stageSettings)[0].database_id??binding(stageSettings)[0].id,"7a4f9008-a1c6-42b6-8a04-abde12699248");
+          assert.equal(binding(prodSettings).length,1);
+          assert.equal(binding(prodSettings)[0].database_id??binding(prodSettings)[0].id,"6d4dc7b5-8e71-4fdc-9cda-3230e49951c7");
+          const vars=prodSettings.vars??{};
+          const bindings=new Map((prodSettings.bindings??[]).filter(x=>x?.type==="plain_text").map(x=>[x.name,x.text]));
+          const val=(key)=>vars[key]??bindings.get(key);
+          assert.equal(val("AUTH_SIGNUP_DISABLED"),"true");
+          assert.equal(val("SUPABASE_PROVISIONING_ENABLED"),"true");
+          assert.equal(val("SUPABASE_PROVISIONING_ENV"),"production");
+          assert.equal(val("SUPABASE_PROVISIONING_URL"),"https://mvdczyitbkxkldjughor.supabase.co");
+          const names=secretRows.map(x=>x?.name).filter(Boolean);
+          for(const key of ["BETTER_AUTH_SECRET","AUTH_PROVIDER_ENCRYPTION_KEY","AUTH_EMAIL_ENCRYPTION_KEY","SUPABASE_PROVISIONING_API_KEY"])assert.equal(names.filter(x=>x===key).length,1);
+          for(const key of ["SUPABASE_SERVICE_ROLE_KEY","AUTH_EMAIL_BOOTSTRAP_TOKEN","AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN"])assert.ok(!names.includes(key));
+          console.log("PASS: Production provisioning enabled, public signup still disabled, exact Production D1 and secret names preserved; staging Worker/D1/hostname unchanged.");
+          NODE
+
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const origin="https://auth-prod.sykabelajar.my.id";
+          const appOrigin="https://sykabelajar.my.id";
+          const providers=await fetch(origin+"/api/auth/providers",{headers:{Origin:appOrigin},redirect:"error"});
+          assert.equal(providers.status,200);
+          const policy=await providers.json();
+          assert.equal(policy.emailVerificationRequired,true);
+          assert.equal(providers.headers.get("Access-Control-Allow-Origin"),appOrigin);
+          const denied=await fetch(origin+"/api/auth/providers",{headers:{Origin:"https://attacker.example"},redirect:"error"});
+          assert.equal(denied.headers.get("Access-Control-Allow-Origin"),null);
+          const signup=await fetch(origin+"/api/auth/sign-up/email",{
+            method:"POST",
+            headers:{Origin:appOrigin,"Content-Type":"application/json"},
+            body:JSON.stringify({name:"Blocked provisioning activation probe",email:"blocked-provisioning-activation@example.invalid",password:"Never-Create-This-Account-1"}),
+            redirect:"error",
+          });
+          assert.equal(signup.status,503,"Public signup must remain disabled after provisioning activation.");
+          console.log("PASS: Production email verification policy and CORS verified; untrusted Origin rejected; public signup still returns HTTP 503.");
+          NODE
+
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT
+            (SELECT COUNT(*) FROM \"user\") AS users,
+            (SELECT COUNT(*) FROM \"account\") AS accounts,
+            (SELECT COUNT(*) FROM \"session\") AS sessions,
+            (SELECT COUNT(*) FROM \"verification\") AS verifications,
+            (SELECT COUNT(*) FROM oauthAccessToken) AS access_tokens,
+            (SELECT COUNT(*) FROM oauthRefreshToken) AS refresh_tokens,
+            (SELECT COUNT(*) FROM auth_email_provider_accounts WHERE provider='sendpulse' AND enabled=1) AS active_sendpulse;" > "$RUNNER_TEMP/production-provisioning-d1-after.json"
+
+          node --input-type=module <<'NODE'
+          import {readFileSync} from "node:fs";
+          const walk=(v,out=[])=>{if(Array.isArray(v))v.forEach(x=>walk(x,out));else if(v&&typeof v==="object"){if(Array.isArray(v.results))v.results.forEach(x=>{if(x&&typeof x==="object")out.push(x);});else Object.values(v).forEach(x=>{if(x&&typeof x==="object")walk(x,out);});}return out;};
+          const before=JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-d1-summary.json","utf8"));
+          const afterRows=walk(JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-d1-after.json","utf8"))).filter(x=>Object.hasOwn(x,"users"));
+          if(afterRows.length!==1)throw new Error("Could not verify Production D1 post-activation identity state.");
+          const after=afterRows[0];
+          for(const key of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens"])if(Number(after[key])!==Number(before[key]))throw new Error("Production D1 identity state changed during flag-only activation: "+key);
+          if(Number(after.active_sendpulse)!==1)throw new Error("The active SendPulse provider row changed during flag-only activation.");
+          console.log("PASS: no Better Auth identity/session/provider state was altered by the flag-only activation.");
+          NODE
+
+      - name: Remove temporary files and private DB connection material
+        if: always()
+        run: |
+          rm -f .wrangler.production.provisioning-enabled.toml
+          rm -f "$RUNNER_TEMP"/production-db2.pgpass
+          rm -f "$RUNNER_TEMP"/production-provisioning-*.json
+          rm -rf "$RUNNER_TEMP"/production-provisioning-enable-dry-run
