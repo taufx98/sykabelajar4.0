@@ -297,10 +297,27 @@ jobs:
                   to_regprocedure('private.provision_better_auth_user(uuid,text,text,text,text,boolean,date,text,text,text)'),
                   to_regprocedure('private.complete_better_auth_email_verification(uuid,timestamp with time zone)')
                 ))::int,
+              (SELECT count(*) FROM pg_proc p
+                WHERE p.oid IN (
+                  to_regprocedure('private.provision_better_auth_user(uuid,text,text,text,text,boolean,date,text,text,text)'),
+                  to_regprocedure('private.complete_better_auth_email_verification(uuid,timestamp with time zone)')
+                )
+                  AND p.prosecdef
+                  AND pg_catalog.pg_get_userbyid(p.proowner)='postgres'
+                  AND p.proconfig @> ARRAY['search_path=""']::text[]
+                  AND NOT pg_catalog.has_function_privilege('anon',p.oid,'EXECUTE')
+                  AND NOT pg_catalog.has_function_privilege('authenticated',p.oid,'EXECUTE')
+                  AND NOT pg_catalog.has_function_privilege('service_role',p.oid,'EXECUTE')
+                  AND NOT EXISTS (
+                    SELECT 1 FROM pg_catalog.aclexplode(
+                      coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))
+                    ) acl
+                    WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'
+                  ))::int,
               (SELECT count(*) FROM private.app_users
                 WHERE identity_origin='legacy_reference')::int
           " )"
-          IFS='|' read -r AUTH_FKS APP_USERS_FKS USER_TRIGGERS NAMED_LEGACY_TRIGGERS BETTER_AUTH_ROWS WRAPPERS WRAPPERS_SECURE INNER_FUNCTIONS LEGACY_TOMBSTONES <<< "$DB2_STATE"
+          IFS='|' read -r AUTH_FKS APP_USERS_FKS USER_TRIGGERS NAMED_LEGACY_TRIGGERS BETTER_AUTH_ROWS WRAPPERS WRAPPERS_SECURE INNER_FUNCTIONS INNER_FUNCTIONS_SECURE LEGACY_TOMBSTONES <<< "$DB2_STATE"
 
           test "$AUTH_FKS" = "0" || { echo "Blocked: application FKs still reference auth.users."; exit 1; }
           test "$APP_USERS_FKS" = "69" || { echo "Blocked: expected exactly 69 application FKs to private.app_users."; exit 1; }
@@ -310,6 +327,7 @@ jobs:
           test "$WRAPPERS" = "2" || { echo "Blocked: required Better Auth provisioning wrappers are missing."; exit 1; }
           test "$WRAPPERS_SECURE" = "2" || { echo "Blocked: wrapper ownership, search_path or execute grants are not the reviewed server-only contract."; exit 1; }
           test "$INNER_FUNCTIONS" = "2" || { echo "Blocked: trusted private provisioning helpers are missing."; exit 1; }
+          test "$INNER_FUNCTIONS_SECURE" = "2" || { echo "Blocked: private provisioning helpers must remain postgres-owned, empty-search-path and non-executable by browser/server API roles."; exit 1; }
 
           echo "PASS: DB2 Stage 3 core identity foundation, 69 application FK cutover, trigger retirement and service_role-only wrappers verified. Legacy Auth users/roles were not enumerated or changed."
           echo "UUID-only legacy reference tombstones: $LEGACY_TOMBSTONES (count only)."
