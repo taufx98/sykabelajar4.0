@@ -34,20 +34,28 @@ test("draft does not add policies, edit rows, alter schema, or weaken RLS", () =
 });
 
 test("preflight requires exact ownership, RLS/no-policy state and reviewed baseline grants", () => {
-  assert.match(sql, /UNEXPECTED_OWNER/);
+  assert.match(sql, /pg_get_userbyid\(c\.relowner\) AS table_owner/i);
   assert.match(sql, /STAGE5_ACL_PREFLIGHT_OWNER_DRIFT/);
+  assert.match(sql, /STAGE5_ACL_POSTCONDITION_OWNER_DRIFT/);
+  assert.match(sql, /STAGE5_ACL_PREFLIGHT_RLS_DISABLED/);
   assert.match(sql, /STAGE5_ACL_PREFLIGHT_POLICY_DRIFT/);
   assert.match(sql, /STAGE5_ACL_PREFLIGHT_GRANT_DRIFT/);
-  for (const role of ["anon", "authenticated", "service_role"]) {
-    assert.ok(sql.includes(`has_table_privilege('${role}'`));
+  for (const role of ["anon", "authenticated", "service_role", "postgres"]) {
+    for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+      assert.match(sql, new RegExp("has_table_privilege\\('" + role + "', v_table\\.oid, '" + privilege + "'\\)"));
+    }
   }
 });
 
-test("postflight denies all browser CRUD and preserves service_role CRUD", () => {
-  assert.ok(sql.includes(`ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']`));
-  for (const role of ["anon", "authenticated", "service_role"]) {
-    assert.ok(sql.includes(`has_table_privilege('${role}', v_table, v_privilege)`));
+test("postflight denies PUBLIC/anon/authenticated CRUD and preserves service_role/postgres CRUD", () => {
+  assert.match(sql, /FROM PUBLIC, anon, authenticated;/);
+  for (const role of ["anon", "authenticated", "service_role", "postgres"]) {
+    for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+      assert.match(sql, new RegExp("has_table_privilege\\('" + role + "', v_table\\.oid, '" + privilege + "'\\)"));
+    }
   }
+  assert.match(sql, /STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS/);
+  assert.match(sql, /STAGE5_ACL_POSTCONDITION_TRUSTED_ROLE_ACCESS_LOST/);
 });
 
 test("the SQL remains a gated draft and never auto-runs against Production", () => {
