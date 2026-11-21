@@ -24,5 +24,19 @@
     "legacy Supabase Auth token denial for Better Auth-only functions",
     "valid Better Auth or explicitly public behavior",
     "IDOR or token boundary tests"
-  ]
+  ],
+  "expectedLiveFingerprintFields": [
+    "signature",
+    "identityArguments",
+    "returns",
+    "language",
+    "owner",
+    "config",
+    "acl",
+    "anonExecute",
+    "authenticatedExecute",
+    "serviceRoleExecute",
+    "sourceMd5"
+  ],
+  "sourceFingerprintRule": "The 2021-11-21 inventory is the canonical 202-signature scope only. After Stage 3 core identity-root DDL and before this provisioning-enable workflow is dispatched, reviewers must bind each entry to the expected live PostgreSQL definition/ACL fingerprint for that exact post-Stage-3, pre-issuer-guard state. The activation workflow compares each live function to the fields in its corresponding manifest entry. Do not compare live function source to the pre-Stage-3 inventory hash, because approved Stage 3 source changes are intentional."
 }
