@@ -107,6 +107,9 @@ assert.match(collectiveOptions, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(collectiveOptions, /visibility IS DISTINCT FROM 'PUBLIC'/);
 assert.match(collectiveOptions, /private\.current_user_is_admin\(\)/);
 assert.match(collectiveOptions, /private\.current_user_is_organizer_for\(v_comp\.organizer_id\)/);
+assert.match(draft, /REVOKE EXECUTE ON FUNCTION public\.get_collective_registration_options\(uuid\)\s+FROM PUBLIC, anon;/);
+assert.match(draft, /COLLECTIVE_OPTIONS_ANON_EXECUTE_REMAINS/);
+assert.match(draft, /COLLECTIVE_OPTIONS_TRUSTED_EXECUTE_MISSING/);
 
 const listTeacherCertificates = draft.match(/CREATE OR REPLACE FUNCTION public\.list_teacher_collective_certificates[\s\S]*?\$function\$;/i)?.[0] ?? "";
 assert.match(listTeacherCertificates, /private\.current_user_is_better_auth\(\)/);
