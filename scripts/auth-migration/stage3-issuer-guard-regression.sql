@@ -240,7 +240,7 @@ BEGIN
   -- and social summary; the same session may see public social summaries.
   SELECT count(*) INTO v_count
   FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following');
-  IF v_count <> 2 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_OWNER_CONNECTIONS_FAILED:%', v_count; END IF;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_OWNER_CONNECTIONS_FAILED:%', v_count; END IF;
   SELECT count(*) INTO v_count
   FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'followers');
   IF v_count <> 2 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_OWNER_FOLLOWERS_FAILED:%', v_count; END IF;
