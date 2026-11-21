@@ -24,6 +24,7 @@ test("Production provisioning activation requires off-GitHub backup and complete
   assert.ok(workflow.includes("production-definer-live.json"));
   assert.ok(workflow.includes("manifestBySignature"));
   assert.ok(workflow.includes("liveBySignature"));
+  assert.match(workflow, /"public_event"/);
   assert.ok(workflow.includes("actual.source_md5,item.sourceMd5"));
   assert.ok(workflow.includes("actual.identity_arguments,item.identityArguments"));
   assert.ok(workflow.includes("actual.owner,item.owner"));
