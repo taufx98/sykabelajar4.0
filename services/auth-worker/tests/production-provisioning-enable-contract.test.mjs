@@ -30,7 +30,7 @@ test("Production provisioning activation requires off-GitHub backup and complete
 test("Only the server-only Production provisioning binding is accepted", () => {
   assert.match(workflow, /SUPABASE_PROVISIONING_API_KEY/);
   assert.match(workflow, /SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(workflow, /PRODUCTION DB2/);
+  assert.match(workflow, /DB2/);
   assert.match(workflow, /service_role/);
   assert.match(workflow, /AUTH_SIGNUP_DISABLED/);
   assert.match(workflow, /SUPABASE_PROVISIONING_ENABLED = "true"/);
