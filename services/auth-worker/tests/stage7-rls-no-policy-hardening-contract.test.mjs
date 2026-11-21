@@ -46,11 +46,9 @@ test("preflight requires the exact owner, RLS state, no-policy state and reviewe
 });
 
 test("postflight denies all browser CRUD and preserves service_role CRUD", () => {
-  for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
-    assert.ok(sql.includes(`ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']`));
-    assert.match(sql, new RegExp(`has_table_privilege\\('anon', v_table, '${privilege}'\\)`));
-    assert.match(sql, new RegExp(`has_table_privilege\\('authenticated', v_table, '${privilege}'\\)`));
-    assert.match(sql, new RegExp(`has_table_privilege\\('service_role', v_table, '${privilege}'\\)`));
+  assert.ok(sql.includes(`ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']`));
+  for (const role of ["anon", "authenticated", "service_role"]) {
+    assert.match(sql, new RegExp(`has_table_privilege\\('${role}', v_table, v_privilege\\)`));
   }
 });
 
