@@ -72,6 +72,7 @@ Do **not** revoke \`EXECUTE\` from all 46/202 functions in bulk. Some intentiona
    - **Better Auth user RPC:** must require the exact Production issuer and \`private.app_users.identity_origin='better_auth'\`, directly or through an issuer-gated shared helper.
    - **Admin/organizer RPC:** must use only issuer-gated role/membership helpers; never authorize from a legacy \`user_roles\` row alone.
    - **Public read RPC:** must expose only intentionally public fields/rows and be explicitly allowlisted.
+   - **Public event RPC:** may accept narrowly scoped unauthenticated interaction events (for example, active banner VIEW/CLICK). Validate the event type, object state, visitor-key entropy/format, idempotent replay and bounded side effects; do not treat it as a public read or use it to expose user data.
    - **Participant/portal token RPC:** must validate a high-entropy, scoped, expiring, replay-safe token without relying on \`auth.uid()\`; keep the exact intended \`anon\`/authenticated grants.
    - **Worker/internal RPC:** revoke browser roles and grant only the server role required by the Worker.
    - **Scheduler/trigger RPC:** grant only the actual owner/scheduler/trigger role; prove it cannot be invoked as an arbitrary browser user.
