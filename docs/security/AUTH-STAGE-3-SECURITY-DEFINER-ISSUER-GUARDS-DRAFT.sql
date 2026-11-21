@@ -46,6 +46,119 @@ $function$;
 -- Individual exam SECURITY DEFINER entrypoints must not treat a matching
 -- legacy Supabase Auth UUID as a valid participant/preview owner. The public
 -- exam RPCs below call this shared helper before reading or changing attempts.
+
+-- The collective enrollment wizard may read public competitions and those
+-- private competitions the caller administers/organizes, matching the base
+-- competitions_select RLS predicate. SECURITY DEFINER bypasses that policy,
+-- so the same visibility and Better Auth checks must be explicit here.
+CREATE OR REPLACE FUNCTION public.get_collective_registration_options(p_competition_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_comp public.competitions%rowtype;
+  v_rule public.registration_rules%rowtype;
+  v_levels jsonb;
+  v_price numeric;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT c.*
+    INTO v_comp
+  FROM public.competitions AS c
+  WHERE c.id = p_competition_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
+  IF v_comp.visibility IS DISTINCT FROM 'PUBLIC'
+     AND NOT private.current_user_is_admin()
+     AND (
+       v_comp.organizer_id IS NULL
+       OR NOT private.current_user_is_organizer_for(v_comp.organizer_id)
+     ) THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
+  IF NOT private.competition_allows_collective(v_comp.participant_mode, v_comp.config) THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_COLLECTIVE';
+  END IF;
+  IF v_comp.status NOT IN ('PUBLISHED', 'REGISTRATION_OPEN') THEN
+    RAISE EXCEPTION 'REGISTRATION_NOT_OPEN';
+  END IF;
+
+  SELECT rr.*
+    INTO v_rule
+  FROM public.registration_rules AS rr
+  WHERE rr.competition_id = p_competition_id
+  LIMIT 1;
+
+  SELECT COALESCE(
+    NULLIF(v_comp.config->>'collective_price_per_participant', '')::numeric,
+    NULLIF(v_comp.config->>'registration_price_per_participant', '')::numeric,
+    NULLIF(v_rule.config->>'collective_price_per_participant', '')::numeric,
+    NULLIF(v_rule.config->>'registration_price_per_participant', '')::numeric,
+    0
+  )
+    INTO v_price;
+
+  SELECT COALESCE(
+    jsonb_agg(
+      jsonb_build_object(
+        'id', cl.id,
+        'code', cl.code,
+        'label', cl.label,
+        'allowed_grades', cl.allowed_grades,
+        'points', cl.points,
+        'config', cl.config
+      )
+      ORDER BY cl.created_at
+    ),
+    '[]'::jsonb
+  )
+    INTO v_levels
+  FROM public.competition_levels AS cl
+  WHERE cl.competition_id = p_competition_id;
+
+  RETURN jsonb_build_object(
+    'competition', jsonb_build_object(
+      'id', v_comp.id,
+      'title', v_comp.title,
+      'participant_mode', v_comp.participant_mode,
+      'status', v_comp.status,
+      'registration_ends_at', v_comp.registration_ends_at,
+      'target_grades', COALESCE(v_comp.target_grades, '{}'::text[]),
+      'excluded_grades', COALESCE(v_comp.excluded_grades, '{}'::text[])
+    ),
+    'levels', v_levels,
+    'registration_rules', CASE
+      WHEN v_rule.id IS NULL THEN '{}'::jsonb
+      ELSE jsonb_build_object(
+        'allowed_grades', v_rule.allowed_grades,
+        'minimum_participants', v_rule.minimum_participants,
+        'max_participants', v_rule.max_participants,
+        'effective_maximum_participants', private.competition_effective_participant_limit(p_competition_id),
+        'approval_mode', v_rule.approval_mode,
+        'require_twibbon', v_rule.require_twibbon,
+        'require_social_proof', v_rule.require_social_proof,
+        'config', v_rule.config
+      )
+    END,
+    'participant_limits', jsonb_build_object(
+      'competition_maximum_participants', v_rule.max_participants,
+      'effective_maximum_participants', private.competition_effective_participant_limit(p_competition_id)
+    ),
+    'pricing', jsonb_build_object('unit_price', v_price, 'currency', 'IDR'),
+    'certificate_policies', jsonb_build_array('EVENT_DEFAULT', 'INCLUDED', 'OPTIONAL', 'NONE')
+  );
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION private.assert_individual_linear_exam_access(p_attempt_id uuid)
 RETURNS void
 LANGUAGE plpgsql
