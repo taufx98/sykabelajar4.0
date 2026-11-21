@@ -16,6 +16,11 @@ test("private profile connections require the exact Better Auth owner identity",
   assert.match(functionSql, /SET search_path TO ''/);
   assert.match(functionSql, /v_uid IS NOT NULL/);
   assert.match(functionSql, /v_uid IS NOT DISTINCT FROM p_profile_id/);
+  assert.match(functionSql, /p_mode NOT IN \\('following', 'followers'\\)/);
+  assert.match(functionSql, /COALESCE\\(profile\\.is_public, false\\)/);
+  assert.match(functionSql, /LEFT JOIN public\\.profile_ui_settings/);
+  assert.match(functionSql, /IF NOT v_profile_is_public[\\s\\S]*?NOT COALESCE\\(v_is_better_auth_owner, false\\)/);
+
   assert.match(functionSql, /auth\.jwt\(\)\s*->>\s*'iss'/);
   assert.match(functionSql, /https:\/\/auth-prod\.sykabelajar\.my\.id\/api\/auth/);
   assert.match(functionSql, /private\.app_users/);
@@ -72,4 +77,27 @@ test("login-only social RPCs require a Better Auth session and have browser EXEC
   }
   assert.match(guardSql, /REVOKE EXECUTE ON FUNCTION public\.get_follow_status\(uuid, uuid\)\s+FROM PUBLIC, anon;/);
   assert.match(guardSql, /REVOKE EXECUTE ON FUNCTION public\.get_public_profile_social\(uuid\)\s+FROM PUBLIC, anon;/);
+});
+
+test("public connection lists require both public profile visibility and popup visibility", () => {
+  assert.match(functionSql, /IF NOT v_profile_is_public[\s\S]*?NOT COALESCE\(v_is_better_auth_owner, false\) THEN\s+RETURN;/);
+  assert.match(functionSql, /IF NOT COALESCE\(v_allow, true\)[\s\S]*?NOT COALESCE\(v_is_better_auth_owner, false\) THEN\s+RETURN;/);
+  assert.match(functionSql, /p_mode NOT IN \('following', 'followers'\)/);
+});
+
+test("get_public_profile_social hides private social aggregates from non-owners", () => {
+  const start = guardSql.lastIndexOf("CREATE OR REPLACE FUNCTION public.get_public_profile_social(");
+  assert.notEqual(start, -1);
+  const end = guardSql.indexOf("$function$;", start);
+  const body = guardSql.slice(start, end);
+  assert.match(body, /private\.current_user_is_better_auth\(\)/);
+  assert.match(body, /COALESCE\(profile\.is_public, false\)/);
+  assert.match(body, /IF NOT v_is_public AND v_uid IS DISTINCT FROM p_profile_id THEN\s+RETURN;/);
+});
+
+test("social-summary ACL is authenticated-only and does not rely on default PUBLIC grants", () => {
+  assert.match(guardSql, /REVOKE ALL ON FUNCTION public\.get_public_profile_social\(uuid\)\s+FROM PUBLIC, anon, authenticated, service_role;/);
+  assert.match(guardSql, /GRANT EXECUTE ON FUNCTION public\.get_public_profile_social\(uuid\)\s+TO authenticated;/);
+  assert.match(guardSql, /SOCIAL_RPC_EXECUTE_BASELINE_DRIFT/);
+  assert.match(guardSql, /SOCIAL_RPC_EXECUTE_POSTFLIGHT_FAILED/);
 });
