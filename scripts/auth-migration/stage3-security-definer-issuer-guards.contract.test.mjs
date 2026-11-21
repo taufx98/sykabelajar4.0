@@ -103,6 +103,27 @@ assert.doesNotMatch(
 );
 assert.match(regression, /STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED/);
 assert.match(regression, /STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED/);
+
+for (const marker of [
+  "STAGE3_ANON_PRIVATE_PROFILE_CONNECTIONS_ALLOWED",
+  "STAGE3_ANON_PUBLIC_FOLLOWING_LIST_FAILED",
+  "STAGE3_ANON_HIDDEN_FOLLOWERS_LIST_ALLOWED",
+  "STAGE3_ANON_SOCIAL_SUMMARY_GRANT_REMAINS",
+  "STAGE3_LEGACY_PRIVATE_PROFILE_OWNER_BYPASS",
+  "STAGE3_LEGACY_SOCIAL_SUMMARY_ALLOWED",
+  "STAGE3_BETTER_AUTH_PRIVATE_OWNER_CONNECTIONS_FAILED",
+  "STAGE3_BETTER_AUTH_PRIVATE_OWNER_FOLLOWERS_FAILED",
+  "STAGE3_BETTER_AUTH_PRIVATE_OWNER_SOCIAL_FAILED",
+  "STAGE3_BETTER_AUTH_PUBLIC_SOCIAL_FAILED",
+  "STAGE3_OTHER_BETTER_AUTH_PRIVATE_CONNECTIONS_ALLOWED",
+  "STAGE3_OTHER_BETTER_AUTH_PRIVATE_SOCIAL_ALLOWED",
+  "STAGE3_OTHER_BETTER_AUTH_PUBLIC_SOCIAL_FAILED",
+]) {
+  assert.ok(regression.includes(marker), "missing disposable profile privacy assertion: " + marker);
+}
+assert.match(regression, /SET LOCAL ROLE anon[\s\S]*?public\.get_profile_connections/);
+assert.match(regression, /public\.get_public_profile_social[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(regression, /RESET ROLE;\s*SET LOCAL ROLE authenticated/);
 assert.doesNotMatch(draft, /^(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-z_]+\s+SET|DELETE FROM)\b/im,
   "draft must not mutate application data or replace RLS policy state");
 
