@@ -63,5 +63,6 @@ test("postflight denies PUBLIC/anon/authenticated CRUD and preserves service_rol
 test("the SQL remains outside migrations and requires explicit acceptance before Production", () => {
   assert.match(sql, /Do not apply to Production/i);
   assert.ok(sql.includes("before separate Stage 5/6/7 acceptance and explicit cutover authorization"));
-  assert.ok(sql.includes("Current application access uses trusted database functions/triggers and server-side service_role paths"));
+  assert.ok(sql.includes("Current application access uses trusted database functions/triggers and"));
+  assert.ok(sql.includes("server-side service_role paths"));
 });
