@@ -13,11 +13,13 @@
   "suggestedClassificationCounts": {
     "admin_organizer": 104,
     "participant_portal_token": 14,
-    "unclassified": 12,
-    "better_auth_user": 55,
+    "unclassified": 0,
+    "better_auth_user": 62,
     "worker_internal": 4,
-    "public_read": 11,
-    "scheduler_trigger": 2
+    "public_read": 14,
+    "public_event": 1,
+    "scheduler_trigger": 2,
+    "deprecated_unused": 1
   },
   "rules": [
     "Suggested classifications are heuristic triage only; never treat them as reviewed or passed.",
@@ -2041,10 +2043,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "better_auth_user",
+      "suggestionBasis": "Public exam entrypoint delegates to private.assert_individual_linear_exam_access; the Stage 3 draft now requires the exact Better Auth issuer and a matching private.app_users identity before checking participant/preview ownership. Legacy/owner/other-user runtime tests remain pending.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -2482,10 +2485,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "better_auth_user",
+      "suggestionBasis": "Public exam timeout-decision entrypoint delegates to the shared individual-exam access helper; the Stage 3 draft issuer-gates that helper and retains attempt ownership checks. Runtime tests for legacy issuer, own attempt and other-user IDOR remain pending.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -3892,10 +3896,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Returns only the global collective-certificate price from one platform_settings key. In-repo callers display the price in teacher/order/product configuration surfaces; the function returns no user rows or credentials. Keep its current authenticated/service_role grants and test that only the intended numeric setting is returned.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -4115,10 +4120,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "better_auth_user",
+      "suggestionBasis": "Used by GuruCollectiveRegistrationWizardPage. Stage 3 draft now requires the exact Better Auth issuer and mirrors competitions_select: PUBLIC visibility, Admin, or owner/active organizer membership before returning registration settings. Runtime tests for legacy issuer, public competition, private organizer and unrelated user remain pending.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -4295,10 +4301,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Used by the public HomePage and composes get_public_competitions, public leaderboards, aggregate platform statistics and get_public_feed with a clamped feed limit. Anon EXECUTE is intentional; verify every nested RPC remains public-field-only and test the anonymous response.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -4383,10 +4390,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "better_auth_user",
+      "suggestionBasis": "Public exam state endpoint delegates to private.assert_individual_linear_exam_access; the Stage 3 draft now checks exact Better Auth issuer and private.app_users identity before participant/preview ownership. Legacy/owner/other-user runtime tests remain pending.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -4959,10 +4967,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Returns aggregate counts only (active profiles/students, schools, competitions and published/generated certificates), not individual records. Existing migration and production ACL explicitly allow anon; preserve as aggregate public statistics and test that no row-level data is returned.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -7142,10 +7151,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "public_event",
+      "suggestionBasis": "Used by ShopBannerSlider for public VIEW/CLICK tracking. It accepts only active banner IDs, VIEW/CLICK event types, validates a 16-80 character visitor key and deduplicates (banner,event,visitor) before incrementing counters. This is a public write/event endpoint, not a public read; rate/abuse and replay tests remain pending.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -7760,10 +7770,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "better_auth_user",
+      "suggestionBasis": "Public timeout resolver delegates to private.assert_individual_linear_exam_access; the Stage 3 draft now checks exact Better Auth issuer plus private.app_users identity before participant/preview ownership. Runtime tests remain pending.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -8115,10 +8126,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "better_auth_user",
+      "suggestionBasis": "Public answer-draft endpoint delegates to private.assert_individual_linear_exam_access; the Stage 3 draft now checks exact Better Auth issuer plus private.app_users identity before participant/preview ownership. Test wrong UUID, legacy issuer, malformed answers and timeout boundaries.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -8512,10 +8524,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "better_auth_user",
+      "suggestionBasis": "Public skip endpoint delegates to private.assert_individual_linear_exam_access; the Stage 3 draft now checks exact Better Auth issuer plus private.app_users identity before participant/preview ownership. Test wrong UUID, legacy issuer and timeout boundaries.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -8911,10 +8924,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "unclassified",
-      "suggestionBasis": "No safe classification from static markers. Requires complete manual body/dependency and caller review.",
+      "suggestedClassification": "deprecated_unused",
+      "suggestionBasis": "The live SECURITY DEFINER body is a compatibility stub that always returns {ok:false,reason:'LEGACY_FLOW_DISABLED'} and performs no table reads/writes. No in-repository caller was found by code search. Keep the stub for explicit fail-closed behavior; do not drop it or revoke its grants until external call sites and compatibility tests are checked.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
