@@ -262,7 +262,7 @@ jobs:
             (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id=1) AS auto_failover_enabled;" > "$RUNNER_TEMP/production-provisioning-d1-before.json"
 
           node --input-type=module <<'NODE'
-          import { readFileSync as read } from "node:fs";
+          import { readFileSync as read, writeFileSync } from "node:fs";
           const root=process.env.RUNNER_TEMP;
           const walk=(v,out=[])=>{if(Array.isArray(v))v.forEach(x=>walk(x,out));else if(v&&typeof v==="object"){if(Array.isArray(v.results))v.results.forEach(x=>{if(x&&typeof x==="object")out.push(x);});else Object.values(v).forEach(x=>{if(x&&typeof x==="object")walk(x,out);});}return out;};
           const parsed=JSON.parse(read(root+"/production-provisioning-d1-before.json","utf8"));
