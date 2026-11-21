@@ -101,6 +101,13 @@ assert.match(participantDetail, /private\.current_user_is_better_auth\(\)/);
 assert.match(participantDetail, /auth\.uid\(\)\) IS NOT DISTINCT FROM p\.id/);
 assert.match(participantDetail, /coalesce\(p\.is_public, false\)/);
 assert.match(participantDetail, /coalesce\(settings\.show_badge_collection, true\)/);
+
+assert.match(regression, /STAGE3_ANON_PRIVATE_RESULT_BADGES_ALLOWED/);
+assert.match(regression, /STAGE3_LEGACY_PRIVATE_RESULT_BADGES_ALLOWED/);
+assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PRIVATE_RESULT_BADGES_ALLOWED/);
+assert.match(regression, /STAGE3_BETTER_AUTH_PRIVATE_RESULT_BADGE_OWNER_FAILED/);
+assert.match(regression, /public\.get_competition_participant_detail\([\s\S]*?55555555-5555-4555-8555-555555555551/);
+assert.match(regression, /public\.get_competition_participant_detail\([\s\S]*?55555555-5555-4555-8555-555555555552/);
 assert.ok(collectiveOptions, "missing collective registration options issuer guard");
 assert.match(collectiveOptions, /private\.current_user_is_better_auth\(\)/);
 assert.match(collectiveOptions, /BETTER_AUTH_ISSUER_REQUIRED/);
