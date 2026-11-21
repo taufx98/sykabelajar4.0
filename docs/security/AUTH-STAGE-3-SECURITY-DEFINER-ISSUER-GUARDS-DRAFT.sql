@@ -3,7 +3,7 @@
 -- Requires docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql to have created private.app_users.
 -- Captured from the current Production DB2 function definitions on 18 Nov 2026.
 -- CREATE OR REPLACE preserves existing function signatures/defaults/owners/ACLs.
--- Legacy Supabase Auth users/profiles/roles are retained; they are not authorized as Better Auth identities.
+-- Legacy Supabase Auth testing accounts are excluded from Better Auth. No legacy credentials, sessions, identities, profiles or business roles are imported into the new identity population; no old-account cleanup is required by this migration.
 
 BEGIN;
 
