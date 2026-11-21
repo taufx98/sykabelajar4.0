@@ -13,7 +13,7 @@ const targetTables = [
   "public.supabase_system_logs",
 ];
 
-test("Stage 7 no-policy hardening is limited to the three reviewed public tables", () => {
+test("Stage 5 no-policy hardening used by Stage 7 is limited to the three reviewed public tables", () => {
   for (const table of targetTables) assert.ok(sql.includes(table), `missing reviewed table ${table}`);
   const revoke = sql.match(/REVOKE ALL PRIVILEGES ON TABLE([\s\S]*?)FROM anon, authenticated;/i);
   assert.ok(revoke, "expected one explicit browser-role revoke");
@@ -58,8 +58,8 @@ test("postflight denies PUBLIC/anon/authenticated CRUD and preserves service_rol
   assert.match(sql, /STAGE5_ACL_POSTCONDITION_TRUSTED_ROLE_ACCESS_LOST/);
 });
 
-test("the SQL remains a gated draft and never auto-runs against Production", () => {
+test("the SQL remains outside migrations and requires explicit acceptance before Production", () => {
   assert.match(sql, /Do not apply to Production/i);
-  assert.match(sql, /off-GitHub full backup checksum/i);
+  assert.match(sql, /before separate Stage 5\/6\/7 acceptance and explicit cutover authorization/i);
   assert.match(sql, /Current application access uses trusted database functions\/triggers and server-side service_role paths/i);
 });
