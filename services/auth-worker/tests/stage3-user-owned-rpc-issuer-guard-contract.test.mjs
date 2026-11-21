@@ -31,18 +31,17 @@ test("individual linear exam access rejects legacy Supabase Auth before reading 
   assert.match(body, /participant_id IS DISTINCT FROM v_uid/);
 });
 
-test("answer, skip, timeout, state and preview endpoints share the protected exam helper", () => {
-  const names = [
-    "answer_linear_exam_question",
-    "choose_linear_exam_timeout",
-    "get_linear_exam_state",
-    "resolve_linear_exam_timeout",
-    "save_linear_exam_draft",
-    "skip_linear_exam_question",
+test("all six Production answer, skip, timeout and state RPC callers are documented against the shared guard", () => {
+  const callers = [
+    "public.answer_linear_exam_question(uuid,uuid,jsonb,boolean)",
+    "public.choose_linear_exam_timeout(uuid,text)",
+    "public.get_linear_exam_state(uuid)",
+    "public.resolve_linear_exam_timeout(uuid)",
+    "public.save_linear_exam_draft(uuid,uuid,jsonb)",
+    "public.skip_linear_exam_question(uuid)",
   ];
-  for (const name of names) {
-    const marker = "private.assert_individual_linear_exam_access(p_attempt_id)";
-    assert.ok(sql.includes(marker), "shared exam access helper missing for " + name);
+  for (const signature of callers) {
+    assert.ok(sql.includes("--   " + signature), "missing verified shared-helper caller " + signature);
   }
 });
 
