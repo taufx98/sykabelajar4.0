@@ -92,6 +92,15 @@ assert.match(publicAdminProfile, /app_user\.identity_origin = 'better_auth'/);
 const collectiveOptions = draft.match(
   /CREATE OR REPLACE FUNCTION public\.get_collective_registration_options\(p_competition_id uuid\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
+
+const participantDetail = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.get_competition_participant_detail\(\s*p_slug text,\s*p_participant_id uuid\)[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(participantDetail, "missing public competition participant detail replacement");
+assert.match(participantDetail, /private\.current_user_is_better_auth\(\)/);
+assert.match(participantDetail, /auth\.uid\(\)\) IS NOT DISTINCT FROM p\.id/);
+assert.match(participantDetail, /coalesce\(p\.is_public, false\)/);
+assert.match(participantDetail, /coalesce\(settings\.show_badge_collection, true\)/);
 assert.ok(collectiveOptions, "missing collective registration options issuer guard");
 assert.match(collectiveOptions, /private\.current_user_is_better_auth\(\)/);
 assert.match(collectiveOptions, /BETTER_AUTH_ISSUER_REQUIRED/);
