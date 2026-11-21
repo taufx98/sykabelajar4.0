@@ -41,3 +41,35 @@ test("the migration draft contains no profile-row rewrite or account migration",
   assert.doesNotMatch(functionSql, /INSERT INTO private\.app_users|UPDATE private\.app_users|DELETE FROM private\.app_users/i);
   assert.doesNotMatch(functionSql, /CREATE POLICY|DROP POLICY|DROP TABLE/i);
 });
+
+test("all private profile self-access branches require the Better Auth identity helper", () => {
+  const names = [
+    "public.get_public_profile_badge_visibility(",
+    "public.get_public_profile_badges(",
+    "public.get_public_profile_ui_settings(",
+  ];
+  for (const name of names) {
+    const start = guardSql.lastIndexOf("CREATE OR REPLACE FUNCTION " + name);
+    assert.notEqual(start, -1, "missing issuer guard for " + name);
+    const end = guardSql.indexOf("$function$;", start);
+    assert.notEqual(end, -1, "missing function terminator for " + name);
+    const body = guardSql.slice(start, end);
+    assert.match(body, /private\.current_user_is_better_auth\(\)/);
+  }
+});
+
+test("login-only social RPCs require a Better Auth session and have browser EXECUTE removed", () => {
+  for (const name of [
+    "public.get_follow_status(",
+    "public.get_public_profile_social(",
+  ]) {
+    const start = guardSql.lastIndexOf("CREATE OR REPLACE FUNCTION " + name);
+    assert.notEqual(start, -1, "missing issuer guard for " + name);
+    const end = guardSql.indexOf("$function$;", start);
+    const body = guardSql.slice(start, end);
+    assert.match(body, /private\.current_user_is_better_auth\(\)/);
+    assert.match(body, /BETTER_AUTH_ISSUER_REQUIRED/);
+  }
+  assert.match(guardSql, /REVOKE EXECUTE ON FUNCTION public\.get_follow_status\(uuid, uuid\)\s+FROM PUBLIC, anon;/);
+  assert.match(guardSql, /REVOKE EXECUTE ON FUNCTION public\.get_public_profile_social\(uuid\)\s+FROM PUBLIC, anon;/);
+});
