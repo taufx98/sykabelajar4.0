@@ -774,3 +774,81 @@ begin
   return jsonb_build_object('ok', true, 'competition_id', v_competition, 'expires_at', v_expires);
 end;
 $function$;
+
+-- Private-profile connection reads must not treat a NULL auth.uid() as the
+-- profile owner. They must also reject a legacy Supabase Auth identity when a
+-- user has chosen to hide their connections. Public connections remain public
+-- when the owner's existing show_*_popup setting allows it.
+CREATE OR REPLACE FUNCTION public.get_profile_connections(
+  p_profile_id uuid,
+  p_mode text
+)
+RETURNS TABLE (
+  id uuid,
+  username text,
+  full_name text,
+  avatar_url text,
+  verification_type text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_allow boolean;
+  v_uid uuid := (SELECT auth.uid());
+  v_is_better_auth_owner boolean := false;
+BEGIN
+  IF p_profile_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF p_mode = 'following' THEN
+    SELECT COALESCE(s.show_following_popup, true)
+      INTO v_allow
+    FROM public.profile_ui_settings AS s
+    WHERE s.user_id = p_profile_id;
+  ELSE
+    SELECT COALESCE(s.show_social_popup, true)
+      INTO v_allow
+    FROM public.profile_ui_settings AS s
+    WHERE s.user_id = p_profile_id;
+  END IF;
+
+  v_is_better_auth_owner :=
+    v_uid IS NOT NULL
+    AND v_uid IS NOT DISTINCT FROM p_profile_id
+    AND (SELECT auth.jwt() ->> 'iss') =
+      'https://auth-prod.sykabelajar.my.id/api/auth'
+    AND EXISTS (
+      SELECT 1
+      FROM private.app_users AS au
+      WHERE au.id = v_uid
+        AND au.identity_origin = 'better_auth'
+    );
+
+  IF NOT COALESCE(v_allow, true)
+     AND NOT COALESCE(v_is_better_auth_owner, false) THEN
+    RETURN;
+  END IF;
+
+  IF p_mode = 'following' THEN
+    RETURN QUERY
+    SELECT p.id, p.username, p.full_name, p.avatar_url, p.verification_type
+    FROM public.follows AS f
+    JOIN public.profiles AS p ON p.id = f.following_id
+    WHERE f.follower_id = p_profile_id
+      AND f.status IN ('approved', 'auto')
+    ORDER BY p.username;
+  ELSE
+    RETURN QUERY
+    SELECT p.id, p.username, p.full_name, p.avatar_url, p.verification_type
+    FROM public.follows AS f
+    JOIN public.profiles AS p ON p.id = f.follower_id
+    WHERE f.following_id = p_profile_id
+      AND f.status IN ('approved', 'auto')
+    ORDER BY p.username;
+  END IF;
+END;
+$function$;
