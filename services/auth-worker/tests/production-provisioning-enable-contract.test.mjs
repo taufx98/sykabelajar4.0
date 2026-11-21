@@ -47,6 +47,8 @@ test("Stage 3 identity-root and 69-FK preconditions are read-only verified befor
   assert.match(workflow, /better_auth_complete_email_verification/);
   assert.match(workflow, /APP_USERS_FKS.*69/);
   assert.match(workflow, /USER_TRIGGERS.*0/);
+  assert.match(workflow, /INNER_FUNCTIONS_SECURE.*2/);
+  assert.match(workflow, /service_role-only wrappers/);
   assert.match(workflow, /to_regprocedure/);
   assert.match(workflow, /auth\.users/);
   assert.match(workflow, /legacy_reference/);
