@@ -159,6 +159,52 @@ BEGIN
 END;
 $function$;
 
+-- The collective-options RPC is not a public endpoint. CREATE OR REPLACE
+-- preserves existing ACLs and PostgreSQL's default EXECUTE-to-PUBLIC behavior
+-- may otherwise leave anon able to enter this issuer-gated SECURITY DEFINER
+-- function. Explicitly keep only authenticated and the trusted Worker role.
+DO $collective_options_acl_preflight$
+DECLARE
+  v_function regprocedure :=
+    pg_catalog.to_regprocedure('public.get_collective_registration_options(uuid)');
+  v_owner text;
+  v_is_definer boolean;
+BEGIN
+  IF v_function IS NULL THEN
+    RAISE EXCEPTION 'COLLECTIVE_OPTIONS_FUNCTION_MISSING';
+  END IF;
+  SELECT pg_catalog.pg_get_userbyid(p.proowner), p.prosecdef
+    INTO v_owner, v_is_definer
+  FROM pg_catalog.pg_proc AS p
+  WHERE p.oid = v_function;
+  IF v_owner IS DISTINCT FROM 'postgres' OR v_is_definer IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'COLLECTIVE_OPTIONS_UNEXPECTED_OWNER_OR_KIND';
+  END IF;
+  IF NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'COLLECTIVE_OPTIONS_TRUSTED_EXECUTE_BASELINE_MISSING';
+  END IF;
+END;
+$collective_options_acl_preflight$;
+
+REVOKE EXECUTE ON FUNCTION public.get_collective_registration_options(uuid)
+  FROM PUBLIC, anon;
+
+DO $collective_options_acl_postflight$
+DECLARE
+  v_function regprocedure :=
+    pg_catalog.to_regprocedure('public.get_collective_registration_options(uuid)');
+BEGIN
+  IF pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'COLLECTIVE_OPTIONS_ANON_EXECUTE_REMAINS';
+  END IF;
+  IF NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'COLLECTIVE_OPTIONS_TRUSTED_EXECUTE_MISSING';
+  END IF;
+END;
+$collective_options_acl_postflight$;
+
 CREATE OR REPLACE FUNCTION private.assert_individual_linear_exam_access(p_attempt_id uuid)
 RETURNS void
 LANGUAGE plpgsql
