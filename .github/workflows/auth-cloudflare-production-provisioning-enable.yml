@@ -118,6 +118,9 @@ jobs:
                 typeof item.rationale !== "string" || item.rationale.trim().length < 20 ||
                 typeof item.sourceMd5 !== "string" || !/^[a-f0-9]{32}$/i.test(item.sourceMd5) ||
                 typeof item.owner !== "string" || item.owner.length === 0 ||
+                typeof item.identityArguments !== "string" ||
+                typeof item.returns !== "string" ||
+                typeof item.language !== "string" ||
                 !Array.isArray(item.config) || !Array.isArray(item.acl) ||
                 typeof item.anonExecute !== "boolean" ||
                 typeof item.authenticatedExecute !== "boolean" ||
@@ -253,6 +256,9 @@ jobs:
             const actual = liveBySignature.get(item.signature);
             assert.ok(actual, "Reviewed function disappeared from Production: " + item.signature);
             assert.equal(actual.source_md5,item.sourceMd5,"Reviewed source changed: " + item.signature);
+            assert.equal(actual.identity_arguments,item.identityArguments,"Reviewed function argument names/default identity changed: " + item.signature);
+            assert.equal(actual.returns,item.returns,"Reviewed return type changed: " + item.signature);
+            assert.equal(actual.language,item.language,"Reviewed function language changed: " + item.signature);
             assert.equal(actual.owner,item.owner,"Reviewed owner changed: " + item.signature);
             assert.deepEqual(actual.config,[...item.config].sort(),"Reviewed search_path/config changed: " + item.signature);
             assert.deepEqual(actual.acl,[...item.acl].sort(),"Reviewed function ACL changed: " + item.signature);
