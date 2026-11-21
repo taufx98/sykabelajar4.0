@@ -277,8 +277,8 @@
       "anon_delete": true,
       "authenticated_delete": true,
       "service_role_delete": true,
-      "classification": "unreviewed",
-      "rationale": null,
+      "classification": "backend_security_definer_only_candidate_pending_tests",
+      "rationale": "Live catalog: owner postgres, RLS enabled, zero policies, and explicit ALL grants to anon/authenticated/service_role. pg_proc source scan found postgres-owned SECURITY DEFINER callers public.track_competition_status(), public.transition_competition(...), public.get_public_competition_results(...), public.admin_get_monitoring_dashboard(...), and private.monthly_organizer_competition_quota(...). No direct browser table access can work while RLS has no policy. Candidate hardening is to revoke only anon/authenticated direct table grants and retain service_role CRUD. Disposable positive/negative runtime tests and exact production execution approval remain pending.",
       "positive_tests": [],
       "negative_tests": []
     },
@@ -365,8 +365,8 @@
       "anon_delete": true,
       "authenticated_delete": true,
       "service_role_delete": true,
-      "classification": "unreviewed",
-      "rationale": null,
+      "classification": "service_role_only_candidate_pending_tests",
+      "rationale": "Live catalog: owner postgres, RLS enabled, zero policies, and explicit ALL grants to anon/authenticated/service_role. No PostgreSQL function body reference was found in the pg_proc source scan. Candidate usage is trusted backend delivery recording through service_role; preserve all service_role CRUD and remove only redundant browser-role grants. Confirm external Edge/backend callers and run disposable positive/negative tests before review completion.",
       "positive_tests": [],
       "negative_tests": []
     },
@@ -519,10 +519,13 @@
       "anon_delete": true,
       "authenticated_delete": true,
       "service_role_delete": true,
-      "classification": "unreviewed",
-      "rationale": null,
+      "classification": "scheduler_security_definer_only_candidate_pending_tests",
+      "rationale": "Live catalog: owner postgres, RLS enabled, zero policies, and explicit ALL grants to anon/authenticated/service_role. The catalog source scan found public.fetch_and_save_supabase_logs() as a postgres-owned SECURITY DEFINER writer. Browser direct access has no policy and is already default-deny. Candidate hardening removes only anon/authenticated table grants and retains service_role CRUD. Verify scheduler/worker flow and disposable positive/negative tests before review completion.",
       "positive_tests": [],
       "negative_tests": []
     }
-  ]
+  ],
+  "catalog_reviewed_table_count": 3,
+  "catalog_review_note": "Three tables with broad browser-role CRUD grants were inspected against live pg_class ACL/RLS metadata and PostgreSQL function definitions on 2026-11-21. Their candidate least-privilege action is drafted in docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql. These are not acceptance-reviewed: positive/negative disposable runtime tests remain empty, reviewed_table_count remains 0, and the overall status stays blocked_unreviewed until those tests and the remaining 20 table reviews are complete.",
+  "hardening_draft_path": "docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql"
 }
