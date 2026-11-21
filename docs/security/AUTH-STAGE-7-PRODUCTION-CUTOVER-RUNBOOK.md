@@ -157,6 +157,13 @@ Do not create paid Supabase branches, enable paid PITR, upgrade the organization
 - The SQL grant draft docs/security/AUTH-PRODUCTION-FIRST-ADMIN-BOOTSTRAP-DRAFT.sql has a passing contract in Supabase Local Auth Claims CI #44681672972 and was included in the passing 50-step disposable baseline #44682199208. After the real token and issuer guards pass, run it once with only the UUID from that same verified Production session. It only grants one Admin role to an already-verified identity_origin='better_auth' UUID and preserves the existing legacy Admin row.
 - Before any Production use, repeat live project/issuer/catalog checks; test missing/invalid/replayed tokens, wrong pinned email/environment, non-empty D1, unverified policy, invalid SendPulse key, ambiguous failure/no replay, OTP receipt/verification, UUID/session projection, duplicate Admin refusal, and that legacy Admin/user/profile/session rows remain unchanged. Stop on any mismatch.
 
+### E0. Complete the application RLS/GRANT review before frontend cutover
+
+- Use `docs/security/AUTH-STAGE-7-RLS-NO-POLICY-INVENTORY-2026-11-21.json` and `docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-21.json` as the 21 November read-only baseline. The 23 application tables (20 public, 3 private) remain unreviewed; 26 auth/storage tables are platform-owned and out of scope.
+- Do not add a generic policy to all 23 tables. Review each table's actual callers, intended browser roles, owner UUID, Admin/organizer scope, competition portal token or Worker-only access, then add the smallest policy and positive/negative IDOR regression tests.
+- Specifically review existing broad grants for `anon` and `authenticated` on `public.competition_status_history`, `public.notification_deliveries`, and `public.supabase_system_logs`. They currently have no RLS policies (so row access remains default-deny), but their CRUD grants should not remain unexplained at frontend release. Inspect callers before altering grants.
+- Re-run the table/privilege inventory and verify every approved app table has an explicit policy set or a documented private/Worker-only design, no unintended browser grant, and no public data leak. Keep the platform-owned `auth` and `storage` relations unchanged.
+
 ### E. Switch the Production website
 
 - Keep staging `auth.sykabelajar.my.id` attached to its staging Worker. Production uses the separate hostname `auth-prod.sykabelajar.my.id` attached to `sykabelajar-auth-prod`.
