@@ -78,7 +78,8 @@ VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy_reference'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better_auth'),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'better_auth'),
-  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'better_auth');
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'better_auth'),
+  ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'better_auth');
 
 -- Synthetic profiles exercise the SECURITY DEFINER privacy boundary after
 -- Stage 3. A legacy owner and a Better Auth owner both have private profiles;
@@ -88,7 +89,8 @@ VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage3_legacy_private', 'Legacy Probe', false),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'stage3_ba_private', 'Better Auth Owner Probe', false),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'stage3_public_profile', 'Public Profile Probe', true),
-  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'stage3_public_follower', 'Public Follower Probe', true);
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'stage3_public_follower', 'Public Follower Probe', true),
+  ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'stage3_ba_private_badge_owner', 'Private Badge Owner Probe', false);
 
 INSERT INTO public.profile_ui_settings (user_id, show_following_popup, show_social_popup)
 VALUES
@@ -129,7 +131,50 @@ VALUES
     'PRIVATE',
     'COLLECTIVE_TEACHER',
     '{"participant_modes":["COLLECTIVE_TEACHER"]}'::jsonb
+  ),
+  (
+    '33333333-3333-4333-8333-333333333333',
+    'stage3-public-result-probe',
+    'Stage 3 Public Result Probe',
+    'Stage 3 Test',
+    'RESULT_PUBLISHED'::public.competition_status,
+    'PUBLIC',
+    'INDIVIDUAL',
+    '{}'::jsonb
   );
+
+-- A public results page may expose the published result, but private badge
+-- collections remain private unless read by their real Better Auth owner/Admin.
+INSERT INTO public.participants (
+  id, competition_id, user_id, participant_type, full_name
+)
+VALUES
+  ('55555555-5555-4555-8555-555555555551', '33333333-3333-4333-8333-333333333333',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'INDIVIDUAL', 'Legacy Private Participant'),
+  ('55555555-5555-4555-8555-555555555552', '33333333-3333-4333-8333-333333333333',
+   'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Better Auth Private Participant');
+
+INSERT INTO public.attempts (
+  id, competition_id, participant_id, canonical_participant_id, status, score, finalized_at
+)
+VALUES
+  ('77777777-7777-4777-8777-777777777771', '33333333-3333-4333-8333-333333333333',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '55555555-5555-4555-8555-555555555551',
+   'FINALIZED'::public.attempt_status, 91, now()),
+  ('77777777-7777-4777-8777-777777777772', '33333333-3333-4333-8333-333333333333',
+   'ffffffff-ffff-4fff-8fff-fffffffffff6', '55555555-5555-4555-8555-555555555552',
+   'FINALIZED'::public.attempt_status, 92, now());
+
+INSERT INTO public.badges (id, code, name, slug, status, award_type)
+VALUES ('88888888-8888-4888-8888-888888888881', 'stage3-private-badge',
+        'Stage 3 Private Badge', 'stage3-private-badge', 'ACTIVE', 'MANUAL');
+
+INSERT INTO public.user_badges (user_id, badge_id, award_source, reason, source_reference)
+VALUES
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '88888888-8888-4888-8888-888888888881',
+   'MANUAL', 'Legacy private badge probe', '33333333-3333-4333-8333-333333333333'),
+  ('ffffffff-ffff-4fff-8fff-fffffffffff6', '88888888-8888-4888-8888-888888888881',
+   'MANUAL', 'Better Auth private badge probe', '33333333-3333-4333-8333-333333333333');
 INSERT INTO public.user_roles (user_id, role, is_active)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
@@ -148,6 +193,7 @@ SELECT set_config('request.jwt.claim.sub', '', true);
 DO $profile_anon$
 DECLARE
   v_count integer;
+  v_detail jsonb;
   v_denied boolean := false;
 BEGIN
   -- A private profile remains private even when its popup setting is enabled.
@@ -162,6 +208,14 @@ BEGIN
   SELECT count(*) INTO v_count
   FROM public.get_profile_connections('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid, 'followers');
   IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_ANON_HIDDEN_FOLLOWERS_LIST_ALLOWED'; END IF;
+
+  v_detail := public.get_competition_participant_detail(
+    'stage3-public-result-probe',
+    '55555555-5555-4555-8555-555555555551'::uuid
+  );
+  IF jsonb_array_length(coalesce(v_detail->'badges', '[]'::jsonb)) <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_RESULT_BADGES_ALLOWED';
+  END IF;
 
   -- The social summary deliberately has no anon/PUBLIC EXECUTE grant.
   IF has_function_privilege('anon', 'public.get_public_profile_social(uuid)'::regprocedure, 'EXECUTE') THEN
@@ -208,10 +262,19 @@ SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
 DO $legacy_issuer$
 DECLARE
   v_count integer;
+  v_detail jsonb;
   v_denied boolean := false;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_READ_ALLOWED'; END IF;
+
+  v_detail := public.get_competition_participant_detail(
+    'stage3-public-result-probe',
+    '55555555-5555-4555-8555-555555555551'::uuid
+  );
+  IF jsonb_array_length(coalesce(v_detail->'badges', '[]'::jsonb)) <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_PRIVATE_RESULT_BADGES_ALLOWED';
+  END IF;
   -- The private schema intentionally has no USAGE for API roles.
   -- Verify that boundary; exercise its SECURITY DEFINER helpers through
   -- public entrypoints below instead of invoking private functions directly.
@@ -497,6 +560,7 @@ DO $better_auth_other_user$
 DECLARE
   v_count integer;
   v_options jsonb;
+  v_detail jsonb;
   v_denied boolean := false;
 BEGIN
   SELECT count(*) INTO v_count
@@ -523,12 +587,40 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_COLLECTIVE_OPTIONS_ALLOWED';
   END IF;
 
+  v_detail := public.get_competition_participant_detail(
+    'stage3-public-result-probe',
+    '55555555-5555-4555-8555-555555555552'::uuid
+  );
+  IF jsonb_array_length(coalesce(v_detail->'badges', '[]'::jsonb)) <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_RESULT_BADGES_ALLOWED';
+  END IF;
+
   v_options := public.get_collective_registration_options('11111111-1111-4111-8111-111111111111'::uuid);
   IF v_options #>> '{competition,title}' IS DISTINCT FROM 'Stage 3 Public Collective Probe' THEN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_COLLECTIVE_OPTIONS_FAILED:%', v_options;
   END IF;
 END;
 $better_auth_other_user$;
+
+-- The Better Auth owner of a private profile may see their own badge
+-- collection within a published public results page.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  true);
+SELECT set_config('request.jwt.claim.sub', 'ffffffff-ffff-4fff-8fff-fffffffffff6', true);
+DO $better_auth_private_badge_owner$
+DECLARE
+  v_detail jsonb;
+BEGIN
+  v_detail := public.get_competition_participant_detail(
+    'stage3-public-result-probe',
+    '55555555-5555-4555-8555-555555555552'::uuid
+  );
+  IF jsonb_array_length(coalesce(v_detail->'badges', '[]'::jsonb)) <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_RESULT_BADGE_OWNER_FAILED:%', v_detail;
+  END IF;
+END;
+$better_auth_private_badge_owner$;
 
 -- A syntactically valid UUID from an untrusted issuer receives no row access
 -- and cannot insert even when its sub matches a real owner UUID.
