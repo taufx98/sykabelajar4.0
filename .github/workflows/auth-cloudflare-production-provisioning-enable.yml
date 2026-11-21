@@ -351,8 +351,11 @@ jobs:
             (SELECT email_verification_required FROM auth_runtime_settings WHERE id=1) AS email_verification_required,
             (SELECT auto_failover_enabled FROM auth_email_provider_settings WHERE id=1) AS auto_failover_enabled;" > "$RUNNER_TEMP/production-provisioning-d1-before.json"
 
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT id,label,provider,sender_address,sender_name,endpoint_url,auth_mode,credentials_ciphertext,enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,hour_bucket,hour_used,day_bucket,day_used,month_bucket,month_used,cooldown_until,last_error_code,last_error_at,last_success_at,created_at,updated_at,created_by,updated_by FROM auth_email_provider_accounts ORDER BY id;" > "$RUNNER_TEMP/production-provisioning-provider-before.json"
+
           node --input-type=module <<'NODE'
           import { readFileSync as read, writeFileSync } from "node:fs";
+          import {createHash} from "node:crypto";
           const root=process.env.RUNNER_TEMP;
           const walk=(v,out=[])=>{if(Array.isArray(v))v.forEach(x=>walk(x,out));else if(v&&typeof v==="object"){if(Array.isArray(v.results))v.results.forEach(x=>{if(x&&typeof x==="object")out.push(x);});else Object.values(v).forEach(x=>{if(x&&typeof x==="object")walk(x,out);});}return out;};
           const parsed=JSON.parse(read(root+"/production-provisioning-d1-before.json","utf8"));
@@ -371,6 +374,14 @@ jobs:
             throw new Error("Production D1 does not meet the reviewed SendPulse/verification/0000-0010 preconditions.");
           }
           writeFileSync(root+"/production-provisioning-d1-summary.json",JSON.stringify(s));
+          const providerRows=walk(JSON.parse(read(root+"/production-provisioning-provider-before.json","utf8")))
+            .filter(x=>typeof x.id==="string"&&typeof x.provider==="string")
+            .sort((a,b)=>a.id.localeCompare(b.id));
+          if(providerRows.length!==1||providerRows[0].provider!=="sendpulse"||Number(providerRows[0].enabled)!==1) {
+            throw new Error("Production SendPulse provider snapshot does not contain exactly one active SendPulse account.");
+          }
+          writeFileSync(root+"/production-provisioning-provider-before-normalized.json",JSON.stringify(providerRows));
+          writeFileSync(root+"/production-provisioning-provider-before.sha256",createHash("sha256").update(JSON.stringify(providerRows)).digest("hex"));
           console.log("PASS: Production D1 is still identity-empty; one active encrypted SendPulse account, mandatory verification and default failover are present.");
           NODE
 
@@ -510,9 +521,11 @@ jobs:
             (SELECT COUNT(*) FROM oauthAccessToken) AS access_tokens,
             (SELECT COUNT(*) FROM oauthRefreshToken) AS refresh_tokens,
             (SELECT COUNT(*) FROM auth_email_provider_accounts WHERE provider='sendpulse' AND enabled=1) AS active_sendpulse;" > "$RUNNER_TEMP/production-provisioning-d1-after.json"
+          npx wrangler --config wrangler.production.toml d1 execute sykabelajar-auth-prod --remote --json --command "SELECT id,label,provider,sender_address,sender_name,endpoint_url,auth_mode,credentials_ciphertext,enabled,priority,quota_hour_limit,quota_day_limit,quota_month_limit,hour_bucket,hour_used,day_bucket,day_used,month_bucket,month_used,cooldown_until,last_error_code,last_error_at,last_success_at,created_at,updated_at,created_by,updated_by FROM auth_email_provider_accounts ORDER BY id;" > "$RUNNER_TEMP/production-provisioning-provider-after.json"
 
           node --input-type=module <<'NODE'
           import {readFileSync} from "node:fs";
+          import {createHash} from "node:crypto";
           const walk=(v,out=[])=>{if(Array.isArray(v))v.forEach(x=>walk(x,out));else if(v&&typeof v==="object"){if(Array.isArray(v.results))v.results.forEach(x=>{if(x&&typeof x==="object")out.push(x);});else Object.values(v).forEach(x=>{if(x&&typeof x==="object")walk(x,out);});}return out;};
           const before=JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-d1-summary.json","utf8"));
           const afterRows=walk(JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-d1-after.json","utf8"))).filter(x=>Object.hasOwn(x,"users"));
@@ -520,7 +533,14 @@ jobs:
           const after=afterRows[0];
           for(const key of ["users","accounts","sessions","verifications","access_tokens","refresh_tokens"])if(Number(after[key])!==Number(before[key]))throw new Error("Production D1 identity state changed during flag-only activation: "+key);
           if(Number(after.active_sendpulse)!==1)throw new Error("The active SendPulse provider row changed during flag-only activation.");
-          console.log("PASS: no Better Auth identity/session/provider state was altered by the flag-only activation.");
+          const beforeProvider=JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-provider-before-normalized.json","utf8"));
+          const afterProvider=walk(JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-provider-after.json","utf8")))
+            .filter(x=>typeof x.id==="string"&&typeof x.provider==="string")
+            .sort((a,b)=>a.id.localeCompare(b.id));
+          const beforeProviderHash=readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-provider-before.sha256","utf8");
+          const afterProviderHash=createHash("sha256").update(JSON.stringify(afterProvider)).digest("hex");
+          if(beforeProviderHash!==afterProviderHash)throw new Error("Encrypted SendPulse credentials, routing/quota/delivery state changed during flag-only activation.");
+          console.log("PASS: no Better Auth identity/session state or SendPulse provider configuration was altered by the flag-only activation.");
           NODE
 
       - name: Remove temporary files and private DB connection material
@@ -529,5 +549,7 @@ jobs:
           rm -f .wrangler.production.provisioning-enabled.toml
           rm -f "$RUNNER_TEMP"/production-db2.pgpass
           rm -f "$RUNNER_TEMP"/production-provisioning-*.json
+          rm -f "$RUNNER_TEMP"/production-provisioning-*.sha256
+          rm -f "$RUNNER_TEMP"/production-provisioning-vars-before.sha256
           rm -f "$RUNNER_TEMP"/production-definer-live.json
           rm -rf "$RUNNER_TEMP"/production-provisioning-enable-dry-run
