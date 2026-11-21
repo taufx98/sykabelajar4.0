@@ -194,6 +194,7 @@ DO $profile_anon$
 DECLARE
   v_count integer;
   v_detail jsonb;
+  v_status text;
   v_denied boolean := false;
 BEGIN
   -- A private profile remains private even when its popup setting is enabled.
@@ -227,6 +228,25 @@ BEGIN
     v_denied := true;
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_ANON_SOCIAL_SUMMARY_ALLOWED'; END IF;
+
+  -- Anonymous pages may sync only public competitions whose schedule has
+  -- crossed a registration boundary; private IDs do not reveal status.
+  v_status := public.sync_competition_registration_status('11111111-1111-4111-8111-111111111111'::uuid);
+  IF v_status IS DISTINCT FROM 'REGISTRATION_OPEN' THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_COMPETITION_STATUS_SYNC_FAILED:%', v_status;
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.sync_competition_registration_status('22222222-2222-4222-8222-222222222222'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED'; END IF;
 
   -- Login/Admin-only RPCs must not be directly executable as anon.
   IF has_function_privilege('anon', 'public.admin_diagnose_organizer_voucher_delete(uuid)'::regprocedure, 'EXECUTE') THEN
@@ -263,6 +283,7 @@ DO $legacy_issuer$
 DECLARE
   v_count integer;
   v_detail jsonb;
+  v_status text;
   v_denied boolean := false;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
@@ -275,6 +296,18 @@ BEGIN
   IF jsonb_array_length(coalesce(v_detail->'badges', '[]'::jsonb)) <> 0 THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_PRIVATE_RESULT_BADGES_ALLOWED';
   END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.sync_competition_registration_status('22222222-2222-4222-8222-222222222222'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED'; END IF;
   -- The private schema intentionally has no USAGE for API roles.
   -- Verify that boundary; exercise its SECURITY DEFINER helpers through
   -- public entrypoints below instead of invoking private functions directly.
@@ -530,6 +563,11 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_PRIVATE_COLLECTIVE_OPTIONS_FAILED:%', v_options;
   END IF;
 
+  v_status := public.sync_competition_registration_status('22222222-2222-4222-8222-222222222222'::uuid);
+  IF v_status IS DISTINCT FROM 'REGISTRATION_OPEN' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_PRIVATE_STATUS_SYNC_FAILED:%', v_status;
+  END IF;
+
   -- A verified Better Auth owner may read their own private/hidden connections
   -- and social summary; the same session may see public social summaries.
   SELECT count(*) INTO v_count
@@ -561,6 +599,7 @@ DECLARE
   v_count integer;
   v_options jsonb;
   v_detail jsonb;
+  v_status text;
   v_denied boolean := false;
 BEGIN
   SELECT count(*) INTO v_count
@@ -585,6 +624,23 @@ BEGIN
   END;
   IF NOT v_denied THEN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_COLLECTIVE_OPTIONS_ALLOWED';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.sync_competition_registration_status('22222222-2222-4222-8222-222222222222'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED'; END IF;
+
+  v_status := public.sync_competition_registration_status('11111111-1111-4111-8111-111111111111'::uuid);
+  IF v_status IS DISTINCT FROM 'REGISTRATION_OPEN' THEN
+    RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_STATUS_SYNC_FAILED:%', v_status;
   END IF;
 
   v_detail := public.get_competition_participant_detail(
