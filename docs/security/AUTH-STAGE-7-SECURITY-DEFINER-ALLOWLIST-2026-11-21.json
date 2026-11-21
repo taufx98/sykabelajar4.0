@@ -16,7 +16,8 @@
     "participant_portal_token",
     "worker_internal",
     "scheduler_trigger",
-    "deprecated_unused"
+    "deprecated_unused",
+    "public_event"
   ],
   "requiredPerFunctionEvidence": [
     "unique exact signature",
