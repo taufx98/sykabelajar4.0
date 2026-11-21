@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const sql = readFileSync(
-  new URL("../../../docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql", import.meta.url),
+  new URL("../../../docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql", import.meta.url),
   "utf8",
 );
 
@@ -25,6 +25,7 @@ test("Stage 7 no-policy hardening is limited to the three reviewed public tables
 test("draft does not add policies, edit rows, alter schema, or weaken RLS", () => {
   const executableSql = sql.replace(/--[^\n]*/g, "");
   assert.match(executableSql, /relrowsecurity/);
+  assert.match(sql, /STAGE5_ACL_PREFLIGHT_OWNER_DRIFT/);
   assert.match(executableSql, /policy_count <> 0/);
   assert.doesNotMatch(executableSql, /CREATE\s+POLICY|DROP\s+POLICY/i);
   assert.doesNotMatch(executableSql, /ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+[^;]+SET/i);
@@ -34,9 +35,9 @@ test("draft does not add policies, edit rows, alter schema, or weaken RLS", () =
 
 test("preflight requires exact ownership, RLS/no-policy state and reviewed baseline grants", () => {
   assert.match(sql, /UNEXPECTED_OWNER/);
-  assert.match(sql, /RLS_DISABLED/);
-  assert.match(sql, /POLICY_DRIFT/);
-  assert.match(sql, /GRANT_DRIFT/);
+  assert.match(sql, /STAGE5_ACL_PREFLIGHT_OWNER_DRIFT/);
+  assert.match(sql, /STAGE5_ACL_PREFLIGHT_POLICY_DRIFT/);
+  assert.match(sql, /STAGE5_ACL_PREFLIGHT_GRANT_DRIFT/);
   for (const role of ["anon", "authenticated", "service_role"]) {
     assert.ok(sql.includes(`has_table_privilege('${role}'`));
   }
@@ -50,7 +51,7 @@ test("postflight denies all browser CRUD and preserves service_role CRUD", () =>
 });
 
 test("the SQL remains a gated draft and never auto-runs against Production", () => {
-  assert.match(sql, /DO NOT RUN/);
+  assert.match(sql, /Do not apply to Production/i);
   assert.match(sql, /off-GitHub full backup checksum/i);
-  assert.match(sql, /owner approves this exact privilege-only DDL operation/i);
+  assert.match(sql, /Current application access uses trusted database functions\/triggers and server-side service_role paths/i);
 });
