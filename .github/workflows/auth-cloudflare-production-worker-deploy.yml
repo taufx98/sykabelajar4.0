@@ -275,4 +275,4 @@ jobs:
 
       - name: Remove temporary verification output
         if: always()
-        run: rm -f "$RUNNER_TEMP"/production-worker-*
+        run: rm -rf -- "$RUNNER_TEMP"/production-worker-*
