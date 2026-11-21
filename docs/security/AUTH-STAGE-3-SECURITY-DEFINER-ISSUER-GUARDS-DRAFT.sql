@@ -43,6 +43,42 @@ AS $function$
     );
 $function$;
 
+-- Individual exam SECURITY DEFINER entrypoints must not treat a matching
+-- legacy Supabase Auth UUID as a valid participant/preview owner. The public
+-- exam RPCs below call this shared helper before reading or changing attempts.
+CREATE OR REPLACE FUNCTION private.assert_individual_linear_exam_access(p_attempt_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := (SELECT auth.uid());
+  v_attempt public.attempts%rowtype;
+BEGIN
+  IF v_uid IS NULL OR NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT *
+    INTO v_attempt
+  FROM public.attempts
+  WHERE id = p_attempt_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+
+  IF v_attempt.is_preview THEN
+    IF v_attempt.preview_owner_id IS DISTINCT FROM v_uid THEN
+      RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+    END IF;
+  ELSIF v_attempt.participant_id IS DISTINCT FROM v_uid THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION private.current_user_is_active_organizer_member(p_organizer_id uuid)
  RETURNS boolean
  LANGUAGE sql
