@@ -13,6 +13,7 @@ const functions = [
   ["public.admin_update_system_error_status(uuid, text, text)", "FROM anon;"],
   ["public.get_follow_status(uuid, uuid)", "FROM PUBLIC, anon;"],
   ["public.get_public_profile_social(uuid)", "FROM PUBLIC, anon;"],
+  ["public.get_my_verified_referrals()", "FROM anon;"],
   ["public.reopen_system_error_incident(uuid, text)", "FROM anon;"],
 ];
 
@@ -40,6 +41,13 @@ test("ACL postflight denies anon and preserves authenticated plus service_role",
   assert.match(sql, /has_function_privilege\('anon', v_function, 'EXECUTE'\)/);
   assert.match(sql, /has_function_privilege\('authenticated', v_function, 'EXECUTE'\)/);
   assert.match(sql, /has_function_privilege\('service_role', v_function, 'EXECUTE'\)/);
+});
+
+test("private referral summary is not callable anonymously", () => {
+  assert.ok(
+    sql.includes("REVOKE EXECUTE ON FUNCTION public.get_my_verified_referrals()\\n  FROM anon;"),
+  );
+  assert.match(sql, /'public\\.get_my_verified_referrals\\(\\)'/);
 });
 
 test("public-read and participant-token RPC grants are not included in this revoke list", () => {
