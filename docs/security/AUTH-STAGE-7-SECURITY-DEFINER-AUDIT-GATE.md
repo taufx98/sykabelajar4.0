@@ -37,6 +37,16 @@ The read-only catalog found 49 RLS-enabled tables without policies across the wh
 
 The exact application list and grants are stored in `docs/security/AUTH-STAGE-7-RLS-NO-POLICY-INVENTORY-2026-11-21.json`; the review matrix is `docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-21.json`, currently blocked at 0/23 reviewed. Seventeen public tables grant no direct browser-role table privileges. Three public tables (`competition_status_history`, `notification_deliveries`, `supabase_system_logs`) have broad CRUD grants for both `anon` and `authenticated`, but no RLS policies. PostgreSQL RLS therefore remains default-deny for these roles while policies are absent; nevertheless, the broad grants must be reviewed against actual application callers before changing grants or adding policies. No blanket policy or privilege changes are approved.
 
+### Three broad-grant tables — catalog review and scoped draft (21 November 2026)
+
+A fresh read-only ACL/RLS query confirmed all three tables are owned by `postgres`, have RLS enabled with zero policies, and currently grant SELECT/INSERT/UPDATE/DELETE to `anon`, `authenticated`, and `service_role`. The function-body scan found these trusted PostgreSQL callers:
+
+- `competition_status_history`: `public.track_competition_status()`, `public.transition_competition(...)`, `public.get_public_competition_results(...)`, `public.admin_get_monitoring_dashboard(...)`, and `private.monthly_organizer_competition_quota(...)`; each catalog entry is `SECURITY DEFINER` and `postgres`-owned.
+- `supabase_system_logs`: `public.fetch_and_save_supabase_logs()`, a `postgres`-owned `SECURITY DEFINER` function.
+- `notification_deliveries`: no PostgreSQL function-body reference was found in the current `pg_proc` scan; retain the full `service_role` ACL for trusted backend delivery recording and verify the Edge/backend caller path on the disposable restore.
+
+A narrow, idempotent candidate is prepared in `docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql`. It preflights exact ownership/RLS/no-policy/current-grant state, revokes only the direct `anon` and `authenticated` table grants, and verifies that `service_role` retains all CRUD privileges. It does not add policies or edit data/schema/functions. Its contract tests are in `services/auth-worker/tests/stage7-rls-no-policy-hardening-contract.test.mjs`. This is **draft/static contract coverage only**: it has not been applied to Production or yet runtime-rehearsed on the disposable DB. Accordingly the RLS matrix remains blocked at 0/23 acceptance-reviewed; the three rows are marked catalog-reviewed/pending caller and runtime tests, not passed.
+
 ## Why this blocks Stage 3
 
 The issuer restrictive RLS policies do not constrain a \`SECURITY DEFINER\` function while it runs with its owner's privileges. Therefore an old Supabase Auth JWT may still reach a definer RPC whose authorization relies only on \`auth.uid()\`, direct \`user_roles\` reads, or another legacy identity assumption. The presence of 61 issuer RLS guards and 21 specially rewritten functions is not proof that all exposed RPCs reject a legacy issuer.
