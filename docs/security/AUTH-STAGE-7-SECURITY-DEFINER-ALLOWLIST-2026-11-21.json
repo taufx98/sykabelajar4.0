@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "status": "blocked",
+  "projectRef": "mvdczyitbkxkldjughor",
+  "snapshotDate": "2026-11-21",
+  "source": "Fresh read-only Supabase Security Advisor and PostgreSQL catalog inventory",
+  "authenticatedSecurityDefinerCount": 202,
+  "anonSecurityDefinerCount": 46,
+  "rlsEnabledNoPolicyCount": 23,
+  "reviewedAuthenticatedFunctionCount": 0,
+  "functions": [],
+  "allowedClassifications": [
+    "better_auth_user",
+    "admin_organizer",
+    "public_read",
+    "participant_portal_token",
+    "worker_internal",
+    "scheduler_trigger",
+    "deprecated_unused"
+  ],
+  "requiredPerFunctionEvidence": [
+    "unique exact signature",
+    "reviewed rationale and source digest",
+    "legacy Supabase Auth token denial for Better Auth-only functions",
+    "valid Better Auth or explicitly public behavior",
+    "IDOR or token boundary tests"
+  ]
+}

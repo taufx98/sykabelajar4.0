@@ -1,10 +1,10 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **new blocking gate discovered on 20 November 2026; no database changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking, refreshed 21 November 2026; no Production DB2 changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
-## Read-only live snapshot
+## Read-only live snapshot — 21 November 2026
 
-Supabase Security Advisor on 20 November 2026 reported:
+A fresh Supabase Security Advisor query at 2026-11-21T01:17:16Z reported the following external-facing findings:
 
 | Finding | Count | Treatment |
 |---|---:|---|
@@ -20,6 +20,14 @@ A separate read-only \`pg_proc\` definition scan produced these overlapping heur
 - Of those 118, 77 contain \`auth.uid()\`; 19 reference \`user_roles\` directly; 10 accept \`p_access_token\` or \`p_portal_token\`; 41 contain neither \`auth.uid()\` nor an obvious issuer/helper marker.
 
 These groups overlap. They are **static indicators, not vulnerability verdicts**. A function may use a separate token, owner predicate, private helper, or public-data contract not detected by this coarse scan. The 46 \`anon\` functions overlap the 202 \`authenticated\` functions.
+
+The 21 November direct catalog recheck separates Supabase's own internal Auth relations from application relations: 10 FKs in schema \`auth\` still point to \`auth.users\`; the application cutover remains 69 FKs total (65 in \`public\`, 4 in \`private\`). The complete catalog therefore has 79 FKs to \`auth.users\` if the 10 internal Auth FKs are included. The Stage 3 application FK plan must cover only the 69 \`public\`/\`private\` relations; never retarget Supabase's internal \`auth\` constraints.
+
+The exact, read-only 21 November metadata inventory for all 202 signatures is saved in \`docs/security/AUTH-STAGE-7-SECURITY-DEFINER-INVENTORY-2026-11-21.json\` (202 distinct signatures, source MD5, owner, ACL, execute flags, and per-function search_path). Its static markers show 77 with an empty search_path and 125 with a non-empty search_path; 130 mention auth.uid, 84 mention the current Admin helper, 24 mention user_roles, 13 mention access/portal token parameters, and 0 contain a direct auth.jwt marker. These are triage indicators only, not classifications or pass/fail verdicts. Every function still requires manual source/dependency review and per-class runtime tests. The provisioning activation workflow requires the live metadata to match this snapshot exactly and stops on any drift.
+
+The three custom \`auth.users\` triggers are still present: \`on_auth_user_created\`, \`trg_referral_email_confirmed\`, and \`trg_referral_signup_attribution\`. \`private.app_users\` is still absent. No Production DDL/DML was run.
+
+The machine-readable review gate \`docs/security/AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21.json\` is intentionally \`status: blocked\` with 0/202 reviewed functions. The new owner-only activation workflow refuses to run unless the inventory is completely classified and every per-function legacy-issuer/token boundary test is marked passing. Do not change the manifest to complete merely to pass the workflow.
 
 DB2 remains unchanged: 12 Auth users/identities, 46 sessions, 76 refresh tokens, 12 profiles, 17 business-role rows, 69 application FKs still reference \`auth.users\`, \`private.app_users\` is absent, and three legacy Auth lifecycle triggers remain.
 
