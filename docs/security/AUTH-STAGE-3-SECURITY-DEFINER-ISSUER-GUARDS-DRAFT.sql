@@ -205,6 +205,109 @@ BEGIN
 END;
 $collective_options_acl_postflight$;
 
+-- Registration status sync is intentionally callable from public competition
+-- pages: it only materializes timestamp-driven PUBLISHED -> REGISTRATION_OPEN
+-- and REGISTRATION_OPEN -> REGISTRATION_CLOSED transitions. SECURITY DEFINER
+-- must not let anon/legacy callers probe or advance a private competition.
+CREATE OR REPLACE FUNCTION public.sync_competition_registration_status(p_competition_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_competition public.competitions%rowtype;
+  v_status text;
+  v_now timestamptz := clock_timestamp();
+BEGIN
+  IF p_competition_id IS NULL THEN
+    RAISE EXCEPTION 'COMPETITION_ID_REQUIRED';
+  END IF;
+
+  SELECT c.*
+    INTO v_competition
+  FROM public.competitions AS c
+  WHERE c.id = p_competition_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
+  IF v_competition.visibility IS DISTINCT FROM 'PUBLIC' THEN
+    IF NOT private.current_user_is_better_auth() THEN
+      RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+    END IF;
+    IF NOT (
+      private.current_user_is_admin()
+      OR (
+        v_competition.organizer_id IS NOT NULL
+        AND private.current_user_is_organizer_for(v_competition.organizer_id)
+      )
+    ) THEN
+      RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+    END IF;
+  END IF;
+
+  SELECT c.status::text
+    INTO v_status
+  FROM public.competitions AS c
+  WHERE c.id = p_competition_id
+    AND (
+      (
+        c.status = 'PUBLISHED'::public.competition_status
+        AND c.registration_starts_at IS NOT NULL
+        AND c.registration_starts_at <= v_now
+      )
+      OR
+      (
+        c.status = 'REGISTRATION_OPEN'::public.competition_status
+        AND c.registration_ends_at IS NOT NULL
+        AND c.registration_ends_at < v_now
+      )
+    );
+
+  IF NOT FOUND THEN
+    RETURN v_competition.status::text;
+  END IF;
+
+  SELECT c.*
+    INTO v_competition
+  FROM public.competitions AS c
+  WHERE c.id = p_competition_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
+  IF v_competition.status = 'PUBLISHED'::public.competition_status
+     AND v_competition.registration_starts_at IS NOT NULL
+     AND v_now >= v_competition.registration_starts_at THEN
+    PERFORM pg_catalog.set_config('syka.allow_competition_transition', '1', true);
+
+    UPDATE public.competitions
+    SET status = 'REGISTRATION_OPEN'::public.competition_status,
+        updated_at = clock_timestamp()
+    WHERE id = p_competition_id
+    RETURNING * INTO v_competition;
+  END IF;
+
+  IF v_competition.status = 'REGISTRATION_OPEN'::public.competition_status
+     AND v_competition.registration_ends_at IS NOT NULL
+     AND v_now > v_competition.registration_ends_at THEN
+    PERFORM pg_catalog.set_config('syka.allow_competition_transition', '1', true);
+
+    UPDATE public.competitions
+    SET status = 'REGISTRATION_CLOSED'::public.competition_status,
+        updated_at = clock_timestamp()
+    WHERE id = p_competition_id
+    RETURNING * INTO v_competition;
+  END IF;
+
+  RETURN v_competition.status::text;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION private.assert_individual_linear_exam_access(p_attempt_id uuid)
 RETURNS void
 LANGUAGE plpgsql
