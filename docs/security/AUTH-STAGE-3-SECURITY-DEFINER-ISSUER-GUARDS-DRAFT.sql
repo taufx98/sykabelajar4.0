@@ -1251,6 +1251,257 @@ END;
 $function$;
 
 
+
+-- Public competition results may include badges only under the profile's
+-- public badge-collection preference, or for the verified Better Auth owner
+-- / current Admin. A legacy Supabase Auth JWT with the same UUID is not the
+-- profile owner after the identity cutover.
+CREATE OR REPLACE FUNCTION public.get_competition_participant_detail(
+  p_slug text,
+  p_participant_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_comp public.competitions%rowtype;
+  v_participant public.participants%rowtype;
+  v_attempt public.attempts%rowtype;
+  v_published boolean;
+  v_badges_visible boolean := false;
+  v_rank bigint;
+  v_total integer := 0;
+  v_correct integer := 0;
+  v_incorrect integer := 0;
+  v_manual integer := 0;
+  v_unanswered integer := 0;
+  v_elapsed integer := 0;
+  v_awards jsonb := '[]'::jsonb;
+  v_badges jsonb := '[]'::jsonb;
+  v_certificates jsonb := '[]'::jsonb;
+BEGIN
+  SELECT *
+    INTO v_comp
+  FROM public.competitions AS c
+  WHERE c.slug = trim(coalesce(p_slug, ''));
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
+  v_published := v_comp.visibility = 'PUBLIC'
+    AND v_comp.status::text IN ('RESULT_PUBLISHED', 'ARCHIVED');
+
+  IF NOT v_published THEN
+    IF (SELECT auth.uid()) IS NULL THEN
+      RAISE EXCEPTION 'RESULT_NOT_PUBLISHED';
+    END IF;
+    IF NOT (
+      private.current_user_is_admin()
+      OR (
+        v_comp.organizer_id IS NOT NULL
+        AND private.current_user_can_edit_competition(v_comp.organizer_id)
+      )
+    ) THEN
+      RAISE EXCEPTION 'ACCESS_DENIED';
+    END IF;
+  END IF;
+
+  SELECT *
+    INTO v_participant
+  FROM public.participants AS p
+  WHERE p.id = p_participant_id
+    AND p.competition_id = v_comp.id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PARTICIPANT_NOT_FOUND';
+  END IF;
+
+  -- Match public profile badge collection visibility without accepting an
+  -- old Supabase Auth UUID as proof of private profile ownership.
+  IF v_participant.user_id IS NOT NULL THEN
+    SELECT
+      (
+        private.current_user_is_better_auth()
+        AND (SELECT auth.uid()) IS NOT DISTINCT FROM p.id
+      )
+      OR private.current_user_is_admin()
+      OR (
+        coalesce(p.is_public, false)
+        AND coalesce(settings.show_badge_collection, true)
+      )
+    INTO v_badges_visible
+    FROM public.profiles AS p
+    LEFT JOIN public.profile_ui_settings AS settings
+      ON settings.user_id = p.id
+    WHERE p.id = v_participant.user_id;
+  END IF;
+
+  SELECT *
+    INTO v_attempt
+  FROM public.attempts AS a
+  WHERE a.competition_id = v_comp.id
+    AND a.canonical_participant_id = v_participant.id
+    AND a.is_preview = false
+    AND a.status::text = 'FINALIZED'
+  ORDER BY a.finalized_at DESC NULLS LAST, a.created_at DESC, a.id DESC
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'has_result', false,
+      'participant', jsonb_build_object(
+        'full_name', v_participant.full_name,
+        'participant_type', v_participant.participant_type,
+        'grade', v_participant.grade,
+        'class_name', v_participant.class_name,
+        'school_name', (
+          SELECT s.name
+          FROM public.schools AS s
+          WHERE s.id = v_participant.school_id
+        )
+      ),
+      'scores', NULL,
+      'awards', '[]'::jsonb,
+      'badges', '[]'::jsonb,
+      'certificates', '[]'::jsonb
+    );
+  END IF;
+
+  SELECT r.rank_position
+    INTO v_rank
+  FROM private.canonical_competition_results(v_comp.id) AS r
+  WHERE r.canonical_participant_id = v_participant.id;
+
+  SELECT
+    count(*)::integer,
+    count(*) FILTER (WHERE evaluated.result_status = 'CORRECT')::integer,
+    count(*) FILTER (WHERE evaluated.result_status = 'INCORRECT')::integer,
+    count(*) FILTER (WHERE evaluated.result_status = 'MANUAL_REVIEW')::integer,
+    count(*) FILTER (WHERE evaluated.result_status IN ('UNANSWERED', 'SKIPPED', 'TIMEOUT'))::integer
+  INTO v_total, v_correct, v_incorrect, v_manual, v_unanswered
+  FROM (
+    SELECT (
+      private.evaluate_linear_preview_answer(
+        eq.state,
+        eq.transition_reason,
+        eq.question_snapshot,
+        eq.answer_key_snapshot,
+        coalesce(a.answer_json, '{}'::jsonb)
+      )->>'result_status'
+    ) AS result_status
+    FROM public.exam_attempt_questions AS eq
+    LEFT JOIN public.answers AS a
+      ON a.attempt_id = eq.attempt_id
+     AND a.question_id = eq.question_id
+    WHERE eq.attempt_id = v_attempt.id
+  ) AS evaluated;
+
+  SELECT coalesce(sum(eq.elapsed_seconds), 0)::integer
+    INTO v_elapsed
+  FROM public.exam_attempt_questions AS eq
+  WHERE eq.attempt_id = v_attempt.id;
+
+  IF v_elapsed = 0 AND v_attempt.started_at IS NOT NULL THEN
+    v_elapsed := greatest(
+      0,
+      extract(epoch FROM (
+        coalesce(v_attempt.submitted_at, v_attempt.finalized_at) - v_attempt.started_at
+      ))::integer
+    );
+  END IF;
+
+  IF v_participant.user_id IS NOT NULL THEN
+    SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'title', aw.title,
+      'rank_code', aw.rank_code,
+      'points', aw.points,
+      'emblem_url', aw.emblem_url,
+      'issued_at', aw.issued_at
+    ) ORDER BY aw.issued_at DESC), '[]'::jsonb)
+      INTO v_awards
+    FROM public.awards AS aw
+    WHERE aw.user_id = v_participant.user_id
+      AND aw.competition_id = v_comp.id
+      AND aw.visibility = 'PUBLIC';
+
+    SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'name', b.name,
+      'description', b.description,
+      'icon_url', b.icon_url,
+      'icon_emoji', b.icon_emoji,
+      'rarity', b.rarity,
+      'awarded_at', ub.awarded_at
+    ) ORDER BY ub.awarded_at DESC), '[]'::jsonb)
+      INTO v_badges
+    FROM public.user_badges AS ub
+    JOIN public.badges AS b ON b.id = ub.badge_id
+    WHERE ub.user_id = v_participant.user_id
+      AND ub.source_reference = v_comp.id::text
+      AND b.status = 'ACTIVE'
+      AND coalesce(v_badges_visible, false);
+  END IF;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'serial_number', cert.serial_number,
+    'certificate_url', cert.certificate_url,
+    'issued_at', cert.issued_at
+  ) ORDER BY cert.issued_at DESC), '[]'::jsonb)
+    INTO v_certificates
+  FROM public.certificates AS cert
+  WHERE cert.canonical_participant_id = v_participant.id
+    AND cert.competition_id = v_comp.id
+    AND cert.status::text = 'PUBLISHED'
+    AND cert.certificate_url IS NOT NULL;
+
+  SELECT v_certificates || coalesce(jsonb_agg(jsonb_build_object(
+    'serial_number', cc.serial_number,
+    'certificate_url', cc.certificate_url,
+    'issued_at', cc.issued_at
+  ) ORDER BY cc.issued_at DESC), '[]'::jsonb)
+    INTO v_certificates
+  FROM public.collective_certificates AS cc
+  WHERE cc.canonical_participant_id = v_participant.id
+    AND cc.competition_id = v_comp.id
+    AND cc.status = 'PUBLISHED'
+    AND cc.certificate_url IS NOT NULL;
+
+  RETURN jsonb_build_object(
+    'has_result', true,
+    'participant', jsonb_build_object(
+      'full_name', v_participant.full_name,
+      'participant_type', v_participant.participant_type,
+      'grade', v_participant.grade,
+      'class_name', v_participant.class_name,
+      'school_name', (
+        SELECT s.name
+        FROM public.schools AS s
+        WHERE s.id = v_participant.school_id
+      )
+    ),
+    'result', jsonb_build_object(
+      'rank', v_rank,
+      'score', v_attempt.score,
+      'finalized_at', v_attempt.finalized_at,
+      'duration_seconds', v_elapsed
+    ),
+    'question_summary', jsonb_build_object(
+      'total', v_total,
+      'correct', v_correct,
+      'incorrect', v_incorrect,
+      'manual_review', v_manual,
+      'unanswered', v_unanswered
+    ),
+    'awards', v_awards,
+    'badges', v_badges,
+    'certificates', v_certificates
+  );
+END;
+$function$;
+
 -- These RPCs have explicit auth.uid()/Admin guards and are used by signed-in
 -- application users only. Remove redundant anon/PUBLIC EXECUTE without
 -- changing authenticated, service_role, or owner privileges.
