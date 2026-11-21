@@ -852,3 +852,84 @@ BEGIN
   END IF;
 END;
 $function$;
+
+-- These RPCs have explicit auth.uid()/Admin guards and are used by signed-in
+-- application users only. Remove redundant anon/PUBLIC EXECUTE without
+-- changing authenticated, service_role, or owner privileges.
+DO $acl_preflight$
+DECLARE
+  v_signature text;
+  v_function regprocedure;
+  v_owner text;
+  v_is_definer boolean;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.admin_diagnose_organizer_voucher_delete(uuid)',
+    'public.admin_evaluate_badges()',
+    'public.admin_update_system_error_status(uuid,text,text)',
+    'public.get_follow_status(uuid,uuid)',
+    'public.get_public_profile_social(uuid)',
+    'public.reopen_system_error_incident(uuid,text)'
+  ]
+  LOOP
+    v_function := pg_catalog.to_regprocedure(v_signature);
+    IF v_function IS NULL THEN
+      RAISE EXCEPTION 'ISSUER_GUARD_FUNCTION_MISSING: %', v_signature;
+    END IF;
+
+    SELECT pg_catalog.pg_get_userbyid(p.proowner), p.prosecdef
+      INTO v_owner, v_is_definer
+    FROM pg_catalog.pg_proc AS p
+    WHERE p.oid = v_function;
+
+    IF v_owner IS DISTINCT FROM 'postgres' OR v_is_definer IS DISTINCT FROM TRUE THEN
+      RAISE EXCEPTION 'ISSUER_GUARD_UNEXPECTED_OWNER_OR_KIND: % owner=% definer=%',
+        v_signature, v_owner, v_is_definer;
+    END IF;
+    IF NOT pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'ISSUER_GUARD_EXECUTE_BASELINE_DRIFT: %', v_signature;
+    END IF;
+  END LOOP;
+END;
+$acl_preflight$;
+
+REVOKE EXECUTE ON FUNCTION public.admin_diagnose_organizer_voucher_delete(uuid)
+  FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_evaluate_badges()
+  FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.admin_update_system_error_status(uuid, text, text)
+  FROM anon;
+REVOKE EXECUTE ON FUNCTION public.get_follow_status(uuid, uuid)
+  FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_public_profile_social(uuid)
+  FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.reopen_system_error_incident(uuid, text)
+  FROM anon;
+
+DO $acl_postflight$
+DECLARE
+  v_signature text;
+  v_function regprocedure;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.admin_diagnose_organizer_voucher_delete(uuid)',
+    'public.admin_evaluate_badges()',
+    'public.admin_update_system_error_status(uuid,text,text)',
+    'public.get_follow_status(uuid,uuid)',
+    'public.get_public_profile_social(uuid)',
+    'public.reopen_system_error_incident(uuid,text)'
+  ]
+  LOOP
+    v_function := pg_catalog.to_regprocedure(v_signature);
+    IF pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'ISSUER_GUARD_ANON_EXECUTE_REMAINS: %', v_signature;
+    END IF;
+    IF NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'ISSUER_GUARD_TRUSTED_EXECUTE_MISSING: %', v_signature;
+    END IF;
+  END LOOP;
+END;
+$acl_postflight$;
