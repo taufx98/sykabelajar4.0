@@ -22,7 +22,7 @@ test("Stage 7 no-policy hardening is limited to the three reviewed public tables
   assert.ok(revoke, "expected one explicit browser-role revoke");
   for (const table of targetTables) assert.ok(revoke[1].includes(table));
   assert.equal((revoke[1].match(/public\./g) ?? []).length, 3);
-  assert.doesNotMatch(revoke[0], /service_role|PUBLIC/i);
+  assert.doesNotMatch(revoke[0], /service_role|FROM\\s+[^;]*\\bPUBLIC\\b/i);
 });
 
 test("draft does not add policies, edit rows, alter schema, or weaken RLS", () => {
