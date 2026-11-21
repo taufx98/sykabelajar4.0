@@ -146,6 +146,23 @@ BEGIN
     v_denied := true;
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_ANON_SOCIAL_SUMMARY_ALLOWED'; END IF;
+
+  -- Login/Admin-only RPCs must not be directly executable as anon.
+  IF has_function_privilege('anon', 'public.admin_diagnose_organizer_voucher_delete(uuid)'::regprocedure, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_ANON_ADMIN_DIAGNOSE_EXECUTE_REMAINS';
+  END IF;
+  IF has_function_privilege('anon', 'public.admin_evaluate_badges()'::regprocedure, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_ANON_ADMIN_EVALUATE_BADGES_EXECUTE_REMAINS';
+  END IF;
+  IF has_function_privilege('anon', 'public.admin_update_system_error_status(uuid,text,text)'::regprocedure, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_ANON_ADMIN_UPDATE_SYSTEM_ERROR_EXECUTE_REMAINS';
+  END IF;
+  IF has_function_privilege('anon', 'public.reopen_system_error_incident(uuid,text)'::regprocedure, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_ANON_REOPEN_SYSTEM_ERROR_EXECUTE_REMAINS';
+  END IF;
+  IF has_function_privilege('anon', 'public.get_follow_status(uuid,uuid)'::regprocedure, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_ANON_GET_FOLLOW_STATUS_EXECUTE_REMAINS';
+  END IF;
 END;
 $profile_anon$;
 
@@ -206,6 +223,79 @@ BEGIN
   IF NOT v_denied THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_DIRECT_ADMIN_RPC_ALLOWED';
   END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_follow_status(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_GET_FOLLOW_STATUS_ALLOWED'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_diagnose_organizer_voucher_delete(
+      'ffffffff-ffff-4fff-8fff-fffffffffff1'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_DIAGNOSE_ALLOWED'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_evaluate_badges();
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_EVALUATE_BADGES_ALLOWED'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_update_system_error_status(
+      'ffffffff-ffff-4fff-8fff-fffffffffff2'::uuid,
+      'resolved',
+      'stage3 negative issuer test'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_UPDATE_SYSTEM_ERROR_ALLOWED'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.reopen_system_error_incident(
+      'ffffffff-ffff-4fff-8fff-fffffffffff3'::uuid,
+      'stage3 negative issuer test'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_REOPEN_SYSTEM_ERROR_ALLOWED'; END IF;
+
   BEGIN
     INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
     VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy-insert');
@@ -222,7 +312,10 @@ SELECT set_config('request.jwt.claims',
   true);
 SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
 DO $better_auth_issuer$
-DECLARE v_count integer;
+DECLARE
+  v_count integer;
+  v_result jsonb;
+  v_status text;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED'; END IF;
@@ -234,6 +327,51 @@ BEGIN
   END IF;
   IF public.admin_set_collective_certificate_price(0) <> 0 THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_DIRECT_ADMIN_RPC_DENIED';
+  END IF;
+
+  -- The valid Better Auth Admin can execute the scoped Admin/social RPCs.
+  v_result := public.admin_diagnose_organizer_voucher_delete(
+    'ffffffff-ffff-4fff-8fff-fffffffffff1'::uuid
+  );
+  IF COALESCE((v_result ->> 'ok')::boolean, false) IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_DIAGNOSE_RPC_FAILED:%', v_result;
+  END IF;
+
+  PERFORM public.admin_evaluate_badges();
+
+  v_result := NULL;
+  BEGIN
+    v_result := public.admin_update_system_error_status(
+      'ffffffff-ffff-4fff-8fff-fffffffffff2'::uuid,
+      'resolved',
+      'stage3 positive admin test'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'INCIDENT_NOT_FOUND' THEN RAISE; END IF;
+  END;
+  IF v_result IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_UPDATE_SYSTEM_ERROR_UNEXPECTED_RESULT:%', v_result;
+  END IF;
+
+  v_result := NULL;
+  BEGIN
+    v_result := public.reopen_system_error_incident(
+      'ffffffff-ffff-4fff-8fff-fffffffffff3'::uuid,
+      'stage3 positive admin test'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'INCIDENT_NOT_FOUND' THEN RAISE; END IF;
+  END;
+  IF v_result IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_REOPEN_SYSTEM_ERROR_UNEXPECTED_RESULT:%', v_result;
+  END IF;
+
+  v_status := public.get_follow_status(
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid
+  );
+  IF v_status IS DISTINCT FROM 'approved' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_GET_FOLLOW_STATUS_FAILED:%', v_status;
   END IF;
 
   -- A verified Better Auth owner may read their own private/hidden connections
