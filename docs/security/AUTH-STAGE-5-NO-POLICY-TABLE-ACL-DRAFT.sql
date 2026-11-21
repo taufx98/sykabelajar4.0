@@ -99,6 +99,7 @@ BEGIN
   FOR v_table IN
     SELECT c.relname,
            c.oid,
+           pg_catalog.pg_get_userbyid(c.relowner) AS table_owner,
            c.relrowsecurity,
            (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid) AS policy_count
     FROM pg_class c
