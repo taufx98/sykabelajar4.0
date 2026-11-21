@@ -518,4 +518,5 @@ jobs:
           rm -f .wrangler.production.provisioning-enabled.toml
           rm -f "$RUNNER_TEMP"/production-db2.pgpass
           rm -f "$RUNNER_TEMP"/production-provisioning-*.json
+          rm -f "$RUNNER_TEMP"/production-definer-live.json
           rm -rf "$RUNNER_TEMP"/production-provisioning-enable-dry-run
