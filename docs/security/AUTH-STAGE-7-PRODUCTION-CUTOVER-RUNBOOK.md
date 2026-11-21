@@ -72,6 +72,8 @@ Official Supabase references: [Custom OIDC](https://supabase.com/docs/guides/aut
 
 The agreed design starts with fresh Better Auth accounts. It does not import old Supabase Auth credentials, password hashes, identities or sessions. Existing auth.users rows and application rows remain untouched.
 
+**Owner clarification — 21 November 2026:** the existing legacy accounts are testing/demo accounts only; there are no active public users to migrate. They are explicitly excluded from the Better Auth identity population and do not block cutover. No credentials, sessions, identities or business roles are to be imported, and no new account is to inherit an old account's profile or history by matching email. The UUID-only `private.app_users` tombstones in the rehearsed Stage 3 path are optional structural FK anchors for application test rows that are intentionally retained; they are not old-user accounts. This decision does not authorize broad deletion of application tables or Supabase-managed `auth`/`storage` objects.
+
 The Stage 3 design uses private.app_users as the new identity root and UUID-only legacy_reference tombstones to preserve existing application foreign-key references. A tombstone is not a login identity; it contains no password, email identity, session or copied business role.
 
 After Better Auth issuer guards are enabled, Supabase Auth JWTs are rejected on guarded application surfaces. A person who registers again with the same email receives a new Better Auth UUID. That new UUID does not automatically inherit the old UUID's profile, business roles, referral history, registrations, wallet or other application rows. Existing data remains under its old UUID and is not deleted, but it is not automatically attached to the new account.
