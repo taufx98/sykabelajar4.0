@@ -798,37 +798,50 @@ SECURITY DEFINER
 SET search_path TO ''
 AS $function$
 DECLARE
-  v_allow boolean;
   v_uid uuid := (SELECT auth.uid());
+  v_profile_is_public boolean := false;
+  v_allow boolean := false;
   v_is_better_auth_owner boolean := false;
 BEGIN
-  IF p_profile_id IS NULL THEN
+  IF p_profile_id IS NULL
+     OR p_mode IS NULL
+     OR p_mode NOT IN ('following', 'followers') THEN
     RETURN;
   END IF;
 
-  IF p_mode = 'following' THEN
-    SELECT COALESCE(s.show_following_popup, true)
-      INTO v_allow
-    FROM public.profile_ui_settings AS s
-    WHERE s.user_id = p_profile_id;
-  ELSE
-    SELECT COALESCE(s.show_social_popup, true)
-      INTO v_allow
-    FROM public.profile_ui_settings AS s
-    WHERE s.user_id = p_profile_id;
+  SELECT
+    COALESCE(profile.is_public, false),
+    CASE
+      WHEN p_mode = 'following' THEN COALESCE(settings.show_following_popup, true)
+      ELSE COALESCE(settings.show_social_popup, true)
+    END
+  INTO v_profile_is_public, v_allow
+  FROM public.profiles AS profile
+  LEFT JOIN public.profile_ui_settings AS settings
+    ON settings.user_id = profile.id
+  WHERE profile.id = p_profile_id;
+
+  IF NOT FOUND THEN
+    RETURN;
   END IF;
 
   v_is_better_auth_owner :=
     v_uid IS NOT NULL
     AND v_uid IS NOT DISTINCT FROM p_profile_id
-    AND (SELECT auth.jwt() ->> 'iss') =
-      'https://auth-prod.sykabelajar.my.id/api/auth'
+    AND (SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth'
     AND EXISTS (
       SELECT 1
       FROM private.app_users AS au
       WHERE au.id = v_uid
         AND au.identity_origin = 'better_auth'
     );
+
+  -- SECURITY DEFINER bypasses table RLS: explicitly enforce profiles.is_public.
+  -- A Better Auth owner may always inspect their own private/hidden connection list.
+  IF NOT v_profile_is_public
+     AND NOT COALESCE(v_is_better_auth_owner, false) THEN
+    RETURN;
+  END IF;
 
   IF NOT COALESCE(v_allow, true)
      AND NOT COALESCE(v_is_better_auth_owner, false) THEN
@@ -854,6 +867,7 @@ BEGIN
   END IF;
 END;
 $function$;
+
 
 -- Private profile reads may be public only when the target profile's
 -- existing public-visibility setting allows it. A private profile's owner
@@ -1034,9 +1048,28 @@ AS $function$
 DECLARE
   v_uid uuid := (SELECT auth.uid());
   v_status text := 'none';
+  v_is_public boolean := false;
 BEGIN
   IF v_uid IS NULL OR NOT private.current_user_is_better_auth() THEN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  IF p_profile_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(profile.is_public, false)
+    INTO v_is_public
+  FROM public.profiles AS profile
+  WHERE profile.id = p_profile_id;
+
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  -- Private social aggregates are only available to the Better Auth owner.
+  IF NOT v_is_public AND v_uid IS DISTINCT FROM p_profile_id THEN
+    RETURN;
   END IF;
 
   SELECT CASE
@@ -1068,6 +1101,7 @@ BEGIN
 END;
 $function$;
 
+
 -- These RPCs have explicit auth.uid()/Admin guards and are used by signed-in
 -- application users only. Remove redundant anon/PUBLIC EXECUTE without
 -- changing authenticated, service_role, or owner privileges.
@@ -1083,7 +1117,6 @@ BEGIN
     'public.admin_evaluate_badges()',
     'public.admin_update_system_error_status(uuid,text,text)',
     'public.get_follow_status(uuid,uuid)',
-    'public.get_public_profile_social(uuid)',
     'public.reopen_system_error_incident(uuid,text)'
   ]
   LOOP
@@ -1118,10 +1151,49 @@ REVOKE EXECUTE ON FUNCTION public.admin_update_system_error_status(uuid, text, t
   FROM anon;
 REVOKE EXECUTE ON FUNCTION public.get_follow_status(uuid, uuid)
   FROM PUBLIC, anon;
-REVOKE EXECUTE ON FUNCTION public.get_public_profile_social(uuid)
-  FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.reopen_system_error_incident(uuid, text)
   FROM anon;
+
+DO $social_acl_preflight$
+DECLARE
+  v_function regprocedure := pg_catalog.to_regprocedure('public.get_public_profile_social(uuid)');
+  v_owner text;
+  v_is_definer boolean;
+BEGIN
+  IF v_function IS NULL THEN
+    RAISE EXCEPTION 'SOCIAL_RPC_MISSING';
+  END IF;
+  SELECT pg_catalog.pg_get_userbyid(p.proowner), p.prosecdef
+    INTO v_owner, v_is_definer
+  FROM pg_catalog.pg_proc AS p
+  WHERE p.oid = v_function;
+  IF v_owner IS DISTINCT FROM 'postgres' OR v_is_definer IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'SOCIAL_RPC_UNEXPECTED_OWNER_OR_KIND';
+  END IF;
+  IF NOT pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'SOCIAL_RPC_EXECUTE_BASELINE_DRIFT';
+  END IF;
+END;
+$social_acl_preflight$;
+
+REVOKE ALL ON FUNCTION public.get_public_profile_social(uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_public_profile_social(uuid)
+  TO authenticated;
+
+DO $social_acl_postflight$
+DECLARE
+  v_function regprocedure := pg_catalog.to_regprocedure('public.get_public_profile_social(uuid)');
+BEGIN
+  IF pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+     OR pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'SOCIAL_RPC_EXECUTE_POSTFLIGHT_FAILED';
+  END IF;
+END;
+$social_acl_postflight$;
 
 DO $acl_postflight$
 DECLARE
