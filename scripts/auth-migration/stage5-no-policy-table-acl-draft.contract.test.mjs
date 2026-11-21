@@ -20,7 +20,8 @@ assert.deepEqual(tableNames, [
 ].sort(), "only the three reviewed no-policy tables may be changed");
 
 assert.match(draft, /relrowsecurity IS DISTINCT FROM true/i);
-assert.match(draft, /pg_get_userbyid\\(c\\.relowner\\) AS table_owner/i);
+const ownerSelects = [...draft.matchAll(/pg_get_userbyid\(c\.relowner\) AS table_owner/gi)];
+assert.equal(ownerSelects.length, 2, "both preflight and postcondition must pin postgres ownership");
 assert.match(draft, /STAGE5_ACL_PREFLIGHT_OWNER_DRIFT/i);
 assert.match(draft, /STAGE5_ACL_POSTCONDITION_OWNER_DRIFT/i);
 assert.match(draft, /policy_count <> 0/i);
