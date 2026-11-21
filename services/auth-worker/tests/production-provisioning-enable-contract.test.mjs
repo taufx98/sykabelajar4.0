@@ -62,7 +62,7 @@ test("SendPulse is the only active provider prerequisite and identity state stay
 test("Deployment changes only the Production provisioning flag and preserves staging", () => {
   assert.match(workflow, /SUPABASE_PROVISIONING_ENABLED = "false"/);
   assert.match(workflow, /SUPABASE_PROVISIONING_ENABLED = "true"/);
-  assert.match(workflow, /replace\('SUPABASE_PROVISIONING_ENABLED = "true"',match\)===original/);
+  assert.match(workflow, /replace\('SUPABASE_PROVISIONING_ENABLED = "true"',match\)!==original/);
   assert.match(workflow, /deploy --dry-run/);
   assert.match(workflow, /AUTH_SIGNUP_DISABLED.*true/);
   assert.match(workflow, /auth\.sykabelajar\.my\.id/);
