@@ -7,6 +7,13 @@
 
 BEGIN;
 
+-- Current Production callers of this helper:
+--   public.answer_linear_exam_question(uuid,uuid,jsonb,boolean)
+--   public.choose_linear_exam_timeout(uuid,text)
+--   public.get_linear_exam_state(uuid)
+--   public.resolve_linear_exam_timeout(uuid)
+--   public.save_linear_exam_draft(uuid,uuid,jsonb)
+--   public.skip_linear_exam_question(uuid)
 -- Individual linear exam state is user-owned. auth.uid() alone is not enough:
 -- legacy Supabase Auth JWTs must not be accepted after the Better Auth cutover.
 -- This shared guard protects answer, skip, timeout, state and preview flows that
