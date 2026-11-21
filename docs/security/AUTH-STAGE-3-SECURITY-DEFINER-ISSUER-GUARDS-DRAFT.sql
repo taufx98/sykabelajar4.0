@@ -1205,7 +1205,6 @@ BEGIN
     'public.admin_evaluate_badges()',
     'public.admin_update_system_error_status(uuid,text,text)',
     'public.get_follow_status(uuid,uuid)',
-    'public.get_public_profile_social(uuid)',
     'public.reopen_system_error_incident(uuid,text)'
   ]
   LOOP
