@@ -22,7 +22,16 @@ test("Production provisioning activation requires off-GitHub backup and complete
   assert.ok(workflow.includes("AUTH-STAGE-7-SECURITY-DEFINER-INVENTORY-2026-11-21.json"));
   assert.match(workflow, /inventorySignatures/);
   assert.ok(workflow.includes("production-definer-live.json"));
-  assert.ok(workflow.includes("assert.deepEqual(liveRows,expectedRows"));
+  assert.ok(workflow.includes("manifestBySignature"));
+  assert.ok(workflow.includes("liveBySignature"));
+  assert.ok(workflow.includes("actual.source_md5,item.sourceMd5"));
+  assert.ok(workflow.includes("actual.identity_arguments,item.identityArguments"));
+  assert.ok(workflow.includes("actual.owner,item.owner"));
+  assert.ok(workflow.includes("actual.anon_execute,item.anonExecute"));
+  assert.ok(workflow.includes("actual.authenticated_execute,item.authenticatedExecute"));
+  assert.ok(workflow.includes("actual.service_role_execute,item.serviceRoleExecute"));
+  assert.ok(workflow.includes("item.config") && workflow.includes("item.acl"));
+  assert.doesNotMatch(workflow,/assert\.deepEqual\(liveRows,expectedRows/);
   assert.ok(workflow.includes("production-provisioning-secret-names-before.json"));
   assert.ok(workflow.includes("production-provisioning-vars-before.sha256"));
   assert.ok(workflow.includes("production-provisioning-provider-before.json"));
