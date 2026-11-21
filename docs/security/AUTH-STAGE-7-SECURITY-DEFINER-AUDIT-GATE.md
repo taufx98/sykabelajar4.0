@@ -19,12 +19,13 @@ A separate read-only \`pg_proc\` definition scan produced these overlapping heur
 - 118 do **not** contain \`private.current_user_is_admin\`, \`private.current_user_has_role\`, \`private.current_user_is_better_auth\`, or an explicit \`auth.jwt()\` reference.
 - Of those 118, 77 contain \`auth.uid()\`; 19 reference \`user_roles\` directly; 10 accept \`p_access_token\` or \`p_portal_token\`; 41 contain neither \`auth.uid()\` nor an obvious issuer/helper marker.
 
-These groups overlap.
+These groups overlap. They are **static indicators, not vulnerability verdicts**. A function may use a separate token, owner predicate, private helper, or public-data contract not detected by this coarse scan. The 46 \`anon\` functions overlap the 202 \`authenticated\` functions.
+
 The 21 November direct catalog recheck separates Supabase's own internal Auth relations from application relations: 10 FKs in schema \`auth\` still point to \`auth.users\`; the application cutover remains 69 FKs total (65 in \`public\`, 4 in \`private\`). The complete catalog therefore has 79 FKs to \`auth.users\` if the 10 internal Auth FKs are included. The Stage 3 application FK plan must cover only the 69 \`public\`/\`private\` relations; never retarget Supabase's internal \`auth\` constraints.
 
 The three custom \`auth.users\` triggers are still present: \`on_auth_user_created\`, \`trg_referral_email_confirmed\`, and \`trg_referral_signup_attribution\`. \`private.app_users\` is still absent. No Production DDL/DML was run.
 
-The machine-readable review gate \`docs/security/AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21.json\` is intentionally \`status: blocked\` with 0/202 reviewed functions. The new owner-only activation workflow refuses to run unless the inventory is completely classified and every per-function legacy-issuer/token boundary test is marked passing. Do not change the manifest to complete merely to pass the workflow. They are **static indicators, not vulnerability verdicts**. A function may use a separate token, owner predicate, private helper, or public-data contract not detected by this coarse scan. The 46 \`anon\` functions overlap the 202 \`authenticated\` functions.
+The machine-readable review gate \`docs/security/AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21.json\` is intentionally \`status: blocked\` with 0/202 reviewed functions. The new owner-only activation workflow refuses to run unless the inventory is completely classified and every per-function legacy-issuer/token boundary test is marked passing. Do not change the manifest to complete merely to pass the workflow.
 
 DB2 remains unchanged: 12 Auth users/identities, 46 sessions, 76 refresh tokens, 12 profiles, 17 business-role rows, 69 application FKs still reference \`auth.users\`, \`private.app_users\` is absent, and three legacy Auth lifecycle triggers remain.
 
