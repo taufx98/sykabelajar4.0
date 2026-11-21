@@ -19,15 +19,15 @@ test("Production provisioning activation is manual, owner-only, and exact-target
 
 test("Production provisioning activation requires off-GitHub backup and complete definer audit", () => {
   assert.match(workflow, /PRODUCTION_DB2_BACKUP_SHA256/);
-  assert.match(workflow, /AUTH-STAGE-7-SECURITY-DEFINER-INVENTORY-2026-11-21\\.json/);
+  assert.ok(workflow.includes("AUTH-STAGE-7-SECURITY-DEFINER-INVENTORY-2026-11-21.json"));
   assert.match(workflow, /inventorySignatures/);
-  assert.match(workflow, /production-definer-live\\.json/);
-  assert.match(workflow, /assert\\.deepEqual\\(liveRows,expectedRows/);
-  assert.match(workflow, /production-provisioning-secret-names-before\\.json/);
-  assert.match(workflow, /production-provisioning-vars-before\\.sha256/);
-  assert.match(workflow, /production-provisioning-provider-before\\.json/);
-  assert.match(workflow, /production-provisioning-provider-after\\.json/);
-  assert.match(workflow, /Encrypted SendPulse credentials, routing\\/quota\\/delivery state changed/);
+  assert.ok(workflow.includes("production-definer-live.json"));
+  assert.ok(workflow.includes("assert.deepEqual(liveRows,expectedRows"));
+  assert.ok(workflow.includes("production-provisioning-secret-names-before.json"));
+  assert.ok(workflow.includes("production-provisioning-vars-before.sha256"));
+  assert.ok(workflow.includes("production-provisioning-provider-before.json"));
+  assert.ok(workflow.includes("production-provisioning-provider-after.json"));
+  assert.ok(workflow.includes("Encrypted SendPulse credentials, routing/quota/delivery state changed"));
   assert.match(workflow, /\{64\}/);
   assert.match(workflow, /AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21\.json/);
   assert.match(workflow, /authenticatedSecurityDefinerCount !== 202/);
