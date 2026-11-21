@@ -13,19 +13,21 @@ const targetTables = [
   "public.supabase_system_logs",
 ];
 
-test("Stage 5 no-policy hardening used by Stage 7 is limited to the three reviewed public tables", () => {
+test("Stage 5 no-policy hardening used by Stage 7 is limited to three reviewed tables", () => {
   for (const table of targetTables) assert.ok(sql.includes(table), `missing reviewed table ${table}`);
-  const revoke = sql.match(/REVOKE ALL PRIVILEGES ON TABLE([\s\S]*?)FROM anon, authenticated;/i);
-  assert.ok(revoke, "expected one explicit browser-role revoke");
+  const revoke = sql.match(/REVOKE ALL ON TABLE([\s\S]*?)FROM PUBLIC, anon, authenticated;/i);
+  assert.ok(revoke, "expected one explicit PUBLIC and browser-role revoke");
   for (const table of targetTables) assert.ok(revoke[1].includes(table));
   assert.equal((revoke[1].match(/public\./g) ?? []).length, 3);
-  assert.doesNotMatch(revoke[0], /service_role|FROM\s+[^;]*\bPUBLIC\b/i);
+  assert.match(revoke[0], /FROM PUBLIC, anon, authenticated;/i);
+  assert.doesNotMatch(revoke[0], /service_role/i);
 });
 
 test("draft does not add policies, edit rows, alter schema, or weaken RLS", () => {
   const executableSql = sql.replace(/--[^\n]*/g, "");
   assert.match(executableSql, /relrowsecurity/);
   assert.match(sql, /STAGE5_ACL_PREFLIGHT_OWNER_DRIFT/);
+  assert.match(sql, /STAGE5_ACL_POSTCONDITION_OWNER_DRIFT/);
   assert.match(executableSql, /policy_count <> 0/);
   assert.doesNotMatch(executableSql, /CREATE\s+POLICY|DROP\s+POLICY/i);
   assert.doesNotMatch(executableSql, /ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+[^;]+SET/i);
@@ -49,17 +51,17 @@ test("preflight requires exact ownership, RLS/no-policy state and reviewed basel
 
 test("postflight denies PUBLIC/anon/authenticated CRUD and preserves service_role/postgres CRUD", () => {
   assert.match(sql, /FROM PUBLIC, anon, authenticated;/);
+  assert.match(sql, /STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS/);
+  assert.match(sql, /STAGE5_ACL_POSTCONDITION_TRUSTED_ROLE_ACCESS_LOST/);
   for (const role of ["anon", "authenticated", "service_role", "postgres"]) {
     for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
       assert.match(sql, new RegExp("has_table_privilege\\('" + role + "', v_table\\.oid, '" + privilege + "'\\)"));
     }
   }
-  assert.match(sql, /STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS/);
-  assert.match(sql, /STAGE5_ACL_POSTCONDITION_TRUSTED_ROLE_ACCESS_LOST/);
 });
 
 test("the SQL remains outside migrations and requires explicit acceptance before Production", () => {
   assert.match(sql, /Do not apply to Production/i);
-  assert.match(sql, /before separate Stage 5\/6\/7 acceptance and explicit cutover authorization/i);
-  assert.match(sql, /Current application access uses trusted database functions\/triggers and server-side service_role paths/i);
+  assert.match(sql, /before separate Stage 5\\/6\\/7 acceptance and explicit cutover authorization/i);
+  assert.match(sql, /Current application access uses trusted database functions\\/triggers and server-side service_role paths/i);
 });
