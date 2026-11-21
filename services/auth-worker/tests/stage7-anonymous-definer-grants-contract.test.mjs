@@ -15,7 +15,7 @@ const functions = [
   ["public.reopen_system_error_incident(uuid, text)", "FROM anon;"],
 ];
 
-test("only six authenticated-only RPCs have anonymous EXECUTE removed", () => {
+test("only five shared-auth RPCs have anonymous EXECUTE removed", () => {
   for (const [signature, roleClause] of functions) {
     assert.ok(
       sql.includes("REVOKE EXECUTE ON FUNCTION " + signature + "\n  " + roleClause),
