@@ -12,7 +12,6 @@ const functions = [
   ["public.admin_evaluate_badges()", "FROM PUBLIC, anon;"],
   ["public.admin_update_system_error_status(uuid, text, text)", "FROM anon;"],
   ["public.get_follow_status(uuid, uuid)", "FROM PUBLIC, anon;"],
-  ["public.get_public_profile_social(uuid)", "FROM PUBLIC, anon;"],
   ["public.reopen_system_error_incident(uuid, text)", "FROM anon;"],
 ];
 
@@ -47,4 +46,10 @@ test("public-read and participant-token RPC grants are not included in this revo
     sql,
     /REVOKE EXECUTE ON FUNCTION public\.(get_public_competitions|get_public_competition_results|list_collective_portal_competitions|verify_collective_portal_password|record_shop_promo_banner_event)/i,
   );
+});
+
+test("social profile summary is explicitly authenticated-only", () => {
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.get_public_profile_social\(uuid\)\s+FROM PUBLIC, anon, authenticated, service_role;/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.get_public_profile_social\(uuid\)\s+TO authenticated;/);
+  assert.doesNotMatch(sql, /REVOKE EXECUTE ON FUNCTION public\.get_public_profile_social\(uuid\)\s+FROM PUBLIC, anon;/);
 });
