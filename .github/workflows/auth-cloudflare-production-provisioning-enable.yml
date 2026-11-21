@@ -116,10 +116,16 @@ jobs:
             if (!item || typeof item.signature !== "string" || !item.signature.includes("(") ||
                 signatures.has(item.signature) || !allowedClasses.has(item.classification) ||
                 typeof item.rationale !== "string" || item.rationale.trim().length < 20 ||
+                typeof item.sourceMd5 !== "string" || !/^[a-f0-9]{32}$/i.test(item.sourceMd5) ||
+                typeof item.owner !== "string" || item.owner.length === 0 ||
+                !Array.isArray(item.config) || !Array.isArray(item.acl) ||
+                typeof item.anonExecute !== "boolean" ||
+                typeof item.authenticatedExecute !== "boolean" ||
+                typeof item.serviceRoleExecute !== "boolean" ||
                 !item.tests || item.tests.legacySupabaseAuth !== "pass" ||
                 item.tests.validBetterAuthOrExplicitPublic !== "pass" ||
                 item.tests.idorOrTokenBoundary !== "pass") {
-              throw new Error("SECURITY DEFINER allowlist contains an incomplete, duplicate or untested function classification.");
+              throw new Error("SECURITY DEFINER allowlist contains an incomplete, duplicate, unpinned or untested function classification.");
             }
             signatures.add(item.signature);
           }
@@ -231,12 +237,30 @@ jobs:
             key,
             Array.isArray(row[key]) ? [...row[key]].sort() : row[key]
           ]))).sort((a,b) => a.signature.localeCompare(b.signature));
-          const expectedRows = normalize(expected.functions);
+          const expectedSignatures = new Set(expected.functions.map((item) => item.signature));
+          const manifestBySignature = new Map(manifest.functions.map((item) => [item.signature,item]));
           const liveRows = normalize(live);
-          assert.equal(expectedRows.length,202,"The reviewed catalog snapshot must contain 202 functions.");
+          assert.equal(expectedSignatures.size,202,"The baseline catalogue must contain 202 unique function signatures.");
+          assert.equal(manifestBySignature.size,202,"The reviewed allowlist must contain 202 unique function signatures.");
           assert.equal(liveRows.length,202,"Production currently exposes a different SECURITY DEFINER function count.");
-          assert.deepEqual(liveRows,expectedRows,"Production SECURITY DEFINER source/ACL/owner/search_path inventory changed; re-review before enabling provisioning.");
-          console.log("PASS: exact 202-function Production SECURITY DEFINER catalog, ACL, owner, search_path and source fingerprints match the reviewed snapshot.");
+          assert.deepEqual(
+            liveRows.map((row) => row.signature).sort(),
+            [...expectedSignatures].sort(),
+            "Production SECURITY DEFINER signature set changed; re-inventory before enabling provisioning."
+          );
+          const liveBySignature = new Map(liveRows.map((row) => [row.signature,row]));
+          for (const item of manifest.functions) {
+            const actual = liveBySignature.get(item.signature);
+            assert.ok(actual, "Reviewed function disappeared from Production: " + item.signature);
+            assert.equal(actual.source_md5,item.sourceMd5,"Reviewed source changed: " + item.signature);
+            assert.equal(actual.owner,item.owner,"Reviewed owner changed: " + item.signature);
+            assert.deepEqual(actual.config,[...item.config].sort(),"Reviewed search_path/config changed: " + item.signature);
+            assert.deepEqual(actual.acl,[...item.acl].sort(),"Reviewed function ACL changed: " + item.signature);
+            assert.equal(actual.anon_execute,item.anonExecute,"Reviewed anon EXECUTE state changed: " + item.signature);
+            assert.equal(actual.authenticated_execute,item.authenticatedExecute,"Reviewed authenticated EXECUTE state changed: " + item.signature);
+            assert.equal(actual.service_role_execute,item.serviceRoleExecute,"Reviewed service_role EXECUTE state changed: " + item.signature);
+          }
+          console.log("PASS: live Production SECURITY DEFINER functions match the individually reviewed source/owner/search_path/ACL fingerprint for all 202 signatures.");
           NODE
 
       - name: Verify DB2 identity root, 69 application FKs, legacy trigger retirement and server-only RPC wrappers
