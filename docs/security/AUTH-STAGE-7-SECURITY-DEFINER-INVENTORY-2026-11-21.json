@@ -3,21 +3,22 @@
   "status": "inventory_only_unreviewed",
   "project_ref": "mvdczyitbkxkldjughor",
   "postgres_version": "17.6",
-  "captured_at": "2026-11-21T01:28:35.45957+00:00",
+  "captured_at": "2026-11-21T01:29:30.987829+00:00",
   "scope": "public SECURITY DEFINER functions executable by authenticated",
   "count": 202,
   "counts": {
     "anon_execute": 46,
     "empty_search_path": 77,
     "non_empty_search_path": 125,
-    "uses_auth_uid": 0,
-    "uses_auth_jwt": 0,
-    "uses_admin_helper": 0,
-    "uses_role_helper": 0,
-    "uses_better_auth_helper": 0,
-    "has_token_marker": 13
+    "mentions_auth_uid": 130,
+    "mentions_auth_jwt": 0,
+    "mentions_admin_helper": 84,
+    "mentions_role_helper": 0,
+    "mentions_better_auth_helper": 0,
+    "mentions_user_roles": 24,
+    "mentions_token_parameter": 13
   },
-  "note": "Metadata and source fingerprints only. Static source markers are not a security verdict. No per-function classification or runtime acceptance test is claimed.",
+  "note": "Read-only catalog metadata and source hashes only. Static source markers are triage aids, not security verdicts. No per-function classification or runtime acceptance test is claimed.",
   "functions": [
     {
       "acl": [
@@ -34,16 +35,16 @@
       "signature": "admin_adjust_user_currency(uuid,text,bigint,text)",
       "source_md5": "aa8f5302840e39728b006496ad817275",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_target_user_id uuid, p_currency_type text, p_delta bigint, p_reason text",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -60,16 +61,16 @@
       "signature": "admin_assign_organizer_plan(uuid,text,timestamp with time zone,timestamp with time zone)",
       "source_md5": "ee68f31dacc8cee624c80e7a42867c56",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_organizer_id uuid, p_plan_code text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -86,16 +87,16 @@
       "signature": "admin_bulk_adjust_currency(uuid[],text,bigint,text)",
       "source_md5": "1f6215cccdc383120bbb6787e96c0f2b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_user_ids uuid[], p_currency_type text, p_delta bigint, p_reason text",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -112,16 +113,16 @@
       "signature": "admin_create_organizer(uuid,text,text)",
       "source_md5": "860b70d16e5d204cebad55924ab8c66d",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_owner_user_id uuid, p_name text, p_slug text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -138,16 +139,16 @@
       "signature": "admin_delete_competition(uuid,text)",
       "source_md5": "8e851cbd085e921634dca801de23df6b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -164,16 +165,16 @@
       "signature": "admin_delete_post(uuid,text)",
       "source_md5": "d4d1edf341c14be9904d3494a7628077",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_post_id uuid, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -190,16 +191,16 @@
       "signature": "admin_delete_product(uuid,text)",
       "source_md5": "0ed985a912942ceed4299896db0c9a99",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_product_id uuid, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -216,16 +217,16 @@
       "signature": "admin_review_manual_order(uuid,text,text)",
       "source_md5": "916b83a7b7cc749ea66edacc06e29edd",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_order_id uuid, p_decision text, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -242,16 +243,16 @@
       "signature": "admin_save_competition(uuid,text,text,text,text,text,text,text,competition_status,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone,text,boolean,text)",
       "source_md5": "78fd51e3b5a3f7c3780e231c68bf95fd",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid, p_title text, p_slug text, p_short_description text, p_description text, p_category text, p_poster_url text, p_visibility text, p_status competition_status, p_registration_starts_at timestamp with time zone, p_registration_ends_at timestamp with time zone, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_juknis_url text, p_kisi_kisi_published boolean, p_kisi_kisi_content text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -268,16 +269,16 @@
       "signature": "admin_save_post(uuid,text,text,text,uuid,text)",
       "source_md5": "9f34347c431dfc871badecc07d158fe3",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_post_id uuid, p_title text, p_body text, p_cover_url text, p_competition_id uuid, p_status text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -294,16 +295,16 @@
       "signature": "admin_save_product(uuid,text,text,text,text,text,text,text[],numeric,text,text,boolean,boolean,integer,jsonb)",
       "source_md5": "9756ef4e11a34249b075d2be0983d475",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_product_id uuid, p_code text, p_slug text, p_name text, p_short_description text, p_description text, p_product_type text, p_audiences text[], p_price numeric, p_currency text, p_image_url text, p_is_active boolean, p_is_featured boolean, p_sort_order integer, p_metadata jsonb",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -320,16 +321,16 @@
       "signature": "admin_set_certificate_status(uuid,certificate_status,text)",
       "source_md5": "6a1745db4fd6e09eb7b7c74303e6871c",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_certificate_verification_id uuid, p_to_status certificate_status, p_reason text",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -346,16 +347,16 @@
       "signature": "admin_set_comment_moderation(uuid,text,text)",
       "source_md5": "2b96ce5849231e65640c857f7e899b3d",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_comment_id uuid, p_state text, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -372,16 +373,16 @@
       "signature": "admin_set_user_role(uuid,app_role,boolean,text)",
       "source_md5": "7bad6e4a5956c07879751ff00f426675",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_user_id uuid, p_role app_role, p_active boolean, p_reason text",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -398,16 +399,16 @@
       "signature": "admin_set_user_status(uuid,user_status,text)",
       "source_md5": "6a24fc52a7cd71a193fcc4e69fd686f7",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_user_id uuid, p_status user_status, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -424,16 +425,16 @@
       "signature": "admin_transition_certificate(uuid,certificate_status,text)",
       "source_md5": "d99856df12a29a7bc20df1c08d913794",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_certificate_id uuid, p_to_status certificate_status, p_reason text",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -450,16 +451,16 @@
       "signature": "assign_organizer_serial(uuid,uuid)",
       "source_md5": "64945c36ee11b196deaf2bfde2ce545c",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_serial_id uuid, p_certificate_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -476,16 +477,16 @@
       "signature": "can_change_display_name(uuid)",
       "source_md5": "0722fcd97ab1c9ead048fa5fe15b37b9",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_user_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -502,16 +503,16 @@
       "signature": "check_registration_eligibility(uuid,text)",
       "source_md5": "7349b86c555079f55d6dc560e4dde55a",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_grade text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -528,16 +529,16 @@
       "signature": "choose_organizer_plan(uuid,text)",
       "source_md5": "5ddce4c8479e0ef29315a289680c823b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_organizer_id uuid, p_plan_code text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -554,16 +555,16 @@
       "signature": "create_organizer_competition(uuid,text,text,text,text,text,text,text,text,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone,text[],text[],text[],text[],text,text,text,text)",
       "source_md5": "602772e251e3c627f544a4ef0fa01c01",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_organizer_id uuid, p_title text, p_slug text, p_category text, p_short_description text, p_description text, p_poster_url text, p_poster_public_id text, p_visibility text, p_registration_starts_at timestamp with time zone, p_registration_ends_at timestamp with time zone, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_announcement_at timestamp with time zone, p_category_codes text[], p_excluded_category_codes text[], p_target_grades text[], p_excluded_grades text[], p_twibbon_mode text, p_twibbon_external_url text, p_twibbon_frame_url text, p_twibbon_frame_public_id text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -580,16 +581,16 @@
       "signature": "create_organizer(text,text)",
       "source_md5": "c9a87e60225fb902882bbc19db568eda",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_name text, p_slug text",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -606,16 +607,16 @@
       "signature": "create_product_order(uuid,integer)",
       "source_md5": "4f07e6f6fd04ed40ae5661ed8e92c7c2",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_product_id uuid, p_quantity integer",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -632,16 +633,16 @@
       "signature": "generate_organizer_serials(uuid,integer)",
       "source_md5": "dc3a028026f50cc15dae2031bd9f3e8b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_organizer_id uuid, p_quantity integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -658,16 +659,16 @@
       "signature": "get_active_organizer_entitlements(uuid)",
       "source_md5": "347c3643c3860af5dca477b5a4f4f598",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_organizer_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -685,16 +686,16 @@
       "signature": "get_home_snapshot(integer)",
       "source_md5": "6c57e4102a8a51b39602625f6aeb2eaf",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_feed_limit integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -713,16 +714,16 @@
       "signature": "get_platform_stats()",
       "source_md5": "89940ccab266fee4780fbe2999d8e000",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -741,16 +742,16 @@
       "signature": "get_public_coin_leaderboard(integer)",
       "source_md5": "c340deca8807f29674602e920f452837",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_limit integer",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -769,16 +770,16 @@
       "signature": "get_public_leaderboard(integer)",
       "source_md5": "56a97da61639d334dcdc5298f14c2faa",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_limit integer",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -795,16 +796,16 @@
       "signature": "is_active_admin(uuid)",
       "source_md5": "7958e69b9911b3cc774cc66cffb85910",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_uid uuid",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -821,16 +822,16 @@
       "signature": "join_organizer(text,text)",
       "source_md5": "b26a3855131ca49b68662ffe9509af8b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_slug text, p_access_code text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -847,16 +848,16 @@
       "signature": "list_organizer_registrations(uuid)",
       "source_md5": "7cc4b51d7604d7a591a6b7feccb1084a",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_organizer_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -873,16 +874,16 @@
       "signature": "register_for_competition(uuid,text,uuid,text,boolean,text,text,text)",
       "source_md5": "044958a8a43f78660da4f23990ab71b5",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_participation_key text, p_competition_level_id uuid, p_social_proof_url text, p_twibbon_completed boolean, p_social_platform text, p_social_username text, p_referral_code text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -899,16 +900,16 @@
       "signature": "request_custom_organizer_plan(uuid,jsonb,text,text)",
       "source_md5": "b7513a253a348990382f06cbbbf8d382",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_organizer_id uuid, p_requested_features jsonb, p_notes text, p_contact_whatsapp text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -925,16 +926,16 @@
       "signature": "review_registration(uuid,text,text)",
       "source_md5": "248f15764ae7b4c89888407ba0031851",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_registration_id uuid, p_decision text, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -951,16 +952,16 @@
       "signature": "revoke_organizer_serial(uuid)",
       "source_md5": "51e70f8049bf8e562925bcb1178df7fb",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_serial_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -977,16 +978,16 @@
       "signature": "rotate_organizer_access_code(uuid)",
       "source_md5": "91187cc8afefb4ec656e93e464c0987a",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_organizer_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1003,16 +1004,16 @@
       "signature": "save_organizer_competition_config(uuid,jsonb,jsonb,jsonb)",
       "source_md5": "d59002f0e4468ff55eb4b48f5d3d71a8",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_level jsonb, p_registration_rule jsonb, p_rewards jsonb",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1029,16 +1030,16 @@
       "signature": "save_organizer_competition(uuid,text,text,text,text,text,text,text,text,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone,text[],text[],text[],text[],text,text,text)",
       "source_md5": "f6d0123a8e48e8e48bdcecdcccbd6660",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_title text, p_slug text, p_category text, p_short_description text, p_description text, p_poster_url text, p_poster_public_id text, p_visibility text, p_registration_starts_at timestamp with time zone, p_registration_ends_at timestamp with time zone, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_announcement_at timestamp with time zone, p_category_codes text[], p_excluded_category_codes text[], p_target_grades text[], p_excluded_grades text[], p_twibbon_mode text, p_twibbon_frame_url text, p_twibbon_frame_public_id text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1055,16 +1056,16 @@
       "signature": "transition_competition(uuid,competition_status,text)",
       "source_md5": "07906f81bc8e7877c9bc6dc122671504",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_to_status competition_status, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1081,16 +1082,16 @@
       "signature": "admin_change_username(uuid,text,text)",
       "source_md5": "f2303a11f19903297554639acbd87f06",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_user_id uuid, p_username text, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1107,16 +1108,16 @@
       "signature": "admin_delete_organizer_payment_method(uuid)",
       "source_md5": "0ade33108d40e08526cecd91a3c511f4",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1133,16 +1134,16 @@
       "signature": "admin_generate_organizer_vouchers(integer,numeric)",
       "source_md5": "d0eb52aa26e6257f7f33b708a23ce712",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_count integer, p_discount_percent numeric",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1159,16 +1160,16 @@
       "signature": "admin_save_organizer_payment_config(jsonb)",
       "source_md5": "9148a749b2c7ad275ed6954c9acd1fce",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_config jsonb",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1185,16 +1186,16 @@
       "signature": "admin_save_plan_bundle(text,text,text,text,numeric,numeric,boolean,jsonb,numeric,numeric)",
       "source_md5": "84bf070fd458c88fc50126f3a7ed276b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_plan_code text, p_name text, p_description text, p_badge text, p_monthly_price numeric, p_yearly_price numeric, p_is_active boolean, p_entitlements jsonb, p_monthly_discount_percent numeric, p_yearly_discount_percent numeric",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1211,16 +1212,16 @@
       "signature": "admin_transition_order(uuid,order_status,text,text,text)",
       "source_md5": "5e0033dcf0442eb5839b73ceec0203a0",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_order_id uuid, p_to_status order_status, p_reason text, p_tracking_number text, p_provider text",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1237,16 +1238,16 @@
       "signature": "admin_upsert_organizer_voucher(uuid,text,text,text,numeric,text,integer,text[],text[],integer,timestamp with time zone,timestamp with time zone,boolean)",
       "source_md5": "429fd730fc35353e08554ad7275b4af1",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_id uuid, p_title text, p_description text, p_benefit_type text, p_discount_percent numeric, p_free_plan_code text, p_free_duration_days integer, p_target_plan_codes text[], p_target_billing_periods text[], p_max_uses integer, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_is_active boolean",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1263,16 +1264,16 @@
       "signature": "auto_grade_essay_item(uuid,uuid)",
       "source_md5": "f78a0bbe4075f63c787a16b785454169",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_attempt_id uuid, p_question_id uuid",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1289,16 +1290,16 @@
       "signature": "claim_daily_checkin(date,integer)",
       "source_md5": "2f2f5558786187e21706d71b4c1de079",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_date date, p_day_number integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1315,16 +1316,16 @@
       "signature": "claim_daily_task(uuid)",
       "source_md5": "107d6b6c6de213dc67b8088c0009f4e5",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_task_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1341,16 +1342,16 @@
       "signature": "claim_organizer_voucher(uuid)",
       "source_md5": "ca3f107db31da781f696f8fa1be99c06",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_voucher_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1367,16 +1368,16 @@
       "signature": "complete_daily_task(uuid)",
       "source_md5": "b454b6b462bf4781b603a58a3c3449ec",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_task_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1393,16 +1394,16 @@
       "signature": "create_certificate_asset(uuid,text,text,integer,integer,bigint,text,text,jsonb)",
       "source_md5": "403c3423475cfac9a0f29abbac8593b4",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_certificate_id uuid, p_public_id text, p_secure_url text, p_width integer, p_height integer, p_version bigint, p_resource_type text, p_asset_kind text, p_config jsonb",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1419,16 +1420,16 @@
       "signature": "create_follow_request(uuid)",
       "source_md5": "783cea2b5a2842683166212efdec4e37",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_target_user_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1445,16 +1446,16 @@
       "signature": "ensure_referral_code()",
       "source_md5": "adaadc2b222586a6ba7f4c586cddb9ea",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1471,16 +1472,16 @@
       "signature": "finalize_attempt_manual(uuid,numeric,text)",
       "source_md5": "ffc89b1ef283cc2c3c9e087e8a1bcd57",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_attempt_id uuid, p_score numeric, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1497,16 +1498,16 @@
       "signature": "generate_awards_for_competition(uuid)",
       "source_md5": "e140ece54ee20f544712e76bd9f7b50e",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1523,16 +1524,16 @@
       "signature": "get_all_currency_logs(integer)",
       "source_md5": "58989fc6a65d26a228f06769e444903a",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_limit integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1551,16 +1552,16 @@
       "signature": "get_certificate_verification(text)",
       "source_md5": "84c0d4d474efa4077b1cdebd7f8503fb",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_verification_code text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1579,16 +1580,16 @@
       "signature": "get_follow_status(uuid,uuid)",
       "source_md5": "25e2d0beb48a56189c76476fa8dc5846",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_follower_id uuid, p_following_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1607,16 +1608,16 @@
       "signature": "get_my_verified_referrals()",
       "source_md5": "62edae46657affa808e469311f25d85f",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1633,16 +1634,16 @@
       "signature": "get_organizer_payment_config()",
       "source_md5": "2464eaafdd9fcd534886a2336161b608",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1660,16 +1661,16 @@
       "signature": "get_profile_connections(uuid,text)",
       "source_md5": "85c419635f365e1af49ba0dddda9701c",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_profile_id uuid, p_mode text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1687,16 +1688,16 @@
       "signature": "get_public_competitions(integer)",
       "source_md5": "72fda47f09a2bfa2a868e2458a1a1631",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_limit integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1714,16 +1715,16 @@
       "signature": "get_public_feed(integer,timestamp with time zone)",
       "source_md5": "1944c33d7a1d0404151de702e13e894f",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_limit integer, p_before timestamp with time zone",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1742,16 +1743,16 @@
       "signature": "get_public_profile_social(uuid)",
       "source_md5": "11b6f840dab3e234aa82d57993b96ed8",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_profile_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1770,16 +1771,16 @@
       "signature": "get_public_profile_ui_settings(uuid)",
       "source_md5": "b737fddaa31055b691adf65aa2d0f032",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_profile_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1796,16 +1797,16 @@
       "signature": "get_user_currency_logs(uuid,integer)",
       "source_md5": "bf7a478554b65bffaddb761ecae34019",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_target_user_id uuid, p_limit integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1822,16 +1823,16 @@
       "signature": "grade_competition_attempt(uuid)",
       "source_md5": "a04c581242d9180a7ab7bfd8dfe643d4",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_attempt_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1848,16 +1849,16 @@
       "signature": "grade_essay_similarity(uuid,uuid)",
       "source_md5": "92be45614ce3fab0a2e9aa441ca9636f",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_attempt_id uuid, p_question_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1874,16 +1875,16 @@
       "signature": "issue_certificate_for_award(uuid)",
       "source_md5": "670c6da23d9593d2682fc550a3ac719e",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_award_id uuid",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1900,16 +1901,16 @@
       "signature": "list_claimable_organizer_vouchers()",
       "source_md5": "319c92afd67f36e7ba574fbe8f592aa4",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1926,16 +1927,16 @@
       "signature": "remove_follow(uuid)",
       "source_md5": "4de5acbad08b9aeabc75d5169fde67a7",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_target_user_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1952,16 +1953,16 @@
       "signature": "resolve_daily_checkin_reward(date,integer)",
       "source_md5": "e590061cb9b4e2e76a4727707296d752",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_date date, p_day_number integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -1978,16 +1979,16 @@
       "signature": "respond_follow_request(uuid,boolean)",
       "source_md5": "722724a439d85cac1181d31017383eca",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_follower_id uuid, p_accept boolean",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2004,16 +2005,16 @@
       "signature": "save_manual_grading_item(uuid,numeric,text)",
       "source_md5": "65a5b9937cdd159a29dad736d996b2fc",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_grading_item_id uuid, p_score numeric, p_feedback text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2030,16 +2031,16 @@
       "signature": "save_question_with_options(uuid,uuid,text,text,numeric,boolean,integer,text,jsonb,jsonb)",
       "source_md5": "74c1493792d4b0cdf492d6c3021ac383",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_question_id uuid, p_question_bank_id uuid, p_type text, p_prompt text, p_points numeric, p_required boolean, p_display_order integer, p_status text, p_config jsonb, p_options jsonb",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2056,16 +2057,16 @@
       "signature": "set_profile_verification(uuid,text)",
       "source_md5": "156b7bb7b991d0977c7e35352b3c6a37",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_user_id uuid, p_type text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2082,16 +2083,16 @@
       "signature": "validate_organizer_voucher(text,text,text)",
       "source_md5": "a1f9ce863fa59858022cfa4a2fcebfe8",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_code text, p_plan_code text, p_billing_period text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2108,16 +2109,16 @@
       "signature": "validate_organizer_voucher(text)",
       "source_md5": "e84c0154c453c3a61932847bf9921a2d",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_code text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2134,16 +2135,16 @@
       "signature": "admin_create_organizer_payment_method(text,text,jsonb,integer,text,text)",
       "source_md5": "f7b0c72a386c3a2465887ea3b33374cb",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_name text, p_payment_type text, p_details jsonb, p_sort_order integer, p_image_url text, p_image_public_id text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2160,16 +2161,16 @@
       "signature": "admin_delete_organizer_voucher(uuid)",
       "source_md5": "093b683911761457a3b759da13a616f4",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2186,16 +2187,16 @@
       "signature": "admin_save_organizer_payment_fields(jsonb)",
       "source_md5": "6fea7186717004362b6056e603271e5b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_fields jsonb",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2212,16 +2213,16 @@
       "signature": "admin_set_collective_certificate_price(numeric)",
       "source_md5": "5da5e6d3a927a25f81b1e89429d6e2f6",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_amount numeric",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2238,16 +2239,16 @@
       "signature": "bulk_import_roster_students(uuid,jsonb)",
       "source_md5": "e1bfc545f0d4265606a9d7d2aede57a6",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_roster_id uuid, p_students jsonb",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2264,16 +2265,16 @@
       "signature": "bump_rpc_backend_runtime(text)",
       "source_md5": "dc48773e7a9d27a98e17b57cc09d4865",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2290,16 +2291,16 @@
       "signature": "claim_collective_participant(text,text)",
       "source_md5": "04794429468d642b13e2ddc83a38143e",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_participant_code text, p_password text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2316,16 +2317,16 @@
       "signature": "claim_rpc_recovery(text)",
       "source_md5": "670519ba54987cf9fa992ab33aed33b2",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_rpc_name text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2342,16 +2343,16 @@
       "signature": "create_collective_certificate_order(uuid)",
       "source_md5": "0041c711a1e602b6d15dbd390d4669a3",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_certificate_id uuid",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2368,16 +2369,16 @@
       "signature": "create_collective_participants(uuid,uuid[])",
       "source_md5": "2a3136e3985e4f85df7e47a822e389ab",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_roster_student_ids uuid[]",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2394,16 +2395,16 @@
       "signature": "create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid)",
       "source_md5": "55e3959c23dfc492155807f230ed16e4",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_roster_student_ids uuid[], p_competition_level_id uuid, p_certificate_policy text, p_school_id uuid, p_school_name text, p_contact_name text, p_contact_whatsapp text, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_idempotency_key uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2420,16 +2421,16 @@
       "signature": "create_organizer_plan_order(uuid,text,text,text,text,text,text,jsonb,uuid,text,text,integer,integer,text,text,text)",
       "source_md5": "7fae7e641d7bed2a24bacaf3724139e7",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_organizer_id uuid, p_plan_code text, p_billing_period text, p_contact_name text, p_contact_email text, p_whatsapp text, p_contact_note text, p_contact_fields jsonb, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_voucher_code text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2446,16 +2447,16 @@
       "signature": "get_canonical_competition_result(uuid)",
       "source_md5": "e8523cc64cfa98e828ea8fc12902eaba",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_participant_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2472,16 +2473,16 @@
       "signature": "get_collective_certificate_price()",
       "source_md5": "825fd2e359c6f67aa9f0e909a9c8a2a7",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2499,16 +2500,16 @@
       "signature": "get_collective_participant_certificate(text)",
       "source_md5": "4fd54feb51b0f9ec59610ab373934a5b",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_access_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2526,16 +2527,16 @@
       "signature": "get_collective_participant_result(text)",
       "source_md5": "7fd65c57b845f1dcfd1f826088df9d87",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_access_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2552,16 +2553,16 @@
       "signature": "get_collective_registration_options(uuid)",
       "source_md5": "a565f37f69d868e1fed8aead4c63658f",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2578,16 +2579,16 @@
       "signature": "get_collective_registration(uuid)",
       "source_md5": "045a0b905485fa3e1de7846a68e99480",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_registration_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2604,16 +2605,16 @@
       "signature": "get_my_canonical_competition_result(uuid)",
       "source_md5": "e59a13014024e2878dcc5573bec0d5ef",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2630,16 +2631,16 @@
       "signature": "get_my_canonical_participant(uuid)",
       "source_md5": "af4934fc4959d6184694518e4cb8db75",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2656,16 +2657,16 @@
       "signature": "get_my_learning_insights()",
       "source_md5": "24779c6a5ee657296bde88530468e30a",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2683,16 +2684,16 @@
       "signature": "get_public_collective_certificate(text)",
       "source_md5": "7a47a902b83e1ea7e2915f69791f55b0",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_verification_code text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2710,16 +2711,16 @@
       "signature": "list_collective_portal_competitions(text)",
       "source_md5": "3955d40cdb8e335e48ce4b5e39789b77",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_portal_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2736,16 +2737,16 @@
       "signature": "list_my_canonical_certificates()",
       "source_md5": "1071c4222c4a5905200f61175cfdbb96",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2762,16 +2763,16 @@
       "signature": "list_my_claimed_collective_history()",
       "source_md5": "b6001e7c051d62561a02b3f0b254df0a",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2788,16 +2789,16 @@
       "signature": "list_my_participant_core()",
       "source_md5": "23f6c90e3b17b5f96e246fca91209ae6",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2814,16 +2815,16 @@
       "signature": "list_organizer_payment_field_settings()",
       "source_md5": "d3e75a17a11116217f2dfc654be25128",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2840,16 +2841,16 @@
       "signature": "list_organizer_payment_methods()",
       "source_md5": "92833e057f06a59d1fa3570c567ca5ff",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2866,16 +2867,16 @@
       "signature": "list_teacher_collective_certificates(uuid)",
       "source_md5": "834a7bfabf91c6a068656986b101fa06",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2892,16 +2893,16 @@
       "signature": "list_teacher_collective_participants(uuid)",
       "source_md5": "297245260db7874235edbf619414276f",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2918,16 +2919,16 @@
       "signature": "mark_rpc_healthy(text)",
       "source_md5": "f35b5ffeeb6b0677917a22356baef54a",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_rpc_name text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2944,16 +2945,16 @@
       "signature": "prepare_collective_certificate(uuid)",
       "source_md5": "11f192433b9b4b2564b7c2f45af3cbad",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_participant_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2970,16 +2971,16 @@
       "signature": "provision_collective_registration(uuid)",
       "source_md5": "5f54d0513fb6e67d45844c3ea0a49038",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_registration_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -2996,16 +2997,16 @@
       "signature": "quote_collective_registration(uuid,uuid[],text)",
       "source_md5": "addbcaaaffa11ad330d5ba09645704f7",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_roster_student_ids uuid[], p_certificate_policy text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3022,16 +3023,16 @@
       "signature": "report_rpc_failure(text,text,text)",
       "source_md5": "5e3ec4c9a56354eb778d9628dfcfa90b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_rpc_name text, p_error_code text, p_error_message text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3049,16 +3050,16 @@
       "signature": "revoke_collective_access_session(text)",
       "source_md5": "a8d5a67f43fe882687e8c0930287a3e1",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_access_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3075,16 +3076,16 @@
       "signature": "set_collective_participant_password(uuid,text)",
       "source_md5": "2dc34dd68761a0266cb5dd1327ae3b4e",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_participant_id uuid, p_password text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3101,16 +3102,16 @@
       "signature": "sync_collective_registration_order_payment(uuid)",
       "source_md5": "22863138fc486be751a5a58e85eabf0e",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_order_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3128,16 +3129,16 @@
       "signature": "verify_collective_participant_access(text,text)",
       "source_md5": "1b6a510072eb6e036fc97e2c359ff6e9",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_participant_code text, p_password text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3155,16 +3156,16 @@
       "signature": "verify_collective_portal_password(text)",
       "source_md5": "f5d01e7ab270b1ff332467f2cf80a2f8",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_password text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3182,16 +3183,16 @@
       "signature": "admin_diagnose_organizer_voucher_delete(uuid)",
       "source_md5": "21f7bf2cc8f19179f12472174c94ec04",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3210,16 +3211,16 @@
       "signature": "admin_evaluate_badges()",
       "source_md5": "0bc60d1e2df111228ccd5f31c49ef752",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3236,16 +3237,16 @@
       "signature": "admin_force_delete_competition(uuid,text)",
       "source_md5": "e519059ee0400dfdd3cd36eac4fd470c",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3262,16 +3263,16 @@
       "signature": "admin_get_competition_delete_blockers(uuid)",
       "source_md5": "5f9aee0996d65e5a59f40205df229d96",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3289,16 +3290,16 @@
       "signature": "admin_update_system_error_status(uuid,text,text)",
       "source_md5": "ed9ac818c1564288d4bd6d8f20dff0f5",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_id uuid, p_status text, p_resolution_note text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3316,16 +3317,16 @@
       "signature": "answer_collective_linear_exam_question(uuid,text,uuid,jsonb,boolean)",
       "source_md5": "127d65f07194685cc631e2a934a762b1",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3342,16 +3343,16 @@
       "signature": "answer_linear_exam_question(uuid,uuid,jsonb,boolean)",
       "source_md5": "4c51c354d8d5215a59f61199bc049966",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb, p_skip boolean",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3368,16 +3369,16 @@
       "signature": "cancel_my_pending_order(uuid)",
       "source_md5": "5e46d4e3b50543ec7d53f2e63d343378",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_order_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3395,16 +3396,16 @@
       "signature": "choose_collective_linear_exam_timeout(uuid,text,text)",
       "source_md5": "f0fbd6c869fdef4264dcacf4647de9c1",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_access_token text, p_decision text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3421,16 +3422,16 @@
       "signature": "choose_linear_exam_timeout(uuid,text)",
       "source_md5": "9e040e324f07b5f8965d36cf293c2bab",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_decision text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3447,16 +3448,16 @@
       "signature": "create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)",
       "source_md5": "8efe8ac377bf4eb71698eee52c61d03c",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_request_id uuid, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_unique_code integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3473,16 +3474,16 @@
       "signature": "create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text)",
       "source_md5": "fa5e3bb6726bdf8d8b6768871c71ef97",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_certificate_id uuid, p_payment_method text, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_whatsapp text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3500,16 +3501,16 @@
       "signature": "get_collective_linear_exam_state(uuid,text)",
       "source_md5": "6e8de1b7cf650fe44ef470bc6a7cdb97",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_access_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3526,16 +3527,16 @@
       "signature": "get_linear_exam_activity(uuid,integer,integer)",
       "source_md5": "a9d641b464ace5b963f91c9d6a3d096d",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_limit integer, p_offset integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3552,16 +3553,16 @@
       "signature": "get_linear_exam_state(uuid)",
       "source_md5": "1f223da47c6beffbf91f135ff337cd2d",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3578,16 +3579,16 @@
       "signature": "get_organizer_effective_plan(uuid)",
       "source_md5": "a07ecfd264fc5401b954d1381f0fc8b5",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_organizer_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3604,16 +3605,16 @@
       "signature": "get_organizer_exam_preview_report(uuid)",
       "source_md5": "95fbac78271a674184a5841130f00e6f",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_attempt_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3631,16 +3632,16 @@
       "signature": "get_public_competition_detail_summary(uuid)",
       "source_md5": "911222960fda1b15c410c5407482f548",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3659,16 +3660,16 @@
       "signature": "get_public_competition_question_count(uuid)",
       "source_md5": "c1fd7dd6f06f405252d6e93b77498638",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3686,16 +3687,16 @@
       "signature": "get_public_profile_badge_visibility(uuid)",
       "source_md5": "5ab5851b52904c7e0a8f0d1575eaad9c",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_profile_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3713,16 +3714,16 @@
       "signature": "get_public_profile_badges(uuid)",
       "source_md5": "f2fb6078710677182c07096c20a36cdf",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_profile_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3740,16 +3741,16 @@
       "signature": "is_public_profile_admin(uuid)",
       "source_md5": "e94eb7f539ab889dc503ce9d04b36886",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_profile_id uuid",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3767,16 +3768,16 @@
       "signature": "open_collective_competition_session(text,uuid,text)",
       "source_md5": "372a5e3c97f6e5a967d0bb989631ae05",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_portal_token text, p_competition_id uuid, p_participant_code text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3793,16 +3794,16 @@
       "signature": "regenerate_collective_participant_password(uuid)",
       "source_md5": "a89af37ac040d26d84748b00ff8a9897",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_participant_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3819,16 +3820,16 @@
       "signature": "register_for_competition_with_integrity_and_coin_bypass(uuid,text,uuid,text,text,text,text,boolean,boolean)",
       "source_md5": "0a66fb700a787e576f0e51a9f0c0e2b6",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_participation_key text, p_competition_level_id uuid, p_social_proof_url text, p_social_platform text, p_social_username text, p_referral_code text, p_integrity_agreed boolean, p_edu_coin_bypass boolean",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3845,16 +3846,16 @@
       "signature": "register_for_competition_with_integrity(uuid,text,uuid,text,boolean,text,text,text,boolean)",
       "source_md5": "175b92cb674f4ec44a9c18dfbbef80f2",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_participation_key text, p_competition_level_id uuid, p_social_proof_url text, p_twibbon_completed boolean, p_social_platform text, p_social_username text, p_referral_code text, p_integrity_agreed boolean",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3871,16 +3872,16 @@
       "signature": "release_organizer_competition(uuid)",
       "source_md5": "33995f3f29f6d410baf2d84b0c5d512f",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3898,16 +3899,16 @@
       "signature": "reopen_system_error_incident(uuid,text)",
       "source_md5": "b05e8f74ab165d9ec1bea5e99e344871",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_id uuid, p_note text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3924,16 +3925,16 @@
       "signature": "report_system_error(text,text,text,text,jsonb,text,text)",
       "source_md5": "f9682e12a9a02b393238f5b00243d038",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_source text, p_error_code text, p_error_message text, p_severity text, p_context jsonb, p_path text, p_fingerprint text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3951,16 +3952,16 @@
       "signature": "resolve_collective_linear_exam_timeout(uuid,text)",
       "source_md5": "5bd3a26adec70278ed45b14f0c0cc00f",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_access_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -3977,16 +3978,16 @@
       "signature": "resolve_linear_exam_timeout(uuid)",
       "source_md5": "f037f3c64c2c4299a23822eb76dabc97",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4004,16 +4005,16 @@
       "signature": "revoke_collective_portal_session(text)",
       "source_md5": "4d68fc0bf6d9816bf83c4efd918668aa",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_portal_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4031,16 +4032,16 @@
       "signature": "save_collective_linear_exam_draft(uuid,text,uuid,jsonb)",
       "source_md5": "c00ff9db0800c4ebad0197ce8f49f90a",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4057,16 +4058,16 @@
       "signature": "save_linear_exam_draft(uuid,uuid,jsonb)",
       "source_md5": "4c1b2b538754dfc3bdc1d90e0334d7f3",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4084,16 +4085,16 @@
       "signature": "skip_collective_linear_exam_question(uuid,text)",
       "source_md5": "9db307e948270835d17b305d5609d6d4",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid, p_access_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4110,16 +4111,16 @@
       "signature": "skip_linear_exam_question(uuid)",
       "source_md5": "a616c554cc550c57dab2fb4517948b34",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_attempt_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4137,16 +4138,16 @@
       "signature": "start_collective_linear_exam_attempt(uuid,text)",
       "source_md5": "e0cb760153c8d32cfc3a4dd7a094bf3f",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": true,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid, p_access_token text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": true,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4163,16 +4164,16 @@
       "signature": "start_linear_exam_attempt(uuid)",
       "source_md5": "04edc4504123d2afddd186c1d3fa750e",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4189,16 +4190,16 @@
       "signature": "start_organizer_exam_preview(uuid)",
       "source_md5": "643f1d4554a7dc62a8037c2eb6d0bd08",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4216,16 +4217,16 @@
       "signature": "sync_competition_registration_status(uuid)",
       "source_md5": "75cff1a0e5dc243fa6442d58ea153d35",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4242,16 +4243,16 @@
       "signature": "admin_force_complete_pending_order(uuid,text)",
       "source_md5": "5321c79eee3be3f3a138fc272c81d89f",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_order_id uuid, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4267,16 +4268,16 @@
       "signature": "admin_get_attempt_investigation(uuid)",
       "source_md5": "8d0bbf0b06057ebe0fd1277256ad9410",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_attempt_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": false,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4292,16 +4293,16 @@
       "signature": "admin_get_monitoring_dashboard(uuid,text,text,integer,integer)",
       "source_md5": "128fac67b5071f1b2db7305a1cec5ee4",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": false,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4318,16 +4319,16 @@
       "signature": "admin_issue_shop_voucher(uuid,text)",
       "source_md5": "4e79f49147cf96a1ce9cf0a3e3d1189d",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_definition_id uuid, p_username text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4344,16 +4345,16 @@
       "signature": "admin_list_issued_shop_vouchers()",
       "source_md5": "1d34d032428fe194d8eb4146eff4b8ee",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4370,16 +4371,16 @@
       "signature": "admin_list_shop_promo_banners()",
       "source_md5": "85731c1f5cdbb47a7d0a0b7e1579aeee",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4396,16 +4397,16 @@
       "signature": "admin_list_shop_voucher_definitions()",
       "source_md5": "6f23f25b36e865ff151160b79a518376",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4422,16 +4423,16 @@
       "signature": "admin_save_shop_promo_banner(uuid,text,text,integer,integer,boolean)",
       "source_md5": "edbc31a8c5ef5010e64a8496e9c73f23",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_id uuid, p_image_url text, p_target_url text, p_slide_duration_seconds integer, p_position integer, p_is_active boolean",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4448,16 +4449,16 @@
       "signature": "admin_save_shop_voucher_definition(jsonb)",
       "source_md5": "405c104b0df4e997ce91eac12c887ec1",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_definition jsonb",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4474,16 +4475,16 @@
       "signature": "admin_update_referral_program_settings_v2(boolean,integer,integer,text,text,timestamp with time zone,timestamp with time zone,jsonb,boolean,text,text,text,text)",
       "source_md5": "1325dd4f3ed476f10362bfc2b266c32c",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_is_active boolean, p_base_reward_amount integer, p_event_reward_amount integer, p_event_name text, p_event_description text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_milestone_tiers jsonb, p_promo_is_enabled boolean, p_promo_title text, p_promo_description text, p_promo_badge text, p_promo_cta text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4500,16 +4501,16 @@
       "signature": "admin_update_referral_program_settings(boolean,integer,integer,text,text,timestamp with time zone,timestamp with time zone)",
       "source_md5": "c0399b6de32fffa24bc03b4fc2f4315b",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_is_active boolean, p_base_reward_amount integer, p_event_reward_amount integer, p_event_name text, p_event_description text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4526,16 +4527,16 @@
       "signature": "archive_my_order_history(uuid)",
       "source_md5": "5476d964c60cecf700a25ade17158cc0",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_order_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4552,16 +4553,16 @@
       "signature": "claim_and_complete_daily_task(uuid)",
       "source_md5": "f38e665b4004845e947d689a0e49b00c",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_task_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4578,16 +4579,16 @@
       "signature": "create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[])",
       "source_md5": "01148b79df5aaa2556c80cbb63a71c68",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_product_id uuid, p_quantity integer, p_whatsapp text, p_target_organizer_id uuid, p_voucher_ids uuid[]",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4604,16 +4605,16 @@
       "signature": "create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[])",
       "source_md5": "b3ff32e6f6ba86b371221a987ec9015a",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_product_id uuid, p_quantity integer, p_whatsapp text, p_payment_method text, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_target_organizer_id uuid, p_voucher_ids uuid[]",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4630,16 +4631,16 @@
       "signature": "get_attempt_grading_limits(uuid)",
       "source_md5": "f6525cda1b69b5b808148b4e1ad52595",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_attempt_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4657,16 +4658,16 @@
       "signature": "get_competition_participant_detail(text,uuid)",
       "source_md5": "68183b7176c3f24ec95c018d13b973ef",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_slug text, p_participant_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4683,16 +4684,16 @@
       "signature": "get_daily_checkin_streak_rewards(date)",
       "source_md5": "bf3c493974897d5ff79c67c76c9cb787",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_date date",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4709,16 +4710,16 @@
       "signature": "get_my_referral_tier_awards()",
       "source_md5": "abf2c91bfa3e3ad91e38d3c65ce65fc8",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4735,16 +4736,16 @@
       "signature": "get_my_referrals_v2()",
       "source_md5": "9195e22e63b6ba3a609148c370cf8b92",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4761,16 +4762,16 @@
       "signature": "get_my_referrals()",
       "source_md5": "7684e1013a9b09c8ff10c86f7f863bb7",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4787,16 +4788,16 @@
       "signature": "get_organizer_competition_quota(uuid)",
       "source_md5": "72d733e2b864c9f5171176d158f2d366",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_organizer_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4813,16 +4814,16 @@
       "signature": "get_organizer_competition_result_overview(uuid,integer,integer)",
       "source_md5": "cb9939c070a2ae7512a72dfd2a2c4539",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_limit integer, p_offset integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4840,16 +4841,16 @@
       "signature": "get_public_competition_participants(text,integer,integer)",
       "source_md5": "695758d3c7df1347a79fe5189439f35e",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_slug text, p_limit integer, p_offset integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4867,16 +4868,16 @@
       "signature": "get_public_competition_results(text,integer,integer)",
       "source_md5": "223b202465fb18d721d7a5fe1b011237",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_slug text, p_limit integer, p_offset integer",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4894,16 +4895,16 @@
       "signature": "get_public_leaderboard_enriched(text,integer)",
       "source_md5": "442f3995f43dec475d5ed8c79fdbfb8f",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_period text, p_limit integer",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4921,16 +4922,16 @@
       "signature": "get_public_school_leaderboard(text,integer)",
       "source_md5": "efab75373f8f4db86e2f1e917ee8fe55",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_period text, p_limit integer",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4947,16 +4948,16 @@
       "signature": "get_referral_program_settings_v2()",
       "source_md5": "44056ae36f72740e513eca22fcf3897f",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -4973,16 +4974,16 @@
       "signature": "get_referral_program_settings()",
       "source_md5": "c88865880ced8c12530535bb9c06c276",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5000,16 +5001,16 @@
       "signature": "list_active_shop_promo_banners()",
       "source_md5": "a22d15036d8655ed84cc23abb1a74e72",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5026,16 +5027,16 @@
       "signature": "list_my_competition_dashboard()",
       "source_md5": "935735851888170379f0ab66b07a9d0f",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5052,16 +5053,16 @@
       "signature": "list_my_shop_vouchers()",
       "source_md5": "99e46c89ba9adf33447f2ba4bfc75cd5",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5079,16 +5080,16 @@
       "signature": "list_public_commerce_product_sales_counts()",
       "source_md5": "4f2e3209727507e0c8f892617e48061b",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5105,16 +5106,16 @@
       "signature": "list_shop_checkout_vouchers(uuid,integer,numeric,numeric)",
       "source_md5": "2486c9c78abd60ada2c21fecec57fa81",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_product_id uuid, p_quantity integer, p_subtotal numeric, p_shipping_cost numeric",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5131,16 +5132,16 @@
       "signature": "list_teacher_achievement_report(uuid,text)",
       "source_md5": "547f82beb1241918913691f3da6eb234",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid, p_search text",
       "mentions_user_roles": true,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5157,16 +5158,16 @@
       "signature": "mark_my_shop_vouchers_seen()",
       "source_md5": "0761d56bbfee9ad3932ed5ba06e90dba",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5183,16 +5184,16 @@
       "signature": "publish_competition_results(uuid)",
       "source_md5": "348530d824ecefb229bd22e4a093522c",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_competition_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5210,16 +5211,16 @@
       "signature": "record_shop_promo_banner_event(uuid,text,text)",
       "source_md5": "fb7c8de14a63c25bcdcb101cf704a122",
       "anon_execute": true,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_banner_id uuid, p_event_type text, p_visitor_key text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5236,16 +5237,16 @@
       "signature": "report_competition_comment(uuid,text)",
       "source_md5": "181335d352a41fa553c71d9741121bfc",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_comment_id uuid, p_reason text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5262,16 +5263,16 @@
       "signature": "save_my_commerce_product_review(uuid,smallint,text)",
       "source_md5": "058ad19a173958ce742414f62ad9371c",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_product_id uuid, p_rating smallint, p_review text",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5288,16 +5289,16 @@
       "signature": "admin_delete_shop_promo_banner(uuid)",
       "source_md5": "202565363ec69ce6b401ee8411f78f84",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": false,
       "identity_arguments": "p_id uuid",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": true,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     },
     {
       "acl": [
@@ -5314,16 +5315,16 @@
       "signature": "create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[])",
       "source_md5": "ed717139d1d9ec7053e25064b928bdf8",
       "anon_execute": false,
-      "uses_auth_jwt": false,
-      "uses_auth_uid": false,
-      "has_token_marker": false,
-      "uses_role_helper": false,
-      "uses_admin_helper": false,
+      "mentions_auth_jwt": false,
+      "mentions_auth_uid": true,
       "identity_arguments": "p_certificate_id uuid, p_shop_product_id uuid, p_payment_method text, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_whatsapp text, p_voucher_ids uuid[]",
       "mentions_user_roles": false,
+      "mentions_role_helper": false,
       "service_role_execute": true,
       "authenticated_execute": true,
-      "uses_better_auth_helper": false
+      "mentions_admin_helper": false,
+      "mentions_token_parameter": false,
+      "mentions_better_auth_helper": false
     }
   ]
 }
