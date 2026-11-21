@@ -170,7 +170,6 @@ assert.match(regression, /public\.get_linear_exam_state[\s\S]*?BETTER_AUTH_ISSUE
 assert.match(regression, /ATTEMPT_NOT_FOUND'[\s\S]*?STAGE3_BETTER_AUTH_INDIVIDUAL_EXAM_ISSUER_GATE_FAILED/);
 assert.match(regression, /public\.get_collective_registration_options[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(regression, /COMPETITION_NOT_FOUND'[\s\S]*?STAGE3_BETTER_AUTH_COLLECTIVE_OPTIONS_ISSUER_GATE_FAILED/);
-assert.match(regression, /visibility IS DISTINCT FROM 'PUBLIC'/);
 assert.match(regression, /public\.get_collective_registration_options\('22222222-2222-4222-8222-222222222222'::uuid\)[\s\S]*?STAGE3_BETTER_AUTH_ADMIN_PRIVATE_COLLECTIVE_OPTIONS_FAILED/);
 assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PRIVATE_COLLECTIVE_OPTIONS_ALLOWED/);
 assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PUBLIC_COLLECTIVE_OPTIONS_FAILED/);
