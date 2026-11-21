@@ -375,6 +375,8 @@ jobs:
           NODE
 
           node --input-type=module <<'NODE'
+          import {createHash} from "node:crypto";
+          import {writeFileSync} from "node:fs";
           const token=process.env.CLOUDFLARE_API_TOKEN;
           const account=encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID);
           const headers={Authorization:"Bearer "+token,Accept:"application/json"};
@@ -394,7 +396,16 @@ jobs:
           const d1=(s)=>((s?.bindings??[]).filter(x=>x?.type==="d1"&&x?.name==="DB"));
           if(d1(stageSettings).length!==1||(d1(stageSettings)[0].database_id??d1(stageSettings)[0].id)!=="7a4f9008-a1c6-42b6-8a04-abde12699248")throw new Error("Staging D1 binding drift.");
           if(d1(prodSettings).length!==1||(d1(prodSettings)[0].database_id??d1(prodSettings)[0].id)!=="6d4dc7b5-8e71-4fdc-9cda-3230e49951c7")throw new Error("Production D1 binding drift.");
-          const names=secretRows.map(x=>x?.name).filter(Boolean);
+          const names=secretRows.map(x=>x?.name).filter(Boolean).sort();
+          writeFileSync(process.env.RUNNER_TEMP+"/production-provisioning-secret-names-before.json",JSON.stringify(names));
+          const varEntries=(settings)=>{
+            const values={...(settings.vars??{})};
+            for(const binding of (settings.bindings??[]).filter(x=>x?.type==="plain_text"))values[binding.name]=binding.text;
+            delete values.SUPABASE_PROVISIONING_ENABLED;
+            return Object.entries(values).sort(([a],[b])=>a.localeCompare(b));
+          };
+          const varsHash=createHash("sha256").update(JSON.stringify(varEntries(prodSettings))).digest("hex");
+          writeFileSync(process.env.RUNNER_TEMP+"/production-provisioning-vars-before.sha256",varsHash);
           for(const required of ["BETTER_AUTH_SECRET","AUTH_PROVIDER_ENCRYPTION_KEY","AUTH_EMAIL_ENCRYPTION_KEY","SUPABASE_PROVISIONING_API_KEY"])if(names.filter(x=>x===required).length!==1)throw new Error("Missing required Production secret binding: "+required);
           for(const forbidden of ["SUPABASE_SERVICE_ROLE_KEY","AUTH_EMAIL_BOOTSTRAP_TOKEN","AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN"])if(names.includes(forbidden))throw new Error("Remove conflicting/temporary secret binding before provisioning activation: "+forbidden);
           const bindingMap=new Map((prodSettings.bindings??[]).filter(x=>x?.type==="plain_text").map(x=>[x.name,x.text]));
