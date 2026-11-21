@@ -54,6 +54,11 @@ async function parseLimitedJson(request, maxBytes) {
 }
 
 
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /** @param {unknown} value @returns {string} */
 function nonEmpty(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -158,10 +163,9 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
   }
 
   const bodyValue = parsedBody.value;
-  if (!bodyValue || typeof bodyValue !== "object" || Array.isArray(bodyValue)) {
+  if (!isRecord(bodyValue)) {
     return json({ ok: false, error: "INVALID_REQUEST_BODY" }, 400);
   }
-  /** @type {Record<string, unknown>} */
   const body = bodyValue;
   const keys = Object.keys(body);
   if (keys.some((key) => !["senderAddress", "senderName", "credentials"].includes(key))) {
@@ -170,8 +174,7 @@ export async function handleProductionEmailBootstrap(request, env, dependencies 
 
   const senderAddress = nonEmpty(body.senderAddress).toLowerCase();
   const senderName = nonEmpty(body.senderName) || "SYKABELAJAR";
-  const credentials = body.credentials && typeof body.credentials === "object" &&
-    !Array.isArray(body.credentials) ? body.credentials : {};
+  const credentials = isRecord(body.credentials) ? body.credentials : {};
   const apiKey = nonEmpty(credentials.apiKey);
   if (!validEmail(senderAddress)) return json({ ok: false, error: "INVALID_SENDER_ADDRESS" }, 422);
   if (!senderName || senderName.length > 120) return json({ ok: false, error: "INVALID_SENDER_NAME" }, 422);
