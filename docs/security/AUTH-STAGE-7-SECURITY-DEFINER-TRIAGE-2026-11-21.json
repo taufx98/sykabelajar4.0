@@ -11,12 +11,11 @@
     "emptySearchPath": 77
   },
   "suggestedClassificationCounts": {
-    "admin_organizer": 104,
+    "admin_organizer": 95,
     "participant_portal_token": 14,
-    "unclassified": 0,
     "better_auth_user": 62,
     "worker_internal": 4,
-    "public_read": 14,
+    "public_read": 23,
     "public_event": 1,
     "scheduler_trigger": 2,
     "deprecated_unused": 1
@@ -4166,10 +4165,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Hybrid published/public competition detail: the function exposes public participant/result fields only when the competition is PUBLIC and RESULT_PUBLISHED/ARCHIVED; otherwise it requires a signed-in caller plus Admin or organizer-edit authorization. Stage 3 replaces shared Admin/organizer helpers with Better Auth issuer-gated helpers, so legacy Supabase Auth sessions cannot access the non-public branch. Confirm exact output visibility and issuer behavior in disposable runtime tests.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5013,10 +5013,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "better_auth_user",
-      "suggestionBasis": "User-bound authorization markers; verify exact issuer, app_users origin and IDOR protection.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Conditional public connection list: when the target profile's existing show_following_popup/show_social_popup preference allows public display, return follows; hidden private settings allow only the exact Better Auth owner via Stage 3 issuer+identity gate. Stage 3 draft also fixes the old NULL auth.uid() comparison that let anon pass the privacy branch.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5059,10 +5060,11 @@
           "roleHelper": false,
           "userRoles": true,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Public aggregate leaderboard. Source includes only ACTIVE, is_public profiles and excludes active Admin roles; bounded p_limit. The user_roles join is only an exclusion filter, not caller authorization.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5421,10 +5423,11 @@
           "roleHelper": false,
           "userRoles": true,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Public aggregate XP leaderboard. Source includes only ACTIVE, is_public profiles and excludes active Admin roles; bounded p_limit. The user_roles join is only an exclusion filter, not caller authorization.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5466,10 +5469,11 @@
           "roleHelper": false,
           "userRoles": true,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Public enriched leaderboard. Public profile CTE limits to active, is_public non-admin profiles; weekly/monthly/all period is clamped. Role joins filter returned subjects, not authorization of the caller.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5511,10 +5515,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Conditional public profile read: explicitly public profile may expose badge visibility settings; private self/admin branch is separately protected in the Stage 3 draft by exact Better Auth identity/admin helpers.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5556,10 +5561,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Conditional public badge collection read: returns active badge metadata only when the target profile is public and collection visibility is enabled, or when the caller is the verified Better Auth owner/Admin via Stage 3 issuer-gated helpers.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5602,10 +5608,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "public_read",
-      "suggestionBasis": "Public/read-style RPC name; verify exact fields, row visibility and privacy predicates.",
+      "suggestedClassification": "better_auth_user",
+      "suggestionBasis": "Login-only social summary: source explicitly rejects NULL auth.uid() with UNAUTHORIZED, calculates the caller's own follow status and counts. Stage 3 draft pins it to Better Auth issuer/helper and removes PUBLIC/anon EXECUTE.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5648,10 +5655,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Conditional public profile UI preferences. Stage 3 draft keeps the public profile branch but requires Better Auth identity for self/private profile access and issuer-gated Admin helper for Admin access.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -5693,10 +5701,11 @@
           "roleHelper": false,
           "userRoles": true,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Public aggregate school leaderboard based on active public non-admin profiles, with bounded limit and aggregate school-level output. user_roles only excludes Admin identities from the leaderboard.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -6002,10 +6011,11 @@
           "roleHelper": false,
           "userRoles": true,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "admin_organizer",
-      "suggestionBasis": "Admin name or role/helper marker; verify Better Auth issuer and membership in every authorization path.",
+      "suggestedClassification": "public_read",
+      "suggestionBasis": "Boolean public profile metadata: reports active Admin status only when target profile is public; the private self branch is updated in Stage 3 draft to require private.app_users Better Auth identity.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -8982,5 +8992,8 @@
       },
       "sourceExcerpt": "declare c public.collective_portal_credentials%rowtype; pi public.collective_portal_identities%rowtype; token text; lk text;\nbegin\n lk:=encode(digest(left(trim(coalesce(p_password,'')),8),'sha256'),'hex');\n select * into c from public.collective_portal_credentials where enabled=true and password_lookup_key=lk limit 1;\n if c.id is null then return jsonb_build_object('ok',false,'reason','INVALID_CREDENTIALS'); end if;\n if c.locked_until is not null and c.locked_until>now() then return jsonb_build_object('ok',false,'reason','LOCKED'); end if;\n if crypt(coalesce(p_password,''),c.password_hash) is distinct from c.password_hash then\n  update public"
     }
+  ],
+  "notes": [
+    "Manual source/caller review refined all 46 anon-executable names that were previously misclassified as admin because of static user_roles markers. Public leaderboards/profile/public detail RPCs are now suggested public_read where their output is explicitly public or conditionally public; get_public_profile_social is Better Auth user-only. These remain triage suggestions only: no reviewStatus or test status was advanced to pass."
   ]
 }
