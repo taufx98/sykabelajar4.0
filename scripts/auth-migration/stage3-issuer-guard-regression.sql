@@ -76,7 +76,33 @@ CREATE POLICY better_auth_issuer_guard
 INSERT INTO private.app_users (id, identity_origin)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy_reference'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better_auth');
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better_auth'),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'better_auth'),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'better_auth');
+
+-- Synthetic profiles exercise the SECURITY DEFINER privacy boundary after
+-- Stage 3. A legacy owner and a Better Auth owner both have private profiles;
+-- public profile C publishes only its following list, not its followers list.
+INSERT INTO public.profiles (id, username, full_name, is_public)
+VALUES
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage3_legacy_private', 'Legacy Probe', false),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'stage3_ba_private', 'Better Auth Owner Probe', false),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'stage3_public_profile', 'Public Profile Probe', true),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'stage3_public_follower', 'Public Follower Probe', true);
+
+INSERT INTO public.profile_ui_settings (user_id, show_following_popup, show_social_popup)
+VALUES
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false, false),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', false, false),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', true, false);
+
+INSERT INTO public.follows (follower_id, following_id, status)
+VALUES
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'approved'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'approved'),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'approved'),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'approved'),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'approved');
 INSERT INTO public.user_roles (user_id, role, is_active)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
@@ -87,6 +113,43 @@ VALUES
   ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'owner-a'),
   ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'owner-b');
 
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims',
+  '{"role":"anon","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  true);
+SELECT set_config('request.jwt.claim.sub', '', true);
+DO $profile_anon$
+DECLARE
+  v_count integer;
+  v_denied boolean := false;
+BEGIN
+  -- A private profile remains private even when its popup setting is enabled.
+  SELECT count(*) INTO v_count
+  FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following');
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_PROFILE_CONNECTIONS_ALLOWED'; END IF;
+
+  -- Public connection lists are available only for the enabled mode.
+  SELECT count(*) INTO v_count
+  FROM public.get_profile_connections('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid, 'following');
+  IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_FOLLOWING_LIST_FAILED:%', v_count; END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_profile_connections('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid, 'followers');
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_ANON_HIDDEN_FOLLOWERS_LIST_ALLOWED'; END IF;
+
+  -- The social summary deliberately has no anon/PUBLIC EXECUTE grant.
+  IF has_function_privilege('anon', 'public.get_public_profile_social(uuid)'::regprocedure, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_ANON_SOCIAL_SUMMARY_GRANT_REMAINS';
+  END IF;
+  BEGIN
+    PERFORM * FROM public.get_public_profile_social('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_ANON_SOCIAL_SUMMARY_ALLOWED'; END IF;
+END;
+$profile_anon$;
+
+RESET ROLE;
 SET LOCAL ROLE authenticated;
 
 -- Supabase Auth is not a trusted application login after this cutover.
@@ -111,6 +174,25 @@ BEGIN
   IF public.is_active_admin('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED';
   END IF;
+
+  -- Matching a private profile UUID does not make a legacy Supabase Auth
+  -- session its Better Auth owner.
+  SELECT count(*) INTO v_count
+  FROM public.get_profile_connections('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid, 'following');
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_LEGACY_PRIVATE_PROFILE_OWNER_BYPASS'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.get_public_profile_social('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_SOCIAL_SUMMARY_ALLOWED'; END IF;
+
   v_denied := false;
   BEGIN
     PERFORM public.admin_set_collective_certificate_price(12);
@@ -153,10 +235,48 @@ BEGIN
   IF public.admin_set_collective_certificate_price(0) <> 0 THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_DIRECT_ADMIN_RPC_DENIED';
   END IF;
+
+  -- A verified Better Auth owner may read their own private/hidden connections
+  -- and social summary; the same session may see public social summaries.
+  SELECT count(*) INTO v_count
+  FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following');
+  IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_OWNER_CONNECTIONS_FAILED:%', v_count; END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'followers');
+  IF v_count <> 2 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_OWNER_FOLLOWERS_FAILED:%', v_count; END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_social('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid);
+  IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_OWNER_SOCIAL_FAILED:%', v_count; END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_social('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
+  IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PUBLIC_SOCIAL_FAILED:%', v_count; END IF;
+
   INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
   VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better-auth-insert');
 END;
 $better_auth_issuer$;
+
+-- A different Better Auth identity may see public profile social projections,
+-- but must not inspect another user's private connection list or summary.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  true);
+SELECT set_config('request.jwt.claim.sub', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', true);
+DO $better_auth_other_user$
+DECLARE
+  v_count integer;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following');
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_CONNECTIONS_ALLOWED'; END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_social('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid);
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_SOCIAL_ALLOWED'; END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_social('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
+  IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_SOCIAL_FAILED:%', v_count; END IF;
+END;
+$better_auth_other_user$;
 
 -- A syntactically valid UUID from an untrusted issuer receives no row access
 -- and cannot insert even when its sub matches a real owner UUID.

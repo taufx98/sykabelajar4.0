@@ -20,6 +20,9 @@ assert.deepEqual(tableNames, [
 ].sort(), "only the three reviewed no-policy tables may be changed");
 
 assert.match(draft, /relrowsecurity IS DISTINCT FROM true/i);
+assert.match(draft, /pg_get_userbyid\\(c\\.relowner\\) AS table_owner/i);
+assert.match(draft, /STAGE5_ACL_PREFLIGHT_OWNER_DRIFT/i);
+assert.match(draft, /STAGE5_ACL_POSTCONDITION_OWNER_DRIFT/i);
 assert.match(draft, /policy_count <> 0/i);
 assert.match(draft, /STAGE5_ACL_PREFLIGHT_GRANT_DRIFT/i);
 assert.match(draft, /has_table_privilege\('service_role'[\s\S]*?SELECT/i);
