@@ -36,8 +36,8 @@ test("private social preferences fail closed for anon, another user, and legacy 
 });
 
 test("public profile connections preserve the explicit profile preference", () => {
-  assert.match(functionSql, /COALESCE\(s\.show_following_popup, true\)/);
-  assert.match(functionSql, /COALESCE\(s\.show_social_popup, true\)/);
+  assert.match(functionSql, /COALESCE\(settings\.show_following_popup, true\)/);
+  assert.match(functionSql, /COALESCE\(settings\.show_social_popup, true\)/);
   assert.match(functionSql, /IF NOT COALESCE\(v_allow, true\)/);
   assert.match(functionSql, /RETURN QUERY[\s\S]*FROM public\.follows/);
 });
@@ -76,7 +76,8 @@ test("login-only social RPCs require a Better Auth session and have browser EXEC
     assert.match(body, /BETTER_AUTH_ISSUER_REQUIRED/);
   }
   assert.match(guardSql, /REVOKE EXECUTE ON FUNCTION public\.get_follow_status\(uuid, uuid\)\s+FROM PUBLIC, anon;/);
-  assert.match(guardSql, /REVOKE EXECUTE ON FUNCTION public\.get_public_profile_social\(uuid\)\s+FROM PUBLIC, anon;/);
+  assert.match(guardSql, /REVOKE ALL ON FUNCTION public\.get_public_profile_social\(uuid\)\s+FROM PUBLIC, anon, authenticated, service_role;/);
+  assert.match(guardSql, /GRANT EXECUTE ON FUNCTION public\.get_public_profile_social\(uuid\)\s+TO authenticated;/);
 });
 
 test("public connection lists require both public profile visibility and popup visibility", () => {
