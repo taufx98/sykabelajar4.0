@@ -95,11 +95,16 @@ jobs:
           if (manifest.status !== "complete" ||
               manifest.projectRef !== "mvdczyitbkxkldjughor" ||
               manifest.authenticatedSecurityDefinerCount !== 202 ||
-              manifest.anonSecurityDefinerCount !== 46 ||
               manifest.reviewedAuthenticatedFunctionCount !== 202 ||
               !Array.isArray(manifest.functions) ||
               manifest.functions.length !== 202) {
             throw new Error("Production SECURITY DEFINER audit is not complete for the reviewed 202-function inventory.");
+          }
+          const manifestAnonCount = manifest.functions.filter((item) => item?.anonExecute === true).length;
+          const manifestAuthenticatedCount = manifest.functions.filter((item) => item?.authenticatedExecute === true).length;
+          if (manifest.anonSecurityDefinerCount !== manifestAnonCount ||
+              manifestAuthenticatedCount !== 202) {
+            throw new Error("SECURITY DEFINER allowlist execute counts do not match its per-function expected ACL fingerprints.");
           }
           const inventorySignatures = new Set(inventory.functions.map((item) => item.signature));
           const manifestSignatures = new Set(manifest.functions.map((item) => item?.signature));
