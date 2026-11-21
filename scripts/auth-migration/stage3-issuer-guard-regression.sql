@@ -210,6 +210,20 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_SOCIAL_SUMMARY_ALLOWED'; END IF;
 
+  -- An old Supabase Auth subject must be rejected before a SECURITY DEFINER
+  -- exam RPC can inspect an attempt owned by the same legacy UUID.
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_linear_exam_state('ffffffff-ffff-4fff-8fff-fffffffffff4'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_INDIVIDUAL_EXAM_RPC_ALLOWED'; END IF;
+
   v_denied := false;
   BEGIN
     PERFORM public.admin_set_collective_certificate_price(12);
@@ -316,6 +330,7 @@ DECLARE
   v_count integer;
   v_result jsonb;
   v_status text;
+  v_exam_denied boolean := false;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED'; END IF;
@@ -372,6 +387,22 @@ BEGIN
   );
   IF v_status IS DISTINCT FROM 'approved' THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_GET_FOLLOW_STATUS_FAILED:%', v_status;
+  END IF;
+
+  -- A valid Better Auth identity passes the shared issuer gate before the
+  -- missing-attempt check; use an impossible UUID so no business row is read
+  -- or changed in this positive boundary probe.
+  BEGIN
+    PERFORM public.get_linear_exam_state('ffffffff-ffff-4fff-8fff-fffffffffff4'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ATTEMPT_NOT_FOUND' THEN
+      v_exam_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_INDIVIDUAL_EXAM_ISSUER_GATE_FAILED';
   END IF;
 
   -- A verified Better Auth owner may read their own private/hidden connections
