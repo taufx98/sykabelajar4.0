@@ -414,6 +414,7 @@ AS $function$
     re.verified_activity
   FROM public.referral_events re
   JOIN private.app_users au ON au.id = re.referred_user_id
+    AND au.identity_origin = 'better_auth'
   LEFT JOIN public.profiles p ON p.id = re.referred_user_id
   WHERE re.referrer_user_id = auth.uid()
     AND re.status IN ('PENDING', 'VERIFIED', 'CREDITED')
@@ -481,6 +482,7 @@ AS $function$
     NULL::timestamptz AS last_login_at
   FROM public.referral_events AS re
   JOIN private.app_users AS au ON au.id = re.referred_user_id
+    AND au.identity_origin = 'better_auth'
   LEFT JOIN public.profiles AS p ON p.id = re.referred_user_id
   WHERE re.referrer_user_id = (SELECT auth.uid())
     AND re.verified_at IS NOT NULL
