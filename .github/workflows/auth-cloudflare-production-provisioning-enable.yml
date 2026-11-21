@@ -460,6 +460,8 @@ jobs:
 
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
+          import {createHash} from "node:crypto";
+          import {readFileSync} from "node:fs";
           const token=process.env.CLOUDFLARE_API_TOKEN;
           const account=encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID);
           const headers={Authorization:"Bearer "+token,Accept:"application/json"};
@@ -486,7 +488,22 @@ jobs:
           assert.equal(val("SUPABASE_PROVISIONING_ENABLED"),"true");
           assert.equal(val("SUPABASE_PROVISIONING_ENV"),"production");
           assert.equal(val("SUPABASE_PROVISIONING_URL"),"https://mvdczyitbkxkldjughor.supabase.co");
-          const names=secretRows.map(x=>x?.name).filter(Boolean);
+          const names=secretRows.map(x=>x?.name).filter(Boolean).sort();
+          const beforeNames=JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-secret-names-before.json","utf8"));
+          assert.deepEqual(names,beforeNames,"Production secret-name inventory changed during flag-only activation.");
+          const required=["BETTER_AUTH_SECRET","AUTH_PROVIDER_ENCRYPTION_KEY","AUTH_EMAIL_ENCRYPTION_KEY","SUPABASE_PROVISIONING_API_KEY"];
+          for(const key of required)assert.equal(names.filter(x=>x===key).length,1);
+          for(const key of ["SUPABASE_SERVICE_ROLE_KEY","AUTH_EMAIL_BOOTSTRAP_TOKEN","AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN"])assert.ok(!names.includes(key));
+          const varEntries=(settings)=>{
+            const values={...(settings.vars??{})};
+            for(const binding of (settings.bindings??[]).filter(x=>x?.type==="plain_text"))values[binding.name]=binding.text;
+            delete values.SUPABASE_PROVISIONING_ENABLED;
+            return Object.entries(values).sort(([a],[b])=>a.localeCompare(b));
+          };
+          const beforeVars=readFileSync(process.env.RUNNER_TEMP+"/production-provisioning-vars-before.sha256","utf8");
+          const afterVars=createHash("sha256").update(JSON.stringify(varEntries(prodSettings))).digest("hex");
+          assert.equal(afterVars,beforeVars,"A Production Worker variable other than SUPABASE_PROVISIONING_ENABLED changed.");
+          assert.equal(val("AUTH_FIRST_ACCOUNT_EMAIL"),undefined,"First-owner allowlist must remain absent until its separate bootstrap step.");
           for(const key of ["BETTER_AUTH_SECRET","AUTH_PROVIDER_ENCRYPTION_KEY","AUTH_EMAIL_ENCRYPTION_KEY","SUPABASE_PROVISIONING_API_KEY"])assert.equal(names.filter(x=>x===key).length,1);
           for(const key of ["SUPABASE_SERVICE_ROLE_KEY","AUTH_EMAIL_BOOTSTRAP_TOKEN","AUTH_FIRST_ACCOUNT_BOOTSTRAP_TOKEN"])assert.ok(!names.includes(key));
           console.log("PASS: Production provisioning enabled, public signup still disabled, exact Production D1 and secret names preserved; staging Worker/D1/hostname unchanged.");
