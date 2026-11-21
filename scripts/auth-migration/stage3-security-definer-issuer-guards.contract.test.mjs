@@ -109,8 +109,18 @@ for (const marker of [
   "STAGE3_ANON_PUBLIC_FOLLOWING_LIST_FAILED",
   "STAGE3_ANON_HIDDEN_FOLLOWERS_LIST_ALLOWED",
   "STAGE3_ANON_SOCIAL_SUMMARY_GRANT_REMAINS",
+  "STAGE3_ANON_ADMIN_DIAGNOSE_EXECUTE_REMAINS",
+  "STAGE3_ANON_ADMIN_EVALUATE_BADGES_EXECUTE_REMAINS",
+  "STAGE3_ANON_ADMIN_UPDATE_SYSTEM_ERROR_EXECUTE_REMAINS",
+  "STAGE3_ANON_REOPEN_SYSTEM_ERROR_EXECUTE_REMAINS",
+  "STAGE3_ANON_GET_FOLLOW_STATUS_EXECUTE_REMAINS",
   "STAGE3_LEGACY_PRIVATE_PROFILE_OWNER_BYPASS",
   "STAGE3_LEGACY_SOCIAL_SUMMARY_ALLOWED",
+  "STAGE3_LEGACY_GET_FOLLOW_STATUS_ALLOWED",
+  "STAGE3_LEGACY_ADMIN_DIAGNOSE_ALLOWED",
+  "STAGE3_LEGACY_ADMIN_EVALUATE_BADGES_ALLOWED",
+  "STAGE3_LEGACY_ADMIN_UPDATE_SYSTEM_ERROR_ALLOWED",
+  "STAGE3_LEGACY_REOPEN_SYSTEM_ERROR_ALLOWED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_CONNECTIONS_FAILED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_FOLLOWERS_FAILED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_SOCIAL_FAILED",
@@ -123,6 +133,15 @@ for (const marker of [
 }
 assert.match(regression, /SET LOCAL ROLE anon[\s\S]*?public\.get_profile_connections/);
 assert.match(regression, /public\.get_public_profile_social[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(regression, /public\.get_follow_status[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(regression, /public\.admin_diagnose_organizer_voucher_delete[\s\S]*?ADMIN_REQUIRED/);
+assert.match(regression, /public\.admin_evaluate_badges\(\)[\s\S]*?ACCESS_DENIED/);
+assert.match(regression, /public\.admin_update_system_error_status[\s\S]*?ADMIN_REQUIRED/);
+assert.match(regression, /public\.reopen_system_error_incident[\s\S]*?ADMIN_REQUIRED/);
+assert.match(regression, /has_function_privilege\('anon',[\s\S]*?STAGE3_ANON_ADMIN_DIAGNOSE_EXECUTE_REMAINS/);
+assert.match(regression, /public\.admin_diagnose_organizer_voucher_delete[\s\S]*?STAGE3_BETTER_AUTH_ADMIN_DIAGNOSE_RPC_FAILED/);
+assert.match(regression, /public\.admin_evaluate_badges\(\)/);
+assert.match(regression, /public\.get_follow_status[\s\S]*?STAGE3_BETTER_AUTH_GET_FOLLOW_STATUS_FAILED/);
 assert.match(regression, /RESET ROLE;\s*SET LOCAL ROLE authenticated/);
 assert.doesNotMatch(draft, /^(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-z_]+\s+SET|DELETE FROM)\b/im,
   "draft must not mutate application data or replace RLS policy state");
