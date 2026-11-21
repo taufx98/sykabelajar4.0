@@ -31,6 +31,12 @@ The machine-readable review gate `docs/security/AUTH-STAGE-7-SECURITY-DEFINER-AL
 
 DB2 remains unchanged: 12 Auth users/identities, 46 sessions, 76 refresh tokens, 12 profiles, 17 business-role rows, 69 application FKs still reference \`auth.users\`, \`private.app_users\` is absent, and three legacy Auth lifecycle triggers remain.
 
+## Application RLS gap inventory — 21 November 2026
+
+The read-only catalog found 49 RLS-enabled tables without policies across the whole database: 23 application-owned tables (20 `public`, 3 `private`) and 26 platform-owned tables (16 `auth`, 10 `storage`). The platform-owned tables are outside this application's migration scope and must not be changed.
+
+The exact application list and grants are stored in `docs/security/AUTH-STAGE-7-RLS-NO-POLICY-INVENTORY-2026-11-21.json`; the review matrix is `docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-21.json`, currently blocked at 0/23 reviewed. Seventeen public tables grant no direct browser-role table privileges. Three public tables (`competition_status_history`, `notification_deliveries`, `supabase_system_logs`) have broad CRUD grants for both `anon` and `authenticated`, but no RLS policies. PostgreSQL RLS therefore remains default-deny for these roles while policies are absent; nevertheless, the broad grants must be reviewed against actual application callers before changing grants or adding policies. No blanket policy or privilege changes are approved.
+
 ## Why this blocks Stage 3
 
 The issuer restrictive RLS policies do not constrain a \`SECURITY DEFINER\` function while it runs with its owner's privileges. Therefore an old Supabase Auth JWT may still reach a definer RPC whose authorization relies only on \`auth.uid()\`, direct \`user_roles\` reads, or another legacy identity assumption. The presence of 61 issuer RLS guards and 21 specially rewritten functions is not proof that all exposed RPCs reject a legacy issuer.
