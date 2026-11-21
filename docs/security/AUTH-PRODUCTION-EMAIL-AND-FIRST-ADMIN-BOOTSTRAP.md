@@ -1,6 +1,8 @@
-# Production SendPulse and first-admin bootstrap — preparation only
+# Production SendPulse and first-admin bootstrap — gated deployment state
 
-Status: **code and contracts pass CI; neither route is deployed or executed in Production.** Target: Worker **sykabelajar-auth-prod**, D1 **sykabelajar-auth-prod**, issuer **https://auth-prod.sykabelajar.my.id/api/auth**, Supabase DB2 **mvdczyitbkxkldjughor**.
+Status: **closed handler source is deployed; neither route has been configured or executed in Production.** Current Worker version: `b3bb0c0c-8a32-4e87-9027-06a4950cd306`, deployed by [#44833402559](https://github.com/taufx98/sykabelajar4.0/actions/runs/44833402559), attempt 2. Target: Worker **sykabelajar-auth-prod**, D1 **sykabelajar-auth-prod**, issuer **https://auth-prod.sykabelajar.my.id/api/auth**, Supabase DB2 **mvdczyitbkxkldjughor**.
+
+Hosted runtime/JWKS/PKCE/CORS/closed-signup and D1/secret/staging non-regression checks passed. The Actions run's only failure was its final runner-temporary-directory cleanup command; see the current Stage 7 status/runbook.
 
 ## Safety boundary
 
@@ -13,12 +15,12 @@ Current live Production state remains closed:
 - DB2 Stage 3 identity/FK/issuer DDL is not applied; 69 FKs still point to auth.users.
 - No Production sender credentials, bootstrap tokens or provisioning key were installed in this continuation.
 
-Two narrowly scoped internal endpoints are implemented in the preparation branch:
+Two narrowly scoped internal endpoints are present in the deployed closed Worker source but remain unavailable until their separate owner-only gates are configured:
 
 - services/auth-worker/src/production-email-bootstrap.mjs → POST /_internal/bootstrap-production-email
 - services/auth-worker/src/production-first-account-bootstrap.mjs → POST /_internal/bootstrap-first-production-account
 
-Worker CI #44683114356 passed Worker lint/typecheck/build and all 267 Worker tests; the email-bootstrap tests passed 9/9 and owner first-account tests passed 7/7. This was code/local test execution only. There was no Worker deploy, Production D1 write or email delivery.
+Worker CI #44683114356 passed Worker lint/typecheck/build and all 267 Worker tests; email-bootstrap tests passed 9/9 and owner first-account tests passed 7/7. PR #199 corrected the JSON type guards; its PR CI #44841123194 and post-merge CI #44841281657 passed. The closed handler source is now deployed as Worker version `b3bb0c0c-8a32-4e87-9027-06a4950cd306`. The deploy made no Production D1/provider-row changes and sent no email.
 
 ## 1. One-time SendPulse provider bootstrap
 
