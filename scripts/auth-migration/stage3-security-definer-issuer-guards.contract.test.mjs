@@ -94,7 +94,7 @@ const collectiveOptions = draft.match(
 )?.[0] ?? "";
 
 const participantDetail = draft.match(
-  /CREATE OR REPLACE FUNCTION public\.get_competition_participant_detail\(\s*p_slug text,\s*p_participant_id uuid\)[\s\S]*?\$function\$;/i,
+  /CREATE OR REPLACE FUNCTION public\.get_competition_participant_detail\(\s*p_slug text,\s*p_participant_id uuid\s*\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(participantDetail, "missing public competition participant detail replacement");
 assert.match(participantDetail, /private\.current_user_is_better_auth\(\)/);
