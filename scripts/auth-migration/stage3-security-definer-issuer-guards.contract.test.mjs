@@ -89,6 +89,16 @@ const publicAdminProfile = draft.match(/CREATE OR REPLACE FUNCTION public\.is_pu
 assert.match(publicAdminProfile, /JOIN private\.app_users as app_user/i);
 assert.match(publicAdminProfile, /app_user\.identity_origin = 'better_auth'/);
 
+const collectiveOptions = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.get_collective_registration_options\(p_competition_id uuid\)[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(collectiveOptions, "missing collective registration options issuer guard");
+assert.match(collectiveOptions, /private\.current_user_is_better_auth\(\)/);
+assert.match(collectiveOptions, /BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(collectiveOptions, /visibility IS DISTINCT FROM 'PUBLIC'/);
+assert.match(collectiveOptions, /private\.current_user_is_admin\(\)/);
+assert.match(collectiveOptions, /private\.current_user_is_organizer_for\(v_comp\.organizer_id\)/);
+
 const listTeacherCertificates = draft.match(/CREATE OR REPLACE FUNCTION public\.list_teacher_collective_certificates[\s\S]*?\$function\$;/i)?.[0] ?? "";
 assert.match(listTeacherCertificates, /private\.current_user_is_better_auth\(\)/);
 
@@ -133,6 +143,8 @@ for (const marker of [
   "STAGE3_LEGACY_REOPEN_SYSTEM_ERROR_ALLOWED",
   "STAGE3_LEGACY_INDIVIDUAL_EXAM_RPC_ALLOWED",
   "STAGE3_BETTER_AUTH_INDIVIDUAL_EXAM_ISSUER_GATE_FAILED",
+  "STAGE3_LEGACY_COLLECTIVE_OPTIONS_ALLOWED",
+  "STAGE3_BETTER_AUTH_COLLECTIVE_OPTIONS_ISSUER_GATE_FAILED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_CONNECTIONS_FAILED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_FOLLOWERS_FAILED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_SOCIAL_FAILED",
@@ -152,6 +164,8 @@ assert.match(regression, /public\.admin_update_system_error_status[\s\S]*?ADMIN_
 assert.match(regression, /public\.reopen_system_error_incident[\s\S]*?ADMIN_REQUIRED/);
 assert.match(regression, /public\.get_linear_exam_state[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(regression, /ATTEMPT_NOT_FOUND'[\s\S]*?STAGE3_BETTER_AUTH_INDIVIDUAL_EXAM_ISSUER_GATE_FAILED/);
+assert.match(regression, /public\.get_collective_registration_options[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(regression, /COMPETITION_NOT_FOUND'[\s\S]*?STAGE3_BETTER_AUTH_COLLECTIVE_OPTIONS_ISSUER_GATE_FAILED/);
 assert.match(regression, /has_function_privilege\('anon',[\s\S]*?STAGE3_ANON_ADMIN_DIAGNOSE_EXECUTE_REMAINS/);
 assert.match(regression, /public\.admin_diagnose_organizer_voucher_delete[\s\S]*?STAGE3_BETTER_AUTH_ADMIN_DIAGNOSE_RPC_FAILED/);
 assert.match(regression, /public\.admin_evaluate_badges\(\)/);
