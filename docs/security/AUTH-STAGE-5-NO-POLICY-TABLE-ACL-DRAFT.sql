@@ -26,6 +26,7 @@ BEGIN
     SELECT n.nspname,
            c.relname,
            c.oid,
+           pg_catalog.pg_get_userbyid(c.relowner) AS table_owner,
            c.relrowsecurity,
            (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid) AS policy_count
     FROM pg_class c
@@ -39,6 +40,10 @@ BEGIN
     ORDER BY c.relname
   LOOP
     v_checked := v_checked + 1;
+
+    IF v_table.table_owner IS DISTINCT FROM 'postgres' THEN
+      RAISE EXCEPTION 'STAGE5_ACL_PREFLIGHT_OWNER_DRIFT:%:%', v_table.relname, v_table.table_owner;
+    END IF;
 
     IF v_table.relrowsecurity IS DISTINCT FROM true THEN
       RAISE EXCEPTION 'STAGE5_ACL_PREFLIGHT_RLS_DISABLED:%', v_table.relname;
@@ -107,6 +112,10 @@ BEGIN
     ORDER BY c.relname
   LOOP
     v_checked := v_checked + 1;
+
+    IF v_table.table_owner IS DISTINCT FROM 'postgres' THEN
+      RAISE EXCEPTION 'STAGE5_ACL_POSTCONDITION_OWNER_DRIFT:%:%', v_table.relname, v_table.table_owner;
+    END IF;
 
     IF v_table.relrowsecurity IS DISTINCT FROM true OR v_table.policy_count <> 0 THEN
       RAISE EXCEPTION 'STAGE5_ACL_POSTCONDITION_SCHEMA_CHANGED:%', v_table.relname;
