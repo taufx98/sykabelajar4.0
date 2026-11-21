@@ -103,6 +103,33 @@ VALUES
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'approved'),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'approved'),
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'approved');
+
+-- Competition fixtures prove that the SECURITY DEFINER collective-options RPC
+-- mirrors the table's PUBLIC/Admin/organizer visibility boundary.
+INSERT INTO public.competitions (
+  id, slug, title, category, status, visibility, participant_mode, config
+)
+VALUES
+  (
+    '11111111-1111-4111-8111-111111111111',
+    'stage3-public-collective-probe',
+    'Stage 3 Public Collective Probe',
+    'Stage 3 Test',
+    'REGISTRATION_OPEN'::public.competition_status,
+    'PUBLIC',
+    'COLLECTIVE_TEACHER',
+    '{"participant_modes":["COLLECTIVE_TEACHER"]}'::jsonb
+  ),
+  (
+    '22222222-2222-4222-8222-222222222222',
+    'stage3-private-collective-probe',
+    'Stage 3 Private Collective Probe',
+    'Stage 3 Test',
+    'REGISTRATION_OPEN'::public.competition_status,
+    'PRIVATE',
+    'COLLECTIVE_TEACHER',
+    '{"participant_modes":["COLLECTIVE_TEACHER"]}'::jsonb
+  );
 INSERT INTO public.user_roles (user_id, role, is_active)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
@@ -162,6 +189,9 @@ BEGIN
   END IF;
   IF has_function_privilege('anon', 'public.get_follow_status(uuid,uuid)'::regprocedure, 'EXECUTE') THEN
     RAISE EXCEPTION 'STAGE3_ANON_GET_FOLLOW_STATUS_EXECUTE_REMAINS';
+  END IF;
+  IF has_function_privilege('anon', 'public.get_collective_registration_options(uuid)'::regprocedure, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_ANON_COLLECTIVE_OPTIONS_EXECUTE_REMAINS';
   END IF;
 END;
 $profile_anon$;
@@ -343,6 +373,7 @@ DECLARE
   v_result jsonb;
   v_status text;
   v_exam_denied boolean := false;
+  v_options jsonb;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED'; END IF;
@@ -431,6 +462,11 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_COLLECTIVE_OPTIONS_ISSUER_GATE_FAILED';
   END IF;
 
+  v_options := public.get_collective_registration_options('22222222-2222-4222-8222-222222222222'::uuid);
+  IF v_options #>> '{competition,title}' IS DISTINCT FROM 'Stage 3 Private Collective Probe' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_PRIVATE_COLLECTIVE_OPTIONS_FAILED:%', v_options;
+  END IF;
+
   -- A verified Better Auth owner may read their own private/hidden connections
   -- and social summary; the same session may see public social summaries.
   SELECT count(*) INTO v_count
@@ -460,6 +496,8 @@ SELECT set_config('request.jwt.claim.sub', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd
 DO $better_auth_other_user$
 DECLARE
   v_count integer;
+  v_options jsonb;
+  v_denied boolean := false;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following');
@@ -470,6 +508,25 @@ BEGIN
   SELECT count(*) INTO v_count
   FROM public.get_public_profile_social('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_SOCIAL_FAILED:%', v_count; END IF;
+
+  v_denied := false;
+  BEGIN
+    v_options := public.get_collective_registration_options('22222222-2222-4222-8222-222222222222'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_COLLECTIVE_OPTIONS_ALLOWED';
+  END IF;
+
+  v_options := public.get_collective_registration_options('11111111-1111-4111-8111-111111111111'::uuid);
+  IF v_options #>> '{competition,title}' IS DISTINCT FROM 'Stage 3 Public Collective Probe' THEN
+    RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_COLLECTIVE_OPTIONS_FAILED:%', v_options;
+  END IF;
 END;
 $better_auth_other_user$;
 
