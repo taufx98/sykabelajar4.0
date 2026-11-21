@@ -79,5 +79,5 @@ test("Deployment changes only the Production provisioning flag and preserves sta
   assert.match(workflow, /auth\.sykabelajar\.my\.id/);
   assert.match(workflow, /7a4f9008-a1c6-42b6-8a04-abde12699248/);
   assert.match(workflow, /signup\.status,503/);
-  assert.match(workflow, /no Better Auth identity\/session\/provider state was altered/);
+  assert.match(workflow, /no Better Auth identity\/session state or SendPulse provider configuration was altered/);
 });
