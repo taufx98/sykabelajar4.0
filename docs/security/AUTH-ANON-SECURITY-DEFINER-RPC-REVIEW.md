@@ -79,11 +79,19 @@ The public competition list/detail/roster/leaderboard helpers filter to publishe
 
 **Data-minimisation item requiring product review:** `get_public_competition_results` currently includes `participant_code` in its public JSON and `CompetitionResultsPage` renders it. The collective portal also uses a participant code as one input when opening a participant session after the portal token is authenticated. This review does not prove a direct compromise, but publicly displaying that second-step identifier weakens its secrecy. Evaluate removing/masking it from public results while preserving legitimate organizer/teacher and collective portal flows. No code or production data was changed for this item.
 
-## Confirmed profile privacy issue and existing fix
+## Confirmed profile privacy issue and Better Auth-compatible fix draft
 
-Production `get_profile_connections(uuid,text)` used `auth.uid() <> p_profile_id`; for an anonymous caller, `auth.uid()` is NULL and the IF condition can evaluate NULL rather than true. The old function also failed to enforce `profiles.is_public` inside its SECURITY DEFINER body. The paired `get_public_profile_social(uuid)` projection also needed a private-profile check.
+Production `get_profile_connections(uuid,text)` used `auth.uid() <> p_profile_id`; for an anonymous caller, `auth.uid()` is NULL and the IF condition can evaluate NULL rather than true. The old function also failed to enforce `profiles.is_public` inside its SECURITY DEFINER body. The paired `get_public_profile_social(uuid)` projection also returned aggregate social information for private profiles.
 
-PR [#174](https://github.com/taufx98/sykabelajar4.0/pull/174) prepares the fix: `IS DISTINCT FROM` for NULL-safe owner checks, public-profile enforcement, settings-aware visibility, empty search_path/schema-qualified references and explicit anonymous ACL removal for the social-summary RPC. Its CI passed [#41767330665](https://github.com/taufx98/sykabelajar4.0/actions/runs/41767330665), but the PR remains Draft/unmerged and still requires isolated PostgreSQL integration validation. Treat this as a Stage 5 prerequisite; do not claim production is already fixed.
+The earlier PR [#174](https://github.com/taufx98/sykabelajar4.0/pull/174) documented the original Supabase Auth-era repair, but its owner exception relied on `auth.uid()` alone. That is not sufficient for the Better Auth migration: a legacy issuer must not regain private-profile access simply because its UUID matches an application row.
+
+The refreshed Stage 3 issuer-guard draft in PR [#208](https://github.com/taufx98/sykabelajar4.0/pull/208) carries the same profile visibility protections into the new identity model:
+- `get_profile_connections` rejects null/invalid inputs, checks `profiles.is_public`, enforces the per-mode popup setting, and permits the private/hidden owner exception only for the exact Production Better Auth issuer with a matching `private.app_users.identity_origin='better_auth'` row.
+- `get_public_profile_social` requires a Better Auth session and returns no row for another user's private profile. Its EXECUTE grant is explicitly restricted to `authenticated`; PUBLIC, anon and service_role are revoked.
+- `get_public_profile_badge_visibility`, `get_public_profile_badges` and `get_public_profile_ui_settings` also require the Better Auth identity helper for private-profile self access while preserving public-profile behavior.
+- Static contract tests cover these predicates and ACLs.
+
+This remains **draft/static-test evidence only**. PR #208 CI and a PostgreSQL 17.6 disposable restore/runtime test must pass before merge or Production DDL. No Production function, grant, policy or profile row has been changed by this draft.
 
 ## Separate RLS-with-no-policy finding
 
