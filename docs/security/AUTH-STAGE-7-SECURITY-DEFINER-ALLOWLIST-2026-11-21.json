@@ -38,5 +38,5 @@
     "serviceRoleExecute",
     "sourceMd5"
   ],
-  "sourceFingerprintRule": "The 2021-11-21 inventory is the canonical 202-signature scope only. After Stage 3 core identity-root DDL and before this provisioning-enable workflow is dispatched, reviewers must bind each entry to the expected live PostgreSQL definition/ACL fingerprint for that exact post-Stage-3, pre-issuer-guard state. The activation workflow compares each live function to the fields in its corresponding manifest entry. Do not compare live function source to the pre-Stage-3 inventory hash, because approved Stage 3 source changes are intentional."
+  "sourceFingerprintRule": "The 2026-11-21 inventory is the canonical 202-signature scope only. After Stage 3 core identity-root DDL and before this provisioning-enable workflow is dispatched, reviewers must bind each entry to the expected live PostgreSQL definition/ACL fingerprint for that exact post-Stage-3, pre-issuer-guard state. The activation workflow compares each live function to the fields in its corresponding manifest entry. Do not compare live function source to the pre-Stage-3 inventory hash, because approved Stage 3 source changes are intentional."
 }
