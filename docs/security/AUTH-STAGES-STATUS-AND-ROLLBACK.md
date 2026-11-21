@@ -1,8 +1,18 @@
-# Current authoritative checkpoint — 20 November 2026
+# Current authoritative checkpoint — 21 November 2026
 
-**Provider decision (reaffirmed 19 November 2026):** SendPulse is the approved and successfully tested primary transactional-email provider. Do not enable, select, configure, or add credentials for any other provider, including the retired ZeptoMail experiment. Active Worker runtime and Admin UI no longer include that provider.
+**Provider decision:** SendPulse is the approved and successfully tested primary transactional-email provider. Do not configure another provider.
 
-**Archive notice:** Older checkpoint entries below preserve historical facts only. Any older setup instructions mentioning ZeptoMail or another sender are superseded by this checkpoint and must not be followed.
+**Archive notice:** Older checkpoint entries below preserve historical facts only. Follow the 21 November checkpoint for current deployment and release status.
+
+## Closed Production Worker deployment checkpoint — 21 November 2026
+
+- PR [#199](https://github.com/taufx98/sykabelajar4.0/pull/199) fixed TypeScript JSON-record narrowing in the Production SendPulse and first-account bootstrap modules and enabled the focused Worker CI branch check. It merged to `security/auth-poc-stage-1` as `67e41fa16a8c97c5df52748a907b509f5a456391`.
+- Auth Worker CI [#44841123194](https://github.com/taufx98/sykabelajar4.0/actions/runs/44841123194) and post-merge CI [#44841281657](https://github.com/taufx98/sykabelajar4.0/actions/runs/44841281657) passed, including Worker typecheck/tests, local D1 migration and OIDC integration, Worker and Production-config dry runs, plus frontend lint/typecheck/build. Read-only staging preflight [#44841281592](https://github.com/taufx98/sykabelajar4.0/actions/runs/44841281592) also passed.
+- The owner-dispatched Production Worker update [#44833402559](https://github.com/taufx98/sykabelajar4.0/actions/runs/44833402559), attempt 2, deployed `sykabelajar-auth-prod` to `auth-prod.sykabelajar.my.id`. New Worker version: `b3bb0c0c-8a32-4e87-9027-06a4950cd306`.
+- Production postflight passed: health, OIDC discovery, PKCE S256, public ES256 JWKS, required email-verification policy, exact CORS and rejection of an untrusted Origin. Signup was probed and returned HTTP 503 as required. Staging Worker/D1/hostname, Production D1 binding and secret-name fingerprint remained unchanged. Production D1 migration ledger stayed at 0000–0010; before/after Better Auth identity, account, session and email-provider snapshots matched. Secret values were not read.
+- The overall Actions attempt is shown as failed only because its final runner-temp cleanup used `rm -f` against the dry-run output directory `production-worker-update-dry-run`. The deployment step and all Production postflight checks had already passed. A narrowly scoped cleanup correction is prepared separately; this runner cleanup failure did not affect Cloudflare resources or application data.
+- The closed SendPulse and first-owner bootstrap routes are now present in the deployed Worker source, but neither has been invoked. No Production SendPulse API key, bootstrap token, owner email allowlist or DB2 provisioning credential has been installed. No Production provider row, email/OTP, user, session or Admin role has been created.
+- `AUTH_SIGNUP_DISABLED=true` and `SUPABASE_PROVISIONING_ENABLED=false` remain enforced. No Production DB2 Stage 3 DDL/DML, issuer guards, first-owner creation, Admin grant or frontend auth switch has occurred. The external backup destination checksum is still a hard pre-DDL/first-owner gate. Stage 7 app cutover remains **NO-GO**.
 
 ## Production OIDC, DB2 and bootstrap checkpoint — 20 November 2026
 
