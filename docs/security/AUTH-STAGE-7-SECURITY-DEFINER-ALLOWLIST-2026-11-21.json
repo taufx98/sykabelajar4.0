@@ -17,7 +17,8 @@
     "worker_internal",
     "scheduler_trigger",
     "deprecated_unused",
-    "public_event"
+    "public_event",
+    "public_state_sync"
   ],
   "requiredPerFunctionEvidence": [
     "unique exact signature",

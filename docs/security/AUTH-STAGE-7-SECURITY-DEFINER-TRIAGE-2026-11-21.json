@@ -17,7 +17,8 @@
     "worker_internal": 4,
     "public_read": 23,
     "public_event": 1,
-    "scheduler_trigger": 2,
+    "scheduler_trigger": 1,
+    "public_state_sync": 1,
     "deprecated_unused": 1
   },
   "rules": [
@@ -8757,10 +8758,11 @@
           "roleHelper": false,
           "userRoles": false,
           "tokenParameter": false
-        }
+        },
+        "sourceReviewedForTriage": true
       },
-      "suggestedClassification": "scheduler_trigger",
-      "suggestionBasis": "Scheduled/maintenance-style naming; confirm actual cron/trigger owner and remove browser EXECUTE if unused.",
+      "suggestedClassification": "public_state_sync",
+      "suggestionBasis": "Public competition pages call this SECURITY DEFINER RPC to materialize only the timestamp-driven PUBLISHED→REGISTRATION_OPEN and REGISTRATION_OPEN→REGISTRATION_CLOSED transitions. It is intentionally available to anon for PUBLIC competitions, but the Stage 3 draft now rejects anon and legacy Supabase Auth for private competitions and requires an exact Better Auth identity plus Admin/organizer membership. Disposable tests cover public no-op, private denial, Admin private success and unrelated-user denial; status still awaits those runtime results.",
       "reviewStatus": "not_reviewed",
       "tests": {
         "legacySupabaseAuth": "pending",
@@ -8994,6 +8996,7 @@
     }
   ],
   "notes": [
-    "Manual source/caller review refined all 46 anon-executable names that were previously misclassified as admin because of static user_roles markers. Public leaderboards/profile/public detail RPCs are now suggested public_read where their output is explicitly public or conditionally public; get_public_profile_social is Better Auth user-only. These remain triage suggestions only: no reviewStatus or test status was advanced to pass."
+    "Manual source/caller review refined all 46 anon-executable names that were previously misclassified as admin because of static user_roles markers. Public leaderboards/profile/public detail RPCs are now suggested public_read where their output is explicitly public or conditionally public; get_public_profile_social is Better Auth user-only. These remain triage suggestions only: no reviewStatus or test status was advanced to pass.",
+    "`sync_competition_registration_status(uuid)` is a public state-sync operation, not a cron-only scheduler function: the competition service calls it from public pages. Its Stage 3 draft keeps the bounded public transition path and issuer-gates private competition state sync. The classification is triage only and its tests remain pending."
   ]
 }

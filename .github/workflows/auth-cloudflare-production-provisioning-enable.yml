@@ -115,7 +115,7 @@ jobs:
           const signatures = new Set();
           const allowedClasses = new Set([
             "better_auth_user", "admin_organizer", "public_read",
-            "participant_portal_token", "worker_internal", "scheduler_trigger", "deprecated_unused", "public_event",
+            "participant_portal_token", "worker_internal", "scheduler_trigger", "deprecated_unused", "public_event", "public_state_sync",
           ]);
           for (const item of manifest.functions) {
             if (!item || typeof item.signature !== "string" || !item.signature.includes("(") ||

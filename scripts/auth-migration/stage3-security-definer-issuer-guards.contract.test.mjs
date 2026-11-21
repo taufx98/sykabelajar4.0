@@ -114,6 +114,15 @@ assert.match(collectiveOptions, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(collectiveOptions, /visibility IS DISTINCT FROM 'PUBLIC'/);
 assert.match(collectiveOptions, /private\.current_user_is_admin\(\)/);
 assert.match(collectiveOptions, /private\.current_user_is_organizer_for\(v_comp\.organizer_id\)/);
+
+const competitionStatusSync = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.sync_competition_registration_status\(p_competition_id uuid\)[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(competitionStatusSync, "missing guarded public competition state-sync RPC");
+assert.match(competitionStatusSync, /visibility IS DISTINCT FROM 'PUBLIC'/);
+assert.match(competitionStatusSync, /private\.current_user_is_better_auth\(\)/);
+assert.match(competitionStatusSync, /private\.current_user_is_admin\(\)/);
+assert.match(competitionStatusSync, /private\.current_user_is_organizer_for\(v_competition\.organizer_id\)/);
 assert.match(draft, /REVOKE EXECUTE ON FUNCTION public\.get_collective_registration_options\(uuid\)\s+FROM PUBLIC, anon;/);
 assert.match(draft, /COLLECTIVE_OPTIONS_ANON_EXECUTE_REMAINS/);
 assert.match(draft, /COLLECTIVE_OPTIONS_TRUSTED_EXECUTE_MISSING/);
@@ -168,6 +177,12 @@ for (const marker of [
   "STAGE3_OTHER_BETTER_AUTH_PRIVATE_COLLECTIVE_OPTIONS_ALLOWED",
   "STAGE3_OTHER_BETTER_AUTH_PUBLIC_COLLECTIVE_OPTIONS_FAILED",
   "STAGE3_ANON_COLLECTIVE_OPTIONS_EXECUTE_REMAINS",
+  "STAGE3_ANON_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED",
+  "STAGE3_ANON_PUBLIC_COMPETITION_STATUS_SYNC_FAILED",
+  "STAGE3_LEGACY_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED",
+  "STAGE3_BETTER_AUTH_ADMIN_PRIVATE_STATUS_SYNC_FAILED",
+  "STAGE3_OTHER_BETTER_AUTH_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED",
+  "STAGE3_OTHER_BETTER_AUTH_PUBLIC_STATUS_SYNC_FAILED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_CONNECTIONS_FAILED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_FOLLOWERS_FAILED",
   "STAGE3_BETTER_AUTH_PRIVATE_OWNER_SOCIAL_FAILED",
@@ -190,6 +205,12 @@ assert.match(regression, /ATTEMPT_NOT_FOUND'[\s\S]*?STAGE3_BETTER_AUTH_INDIVIDUA
 assert.match(regression, /public\.get_collective_registration_options[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(regression, /COMPETITION_NOT_FOUND'[\s\S]*?STAGE3_BETTER_AUTH_COLLECTIVE_OPTIONS_ISSUER_GATE_FAILED/);
 assert.match(regression, /public\.get_collective_registration_options\('22222222-2222-4222-8222-222222222222'::uuid\)[\s\S]*?STAGE3_BETTER_AUTH_ADMIN_PRIVATE_COLLECTIVE_OPTIONS_FAILED/);
+assert.match(regression, /public\.sync_competition_registration_status\('11111111-1111-4111-8111-111111111111'::uuid\)[\s\S]*?STAGE3_ANON_PUBLIC_COMPETITION_STATUS_SYNC_FAILED/);
+assert.match(regression, /public\.sync_competition_registration_status\('22222222-2222-4222-8222-222222222222'::uuid\)[\s\S]*?STAGE3_ANON_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED/);
+assert.match(regression, /STAGE3_LEGACY_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED/);
+assert.match(regression, /STAGE3_BETTER_AUTH_ADMIN_PRIVATE_STATUS_SYNC_FAILED/);
+assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED/);
+assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PUBLIC_STATUS_SYNC_FAILED/);
 assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PRIVATE_COLLECTIVE_OPTIONS_ALLOWED/);
 assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PUBLIC_COLLECTIVE_OPTIONS_FAILED/);
 assert.match(regression, /has_function_privilege\('anon',[\s\S]*?STAGE3_ANON_ADMIN_DIAGNOSE_EXECUTE_REMAINS/);
