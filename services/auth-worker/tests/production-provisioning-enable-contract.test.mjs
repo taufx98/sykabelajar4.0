@@ -30,6 +30,7 @@ test("Production provisioning activation requires off-GitHub backup and complete
   assert.ok(workflow.includes("actual.anon_execute,item.anonExecute"));
   assert.ok(workflow.includes("actual.authenticated_execute,item.authenticatedExecute"));
   assert.ok(workflow.includes("actual.service_role_execute,item.serviceRoleExecute"));
+  assert.ok(workflow.includes("manifest.functions.filter((item) => item?.anonExecute === true).length"));
   assert.ok(workflow.includes("item.config") && workflow.includes("item.acl"));
   assert.doesNotMatch(workflow,/assert\.deepEqual\(liveRows,expectedRows/);
   assert.ok(workflow.includes("production-provisioning-secret-names-before.json"));
@@ -40,7 +41,10 @@ test("Production provisioning activation requires off-GitHub backup and complete
   assert.match(workflow, /\{64\}/);
   assert.match(workflow, /AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21\.json/);
   assert.match(workflow, /authenticatedSecurityDefinerCount !== 202/);
-  assert.match(workflow, /anonSecurityDefinerCount !== 46/);
+  assert.match(workflow, /manifestAnonCount/);
+  assert.match(workflow, /manifestAuthenticatedCount !== 202/);
+  assert.match(workflow, /manifest\.anonSecurityDefinerCount !== manifestAnonCount/);
+  assert.doesNotMatch(workflow, /anonSecurityDefinerCount !== 46/);
   assert.match(workflow, /reviewedAuthenticatedFunctionCount !== 202/);
   assert.match(workflow, /functions\.length !== 202/);
 });
