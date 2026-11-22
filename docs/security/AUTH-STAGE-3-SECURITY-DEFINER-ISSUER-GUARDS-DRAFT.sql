@@ -1769,4 +1769,866 @@ BEGIN
 END;
 $acl_postflight$;
 
+
+-- User-scoped SECURITY DEFINER RPCs previously checked only auth.uid().
+-- Keep the existing AUTH_REQUIRED/LOGIN_REQUIRED behavior for anonymous calls,
+-- then require the exact Better Auth issuer and a projected Better Auth identity
+-- before any user-scoped read/write proceeds. Business rules and SQL bodies below
+-- are copied from the read-only Production catalog; only this issuer gate is added.
+DO $user_rpc_issuer_preflight$
+DECLARE
+  v_signature text;
+  v_function regprocedure;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+      'archive_my_order_history(uuid)',
+      'bulk_import_roster_students(uuid,jsonb)',
+      'cancel_my_pending_order(uuid)',
+      'claim_and_complete_daily_task(uuid)',
+      'claim_daily_checkin(date,integer)',
+      'claim_daily_task(uuid)',
+      'claim_organizer_voucher(uuid)',
+      'claim_rpc_recovery(text)',
+      'complete_daily_task(uuid)',
+      'create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)'
+  ]
+  LOOP
+    v_function := pg_catalog.to_regprocedure(v_signature);
+    IF v_function IS NULL THEN
+      RAISE EXCEPTION 'USER_RPC_ISSUER_FUNCTION_MISSING:%', v_signature;
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc p
+      WHERE p.oid = v_function
+        AND p.prosecdef = true
+        AND pg_catalog.pg_get_userbyid(p.proowner) = 'postgres'
+    ) THEN
+      RAISE EXCEPTION 'USER_RPC_ISSUER_FUNCTION_KIND_OR_OWNER_DRIFT:%', v_signature;
+    END IF;
+    IF pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'USER_RPC_ISSUER_ACL_DRIFT:%', v_signature;
+    END IF;
+  END LOOP;
+END;
+$user_rpc_issuer_preflight$;
+
+CREATE OR REPLACE FUNCTION public.archive_my_order_history(p_order_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_catalog'
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_status text;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT status::text INTO v_status
+  FROM public.orders
+  WHERE id = p_order_id AND user_id = v_uid;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ORDER_NOT_FOUND';
+  END IF;
+
+  IF upper(coalesce(v_status, '')) NOT IN ('PAID', 'COMPLETED', 'CANCELLED', 'CANCELED', 'REFUNDED') THEN
+    RAISE EXCEPTION 'ORDER_NOT_ARCHIVABLE';
+  END IF;
+
+  INSERT INTO public.user_order_history_archives(user_id, order_id)
+  VALUES (v_uid, p_order_id)
+  ON CONFLICT (user_id, order_id)
+  DO UPDATE SET archived_at = now();
+
+  RETURN true;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.bulk_import_roster_students(p_roster_id uuid, p_students jsonb)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_count integer := 0;
+  r jsonb;
+  v_name text;
+  v_class text;
+  v_grade text;
+  v_ref text;
+  v_existing uuid;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  if not exists(select 1 from public.teacher_rosters tr where tr.id=p_roster_id and tr.teacher_user_id=v_uid and tr.is_active=true) then raise exception 'FORBIDDEN'; end if;
+  if jsonb_typeof(coalesce(p_students,'[]'::jsonb)) <> 'array' then raise exception 'INVALID_STUDENTS'; end if;
+  if jsonb_array_length(p_students)>500 then raise exception 'IMPORT_LIMIT'; end if;
+  for r in select value from jsonb_array_elements(p_students) loop
+    v_name:=trim(coalesce(r->>'full_name',r->>'name',''));
+    if v_name='' then continue; end if;
+    v_class:=nullif(trim(coalesce(r->>'class_name',r->>'class','')),'');
+    v_grade:=nullif(trim(coalesce(r->>'grade',r->>'jenjang','')),'');
+    v_ref:=nullif(trim(coalesce(r->>'external_student_ref',r->>'student_id',r->>'id','')),'');
+    select rs.id into v_existing from public.roster_students rs where rs.roster_id=p_roster_id and v_ref is not null and rs.external_student_ref=v_ref limit 1;
+    if v_existing is not null then
+      update public.roster_students set full_name=v_name,class_name=v_class,grade=v_grade,is_active=true,updated_at=now() where id=v_existing;
+    else
+      insert into public.roster_students(roster_id,full_name,class_name,grade,external_student_ref,is_active) values(p_roster_id,v_name,v_class,v_grade,v_ref,true);
+    end if;
+    v_count:=v_count+1;
+  end loop;
+  return v_count;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.cancel_my_pending_order(p_order_id uuid)
+ RETURNS orders
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private', 'pg_catalog'
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_order public.orders%rowtype;
+  v_item public.order_items%rowtype;
+  v_intent_status text;
+  v_before jsonb;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT * INTO v_order
+  FROM public.orders
+  WHERE id = p_order_id AND user_id = v_uid
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ORDER_NOT_FOUND';
+  END IF;
+
+  IF v_order.status <> 'PENDING_PAYMENT' THEN
+    RAISE EXCEPTION 'ORDER_NOT_CANCELLABLE';
+  END IF;
+
+  IF upper(coalesce(v_order.payment_proof_status, '')) = 'SUBMITTED'
+     OR nullif(trim(coalesce(v_order.payment_proof_url, '')), '') IS NOT NULL THEN
+    RAISE EXCEPTION 'PAYMENT_PROOF_SUBMITTED';
+  END IF;
+
+  SELECT upper(coalesce(pi.status, '')) INTO v_intent_status
+  FROM public.payment_intents pi
+  WHERE pi.order_id = v_order.id
+  ORDER BY pi.updated_at DESC
+  LIMIT 1;
+
+  IF v_intent_status IS NOT NULL
+     AND v_intent_status NOT IN ('FAILED', 'EXPIRED', 'CANCELLED', 'REJECTED') THEN
+    RAISE EXCEPTION 'PAYMENT_SESSION_ACTIVE';
+  END IF;
+
+  SELECT * INTO v_item
+  FROM public.order_items
+  WHERE order_id = v_order.id
+  ORDER BY created_at
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ORDER_ITEM_NOT_FOUND';
+  END IF;
+
+  IF NOT (
+    v_item.product_type IN ('EDU_COIN_TOPUP', 'BADGE', 'CERTIFICATE_SERIALS', 'DONATION')
+    OR (
+      v_item.product_type = 'DIGITAL_ITEM'
+      AND v_item.product_ref <> 'COLLECTIVE_CERTIFICATE'
+      AND v_item.metadata ? 'shop_metadata'
+    )
+  ) THEN
+    RAISE EXCEPTION 'ORDER_NOT_CANCELLABLE';
+  END IF;
+
+  v_before := to_jsonb(v_order);
+  UPDATE public.orders
+  SET status = 'CANCELLED', updated_at = now()
+  WHERE id = v_order.id
+  RETURNING * INTO v_order;
+
+  INSERT INTO public.audit_logs(actor_user_id, action, entity_type, entity_id, reason, before_data, after_data)
+  VALUES (
+    v_uid,
+    'USER_ORDER_CANCELLED',
+    'order',
+    v_order.id::text,
+    'Pemilik membatalkan pesanan yang belum dibayar dan tidak memiliki sesi pembayaran aktif',
+    v_before,
+    to_jsonb(v_order)
+  );
+
+  RETURN v_order;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.claim_and_complete_daily_task(p_task_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+DECLARE
+  u uuid := auth.uid();
+  t public.daily_tasks;
+  claim public.daily_task_claims;
+  v_claim_date date := (pg_catalog.clock_timestamp() AT TIME ZONE 'Asia/Jakarta')::date;
+  v_claim_count integer := 0;
+  v_ledger_id uuid;
+BEGIN
+  IF u IS NULL THEN
+    RAISE EXCEPTION 'LOGIN_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT *
+    INTO t
+  FROM public.daily_tasks
+  WHERE id = p_task_id
+    AND is_active = true
+    AND (starts_at IS NULL OR starts_at <= pg_catalog.now())
+    AND (ends_at IS NULL OR ends_at >= pg_catalog.now());
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'TASK_NOT_FOUND';
+  END IF;
+
+  IF NOT private.is_daily_task_eligible(u, p_task_id, v_claim_date) THEN
+    RAISE EXCEPTION 'TASK_REQUIREMENT_NOT_MET';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(u::text || ':daily-task:' || p_task_id::text, 0)
+  );
+
+  SELECT *
+    INTO claim
+  FROM public.daily_task_claims
+  WHERE task_id = p_task_id
+    AND user_id = u
+    AND claim_date = v_claim_date
+  FOR UPDATE;
+
+  IF FOUND AND claim.status = 'COMPLETED' THEN
+    RETURN jsonb_build_object(
+      'completed', true,
+      'already', true,
+      'points', coalesce(t.points, 0),
+      'exp', coalesce(t.exp, 0)
+    );
+  END IF;
+
+  IF NOT FOUND THEN
+    IF t.max_claims_per_user IS NOT NULL THEN
+      SELECT count(*)::integer
+        INTO v_claim_count
+      FROM public.daily_task_claims
+      WHERE task_id = p_task_id AND user_id = u;
+
+      IF v_claim_count >= t.max_claims_per_user THEN
+        RAISE EXCEPTION 'TASK_CLAIM_LIMIT_REACHED';
+      END IF;
+    END IF;
+
+    INSERT INTO public.daily_task_claims(task_id, user_id, claim_date, status)
+    VALUES (p_task_id, u, v_claim_date, 'CLAIMED')
+    RETURNING * INTO claim;
+  END IF;
+
+  UPDATE public.daily_task_claims
+  SET status = 'COMPLETED',
+      completed_at = pg_catalog.clock_timestamp()
+  WHERE id = claim.id;
+
+  IF coalesce(t.points, 0) > 0 THEN
+    v_ledger_id := NULL;
+    INSERT INTO public.edu_coin_ledger(user_id, event_type, event_id, amount, reason)
+    VALUES (u, 'DAILY_TASK_COMPLETED', claim.id::text, t.points, 'Menyelesaikan misi harian')
+    ON CONFLICT (user_id, event_type, event_id) DO NOTHING
+    RETURNING id INTO v_ledger_id;
+
+    IF v_ledger_id IS NOT NULL THEN
+      PERFORM private.credit_profile_currency(u, 'COIN', t.points);
+    END IF;
+  END IF;
+
+  IF coalesce(t.exp, 0) > 0 THEN
+    v_ledger_id := NULL;
+    INSERT INTO public.xp_ledger(user_id, event_type, event_id, amount, reason)
+    VALUES (u, 'DAILY_TASK_COMPLETED', claim.id::text, t.exp, 'EXP dari misi harian')
+    ON CONFLICT (user_id, event_type, event_id) DO NOTHING
+    RETURNING id INTO v_ledger_id;
+
+    IF v_ledger_id IS NOT NULL THEN
+      PERFORM private.credit_profile_currency(u, 'XP', t.exp);
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'completed', true,
+    'already', false,
+    'points', coalesce(t.points, 0),
+    'exp', coalesce(t.exp, 0)
+  );
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.claim_daily_checkin(p_date date DEFAULT ((now() AT TIME ZONE 'Asia/Jakarta'::text))::date, p_day_number integer DEFAULT NULL::integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+DECLARE
+  u uuid := auth.uid();
+  v_today date := (pg_catalog.clock_timestamp() AT TIME ZONE 'Asia/Jakarta')::date;
+  r jsonb;
+  existing public.daily_checkins;
+  rid text;
+  amt numeric;
+  typ text;
+  next_day integer;
+  v_ledger_id uuid;
+  v_coin_amount numeric := 0;
+BEGIN
+  IF u IS NULL THEN
+    RAISE EXCEPTION 'LOGIN_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  IF p_date IS DISTINCT FROM v_today THEN
+    RAISE EXCEPTION 'CHECKIN_DATE_MUST_BE_TODAY';
+  END IF;
+
+  -- Serialize claims per user. Duplicate taps return the already saved row
+  -- instead of racing on the (user_id, checkin_date) primary key.
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(u::text || ':daily-checkin', 0)
+  );
+
+  SELECT *
+    INTO existing
+  FROM public.daily_checkins
+  WHERE user_id = u AND checkin_date = p_date;
+
+  IF FOUND THEN
+    RETURN jsonb_build_object(
+      'already', true,
+      'reward_type', existing.reward_type,
+      'reward_amount', existing.reward_amount,
+      'streak_day', existing.streak_day,
+      'event_id', existing.event_id
+    );
+  END IF;
+
+  SELECT CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM public.daily_checkins dc
+      WHERE dc.user_id = u AND dc.checkin_date = p_date - 1
+    )
+    THEN coalesce((
+      SELECT streak_day
+      FROM public.daily_checkins
+      WHERE user_id = u AND checkin_date = p_date - 1
+    ), 0) + 1
+    ELSE 1
+  END
+  INTO next_day;
+
+  -- Always resolve the reward using the streak calculated by the database.
+  r := public.resolve_daily_checkin_reward(p_date, next_day);
+  typ := coalesce(r ->> 'reward_type', 'XP');
+  amt := coalesce((r ->> 'reward_amount')::numeric, 0);
+  v_coin_amount := coalesce((r ->> 'coin_amount')::numeric, 0);
+
+  IF typ NOT IN ('XP', 'COIN') THEN
+    RAISE EXCEPTION 'CHECKIN_REWARD_TYPE_NOT_SUPPORTED';
+  END IF;
+
+  INSERT INTO public.daily_checkins (
+    user_id, checkin_date, reward_type, reward_amount, streak_day, event_id
+  )
+  VALUES (
+    u, p_date, typ, amt, next_day, nullif(r ->> 'event_id', '')::uuid
+  )
+  RETURNING * INTO existing;
+
+  rid := existing.user_id::text || ':' || existing.checkin_date::text;
+
+  IF typ = 'XP' AND amt > 0 THEN
+    v_ledger_id := NULL;
+    INSERT INTO public.xp_ledger(user_id, event_type, event_id, amount, reason)
+    VALUES (u, 'DAILY_CHECKIN', rid, amt, 'Hadiah check-in harian')
+    ON CONFLICT (user_id, event_type, event_id) DO NOTHING
+    RETURNING id INTO v_ledger_id;
+
+    IF v_ledger_id IS NOT NULL THEN
+      PERFORM private.credit_profile_currency(u, 'XP', amt);
+    END IF;
+  ELSIF typ = 'COIN' AND amt > 0 THEN
+    v_ledger_id := NULL;
+    INSERT INTO public.edu_coin_ledger(user_id, event_type, event_id, amount, reason)
+    VALUES (u, 'DAILY_CHECKIN', rid, amt, 'Hadiah check-in harian')
+    ON CONFLICT (user_id, event_type, event_id) DO NOTHING
+    RETURNING id INTO v_ledger_id;
+
+    IF v_ledger_id IS NOT NULL THEN
+      PERFORM private.credit_profile_currency(u, 'COIN', amt);
+    END IF;
+  END IF;
+
+  IF v_coin_amount > 0 THEN
+    v_ledger_id := NULL;
+    INSERT INTO public.edu_coin_ledger(user_id, event_type, event_id, amount, reason)
+    VALUES (u, 'DAILY_CHECKIN', rid || ':coin', v_coin_amount, 'Koin reguler check-in')
+    ON CONFLICT (user_id, event_type, event_id) DO NOTHING
+    RETURNING id INTO v_ledger_id;
+
+    IF v_ledger_id IS NOT NULL THEN
+      PERFORM private.credit_profile_currency(u, 'COIN', v_coin_amount);
+    END IF;
+  END IF;
+
+  RETURN r || jsonb_build_object(
+    'already', false,
+    'streak_day', existing.streak_day
+  );
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.claim_daily_task(p_task_id uuid)
+ RETURNS daily_task_claims
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+DECLARE
+  u uuid := auth.uid();
+  t public.daily_tasks;
+  claim public.daily_task_claims;
+  v_claim_count integer := 0;
+  v_claim_date date := (pg_catalog.clock_timestamp() AT TIME ZONE 'Asia/Jakarta')::date;
+BEGIN
+  IF u IS NULL THEN
+    RAISE EXCEPTION 'LOGIN_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT *
+    INTO t
+  FROM public.daily_tasks
+  WHERE id = p_task_id
+    AND is_active = true
+    AND (starts_at IS NULL OR starts_at <= pg_catalog.now())
+    AND (ends_at IS NULL OR ends_at >= pg_catalog.now());
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'TASK_NOT_FOUND';
+  END IF;
+
+  IF NOT private.is_daily_task_eligible(u, p_task_id, v_claim_date) THEN
+    RAISE EXCEPTION 'TASK_REQUIREMENT_NOT_MET';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(u::text || ':daily-task:' || p_task_id::text, 0)
+  );
+
+  IF t.max_claims_per_user IS NOT NULL THEN
+    SELECT count(*)::integer
+      INTO v_claim_count
+    FROM public.daily_task_claims
+    WHERE task_id = p_task_id AND user_id = u;
+
+    IF v_claim_count >= t.max_claims_per_user THEN
+      RAISE EXCEPTION 'TASK_CLAIM_LIMIT_REACHED';
+    END IF;
+  END IF;
+
+  INSERT INTO public.daily_task_claims(task_id, user_id, claim_date, status)
+  VALUES (p_task_id, u, v_claim_date, 'CLAIMED')
+  ON CONFLICT (task_id, user_id, claim_date)
+  DO UPDATE SET status = public.daily_task_claims.status
+  RETURNING * INTO claim;
+
+  RETURN claim;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.claim_organizer_voucher(p_voucher_id uuid)
+ RETURNS organizer_voucher_claims
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+declare v_org uuid; v public.organizer_vouchers; c public.organizer_voucher_claims;
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  select o.id into v_org from public.organizers o where o.owner_user_id=auth.uid() or exists(select 1 from public.organizer_members m where m.organizer_id=o.id and m.user_id=auth.uid() and m.is_active=true) order by o.created_at limit 1;
+  if v_org is null then raise exception 'ORGANIZER_REQUIRED'; end if;
+  select * into v from public.organizer_vouchers where id=p_voucher_id for update;
+  if not found or not v.is_active then raise exception 'VOUCHER_NOT_AVAILABLE'; end if;
+  if v.starts_at is not null and v.starts_at>now() then raise exception 'VOUCHER_NOT_STARTED'; end if;
+  if v.ends_at is not null and v.ends_at<now() then raise exception 'VOUCHER_EXPIRED'; end if;
+  if v.claim_count>=v.max_uses then raise exception 'VOUCHER_EXHAUSTED'; end if;
+  if exists(select 1 from public.organizer_voucher_claims where voucher_id=v.id and organizer_id=v_org and status in ('CLAIMED','USED')) then raise exception 'VOUCHER_ALREADY_CLAIMED'; end if;
+  insert into public.organizer_voucher_claims(voucher_id,organizer_id,claimed_by) values(v.id,v_org,auth.uid()) returning * into c;
+  update public.organizer_vouchers set claim_count=claim_count+1,updated_at=now() where id=v.id;
+  return c;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.claim_rpc_recovery(p_rpc_name text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+DECLARE
+  v_key text := '__rpc_health:' || lower(trim(coalesce(p_rpc_name,'')));
+  v_runtime bigint := private.rpc_runtime_version();
+  v_value jsonb;
+  v_status text;
+  v_version bigint;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF p_rpc_name IS NULL OR p_rpc_name !~ '^[a-zA-Z0-9_]{1,120}$' THEN RAISE EXCEPTION 'INVALID_RPC_NAME'; END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_key, 0));
+  SELECT value INTO v_value FROM public.global_settings WHERE key=v_key FOR UPDATE;
+  IF v_value IS NULL THEN RETURN true; END IF;
+
+  v_status := v_value->>'status';
+  v_version := NULLIF(v_value->>'backend_version','')::bigint;
+
+  IF v_status <> 'BLOCKED' OR v_version IS NULL OR v_version >= v_runtime THEN
+    RETURN v_status IS DISTINCT FROM 'PROBING';
+  END IF;
+
+  UPDATE public.global_settings
+  SET value = jsonb_build_object(
+    'status','PROBING',
+    'backend_version',v_runtime,
+    'previous_error_code',v_value->>'error_code',
+    'previous_error_message',v_value->>'error_message',
+    'probe_started_at',now()
+  ), updated_at=now()
+  WHERE key=v_key;
+
+  RETURN true;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.complete_daily_task(p_task_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+DECLARE
+  u uuid := auth.uid();
+  t public.daily_tasks;
+  claim public.daily_task_claims;
+  v_claim_date date := (pg_catalog.clock_timestamp() AT TIME ZONE 'Asia/Jakarta')::date;
+  v_ledger_id uuid;
+BEGIN
+  IF u IS NULL THEN
+    RAISE EXCEPTION 'LOGIN_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT *
+    INTO t
+  FROM public.daily_tasks
+  WHERE id = p_task_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'TASK_NOT_FOUND';
+  END IF;
+
+  SELECT *
+    INTO claim
+  FROM public.daily_task_claims
+  WHERE task_id = p_task_id
+    AND user_id = u
+    AND claim_date = v_claim_date
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'TASK_NOT_CLAIMED';
+  END IF;
+
+  IF NOT private.is_daily_task_eligible(u, p_task_id, v_claim_date) THEN
+    RAISE EXCEPTION 'TASK_REQUIREMENT_NOT_MET';
+  END IF;
+
+  IF claim.status = 'COMPLETED' THEN
+    RETURN jsonb_build_object(
+      'completed', true,
+      'already', true,
+      'points', coalesce(t.points, 0),
+      'exp', coalesce(t.exp, 0)
+    );
+  END IF;
+
+  UPDATE public.daily_task_claims
+  SET status = 'COMPLETED',
+      completed_at = pg_catalog.clock_timestamp()
+  WHERE id = claim.id;
+
+  IF coalesce(t.points, 0) > 0 THEN
+    v_ledger_id := NULL;
+    INSERT INTO public.edu_coin_ledger(user_id, event_type, event_id, amount, reason)
+    VALUES (u, 'DAILY_TASK_COMPLETED', claim.id::text, t.points, 'Menyelesaikan misi harian')
+    ON CONFLICT (user_id, event_type, event_id) DO NOTHING
+    RETURNING id INTO v_ledger_id;
+
+    IF v_ledger_id IS NOT NULL THEN
+      PERFORM private.credit_profile_currency(u, 'COIN', t.points);
+    END IF;
+  END IF;
+
+  IF coalesce(t.exp, 0) > 0 THEN
+    v_ledger_id := NULL;
+    INSERT INTO public.xp_ledger(user_id, event_type, event_id, amount, reason)
+    VALUES (u, 'DAILY_TASK_COMPLETED', claim.id::text, t.exp, 'EXP dari misi harian')
+    ON CONFLICT (user_id, event_type, event_id) DO NOTHING
+    RETURNING id INTO v_ledger_id;
+
+    IF v_ledger_id IS NOT NULL THEN
+      PERFORM private.credit_profile_currency(u, 'XP', t.exp);
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'completed', true,
+    'already', false,
+    'points', coalesce(t.points, 0),
+    'exp', coalesce(t.exp, 0)
+  );
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.create_ad_banner_payment_order(p_request_id uuid, p_payment_method_id uuid, p_proof_url text DEFAULT NULL::text, p_proof_public_id text DEFAULT NULL::text, p_proof_width integer DEFAULT NULL::integer, p_proof_height integer DEFAULT NULL::integer, p_proof_version text DEFAULT NULL::text, p_proof_resource_type text DEFAULT NULL::text, p_unique_code integer DEFAULT 0)
+ RETURNS orders
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private', 'pg_catalog'
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_request public.ad_banner_requests%rowtype;
+  v_method public.organizer_payment_methods%rowtype;
+  v_gateway_state public.payment_gateway_state%rowtype;
+  v_provider_config public.payment_gateway_configs%rowtype;
+  v_banner_settings public.ad_banner_settings%rowtype;
+  v_order public.orders%rowtype;
+  v_is_global boolean;
+  v_environment text;
+  v_daily_price numeric(14,2);
+  v_base_amount numeric(14,2);
+  v_amount numeric(14,2);
+  v_proof text := nullif(trim(coalesce(p_proof_url,'')), '');
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  if p_request_id is null or p_payment_method_id is null then raise exception 'PAYMENT_METHOD_REQUIRED'; end if;
+  if p_unique_code not between 0 and 999 then raise exception 'INVALID_PAYMENT_CODE'; end if;
+
+  select * into v_request
+  from public.ad_banner_requests
+  where id=p_request_id and user_id=v_uid
+  for update;
+  if not found then raise exception 'AD_BANNER_REQUEST_NOT_FOUND'; end if;
+  if v_request.status <> 'PENDING' then raise exception 'AD_BANNER_REQUEST_NOT_PAYABLE'; end if;
+  if v_request.duration_days not between 1 and 90 then raise exception 'AD_BANNER_DURATION_INVALID'; end if;
+  if (v_request.placement='home_sidebar' and v_request.slots_requested<>1)
+     or (v_request.placement='home_top' and v_request.slots_requested not between 1 and 2) then
+    raise exception 'AD_BANNER_SLOT_COUNT_INVALID';
+  end if;
+  select * into v_banner_settings from public.ad_banner_settings order by created_at limit 1;
+  v_daily_price := coalesce(nullif(v_banner_settings.price_per_lot_daily,0),50000);
+  if v_request.single_image and v_request.slots_requested=2 then
+    v_base_amount := round(coalesce(nullif(v_banner_settings.single_image_2slots_price,0),v_daily_price*2) * v_request.duration_days,2);
+  else
+    v_base_amount := round(v_daily_price * v_request.slots_requested * v_request.duration_days,2);
+  end if;
+  if v_base_amount<=0 then raise exception 'AD_BANNER_PRICE_INVALID'; end if;
+  -- Recalculate server-side; never trust the client-supplied request total for a payment amount.
+  update public.ad_banner_requests set total_price=v_base_amount where id=v_request.id;
+  v_request.total_price := v_base_amount;
+
+  select * into v_method from public.organizer_payment_methods
+  where id=p_payment_method_id and is_active=true;
+  if not found then raise exception 'PAYMENT_METHOD_NOT_AVAILABLE'; end if;
+  v_is_global := coalesce(v_method.details->>'global_gateway','false')='true';
+
+  if v_is_global then
+    if upper(v_method.payment_type) <> 'SNAP' then raise exception 'GLOBAL_PAYMENT_METHOD_INVALID'; end if;
+    if p_unique_code <> 0 then raise exception 'INVALID_PAYMENT_CODE'; end if;
+    select * into v_gateway_state from public.payment_gateway_state where id=true;
+    if not found or v_gateway_state.automatic_payments_enabled is distinct from true
+       or v_gateway_state.active_provider not in ('MIDTRANS','XENITHPAY') then
+      raise exception 'GLOBAL_GATEWAY_NOT_ACTIVE';
+    end if;
+    select * into v_provider_config from public.payment_gateway_configs
+    where provider=v_gateway_state.active_provider and is_enabled=true;
+    if not found then raise exception 'GLOBAL_GATEWAY_NOT_CONFIGURED'; end if;
+    v_environment := coalesce(v_provider_config.environment,'sandbox');
+    if v_gateway_state.active_provider='MIDTRANS' and
+       coalesce(v_provider_config.secret_config #>> array[v_environment,'server_key'],'')='' then
+      raise exception 'GLOBAL_GATEWAY_NOT_CONFIGURED';
+    end if;
+    if v_gateway_state.active_provider='XENITHPAY' and (
+       coalesce(v_provider_config.secret_config #>> array[v_environment,'api_key'],'')=''
+       or coalesce(v_provider_config.secret_config #>> array[v_environment,'api_secret'],'')=''
+       or coalesce(v_provider_config.secret_config #>> array[v_environment,'webhook_secret'],'')=''
+       or coalesce(v_provider_config.public_config #>> array[v_environment,'payment_method'],'')=''
+       or coalesce(v_provider_config.public_config #>> array[v_environment,'payment_channel'],'')=''
+    ) then raise exception 'GLOBAL_GATEWAY_NOT_CONFIGURED'; end if;
+  else
+    if upper(v_method.payment_type) not in ('BANK_TRANSFER','MANUAL_TRANSFER','QRIS','EWALLET') then
+      raise exception 'PAYMENT_METHOD_NOT_SUPPORTED';
+    end if;
+    if p_unique_code < 100 or v_proof is null or v_proof !~* '^https?://' then
+      raise exception 'PAYMENT_PROOF_REQUIRED';
+    end if;
+  end if;
+
+  if v_request.payment_order_id is not null then
+    select * into v_order from public.orders where id=v_request.payment_order_id for update;
+    if found and v_order.status='PENDING_PAYMENT' and v_order.payment_method_id=p_payment_method_id then
+      return v_order;
+    end if;
+    if found and v_order.status='PAID' then raise exception 'AD_BANNER_ALREADY_PAID'; end if;
+    if found then raise exception 'AD_BANNER_PAYMENT_ORDER_EXISTS'; end if;
+  end if;
+
+  v_amount := v_base_amount + case when v_is_global then 0 else p_unique_code end;
+  if not coalesce(v_amount > 0 and v_amount < 1000000000000, false) then raise exception 'INVALID_ORDER_AMOUNT'; end if;
+
+  insert into public.orders(
+    user_id,status,subtotal,discount,shipping_cost,total,currency,contact_name,contact_email,contact_note,
+    payment_method,payment_provider,payment_method_id,payment_proof_url,payment_proof_public_id,
+    payment_proof_width,payment_proof_height,payment_proof_version,payment_proof_resource_type,
+    payment_proof_status,contact_fields
+  ) values (
+    v_uid,'PENDING_PAYMENT',v_amount,0,0,v_amount,'IDR',null,null,'Iklan banner',
+    v_method.name,case when v_is_global then 'GLOBAL' else upper(v_method.payment_type) end,p_payment_method_id,
+    case when v_is_global then null else v_proof end,
+    case when v_is_global then null else p_proof_public_id end,
+    case when v_is_global then null else p_proof_width end,
+    case when v_is_global then null else p_proof_height end,
+    case when v_is_global then null else p_proof_version end,
+    case when v_is_global then null else p_proof_resource_type end,
+    case when v_is_global then 'NOT_SUBMITTED' else 'SUBMITTED' end,
+    jsonb_build_object('ad_banner_request_id',v_request.id,'organizer_id',v_request.organizer_id,'placement',v_request.placement)
+  ) returning * into v_order;
+
+  insert into public.order_items(order_id,product_type,product_ref,name,quantity,unit_price,line_total,metadata)
+  values(v_order.id,'DIGITAL_ITEM','AD_BANNER_REQUEST',
+    'Iklan Banner — '||case when v_request.placement='home_sidebar' then 'Sidebar' else 'Banner Tengah Atas' end,
+    1,v_amount,v_amount,jsonb_build_object(
+      'ad_banner_request_id',v_request.id,'organizer_id',v_request.organizer_id,
+      'placement',v_request.placement,'duration_days',v_request.duration_days,
+      'slots_requested',v_request.slots_requested,'base_amount',v_request.total_price,
+      'unique_payment_code',case when v_is_global then 0 else p_unique_code end
+    ));
+
+  perform set_config('app.ad_banner_payment_write','true',true);
+  update public.ad_banner_requests
+  set payment_order_id=v_order.id,
+      payment_method_id=p_payment_method_id,
+      payment_status='PENDING',
+      paid_at=null
+  where id=v_request.id;
+
+  perform private.write_audit('commerce.ad_banner_order_created','order',v_order.id::text,
+    'Organizer banner payment checkout',null,to_jsonb(v_order),null);
+  return v_order;
+end;
+$function$;
+
+DO $user_rpc_issuer_postflight$
+DECLARE
+  v_signature text;
+  v_function regprocedure;
+  v_source text;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+      'archive_my_order_history(uuid)',
+      'bulk_import_roster_students(uuid,jsonb)',
+      'cancel_my_pending_order(uuid)',
+      'claim_and_complete_daily_task(uuid)',
+      'claim_daily_checkin(date,integer)',
+      'claim_daily_task(uuid)',
+      'claim_organizer_voucher(uuid)',
+      'claim_rpc_recovery(text)',
+      'complete_daily_task(uuid)',
+      'create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)'
+  ]
+  LOOP
+    v_function := pg_catalog.to_regprocedure(v_signature);
+    SELECT p.prosrc INTO v_source FROM pg_catalog.pg_proc p WHERE p.oid = v_function;
+    IF v_source IS NULL OR position('private.current_user_is_better_auth()' in v_source) = 0 THEN
+      RAISE EXCEPTION 'USER_RPC_ISSUER_GUARD_MISSING:%', v_signature;
+    END IF;
+    IF pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'USER_RPC_ISSUER_POSTFLIGHT_ACL_DRIFT:%', v_signature;
+    END IF;
+  END LOOP;
+END;
+$user_rpc_issuer_postflight$;
+
+
 COMMIT;
