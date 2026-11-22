@@ -1284,9 +1284,9 @@ AS $function$
           AND p_profile_id = (SELECT auth.uid())
         )
         OR (
-        private.current_user_is_better_auth()
-        AND private.current_user_is_admin()
-      )
+          private.current_user_is_better_auth()
+          AND private.current_user_is_admin()
+        )
         OR COALESCE(pr2.is_public, true) = true
       )
   )
@@ -1300,9 +1300,9 @@ AS $function$
           AND p_profile_id = (SELECT auth.uid())
         )
         OR (
-        private.current_user_is_better_auth()
-        AND private.current_user_is_admin()
-      )
+          private.current_user_is_better_auth()
+          AND private.current_user_is_admin()
+        )
         OR COALESCE(pr3.is_public, true) = true
       )
   )
