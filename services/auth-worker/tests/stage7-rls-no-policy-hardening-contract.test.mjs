@@ -57,7 +57,7 @@ test("postflight denies PUBLIC/anon/authenticated CRUD and preserves service_rol
   assert.match(sql, /STAGE5_ACL_PREFLIGHT_PUBLIC_GRANT_DRIFT/);
   assert.ok(sql.includes("acl.grantee = 0"));
   for (const role of ["anon", "authenticated"]) {
-    for (const privilege of ["TRUNCATE", "REFERENCES", "TRIGGER"]) {
+    for (const privilege of ["TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN"]) {
       assert.ok(
         sql.includes("has_table_privilege('" + role + "', v_table.oid, '" + privilege + "')"),
         "missing non-CRUD postflight assertion for " + role + " " + privilege,
@@ -68,6 +68,9 @@ test("postflight denies PUBLIC/anon/authenticated CRUD and preserves service_rol
     for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
       assert.match(sql, new RegExp("has_table_privilege\\('" + role + "', v_table\\.oid, '" + privilege + "'\\)"));
     }
+  }
+  for (const role of ["service_role", "postgres"]) {
+    assert.ok(sql.includes("has_table_privilege('" + role + "', v_table.oid, 'MAINTAIN')"));
   }
 });
 
