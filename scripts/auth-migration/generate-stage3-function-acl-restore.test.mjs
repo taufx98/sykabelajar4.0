@@ -46,12 +46,12 @@ assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.get_my_verified_referra
 assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.get_my_verified_referrals() TO "anon";'));
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.create_organizer(text,text) TO "anon";'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.apply_referral_qualification(uuid,text,timestamptz) TO "anon";'), false);
-assert.match(sql,/REVOKE ALL PRIVILEGES ON FUNCTION public\\.archive_my_order_history\\(uuid\\) FROM PUBLIC, anon, authenticated, service_role;/);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.archive_my_order_history\\(uuid\\) TO "authenticated";/);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.archive_my_order_history\\(uuid\\) TO "service_role";/);
+assert.match(sql,/REVOKE ALL PRIVILEGES ON FUNCTION public\.archive_my_order_history\(uuid\) FROM PUBLIC, anon, authenticated, service_role;/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uuid\) TO "authenticated";/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uuid\) TO "service_role";/);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO PUBLIC;'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO "anon";'), false);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.create_ad_banner_payment_order\\(uuid,uuid,text,text,integer,integer,text,text,integer\\) TO "authenticated";/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_ad_banner_payment_order\(uuid,uuid,text,text,integer,integer,text,text,integer\) TO "authenticated";/);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
 assert.throws(()=>renderFunctionAclRestore({auth_dependent_functions:metadata.auth_dependent_functions.slice(1)}),/all 20/);
