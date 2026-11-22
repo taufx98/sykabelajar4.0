@@ -12,6 +12,16 @@ const FUNCTIONS = new Map([
   ["public.handle_new_auth_user", "public.handle_new_auth_user()"],
   ["public.register_for_competition", "public.register_for_competition(uuid,text,uuid,text,boolean,text,text,text)"],
   ["public.verify_pending_referrals", "public.verify_pending_referrals()"],
+  ["public.archive_my_order_history", "public.archive_my_order_history(uuid)"],
+  ["public.bulk_import_roster_students", "public.bulk_import_roster_students(uuid,jsonb)"],
+  ["public.cancel_my_pending_order", "public.cancel_my_pending_order(uuid)"],
+  ["public.claim_and_complete_daily_task", "public.claim_and_complete_daily_task(uuid)"],
+  ["public.claim_daily_checkin", "public.claim_daily_checkin(date,integer)"],
+  ["public.claim_daily_task", "public.claim_daily_task(uuid)"],
+  ["public.claim_organizer_voucher", "public.claim_organizer_voucher(uuid)"],
+  ["public.claim_rpc_recovery", "public.claim_rpc_recovery(text)"],
+  ["public.complete_daily_task", "public.complete_daily_task(uuid)"],
+  ["public.create_ad_banner_payment_order", "public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)"],
 ]);
 const ALLOWED_GRANTEES = new Set(["PUBLIC", "anon", "authenticated", "service_role", "postgres"]);
 
@@ -39,7 +49,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 10 reviewed Auth-dependent functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 20 reviewed Stage 3 functions; found " + records.size + ".");
   }
 
   const statements = [
