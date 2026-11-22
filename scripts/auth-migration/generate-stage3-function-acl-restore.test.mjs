@@ -58,16 +58,19 @@ assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
 assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 20/);
 assert.throws(()=>renderFunctionAclRestore({
+  ...metadata,
   auth_dependent_functions:metadata.auth_dependent_functions.map((row,index)=>index===0?{
     ...row,function_acl_entries:[{grantee:"attacker",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}]
   }:row)
 }),/Unsupported function ACL grantee/);
 assert.throws(()=>renderFunctionAclRestore({
+  ...metadata,
   auth_dependent_functions:metadata.auth_dependent_functions.map((row,index)=>index===0?{
     ...row,function_acl_entries:[{grantee:"postgres",privilege_type:"UPDATE",is_grantable:false,grantor:"postgres"}]
   }:row)
 }),/Unsupported function ACL privilege/);
 assert.throws(()=>renderFunctionAclRestore({
+  ...metadata,
   auth_dependent_functions:metadata.auth_dependent_functions.map((row,index)=>index===0?{
     ...row,function_acl_entries:[{grantee:"postgres",privilege_type:"EXECUTE",is_grantable:false,grantor:"not-postgres"}]
   }:row)
