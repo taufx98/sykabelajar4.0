@@ -36,7 +36,7 @@ assert.deepEqual(
 
 assert.match(
   workflow,
-  /^  schema-only-restore:\n    # workflow_dispatch can select any ref; only the reviewed migration base may receive Production credentials\.\n    if: \$\{\{ github\.ref == 'refs\/heads\/security\/auth-poc-stage-1' \}\}$/m,
+  /^  schema-only-restore:\n    # workflow_dispatch can select any ref; only the reviewed migration base may receive Production credentials\.\n    if: \$\{\{ github\.actor == 'taufx98' && github\.ref == 'refs\/heads\/security\/auth-poc-stage-1' \}\}$/m,
   "The secret-bearing job must reject manual dispatches from every non-trusted ref.",
 );
 assert.match(workflow, /SUPABASE_DB_URL:\s*\$\{\{\s*secrets\.SUPABASE_DB_URL\s*\}\}/,
