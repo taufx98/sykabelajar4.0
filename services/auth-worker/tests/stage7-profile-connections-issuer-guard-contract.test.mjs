@@ -67,7 +67,6 @@ test("social summaries require a Better Auth viewer and respect target profile v
   assert.match(body, /private\.current_user_is_better_auth\(\)/);
   assert.match(body, /BETTER_AUTH_ISSUER_REQUIRED/);
   assert.match(body, /COALESCE\(p\.is_public, true\)/);
-  assert.match(body, /COALESCE\(p\.is_public, true\)/);
   assert.match(body, /v_is_better_auth_owner/);
   assert.match(body, /v_is_better_auth_admin/);
   assert.match(body, /NOT COALESCE\(v_profile_is_public, false\)/);
