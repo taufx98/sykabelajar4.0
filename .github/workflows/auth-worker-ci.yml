@@ -84,6 +84,8 @@ on:
       - "scripts/auth-migration/auth-session-events.test.mjs"
       - "src/vite-env.d.ts"
       - "scripts/auth-migration/better-auth-frontend-client.test.mjs"
+      - "scripts/auth-migration/auth-schema-baseline-workflow-security.contract.test.mjs"
+      - ".github/workflows/auth-schema-baseline.yml"
       - ".github/workflows/auth-worker-ci.yml"
       - ".github/workflows/auth-worker-staging-deploy.yml"
       - ".github/workflows/auth-cloudflare-d1-migrate.yml"
@@ -125,6 +127,10 @@ jobs:
 
       - name: Security contract tests
         run: npm test
+
+      - name: Verify Production schema secrets are limited to trusted baseline runs
+        working-directory: ${{ github.workspace }}
+        run: node scripts/auth-migration/auth-schema-baseline-workflow-security.contract.test.mjs
 
       - name: Setup Deno for migrated Supabase Edge Functions
         uses: denoland/setup-deno@v2
