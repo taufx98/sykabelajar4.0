@@ -1586,6 +1586,10 @@ BEGIN
     COALESCE(p.proacl, pg_catalog.acldefault('f', p.proowner))
   ) AS acl
   WHERE p.oid IN (
+    'public.get_profile_connections(uuid, text)'::regprocedure,
+    'public.get_public_profile_badge_visibility(uuid)'::regprocedure,
+    'public.get_public_profile_badges(uuid)'::regprocedure,
+    'public.get_public_profile_ui_settings(uuid)'::regprocedure,
     'public.get_follow_status(uuid, uuid)'::regprocedure,
     'public.get_public_profile_social(uuid)'::regprocedure
   )
