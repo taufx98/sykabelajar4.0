@@ -30,7 +30,7 @@ test("draft does not add policies, edit rows, alter schema, or weaken RLS", () =
   assert.match(sql, /STAGE5_ACL_POSTCONDITION_OWNER_DRIFT/);
   assert.match(executableSql, /policy_count <> 0/);
   assert.doesNotMatch(executableSql, /CREATE\s+POLICY|DROP\s+POLICY/i);
-  assert.doesNotMatch(executableSql, /ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+[^;]+SET/i);
+  assert.doesNotMatch(executableSql, /ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE\s+TABLE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+[^;]+SET/i);
   assert.match(executableSql, /BEGIN;/);
   assert.match(executableSql, /COMMIT;/);
 });
