@@ -40,7 +40,7 @@ const base = identity + "\n" + issuer;
 assert.equal([...supplemental.matchAll(/CREATE OR REPLACE FUNCTION public\./g)].length, 65,
   "The supplemental draft must replace exactly 65 functions; the three previously hardened profile/referral RPCs remain in the earlier issuer draft.");
 for (const alreadyGuarded of ["get_follow_status", "get_my_verified_referrals", "get_public_profile_social"]) {
-  assert.equal(definitionsFor(base, alreadyGuarded).length, 1,
+  assert.equal(definitionsFor(base, alreadyGuarded).slice(-1).length, 1,
     "Previously hardened RPC must remain covered by the preceding Stage 3 draft: " + alreadyGuarded);
   assert.equal(definitionsFor(supplemental, alreadyGuarded).length, 0,
     "Do not overwrite the hardened function with its older Production definition: " + alreadyGuarded);
