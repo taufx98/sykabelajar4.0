@@ -33,8 +33,12 @@ on:
       - "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
+      - "scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs"
       - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
       - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-22.json"
+      - "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+      - "scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs"
       - "docs/security/AUTH-STAGE-5-PAYMENT-SERVICE-ROLE-CLAIM-DRAFT.sql"
       - "scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs"
       - "scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs"
@@ -739,6 +743,10 @@ jobs:
               --file=/baseline/stage3-issuer-guard-regression.sql
           echo "- Verified legacy Supabase and Better Auth issuer access; rejected an untrusted issuer; rolled back all fixtures" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Test Stage 7 application RLS table-boundary review
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs
+
       - name: Apply Stage 5 no-policy table ACL draft to disposable restore only
         if: steps.credentials.outputs.available == 'true'
         run: |
@@ -751,6 +759,19 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage5-no-policy-table-acl-draft.sql
           echo "- Tested targeted anon/authenticated table-grant revocation for three RLS-enabled/no-policy tables on the disposable restore only; service_role and postgres access remained intact" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify all 23 RLS table boundaries after Stage 5 on disposable restore
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage7-rls-policy-review-regression.sql:/baseline/stage7-rls-policy-review-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-rls-policy-review-regression.sql
+          echo "- Verified all 23 reviewed application tables remain RLS-enabled and policy-free, with zero direct anon/authenticated grants and expected service_role boundaries after Stage 5 on the disposable restore" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Simulate fail-closed 69-FK rollback on disposable restore only
         if: steps.credentials.outputs.available == 'true'
