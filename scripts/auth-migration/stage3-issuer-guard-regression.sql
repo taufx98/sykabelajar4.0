@@ -396,7 +396,9 @@ BEGIN
     'public.start_linear_exam_attempt(uuid)',
     'public.sync_collective_registration_order_payment(uuid)',
     'public.validate_organizer_voucher(text)',
-    'public.validate_organizer_voucher(text,text,text)'
+    'public.validate_organizer_voucher(text,text,text)',
+    'public.create_collective_certificate_order(uuid)',
+    'public.create_product_order(uuid,integer)'
   ] LOOP
     v_error := pg_temp.stage3_user_rpc_call_error(v_signature);
     IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
@@ -404,7 +406,7 @@ BEGIN
     END IF;
     v_count := v_count + 1;
   END LOOP;
-  IF v_count <> 66 THEN
+  IF v_count <> 68 THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_TEST_COUNT_MISMATCH:%', v_count;
   END IF;
 END;
@@ -836,7 +838,9 @@ BEGIN
     'public.start_linear_exam_attempt(uuid)',
     'public.sync_collective_registration_order_payment(uuid)',
     'public.validate_organizer_voucher(text)',
-    'public.validate_organizer_voucher(text,text,text)'
+    'public.validate_organizer_voucher(text,text,text)',
+    'public.create_collective_certificate_order(uuid)',
+    'public.create_product_order(uuid,integer)'
   ] LOOP
     v_error := pg_temp.stage3_user_rpc_call_error(v_signature);
     IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
@@ -844,7 +848,7 @@ BEGIN
     END IF;
     v_count := v_count + 1;
   END LOOP;
-  IF v_count <> 66 THEN
+  IF v_count <> 68 THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_TEST_COUNT_MISMATCH:%', v_count;
   END IF;
 END;
