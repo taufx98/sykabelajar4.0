@@ -458,6 +458,156 @@ BEGIN
 END;
 $legacy_issuer$;
 
+-- User-scoped SECURITY DEFINER RPCs must reject a legacy Supabase Auth
+-- subject before reading or changing the subject's application records.
+DO $legacy_user_rpc_issuer_gate$
+DECLARE
+  v_denied boolean;
+BEGIN
+  v_denied := false;
+  BEGIN
+    PERFORM public.archive_my_order_history('99999999-9999-4999-8999-999999999991'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:archive_my_order_history';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.bulk_import_roster_students('99999999-9999-4999-8999-999999999992'::uuid, '[]'::jsonb);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:bulk_import_roster_students';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.cancel_my_pending_order('99999999-9999-4999-8999-999999999993'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:cancel_my_pending_order';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.claim_and_complete_daily_task('99999999-9999-4999-8999-999999999994'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:claim_and_complete_daily_task';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.claim_daily_checkin((pg_catalog.clock_timestamp() AT TIME ZONE 'Asia/Jakarta')::date, NULL::integer);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:claim_daily_checkin';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.claim_daily_task('99999999-9999-4999-8999-999999999995'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:claim_daily_task';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.claim_organizer_voucher('99999999-9999-4999-8999-999999999996'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:claim_organizer_voucher';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.claim_rpc_recovery('stage3_user_rpc_issuer_probe');
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:claim_rpc_recovery';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.complete_daily_task('99999999-9999-4999-8999-999999999997'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:complete_daily_task';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.create_ad_banner_payment_order('99999999-9999-4999-8999-999999999998'::uuid, '99999999-9999-4999-8999-999999999999'::uuid, NULL::text, NULL::text, NULL::integer, NULL::integer, NULL::text, NULL::text, 0);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:create_ad_banner_payment_order';
+  END IF;
+
+END;
+$legacy_user_rpc_issuer_gate$;
+
+
 -- Better Auth issuer is also valid and still sees only its own UUID.
 SELECT set_config('request.jwt.claims',
   '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
@@ -587,6 +737,118 @@ BEGIN
   VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better-auth-insert');
 END;
 $better_auth_issuer$;
+
+-- The same user-scoped RPCs must accept the exact Better Auth issuer and
+-- continue into their existing business validation/ownership checks.
+-- A business error or a successful no-op is expected; the issuer gate itself
+-- must not reject a projected Better Auth identity.
+DO $better_auth_user_rpc_issuer_gate$
+DECLARE
+  v_error text;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.archive_my_order_history('99999999-9999-4999-8999-999999999991'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:archive_my_order_history';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.bulk_import_roster_students('99999999-9999-4999-8999-999999999992'::uuid, '[]'::jsonb);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:bulk_import_roster_students';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.cancel_my_pending_order('99999999-9999-4999-8999-999999999993'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:cancel_my_pending_order';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.claim_and_complete_daily_task('99999999-9999-4999-8999-999999999994'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:claim_and_complete_daily_task';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.claim_daily_checkin((pg_catalog.clock_timestamp() AT TIME ZONE 'Asia/Jakarta')::date, NULL::integer);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:claim_daily_checkin';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.claim_daily_task('99999999-9999-4999-8999-999999999995'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:claim_daily_task';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.claim_organizer_voucher('99999999-9999-4999-8999-999999999996'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:claim_organizer_voucher';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.claim_rpc_recovery('stage3_user_rpc_issuer_probe');
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:claim_rpc_recovery';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.complete_daily_task('99999999-9999-4999-8999-999999999997'::uuid);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:complete_daily_task';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.create_ad_banner_payment_order('99999999-9999-4999-8999-999999999998'::uuid, '99999999-9999-4999-8999-999999999999'::uuid, NULL::text, NULL::text, NULL::integer, NULL::integer, NULL::text, NULL::text, 0);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:create_ad_banner_payment_order';
+  END IF;
+
+END;
+$better_auth_user_rpc_issuer_gate$;
+
 
 -- A different Better Auth identity may see public profile social projections,
 -- but must not inspect another user's private connection list or summary.
