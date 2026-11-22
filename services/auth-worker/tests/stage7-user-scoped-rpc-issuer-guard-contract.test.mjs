@@ -55,7 +55,56 @@ test("existing user ownership and business predicates remain present", () => {
     ["claim_daily_checkin", /WHERE user_id = u AND checkin_date = p_date/i],
     ["claim_daily_task", /private\.is_daily_task_eligible\(u, p_task_id, v_claim_date\)/i],
     ["claim_organizer_voucher", /organizer_members[\s\S]*?m\.user_id=auth\.uid\(\)/i],
-    ["claim_rpc_recovery", /p_rpc_name !~ '\^\[a-zA-Z0-9_\]\{1,120\}\$'/i],
+    ["claim_rpc_recovery", /p_rpc_name !~ '\^\[a-zA-Z0-9_\]\{1,120\}\
+    ["complete_daily_task", /WHERE task_id = p_task_id[\s\S]*?AND user_id = u/i],
+    ["create_ad_banner_payment_order", /WHERE id=p_request_id and user_id=v_uid/i],
+  ];
+
+  for (const [name, marker, , ] of functions) {
+    const body = functionBody(marker);
+    const expected = expectations.find((item) => item[0] === name);
+    assert.ok(expected, "missing business rule expectation for " + name);
+    if (typeof expected[1] === "string") {
+      assert.ok(body.includes(expected[1]), name + " business validation changed");
+    } else {
+      assert.match(body, expected[1], name + " business ownership/eligibility logic changed");
+    }
+  }
+});
+
+test("Stage 3 disposable regression rejects legacy issuer for all ten user RPCs", () => {
+  assert.match(regression, /DO \$legacy_user_rpc_issuer_gate\$/);
+  for (const [name] of functions) {
+    assert.ok(
+      regression.includes("STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:" + name),
+      "missing legacy issuer regression for " + name,
+    );
+  }
+  assert.match(regression, /SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED'/);
+});
+
+test("Stage 3 disposable regression accepts a Better Auth identity and reaches business validation", () => {
+  assert.match(regression, /DO \$better_auth_user_rpc_issuer_gate\$/);
+  for (const [name] of functions) {
+    assert.ok(
+      regression.includes("STAGE3_BETTER_AUTH_USER_RPC_WRONGLY_REJECTED:" + name),
+      "missing Better Auth acceptance regression for " + name,
+    );
+  }
+});
+
+test("the issuer draft is transactional and does not revoke these RPC grants", () => {
+  assert.match(sql, /^BEGIN;/m);
+  assert.match(sql, /COMMIT;\s*$/);
+  for (const [name] of functions) {
+    assert.doesNotMatch(
+      sql,
+      new RegExp("REVOKE\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+public\\." + name + "\\s*\\(", "i"),
+      name + " EXECUTE grants must remain unchanged in this user-identity pass",
+    );
+  }
+});
+/i],
     ["complete_daily_task", /WHERE task_id = p_task_id[\s\S]*?AND user_id = u/i],
     ["create_ad_banner_payment_order", /WHERE id=p_request_id and user_id=v_uid/i],
   ];
