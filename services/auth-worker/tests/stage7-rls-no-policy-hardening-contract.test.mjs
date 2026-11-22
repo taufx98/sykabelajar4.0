@@ -15,14 +15,14 @@ const targetTables = [
 
 test("Stage 7 no-policy hardening is limited to the three reviewed public tables", () => {
   for (const table of targetTables) {
-    assert.ok(sql.includes(table), `missing reviewed table ${table}`);
+    assert.ok(sql.includes(table), "missing reviewed table " + table);
   }
 
   const revoke = sql.match(/REVOKE ALL PRIVILEGES ON TABLE([\s\S]*?)FROM anon, authenticated;/i);
   assert.ok(revoke, "expected one explicit browser-role revoke");
   for (const table of targetTables) assert.ok(revoke[1].includes(table));
   assert.equal((revoke[1].match(/public\./g) ?? []).length, 3);
-  assert.doesNotMatch(revoke[0], /service_role|FROM\s+[^;]*\bPUBLIC\b/i);
+  assert.doesNotMatch(revoke[0], /\bservice_role\b/i);
 });
 
 test("draft does not add policies, edit rows, alter schema, or weaken RLS", () => {
@@ -35,21 +35,30 @@ test("draft does not add policies, edit rows, alter schema, or weaken RLS", () =
   assert.match(executableSql, /COMMIT;/);
 });
 
-test("preflight requires the exact owner, RLS state, no-policy state and reviewed baseline grants", () => {
+test("preflight requires exact owner, RLS state, no-policy state and reviewed grants", () => {
   assert.match(sql, /UNEXPECTED_OWNER/);
   assert.match(sql, /RLS_DISABLED/);
   assert.match(sql, /POLICY_DRIFT/);
   assert.match(sql, /GRANT_DRIFT/);
+  assert.match(sql, /RLS_HARDENING_PUBLIC_GRANT_DRIFT/);
   assert.match(sql, /has_table_privilege\('anon'/);
   assert.match(sql, /has_table_privilege\('authenticated'/);
   assert.match(sql, /has_table_privilege\('service_role'/);
 });
 
-test("postflight denies all browser CRUD and preserves service_role CRUD", () => {
-  assert.ok(sql.includes(`ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']`));
+test("postflight denies browser CRUD/non-CRUD privileges and preserves service_role CRUD", () => {
+  assert.ok(sql.includes("ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']"));
   for (const role of ["anon", "authenticated", "service_role"]) {
-    assert.match(sql, new RegExp(`has_table_privilege\\('${role}', v_table, v_privilege\\)`));
+    assert.ok(sql.includes("has_table_privilege('" + role + "', v_table, v_privilege)"));
   }
+  assert.match(sql, /has_table_privilege\('anon', v_table, 'TRUNCATE'\)/);
+  assert.match(sql, /has_table_privilege\('anon', v_table, 'REFERENCES'\)/);
+  assert.match(sql, /has_table_privilege\('anon', v_table, 'TRIGGER'\)/);
+  assert.match(sql, /has_table_privilege\('authenticated', v_table, 'TRUNCATE'\)/);
+  assert.match(sql, /has_table_privilege\('authenticated', v_table, 'REFERENCES'\)/);
+  assert.match(sql, /has_table_privilege\('authenticated', v_table, 'TRIGGER'\)/);
+  assert.match(sql, /acl\.grantee = 0/);
+  assert.match(sql, /RLS_HARDENING_PUBLIC_GRANT_REMAINS/);
 });
 
 test("the SQL remains a gated draft and never auto-runs against Production", () => {
