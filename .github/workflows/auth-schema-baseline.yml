@@ -1,9 +1,63 @@
 # Read-only Production schema preflight recheck after successful staging SendPulse validation; remote export only, no Production DDL/DML, D1 migration, Worker deployment, secret, DNS, or account changes.
 name: Auth Production Schema Baseline
-# Triggered by a workflow-file push; production reads remain schema-only and isolated.
+# Runs for relevant pushes and pull requests to the auth migration base; Production access remains schema-only and isolated.
 
 on:
   push:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - "scripts/auth-migration/export-schema-baseline.sh"
+      - "scripts/auth-migration/export-schema-baseline.contract.test.mjs"
+      - "scripts/auth-migration/verify-restored-auth-fk-catalog.mjs"
+      - "scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs"
+      - "scripts/auth-migration/stage3-baseline-metadata.sql"
+      - "scripts/auth-migration/verify-stage3-baseline-metadata.mjs"
+      - "scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs"
+      - "scripts/auth-migration/stage3-production-schema-regression.sql"
+      - "scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs"
+      - "docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-3-ROLLBACK-DRAFT.sql"
+      - "scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs"
+      - "scripts/auth-migration/production-first-admin-bootstrap.contract.test.mjs"
+      - "docs/security/AUTH-PRODUCTION-FIRST-ADMIN-BOOTSTRAP-DRAFT.sql"
+      - "scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs"
+      - "scripts/auth-migration/stage3-better-auth-provisioning-regression.sql"
+      - "scripts/auth-migration/generate-app-users-fk-plan.mjs"
+      - "scripts/auth-migration/generate-app-users-fk-plan.test.mjs"
+      - "scripts/auth-migration/stage3-issuer-guard.contract.test.mjs"
+      - "scripts/auth-migration/stage3-issuer-guard-regression.sql"
+      - "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql"
+      - "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs"
+      - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
+      - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
+      - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-5-PAYMENT-SERVICE-ROLE-CLAIM-DRAFT.sql"
+      - "scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs"
+      - "scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs"
+      - "scripts/auth-migration/live-auth-users-fk-catalog.json"
+      - "scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs"
+      - "supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql"
+      - "scripts/auth-migration/generate-stage3-function-acl-restore.mjs"
+      - "scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs"
+      - "scripts/auth-migration/generate-stage5-payment-function-acl-restore.mjs"
+      - "scripts/auth-migration/generate-stage5-payment-function-acl-restore.test.mjs"
+      - "scripts/auth-migration/stage5-business-edge-two-user.integration.test.mjs"
+      - "scripts/auth-migration/stage5-edge-two-user-fixtures.sql"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/get-cloudinary-signature/**"
+      - "supabase/functions/cloudinary-delete-asset/**"
+      - "supabase/functions/cloudinary-profile-upload/**"
+      - "supabase/functions/cloudinary-delete-profile/**"
+      - "supabase/functions/cloudinary-profile-upload-v2/**"
+      - "supabase/functions/cloudinary-delete-asset-v2/**"
+      - "supabase/functions/payment-gateway-admin/**"
+      - "supabase/functions/payment-gateway-create/**"
+      - "supabase/functions/payment-gateway-reconcile/**"
+      - "supabase/functions/payment-gateway-webhook/**"
+      - ".github/workflows/auth-schema-baseline.yml"
+  pull_request:
     branches:
       - security/auth-poc-stage-1
     paths:
