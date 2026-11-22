@@ -17,8 +17,12 @@ const functions = triage.functions.filter((f) =>
   f.suggestedClassification === "better_auth_user" ||
   f.suggestedClassification === "worker_internal"
 );
-assert.equal(functions.length, 66,
-  "User-bound RPC scope must include 62 personal RPCs plus four frontend diagnostics RPCs.");
+functions.push(
+  { name: "create_collective_certificate_order", signature: "create_collective_certificate_order(uuid)" },
+  { name: "create_product_order", signature: "create_product_order(uuid,integer)" },
+);
+assert.equal(functions.length, 68,
+  "User-bound RPC scope must include 62 personal RPCs, four frontend diagnostics RPCs, and two account-bound order RPCs.");
 
 const supplementalNames = new Set([...supplemental.matchAll(
   /CREATE OR REPLACE FUNCTION public\.([a-z_][a-z0-9_]*)\s*\(/gi,
@@ -56,6 +60,6 @@ assert.match(supplemental, /p\.proacl IS DISTINCT FROM old\.proacl/);
 assert.match(supplemental, /STAGE3_USER_RPC_FUNCTION_METADATA_OR_ACL_DRIFT/);
 assert.match(regression, /STAGE3_LEGACY_USER_RPC_NOT_DENIED/);
 assert.match(regression, /STAGE3_BETTER_AUTH_USER_RPC_REJECTED/);
-assert.match(regression, /v_count <> 66/);
+assert.match(regression, /v_count <> 68/);
 
-console.log("Stage 3 issuer contract passed: 66 user-bound SECURITY DEFINER signatures use the Better Auth identity helper and are covered by legacy-denial/Better Auth-acceptance fixtures.");
+console.log("Stage 3 issuer contract passed: 68 user-bound SECURITY DEFINER signatures use the Better Auth identity helper and are covered by legacy-denial/Better Auth-acceptance fixtures.");
