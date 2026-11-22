@@ -1622,7 +1622,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
       "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "public_acl_grant": false,
+      "intended_boundary": "Public storefront banner reads use the narrow active-banner RPC; Admin CRUD uses issuer-gated Admin RPCs; view/click telemetry uses the validated event RPC. The banner table itself has no direct browser grants."
     },
     {
       "schema": "public",
