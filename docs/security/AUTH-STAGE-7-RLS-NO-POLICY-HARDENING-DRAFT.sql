@@ -93,6 +93,20 @@ BEGIN
        OR NOT pg_catalog.has_table_privilege('service_role', v_table, 'DELETE') THEN
       RAISE EXCEPTION 'RLS_HARDENING_SERVICE_ROLE_BASELINE_MISMATCH: %', v_name;
     END IF;
+
+    -- PUBLIC table ACL entries or inherited non-CRUD browser privileges would
+    -- survive a role-specific REVOKE and can bypass RLS (notably TRUNCATE).
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_class AS c
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        COALESCE(c.relacl, pg_catalog.acldefault('r', c.relowner))
+      ) AS acl
+      WHERE c.oid = v_table
+        AND acl.grantee = 0
+    ) THEN
+      RAISE EXCEPTION 'RLS_HARDENING_PUBLIC_GRANT_DRIFT: %', v_name;
+    END IF;
   END LOOP;
 END;
 $preflight$;
@@ -127,6 +141,27 @@ BEGIN
       END IF;
       IF NOT pg_catalog.has_table_privilege('service_role', v_table, v_privilege) THEN
         RAISE EXCEPTION 'RLS_HARDENING_SERVICE_ROLE_GRANT_MISSING: % %', v_name, v_privilege;
+      END IF;
+      IF pg_catalog.has_table_privilege('anon', v_table, 'TRUNCATE')
+         OR pg_catalog.has_table_privilege('anon', v_table, 'REFERENCES')
+         OR pg_catalog.has_table_privilege('anon', v_table, 'TRIGGER') THEN
+        RAISE EXCEPTION 'RLS_HARDENING_ANON_NONCRUD_GRANT_REMAINS: %', v_name;
+      END IF;
+      IF pg_catalog.has_table_privilege('authenticated', v_table, 'TRUNCATE')
+         OR pg_catalog.has_table_privilege('authenticated', v_table, 'REFERENCES')
+         OR pg_catalog.has_table_privilege('authenticated', v_table, 'TRIGGER') THEN
+        RAISE EXCEPTION 'RLS_HARDENING_AUTHENTICATED_NONCRUD_GRANT_REMAINS: %', v_name;
+      END IF;
+      IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_class AS c
+        CROSS JOIN LATERAL pg_catalog.aclexplode(
+          COALESCE(c.relacl, pg_catalog.acldefault('r', c.relowner))
+        ) AS acl
+        WHERE c.oid = v_table
+          AND acl.grantee = 0
+      ) THEN
+        RAISE EXCEPTION 'RLS_HARDENING_PUBLIC_GRANT_REMAINS: %', v_name;
       END IF;
     END LOOP;
   END LOOP;
