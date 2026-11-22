@@ -29,6 +29,10 @@ on:
       - "scripts/auth-migration/stage3-issuer-guard-regression.sql"
       - "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
       - "docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql"
+      - "services/auth-worker/tests/stage7-rls-no-policy-hardening-contract.test.mjs"
+      - "services/auth-worker/tests/stage7-profile-connections-issuer-guard-contract.test.mjs"
+      - "services/auth-worker/tests/stage7-anonymous-definer-grants-contract.test.mjs"
       - "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
       - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
@@ -729,6 +733,23 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage5-no-policy-table-acl-draft.sql
           echo "- Tested targeted anon/authenticated table-grant revocation for three RLS-enabled/no-policy tables on the disposable restore only; service_role and postgres access remained intact" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test and apply Stage 7 no-policy browser-grant hardening on disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          node --test \
+            services/auth-worker/tests/stage7-rls-no-policy-hardening-contract.test.mjs \
+            services/auth-worker/tests/stage7-profile-connections-issuer-guard-contract.test.mjs \
+            services/auth-worker/tests/stage7-anonymous-definer-grants-contract.test.mjs
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-7-RLS-NO-POLICY-HARDENING-DRAFT.sql:/baseline/stage7-no-policy-hardening.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-no-policy-hardening.sql
+          echo "- Stage 7 no-policy browser grants revoked and postflight verified on the disposable PostgreSQL 17.6 restore only; service_role CRUD and RLS default-deny preserved" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Simulate fail-closed 69-FK rollback on disposable restore only
         if: steps.credentials.outputs.available == 'true'
