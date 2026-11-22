@@ -49,6 +49,9 @@ jobs:
           node scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
           node scripts/auth-migration/generate-stage5-payment-function-acl-restore.test.mjs
 
+      - name: Verify all Better Auth user-bound SECURITY DEFINER RPC guards
+        run: node scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs
+
       - name: Verify Stage 3 identity, issuer, RLS, and rollback contracts
         run: |
           node scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs
@@ -58,6 +61,12 @@ jobs:
           node scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs
           node scripts/auth-migration/generate-app-users-fk-plan.test.mjs
           node scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
+
+      - name: Verify all 23 application RLS table-boundary reviews
+        run: node scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs
+
+      - name: Verify collective participant portal token boundary
+        run: node scripts/auth-migration/stage7-collective-portal-token.contract.test.mjs
 
       - name: Verify Stage 5 ACL, payment, and Cloudinary boundaries
         run: |

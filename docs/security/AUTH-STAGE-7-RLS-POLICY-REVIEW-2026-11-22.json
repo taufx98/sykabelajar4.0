@@ -1,0 +1,1888 @@
+{
+  "schema_version": 1,
+  "status": "reviewed_catalog_pending_disposable_acceptance",
+  "project_ref": "mvdczyitbkxkldjughor",
+  "snapshot_date": "2026-11-22",
+  "source": "Fresh read-only PostgreSQL catalog query. Includes effective ACLs for PostgreSQL 17 MAINTAIN and source-token matching for function callers.",
+  "inventory_path": "docs/security/AUTH-STAGE-7-RLS-NO-POLICY-INVENTORY-2026-11-21.json",
+  "reviewed_table_count": 23,
+  "application_table_count": 23,
+  "platform_owned_tables_excluded": true,
+  "rule": "No blanket policies. All 23 application tables remain RLS-enabled with zero policies because browser roles receive no direct table privileges after the targeted Stage 5 revoke. Business access is intentionally mediated through issuer-gated Better Auth RPCs, validated participant portal token RPCs, public read/event RPCs, or service_role-only backend paths. Platform auth/storage tables remain out of scope.",
+  "review_scope": {
+    "direct_table_access_after_stage5": "none for anon/authenticated on all 23 tables",
+    "stage5_revoke_tables": [
+      "public.competition_status_history",
+      "public.notification_deliveries",
+      "public.supabase_system_logs"
+    ],
+    "private_tables": [
+      "private.organizer_free_identity_claims",
+      "private.referral_program_settings",
+      "private.referral_tier_awards"
+    ],
+    "public_table_count": 20,
+    "service_role_access_expected": "CRUD for public tables; no direct grants on private tables",
+    "rls_enabled_expected": true,
+    "policy_count_expected": 0,
+    "table_owner_expected": "postgres",
+    "public_acl_grants_expected": false,
+    "public_acl_grants_found": 0
+  },
+  "required_evidence": [
+    "table owner and intended data purpose",
+    "approved browser roles and direct table CRUD operations",
+    "Better Auth UUID/issuer, Admin/organizer, service_role, public RPC, or portal-token boundary",
+    "effective anon/authenticated/service_role GRANT review including MAINTAIN",
+    "positive owner/role/token tests through the supported RPC/Edge boundary",
+    "negative legacy Supabase issuer, cross-user IDOR, invalid/expired/revoked token tests where applicable",
+    "public banner and participant portal flows preserved through narrow RPCs",
+    "safe search_path and non-recursive helper review for authorization predicates",
+    "post-Stage5 catalog regression on a disposable Production schema restore"
+  ],
+  "tables": [
+    {
+      "schema": "private",
+      "table": "organizer_free_identity_claims",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "private_security_definer_only",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [],
+      "intended_boundary": "Schema-private configuration, identity, and referral data has no direct anon/authenticated/service_role table grants. Access stays behind owner-controlled SECURITY DEFINER functions. Personal reads/mutations require the exact Better Auth issuer and private.app_users identity_origin; Admin mutations use the issuer-gated shared Admin helper.",
+      "source_callers": [
+        {
+          "signature": "public.create_organizer(p_name text, p_slug text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "private",
+      "table": "referral_program_settings",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "private_security_definer_only",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [],
+      "intended_boundary": "Schema-private configuration, identity, and referral data has no direct anon/authenticated/service_role table grants. Access stays behind owner-controlled SECURITY DEFINER functions. Personal reads/mutations require the exact Better Auth issuer and private.app_users identity_origin; Admin mutations use the issuer-gated shared Admin helper.",
+      "source_callers": [
+        {
+          "signature": "private.apply_referral_milestone_rewards(p_referrer_user_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.capture_signup_referral()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.admin_update_referral_program_settings(p_is_active boolean, p_base_reward_amount integer, p_event_reward_amount integer, p_event_name text, p_event_description text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_update_referral_program_settings_v2(p_is_active boolean, p_base_reward_amount integer, p_event_reward_amount integer, p_event_name text, p_event_description text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_milestone_tiers jsonb, p_promo_is_enabled boolean, p_promo_title text, p_promo_description text, p_promo_badge text, p_promo_cta text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_referral_program_settings()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_referral_program_settings_v2()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.register_for_competition(p_competition_id uuid, p_participation_key text, p_competition_level_id uuid, p_social_proof_url text, p_twibbon_completed boolean, p_social_platform text, p_social_username text, p_referral_code text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "private",
+      "table": "referral_tier_awards",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "private_security_definer_only",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [],
+      "intended_boundary": "Schema-private configuration, identity, and referral data has no direct anon/authenticated/service_role table grants. Access stays behind owner-controlled SECURITY DEFINER functions. Personal reads/mutations require the exact Better Auth issuer and private.app_users identity_origin; Admin mutations use the issuer-gated shared Admin helper.",
+      "source_callers": [
+        {
+          "signature": "private.apply_referral_milestone_rewards(p_referrer_user_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.get_my_referral_tier_awards()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "chat_group_collective_reads",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "service_role_group_chat_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Collective/group chat persistence is not directly available to browser roles. Operations are mediated by service_role-only RPCs with server-side membership, invite, and participant-token checks. No direct table policy or browser grant is needed.",
+      "source_callers": [
+        {
+          "signature": "public.list_collective_chat_groups(p_access_token text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.mark_collective_chat_group_read(p_access_token text, p_group_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "chat_group_invites",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "service_role_group_chat_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Collective/group chat persistence is not directly available to browser roles. Operations are mediated by service_role-only RPCs with server-side membership, invite, and participant-token checks. No direct table policy or browser grant is needed.",
+      "source_callers": [
+        {
+          "signature": "public.create_chat_group_invite(p_group_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "chat_group_members",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "service_role_group_chat_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Collective/group chat persistence is not directly available to browser roles. Operations are mediated by service_role-only RPCs with server-side membership, invite, and participant-token checks. No direct table policy or browser grant is needed.",
+      "source_callers": [
+        {
+          "signature": "private.chat_group_can_read(p_group_id uuid, p_uid uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.chat_group_user_is_admin(p_group_id uuid, p_uid uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.chat_group_user_is_member(p_group_id uuid, p_uid uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.add_chat_group_member(p_group_id uuid, p_user_id uuid, p_collective_participant_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.create_chat_group(p_name text, p_description text, p_group_type text, p_competition_id uuid, p_join_mode text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.get_chat_group_members(p_group_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.get_chat_group_messages(p_group_id uuid, p_limit integer, p_before timestamp with time zone)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.get_collective_chat_group_messages(p_access_token text, p_group_id uuid, p_limit integer, p_before timestamp with time zone)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.join_chat_group(p_invite_token text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.join_collective_chat_group(p_access_token text, p_invite_token text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.list_collective_chat_group_members(p_access_token text, p_group_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.list_collective_chat_groups(p_access_token text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.list_my_chat_groups()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.mark_collective_chat_group_read(p_access_token text, p_group_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.remove_chat_group_member(p_group_id uuid, p_member_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.send_collective_chat_group_message(p_access_token text, p_group_id uuid, p_body text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "chat_group_reads",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "service_role_group_chat_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Collective/group chat persistence is not directly available to browser roles. Operations are mediated by service_role-only RPCs with server-side membership, invite, and participant-token checks. No direct table policy or browser grant is needed.",
+      "source_callers": [
+        {
+          "signature": "public.list_my_chat_groups()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.mark_chat_group_read(p_group_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "chat_groups",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "service_role_group_chat_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Collective/group chat persistence is not directly available to browser roles. Operations are mediated by service_role-only RPCs with server-side membership, invite, and participant-token checks. No direct table policy or browser grant is needed.",
+      "source_callers": [
+        {
+          "signature": "public.add_chat_group_member(p_group_id uuid, p_user_id uuid, p_collective_participant_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.admin_force_delete_competition(p_competition_id uuid, p_reason text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_chat_group(p_name text, p_description text, p_group_type text, p_competition_id uuid, p_join_mode text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.create_chat_group_invite(p_group_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.join_chat_group(p_invite_token text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.join_collective_chat_group(p_access_token text, p_invite_token text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.list_collective_chat_groups(p_access_token text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.list_my_chat_groups()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.rename_chat_group(p_group_id uuid, p_name text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.send_chat_group_message(p_group_id uuid, p_body text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.send_collective_chat_group_message(p_access_token text, p_group_id uuid, p_body text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "collective_portal_credentials",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "participant_portal_token_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Portal credential hashes, portal identities, and sessions stay service_role-only at the table layer. Anonymous participant access is intentionally through password verification and token-bound RPCs that validate token hash, credential version, expiry, revocation, and participant code. Do not require Better Auth for the participant portal.",
+      "source_callers": [
+        {
+          "signature": "private.sync_collective_portal_credential(p_participant_id uuid, p_plaintext_password text, p_password_version integer)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.list_collective_portal_competitions(p_portal_token text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.open_collective_competition_session(p_portal_token text, p_competition_id uuid, p_participant_code text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.provision_collective_registration(p_registration_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.regenerate_collective_participant_password(p_participant_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.verify_collective_portal_password(p_password text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "collective_portal_identities",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "participant_portal_token_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Portal credential hashes, portal identities, and sessions stay service_role-only at the table layer. Anonymous participant access is intentionally through password verification and token-bound RPCs that validate token hash, credential version, expiry, revocation, and participant code. Do not require Better Auth for the participant portal.",
+      "source_callers": [
+        {
+          "signature": "private.provision_collective_registration(p_registration_id uuid)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "private.sync_collective_portal_credential(p_participant_id uuid, p_plaintext_password text, p_password_version integer)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.list_collective_portal_competitions(p_portal_token text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.open_collective_competition_session(p_portal_token text, p_competition_id uuid, p_participant_code text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.provision_collective_registration(p_registration_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.regenerate_collective_participant_password(p_participant_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.verify_collective_portal_password(p_password text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "collective_portal_sessions",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "participant_portal_token_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Portal credential hashes, portal identities, and sessions stay service_role-only at the table layer. Anonymous participant access is intentionally through password verification and token-bound RPCs that validate token hash, credential version, expiry, revocation, and participant code. Do not require Better Auth for the participant portal.",
+      "source_callers": [
+        {
+          "signature": "private.collective_portal_identity(p_token text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.list_collective_portal_competitions(p_portal_token text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.open_collective_competition_session(p_portal_token text, p_competition_id uuid, p_participant_code text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.provision_collective_registration(p_registration_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.regenerate_collective_participant_password(p_participant_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.revoke_collective_portal_session(p_portal_token text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.verify_collective_portal_password(p_password text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "competition_status_history",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "stage5_revoke_browser_table_grants",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE",
+          "TRUNCATE",
+          "REFERENCES",
+          "TRIGGER",
+          "MAINTAIN"
+        ],
+        "authenticated": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE",
+          "TRUNCATE",
+          "REFERENCES",
+          "TRIGGER",
+          "MAINTAIN"
+        ]
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "These RLS-enabled tables currently have zero policies but broad anon/authenticated table privileges, including non-RLS privileges. The Stage 5 draft revokes PUBLIC/anon/authenticated grants on exactly these three tables and preserves service_role/postgres CRUD and MAINTAIN. Acceptance remains pending the disposable post-Stage5 regression.",
+      "source_callers": [
+        {
+          "signature": "private.monthly_organizer_competition_quota(p_organizer_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_public_competition_results(p_slug text, p_limit integer, p_offset integer)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.track_competition_status()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.transition_competition(p_competition_id uuid, p_to_status competition_status, p_reason text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "stage5-no-policy-table-acl-draft.sql: browser revoke and trusted service_role/postgres preservation"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "exam_attempt_events",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "server_authoritative_exam_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Question snapshots, exam runtime, and event history stay service_role-only at the table layer. Individual attempts use issuer-gated Better Auth RPCs; collective attempts use a separate participant access-token guard. No direct browser table access or answer-key exposure is allowed.",
+      "source_callers": [
+        {
+          "signature": "private.build_linear_exam_state(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.log_linear_exam_event(p_attempt_id uuid, p_position integer, p_question_id uuid, p_event_type text, p_actor_kind text, p_metadata jsonb, p_occurred_at timestamp with time zone)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "exam_attempt_questions",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "server_authoritative_exam_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Question snapshots, exam runtime, and event history stay service_role-only at the table layer. Individual attempts use issuer-gated Better Auth RPCs; collective attempts use a separate participant access-token guard. No direct browser table access or answer-key exposure is allowed.",
+      "source_callers": [
+        {
+          "signature": "private.advance_linear_exam_question(p_attempt_id uuid, p_transition_at timestamp with time zone, p_final_state text, p_time_bank_seconds integer, p_reason text, p_actor_kind text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.build_linear_exam_state(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.complete_linear_exam_attempt(p_attempt_id uuid, p_completed_at timestamp with time zone)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.prepare_linear_exam_runtime(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.prevent_option_mutation_during_exam()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.prevent_question_mutation_during_exam()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.resolve_linear_exam_timeouts(p_attempt_id uuid, p_server_now timestamp with time zone)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.answer_collective_linear_exam_question(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.answer_linear_exam_question(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.choose_collective_linear_exam_timeout(p_attempt_id uuid, p_access_token text, p_decision text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.choose_linear_exam_timeout(p_attempt_id uuid, p_decision text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.finalize_attempt_manual(p_attempt_id uuid, p_score numeric, p_reason text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_attempt_grading_limits(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_competition_participant_detail(p_slug text, p_participant_id uuid)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.save_collective_linear_exam_draft(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.save_linear_exam_draft(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.save_manual_grading_item(p_grading_item_id uuid, p_score numeric, p_feedback text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.skip_collective_linear_exam_question(p_attempt_id uuid, p_access_token text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.skip_linear_exam_question(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "exam_attempt_runtime",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "server_authoritative_exam_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Question snapshots, exam runtime, and event history stay service_role-only at the table layer. Individual attempts use issuer-gated Better Auth RPCs; collective attempts use a separate participant access-token guard. No direct browser table access or answer-key exposure is allowed.",
+      "source_callers": [
+        {
+          "signature": "private.advance_linear_exam_question(p_attempt_id uuid, p_transition_at timestamp with time zone, p_final_state text, p_time_bank_seconds integer, p_reason text, p_actor_kind text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.build_linear_exam_state(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.capture_automatic_grading_score()",
+          "anon_execute": false,
+          "security_definer": false,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.complete_linear_exam_attempt(p_attempt_id uuid, p_completed_at timestamp with time zone)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.prepare_linear_exam_runtime(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.resolve_linear_exam_timeouts(p_attempt_id uuid, p_server_now timestamp with time zone)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.answer_collective_linear_exam_question(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.answer_linear_exam_question(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.choose_collective_linear_exam_timeout(p_attempt_id uuid, p_access_token text, p_decision text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.choose_linear_exam_timeout(p_attempt_id uuid, p_decision text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_organizer_competition_result_overview(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.publish_competition_results(p_competition_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.save_collective_linear_exam_draft(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.save_linear_exam_draft(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.skip_collective_linear_exam_question(p_attempt_id uuid, p_access_token text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.skip_linear_exam_question(p_attempt_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.start_collective_linear_exam_attempt(p_competition_id uuid, p_access_token text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.start_linear_exam_attempt(p_competition_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "notification_deliveries",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "stage5_revoke_browser_table_grants",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE",
+          "TRUNCATE",
+          "REFERENCES",
+          "TRIGGER",
+          "MAINTAIN"
+        ],
+        "authenticated": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE",
+          "TRUNCATE",
+          "REFERENCES",
+          "TRIGGER",
+          "MAINTAIN"
+        ]
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "These RLS-enabled tables currently have zero policies but broad anon/authenticated table privileges, including non-RLS privileges. The Stage 5 draft revokes PUBLIC/anon/authenticated grants on exactly these three tables and preserves service_role/postgres CRUD and MAINTAIN. Acceptance remains pending the disposable post-Stage5 regression.",
+      "source_callers": [],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "stage5-no-policy-table-acl-draft.sql: browser revoke and trusted service_role/postgres preservation"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "payment_gateway_configs",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "trusted_payment_rpc_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Gateway configuration and provider state are private backend data. Order and payment flows read them through authenticated Better Auth SECURITY DEFINER functions or trusted service_role paths. No direct browser table access is required.",
+      "source_callers": [
+        {
+          "signature": "public.create_ad_banner_payment_order(p_request_id uuid, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_unique_code integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "payment_gateway_state",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "trusted_payment_rpc_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Gateway configuration and provider state are private backend data. Order and payment flows read them through authenticated Better Auth SECURITY DEFINER functions or trusted service_role paths. No direct browser table access is required.",
+      "source_callers": [
+        {
+          "signature": "public.create_ad_banner_payment_order(p_request_id uuid, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_unique_code integer)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_collective_certificate_order(p_certificate_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_collective_certificate_order_with_proof(p_certificate_id uuid, p_payment_method text, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_whatsapp text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_collective_registration_order(p_competition_id uuid, p_roster_student_ids uuid[], p_competition_level_id uuid, p_certificate_policy text, p_school_id uuid, p_school_name text, p_contact_name text, p_contact_whatsapp text, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_idempotency_key uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_organizer_plan_order(p_organizer_id uuid, p_plan_code text, p_billing_period text, p_contact_name text, p_contact_email text, p_whatsapp text, p_contact_note text, p_contact_fields jsonb, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_voucher_code text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_product_order_with_proof(p_product_id uuid, p_quantity integer, p_whatsapp text, p_payment_method text, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_target_organizer_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "shop_promo_banner_events",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "public_validated_event_rpc_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Public banner view/click telemetry is intentionally accepted only through a SECURITY DEFINER event RPC that restricts VIEW/CLICK, validates visitor-key format, and checks the banner is active. The underlying event table is not directly writable by browser roles.",
+      "source_callers": [
+        {
+          "signature": "public.record_shop_promo_banner_event(p_banner_id uuid, p_event_type text, p_visitor_key text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "shop_promo_banners",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "public_banner_read_and_validated_event_rpc_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "source_callers": [
+        {
+          "signature": "public.admin_delete_shop_promo_banner(p_id uuid)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_list_shop_promo_banners()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_save_shop_promo_banner(p_id uuid, p_image_url text, p_target_url text, p_slide_duration_seconds integer, p_position integer, p_is_active boolean)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.list_active_shop_promo_banners()",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.record_shop_promo_banner_event(p_banner_id uuid, p_event_type text, p_visitor_key text)",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false,
+      "intended_boundary": "Public storefront banner reads use the narrow active-banner RPC; Admin CRUD uses issuer-gated Admin RPCs; view/click telemetry uses the validated event RPC. The banner table itself has no direct browser grants."
+    },
+    {
+      "schema": "public",
+      "table": "shop_user_vouchers",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "better_auth_shop_rpc_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Voucher definitions and user voucher state are accessed only through issuer-gated Better Auth user RPCs, issuer-gated Admin RPCs, and trusted backend routines. No direct table policy or browser grant is needed.",
+      "source_callers": [
+        {
+          "signature": "private.calculate_shop_voucher_effects(p_user_id uuid, p_product_id uuid, p_quantity integer, p_subtotal numeric, p_shipping_cost numeric, p_selected_voucher_ids uuid[])",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.sync_shop_voucher_order_status()",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_issue_shop_voucher(p_definition_id uuid, p_username text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_list_issued_shop_vouchers()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_shop_collective_certificate_order_with_vouchers(p_certificate_id uuid, p_shop_product_id uuid, p_payment_method text, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_whatsapp text, p_voucher_ids uuid[])",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_shop_product_order_with_edu_coin_vouchers(p_product_id uuid, p_quantity integer, p_whatsapp text, p_target_organizer_id uuid, p_voucher_ids uuid[])",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_shop_product_order_with_vouchers(p_product_id uuid, p_quantity integer, p_whatsapp text, p_payment_method text, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_target_organizer_id uuid, p_voucher_ids uuid[])",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.list_my_shop_vouchers()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.list_shop_checkout_vouchers(p_product_id uuid, p_quantity integer, p_subtotal numeric, p_shipping_cost numeric)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.mark_my_shop_vouchers_seen()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "shop_voucher_definitions",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "better_auth_shop_rpc_storage",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [],
+        "authenticated": []
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "Voucher definitions and user voucher state are accessed only through issuer-gated Better Auth user RPCs, issuer-gated Admin RPCs, and trusted backend routines. No direct table policy or browser grant is needed.",
+      "source_callers": [
+        {
+          "signature": "private.calculate_shop_voucher_effects(p_user_id uuid, p_product_id uuid, p_quantity integer, p_subtotal numeric, p_shipping_cost numeric, p_selected_voucher_ids uuid[])",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": false,
+          "authenticated_execute": false
+        },
+        {
+          "signature": "private.sync_shop_voucher_order_status()",
+          "anon_execute": true,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_issue_shop_voucher(p_definition_id uuid, p_username text)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_list_issued_shop_vouchers()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_list_shop_voucher_definitions()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_save_product(p_product_id uuid, p_code text, p_slug text, p_name text, p_short_description text, p_description text, p_product_type text, p_audiences text[], p_price numeric, p_currency text, p_image_url text, p_is_active boolean, p_is_featured boolean, p_sort_order integer, p_metadata jsonb)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.admin_save_shop_voucher_definition(p_definition jsonb)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.create_shop_product_order_with_vouchers(p_product_id uuid, p_quantity integer, p_whatsapp text, p_payment_method text, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_target_organizer_id uuid, p_voucher_ids uuid[])",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.list_my_shop_vouchers()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        },
+        {
+          "signature": "public.list_shop_checkout_vouchers(p_product_id uuid, p_quantity integer, p_subtotal numeric, p_shipping_cost numeric)",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": true
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    },
+    {
+      "schema": "public",
+      "table": "supabase_system_logs",
+      "owner": "postgres",
+      "rls_enabled": true,
+      "force_rls": false,
+      "policy_count": 0,
+      "classification": "stage5_revoke_browser_table_grants",
+      "direct_browser_privileges_before_stage5": {
+        "anon": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE",
+          "TRUNCATE",
+          "REFERENCES",
+          "TRIGGER",
+          "MAINTAIN"
+        ],
+        "authenticated": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE",
+          "TRUNCATE",
+          "REFERENCES",
+          "TRIGGER",
+          "MAINTAIN"
+        ]
+      },
+      "direct_browser_privileges_after_stage5_expected": [],
+      "service_role_privileges": [
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ],
+      "intended_boundary": "These RLS-enabled tables currently have zero policies but broad anon/authenticated table privileges, including non-RLS privileges. The Stage 5 draft revokes PUBLIC/anon/authenticated grants on exactly these three tables and preserves service_role/postgres CRUD and MAINTAIN. Acceptance remains pending the disposable post-Stage5 regression.",
+      "source_callers": [
+        {
+          "signature": "public.fetch_and_save_supabase_logs()",
+          "anon_execute": false,
+          "security_definer": true,
+          "service_role_execute": true,
+          "authenticated_execute": false
+        }
+      ],
+      "positive_tests": [
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "stage5-no-policy-table-acl-draft.sql: browser revoke and trusted service_role/postgres preservation"
+      ],
+      "negative_tests": [
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+      ],
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
+    }
+  ]
+}

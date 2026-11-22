@@ -3,6 +3,51 @@
 \set ON_ERROR_STOP on
 BEGIN;
 
+CREATE FUNCTION pg_temp.stage3_user_rpc_call_error(p_signature text)
+RETURNS text
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_oid oid;
+  v_schema text;
+  v_name text;
+  v_returns_set boolean;
+  v_args text;
+  v_sql text;
+BEGIN
+  v_oid := pg_catalog.to_regprocedure(p_signature)::oid;
+  IF v_oid IS NULL THEN
+    RAISE EXCEPTION 'STAGE3_USER_RPC_SIGNATURE_MISSING:%', p_signature;
+  END IF;
+
+  SELECT n.nspname, p.proname, p.proretset,
+         coalesce((
+           SELECT string_agg(
+             pg_catalog.format('NULL::%s', pg_catalog.format_type(arg.type_oid, NULL)),
+             ', ' ORDER BY arg.ordinality
+           )
+           FROM unnest(p.proargtypes::oid[]) WITH ORDINALITY AS arg(type_oid, ordinality)
+         ), '')
+    INTO v_schema, v_name, v_returns_set, v_args
+  FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+  WHERE p.oid=v_oid;
+
+  v_sql := CASE WHEN v_returns_set
+    THEN pg_catalog.format('SELECT * FROM %I.%I(%s)', v_schema, v_name, v_args)
+    ELSE pg_catalog.format('SELECT %I.%I(%s)', v_schema, v_name, v_args)
+  END;
+
+  BEGIN
+    EXECUTE v_sql;
+    RETURN NULL;
+  EXCEPTION WHEN OTHERS THEN
+    RETURN SQLERRM;
+  END;
+END;
+$function$;
+
+
 DO $verify_policy_catalog$
 DECLARE
   v_authenticated oid;
@@ -279,6 +324,94 @@ SELECT set_config('request.jwt.claims',
   '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
   true);
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+DO $all_user_rpc_legacy_issuer$
+DECLARE
+  v_signature text;
+  v_error text;
+  v_count integer := 0;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.answer_linear_exam_question(uuid,uuid,jsonb,boolean)',
+    'public.archive_my_order_history(uuid)',
+    'public.bulk_import_roster_students(uuid,jsonb)',
+    'public.cancel_my_pending_order(uuid)',
+    'public.choose_linear_exam_timeout(uuid,text)',
+    'public.claim_and_complete_daily_task(uuid)',
+    'public.claim_collective_participant(text,text)',
+    'public.claim_daily_checkin(date,integer)',
+    'public.claim_daily_task(uuid)',
+    'public.claim_organizer_voucher(uuid)',
+    'public.claim_rpc_recovery(text)',
+    'public.complete_daily_task(uuid)',
+    'public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)',
+    'public.create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid)',
+    'public.create_follow_request(uuid)',
+    'public.create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[])',
+    'public.create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[])',
+    'public.create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[])',
+    'public.ensure_referral_code()',
+    'public.get_collective_registration(uuid)',
+    'public.get_collective_registration_options(uuid)',
+    'public.get_daily_checkin_streak_rewards(date)',
+    'public.get_follow_status(uuid,uuid)',
+    'public.get_linear_exam_state(uuid)',
+    'public.get_my_canonical_competition_result(uuid)',
+    'public.get_my_canonical_participant(uuid)',
+    'public.get_my_learning_insights()',
+    'public.get_my_referral_tier_awards()',
+    'public.get_my_referrals()',
+    'public.get_my_referrals_v2()',
+    'public.get_my_verified_referrals()',
+    'public.get_organizer_exam_preview_report(uuid)',
+    'public.get_organizer_payment_config()',
+    'public.get_public_profile_social(uuid)',
+    'public.get_referral_program_settings()',
+    'public.get_referral_program_settings_v2()',
+    'public.join_organizer(text,text)',
+    'public.list_claimable_organizer_vouchers()',
+    'public.list_my_canonical_certificates()',
+    'public.list_my_claimed_collective_history()',
+    'public.list_my_competition_dashboard()',
+    'public.list_my_participant_core()',
+    'public.list_my_shop_vouchers()',
+    'public.list_shop_checkout_vouchers(uuid,integer,numeric,numeric)',
+    'public.list_teacher_collective_participants(uuid)',
+    'public.mark_my_shop_vouchers_seen()',
+    'public.mark_rpc_healthy(text)',
+    'public.provision_collective_registration(uuid)',
+    'public.regenerate_collective_participant_password(uuid)',
+    'public.register_for_competition(uuid,text,uuid,text,boolean,text,text,text)',
+    'public.register_for_competition_with_integrity(uuid,text,uuid,text,boolean,text,text,text,boolean)',
+    'public.register_for_competition_with_integrity_and_coin_bypass(uuid,text,uuid,text,text,text,text,boolean,boolean)',
+    'public.remove_follow(uuid)',
+    'public.report_competition_comment(uuid,text)',
+    'public.report_rpc_failure(text,text,text)',
+    'public.report_system_error(text,text,text,text,jsonb,text,text)',
+    'public.resolve_linear_exam_timeout(uuid)',
+    'public.respond_follow_request(uuid,boolean)',
+    'public.save_linear_exam_draft(uuid,uuid,jsonb)',
+    'public.save_my_commerce_product_review(uuid,smallint,text)',
+    'public.set_collective_participant_password(uuid,text)',
+    'public.skip_linear_exam_question(uuid)',
+    'public.start_linear_exam_attempt(uuid)',
+    'public.sync_collective_registration_order_payment(uuid)',
+    'public.validate_organizer_voucher(text)',
+    'public.validate_organizer_voucher(text,text,text)',
+    'public.create_collective_certificate_order(uuid)',
+    'public.create_product_order(uuid,integer)'
+  ] LOOP
+    v_error := pg_temp.stage3_user_rpc_call_error(v_signature);
+    IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_NOT_DENIED:%:%', v_signature, coalesce(v_error, '<no error>');
+    END IF;
+    v_count := v_count + 1;
+  END LOOP;
+  IF v_count <> 68 THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_TEST_COUNT_MISMATCH:%', v_count;
+  END IF;
+END;
+$all_user_rpc_legacy_issuer$;
+
 DO $legacy_issuer$
 DECLARE
   v_count integer;
@@ -633,6 +766,94 @@ SELECT set_config('request.jwt.claims',
   '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
   true);
 SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+DO $all_user_rpc_better_auth_issuer$
+DECLARE
+  v_signature text;
+  v_error text;
+  v_count integer := 0;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.answer_linear_exam_question(uuid,uuid,jsonb,boolean)',
+    'public.archive_my_order_history(uuid)',
+    'public.bulk_import_roster_students(uuid,jsonb)',
+    'public.cancel_my_pending_order(uuid)',
+    'public.choose_linear_exam_timeout(uuid,text)',
+    'public.claim_and_complete_daily_task(uuid)',
+    'public.claim_collective_participant(text,text)',
+    'public.claim_daily_checkin(date,integer)',
+    'public.claim_daily_task(uuid)',
+    'public.claim_organizer_voucher(uuid)',
+    'public.claim_rpc_recovery(text)',
+    'public.complete_daily_task(uuid)',
+    'public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)',
+    'public.create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid)',
+    'public.create_follow_request(uuid)',
+    'public.create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[])',
+    'public.create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[])',
+    'public.create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[])',
+    'public.ensure_referral_code()',
+    'public.get_collective_registration(uuid)',
+    'public.get_collective_registration_options(uuid)',
+    'public.get_daily_checkin_streak_rewards(date)',
+    'public.get_follow_status(uuid,uuid)',
+    'public.get_linear_exam_state(uuid)',
+    'public.get_my_canonical_competition_result(uuid)',
+    'public.get_my_canonical_participant(uuid)',
+    'public.get_my_learning_insights()',
+    'public.get_my_referral_tier_awards()',
+    'public.get_my_referrals()',
+    'public.get_my_referrals_v2()',
+    'public.get_my_verified_referrals()',
+    'public.get_organizer_exam_preview_report(uuid)',
+    'public.get_organizer_payment_config()',
+    'public.get_public_profile_social(uuid)',
+    'public.get_referral_program_settings()',
+    'public.get_referral_program_settings_v2()',
+    'public.join_organizer(text,text)',
+    'public.list_claimable_organizer_vouchers()',
+    'public.list_my_canonical_certificates()',
+    'public.list_my_claimed_collective_history()',
+    'public.list_my_competition_dashboard()',
+    'public.list_my_participant_core()',
+    'public.list_my_shop_vouchers()',
+    'public.list_shop_checkout_vouchers(uuid,integer,numeric,numeric)',
+    'public.list_teacher_collective_participants(uuid)',
+    'public.mark_my_shop_vouchers_seen()',
+    'public.mark_rpc_healthy(text)',
+    'public.provision_collective_registration(uuid)',
+    'public.regenerate_collective_participant_password(uuid)',
+    'public.register_for_competition(uuid,text,uuid,text,boolean,text,text,text)',
+    'public.register_for_competition_with_integrity(uuid,text,uuid,text,boolean,text,text,text,boolean)',
+    'public.register_for_competition_with_integrity_and_coin_bypass(uuid,text,uuid,text,text,text,text,boolean,boolean)',
+    'public.remove_follow(uuid)',
+    'public.report_competition_comment(uuid,text)',
+    'public.report_rpc_failure(text,text,text)',
+    'public.report_system_error(text,text,text,text,jsonb,text,text)',
+    'public.resolve_linear_exam_timeout(uuid)',
+    'public.respond_follow_request(uuid,boolean)',
+    'public.save_linear_exam_draft(uuid,uuid,jsonb)',
+    'public.save_my_commerce_product_review(uuid,smallint,text)',
+    'public.set_collective_participant_password(uuid,text)',
+    'public.skip_linear_exam_question(uuid)',
+    'public.start_linear_exam_attempt(uuid)',
+    'public.sync_collective_registration_order_payment(uuid)',
+    'public.validate_organizer_voucher(text)',
+    'public.validate_organizer_voucher(text,text,text)',
+    'public.create_collective_certificate_order(uuid)',
+    'public.create_product_order(uuid,integer)'
+  ] LOOP
+    v_error := pg_temp.stage3_user_rpc_call_error(v_signature);
+    IF v_error = 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_REJECTED:%', v_signature;
+    END IF;
+    v_count := v_count + 1;
+  END LOOP;
+  IF v_count <> 68 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_TEST_COUNT_MISMATCH:%', v_count;
+  END IF;
+END;
+$all_user_rpc_better_auth_issuer$;
+
 DO $better_auth_issuer$
 DECLARE
   v_count integer;
