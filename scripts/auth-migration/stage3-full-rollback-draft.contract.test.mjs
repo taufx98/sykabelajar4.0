@@ -64,7 +64,10 @@ assert.match(sql, /DROP FUNCTION IF EXISTS private\.current_user_is_better_auth\
 assert.match(sql, /STAGE3_ROLLBACK_RESIDUAL_IDENTITY_FUNCTIONS/);
 assert.match(sql, /STAGE3_ROLLBACK_BETTER_AUTH_HELPER_REMAINS/);
 const restoredFunctionBlock = sql
-  .slice(sql.indexOf("-- Restore the exact pre-Stage-3 Production definitions"), sql.indexOf("-- Remove the Better Auth-only provisioning surface"))
+  .slice(
+    sql.indexOf("-- Restore the exact pre-Stage-3 Production definitions"),
+    sql.indexOf("DO $stage3_rollback_profile_rpc_postflight$"),
+  )
   .replace(/^--.*$/gm, "");
 assert.doesNotMatch(
   restoredFunctionBlock,
