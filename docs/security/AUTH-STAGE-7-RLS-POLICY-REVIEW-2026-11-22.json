@@ -25,7 +25,9 @@
     "service_role_access_expected": "CRUD for public tables; no direct grants on private tables",
     "rls_enabled_expected": true,
     "policy_count_expected": 0,
-    "table_owner_expected": "postgres"
+    "table_owner_expected": "postgres",
+    "public_acl_grants_expected": false,
+    "public_acl_grants_found": 0
   },
   "required_evidence": [
     "table owner and intended data purpose",
@@ -71,7 +73,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "private",
@@ -147,7 +150,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "private",
@@ -188,7 +192,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -232,7 +237,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -269,7 +275,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -411,7 +418,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -455,7 +463,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -562,7 +571,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -636,7 +646,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -717,7 +728,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -798,7 +810,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -882,7 +895,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -949,7 +963,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1149,7 +1164,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1342,7 +1358,8 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1390,7 +1407,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1427,7 +1445,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1499,7 +1518,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1536,7 +1556,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1600,7 +1621,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1700,7 +1722,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1800,7 +1823,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     },
     {
       "schema": "public",
@@ -1856,7 +1880,8 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending"
+      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "public_acl_grant": false
     }
   ]
 }
