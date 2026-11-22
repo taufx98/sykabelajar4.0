@@ -15,7 +15,7 @@
 -- create_collective_certificate_order and create_product_order.
 -- These two are user-identity operations and must reject legacy Auth sessions.
 --
--- Added functions: 68. No function owner, ACL, SECURITY DEFINER,
+-- Added functions: 65 (three signatures are already guarded by the preceding Stage 3 issuer draft). No function owner, ACL, SECURITY DEFINER,
 -- search_path, return type or identity arguments may change.
 
 BEGIN;
@@ -53,7 +53,6 @@ BEGIN
     'public.get_collective_registration(uuid)',
     'public.get_collective_registration_options(uuid)',
     'public.get_daily_checkin_streak_rewards(date)',
-    'public.get_follow_status(uuid,uuid)',
     'public.get_linear_exam_state(uuid)',
     'public.get_my_canonical_competition_result(uuid)',
     'public.get_my_canonical_participant(uuid)',
@@ -61,10 +60,8 @@ BEGIN
     'public.get_my_referral_tier_awards()',
     'public.get_my_referrals()',
     'public.get_my_referrals_v2()',
-    'public.get_my_verified_referrals()',
     'public.get_organizer_exam_preview_report(uuid)',
     'public.get_organizer_payment_config()',
-    'public.get_public_profile_social(uuid)',
     'public.get_referral_program_settings()',
     'public.get_referral_program_settings_v2()',
     'public.join_organizer(text,text)',
@@ -101,8 +98,8 @@ BEGIN
     'public.create_product_order(uuid,integer)'
   ]::text[]) AS expected(signature)
   WHERE pg_catalog.to_regprocedure(expected.signature) IS NOT NULL;
-  IF v_count <> 68 THEN
-    RAISE EXCEPTION 'STAGE3_USER_RPC_FUNCTION_COUNT_MISMATCH: expected 68, found %', v_count;
+  IF v_count <> 65 THEN
+    RAISE EXCEPTION 'STAGE3_USER_RPC_FUNCTION_COUNT_MISMATCH: expected 65, found %', v_count;
   END IF;
   IF EXISTS (
     SELECT 1
@@ -129,7 +126,6 @@ BEGIN
     'public.get_collective_registration(uuid)',
     'public.get_collective_registration_options(uuid)',
     'public.get_daily_checkin_streak_rewards(date)',
-    'public.get_follow_status(uuid,uuid)',
     'public.get_linear_exam_state(uuid)',
     'public.get_my_canonical_competition_result(uuid)',
     'public.get_my_canonical_participant(uuid)',
@@ -137,10 +133,8 @@ BEGIN
     'public.get_my_referral_tier_awards()',
     'public.get_my_referrals()',
     'public.get_my_referrals_v2()',
-    'public.get_my_verified_referrals()',
     'public.get_organizer_exam_preview_report(uuid)',
     'public.get_organizer_payment_config()',
-    'public.get_public_profile_social(uuid)',
     'public.get_referral_program_settings()',
     'public.get_referral_program_settings_v2()',
     'public.join_organizer(text,text)',
@@ -211,7 +205,6 @@ JOIN unnest(ARRAY[
     'public.get_collective_registration(uuid)',
     'public.get_collective_registration_options(uuid)',
     'public.get_daily_checkin_streak_rewards(date)',
-    'public.get_follow_status(uuid,uuid)',
     'public.get_linear_exam_state(uuid)',
     'public.get_my_canonical_competition_result(uuid)',
     'public.get_my_canonical_participant(uuid)',
@@ -219,10 +212,8 @@ JOIN unnest(ARRAY[
     'public.get_my_referral_tier_awards()',
     'public.get_my_referrals()',
     'public.get_my_referrals_v2()',
-    'public.get_my_verified_referrals()',
     'public.get_organizer_exam_preview_report(uuid)',
     'public.get_organizer_payment_config()',
-    'public.get_public_profile_social(uuid)',
     'public.get_referral_program_settings()',
     'public.get_referral_program_settings_v2()',
     'public.join_organizer(text,text)',
@@ -1950,17 +1941,6 @@ BEGIN
 END;
 $function$;
 
--- get_follow_status(uuid,uuid)
-CREATE OR REPLACE FUNCTION public.get_follow_status(p_follower_id uuid, p_following_id uuid)
- RETURNS text
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$ begin
-  IF NOT private.current_user_is_better_auth() THEN
-    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
-  END IF;
- if auth.uid() is null then raise exception 'UNAUTHORIZED';end if;if p_follower_id is null or p_following_id is null or p_follower_id=p_following_id then return 'none';end if;if auth.uid()<>p_follower_id and auth.uid()<>p_following_id and not public.is_active_admin(auth.uid()) then raise exception 'ACCESS_DENIED';end if;return coalesce((select status from public.follows where follower_id=p_follower_id and following_id=p_following_id limit 1),'none');end;$function$;
 
 -- get_linear_exam_state(uuid)
 CREATE OR REPLACE FUNCTION public.get_linear_exam_state(p_attempt_id uuid)
@@ -2205,21 +2185,6 @@ BEGIN
 END;
 $function$;
 
--- get_my_verified_referrals()
-CREATE OR REPLACE FUNCTION public.get_my_verified_referrals()
- RETURNS TABLE(referred_user_id uuid, full_name text, username text, joined_at timestamp with time zone, last_login_at timestamp with time zone)
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'private'
-AS $function$
-BEGIN
-  IF NOT private.current_user_is_better_auth() THEN
-    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
-  END IF;
-  RETURN QUERY
-  SELECT re.referred_user_id,coalesce(p.full_name,p.username,'Pengguna'),p.username,re.created_at,au.last_sign_in_at FROM public.referral_events re JOIN auth.users au ON au.id=re.referred_user_id LEFT JOIN public.profiles p ON p.id=re.referred_user_id WHERE re.referrer_user_id=auth.uid() AND re.verified_at IS NOT NULL ORDER BY re.verified_at DESC;
-END;
-$function$;
 
 -- get_organizer_exam_preview_report(uuid)
 CREATE OR REPLACE FUNCTION public.get_organizer_exam_preview_report(p_attempt_id uuid)
@@ -2378,17 +2343,6 @@ begin
   ));
 end; $function$;
 
--- get_public_profile_social(uuid)
-CREATE OR REPLACE FUNCTION public.get_public_profile_social(p_profile_id uuid)
- RETURNS TABLE(follower_count bigint, following_count bigint, follow_status text)
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'private'
-AS $function$ declare v_uid uuid:=auth.uid();v_status text:='none';begin
-  IF NOT private.current_user_is_better_auth() THEN
-    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
-  END IF;
- if v_uid is null then raise exception 'UNAUTHORIZED';end if;select case when f.status::text in('approved','auto') then 'approved' when f.status::text='pending' then 'pending' else 'none' end into v_status from public.follows f where f.follower_id=v_uid and f.following_id=p_profile_id limit 1;return query select(select count(*) from public.follows f where f.following_id=p_profile_id and f.status::text in('approved','auto')),(select count(*) from public.follows f where f.follower_id=p_profile_id and f.status::text in('approved','auto')),coalesce(v_status,'none');end;$function$;
 
 -- get_referral_program_settings_v2()
 CREATE OR REPLACE FUNCTION public.get_referral_program_settings_v2()
@@ -4194,7 +4148,6 @@ BEGIN
     'public.get_collective_registration(uuid)',
     'public.get_collective_registration_options(uuid)',
     'public.get_daily_checkin_streak_rewards(date)',
-    'public.get_follow_status(uuid,uuid)',
     'public.get_linear_exam_state(uuid)',
     'public.get_my_canonical_competition_result(uuid)',
     'public.get_my_canonical_participant(uuid)',
@@ -4202,10 +4155,8 @@ BEGIN
     'public.get_my_referral_tier_awards()',
     'public.get_my_referrals()',
     'public.get_my_referrals_v2()',
-    'public.get_my_verified_referrals()',
     'public.get_organizer_exam_preview_report(uuid)',
     'public.get_organizer_payment_config()',
-    'public.get_public_profile_social(uuid)',
     'public.get_referral_program_settings()',
     'public.get_referral_program_settings_v2()',
     'public.join_organizer(text,text)',
@@ -4244,8 +4195,8 @@ BEGIN
     ON p.oid=pg_catalog.to_regprocedure(expected.signature)
   WHERE p.prosecdef
     AND pg_catalog.strpos(p.prosrc,'private.current_user_is_better_auth()')>0;
-  IF v_count <> 68 THEN
-    RAISE EXCEPTION 'STAGE3_USER_RPC_ISSUER_GUARD_COUNT_MISMATCH: expected 68, found %',v_count;
+  IF v_count <> 65 THEN
+    RAISE EXCEPTION 'STAGE3_USER_RPC_ISSUER_GUARD_COUNT_MISMATCH: expected 65, found %',v_count;
   END IF;
 
   SELECT string_agg(p.oid::regprocedure::text,', ')
