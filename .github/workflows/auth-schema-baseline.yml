@@ -208,7 +208,7 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs
 
-      - name: Test all 66 Better Auth user-bound SECURITY DEFINER RPC issuer guards
+      - name: Test all 68 user-bound SECURITY DEFINER RPC issuer guards
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs
 
@@ -728,7 +728,7 @@ jobs:
             psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-user-rpc-issuer-guards.sql
-          echo "- Added explicit Better Auth issuer + identity-origin guards to 36 additional user-bound SECURITY DEFINER RPCs; exact owner, ACL, search_path, return type and argument metadata preserved in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Added explicit Better Auth issuer + identity-origin guards to 38 additional user-bound SECURITY DEFINER RPCs; exact owner, ACL, search_path, return type and argument metadata preserved in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Stage 3 trusted-issuer RLS acceptance on disposable restore
         if: steps.credentials.outputs.available == 'true'
