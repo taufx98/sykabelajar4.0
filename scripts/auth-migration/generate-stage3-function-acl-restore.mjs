@@ -33,12 +33,17 @@ function sqlIdentifier(value) {
 }
 
 function renderFunctionAclRestore(metadata) {
-  if (!Array.isArray(metadata?.auth_dependent_functions)) {
-    throw new Error("Auth-dependent function metadata is missing.");
+  if (!Array.isArray(metadata?.auth_dependent_functions) ||
+      !Array.isArray(metadata?.user_scoped_issuer_functions)) {
+    throw new Error("Stage 3 function ACL metadata groups are missing.");
   }
 
   const records = new Map();
-  for (const row of metadata.auth_dependent_functions) {
+  const functionRows = [
+    ...metadata.auth_dependent_functions,
+    ...metadata.user_scoped_issuer_functions,
+  ];
+  for (const row of functionRows) {
     const key = row.schema_name + "." + row.function_name;
     if (!FUNCTIONS.has(key)) continue;
     if (records.has(key)) throw new Error("Duplicate Auth function metadata: " + key);
