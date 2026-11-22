@@ -78,7 +78,7 @@ async function main() {
     result.functions + " Auth-dependent functions, " +
     result.userScopedIssuerFunctions + " user-scoped issuer RPCs, " +
     result.personalRpcIssuerFunctions + " personal issuer RPCs, " +
-    result.triggers + " Auth/profile triggers, "
+    result.triggers + " Auth/profile triggers, " +
     result.policies + " auth.uid() policies across " +
     result.policyTables + " tables, and " +
     result.profileColumns + " profile columns.\n"
