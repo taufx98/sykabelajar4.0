@@ -432,7 +432,7 @@ jobs:
 
           {
             echo ""
-            echo "- Reconstructed ACLs for the ten audited Auth-dependent functions from production metadata in the disposable local database only"
+            echo "- Reconstructed exact ACLs for all twenty reviewed Stage 3 identity-root and user-scoped RPC functions from Production metadata in the disposable local database only"
             echo "- No production grant/revoke statement was executed"
           } >> "$GITHUB_STEP_SUMMARY"
 
