@@ -2631,4 +2631,804 @@ END;
 $user_rpc_issuer_postflight$;
 
 
+-- A second user-scoped RPC group: social graph, personal competition state,
+-- learning insights, referral awards and personal Shop records. Preserve the
+-- original anonymous error checks, function ownership/search_path and ACLs.
+DO $personal_rpc_issuer_preflight$
+DECLARE
+  v_signature text;
+  v_function regprocedure;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.create_follow_request(uuid)',
+    'public.get_my_canonical_competition_result(uuid)',
+    'public.get_my_canonical_participant(uuid)',
+    'public.get_my_learning_insights()',
+    'public.get_my_referral_tier_awards()',
+    'public.list_my_canonical_certificates()',
+    'public.list_my_claimed_collective_history()',
+    'public.list_my_competition_dashboard()',
+    'public.list_my_participant_core()',
+    'public.list_my_shop_vouchers()',
+    'public.mark_my_shop_vouchers_seen()',
+    'public.remove_follow(uuid)',
+    'public.respond_follow_request(uuid,boolean)',
+    'public.save_my_commerce_product_review(uuid,smallint,text)'
+  ]
+  LOOP
+    v_function := pg_catalog.to_regprocedure(v_signature);
+    IF v_function IS NULL THEN
+      RAISE EXCEPTION 'PERSONAL_RPC_ISSUER_FUNCTION_MISSING:%', v_signature;
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc p
+      WHERE p.oid = v_function AND p.prosecdef = true
+        AND pg_catalog.pg_get_userbyid(p.proowner) = 'postgres'
+    ) THEN
+      RAISE EXCEPTION 'PERSONAL_RPC_ISSUER_FUNCTION_KIND_OR_OWNER_DRIFT:%', v_signature;
+    END IF;
+    IF pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'PERSONAL_RPC_ISSUER_ACL_DRIFT:%', v_signature;
+    END IF;
+  END LOOP;
+END;
+$personal_rpc_issuer_preflight$;
+
+CREATE OR REPLACE FUNCTION public.create_follow_request(p_target_user_id uuid)
+ RETURNS follows
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$ declare v_uid uuid:=auth.uid();v_target public.profiles;v_follow public.follows;v_status text;v_actor_name text;v_actor_username text;begin if v_uid is null then raise exception 'UNAUTHORIZED';end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;if p_target_user_id is null or p_target_user_id=v_uid then raise exception 'INVALID_TARGET';end if;select * into v_target from public.profiles where id=p_target_user_id;if not found then raise exception 'USER_NOT_FOUND';end if;select * into v_follow from public.follows where follower_id=v_uid and following_id=p_target_user_id limit 1;if found then return v_follow;end if;v_status:=case when coalesce(v_target.is_public,true) then 'approved' else 'pending' end;insert into public.follows(follower_id,following_id,status) values(v_uid,p_target_user_id,v_status) returning * into v_follow;if v_status='pending' then select coalesce(full_name,'User'),username into v_actor_name,v_actor_username from public.profiles where id=v_uid;insert into public.notifications(user_id,type,title,body,data) values(p_target_user_id,'follow-request','Permintaan Mengikuti',v_actor_name||' (@'||coalesce(v_actor_username,'user')||') ingin mengikuti Anda.',jsonb_build_object('follower_id',v_uid,'following_id',p_target_user_id,'link','/profile/'||coalesce(v_actor_username,'')));end if;return v_follow;exception when unique_violation then select * into v_follow from public.follows where follower_id=v_uid and following_id=p_target_user_id limit 1;return v_follow;end;$function$;
+
+CREATE OR REPLACE FUNCTION public.get_my_canonical_competition_result(p_competition_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private', 'pg_catalog'
+AS $function$
+declare v_pid uuid; v_user uuid:=auth.uid();
+begin
+ if v_user is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+ select id into v_pid from public.participants where competition_id=p_competition_id and user_id=v_user limit 1;
+ if v_pid is null then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
+ return public.get_canonical_competition_result(v_pid);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.get_my_canonical_participant(p_competition_id uuid)
+ RETURNS participants
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private', 'pg_catalog'
+AS $function$
+  SELECT p
+  FROM public.participants p
+  WHERE p.competition_id = p_competition_id
+    AND p.user_id = auth.uid()
+    AND p.participant_type = 'INDIVIDUAL'
+    AND private.current_user_is_better_auth()
+  ORDER BY p.created_at DESC
+  LIMIT 1
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_my_learning_insights()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'private', 'pg_catalog'
+AS $function$
+declare
+  v_uid uuid:=auth.uid();
+  v_attempt_count integer:=0;
+  v_avg numeric:=0;
+  v_best numeric:=0;
+  v_categories text[]:=array[]::text[];
+  v_recommendations jsonb:='[]'::jsonb;
+begin
+  if v_uid is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  select count(*),coalesce(avg(a.score),0),coalesce(max(a.score),0)
+    into v_attempt_count,v_avg,v_best
+  from public.attempts a
+  join public.participants p on p.id=a.canonical_participant_id
+  where p.user_id=v_uid and a.status='FINALIZED';
+
+  select coalesce(array_agg(x.category order by x.cnt desc,x.category asc),'{}'::text[])
+    into v_categories
+  from (
+    select c.category,count(*) as cnt
+    from public.attempts a
+    join public.participants p on p.id=a.canonical_participant_id
+    join public.competitions c on c.id=a.competition_id
+    where p.user_id=v_uid and a.status='FINALIZED' and nullif(trim(c.category),'') is not null
+    group by c.category
+    order by cnt desc,c.category asc
+    limit 3
+  ) x;
+
+  select coalesce(jsonb_agg(to_jsonb(r) - 'category_codes' order by r.priority desc,r.starts_at nulls last,r.created_at desc),'[]'::jsonb)
+    into v_recommendations
+  from (
+    select c.id,c.title,c.slug,c.category,c.short_description,c.poster_url,c.status,c.registration_ends_at,c.starts_at,c.created_at,
+      case when c.category = any(coalesce(v_categories,'{}'::text[])) then 2 else 1 end as priority
+    from public.competitions c
+    where c.visibility='PUBLIC'
+      and c.status in ('PUBLISHED','REGISTRATION_OPEN')
+      and (c.registration_ends_at is null or c.registration_ends_at>=now())
+    order by priority desc,c.registration_ends_at nulls last,c.created_at desc
+    limit 5
+  ) r;
+
+  return jsonb_build_object(
+    'attempt_count',v_attempt_count,
+    'average_score',round(v_avg,2),
+    'best_score',v_best,
+    'focus_categories',to_jsonb(v_categories),
+    'recommendations',v_recommendations,
+    'generated_at',now()
+  );
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_my_referral_tier_awards()
+ RETURNS TABLE(milestone_target integer, bonus_amount numeric, referred_count integer, created_at timestamp with time zone)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    awards.milestone_target,
+    awards.bonus_amount,
+    awards.referred_count,
+    awards.created_at
+  FROM private.referral_tier_awards awards
+  WHERE awards.referrer_user_id = (SELECT auth.uid())
+  ORDER BY awards.milestone_target;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_my_canonical_certificates()
+ RETURNS TABLE(participant_id uuid, competition_id uuid, participant_type text, user_id uuid, collective_participant_id uuid, full_name text, certificate_id uuid, certificate_type text, status text, serial_number text, certificate_url text, certificate_public_id text, issued_at timestamp with time zone)
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select
+    pc.participant_id,
+    pc.competition_id,
+    pc.participant_type,
+    pc.user_id,
+    pc.collective_participant_id,
+    pc.full_name,
+    pc.certificate_id,
+    pc.certificate_type,
+    pc.status,
+    pc.serial_number,
+    pc.certificate_url,
+    pc.certificate_public_id,
+    pc.issued_at
+  from public.participant_certificates pc
+  where private.current_user_is_better_auth()
+    and (
+      pc.user_id = (select auth.uid())
+      or (
+        pc.collective_participant_id is not null
+        and exists (
+          select 1
+          from public.collective_participants cp
+          where cp.id = pc.collective_participant_id
+            and cp.user_id = (select auth.uid())
+        )
+      )
+    )
+  order by pc.issued_at desc nulls last;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_my_claimed_collective_history()
+ RETURNS TABLE(participant_id uuid, competition_id uuid, competition_title text, participant_code text, full_name text, attempt_status text, score numeric, rank bigint, result_published boolean, certificate_status text, serial_number text, verification_code text, certificate_url text, issued_at timestamp with time zone)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  if auth.uid() is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  return query
+  select
+    cp.id,
+    cp.competition_id,
+    c.title,
+    cp.participant_code,
+    cp.full_name,
+    a.status::text,
+    case
+      when a.status::text = 'FINALIZED'
+       and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+      then a.score
+      else null::numeric
+    end,
+    case
+      when a.status::text = 'FINALIZED'
+       and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+       and p.id is not null
+      then private.canonical_competition_rank(cp.competition_id, p.id)
+      else null::bigint
+    end,
+    (
+      a.status::text = 'FINALIZED'
+      and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+    ),
+    cc.status,
+    cc.serial_number,
+    cc.verification_code,
+    cc.certificate_url,
+    cc.issued_at
+  from public.collective_participants cp
+  join public.competitions c on c.id = cp.competition_id
+  left join public.participants p
+    on p.competition_id = cp.competition_id
+   and p.collective_participant_id = cp.id
+   and p.participant_type = 'COLLECTIVE'
+  left join lateral (
+    select a1.status, a1.score
+    from public.attempts a1
+    where a1.canonical_participant_id = p.id
+      and a1.is_preview = false
+    order by a1.created_at desc, a1.attempt_number desc, a1.id desc
+    limit 1
+  ) a on true
+  left join public.collective_certificates cc
+    on cc.collective_participant_id = cp.id
+  where cp.user_id = auth.uid()
+  order by c.title, cp.full_name;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_my_competition_dashboard()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_result jsonb;
+begin
+  if v_uid is null then
+    raise exception 'AUTHORIZATION_REQUIRED';
+  end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  with individual_competition_ids as (
+    select r.competition_id
+    from public.registrations r
+    where r.user_id = v_uid
+
+    union
+
+    select p.competition_id
+    from public.participants p
+    where p.user_id = v_uid
+      and p.participant_type = 'INDIVIDUAL'
+  ),
+  individual_rows as (
+    select
+      jsonb_build_object(
+        'entry_id', coalesce(p.id, r.id),
+        'participant_type', 'INDIVIDUAL',
+        'participant', case
+          when p.id is null then null
+          else jsonb_build_object(
+            'id', p.id,
+            'full_name', p.full_name,
+            'participant_type', p.participant_type,
+            'participant_code', p.participant_code,
+            'class_name', p.class_name,
+            'grade', p.grade
+          )
+        end,
+        'competition', jsonb_build_object(
+          'id', c.id,
+          'slug', c.slug,
+          'title', c.title,
+          'category', c.category,
+          'status', c.status,
+          'poster_url', c.poster_url,
+          'registration_starts_at', c.registration_starts_at,
+          'registration_ends_at', c.registration_ends_at,
+          'starts_at', c.starts_at,
+          'ends_at', c.ends_at,
+          'announcement_at', c.announcement_at
+        ),
+        'registration', case
+          when r.id is null then null
+          else jsonb_build_object(
+            'id', r.id,
+            'status', r.status,
+            'submitted_at', r.submitted_at,
+            'approved_at', r.approved_at,
+            'rejected_at', r.rejected_at,
+            'rejection_reason', r.rejection_reason
+          )
+        end,
+        'latest_attempt', case
+          when latest_attempt.id is null then null
+          else jsonb_build_object(
+            'id', latest_attempt.id,
+            'status', latest_attempt.status,
+            'attempt_number', latest_attempt.attempt_number,
+            'started_at', latest_attempt.started_at,
+            'expires_at', latest_attempt.expires_at,
+            'submitted_at', latest_attempt.submitted_at,
+            'finalized_at', latest_attempt.finalized_at
+          )
+        end,
+        'result', jsonb_build_object(
+          'published',
+            latest_finalized.id is not null
+            and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED'),
+          'score', case
+            when latest_finalized.id is not null
+             and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+            then latest_finalized.score
+            else null
+          end,
+          'rank', case
+            when latest_finalized.id is not null
+             and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+             and p.id is not null
+            then private.canonical_competition_rank(c.id, p.id)
+            else null
+          end,
+          'finalized_at', latest_finalized.finalized_at
+        ),
+        'certificate_count', coalesce(certs.certificate_count, 0),
+        'published_certificate_count', coalesce(certs.published_certificate_count, 0)
+      ) as item,
+      greatest(
+        coalesce(latest_attempt.updated_at, latest_attempt.created_at),
+        r.updated_at,
+        p.updated_at,
+        c.created_at
+      ) as activity_at
+    from individual_competition_ids ids
+    join public.competitions c on c.id = ids.competition_id
+    left join public.participants p
+      on p.competition_id = c.id
+     and p.user_id = v_uid
+     and p.participant_type = 'INDIVIDUAL'
+    left join lateral (
+      select r1.*
+      from public.registrations r1
+      where r1.competition_id = c.id
+        and r1.user_id = v_uid
+      order by r1.created_at desc, r1.updated_at desc, r1.id desc
+      limit 1
+    ) r on true
+    left join lateral (
+      select a1.*
+      from public.attempts a1
+      where a1.canonical_participant_id = p.id
+        and a1.is_preview = false
+      order by a1.attempt_number desc, a1.created_at desc, a1.id desc
+      limit 1
+    ) latest_attempt on true
+    left join lateral (
+      select a1.id, a1.score, a1.finalized_at
+      from public.attempts a1
+      where a1.canonical_participant_id = p.id
+        and a1.status = 'FINALIZED'
+        and a1.is_preview = false
+      order by a1.finalized_at desc nulls last, a1.created_at desc, a1.id desc
+      limit 1
+    ) latest_finalized on true
+    left join lateral (
+      select
+        count(*)::integer as certificate_count,
+        count(*) filter (where pc.status::text = 'PUBLISHED')::integer as published_certificate_count
+      from public.participant_certificates pc
+      where pc.participant_id = p.id
+        and pc.user_id = v_uid
+    ) certs on true
+  ),
+  claimed_collective_rows as (
+    select
+      jsonb_build_object(
+        'entry_id', coalesce(p.id, cp.id),
+        'participant_type', 'COLLECTIVE',
+        'participant', jsonb_build_object(
+          'id', p.id,
+          'full_name', cp.full_name,
+          'participant_type', 'COLLECTIVE',
+          'participant_code', cp.participant_code,
+          'class_name', cp.class_name,
+          'grade', cp.grade
+        ),
+        'competition', jsonb_build_object(
+          'id', c.id,
+          'slug', c.slug,
+          'title', c.title,
+          'category', c.category,
+          'status', c.status,
+          'poster_url', c.poster_url,
+          'registration_starts_at', c.registration_starts_at,
+          'registration_ends_at', c.registration_ends_at,
+          'starts_at', c.starts_at,
+          'ends_at', c.ends_at,
+          'announcement_at', c.announcement_at
+        ),
+        'registration', null,
+        'latest_attempt', case
+          when latest_attempt.id is null then null
+          else jsonb_build_object(
+            'id', latest_attempt.id,
+            'status', latest_attempt.status,
+            'attempt_number', latest_attempt.attempt_number,
+            'started_at', latest_attempt.started_at,
+            'expires_at', latest_attempt.expires_at,
+            'submitted_at', latest_attempt.submitted_at,
+            'finalized_at', latest_attempt.finalized_at
+          )
+        end,
+        'result', jsonb_build_object(
+          'published',
+            latest_finalized.id is not null
+            and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED'),
+          'score', case
+            when latest_finalized.id is not null
+             and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+            then latest_finalized.score
+            else null
+          end,
+          'rank', case
+            when latest_finalized.id is not null
+             and c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED')
+             and p.id is not null
+            then private.canonical_competition_rank(c.id, p.id)
+            else null
+          end,
+          'finalized_at', latest_finalized.finalized_at
+        ),
+        'certificate_count', coalesce(certs.certificate_count, 0),
+        'published_certificate_count', coalesce(certs.published_certificate_count, 0)
+      ) as item,
+      greatest(
+        coalesce(latest_attempt.updated_at, latest_attempt.created_at),
+        cp.updated_at,
+        p.updated_at,
+        c.created_at
+      ) as activity_at
+    from public.collective_participants cp
+    join public.competitions c on c.id = cp.competition_id
+    left join public.participants p
+      on p.competition_id = cp.competition_id
+     and p.collective_participant_id = cp.id
+     and p.participant_type = 'COLLECTIVE'
+    left join lateral (
+      select a1.*
+      from public.attempts a1
+      where (
+        (p.id is not null and a1.canonical_participant_id = p.id)
+        or (p.id is null and a1.collective_participant_id = cp.id)
+      )
+        and a1.is_preview = false
+      order by a1.attempt_number desc, a1.created_at desc, a1.id desc
+      limit 1
+    ) latest_attempt on true
+    left join lateral (
+      select a1.id, a1.score, a1.finalized_at
+      from public.attempts a1
+      where (
+        (p.id is not null and a1.canonical_participant_id = p.id)
+        or (p.id is null and a1.collective_participant_id = cp.id)
+      )
+        and a1.status = 'FINALIZED'
+        and a1.is_preview = false
+      order by a1.finalized_at desc nulls last, a1.created_at desc, a1.id desc
+      limit 1
+    ) latest_finalized on true
+    left join lateral (
+      select
+        count(*)::integer as certificate_count,
+        count(*) filter (where pc.status::text = 'PUBLISHED')::integer as published_certificate_count
+      from public.participant_certificates pc
+      where pc.participant_id = p.id
+        and pc.collective_participant_id = cp.id
+        and exists (
+          select 1
+          from public.collective_participants owner_cp
+          where owner_cp.id = cp.id
+            and owner_cp.user_id = v_uid
+        )
+    ) certs on true
+    where cp.user_id = v_uid
+  ),
+  all_rows as (
+    select item, activity_at from individual_rows
+    union all
+    select item, activity_at from claimed_collective_rows
+  )
+  select coalesce(
+    jsonb_agg(item order by activity_at desc nulls last),
+    '[]'::jsonb
+  )
+  into v_result
+  from all_rows;
+
+  return v_result;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_my_participant_core()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_result jsonb;
+begin
+  if v_uid is null then
+    raise exception 'AUTHORIZATION_REQUIRED';
+  end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  select coalesce(jsonb_agg(row_data order by created_at desc), '[]'::jsonb)
+  into v_result
+  from (
+    select
+      jsonb_build_object(
+        'participant', to_jsonb(p),
+        'competition', jsonb_build_object(
+          'id', c.id,
+          'slug', c.slug,
+          'title', c.title,
+          'status', c.status,
+          'poster_url', c.poster_url
+        ),
+        'registration', jsonb_build_object(
+          'id', r.id,
+          'status', r.status,
+          'submitted_at', r.submitted_at,
+          'approved_at', r.approved_at,
+          'rejected_at', r.rejected_at
+        ),
+        'latest_attempt', case
+          when a.id is null then null
+          else jsonb_build_object(
+            'id', a.id,
+            'status', a.status,
+            'attempt_number', a.attempt_number,
+            'started_at', a.started_at,
+            'expires_at', a.expires_at,
+            'submitted_at', a.submitted_at,
+            'finalized_at', a.finalized_at,
+            'score', case
+              when c.status::text in ('RESULT_PUBLISHED', 'ARCHIVED') then a.score
+              else null
+            end
+          )
+        end,
+        'certificate_count', (
+          select count(*)
+          from public.certificates cert
+          where cert.canonical_participant_id = p.id
+        )
+      ) as row_data,
+      c.created_at
+    from public.participants p
+    join public.competitions c on c.id = p.competition_id
+    left join public.registrations r on r.id = p.registration_id
+    left join lateral (
+      select a1.*
+      from public.attempts a1
+      where a1.canonical_participant_id = p.id
+        and a1.is_preview = false
+      order by a1.attempt_number desc, a1.created_at desc, a1.id desc
+      limit 1
+    ) a on true
+    where p.user_id = v_uid
+      and p.participant_type = 'INDIVIDUAL'
+  ) s;
+
+  return v_result;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_my_shop_vouchers()
+ RETURNS TABLE(id uuid, name text, description text, usage_type text, duration_hours integer, benefit_group text, benefit_type text, discount_value numeric, discount_currency text, scope_type text, starts_at timestamp with time zone, ends_at timestamp with time zone, issued_at timestamp with time zone, activated_at timestamp with time zone, active_until timestamp with time zone, status text, viewed_at timestamp with time zone, is_new boolean)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  return query
+  select uv.id,d.name,d.description,d.usage_type,d.duration_hours,d.benefit_group,d.benefit_type,
+    d.discount_value,d.discount_currency,d.scope_type,d.starts_at,d.ends_at,uv.issued_at,
+    uv.activated_at,uv.active_until,
+    case
+      when uv.status='USED' then 'USED'
+      when uv.status='RESERVED' then 'RESERVED'
+      when (uv.status='ACTIVE' and uv.active_until <= now()) or (d.ends_at is not null and d.ends_at <= now()) then 'EXPIRED'
+      when uv.status='ACTIVE' and uv.activated_at > now() then 'READY'
+      when uv.status='ACTIVE' then 'ACTIVE'
+      else uv.status
+    end,
+    uv.viewed_at,(uv.viewed_at is null)
+  from public.shop_user_vouchers uv
+  join public.shop_voucher_definitions d on d.id=uv.definition_id
+  where uv.user_id=auth.uid()
+  order by uv.issued_at desc;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.mark_my_shop_vouchers_seen()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_count integer;
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  update public.shop_user_vouchers set viewed_at=now()
+  where user_id=auth.uid() and viewed_at is null;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.remove_follow(p_target_user_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$ declare v_uid uuid:=auth.uid();begin if v_uid is null then raise exception 'UNAUTHORIZED';end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;delete from public.follows where follower_id=v_uid and following_id=p_target_user_id;end;$function$;
+
+CREATE OR REPLACE FUNCTION public.respond_follow_request(p_follower_id uuid, p_accept boolean)
+ RETURNS follows
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$ declare v_uid uuid:=auth.uid();v_follow public.follows;v_out public.follows;v_name text;v_username text;begin if v_uid is null then raise exception 'UNAUTHORIZED';end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;select * into v_follow from public.follows where follower_id=p_follower_id and following_id=v_uid for update;if not found then raise exception 'FOLLOW_REQUEST_NOT_FOUND';end if;if v_follow.status<>'pending' then return v_follow;end if;if p_accept then update public.follows set status='approved' where id=v_follow.id returning * into v_out;select coalesce(full_name,'User'),username into v_name,v_username from public.profiles where id=v_uid;insert into public.notifications(user_id,type,title,body,data) values(p_follower_id,'follow-accepted','Permintaan Diikuti Diterima',v_name||' menerima permintaan mengikuti Anda.',jsonb_build_object('follower_id',p_follower_id,'following_id',v_uid,'link','/profile/'||coalesce(v_username,'')));else delete from public.follows where id=v_follow.id;v_out:=v_follow;v_out.status:='rejected';end if;return v_out;end;$function$;
+
+CREATE OR REPLACE FUNCTION public.save_my_commerce_product_review(p_product_id uuid, p_rating smallint, p_review text DEFAULT ''::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_user_id uuid := auth.uid();
+  v_review text := pg_catalog.btrim(coalesce(p_review, ''));
+begin
+  if v_user_id is null then
+    raise exception 'AUTH_REQUIRED' using errcode = '28000';
+  end if;
+
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  if p_rating is null or p_rating < 1 or p_rating > 5 then
+    raise exception 'INVALID_RATING' using errcode = '22023';
+  end if;
+  if pg_catalog.char_length(v_review) > 1200 then
+    raise exception 'REVIEW_TOO_LONG' using errcode = '22023';
+  end if;
+  if not exists (
+    select 1
+    from public.order_items oi
+    join public.orders o on o.id = oi.order_id
+    where oi.product_ref = p_product_id::text
+      and o.user_id = v_user_id
+      and o.status::text in ('PAID', 'COMPLETED')
+  ) then
+    raise exception 'VERIFIED_PURCHASE_REQUIRED' using errcode = '42501';
+  end if;
+
+  insert into public.commerce_product_reviews (
+    product_id, user_id, rating, review, updated_at
+  )
+  values (
+    p_product_id, v_user_id, p_rating, v_review, pg_catalog.now()
+  )
+  on conflict (user_id, product_id) do update
+    set rating = excluded.rating,
+        review = excluded.review,
+        updated_at = pg_catalog.now();
+end;
+$function$;
+
+DO $personal_rpc_issuer_postflight$
+DECLARE
+  v_signature text;
+  v_function regprocedure;
+  v_source text;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.create_follow_request(uuid)',
+    'public.get_my_canonical_competition_result(uuid)',
+    'public.get_my_canonical_participant(uuid)',
+    'public.get_my_learning_insights()',
+    'public.get_my_referral_tier_awards()',
+    'public.list_my_canonical_certificates()',
+    'public.list_my_claimed_collective_history()',
+    'public.list_my_competition_dashboard()',
+    'public.list_my_participant_core()',
+    'public.list_my_shop_vouchers()',
+    'public.mark_my_shop_vouchers_seen()',
+    'public.remove_follow(uuid)',
+    'public.respond_follow_request(uuid,boolean)',
+    'public.save_my_commerce_product_review(uuid,smallint,text)'
+  ]
+  LOOP
+    v_function := pg_catalog.to_regprocedure(v_signature);
+    SELECT p.prosrc INTO v_source FROM pg_catalog.pg_proc p WHERE p.oid = v_function;
+    IF v_source IS NULL OR position('private.current_user_is_better_auth()' in v_source) = 0 THEN
+      RAISE EXCEPTION 'PERSONAL_RPC_ISSUER_GUARD_MISSING:%', v_signature;
+    END IF;
+    IF pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'PERSONAL_RPC_ISSUER_POSTFLIGHT_ACL_DRIFT:%', v_signature;
+    END IF;
+  END LOOP;
+END;
+$personal_rpc_issuer_postflight$;
+
+
 COMMIT;
