@@ -24,8 +24,7 @@ const names = [
   ["public","create_ad_banner_payment_order","p_request_id uuid, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_unique_code integer"],
 ];
 
-const metadata = {
-  auth_dependent_functions: names.map(([schema_name,function_name,identity_arguments],index)=>({
+const functionRows = names.map(([schema_name,function_name,identity_arguments],index)=>({
     schema_name,function_name,identity_arguments,
     function_acl_entries: [
       {grantee:"postgres",privilege_type:"EXECUTE",is_grantable:true,grantor:"postgres"},
@@ -34,7 +33,10 @@ const metadata = {
       ...(index===7 || index===9 ? [{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
       ...(index>=10 ? [{grantee:"authenticated",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
     ],
-  })),
+  }));
+const metadata = {
+  auth_dependent_functions: functionRows.slice(0,10),
+  user_scoped_issuer_functions: functionRows.slice(10),
 };
 
 const sql = renderFunctionAclRestore(metadata);
@@ -54,7 +56,7 @@ assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_his
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_ad_banner_payment_order\(uuid,uuid,text,text,integer,integer,text,text,integer\) TO "authenticated";/);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
-assert.throws(()=>renderFunctionAclRestore({auth_dependent_functions:metadata.auth_dependent_functions.slice(1)}),/all 20/);
+assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 20/);
 assert.throws(()=>renderFunctionAclRestore({
   auth_dependent_functions:metadata.auth_dependent_functions.map((row,index)=>index===0?{
     ...row,function_acl_entries:[{grantee:"attacker",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}]
