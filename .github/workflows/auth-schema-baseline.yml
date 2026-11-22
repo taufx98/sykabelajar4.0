@@ -71,7 +71,7 @@ concurrency:
 jobs:
   schema-only-restore:
     # workflow_dispatch can select any ref; only the reviewed migration base may receive Production credentials.
-    if: ${{ github.ref == 'refs/heads/security/auth-poc-stage-1' }}
+    if: ${{ github.actor == 'taufx98' && github.ref == 'refs/heads/security/auth-poc-stage-1' }}
     name: Read-only production export and isolated restore
     runs-on: ubuntu-24.04
     timeout-minutes: 45
