@@ -463,6 +463,7 @@ $legacy_issuer$;
 DO $legacy_user_rpc_issuer_gate$
 DECLARE
   v_denied boolean;
+  v_count integer;
 BEGIN
   v_denied := false;
   BEGIN
@@ -604,6 +605,25 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_FAILED:create_ad_banner_payment_order';
   END IF;
 
+
+  -- A legacy Supabase Auth Admin UUID must not inherit private-profile
+  -- moderation exceptions after the Better Auth issuer boundary is installed.
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badge_visibility('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_PRIVATE_BADGE_VISIBILITY_ALLOWED';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badges('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_PRIVATE_BADGES_ALLOWED';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_ui_settings('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_PRIVATE_UI_SETTINGS_ALLOWED';
+  END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -642,6 +662,30 @@ BEGIN
   END IF;
 
   PERFORM public.admin_evaluate_badges();
+
+  -- A verified Better Auth Admin keeps the intended private-profile
+  -- moderation projections, including private targets with hidden popups.
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badge_visibility('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_PRIVATE_BADGE_VISIBILITY_FAILED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badges('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_PRIVATE_BADGES_FAILED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_ui_settings('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_PRIVATE_UI_SETTINGS_FAILED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_social('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_PRIVATE_SOCIAL_FAILED:%', v_count;
+  END IF;
+
 
   v_result := NULL;
   BEGIN
