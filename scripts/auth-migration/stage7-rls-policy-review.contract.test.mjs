@@ -48,7 +48,7 @@ for (const table of expected) {
   assert.ok(regression.includes("('" + schema + "','" + name + "'"),
     "read-only disposable regression is missing " + table);
 }
-assert.match(regression, /RLS_ENABLED/);
+assert.match(regression, /relrowsecurity/);
 assert.match(regression, /STAGE7_RLS_REVIEW_POLICY_OR_RLS_DRIFT/);
 assert.match(regression, /STAGE7_RLS_REVIEW_ANON_DIRECT_GRANT_REMAINS/);
 assert.match(regression, /STAGE7_RLS_REVIEW_AUTHENTICATED_DIRECT_GRANT_REMAINS/);
@@ -56,8 +56,9 @@ assert.match(regression, /STAGE7_RLS_REVIEW_SERVICE_ROLE_ACCESS_LOST/);
 assert.match(regression, /TRUNCATE','REFERENCES','TRIGGER','MAINTAIN'/);
 assert.match(regression, /BEGIN READ ONLY;/);
 assert.match(regression, /ROLLBACK;/);
-assert.doesNotMatch(regression, /\b(?:CREATE|DROP)\s+POLICY\b/i);
-assert.doesNotMatch(regression, /\b(?:GRANT|REVOKE)\b/i);
-assert.doesNotMatch(regression, /\b(?:INSERT INTO|UPDATE\s+public\.|DELETE FROM|TRUNCATE TABLE|DROP TABLE)\b/i);
+const executableSql = regression.replace(/^--.*$/gm, "");
+assert.doesNotMatch(executableSql, /\b(?:CREATE|DROP)\s+POLICY\b/i);
+assert.doesNotMatch(executableSql, /\b(?:GRANT|REVOKE)\b/i);
+assert.doesNotMatch(executableSql, /\b(?:INSERT INTO|UPDATE\s+public\.|DELETE FROM|TRUNCATE TABLE|DROP TABLE)\b/i);
 
 console.log("Stage 7 RLS review contract passed: all 23 app tables classified; no broad policies or Production changes; disposable catalog test asserts browser-deny and backend access.");
