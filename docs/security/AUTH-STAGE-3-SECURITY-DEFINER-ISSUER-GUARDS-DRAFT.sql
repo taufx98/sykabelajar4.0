@@ -1781,16 +1781,16 @@ DECLARE
   v_function regprocedure;
 BEGIN
   FOREACH v_signature IN ARRAY ARRAY[
-      'archive_my_order_history(uuid)',
-      'bulk_import_roster_students(uuid,jsonb)',
-      'cancel_my_pending_order(uuid)',
-      'claim_and_complete_daily_task(uuid)',
-      'claim_daily_checkin(date,integer)',
-      'claim_daily_task(uuid)',
-      'claim_organizer_voucher(uuid)',
-      'claim_rpc_recovery(text)',
-      'complete_daily_task(uuid)',
-      'create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)'
+      'public.archive_my_order_history(uuid)',
+      'public.bulk_import_roster_students(uuid,jsonb)',
+      'public.cancel_my_pending_order(uuid)',
+      'public.claim_and_complete_daily_task(uuid)',
+      'public.claim_daily_checkin(date,integer)',
+      'public.claim_daily_task(uuid)',
+      'public.claim_organizer_voucher(uuid)',
+      'public.claim_rpc_recovery(text)',
+      'public.complete_daily_task(uuid)',
+      'public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)'
   ]
   LOOP
     v_function := pg_catalog.to_regprocedure(v_signature);
@@ -2604,16 +2604,16 @@ DECLARE
   v_source text;
 BEGIN
   FOREACH v_signature IN ARRAY ARRAY[
-      'archive_my_order_history(uuid)',
-      'bulk_import_roster_students(uuid,jsonb)',
-      'cancel_my_pending_order(uuid)',
-      'claim_and_complete_daily_task(uuid)',
-      'claim_daily_checkin(date,integer)',
-      'claim_daily_task(uuid)',
-      'claim_organizer_voucher(uuid)',
-      'claim_rpc_recovery(text)',
-      'complete_daily_task(uuid)',
-      'create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)'
+      'public.archive_my_order_history(uuid)',
+      'public.bulk_import_roster_students(uuid,jsonb)',
+      'public.cancel_my_pending_order(uuid)',
+      'public.claim_and_complete_daily_task(uuid)',
+      'public.claim_daily_checkin(date,integer)',
+      'public.claim_daily_task(uuid)',
+      'public.claim_organizer_voucher(uuid)',
+      'public.claim_rpc_recovery(text)',
+      'public.complete_daily_task(uuid)',
+      'public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)'
   ]
   LOOP
     v_function := pg_catalog.to_regprocedure(v_signature);
