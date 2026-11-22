@@ -26,6 +26,13 @@ assert.match(draft, /STAGE5_ACL_PREFLIGHT_OWNER_DRIFT/i);
 assert.match(draft, /STAGE5_ACL_POSTCONDITION_OWNER_DRIFT/i);
 assert.match(draft, /policy_count <> 0/i);
 assert.match(draft, /STAGE5_ACL_PREFLIGHT_GRANT_DRIFT/i);
+assert.match(draft, /STAGE5_ACL_PREFLIGHT_PUBLIC_GRANT_DRIFT/i);
+assert.match(draft, /acl\.grantee = 0/i);
+for (const role of ["anon", "authenticated"]) {
+  for (const privilege of ["TRUNCATE", "REFERENCES", "TRIGGER"]) {
+    assert.match(draft, new RegExp("has_table_privilege\\('" + role + "', v_table\\.oid, '" + privilege + "'\\)"));
+  }
+}
 assert.match(draft, /has_table_privilege\('service_role'[\s\S]*?SELECT/i);
 assert.match(draft, /has_table_privilege\('postgres'[\s\S]*?SELECT/i);
 assert.match(draft, /STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS/i);
