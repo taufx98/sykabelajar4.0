@@ -29,12 +29,15 @@ assert.match(draft, /STAGE5_ACL_PREFLIGHT_GRANT_DRIFT/i);
 assert.match(draft, /STAGE5_ACL_PREFLIGHT_PUBLIC_GRANT_DRIFT/i);
 assert.match(draft, /acl\.grantee = 0/i);
 for (const role of ["anon", "authenticated"]) {
-  for (const privilege of ["TRUNCATE", "REFERENCES", "TRIGGER"]) {
+  for (const privilege of ["TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN"]) {
     assert.match(draft, new RegExp("has_table_privilege\\('" + role + "', v_table\\.oid, '" + privilege + "'\\)"));
   }
 }
 assert.match(draft, /has_table_privilege\('service_role'[\s\S]*?SELECT/i);
 assert.match(draft, /has_table_privilege\('postgres'[\s\S]*?SELECT/i);
+for (const role of ["service_role", "postgres"]) {
+  assert.match(draft, new RegExp("has_table_privilege\\('" + role + "', v_table\\.oid, 'MAINTAIN'\\)"));
+}
 assert.match(draft, /STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS/i);
 assert.match(draft, /STAGE5_ACL_POSTCONDITION_TRUSTED_ROLE_ACCESS_LOST/i);
 const transactionStart = draft.indexOf("BEGIN;");
