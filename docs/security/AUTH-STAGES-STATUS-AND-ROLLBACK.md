@@ -1,3 +1,32 @@
+# Current authoritative checkpoint — 22 November 2026
+
+**Provider decision:** SendPulse remains the approved transactional-email provider. No alternate provider is to be configured.
+
+## Stage 7 least-privilege ACL rehearsal — 22 November 2026
+
+- PR [#210](https://github.com/taufx98/sykabelajar4.0/pull/210) merged as commit `440a75bbd77cc486a277661f336eb2464e08f285`. It strengthens the existing canonical `AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql` used by the Stage 7 release path; it does not create a second or conflicting SQL draft.
+- The draft's preflight now pins the three reviewed tables to `postgres` ownership, RLS enabled, zero policies, the exact baseline browser CRUD/non-CRUD grants, no unexpected explicit PUBLIC ACL, and intact `service_role`/`postgres` CRUD. The transactional revoke is limited to `PUBLIC`, `anon`, and `authenticated`. Its postflight verifies no browser SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER privileges, no explicit PUBLIC ACL, and preserved trusted CRUD.
+- Post-merge Auth Worker CI [#44968023698](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023698), Supabase Local Auth Claims CI [#44968023980](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023980), and read-only Cloudflare staging preflight [#44968023648](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023648) all passed.
+- Auth Production Schema Baseline [#44968023703](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023703) passed all 50 steps. It exported the Production schema without Production DDL/DML, restored a schema-only copy to an isolated PostgreSQL 17.6 Supabase stack, rehearsed Stage 3 identity/FK/issuer/rollback and Stage 5 Edge checks, and successfully applied the ACL draft only to the disposable database. The SQL pre/post assertions passed. No Production application rows, Auth rows, ACLs, FK, RLS policy, Cloudflare resource or staging resource was changed.
+- The three broad-grant tables remain **catalog-reviewed, not fully RLS acceptance-reviewed**. The 23-table RLS matrix remains `blocked_unreviewed`, 0/23 accepted. The disposable ACL pass proves the reviewed privilege transition, not all public, scheduler, Admin, organizer or service-role business callers.
+- The owner clarification is unchanged: legacy Supabase Auth users/identities/sessions are demo/testing only, are not imported into Better Auth, and are not a cutover blocker. New accounts use fresh Better Auth UUIDs; application FK/data structure remains separately protected.
+
+## Current Production release decision
+
+**Stage 7 remains NO-GO.** The successful disposable run is not Production approval. No Production DB2 DDL/DML, FK change, Auth trigger retirement, issuer policy, function ACL or first-account creation was executed.
+
+Outstanding gates remain:
+- Independently verify the off-GitHub full-backup destination SHA-256 and record it as the private release attestation/Actions secret.
+- Review and test all 202 exposed `SECURITY DEFINER` functions; the machine-readable allowlist remains 0/202 accepted.
+- Complete the 23 application-table RLS/GRANT review; only three have catalog notes and the scoped ACL rehearsal.
+- Apply the Stage 3 identity root/69 application FK/three legacy-trigger retirement transaction only after fresh preflight and exact DDL approval.
+- Configure and verify the Production SendPulse provider and server-only provisioning key while public signup remains closed.
+- Create the one pinned verified Production owner, prove OTP delivery/completion and real Production OIDC/Data API token acceptance, apply issuer guards, grant first Admin, and pass Production frontend smoke/rollback before switching the website.
+
+Production flags remain `AUTH_SIGNUP_DISABLED=true` and `SUPABASE_PROVISIONING_ENABLED=false`. The dedicated closed Worker and registered Production OIDC remain in place; the frontend remains disconnected.
+
+---
+
 # Current authoritative checkpoint — 21 November 2026
 
 **Provider decision:** SendPulse is the approved and successfully tested primary transactional-email provider. Do not configure another provider.
