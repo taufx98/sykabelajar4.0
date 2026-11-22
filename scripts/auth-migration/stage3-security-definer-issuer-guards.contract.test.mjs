@@ -233,12 +233,12 @@ assert.match(profileConnections, /NOT v_profile_is_public[\s\S]*NOT COALESCE\(v_
 const profileBadgeVisibility = draft.match(
   /CREATE OR REPLACE FUNCTION public\.get_public_profile_badge_visibility\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
-assert.match(profileBadgeVisibility, /private\.current_user_is_better_auth\(\)[\s\S]*private\.current_user_is_admin\(\)/);
+assert.match(profileBadgeVisibility, /private\.current_user_is_better_auth\(\)\s+AND\s+private\.current_user_is_admin\(\)/);
 
 const profileBadges = draft.match(
   /CREATE OR REPLACE FUNCTION public\.get_public_profile_badges\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
-assert.match(profileBadges, /private\.current_user_is_better_auth\(\)[\s\S]*private\.current_user_is_admin\(\)/);
+assert.match(profileBadges, /private\.current_user_is_better_auth\(\)\s+AND\s+private\.current_user_is_admin\(\)/);
 
 const profileUiSettings = draft.match(
   /CREATE OR REPLACE FUNCTION public\.get_public_profile_ui_settings\([\s\S]*?\$function\$;/i,
