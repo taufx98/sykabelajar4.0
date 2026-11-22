@@ -22,6 +22,20 @@ const names = [
   ["public","claim_rpc_recovery","p_rpc_name text"],
   ["public","complete_daily_task","p_task_id uuid"],
   ["public","create_ad_banner_payment_order","p_request_id uuid, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_unique_code integer"],
+  ["public","create_follow_request","p_target_user_id uuid"],
+  ["public","get_my_canonical_competition_result","p_competition_id uuid"],
+  ["public","get_my_canonical_participant","p_competition_id uuid"],
+  ["public","get_my_learning_insights",""],
+  ["public","get_my_referral_tier_awards",""],
+  ["public","list_my_canonical_certificates",""],
+  ["public","list_my_claimed_collective_history",""],
+  ["public","list_my_competition_dashboard",""],
+  ["public","list_my_participant_core",""],
+  ["public","list_my_shop_vouchers",""],
+  ["public","mark_my_shop_vouchers_seen",""],
+  ["public","remove_follow","p_following_id uuid"],
+  ["public","respond_follow_request","p_follow_request_id uuid, p_approved boolean"],
+  ["public","save_my_commerce_product_review","p_product_id uuid, p_rating smallint, p_review text"],
 ];
 
 const functionRows = names.map(([schema_name,function_name,identity_arguments],index)=>({
@@ -36,7 +50,8 @@ const functionRows = names.map(([schema_name,function_name,identity_arguments],i
   }));
 const metadata = {
   auth_dependent_functions: functionRows.slice(0,10),
-  user_scoped_issuer_functions: functionRows.slice(10),
+  user_scoped_issuer_functions: functionRows.slice(10,20),
+  personal_rpc_issuer_functions: functionRows.slice(20),
 };
 
 const sql = renderFunctionAclRestore(metadata);
@@ -49,6 +64,10 @@ assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.get_my_verified_referra
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.create_organizer(text,text) TO "anon";'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.apply_referral_qualification(uuid,text,timestamptz) TO "anon";'), false);
 assert.match(sql,/REVOKE ALL PRIVILEGES ON FUNCTION public\.archive_my_order_history\(uuid\) FROM PUBLIC, anon, authenticated, service_role;/);
+assert.match(sql,/REVOKE ALL PRIVILEGES ON FUNCTION public\.create_follow_request\(uuid\) FROM PUBLIC, anon, authenticated, service_role;/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_follow_request\(uuid\) TO "authenticated";/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_follow_request\(uuid\) TO "service_role";/);
+assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.create_follow_request(uuid) TO "anon";'), false);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uuid\) TO "authenticated";/);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uuid\) TO "service_role";/);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO PUBLIC;'), false);
@@ -56,7 +75,9 @@ assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_his
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_ad_banner_payment_order\(uuid,uuid,text,text,integer,integer,text,text,integer\) TO "authenticated";/);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
-assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 20/);
+assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 34/);
+assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 34/);
+
 assert.throws(()=>renderFunctionAclRestore({
   ...metadata,
   auth_dependent_functions:metadata.auth_dependent_functions.map((row,index)=>index===0?{
