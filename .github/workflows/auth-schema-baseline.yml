@@ -34,6 +34,8 @@ on:
       - "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
       - "scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs"
+      - "scripts/auth-migration/stage7-collective-portal-token-regression.sql"
+      - "scripts/auth-migration/stage7-collective-portal-token.contract.test.mjs"
       - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
       - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
       - "docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-22.json"
@@ -747,6 +749,10 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs
 
+      - name: Test Stage 7 collective portal token boundary contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-collective-portal-token.contract.test.mjs
+
       - name: Apply Stage 5 no-policy table ACL draft to disposable restore only
         if: steps.credentials.outputs.available == 'true'
         run: |
@@ -772,6 +778,19 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage7-rls-policy-review-regression.sql
           echo "- Verified all 23 reviewed application tables remain RLS-enabled and policy-free, with zero direct anon/authenticated grants and expected service_role boundaries after Stage 5 on the disposable restore" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify all 14 collective portal RPCs reject invalid anon tokens on disposable restore
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage7-collective-portal-token-regression.sql:/baseline/stage7-collective-portal-token-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-collective-portal-token-regression.sql
+          echo "- Verified 14 anonymous participant portal RPC boundaries with invalid password/session token fixtures; no account or participant data changed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Simulate fail-closed 69-FK rollback on disposable restore only
         if: steps.credentials.outputs.available == 'true'
