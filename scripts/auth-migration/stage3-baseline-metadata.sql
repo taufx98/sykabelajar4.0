@@ -44,7 +44,17 @@ WITH function_meta AS (
       'get_my_verified_referrals',
       'handle_new_auth_user',
       'register_for_competition',
-      'verify_pending_referrals'
+      'verify_pending_referrals',
+      'archive_my_order_history',
+      'bulk_import_roster_students',
+      'cancel_my_pending_order',
+      'claim_and_complete_daily_task',
+      'claim_daily_checkin',
+      'claim_daily_task',
+      'claim_organizer_voucher',
+      'claim_rpc_recovery',
+      'complete_daily_task',
+      'create_ad_banner_payment_order'
     )
 ),
 stage5_payment_function_meta AS (
