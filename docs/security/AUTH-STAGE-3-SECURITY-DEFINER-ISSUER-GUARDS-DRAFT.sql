@@ -799,10 +799,20 @@ SET search_path TO ''
 AS $function$
 DECLARE
   v_allow boolean;
+  v_profile_is_public boolean;
   v_uid uuid := (SELECT auth.uid());
   v_is_better_auth_owner boolean := false;
 BEGIN
-  IF p_profile_id IS NULL THEN
+  IF p_profile_id IS NULL OR p_mode NOT IN ('following', 'followers') THEN
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(pr.is_public, false)
+    INTO v_profile_is_public
+  FROM public.profiles AS pr
+  WHERE pr.id = p_profile_id;
+
+  IF NOT FOUND THEN
     RETURN;
   END IF;
 
@@ -821,17 +831,15 @@ BEGIN
   v_is_better_auth_owner :=
     v_uid IS NOT NULL
     AND v_uid IS NOT DISTINCT FROM p_profile_id
-    AND (SELECT auth.jwt() ->> 'iss') =
-      'https://auth-prod.sykabelajar.my.id/api/auth'
-    AND EXISTS (
-      SELECT 1
-      FROM private.app_users AS au
-      WHERE au.id = v_uid
-        AND au.identity_origin = 'better_auth'
-    );
+    AND private.current_user_is_better_auth();
 
-  IF NOT COALESCE(v_allow, true)
-     AND NOT COALESCE(v_is_better_auth_owner, false) THEN
+  -- Public profile status AND the per-section preference must both allow
+  -- a visitor. Only the verified Better Auth owner may see private sections.
+  IF NOT COALESCE(v_is_better_auth_owner, false)
+     AND (
+       NOT COALESCE(v_profile_is_public, false)
+       OR NOT COALESCE(v_allow, true)
+     ) THEN
     RETURN;
   END IF;
 
@@ -877,7 +885,10 @@ AS $function$
         AND (SELECT auth.uid()) = p_profile_id
       )
       OR COALESCE(p.is_public, false) = true
-      OR private.current_user_is_admin()
+      OR (
+        private.current_user_is_better_auth()
+        AND private.current_user_is_admin()
+      )
     );
 $function$;
 
@@ -921,7 +932,10 @@ AS $function$
         private.current_user_is_better_auth()
         AND (SELECT auth.uid()) = p_profile_id
       )
-      OR private.current_user_is_admin()
+      OR (
+        private.current_user_is_better_auth()
+        AND private.current_user_is_admin()
+      )
       OR (
         COALESCE(p.is_public, false) = true
         AND COALESCE(s.show_badge_collection, true) = true
@@ -947,7 +961,10 @@ AS $function$
         private.current_user_is_better_auth()
         AND p_profile_id = (SELECT auth.uid())
       )
-      OR private.current_user_is_admin()
+      OR (
+        private.current_user_is_better_auth()
+        AND private.current_user_is_admin()
+      )
       OR COALESCE(pr.is_public, true) = true
     )
   UNION ALL
@@ -962,7 +979,10 @@ AS $function$
           private.current_user_is_better_auth()
           AND p_profile_id = (SELECT auth.uid())
         )
-        OR private.current_user_is_admin()
+        OR (
+          private.current_user_is_better_auth()
+          AND private.current_user_is_admin()
+        )
         OR COALESCE(pr2.is_public, true) = true
       )
   )
@@ -975,7 +995,10 @@ AS $function$
           private.current_user_is_better_auth()
           AND p_profile_id = (SELECT auth.uid())
         )
-        OR private.current_user_is_admin()
+        OR (
+          private.current_user_is_better_auth()
+          AND private.current_user_is_admin()
+        )
         OR COALESCE(pr3.is_public, true) = true
       )
   )
@@ -1033,10 +1056,40 @@ SET search_path TO ''
 AS $function$
 DECLARE
   v_uid uuid := (SELECT auth.uid());
+  v_profile_is_public boolean;
+  v_show_social boolean;
+  v_is_better_auth_owner boolean;
+  v_is_better_auth_admin boolean;
   v_status text := 'none';
 BEGIN
   IF v_uid IS NULL OR NOT private.current_user_is_better_auth() THEN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT
+    COALESCE(p.is_public, true),
+    COALESCE(s.show_social_popup, true)
+  INTO v_profile_is_public, v_show_social
+  FROM public.profiles AS p
+  LEFT JOIN public.profile_ui_settings AS s ON s.user_id = p.id
+  WHERE p.id = p_profile_id;
+
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  v_is_better_auth_owner := v_uid = p_profile_id;
+  v_is_better_auth_admin :=
+    private.current_user_is_better_auth()
+    AND private.current_user_is_admin();
+
+  IF NOT v_is_better_auth_owner
+     AND NOT v_is_better_auth_admin
+     AND (
+       NOT COALESCE(v_profile_is_public, false)
+       OR NOT COALESCE(v_show_social, false)
+     ) THEN
+    RETURN;
   END IF;
 
   SELECT CASE
