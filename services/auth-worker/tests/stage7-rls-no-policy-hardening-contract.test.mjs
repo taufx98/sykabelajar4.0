@@ -30,7 +30,7 @@ test("draft does not add policies, edit rows, alter schema, or weaken RLS", () =
   assert.match(sql, /STAGE5_ACL_POSTCONDITION_OWNER_DRIFT/);
   assert.match(executableSql, /policy_count <> 0/);
   assert.doesNotMatch(executableSql, /CREATE\s+POLICY|DROP\s+POLICY/i);
-  assert.doesNotMatch(executableSql, /ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+[^;]+SET/i);
+  assert.doesNotMatch(executableSql, /ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE\s+TABLE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+[^;]+SET/i);
   assert.match(executableSql, /BEGIN;/);
   assert.match(executableSql, /COMMIT;/);
 });
@@ -53,6 +53,17 @@ test("postflight denies PUBLIC/anon/authenticated CRUD and preserves service_rol
   assert.match(sql, /FROM PUBLIC, anon, authenticated;/);
   assert.match(sql, /STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS/);
   assert.match(sql, /STAGE5_ACL_POSTCONDITION_TRUSTED_ROLE_ACCESS_LOST/);
+  assert.match(sql, /STAGE5_ACL_POSTCONDITION_PUBLIC_GRANT_REMAINS/);
+  assert.match(sql, /STAGE5_ACL_PREFLIGHT_PUBLIC_GRANT_DRIFT/);
+  assert.ok(sql.includes("acl.grantee = 0"));
+  for (const role of ["anon", "authenticated"]) {
+    for (const privilege of ["TRUNCATE", "REFERENCES", "TRIGGER"]) {
+      assert.ok(
+        sql.includes("has_table_privilege('" + role + "', v_table.oid, '" + privilege + "')"),
+        "missing non-CRUD postflight assertion for " + role + " " + privilege,
+      );
+    }
+  }
   for (const role of ["anon", "authenticated", "service_role", "postgres"]) {
     for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
       assert.match(sql, new RegExp("has_table_privilege\\('" + role + "', v_table\\.oid, '" + privilege + "'\\)"));
