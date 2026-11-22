@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 
 const EXPECTED_COUNTS = {
   auth_dependent_functions: 10,
+  user_scoped_issuer_functions: 10,
+  personal_rpc_issuer_functions: 14,
   auth_and_profile_triggers: 7,
   uid_policies: 109,
   uid_policy_tables: 61,
@@ -44,6 +46,8 @@ export function verifyStage3BaselineMetadata(production, restored) {
 
   return {
     functions: restored.auth_dependent_functions.length,
+    userScopedIssuerFunctions: restored.user_scoped_issuer_functions.length,
+    personalRpcIssuerFunctions: restored.personal_rpc_issuer_functions.length,
     triggers: restored.auth_and_profile_triggers.length,
     policies: restored.uid_policies.length,
     policyTables: restored.uid_policy_tables.length,
@@ -72,6 +76,8 @@ async function main() {
   process.stdout.write(
     "Restored Stage 3 metadata matches production exactly: " +
     result.functions + " Auth-dependent functions, " +
+    result.userScopedIssuerFunctions + " user-scoped issuer RPCs, " +
+    result.personalRpcIssuerFunctions + " personal issuer RPCs, " +
     result.triggers + " Auth/profile triggers, " +
     result.policies + " auth.uid() policies across " +
     result.policyTables + " tables, and " +

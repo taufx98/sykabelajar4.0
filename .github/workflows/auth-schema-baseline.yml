@@ -1,6 +1,6 @@
 # Read-only Production schema preflight recheck after successful staging SendPulse validation; remote export only, no Production DDL/DML, D1 migration, Worker deployment, secret, DNS, or account changes.
 name: Auth Production Schema Baseline
-# Triggered by a workflow-file push; production reads remain schema-only and isolated.
+# Runs only for trusted pushes or manual dispatches pinned to the auth migration base; never runs secret-bearing code on pull_request.
 
 on:
   push:
@@ -41,6 +41,7 @@ on:
       - "supabase/migrations/20261107000100_fix_create_organizer_plpgsql_output_parameter_ambiguity.sql"
       - "scripts/auth-migration/generate-stage3-function-acl-restore.mjs"
       - "scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs"
+      - "scripts/auth-migration/auth-schema-baseline-workflow-security.contract.test.mjs"
       - "scripts/auth-migration/generate-stage5-payment-function-acl-restore.mjs"
       - "scripts/auth-migration/generate-stage5-payment-function-acl-restore.test.mjs"
       - "scripts/auth-migration/stage5-business-edge-two-user.integration.test.mjs"
@@ -69,6 +70,8 @@ concurrency:
 
 jobs:
   schema-only-restore:
+    # workflow_dispatch can select any ref; only the reviewed migration base may receive Production credentials.
+    if: ${{ github.actor == 'taufx98' && github.ref == 'refs/heads/security/auth-poc-stage-1' }}
     name: Read-only production export and isolated restore
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -378,7 +381,7 @@ jobs:
 
           {
             echo ""
-            echo "- Reconstructed ACLs for the ten audited Auth-dependent functions from production metadata in the disposable local database only"
+            echo "- Reconstructed exact ACLs for all thirty-four reviewed Stage 3 identity-root, user-scoped and personal RPC functions from Production metadata in the disposable local database only"
             echo "- No production grant/revoke statement was executed"
           } >> "$GITHUB_STEP_SUMMARY"
 

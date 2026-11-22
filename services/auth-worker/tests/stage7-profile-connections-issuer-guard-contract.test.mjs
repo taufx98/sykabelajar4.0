@@ -63,10 +63,12 @@ test("private profile badge and settings self-access require the Better Auth hel
   ]) assert.match(getFunction(name), /private\.current_user_is_better_auth\(\)/);
 });
 
-test("social summary requires a Better Auth session and returns no row for another user's private profile", () => {
+test("social summary requires a Better Auth session and reserves private Admin visibility for a verified Better Auth Admin", () => {
   assert.match(social, /v_uid IS NULL OR NOT private\.current_user_is_better_auth\(\)/);
   assert.match(social, /COALESCE\(profile\.is_public, false\)/);
-  assert.match(social, /IF NOT v_is_public AND v_uid IS DISTINCT FROM p_profile_id THEN\s+RETURN;/);
+  assert.match(social, /v_is_better_auth_owner := v_uid IS NOT DISTINCT FROM p_profile_id/);
+  assert.match(social, /v_is_better_auth_admin :=[\s\S]*private\.current_user_is_better_auth\(\)[\s\S]*AND private\.current_user_is_admin\(\)/);
+  assert.match(social, /IF NOT v_is_public[\s\S]*NOT v_is_better_auth_owner[\s\S]*NOT v_is_better_auth_admin THEN\s+RETURN;/);
 });
 
 test("social summary has authenticated-only EXECUTE and exact ACL pre/post assertions", () => {

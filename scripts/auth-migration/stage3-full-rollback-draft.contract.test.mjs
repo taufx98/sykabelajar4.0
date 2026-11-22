@@ -64,7 +64,10 @@ assert.match(sql, /DROP FUNCTION IF EXISTS private\.current_user_is_better_auth\
 assert.match(sql, /STAGE3_ROLLBACK_RESIDUAL_IDENTITY_FUNCTIONS/);
 assert.match(sql, /STAGE3_ROLLBACK_BETTER_AUTH_HELPER_REMAINS/);
 const restoredFunctionBlock = sql
-  .slice(sql.indexOf("-- Restore the exact pre-Stage-3 Production definitions"), sql.indexOf("-- Remove the Better Auth-only provisioning surface"))
+  .slice(
+    sql.indexOf("-- Restore the exact pre-Stage-3 Production definitions"),
+    sql.indexOf("DO $stage3_rollback_profile_rpc_postflight$"),
+  )
   .replace(/^--.*$/gm, "");
 assert.doesNotMatch(
   restoredFunctionBlock,
@@ -86,4 +89,38 @@ assert.doesNotMatch(
   "the rollback itself must not delete legacy Auth rows or application data",
 );
 assert.doesNotMatch(sql, /INSERT INTO auth[.]users|UPDATE auth[.]users/i);
+
+for (const name of [
+  "public.get_profile_connections",
+  "public.get_public_profile_badge_visibility",
+  "public.get_public_profile_badges",
+  "public.get_public_profile_ui_settings",
+  "public.get_follow_status",
+  "public.get_public_profile_social",
+]) {
+  assert.ok(
+    restoredFunctionBlock.includes("CREATE OR REPLACE FUNCTION " + name),
+    "rollback must restore the pre-Stage-3 profile/social RPC: " + name,
+  );
+}
+assert.doesNotMatch(
+  restoredFunctionBlock,
+  /private\.current_user_is_better_auth|private\.app_users/,
+  "profile/social functions must not depend on the identity root after rollback",
+);
+for (const signature of [
+  "get_profile_connections\\(uuid, text\\)",
+  "get_public_profile_badge_visibility\\(uuid\\)",
+  "get_public_profile_badges\\(uuid\\)",
+  "get_public_profile_ui_settings\\(uuid\\)",
+  "get_follow_status\\(uuid, uuid\\)",
+  "get_public_profile_social\\(uuid\\)",
+]) {
+  assert.match(sql, new RegExp("REVOKE ALL ON FUNCTION public\\." + signature + " FROM PUBLIC, anon, authenticated, service_role;"));
+  assert.match(sql, new RegExp("GRANT EXECUTE ON FUNCTION public\\." + signature + " TO "));
+}
+assert.match(sql, /STAGE3_ROLLBACK_PROFILE_RPC_IDENTITY_HELPER_REMAINS/);
+assert.match(sql, /STAGE3_ROLLBACK_PROFILE_RPC_ROLE_GRANT_MISSING/);
+assert.match(sql, /STAGE3_ROLLBACK_PROFILE_RPC_PUBLIC_GRANT_MISMATCH/);
+
 console.log("Stage 3 rollback contract passed: legacy Auth triggers are restored only by explicit rollback; no old account or credentials are copied.");

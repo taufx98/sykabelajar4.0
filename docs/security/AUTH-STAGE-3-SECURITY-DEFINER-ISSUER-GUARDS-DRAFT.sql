@@ -1189,7 +1189,10 @@ AS $function$
         AND (SELECT auth.uid()) = p_profile_id
       )
       OR COALESCE(p.is_public, false) = true
-      OR private.current_user_is_admin()
+      OR (
+        private.current_user_is_better_auth()
+        AND private.current_user_is_admin()
+      )
     );
 $function$;
 
@@ -1233,7 +1236,10 @@ AS $function$
         private.current_user_is_better_auth()
         AND (SELECT auth.uid()) = p_profile_id
       )
-      OR private.current_user_is_admin()
+      OR (
+        private.current_user_is_better_auth()
+        AND private.current_user_is_admin()
+      )
       OR (
         COALESCE(p.is_public, false) = true
         AND COALESCE(s.show_badge_collection, true) = true
@@ -1259,7 +1265,10 @@ AS $function$
         private.current_user_is_better_auth()
         AND p_profile_id = (SELECT auth.uid())
       )
-      OR private.current_user_is_admin()
+      OR (
+        private.current_user_is_better_auth()
+        AND private.current_user_is_admin()
+      )
       OR COALESCE(pr.is_public, true) = true
     )
   UNION ALL
@@ -1274,7 +1283,10 @@ AS $function$
           private.current_user_is_better_auth()
           AND p_profile_id = (SELECT auth.uid())
         )
-        OR private.current_user_is_admin()
+        OR (
+          private.current_user_is_better_auth()
+          AND private.current_user_is_admin()
+        )
         OR COALESCE(pr2.is_public, true) = true
       )
   )
@@ -1287,7 +1299,10 @@ AS $function$
           private.current_user_is_better_auth()
           AND p_profile_id = (SELECT auth.uid())
         )
-        OR private.current_user_is_admin()
+        OR (
+          private.current_user_is_better_auth()
+          AND private.current_user_is_admin()
+        )
         OR COALESCE(pr3.is_public, true) = true
       )
   )
@@ -1347,6 +1362,8 @@ DECLARE
   v_uid uuid := (SELECT auth.uid());
   v_status text := 'none';
   v_is_public boolean := false;
+  v_is_better_auth_owner boolean := false;
+  v_is_better_auth_admin boolean := false;
 BEGIN
   IF v_uid IS NULL OR NOT private.current_user_is_better_auth() THEN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
@@ -1365,8 +1382,17 @@ BEGIN
     RETURN;
   END IF;
 
-  -- Private social aggregates are only available to the Better Auth owner.
-  IF NOT v_is_public AND v_uid IS DISTINCT FROM p_profile_id THEN
+  -- Private social aggregates are available only to the verified Better Auth
+  -- owner or a currently authorized Better Auth Admin. An old Supabase Auth
+  -- Admin UUID cannot inherit this exception.
+  v_is_better_auth_owner := v_uid IS NOT DISTINCT FROM p_profile_id;
+  v_is_better_auth_admin :=
+    private.current_user_is_better_auth()
+    AND private.current_user_is_admin();
+
+  IF NOT v_is_public
+     AND NOT v_is_better_auth_owner
+     AND NOT v_is_better_auth_admin THEN
     RETURN;
   END IF;
 

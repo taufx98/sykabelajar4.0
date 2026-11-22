@@ -1458,6 +1458,150 @@ CREATE OR REPLACE FUNCTION private.collective_realtime_bind(p_access_token text)
  SET search_path TO 'public', 'private', 'extensions'
 AS $function$ declare v_uid uuid:=auth.uid();v_cp uuid:=private.collective_session_participant(trim(coalesce(p_access_token,'')));v_competition uuid;v_expires timestamptz;begin if v_uid is null then raise exception 'AUTH_REQUIRED';end if;if v_cp is null then raise exception 'COLLECTIVE_SESSION_INVALID';end if;select competition_id into v_competition from public.collective_participants where id=v_cp and status='ACTIVE';if v_competition is null then raise exception 'COLLECTIVE_SESSION_INVALID';end if;select least(s.expires_at,now()+interval '8 hours') into v_expires from public.collective_access_sessions s where s.token_hash=private.hash_collective_token(trim(coalesce(p_access_token,''))) and s.revoked_at is null and s.expires_at>now() and s.session_type='COMPETITION' and s.collective_participant_id=v_cp order by s.created_at desc limit 1;if v_expires is null then raise exception 'COLLECTIVE_SESSION_INVALID';end if;insert into private.collective_chat_realtime_sessions(auth_user_id,collective_participant_id,competition_id,expires_at,updated_at) values(v_uid,v_cp,v_competition,v_expires,now()) on conflict(auth_user_id) do update set collective_participant_id=excluded.collective_participant_id,competition_id=excluded.competition_id,expires_at=excluded.expires_at,updated_at=now();return jsonb_build_object('ok',true,'competition_id',v_competition,'expires_at',v_expires);end;$function$;
 
+
+-- Restore the current Production profile/social RPC definitions before the
+-- Better Auth helper and identity table are removed. These are the captured
+-- pre-Stage-3 definitions from the read-only Production catalog snapshot.
+CREATE OR REPLACE FUNCTION public.get_profile_connections(p_profile_id uuid, p_mode text)
+ RETURNS TABLE(id uuid, username text, full_name text, avatar_url text, verification_type text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$ declare v_allow boolean;begin IF p_mode='following' THEN SELECT coalesce(show_following_popup,true) INTO v_allow FROM public.profile_ui_settings WHERE user_id=p_profile_id; ELSE SELECT coalesce(show_social_popup,true) INTO v_allow FROM public.profile_ui_settings WHERE user_id=p_profile_id; END IF;IF auth.uid()<>p_profile_id AND NOT coalesce(v_allow,true) THEN RETURN;END IF;IF p_mode='following' THEN RETURN QUERY SELECT p.id,p.username,p.full_name,p.avatar_url,p.verification_type FROM public.follows f JOIN public.profiles p ON p.id=f.following_id WHERE f.follower_id=p_profile_id AND f.status IN('approved','auto') ORDER BY p.username;ELSE RETURN QUERY SELECT p.id,p.username,p.full_name,p.avatar_url,p.verification_type FROM public.follows f JOIN public.profiles p ON p.id=f.follower_id WHERE f.following_id=p_profile_id AND f.status IN('approved','auto') ORDER BY p.username;END IF;end;$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_profile_badge_visibility(p_profile_id uuid)
+ RETURNS TABLE(show_badges boolean, show_badge_collection boolean)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+  select
+    coalesce(s.show_badges, true),
+    coalesce(s.show_badge_collection, true)
+  from public.profiles p
+  left join public.profile_ui_settings s on s.user_id = p.id
+  where p.id = p_profile_id
+    and (auth.uid() = p_profile_id or coalesce(p.is_public, false) = true or private.current_user_is_admin());
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_profile_badges(p_profile_id uuid)
+ RETURNS TABLE(id uuid, name text, description text, icon_url text, icon_emoji text, category text, rarity text, awarded_at timestamp with time zone, reason text, award_source text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+  select
+    ub.id,
+    b.name,
+    b.description,
+    b.icon_url,
+    b.icon_emoji,
+    b.category,
+    b.rarity,
+    ub.awarded_at,
+    ub.reason,
+    ub.award_source
+  from public.user_badges ub
+  join public.badges b on b.id = ub.badge_id
+  join public.profiles p on p.id = ub.user_id
+  left join public.profile_ui_settings s on s.user_id = p.id
+  where ub.user_id = p_profile_id
+    and b.status = 'ACTIVE'
+    and (auth.uid() = p_profile_id or private.current_user_is_admin() or (coalesce(p.is_public, false) = true and coalesce(s.show_badge_collection, true) = true));
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_profile_ui_settings(p_profile_id uuid)
+ RETURNS TABLE(show_social_popup boolean, show_following_popup boolean)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$ SELECT COALESCE(s.show_social_popup,true),COALESCE(s.show_following_popup,true) FROM public.profile_ui_settings s JOIN public.profiles pr ON pr.id=s.user_id WHERE s.user_id=p_profile_id AND(p_profile_id=(SELECT auth.uid()) OR private.current_user_is_admin() OR COALESCE(pr.is_public,true)=true) UNION ALL SELECT true,true WHERE NOT EXISTS(SELECT 1 FROM public.profile_ui_settings s2 JOIN public.profiles pr2 ON pr2.id=s2.user_id WHERE s2.user_id=p_profile_id AND(p_profile_id=(SELECT auth.uid()) OR private.current_user_is_admin() OR COALESCE(pr2.is_public,true)=true)) AND EXISTS(SELECT 1 FROM public.profiles pr3 WHERE pr3.id=p_profile_id AND(p_profile_id=(SELECT auth.uid()) OR private.current_user_is_admin() OR COALESCE(pr3.is_public,true)=true)) LIMIT 1; $function$;
+
+CREATE OR REPLACE FUNCTION public.get_follow_status(p_follower_id uuid, p_following_id uuid)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$ begin if auth.uid() is null then raise exception 'UNAUTHORIZED';end if;if p_follower_id is null or p_following_id is null or p_follower_id=p_following_id then return 'none';end if;if auth.uid()<>p_follower_id and auth.uid()<>p_following_id and not public.is_active_admin(auth.uid()) then raise exception 'ACCESS_DENIED';end if;return coalesce((select status from public.follows where follower_id=p_follower_id and following_id=p_following_id limit 1),'none');end;$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_profile_social(p_profile_id uuid)
+ RETURNS TABLE(follower_count bigint, following_count bigint, follow_status text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$ declare v_uid uuid:=auth.uid();v_status text:='none';begin if v_uid is null then raise exception 'UNAUTHORIZED';end if;select case when f.status::text in('approved','auto') then 'approved' when f.status::text='pending' then 'pending' else 'none' end into v_status from public.follows f where f.follower_id=v_uid and f.following_id=p_profile_id limit 1;return query select(select count(*) from public.follows f where f.following_id=p_profile_id and f.status::text in('approved','auto')),(select count(*) from public.follows f where f.follower_id=p_profile_id and f.status::text in('approved','auto')),coalesce(v_status,'none');end;$function$;
+
+-- Restore the exact Production execute surface as well as each function body.
+-- CREATE OR REPLACE preserves ACLs; resetting them explicitly avoids leaving
+-- the Stage 3 PUBLIC/anon revocations in place after rollback.
+REVOKE ALL ON FUNCTION public.get_profile_connections(uuid, text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_profile_connections(uuid, text) TO anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.get_public_profile_badge_visibility(uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_public_profile_badge_visibility(uuid) TO anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.get_public_profile_badges(uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_public_profile_badges(uuid) TO anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.get_public_profile_ui_settings(uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_public_profile_ui_settings(uuid) TO anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.get_follow_status(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_follow_status(uuid, uuid) TO PUBLIC, anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.get_public_profile_social(uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_public_profile_social(uuid) TO PUBLIC, anon, authenticated, service_role;
+
+DO $stage3_rollback_profile_rpc_postflight$
+DECLARE
+  v_function regprocedure;
+  v_definition text;
+  v_public_grants integer;
+BEGIN
+  FOR v_function IN
+    SELECT unnest(ARRAY[
+      'public.get_profile_connections(uuid, text)'::regprocedure,
+      'public.get_public_profile_badge_visibility(uuid)'::regprocedure,
+      'public.get_public_profile_badges(uuid)'::regprocedure,
+      'public.get_public_profile_ui_settings(uuid)'::regprocedure,
+      'public.get_follow_status(uuid, uuid)'::regprocedure,
+      'public.get_public_profile_social(uuid)'::regprocedure
+    ])
+  LOOP
+    v_definition := pg_catalog.pg_get_functiondef(v_function);
+    IF v_definition ILIKE '%private.current_user_is_better_auth%'
+       OR v_definition ILIKE '%private.app_users%' THEN
+      RAISE EXCEPTION 'STAGE3_ROLLBACK_PROFILE_RPC_IDENTITY_HELPER_REMAINS:%', v_function;
+    END IF;
+    IF NOT pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'STAGE3_ROLLBACK_PROFILE_RPC_ROLE_GRANT_MISSING:%', v_function;
+    END IF;
+  END LOOP;
+
+  SELECT count(*) INTO v_public_grants
+  FROM pg_catalog.pg_proc p
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    COALESCE(p.proacl, pg_catalog.acldefault('f', p.proowner))
+  ) AS acl
+  WHERE p.oid IN (
+    'public.get_profile_connections(uuid, text)'::regprocedure,
+    'public.get_public_profile_badge_visibility(uuid)'::regprocedure,
+    'public.get_public_profile_badges(uuid)'::regprocedure,
+    'public.get_public_profile_ui_settings(uuid)'::regprocedure,
+    'public.get_follow_status(uuid, uuid)'::regprocedure,
+    'public.get_public_profile_social(uuid)'::regprocedure
+  )
+    AND acl.grantee = 0
+    AND acl.privilege_type = 'EXECUTE';
+
+  IF v_public_grants <> 2 THEN
+    RAISE EXCEPTION 'STAGE3_ROLLBACK_PROFILE_RPC_PUBLIC_GRANT_MISMATCH:%', v_public_grants;
+  END IF;
+END;
+$stage3_rollback_profile_rpc_postflight$;
+
 -- This helper is introduced only by the Better Auth issuer guard draft.
 
 DROP FUNCTION IF EXISTS private.current_user_is_better_auth();

@@ -221,4 +221,50 @@ assert.match(regression, /RESET ROLE;\s*SET LOCAL ROLE authenticated/);
 assert.doesNotMatch(draft, /^(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-z_]+\s+SET|DELETE FROM)\b/im,
   "draft must not mutate application data or replace RLS policy state");
 
+
+const profileConnections = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.get_profile_connections\([\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(profileConnections, "missing profile-connections RPC replacement");
+assert.match(profileConnections, /COALESCE\(profile\.is_public, false\)/);
+assert.match(profileConnections, /private\.app_users[\s\S]*identity_origin = 'better_auth'/);
+assert.match(profileConnections, /NOT v_profile_is_public[\s\S]*NOT COALESCE\(v_is_better_auth_owner, false\)/);
+
+const profileBadgeVisibility = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.get_public_profile_badge_visibility\([\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(profileBadgeVisibility, /private\.current_user_is_better_auth\(\)\s+AND\s+private\.current_user_is_admin\(\)/);
+
+const profileBadges = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.get_public_profile_badges\([\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(profileBadges, /private\.current_user_is_better_auth\(\)\s+AND\s+private\.current_user_is_admin\(\)/);
+
+const profileUiSettings = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.get_public_profile_ui_settings\([\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.equal(
+  [...profileUiSettings.matchAll(/private\.current_user_is_better_auth\(\)\s+AND\s+private\.current_user_is_admin\(\)/g)].length,
+  3,
+  "every private-profile UI Admin bypass must require Better Auth",
+);
+
+const profileSocial = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.get_public_profile_social\([\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(profileSocial, /v_is_better_auth_admin :=[\s\S]*private\.current_user_is_better_auth\(\)[\s\S]*private\.current_user_is_admin\(\)/);
+assert.match(profileSocial, /IF NOT v_is_public[\s\S]*NOT v_is_better_auth_owner[\s\S]*NOT v_is_better_auth_admin/);
+
+for (const marker of [
+  "STAGE3_LEGACY_ADMIN_PRIVATE_BADGE_VISIBILITY_ALLOWED",
+  "STAGE3_LEGACY_ADMIN_PRIVATE_BADGES_ALLOWED",
+  "STAGE3_LEGACY_ADMIN_PRIVATE_UI_SETTINGS_ALLOWED",
+  "STAGE3_BETTER_AUTH_ADMIN_PRIVATE_BADGE_VISIBILITY_FAILED",
+  "STAGE3_BETTER_AUTH_ADMIN_PRIVATE_BADGES_FAILED",
+  "STAGE3_BETTER_AUTH_ADMIN_PRIVATE_UI_SETTINGS_FAILED",
+  "STAGE3_BETTER_AUTH_ADMIN_PRIVATE_SOCIAL_FAILED",
+]) {
+  assert.ok(regression.includes(marker), "missing verified Admin/private-profile regression: " + marker);
+}
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");

@@ -52,7 +52,8 @@ BEGIN
       RAISE EXCEPTION 'STAGE5_ACL_PREFLIGHT_POLICY_DRIFT:%', v_table.relname;
     END IF;
 
-    -- Require the exact grants observed in the Production catalog review.
+    -- Require the exact grants observed in the Production catalog review, including
+    -- the PostgreSQL 17 MAINTAIN privilege that controls maintenance operations.
     -- If a future schema change alters these assumptions, stop instead of
     -- silently applying a stale privilege draft.
     IF NOT has_table_privilege('anon', v_table.oid, 'SELECT')
@@ -66,9 +67,11 @@ BEGIN
        OR NOT has_table_privilege('anon', v_table.oid, 'TRUNCATE')
        OR NOT has_table_privilege('anon', v_table.oid, 'REFERENCES')
        OR NOT has_table_privilege('anon', v_table.oid, 'TRIGGER')
+       OR NOT has_table_privilege('anon', v_table.oid, 'MAINTAIN')
        OR NOT has_table_privilege('authenticated', v_table.oid, 'TRUNCATE')
        OR NOT has_table_privilege('authenticated', v_table.oid, 'REFERENCES')
-       OR NOT has_table_privilege('authenticated', v_table.oid, 'TRIGGER') THEN
+       OR NOT has_table_privilege('authenticated', v_table.oid, 'TRIGGER')
+       OR NOT has_table_privilege('authenticated', v_table.oid, 'MAINTAIN') THEN
       RAISE EXCEPTION 'STAGE5_ACL_PREFLIGHT_GRANT_DRIFT:%', v_table.relname;
     END IF;
 
@@ -95,7 +98,9 @@ BEGIN
        OR NOT has_table_privilege('postgres', v_table.oid, 'SELECT')
        OR NOT has_table_privilege('postgres', v_table.oid, 'INSERT')
        OR NOT has_table_privilege('postgres', v_table.oid, 'UPDATE')
-       OR NOT has_table_privilege('postgres', v_table.oid, 'DELETE') THEN
+       OR NOT has_table_privilege('postgres', v_table.oid, 'DELETE')
+       OR NOT has_table_privilege('service_role', v_table.oid, 'MAINTAIN')
+       OR NOT has_table_privilege('postgres', v_table.oid, 'MAINTAIN') THEN
       RAISE EXCEPTION 'STAGE5_ACL_PREFLIGHT_TRUSTED_ROLE_GRANT_MISSING:%', v_table.relname;
     END IF;
   END LOOP;
@@ -154,9 +159,11 @@ BEGIN
        OR has_table_privilege('anon', v_table.oid, 'TRUNCATE')
        OR has_table_privilege('anon', v_table.oid, 'REFERENCES')
        OR has_table_privilege('anon', v_table.oid, 'TRIGGER')
+       OR has_table_privilege('anon', v_table.oid, 'MAINTAIN')
        OR has_table_privilege('authenticated', v_table.oid, 'TRUNCATE')
        OR has_table_privilege('authenticated', v_table.oid, 'REFERENCES')
-       OR has_table_privilege('authenticated', v_table.oid, 'TRIGGER') THEN
+       OR has_table_privilege('authenticated', v_table.oid, 'TRIGGER')
+       OR has_table_privilege('authenticated', v_table.oid, 'MAINTAIN') THEN
       RAISE EXCEPTION 'STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS:%', v_table.relname;
     END IF;
 
@@ -179,7 +186,9 @@ BEGIN
        OR NOT has_table_privilege('postgres', v_table.oid, 'SELECT')
        OR NOT has_table_privilege('postgres', v_table.oid, 'INSERT')
        OR NOT has_table_privilege('postgres', v_table.oid, 'UPDATE')
-       OR NOT has_table_privilege('postgres', v_table.oid, 'DELETE') THEN
+       OR NOT has_table_privilege('postgres', v_table.oid, 'DELETE')
+       OR NOT has_table_privilege('service_role', v_table.oid, 'MAINTAIN')
+       OR NOT has_table_privilege('postgres', v_table.oid, 'MAINTAIN') THEN
       RAISE EXCEPTION 'STAGE5_ACL_POSTCONDITION_TRUSTED_ROLE_ACCESS_LOST:%', v_table.relname;
     END IF;
   END LOOP;

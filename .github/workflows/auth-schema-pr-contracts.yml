@@ -1,0 +1,73 @@
+name: Auth Schema PR Contracts
+
+on:
+  pull_request:
+    branches:
+      - security/auth-poc-stage-1
+    paths:
+      - "scripts/auth-migration/**"
+      - "docs/security/**"
+      - ".github/workflows/auth-schema-baseline.yml"
+      - ".github/workflows/auth-schema-pr-contracts.yml"
+      - ".github/workflows/auth-worker-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-schema-pr-contracts-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Stage 3–5 static contracts (no Production secrets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Validate schema-only exporter shell and contract
+        run: |
+          bash -n scripts/auth-migration/export-schema-baseline.sh
+          node scripts/auth-migration/export-schema-baseline.contract.test.mjs
+
+      - name: Verify Production schema workflow cannot expose secrets to PR code
+        run: node scripts/auth-migration/auth-schema-baseline-workflow-security.contract.test.mjs
+
+      - name: Verify exact restored FK catalog contract
+        run: node scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs
+
+      - name: Verify Stage 3 Production metadata parity and 34-function ACL restore
+        run: |
+          node scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs
+          node scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
+          node scripts/auth-migration/generate-stage5-payment-function-acl-restore.test.mjs
+
+      - name: Verify Stage 3 identity, issuer, RLS, and rollback contracts
+        run: |
+          node scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs
+          node scripts/auth-migration/stage3-identity-root-draft.contract.test.mjs
+          node scripts/auth-migration/stage3-issuer-guard.contract.test.mjs
+          node scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs
+          node scripts/auth-migration/stage3-full-rollback-draft.contract.test.mjs
+          node scripts/auth-migration/generate-app-users-fk-plan.test.mjs
+          node scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
+
+      - name: Verify Stage 5 ACL, payment, and Cloudinary boundaries
+        run: |
+          node scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs
+          node scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs
+          node scripts/auth-migration/cloudinary-ownership.test.mjs
+
+      - name: Verify owner bootstrap, organizer fix, and Production isolation
+        run: |
+          node scripts/auth-migration/production-first-admin-bootstrap.contract.test.mjs
+          node scripts/auth-migration/create-organizer-ambiguity-fix.test.mjs
+          node scripts/auth-migration/auth-production-worker-isolation.contract.test.mjs
+          node scripts/auth-migration/export-live-auth-users-fk-plan.contract.test.mjs
