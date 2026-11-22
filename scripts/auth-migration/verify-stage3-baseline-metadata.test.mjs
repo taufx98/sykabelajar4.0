@@ -3,6 +3,7 @@ import { verifyStage3BaselineMetadata } from "./verify-stage3-baseline-metadata.
 
 const makeMetadata = () => ({
   auth_dependent_functions: Array.from({ length: 10 }, (_, i) => ({ name: "function_" + i, definition_md5: "f" + i })),
+  user_scoped_issuer_functions: Array.from({ length: 10 }, (_, i) => ({ name: "user_rpc_" + i, definition_md5: "r" + i })),
   stage5_payment_fulfillment_function: {
     schema_name: "public",
     function_name: "process_payment_gateway_success",
@@ -29,6 +30,7 @@ const restored = structuredClone(production);
 const result = verifyStage3BaselineMetadata(production, restored);
 assert.deepEqual(result, {
   functions: 10,
+  userScopedIssuerFunctions: 10,
   triggers: 7,
   policies: 109,
   policyTables: 61,
@@ -39,6 +41,11 @@ const changedFunction = structuredClone(production);
 changedFunction.auth_dependent_functions[0].definition_md5 = "drift";
 assert.throws(() => verifyStage3BaselineMetadata(production, changedFunction),
   /metadata differs from the production snapshot/);
+
+const missingUserRpc = structuredClone(production);
+missingUserRpc.user_scoped_issuer_functions.pop();
+assert.throws(() => verifyStage3BaselineMetadata(production, missingUserRpc),
+  /metadata count changed for user_scoped_issuer_functions/);
 
 const missingPolicy = structuredClone(production);
 missingPolicy.uid_policies.pop();
