@@ -29,7 +29,9 @@ on:
       - "scripts/auth-migration/stage3-issuer-guard-regression.sql"
       - "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
       - "docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql"
+      - "docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql"
       - "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs"
+      - "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
       - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
       - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
@@ -201,6 +203,10 @@ jobs:
       - name: Test Stage 3 SECURITY DEFINER issuer-guard contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs
+
+      - name: Test all 66 Better Auth user-bound SECURITY DEFINER RPC issuer guards
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs
 
       - name: Test fail-closed Stage 3 reverse FK rollback plan contract
         if: steps.credentials.outputs.available == 'true'
@@ -706,6 +712,19 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-security-definer-issuer-guards.sql
           echo "- Restricted Admin, organizer, and collective Realtime SECURITY DEFINER helper/RPC paths to the Production Better Auth issuer and better_auth identity rows in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply remaining Better Auth user-bound SECURITY DEFINER RPC guards to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql:/baseline/stage3-user-rpc-issuer-guards.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage3-user-rpc-issuer-guards.sql
+          echo "- Added explicit Better Auth issuer + identity-origin guards to 36 additional user-bound SECURITY DEFINER RPCs; exact owner, ACL, search_path, return type and argument metadata preserved in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Stage 3 trusted-issuer RLS acceptance on disposable restore
         if: steps.credentials.outputs.available == 'true'
