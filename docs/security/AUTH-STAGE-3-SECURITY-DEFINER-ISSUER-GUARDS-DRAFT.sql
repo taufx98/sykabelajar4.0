@@ -803,7 +803,7 @@ DECLARE
   v_uid uuid := (SELECT auth.uid());
   v_is_better_auth_owner boolean := false;
 BEGIN
-  IF p_profile_id IS NULL OR p_mode NOT IN ('following', 'followers') THEN
+  IF p_profile_id IS NULL OR p_mode IS NULL OR p_mode NOT IN ('following', 'followers') THEN
     RETURN;
   END IF;
 
@@ -1057,7 +1057,6 @@ AS $function$
 DECLARE
   v_uid uuid := (SELECT auth.uid());
   v_profile_is_public boolean;
-  v_show_social boolean;
   v_is_better_auth_owner boolean;
   v_is_better_auth_admin boolean;
   v_status text := 'none';
@@ -1066,12 +1065,9 @@ BEGIN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
   END IF;
 
-  SELECT
-    COALESCE(p.is_public, true),
-    COALESCE(s.show_social_popup, true)
-  INTO v_profile_is_public, v_show_social
+  SELECT COALESCE(p.is_public, true)
+    INTO v_profile_is_public
   FROM public.profiles AS p
-  LEFT JOIN public.profile_ui_settings AS s ON s.user_id = p.id
   WHERE p.id = p_profile_id;
 
   IF NOT FOUND THEN
@@ -1083,12 +1079,12 @@ BEGIN
     private.current_user_is_better_auth()
     AND private.current_user_is_admin();
 
+  -- Social counters are profile-public data, while the popup preference only
+  -- controls opening the follower/following lists in the UI. Do not confuse
+  -- the list preference with the public visibility of the profile itself.
   IF NOT v_is_better_auth_owner
      AND NOT v_is_better_auth_admin
-     AND (
-       NOT COALESCE(v_profile_is_public, false)
-       OR NOT COALESCE(v_show_social, false)
-     ) THEN
+     AND NOT COALESCE(v_profile_is_public, false) THEN
     RETURN;
   END IF;
 
