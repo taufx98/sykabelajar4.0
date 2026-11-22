@@ -22,6 +22,20 @@ const FUNCTIONS = new Map([
   ["public.claim_rpc_recovery", "public.claim_rpc_recovery(text)"],
   ["public.complete_daily_task", "public.complete_daily_task(uuid)"],
   ["public.create_ad_banner_payment_order", "public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)"],
+  ["public.create_follow_request", "public.create_follow_request(uuid)"],
+  ["public.get_my_canonical_competition_result", "public.get_my_canonical_competition_result(uuid)"],
+  ["public.get_my_canonical_participant", "public.get_my_canonical_participant(uuid)"],
+  ["public.get_my_learning_insights", "public.get_my_learning_insights()"],
+  ["public.get_my_referral_tier_awards", "public.get_my_referral_tier_awards()"],
+  ["public.list_my_canonical_certificates", "public.list_my_canonical_certificates()"],
+  ["public.list_my_claimed_collective_history", "public.list_my_claimed_collective_history()"],
+  ["public.list_my_competition_dashboard", "public.list_my_competition_dashboard()"],
+  ["public.list_my_participant_core", "public.list_my_participant_core()"],
+  ["public.list_my_shop_vouchers", "public.list_my_shop_vouchers()"],
+  ["public.mark_my_shop_vouchers_seen", "public.mark_my_shop_vouchers_seen()"],
+  ["public.remove_follow", "public.remove_follow(uuid)"],
+  ["public.respond_follow_request", "public.respond_follow_request(uuid,boolean)"],
+  ["public.save_my_commerce_product_review", "public.save_my_commerce_product_review(uuid,smallint,text)"],
 ]);
 const ALLOWED_GRANTEES = new Set(["PUBLIC", "anon", "authenticated", "service_role", "postgres"]);
 
@@ -34,7 +48,8 @@ function sqlIdentifier(value) {
 
 function renderFunctionAclRestore(metadata) {
   if (!Array.isArray(metadata?.auth_dependent_functions) ||
-      !Array.isArray(metadata?.user_scoped_issuer_functions)) {
+      !Array.isArray(metadata?.user_scoped_issuer_functions) ||
+      !Array.isArray(metadata?.personal_rpc_issuer_functions)) {
     throw new Error("Stage 3 function ACL metadata groups are missing.");
   }
 
@@ -42,6 +57,7 @@ function renderFunctionAclRestore(metadata) {
   const functionRows = [
     ...metadata.auth_dependent_functions,
     ...metadata.user_scoped_issuer_functions,
+    ...metadata.personal_rpc_issuer_functions,
   ];
   for (const row of functionRows) {
     const key = row.schema_name + "." + row.function_name;
@@ -54,7 +70,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 20 reviewed Stage 3 functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 34 reviewed Stage 3 functions; found " + records.size + ".");
   }
 
   const statements = [
@@ -127,7 +143,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for all 20 Stage 3 functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 34 Stage 3 functions. No database connection was opened.\n"
   );
 }
 
