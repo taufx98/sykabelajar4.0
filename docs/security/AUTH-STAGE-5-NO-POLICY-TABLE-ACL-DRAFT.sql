@@ -62,8 +62,29 @@ BEGIN
        OR NOT has_table_privilege('authenticated', v_table.oid, 'SELECT')
        OR NOT has_table_privilege('authenticated', v_table.oid, 'INSERT')
        OR NOT has_table_privilege('authenticated', v_table.oid, 'UPDATE')
-       OR NOT has_table_privilege('authenticated', v_table.oid, 'DELETE') THEN
+       OR NOT has_table_privilege('authenticated', v_table.oid, 'DELETE')
+       OR NOT has_table_privilege('anon', v_table.oid, 'TRUNCATE')
+       OR NOT has_table_privilege('anon', v_table.oid, 'REFERENCES')
+       OR NOT has_table_privilege('anon', v_table.oid, 'TRIGGER')
+       OR NOT has_table_privilege('authenticated', v_table.oid, 'TRUNCATE')
+       OR NOT has_table_privilege('authenticated', v_table.oid, 'REFERENCES')
+       OR NOT has_table_privilege('authenticated', v_table.oid, 'TRIGGER') THEN
       RAISE EXCEPTION 'STAGE5_ACL_PREFLIGHT_GRANT_DRIFT:%', v_table.relname;
+    END IF;
+
+    -- This reviewed Production baseline has no explicit PUBLIC table ACL.
+    -- If one appears before cutover, stop for a fresh ACL review rather than
+    -- silently accepting an inherited grant that could bypass RLS.
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_class AS acl_table
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        COALESCE(acl_table.relacl, pg_catalog.acldefault('r', acl_table.relowner))
+      ) AS acl
+      WHERE acl_table.oid = v_table.oid
+        AND acl.grantee = 0
+    ) THEN
+      RAISE EXCEPTION 'STAGE5_ACL_PREFLIGHT_PUBLIC_GRANT_DRIFT:%', v_table.relname;
     END IF;
 
     -- Trusted backend and migration-owner grants are prerequisites.
@@ -129,8 +150,26 @@ BEGIN
        OR has_table_privilege('authenticated', v_table.oid, 'SELECT')
        OR has_table_privilege('authenticated', v_table.oid, 'INSERT')
        OR has_table_privilege('authenticated', v_table.oid, 'UPDATE')
-       OR has_table_privilege('authenticated', v_table.oid, 'DELETE') THEN
+       OR has_table_privilege('authenticated', v_table.oid, 'DELETE')
+       OR has_table_privilege('anon', v_table.oid, 'TRUNCATE')
+       OR has_table_privilege('anon', v_table.oid, 'REFERENCES')
+       OR has_table_privilege('anon', v_table.oid, 'TRIGGER')
+       OR has_table_privilege('authenticated', v_table.oid, 'TRUNCATE')
+       OR has_table_privilege('authenticated', v_table.oid, 'REFERENCES')
+       OR has_table_privilege('authenticated', v_table.oid, 'TRIGGER') THEN
       RAISE EXCEPTION 'STAGE5_ACL_POSTCONDITION_BROWSER_GRANT_REMAINS:%', v_table.relname;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_class AS acl_table
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        COALESCE(acl_table.relacl, pg_catalog.acldefault('r', acl_table.relowner))
+      ) AS acl
+      WHERE acl_table.oid = v_table.oid
+        AND acl.grantee = 0
+    ) THEN
+      RAISE EXCEPTION 'STAGE5_ACL_POSTCONDITION_PUBLIC_GRANT_REMAINS:%', v_table.relname;
     END IF;
 
     IF NOT has_table_privilege('service_role', v_table.oid, 'SELECT')
