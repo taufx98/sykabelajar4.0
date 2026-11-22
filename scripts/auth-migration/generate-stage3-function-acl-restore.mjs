@@ -122,7 +122,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for 10 Auth-dependent functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 20 Stage 3 functions. No database connection was opened.\n"
   );
 }
 
