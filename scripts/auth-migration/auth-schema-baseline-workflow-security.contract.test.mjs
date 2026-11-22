@@ -9,6 +9,10 @@ const workflow = readFileSync(
   path.join(root, ".github/workflows/auth-schema-baseline.yml"),
   "utf8",
 );
+const prWorkflow = readFileSync(
+  path.join(root, ".github/workflows/auth-schema-pr-contracts.yml"),
+  "utf8",
+);
 
 const trigger = workflow.match(/^on:\n([\s\S]*?)^permissions:\n/m)?.[1];
 assert.ok(trigger, "Production schema baseline must have a readable trigger block.");
@@ -45,5 +49,12 @@ assert.match(workflow, /^permissions:\n  contents: read$/m,
   "The schema-only baseline must keep read-only repository permissions.");
 assert.doesNotMatch(workflow, /pull_request_target|workflow_run:/,
   "No privileged PR-target or workflow-run event may be added to the secret-bearing workflow.");
+
+assert.match(prWorkflow, /^on:\n  pull_request:/m,
+  "PR contract checks must remain available on pull requests.");
+assert.match(prWorkflow, /^permissions:\n  contents: read$/m,
+  "PR contract checks must use read-only repository permissions.");
+assert.doesNotMatch(prWorkflow, /secrets\.|SUPABASE_DB_URL|CLOUDFLARE_API_TOKEN/,
+  "The PR-safe contract workflow must not receive Production or Cloudflare secrets.");
 
 console.log("Production schema workflow security contract passed: no PR trigger, trusted-branch-only secret job, read-only repository permissions.");
