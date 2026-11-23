@@ -132,6 +132,15 @@ assert.ok(parentPostflight.includes("STAGE7_PORTAL_PARENT_EMPTY_SEARCH_PATH_POST
 assert.ok(parentPostflight.includes("STAGE7_PORTAL_PARENT_EXECUTE_ACL_POSTCONDITION_DRIFT"));
 assert.ok(parentPostflight.includes("STAGE7_PORTAL_PARENT_PRIVATE_SCHEMA_USAGE_POSTCONDITION_FAILED"));
 
+
+assert.match(parentSourcePreflight, /pg_catalog\.aclexplode/);
+assert.match(parentSourcePreflight, /PUBLIC:EXECUTE:false:postgres/);
+assert.match(parentSourcePreflight, /anon:EXECUTE:false:postgres/);
+assert.match(parentSourcePreflight, /authenticated:EXECUTE:false:postgres/);
+assert.match(parentSourcePreflight, /service_role:EXECUTE:false:postgres/);
+assert.match(parentPostflight, /pg_catalog\.aclexplode/);
+assert.match(parentPostflight, /STAGE7_PORTAL_PARENT_EXECUTE_ACL_POSTCONDITION_DRIFT/);
+
 assert.match(migration, /BEGIN;[\s\S]*COMMIT;/);
 const executableMigration = migration.replace(/^--.*$/gm, "");
 assert.doesNotMatch(executableMigration, /\b(?:GRANT|REVOKE)\b/i,
