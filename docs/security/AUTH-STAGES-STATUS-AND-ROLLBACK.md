@@ -1,23 +1,43 @@
-# Current authoritative checkpoint — 22 November 2026
+# Current authoritative checkpoint — 23 November 2026
 
-## Superseding owner directive — clean start from zero (23 November 2026)
+## Superseding owner directive — clean start from zero
 
-This overrides older retention, backup, restore, tombstone, and account-data migration steps below:
-
-- Do not back up, export, migrate, import, merge, backfill, restore, or attach existing demo/test accounts or their user-linked application data to fresh Better Auth identities. No new account/data backup is required or allowed for this cutover.
-- Treat old test accounts and linked test rows as disposable. Only reviewed schema and essential system/configuration records may remain in the clean-start baseline. New users receive fresh Better Auth UUIDs, profiles and roles; email matching never carries old history.
-- Schema-only/catalog exports for disposable tests are allowed only when no application rows, account rows, credentials, or secrets are exported.
-- The historical November 14 archive is not a release gate, migration source, or rollback source. Do not rerun the full backup workflow or restore its rows.
-- No destructive Production data reset or FK change has been executed. Before execution, complete a table-by-table cleanup allowlist, dependency/order analysis, zero-state assertions, and explicit approval of that exact operation. Rollback is code/configuration recovery, not legacy data restoration.
+- No legacy Supabase Auth accounts, passwords, sessions, profiles, roles, referrals, wallets, orders, registrations, exams, participants or other user-linked application rows may be backed up/exported/imported/restored/merged/backfilled or attached to a fresh Better Auth UUID.
+- Old demo/test accounts and user-linked test rows are disposable. New users receive fresh Better Auth UUIDs, profiles and roles; matching email never carries old identity or history.
+- No full account/application-data backup or external checksum is required for this cutover. The 14 November archive is historical only and must never be used as a migration/rollback source.
+- Schema/catalog-only export is allowed for isolated acceptance only when there are no application rows, account rows, credentials or secrets in the fixture.
+- No Production \`DELETE\`, \`TRUNCATE\`, FK switch, account reset or other destructive operation has been run. Before execution, a table-by-table cleanup allowlist, dependency graph, retained system/config exceptions, zero-state assertions and the exact operation must be reviewed and explicitly approved. Rollback after first fresh Better Auth account is code/configuration recovery, not restoration of legacy data.
 
 ## Stage 7 continuation — 23 November 2026
 
-- PRs #212–#215 merged the 68-RPC issuer guard and private-competition visibility corrections. PR #216 merged a read-only diagnostic into the 23-table RLS regression to identify the disposable restore's remaining effective browser privilege; it adds no DDL/DML.
-- PR #216 Auth Schema Contracts, Auth Worker CI, and Supabase Local Auth Claims CI all passed. Post-merge Supabase Local Auth Claims CI also passed.
-- The latest schema-only disposable baseline is run [#45093082455](https://github.com/taufx98/sykabelajar4.0/actions/runs/45093082455). Its export is running; no new diagnostic output or RLS acceptance result is available yet. The previous baseline failure was `anon SELECT` on `public.chat_group_collective_reads` after the isolated Stage 5 ACL rehearsal. No Production database or staging environment was changed.
-- Stage 7 remains NO-GO: the 23-table disposable RLS check, 14 participant portal RPC runtime test, full rollback/payment/Cloudinary sequence, and 202-function SECURITY DEFINER audit are not yet accepted.
+- PRs #212–#215 hardened the 68 user-bound RPC issuer checks and corrected private competition visibility.
+- PRs #216, #218, #219, #221 and #222 fixed the disposable ACL diagnostics/restore and contract tests. The schema-only restore now reconstructs the reviewed Production no-browser ACL boundary for 17 tables locally only; three separately reviewed Stage 5 tables remain under their dedicated draft.
+- PR #217/#220 aligned the roadmap, runbook and FK design to clean-start. PR #223 replaced the tombstone-seeding FK generator with zero-start preflight: empty \`private.app_users\`, all 69 child FK source columns empty, no row-seeding SQL.
+- PRs #224/#225 extended portal acceptance: all 14 invalid-token RPCs are denied; a valid token opens only its own private competition, starts the linear exam, autosaves, answers, skips/completes, and does not expose the answer key.
+- PR #229 tests that the same fresh Better Auth Admin UUID/profile/role is denied when its JWT issuer is changed to Supabase Auth; no legacy identity row is seeded.
+- PR #231 hardened participant access tokens to the active parent portal session, credential version and identity state. Parent revocation cascades to children; child expiry cannot exceed parent; disabled/rotated credentials, suspended identities and expired parents invalidate child tokens.
+- PR #233 preserves the Production catalog's original \`VOLATILE\` declarations for \`private.collective_session_participant(text)\` and \`public.get_collective_participant_certificate(text)\`.
+- Final schema-only Production-shaped PostgreSQL 17.6 baseline [#45100444988](https://github.com/taufx98/sykabelajar4.0/actions/runs/45100444988) passed **62/62 steps** after PR #233. This includes the 69-FK zero-start/rollback rehearsal, Stage 3 issuer/RLS checks, Stage 5 ACL/Edge two-user checks, 23-table RLS runtime, 14 portal invalid-token RPCs, valid-token linear exam flow, parent-session lifecycle regressions and full rollback. It contains schema/catalog data only and did not mutate Production.
+- The 202 public/authenticated \`SECURITY DEFINER\` review remains **0/202 accepted**. Triage classifications and runtime evidence do not replace per-signature review of source rationale, owner/search_path/ACL fingerprint, old issuer denial, valid Better Auth/public behavior and IDOR/token boundary.
+- The exact Production zero-start cleanup allowlist/dependency order is not yet approved or executed. The owner-gated provisioning workflow is being updated to replace the obsolete backup-checksum prerequisite with a read-only clean-state check: empty \`private.app_users\` and all 69 child FK columns empty. It will fail closed and will not delete data.
+- Production SendPulse provider row, server-only provisioning binding, first owner/OTP, genuine Production OIDC token acceptance, first Admin and frontend cutover are still pending.
 
-**Provider decision:** SendPulse remains the approved transactional-email provider. No alternate provider is to be configured.
+## Current Production release decision
+
+**Stage 7 remains NO-GO.** The 62-step result proves disposable schema/security acceptance only; it is not approval for Production cleanup or DDL. No Production DB2 DDL/DML, row cleanup, account migration, FK change, issuer policy, Worker config activation, or first account was executed.
+
+Outstanding gates:
+- Complete and explicitly approve the 69-FK/table-by-table clean-start cleanup allowlist and dependency ordering; identify which user-owned rows are disposable and which system/configuration records (if any) must remain with nullable attribution cleared.
+- Complete all 202 public/authenticated \`SECURITY DEFINER\` source/authorization reviews and per-function acceptance evidence (currently 0/202).
+- Configure and verify the Production SendPulse provider and server-only provisioning key while public signup remains closed.
+- Apply the reviewed Production cleanup/FK/identity/issuer operations only after exact approval and immediate live-catalog/zero-state preflight.
+- Bootstrap the pinned verified owner, prove OTP and real Production OIDC/Data API acceptance, then grant first Admin and complete the frontend/API smoke/rollback.
+
+Production flags remain \`AUTH_SIGNUP_DISABLED=true\` and \`SUPABASE_PROVISIONING_ENABLED=false\`. The dedicated closed Production Worker and registered OIDC issuer remain in place; the public frontend is not cut over.
+
+**Provider decision:** SendPulse remains the approved transactional-email provider. Do not configure another provider.
+
+---
 
 ## Stage 7 least-privilege ACL rehearsal — 22 November 2026
 
