@@ -44,7 +44,7 @@ BEGIN
      OR v_key_length_min<>64
      OR v_key_length_max<>64 THEN
     RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_5000_PASSWORD_SCALE_PROBE_FAILED:%:%:%:%:%:%',
-      v_total,v_distinct_prefixes,v_distinct_keys,v_key_length_min,v_key_length_max;
+      v_total,v_distinct_prefixes,v_distinct_selectors,v_distinct_keys,v_key_length_min,v_key_length_max;
   END IF;
 END;
 $stage7_portal_lookup_scale_probe$;
