@@ -6,10 +6,9 @@
 -- Better Auth + Cloudflare D1 owns all new passwords, OAuth credentials,
 -- external identities and sessions. No Supabase Auth account is migrated.
 -- private.app_users is the FK parent and verification projection for new
--- Better Auth UUIDs. A separate generated FK plan may seed UUID-only
--- legacy_reference tombstones for existing application rows; those are not
--- login accounts and contain no email, verification, password, session or role
--- transfer. New Better Auth users are provisioned through server-only RPCs.
+-- Better Auth UUIDs. The identity root starts empty; no legacy UUID tombstones,
+-- account rows, or application data are copied. New Better Auth users are
+-- provisioned through server-only RPCs only after the clean-start cutover.
 
 BEGIN;
 
@@ -23,7 +22,7 @@ CREATE TABLE private.app_users (
   phone_verification_provider text,
   phone_verification_subject text,
   identity_origin text NOT NULL DEFAULT 'better_auth'
-    CHECK (identity_origin IN ('better_auth', 'legacy_reference'))
+    CHECK (identity_origin = 'better_auth')
 );
 
 COMMENT ON TABLE private.app_users IS
@@ -44,11 +43,9 @@ ALTER TABLE private.app_users ENABLE ROW LEVEL SECURITY;
 -- their owner (postgres) performs the narrowly scoped projection writes.
 REVOKE ALL ON TABLE private.app_users FROM PUBLIC, anon, authenticated, service_role;
 
--- No SELECT from auth.users and no legacy-account backfill is performed.
--- Any UUID-only legacy_reference tombstones are generated from the exact 69
--- application FK source columns by generate-app-users-fk-plan.mjs and are
--- applied separately before FK expansion. Such tombstones preserve data
--- relationships only; they are not authenticatable Better Auth users.
+-- No SELECT from auth.users, legacy-account backfill, or row-preserving
+-- tombstone seed is permitted. The zero-start FK plan requires this table and
+-- every one of the 69 application FK source columns to be empty before rehome.
 
 -- Auth-dependent application lookups now use the common UUID identity root.
 CREATE OR REPLACE FUNCTION private.apply_referral_qualification(p_referred_user_id uuid, p_activity text, p_occurred_at timestamp with time zone)
@@ -1124,7 +1121,7 @@ REVOKE ALL ON FUNCTION private.process_referral_email_confirmation()
 -- Production gates — this draft does not perform the FK cutover itself:
 -- 1. Review and execute only on a complete disposable schema-only PostgreSQL 17.6 restore.
 -- 2. Generate the 69-FK plan from the live catalog and inspect all three phases.
--- 3. Seed only required UUID tombstones, then expand, validate every replacement FK, then do one atomic cutover.
+-- 3. Require an empty identity root and all 69 child FK columns empty; then expand, validate and atomically cut over the FKs.
 -- 4. Run the full production-shaped regression and Better Auth provisioning/email/phone tests.
 -- 5. Verify issuer restriction, hosted OIDC, frontend/backend gates and rollback.
 -- 6. Keep production Supabase, production Worker/DNS and all live accounts unchanged.

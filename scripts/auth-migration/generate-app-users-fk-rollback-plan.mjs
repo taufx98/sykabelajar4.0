@@ -64,15 +64,14 @@ function boundedGuard() {
     "$$;",
   ].join("\n");
 }
-function orphanGuard(fk) {
+function zeroStartFkGuard(fk) {
   const column = qi(fk.source_columns[0], "source_column");
   return [
     "  IF EXISTS (",
     "    SELECT 1 FROM " + rel(fk) + " AS child",
-    "    LEFT JOIN auth.users AS legacy_user ON legacy_user.id = child." + column,
-    "    WHERE child." + column + " IS NOT NULL AND legacy_user.id IS NULL",
+    "    WHERE child." + column + " IS NOT NULL",
     "  ) THEN",
-    "    RAISE EXCEPTION " + ql("ROLLBACK_AUTH_USER_ORPHANS: " + fk.source_schema + "." + fk.source_table + "." + fk.source_columns[0]) + ";",
+    "    RAISE EXCEPTION " + ql("ROLLBACK_ZERO_START_FK_REFERENCE_PRESENT: " + fk.source_schema + "." + fk.source_table + "." + fk.source_columns[0]) + ";",
     "  END IF;",
   ].join("\n");
 }
@@ -87,8 +86,8 @@ function groups(records) {
 
 /**
  * This generator reverses only the 69 application FK targets, and only while
- * every identity UUID still exists in auth.users. It must fail closed once a
- * Better Auth-only identity has been provisioned: never create shadow Auth rows.
+ * the zero-start baseline is still empty. It must fail closed as soon as a
+ * fresh Better Auth identity or any application reference has been created.
  * It does not drop private.app_users or restore functions/triggers/issuer policy.
  */
 export function generateRollbackPlan(snapshot) {
@@ -101,7 +100,7 @@ export function generateRollbackPlan(snapshot) {
     "-- Reverse target: private.app_users(id) -> auth.users(id)",
     "-- This reverses FK targets only; it does not delete Better Auth identities,",
     "-- drop private.app_users, restore functions/triggers, or remove issuer guards.",
-    "-- HARD STOP: every private.app_users.id must still exist in auth.users.",
+    "-- HARD STOP: private.app_users and every legacy application FK source column must remain empty.",
     "-- Never create shadow auth.users rows or copy credentials to make rollback pass.",
     "-- REQUIRED: finite lock_timeout and statement_timeout chosen from workload data.",
     "-- Expand/validate are bounded per-source-table commits; cutover is globally atomic.",
@@ -112,11 +111,7 @@ export function generateRollbackPlan(snapshot) {
     "  IF to_regclass('auth.users') IS NULL OR to_regclass('private.app_users') IS NULL THEN",
     "    RAISE EXCEPTION 'ROLLBACK_IDENTITY_TABLE_MISSING';",
     "  END IF;",
-    "  IF EXISTS (",
-    "    SELECT 1 FROM private.app_users AS app_user",
-    "    LEFT JOIN auth.users AS legacy_user ON legacy_user.id = app_user.id",
-    "    WHERE legacy_user.id IS NULL",
-    "  ) THEN",
+    "  IF EXISTS (SELECT 1 FROM private.app_users) THEN",
     "    RAISE EXCEPTION 'ROLLBACK_BLOCKED_BETTER_AUTH_ONLY_IDENTITY_EXISTS';",
     "  END IF;",
     ...records.flatMap((fk, index) => {
@@ -136,7 +131,7 @@ export function generateRollbackPlan(snapshot) {
           "    RAISE EXCEPTION " + ql("ROLLBACK_TEMP_FK_NAME_COLLISION: " + temp) + ";",
           "  END IF;",
         ].join("\n"),
-        orphanGuard(fk),
+        zeroStartFkGuard(fk),
       ];
     }),
   ];
@@ -227,14 +222,11 @@ export function generateRollbackPlan(snapshot) {
     ].join("\n");
   });
   const cutoverIdentityGuard = [
-    "  IF EXISTS (",
-    "    SELECT 1 FROM private.app_users AS app_user",
-    "    LEFT JOIN auth.users AS legacy_user ON legacy_user.id = app_user.id",
-    "    WHERE legacy_user.id IS NULL",
-    "  ) THEN",
+    "  IF EXISTS (SELECT 1 FROM private.app_users) THEN",
     "    RAISE EXCEPTION 'ROLLBACK_BLOCKED_BETTER_AUTH_ONLY_IDENTITY_EXISTS';",
     "  END IF;",
-  ].join("\n");
+    ...records.map((fk) => zeroStartFkGuard(fk)),
+  ].join("\n\n");
   const statements = records.flatMap((fk, index) => [
     "ALTER TABLE " + rel(fk) + " DROP CONSTRAINT " + qi(fk.name, "current_constraint_name") + ";",
     "ALTER TABLE " + rel(fk) + " RENAME CONSTRAINT " + qi(tempName(fk, index), "temporary_constraint_name") +
