@@ -17,8 +17,15 @@ test("Production provisioning activation is manual, owner-only, and exact-target
   assert.match(workflow, /mvdczyitbkxkldjughor/);
 });
 
-test("Production provisioning activation requires off-GitHub backup and complete definer audit", () => {
-  assert.match(workflow, /PRODUCTION_DB2_BACKUP_SHA256/);
+test("Production provisioning activation requires a complete definer audit and clean zero-start identity state", () => {
+  assert.doesNotMatch(workflow, /PRODUCTION_DB2_BACKUP_SHA256/);
+  assert.match(workflow, /ZERO_START_IDENTITY_ROOT_NOT_EMPTY/);
+  assert.match(workflow, /ZERO_START_FK_COLUMN_NOT_EMPTY/);
+  assert.match(workflow, /ZERO_START_FK_COUNT_DRIFT/);
+  assert.match(workflow, /ZERO_START_OK_69/);
+  assert.match(workflow, /APP_USERS_ROWS.*= \"0\"/);
+  assert.match(workflow, /NON_BETTER_AUTH_ROWS.*= \"0\"/);
+  assert.doesNotMatch(workflow, /legacy_reference|UUID-only legacy reference tombstones/);
   assert.ok(workflow.includes("AUTH-STAGE-7-SECURITY-DEFINER-INVENTORY-2026-11-21.json"));
   assert.match(workflow, /inventorySignatures/);
   assert.ok(workflow.includes("production-definer-live.json"));
@@ -63,6 +70,9 @@ test("Only the server-only Production provisioning binding is accepted", () => {
 
 test("Stage 3 identity-root and 69-FK preconditions are read-only verified before deployment", () => {
   assert.match(workflow, /private\.app_users/);
+  assert.match(workflow, /ZERO_START_IDENTITY_ROOT_NOT_EMPTY/);
+  assert.match(workflow, /ZERO_START_FK_COLUMN_NOT_EMPTY/);
+  assert.match(workflow, /ZERO_START_FK_COUNT_DRIFT/);
   assert.match(workflow, /better_auth_provision_user/);
   assert.match(workflow, /better_auth_complete_email_verification/);
   assert.match(workflow, /APP_USERS_FKS.*69/);
