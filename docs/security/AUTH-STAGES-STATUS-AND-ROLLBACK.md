@@ -1,5 +1,22 @@
 # Current authoritative checkpoint — 22 November 2026
 
+## Superseding owner directive — clean start from zero (23 November 2026)
+
+This overrides older retention, backup, restore, tombstone, and account-data migration steps below:
+
+- Do not back up, export, migrate, import, merge, backfill, restore, or attach existing demo/test accounts or their user-linked application data to fresh Better Auth identities. No new account/data backup is required or allowed for this cutover.
+- Treat old test accounts and linked test rows as disposable. Only reviewed schema and essential system/configuration records may remain in the clean-start baseline. New users receive fresh Better Auth UUIDs, profiles and roles; email matching never carries old history.
+- Schema-only/catalog exports for disposable tests are allowed only when no application rows, account rows, credentials, or secrets are exported.
+- The historical November 14 archive is not a release gate, migration source, or rollback source. Do not rerun the full backup workflow or restore its rows.
+- No destructive Production data reset or FK change has been executed. Before execution, complete a table-by-table cleanup allowlist, dependency/order analysis, zero-state assertions, and explicit approval of that exact operation. Rollback is code/configuration recovery, not legacy data restoration.
+
+## Stage 7 continuation — 23 November 2026
+
+- PRs #212–#215 merged the 68-RPC issuer guard and private-competition visibility corrections. PR #216 merged a read-only diagnostic into the 23-table RLS regression to identify the disposable restore's remaining effective browser privilege; it adds no DDL/DML.
+- PR #216 Auth Schema Contracts, Auth Worker CI, and Supabase Local Auth Claims CI all passed. Post-merge Supabase Local Auth Claims CI also passed.
+- The latest schema-only disposable baseline is run [#45093082455](https://github.com/taufx98/sykabelajar4.0/actions/runs/45093082455). Its export is running; no new diagnostic output or RLS acceptance result is available yet. The previous baseline failure was `anon SELECT` on `public.chat_group_collective_reads` after the isolated Stage 5 ACL rehearsal. No Production database or staging environment was changed.
+- Stage 7 remains NO-GO: the 23-table disposable RLS check, 14 participant portal RPC runtime test, full rollback/payment/Cloudinary sequence, and 202-function SECURITY DEFINER audit are not yet accepted.
+
 **Provider decision:** SendPulse remains the approved transactional-email provider. No alternate provider is to be configured.
 
 ## Stage 7 least-privilege ACL rehearsal — 22 November 2026
@@ -9,14 +26,14 @@
 - Post-merge Auth Worker CI [#44968023698](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023698), Supabase Local Auth Claims CI [#44968023980](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023980), and read-only Cloudflare staging preflight [#44968023648](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023648) all passed.
 - Auth Production Schema Baseline [#44968023703](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023703) passed all 50 steps. It exported the Production schema without Production DDL/DML, restored a schema-only copy to an isolated PostgreSQL 17.6 Supabase stack, rehearsed Stage 3 identity/FK/issuer/rollback and Stage 5 Edge checks, and successfully applied the ACL draft only to the disposable database. The SQL pre/post assertions passed. No Production application rows, Auth rows, ACLs, FK, RLS policy, Cloudflare resource or staging resource was changed.
 - The three broad-grant tables remain **catalog-reviewed, not fully RLS acceptance-reviewed**. The 23-table RLS matrix remains `blocked_unreviewed`, 0/23 accepted. The disposable ACL pass proves the reviewed privilege transition, not all public, scheduler, Admin, organizer or service-role business callers.
-- The owner clarification is unchanged: legacy Supabase Auth users/identities/sessions are demo/testing only, are not imported into Better Auth, and are not a cutover blocker. New accounts use fresh Better Auth UUIDs; application FK/data structure remains separately protected.
+- The 23 November clean-start directive supersedes older data-retention steps: no legacy account or user-linked application data is imported, copied or attached to new identities. New accounts use fresh Better Auth UUIDs; the zero-start reset scope and application FK/schema changes remain separately reviewed.
 
 ## Current Production release decision
 
 **Stage 7 remains NO-GO.** The successful disposable run is not Production approval. No Production DB2 DDL/DML, FK change, Auth trigger retirement, issuer policy, function ACL or first-account creation was executed.
 
 Outstanding gates remain:
-- Independently verify the off-GitHub full-backup destination SHA-256 and record it as the private release attestation/Actions secret.
+- Complete the reviewed zero-start Production data-cleanup allowlist, dependency order and zero-state assertions; no account/data backup or restore is part of this release.
 - Review and test all 202 exposed `SECURITY DEFINER` functions; the machine-readable allowlist remains 0/202 accepted.
 - Complete the 23 application-table RLS/GRANT review; only three have catalog notes and the scoped ACL rehearsal.
 - Apply the Stage 3 identity root/69 application FK/three legacy-trigger retirement transaction only after fresh preflight and exact DDL approval.
